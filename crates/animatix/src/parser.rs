@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Property, Stmt};
+use crate::ast::{Expr, Property, Stmt, Time};
 use chumsky::prelude::*;
 
 pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
@@ -29,8 +29,18 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     });
 
     let keyframe = just('#')
-        .ignore_then(none_of(" \t\r\n").repeated().collect::<String>())
-        .map(Stmt::Keyframe)
+        .ignore_then(
+            text::int(10)
+                .then(just('.').ignore_then(text::digits(10)).or_not())
+                .to_slice()
+                .from_str()
+                .unwrapped(),
+        )
+        .then_ignore(just('s'))
+        .map(|v: f64| Stmt::Keyframe {
+            time: Time::Seconds(v),
+            body: vec![],
+        })
         .padded();
 
     let let_decl = text::keyword("let")
@@ -61,28 +71,25 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 .or_not()
                 .map(|p| p.unwrap_or_default()),
         )
-        .map(|((label, ty), props)| Stmt::ActorDecl { label, ty, props })
+        .map(|((label, ty), props)| Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            children: vec![],
+        })
         .padded();
 
     let assignment = ident
         .clone()
-        .then(
-            just('.')
-                .ignore_then(ident.clone())
-                .repeated()
-                .collect::<Vec<_>>(),
-        )
-        .map(|(base, parts): (String, Vec<String>)| {
-            let mut target = base;
-            for part in parts {
-                target.push('.');
-                target.push_str(&part);
-            }
-            target
-        })
+        .then_ignore(just('.'))
+        .then(ident.clone())
         .then_ignore(just('=').padded())
         .then(expr)
-        .map(|(target, value)| Stmt::Assignment { target, value })
+        .map(|((target, property), value)| Stmt::Assignment {
+            target,
+            property,
+            value,
+        })
         .padded();
 
     let stmt = choice((keyframe, let_decl, actor_decl, assignment));
@@ -98,7 +105,13 @@ mod tests {
     fn test_keyframe() {
         let src = "#1.5s";
         let ast = parser().parse(src).into_result().unwrap();
-        assert_eq!(ast, vec![Stmt::Keyframe("1.5s".to_string())]);
+        assert_eq!(
+            ast,
+            vec![Stmt::Keyframe {
+                time: Time::Seconds(1.5),
+                body: vec![]
+            }]
+        );
     }
 
     #[test]
@@ -127,6 +140,7 @@ mod tests {
                     name: "radius".to_string(),
                     value: Expr::Num(50.0),
                 }],
+                children: vec![],
             }]
         );
     }
