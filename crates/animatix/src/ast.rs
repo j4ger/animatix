@@ -194,6 +194,7 @@ pub enum Stmt {
         label: String,
         ty: String,
         props: Vec<Property>,
+        modifiers: Vec<Modifier>,
         children: Vec<InlineItem>, // For containers: Row { A, B }
     },
 
