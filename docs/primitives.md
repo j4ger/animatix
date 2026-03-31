@@ -173,12 +173,12 @@ The engine automatically selects the best rendering strategy based on the primit
 ## SDF (Signed Distance Field)
 - **Used for:** Circle, Rect, Ellipse, Arc, Text
 - **Benefits:** Resolution independent, smooth edges, GPU efficient
-- **Behavior:** Shapes are defined by mathematical formulas in the shader
+- **Behavior:** Shapes are defined by mathematical formulas in the shader and rendered on tightly bounded quads.
 
 ## Vertex (Mesh)
 - **Used for:** Path, Polygon, Line, Svg, Image
 - **Benefits:** Arbitrary shapes, supports complex geometry
-- **Behavior:** Shapes are tessellated into vertices on CPU or GPU
+- **Behavior:** Shapes are tessellated into vertices on CPU or GPU.
 
 ---
 
@@ -196,27 +196,47 @@ All primitives share the following standard properties.
 
 ---
 
-# 7. Morphing Support
+# 7. Multi-Strategy Morphing
 
-Primitives support automatic morphing when re-declared at a new keyframe.
+Primitives support automatic morphing when re-declared at a new keyframe. Taking inspiration from advanced animation engines like Manim, Animatix utilizes a **Multi-Strategy** morphing algorithm determined automatically during scene compilation, which can be overridden by user modifiers.
 
-## Compatible Morphs
-- **Circle to Rect:** Uses SDF interpolation
-- **Circle to Polygon:** Uses SDF or Vertex resampling
-- **Text to Text:** Uses glyph matching
-- **Path to Path:** Uses point-match morphing (Warning: Automatic vertex resampling between disparate paths may cause self-intersection or looping artifacts).
+## Strategies
 
-## Incompatible Morphs
-- **Shape to Text:** Uses fade strategy
-- **Complex Path to Simple Shape:** Uses fade strategy
+### Parametric (`strategy: parametric`)
+- **Behavior:** Smooth mathematical interpolation between compatible parameters (e.g., radius, width, corner rounding).
+- **Compatible Types:** Circle to Rect, Rect to Rect, Circle to Rounded Rect.
+- **Result:** Perfect geometric transitions with zero ghosting or artifacts executed in a single SDF shader pass.
 
-## Strategy Override
-Users can force a specific morph strategy using modifiers.
+### Point-Match (`strategy: point_match`)
+- **Behavior:** The engine normalizes the vertex count between two shapes and linearly (or curved via `path_arc`) interpolates the point positions.
+- **Compatible Types:** Path to Path, Polygon to Polygon. 
+- **Auto-Tessellation:** If an SDF shape (like a Circle) morphs into a Path, the engine will automatically tessellate the Circle into a mesh and use Point-Matching to transition cleanly into the target Path.
+
+### Fade Transform (`strategy: fade_transform`)
+- **Behavior:** Scales and fades the source into the target simultaneously, handling completely mismatched geometries.
+- **Compatible Types:** Any to Any.
+- **Result:** Source shrinks/grows toward the target bounds while cross-fading.
+
+### Cross-Fade (`strategy: cross_fade`)
+- **Behavior:** Standard opacity cross-fade in-place where the source fades out while the target fades in.
+- **Compatible Types:** Text to Shape, Image to Code, or Complex SVG to Simple Shape.
+
+### Match Shapes (`strategy: match_shapes`)
+- **Behavior:** Deconstructs compound shapes (like text or SVGs) and morphs geometrically matching sub-components.
+- **Compatible Types:** Text to Text, SVG to SVG.
+
+## Modifiers
+You can tweak the morphing behavior using optional modifiers:
+- `path_arc`: Number (radians) - Curves the trajectory of points during a morph instead of moving them in a straight line.
+- `stretch`: Boolean - Whether the source stretches to fit the target bounds during `fade_transform` or `point_match` (Default: `true`).
 
 **Example:**
 ```animatix
+#0s
+  shape: Circle, radius: 50, color: red, at: (0, 0)
 #2s
-shape: Rect, ... [2s, strategy: fade]
+  # Force point-match and curve the trajectory with path_arc
+  shape: Polygon, sides: 5, at: (100, 100) [2s, strategy: point_match, path_arc: 3.14]
 ```
 
 ---
@@ -238,17 +258,11 @@ shape: Rect, ... [2s, strategy: fade]
   appear {title, formula} [1s]
 ```
 
-## SVG Icon
+## Morphing with Modifiers
 ```animatix
 #0s
-  logo: Svg, path: "assets/logo.svg", at: (50%, 50%)
-  appear logo [1s]
-```
-
-## Morphing Example
-```animatix
-#0s
-  shape: Circle, radius: 50, color: red
+  box: Rect, width: 50, height: 50, color: red, at: (10, 10)
 #2s
-  shape: Rect, width: 100, height: 100, color: red [2s]
+  # Transform into text using a fade transform
+  box: Text, content: "Done!", color: white, at: (50, 50) [1.5s, strategy: fade_transform, stretch: false]
 ```
