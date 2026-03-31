@@ -34,42 +34,24 @@ const INDICES: &[u16] = &[0, 1, 2, 1, 3, 2];
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct InstanceRaw {
+struct SdfInstance {
     position: [f32; 2],
     size: [f32; 2],
-    color: [f32; 4],
-    is_circle: u32,
-}
-
-impl InstanceRaw {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Uint32,
-                },
-            ],
-        }
-    }
+    uv_rect: [f32; 4],
+    shape_params: [f32; 4],
+    fill_color: [f32; 4],
+    stroke_color: [f32; 4],
+    stroke_width: f32,
+    glow_radius: f32,
+    opacity: f32,
+    shape_type: u32,
+    target_position: [f32; 2],
+    target_size: [f32; 2],
+    target_shape_params: [f32; 4],
+    target_shape_type: u32,
+    shape_blend: f32,
+    _padding1: [f32; 2],
+    morph_params: [f32; 4],
 }
 
 #[repr(C)]
@@ -127,7 +109,7 @@ fn parse_color(expr: &Expr) -> [f32; 4] {
     }
 }
 
-fn build_instances(ast: &[Stmt]) -> Vec<InstanceRaw> {
+fn build_instances(ast: &[Stmt]) -> Vec<SdfInstance> {
     let mut instances = Vec::new();
 
     for stmt in ast {
@@ -177,11 +159,24 @@ fn build_instances(ast: &[Stmt]) -> Vec<InstanceRaw> {
                         }
                     }
 
-                    instances.push(InstanceRaw {
+                    instances.push(SdfInstance {
                         position: pos,
                         size,
-                        color,
-                        is_circle,
+                        uv_rect: [0.0; 4],
+                        shape_params: [0.0; 4],
+                        fill_color: color,
+                        stroke_color: [0.0; 4],
+                        stroke_width: 0.0,
+                        glow_radius: 0.0,
+                        opacity: 1.0,
+                        shape_type: is_circle,
+                        target_position: pos,
+                        target_size: size,
+                        target_shape_params: [0.0; 4],
+                        target_shape_type: is_circle,
+                        shape_blend: 0.0,
+                        _padding1: [0.0; 2],
+                        morph_params: [0.0; 4],
                     });
                 }
             }
@@ -202,14 +197,14 @@ struct State {
     index_buffer: wgpu::Buffer,
     instance_buffer: Option<wgpu::Buffer>,
     camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
+    bind_group: wgpu::BindGroup,
     num_indices: u32,
     num_instances: u32,
     camera_uniform: CameraUniform,
 }
 
 impl State {
-    async fn new(window: Arc<Window>, instances: &[InstanceRaw]) -> Self {
+    async fn new(window: Arc<Window>, instances: &[SdfInstance]) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -270,9 +265,35 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
+        let instance_buffer = if !instances.is_empty() {
+            Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Instance Buffer"),
+                    contents: bytemuck::cast_slice(instances),
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                }),
+            )
+        } else {
+            None
+        };
+
+        let dummy_buffer = if instance_buffer.is_none() {
+            Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Dummy Instance Buffer"),
+                size: std::mem::size_of::<SdfInstance>() as wgpu::BufferAddress,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            }))
+        } else {
+            None
+        };
+        let bind_group_instance_buffer = instance_buffer
+            .as_ref()
+            .unwrap_or_else(|| dummy_buffer.as_ref().unwrap());
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
@@ -281,17 +302,34 @@ impl State {
                         min_binding_size: None,
                     },
                     count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("bind_group_layout"),
+        });
 
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: bind_group_instance_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("bind_group"),
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -304,7 +342,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -314,14 +352,11 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x2],
-                    },
-                    InstanceRaw::desc(),
-                ],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2],
+                }],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -364,18 +399,6 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let instance_buffer = if !instances.is_empty() {
-            Some(
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Instance Buffer"),
-                    contents: bytemuck::cast_slice(instances),
-                    usage: wgpu::BufferUsages::VERTEX,
-                }),
-            )
-        } else {
-            None
-        };
-
         Self {
             surface,
             device,
@@ -387,7 +410,7 @@ impl State {
             index_buffer,
             instance_buffer,
             camera_buffer,
-            camera_bind_group,
+            bind_group,
             num_indices: INDICES.len() as u32,
             num_instances: instances.len() as u32,
             camera_uniform,
@@ -445,15 +468,11 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
 
-            if let Some(instance_buffer) = &self.instance_buffer {
-                render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                render_pass
-                    .set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..self.num_indices, 0, 0..self.num_instances);
-            }
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.num_instances);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -466,7 +485,7 @@ impl State {
 struct App {
     window: Option<Arc<Window>>,
     state: Option<State>,
-    instances: Vec<InstanceRaw>,
+    instances: Vec<SdfInstance>,
 }
 
 impl ApplicationHandler for App {

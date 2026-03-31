@@ -16,7 +16,7 @@ The rendering process is divided into three distinct passes. Each pass renders t
 
 ## Pass 1: Base Shapes (SDF + Mesh)
 - **Purpose:** Render all fundamental geometry (fills, strokes, glow, images, text).
-- **Input:** Instance buffers (SDF and Mesh), Vertex buffers, Uniforms.
+- **Input:** Storage buffers (SDF instances and Mesh data), Vertex buffers, Uniforms.
 - **Output:** Main Texture (Color + Alpha).
 - **Technique:** 
   - **SDF Shapes & Text:** GPU Instancing. Generates tightly bounded quads (scaled to the object's local extents plus stroke/glow padding) to avoid fill-rate bottlenecks.
@@ -51,6 +51,7 @@ background_color: vec4<f32>
 ```
 
 **Bindings:**
+- Storage Buffer (array of SdfInstance, readonly)
 - Font Atlas Texture (sampled, for text primitives)
 - Font Sampler
 
@@ -114,7 +115,7 @@ If a strategy requires calculating intermediate geometry (like matching text gly
 
 ## Render Pass Manager
 1. **Categorize & Pre-process:** Detect morph transitions, auto-tessellate SDFs if targeting a mesh, and align vertex buffers for `point_match`.
-2. **Update Buffers:** Push updated uniforms, dynamically sized instance buffers, and updated morph progress/`morph_params`.
+2. **Update Buffers:** Push updated uniforms, dynamically sized storage buffers, and updated morph progress/`morph_params`.
 3. **Execute Passes:**
    - Draw SDF instances (Instanced quads via `draw_indirect`).
    - Draw Mesh indices.
@@ -124,9 +125,9 @@ If a strategy requires calculating intermediate geometry (like matching text gly
 
 # 6. Data Structures (GPU Layouts)
 
-To support Manim-style modifiers without bloating the pipeline, structs feature generic `shape_params` and `morph_params` vectors.
+To support Manim-style modifiers without bloating the pipeline and to bypass the strict 16-attribute WebGPU limit, struct data is passed directly via `var<storage, read>` Storage Buffers and accessed via `@builtin(instance_index)`.
 
-## 6.1 SDF Instance (GPU)
+## 6.1 SDF Instance (Storage Buffer)
 **Layout:**
 ```wgsl
 position: vec2<f32>,            // 8 bytes
@@ -178,7 +179,7 @@ time: f32,                      // 4 bytes
 
 1. **Bounded Quads:** SDF shapes *must* be rendered as tightly fitting quads rather than full-screen passes to preserve fill-rate and avoid catastrophic overdraw.
 2. **CPU Offloading:** Morphing logic like `fade_transform` and vertex normalization is executed on the CPU, ensuring the GPU shaders stay fast and branchless.
-3. **Buffer Management:** Use double-buffered vertex layouts for morphing paths to avoid per-frame CPU-to-GPU memory uploads.
+3. **Buffer Management:** Using Storage Buffers for instances bypasses 64KB Uniform limits and 16-attribute Vertex limits, safely supporting ~800,000 instances per draw pass. Double-buffered vertex layouts are used for morphing paths to avoid per-frame CPU-to-GPU memory uploads.
 
 ---
 

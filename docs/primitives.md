@@ -11,7 +11,7 @@ label: PrimitiveType, property: value, ...
 
 # 2. Geometric Primitives
 
-These primitives are rendered using GPU-accelerated techniques (SDF or Vertex buffers).
+These primitives are rendered using GPU-accelerated techniques, leveraging Storage Buffers to process thousands of elements simultaneously (via SDF mathematical evaluation or Vertex meshes).
 
 ## Circle
 **Description:** A perfect circle defined by center and radius.
@@ -168,17 +168,17 @@ img: Image, path: "assets/photo.png", size: (400, 300)
 
 # 5. Rendering Strategies
 
-The engine automatically selects the best rendering strategy based on the primitive type.
+The engine automatically selects the best rendering strategy based on the primitive type. To allow for massive scene capacity and complex morphing, instance data for all strategies is uploaded to the GPU via **Storage Buffers**.
 
 ## SDF (Signed Distance Field)
 - **Used for:** Circle, Rect, Ellipse, Arc, Text
-- **Benefits:** Resolution independent, smooth edges, GPU efficient
-- **Behavior:** Shapes are defined by mathematical formulas in the shader and rendered on tightly bounded quads.
+- **Benefits:** Resolution independent, smooth edges, bypasses vertex attribute limits
+- **Behavior:** Shapes are defined by mathematical formulas in the shader and rendered on tightly bounded quads, looking up instance configurations directly from the active Storage Buffer.
 
 ## Vertex (Mesh)
 - **Used for:** Path, Polygon, Line, Svg, Image
 - **Benefits:** Arbitrary shapes, supports complex geometry
-- **Behavior:** Shapes are tessellated into vertices on CPU or GPU.
+- **Behavior:** Shapes are tessellated into vertices. Dynamic path data and point-matching transforms can also be evaluated via Storage Buffers to scale efficiently.
 
 ---
 
