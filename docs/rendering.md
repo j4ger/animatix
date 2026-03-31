@@ -76,10 +76,19 @@ glow_color: vec4<f32>
 opacity: f32
 shape_type: u32
 corner_radius: f32
+target_position: vec2<f32>
+target_size: vec2<f32>
+target_shape_type: u32
+target_corner_radius: f32
+shape_blend: f32
 ```
 
+**Bindings:**
+- Font Atlas Texture (sampled, for text primitives)
+- Font Sampler
+
 **Vertex Shader:**
-- Generates a full-screen quad (6 vertices).
+- Generates a quad scaled to the shape's local bounding box (including stroke and glow) (6 vertices).
 - Calculates instance ID from vertex index.
 - Passes UVs and Instance ID to fragment shader.
 
@@ -172,7 +181,8 @@ Morphing is handled differently based on primitive type.
 **Strategy:** Interpolate SDF parameters in the fragment shader.
 
 **Implementation:**
-- Uniform `shape_blend` (0.0 to 1.0) passed to shader.
+- `shape_blend` property (0.0 to 1.0) is passed per-instance to allow independent morphing timelines.
+- Instance buffer includes both source and target geometry parameters.
 - Shader evaluates both source and target SDFs.
 - Result is `mix(source_sdf, target_sdf, shape_blend)`.
 - **Example:** Circle to Square blends radius and box dimensions.
@@ -265,8 +275,13 @@ glow_radius: f32
 opacity: f32
 shape_type: u32
 corner_radius: f32
+target_position: vec2<f32>
+target_size: vec2<f32>
+target_shape_type: u32
+target_corner_radius: f32
+shape_blend: f32
 ```
-**Size:** 128 bytes (aligned)
+**Size:** 256 bytes (aligned)
 
 ## 6.2 Mesh Instance (GPU)
 

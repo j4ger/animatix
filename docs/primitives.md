@@ -37,7 +37,7 @@ r: Rect, width: 100, height: 50, rounded: 5
 ```
 
 ## Line
-**Description:** A straight line segment between two points.
+**Description:** A straight line segment between two points in local space (relative to `position`).
 **Properties:**
 - `from`: Tuple (x, y)
 - `to`: Tuple (x, y)
@@ -50,7 +50,7 @@ l: Line, from: (0, 0), to: (100, 100), width: 2
 ```
 
 ## Path
-**Description:** A custom shape defined by a sequence of points.
+**Description:** A custom shape defined by a sequence of points in local space (relative to `position`).
 **Properties:**
 - `points`: Array of Tuples
 - `closed`: Boolean (whether to close the shape)
@@ -204,6 +204,7 @@ Primitives support automatic morphing when re-declared at a new keyframe.
 - **Circle to Rect:** Uses SDF interpolation
 - **Circle to Polygon:** Uses SDF or Vertex resampling
 - **Text to Text:** Uses glyph matching
+- **Path to Path:** Uses point-match morphing (Warning: Automatic vertex resampling between disparate paths may cause self-intersection or looping artifacts).
 
 ## Incompatible Morphs
 - **Shape to Text:** Uses fade strategy
@@ -215,7 +216,7 @@ Users can force a specific morph strategy using modifiers.
 **Example:**
 ```animatix
 #2s
-shape: Square, ... [2s, strategy: fade]
+shape: Rect, ... [2s, strategy: fade]
 ```
 
 ---
@@ -249,5 +250,5 @@ shape: Square, ... [2s, strategy: fade]
 #0s
   shape: Circle, radius: 50, color: red
 #2s
-  shape: Square, width: 100, color: red [2s]
+  shape: Rect, width: 100, height: 100, color: red [2s]
 ```
