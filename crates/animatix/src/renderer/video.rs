@@ -1,6 +1,6 @@
-use super::builder::build_instances;
 use super::core::RendererCore;
 use crate::ast::Stmt;
+use crate::timeline::Timeline;
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVFrame, AVRational};
@@ -86,7 +86,8 @@ async fn render_video_async(
         mapped_at_creation: false,
     });
 
-    let instances = build_instances(ast);
+    let timeline = Timeline::build(ast);
+    let initial_instances = timeline.evaluate(0.0);
 
     let core = RendererCore::new(
         device,
@@ -94,7 +95,7 @@ async fn render_video_async(
         width,
         height,
         wgpu::TextureFormat::Rgba8UnormSrgb,
-        &instances,
+        &initial_instances,
     )
     .await;
 
@@ -158,6 +159,16 @@ async fn render_video_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
 
     for frame in 0..total_frames {
+        let current_time = frame as f64 / fps as f64;
+        let instances = timeline.evaluate(current_time);
+
+        if let Some(buffer) = &core.instance_buffer {
+            if instances.len() as u32 <= core.num_instances {
+                core.queue
+                    .write_buffer(buffer, 0, bytemuck::cast_slice(&instances));
+            }
+        }
+
         let mut encoder = core
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {

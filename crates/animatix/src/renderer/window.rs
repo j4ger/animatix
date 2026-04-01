@@ -1,8 +1,9 @@
-use super::builder::build_instances;
 use super::core::RendererCore;
 use super::types::SdfInstance;
 use crate::ast::Stmt;
+use crate::timeline::Timeline;
 use std::sync::Arc;
+use std::time::Instant;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -105,6 +106,16 @@ impl State {
         }
     }
 
+    fn update_instances(&mut self, instances: &[SdfInstance]) {
+        if let Some(buffer) = &self.core.instance_buffer {
+            if instances.len() as u32 <= self.core.num_instances {
+                self.core
+                    .queue
+                    .write_buffer(buffer, 0, bytemuck::cast_slice(instances));
+            }
+        }
+    }
+
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -158,7 +169,8 @@ impl State {
 struct App {
     window: Option<Arc<Window>>,
     state: Option<State>,
-    instances: Vec<SdfInstance>,
+    timeline: Timeline,
+    start_time: Option<Instant>,
 }
 
 impl ApplicationHandler for App {
@@ -171,7 +183,8 @@ impl ApplicationHandler for App {
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
             self.window = Some(window.clone());
 
-            let state = pollster::block_on(State::new(window.clone(), &self.instances));
+            let initial_instances = self.timeline.evaluate(0.0);
+            let state = pollster::block_on(State::new(window.clone(), &initial_instances));
             self.state = Some(state);
 
             window.request_redraw();
@@ -199,21 +212,33 @@ impl ApplicationHandler for App {
                 state.resize(physical_size);
                 window.request_redraw();
             }
-            WindowEvent::RedrawRequested => match state.render() {
-                Ok(_) => {}
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                    state.resize(state.size);
+            WindowEvent::RedrawRequested => {
+                let current_time = if let Some(start) = self.start_time {
+                    start.elapsed().as_secs_f64()
+                } else {
+                    let now = Instant::now();
+                    self.start_time = Some(now);
+                    0.0
+                };
+                let instances = self.timeline.evaluate(current_time);
+                state.update_instances(&instances);
+                match state.render() {
+                    Ok(_) => {}
+                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                        state.resize(state.size);
+                    }
+                    Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
+                    Err(wgpu::SurfaceError::Timeout) => {}
                 }
-                Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-                Err(wgpu::SurfaceError::Timeout) => {}
-            },
+                window.request_redraw();
+            }
             _ => {}
         }
     }
 }
 
 pub fn run(ast: &[Stmt]) {
-    let instances = build_instances(ast);
+    let timeline = Timeline::build(ast);
 
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
@@ -221,7 +246,8 @@ pub fn run(ast: &[Stmt]) {
     let mut app = App {
         window: None,
         state: None,
-        instances,
+        timeline,
+        start_time: None,
     };
 
     event_loop.run_app(&mut app).unwrap();
