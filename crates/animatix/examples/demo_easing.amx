@@ -1,0 +1,23 @@
+// Animatix Easing Demonstration
+// This file showcases the bounce easing feature along with state morphing and property interpolation.
+
+// Initial state at 0 seconds
+#0s
+// shape1 starts as a red Circle
+shape1: Circle, at: (100, 100), radius: 50, color: red
+// shape2 starts as a yellow Square
+shape2: Square, at: (700, 300), size: (50, 50), color: yellow
+
+// Keyframe at 2 seconds
+#2s
+// shape1 morphs into a blue Square with bounce easing
+shape1: Square, at: (400, 300), size: (150, 150), color: blue [ease: bounce]
+// shape2 morphs into a purple Circle with bounce easing
+shape2: Circle, at: (400, 100), radius: 75, color: purple [ease: bounce]
+
+// Keyframe at 4 seconds
+#4s
+// shape1 morphs back into a green Circle with bounce easing
+shape1: Circle, at: (700, 100), radius: 50, color: green [ease: bounce]
+// shape2 morphs back into an orange Square with bounce easing
+shape2: Square, at: (100, 300), size: (100, 100), color: orange [ease: bounce]

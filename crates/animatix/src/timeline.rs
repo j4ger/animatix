@@ -1,4 +1,5 @@
 use crate::ast::{Expr, Stmt, Time};
+use crate::easing::*;
 use crate::renderer::types::SdfInstance;
 use std::collections::BTreeMap;
 
@@ -80,7 +81,7 @@ impl Default for ActorState {
 #[derive(Debug, Clone)]
 pub struct AnimationTrack {
     pub label: String,
-    pub keyframes: BTreeMap<u64, ActorState>,
+    pub keyframes: BTreeMap<u64, (ActorState, Easing)>,
 }
 
 impl AnimationTrack {
@@ -91,8 +92,8 @@ impl AnimationTrack {
         }
     }
 
-    pub fn add_keyframe(&mut self, time_ms: f64, state: ActorState) {
-        self.keyframes.insert(time_ms as u64, state);
+    pub fn add_keyframe(&mut self, time_ms: f64, state: ActorState, easing: Easing) {
+        self.keyframes.insert(time_ms as u64, (state, easing));
     }
 
     pub fn evaluate(&self, time_ms: f64) -> ActorState {
@@ -104,13 +105,14 @@ impl AnimationTrack {
         let mut prev_time = 0;
         let mut prev_state: Option<ActorState> = None;
 
-        for (&t, state) in &self.keyframes {
+        for (&t, (state, easing)) in &self.keyframes {
             if t > time_u64 {
                 if let Some(prev) = prev_state {
                     let duration = (t - prev_time) as f32;
                     let elapsed = (time_u64 - prev_time) as f32;
                     let progress = elapsed / duration;
-                    return prev.interpolate(state, progress);
+                    let eased_progress = apply_easing(progress, *easing);
+                    return prev.interpolate(state, eased_progress);
                 } else {
                     return *state;
                 }
@@ -158,7 +160,11 @@ impl Timeline {
     fn process_body(&mut self, time_ms: f64, body: &[Stmt]) {
         for stmt in body {
             if let Stmt::ActorDecl {
-                label, ty, props, ..
+                label,
+                ty,
+                props,
+                modifiers,
+                ..
             } = stmt
             {
                 let track = self
@@ -167,11 +173,27 @@ impl Timeline {
                     .or_insert_with(|| AnimationTrack::new(label.clone()));
 
                 let mut state = ActorState::new();
-                if let Some((_, last_state)) = track.keyframes.iter().next_back() {
+                if let Some((_, (last_state, _))) = track.keyframes.iter().next_back() {
                     state = *last_state;
                 }
 
                 state.shape_type = if ty == "Circle" { 1 } else { 0 };
+
+                let mut easing = Easing::Linear;
+                for modifier in modifiers {
+                    if modifier.name.as_deref() == Some("ease") || modifier.name.is_none() {
+                        if let Expr::Ident(val) = &modifier.value {
+                            match val.as_str() {
+                                "ease-in" => easing = Easing::EaseIn,
+                                "ease-out" => easing = Easing::EaseOut,
+                                "ease-in-out" => easing = Easing::EaseInOut,
+                                "bounce" => easing = Easing::Bounce,
+                                "linear" => easing = Easing::Linear,
+                                _ => {}
+                            }
+                        }
+                    }
+                }
 
                 for prop in props {
                     match prop.name.as_str() {
@@ -210,7 +232,7 @@ impl Timeline {
                         _ => {}
                     }
                 }
-                track.add_keyframe(time_ms, state);
+                track.add_keyframe(time_ms, state, easing);
             }
         }
     }
