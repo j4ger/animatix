@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 bytemuck = { version = "1.25.0", features = ["derive"] }
+chrono = "0.4.44"
 chumsky = "0.12.0"
 clap = { version = "4.5.0", features = ["derive"] }
 pollster = "0.4.0"
+rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"] }
 wgpu = "0.20.0"
 winit = "0.30.13"

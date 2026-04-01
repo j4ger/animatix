@@ -32,6 +32,31 @@ enum Commands {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
     },
+    /// Render a scene to a video file
+    Video {
+        /// The input Animatix scene file (.amx)
+        input: PathBuf,
+
+        /// Output video width
+        #[arg(long, default_value_t = 1280)]
+        width: u32,
+
+        /// Output video height
+        #[arg(long, default_value_t = 720)]
+        height: u32,
+
+        /// Output framerate
+        #[arg(long, default_value_t = 30)]
+        fps: u32,
+
+        /// Render time in seconds
+        #[arg(long, default_value_t = 5.0)]
+        duration: f32,
+
+        /// Output filename
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -109,6 +134,57 @@ fn main() {
 
             if let Some(ast) = ast {
                 renderer::run(&ast);
+            } else {
+                eprintln!("Failed to generate AST.");
+                std::process::exit(1);
+            }
+        }
+        Commands::Video {
+            input,
+            width,
+            height,
+            fps,
+            duration,
+            output,
+        } => {
+            let src = match fs::read_to_string(&input) {
+                Ok(content) => content,
+                Err(e) => {
+                    eprintln!(
+                        "Error: Failed to read input file '{}': {}",
+                        input.display(),
+                        e
+                    );
+                    std::process::exit(1);
+                }
+            };
+
+            println!("Rendering Animatix video: {}", input.display());
+
+            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
+
+            if !errs.is_empty() {
+                eprintln!("\nParse Errors:");
+                for err in errs {
+                    eprintln!("{:?}", err);
+                }
+                std::process::exit(1);
+            }
+
+            if let Some(ast) = ast {
+                let output_file = output.unwrap_or_else(|| {
+                    let now = chrono::Local::now();
+                    PathBuf::from(format!("animatix_{}.mp4", now.format("%y%m%d_%H%M_%S")))
+                });
+                println!(
+                    "Output configuration: {}x{} at {} FPS for {} seconds -> {}",
+                    width,
+                    height,
+                    fps,
+                    duration,
+                    output_file.display()
+                );
+                renderer::render_video(&ast, width, height, fps, duration, &output_file);
             } else {
                 eprintln!("Failed to generate AST.");
                 std::process::exit(1);
