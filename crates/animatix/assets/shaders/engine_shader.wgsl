@@ -36,9 +36,12 @@ var<storage, read> instances: array<SdfInstance>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-    @location(1) uv: vec2<f32>,
-    @location(2) @interpolate(flat) shape_type: u32,
+    @location(0) fill_color: vec4<f32>,
+    @location(1) stroke_color: vec4<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) @interpolate(flat) shape_type: u32,
+    @location(4) size: vec2<f32>,
+    @location(5) stroke_width: f32,
 };
 
 @vertex
@@ -50,18 +53,23 @@ fn vs_main(
 
     let instance = instances[instance_idx];
 
+    let pad = instance.stroke_width + 1.0;
+    let padded_size = instance.size + vec2<f32>(pad, pad);
+
     // Scale and translate the vertex (model.position is expected to be in range [-1, 1])
-    // Basic implementation for now: uses current position/size.
-    // Target morphing variables (target_position, shape_blend) can be factored in later.
-    let world_position = (model.position * instance.size) + instance.position;
+    let world_position = (model.position * padded_size) + instance.position;
 
     // Project to clip space
     out.clip_position = camera.view_proj * vec4<f32>(world_position, 0.0, 1.0);
 
-    out.color = instance.fill_color;
-    out.color.a *= instance.opacity;
-    out.uv = model.position;
+    out.fill_color = instance.fill_color;
+    out.fill_color.a *= instance.opacity;
+    out.stroke_color = instance.stroke_color;
+    out.stroke_color.a *= instance.opacity;
+    out.uv = model.position * padded_size;
     out.shape_type = instance.shape_type;
+    out.size = instance.size;
+    out.stroke_width = instance.stroke_width;
 
     return out;
 }
@@ -70,13 +78,38 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // If it is a circle (shape_type == 1), discard pixels outside the radius
+    var d: f32 = 0.0;
+
     if in.shape_type == 1u {
-        let dist = length(in.uv);
-        if dist > 1.0 {
-            discard;
-        }
+        d = length(in.uv) - in.size.x;
+    } else {
+        let d2 = abs(in.uv) - in.size;
+        d = length(max(d2, vec2<f32>(0.0))) + min(max(d2.x, d2.y), 0.0);
     }
 
-    return in.color;
+    let aa = 1.0;
+
+    let fill_alpha = 1.0 - smoothstep(-aa, aa, d);
+    let fill_col = vec4<f32>(in.fill_color.rgb, in.fill_color.a * fill_alpha);
+
+    let stroke_d = abs(d) - in.stroke_width / 2.0;
+    let stroke_alpha = 1.0 - smoothstep(-aa, aa, stroke_d);
+    let stroke_weight = select(0.0, 1.0, in.stroke_width > 0.0);
+    let stroke_col = vec4<f32>(in.stroke_color.rgb, in.stroke_color.a * stroke_alpha * stroke_weight);
+
+    var final_color = fill_col;
+    if in.stroke_width > 0.0 {
+        let out_a = stroke_col.a + final_color.a * (1.0 - stroke_col.a);
+        var out_rgb = vec3<f32>(0.0);
+        if out_a > 0.0 {
+            out_rgb = (stroke_col.rgb * stroke_col.a + final_color.rgb * final_color.a * (1.0 - stroke_col.a)) / out_a;
+        }
+        final_color = vec4<f32>(out_rgb, out_a);
+    }
+
+    if final_color.a < 0.001 {
+        discard;
+    }
+
+    return final_color;
 }

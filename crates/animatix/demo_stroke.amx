@@ -1,0 +1,9 @@
+#0s
+c1: Circle, radius: 100, at: (200, 200), color: "#ff0000", stroke_width: 10, stroke_color: "#ffffff"
+r1: Rect, size: (150, 100), at: (500, 200), color: "#00ff00", stroke_width: 5, stroke_color: "#0000ff"
+
+#+2s
+c1.stroke_width = 30 [2s, ease: ease-in-out]
+c1.stroke_color = "#ffff00" [2s]
+r1.stroke_width = 20 [2s, ease: ease-out]
+r1.stroke_color = "#ffffff" [2s]

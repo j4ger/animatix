@@ -221,9 +221,16 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     });
 
     let keyframe = just('#')
-        .ignore_then(time.clone())
+        .ignore_then(just('+').or_not())
+        .then(time.clone())
         .then(stmt.clone().repeated().collect::<Vec<_>>())
-        .map(|(t, body)| Stmt::Keyframe { time: t, body })
+        .map(|((is_relative, t), body)| {
+            if is_relative.is_some() {
+                Stmt::RelativeKeyframe { offset: t, body }
+            } else {
+                Stmt::Keyframe { time: t, body }
+            }
+        })
         .padded();
 
     // Top-level can be keyframes or standalone statements

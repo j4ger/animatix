@@ -128,6 +128,8 @@ pub struct AnimationTrack {
     pub color: PropertyTrack<[f32; 4]>,
     pub shape_type: PropertyTrack<u32>,
     pub opacity: PropertyTrack<f32>,
+    pub stroke_width: PropertyTrack<f32>,
+    pub stroke_color: PropertyTrack<[f32; 4]>,
 }
 
 impl AnimationTrack {
@@ -139,6 +141,8 @@ impl AnimationTrack {
             color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             shape_type: PropertyTrack::new(0),
             opacity: PropertyTrack::new(1.0),
+            stroke_width: PropertyTrack::new(2.0),
+            stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
         }
     }
 }
@@ -202,6 +206,8 @@ impl Timeline {
                     let mut color = track.color.last_value();
                     let shape_type = if ty == "Circle" { 1 } else { 0 };
                     let opacity = track.opacity.last_value();
+                    let mut stroke_width = track.stroke_width.last_value();
+                    let mut stroke_color = track.stroke_color.last_value();
 
                     let mut easing = Easing::Linear;
                     for modifier in modifiers {
@@ -253,6 +259,14 @@ impl Timeline {
                             "color" => {
                                 color = parse_color(&prop.value);
                             }
+                            "stroke_width" => {
+                                if let Expr::Num(w) = prop.value {
+                                    stroke_width = w as f32;
+                                }
+                            }
+                            "stroke_color" => {
+                                stroke_color = parse_color(&prop.value);
+                            }
                             _ => {}
                         }
                     }
@@ -263,6 +277,8 @@ impl Timeline {
                     track.color.add_keyframe(t_ms, color, easing);
                     track.shape_type.add_keyframe(t_ms, shape_type, easing);
                     track.opacity.add_keyframe(t_ms, opacity, easing);
+                    track.stroke_width.add_keyframe(t_ms, stroke_width, easing);
+                    track.stroke_color.add_keyframe(t_ms, stroke_color, easing);
                 }
                 Stmt::Assignment {
                     target,
@@ -336,6 +352,37 @@ impl Timeline {
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
                             }
                             track.color.add_keyframe(t_end_ms, target_color, easing);
+                        }
+                        "stroke_width" => {
+                            let mut target_width = track.stroke_width.last_value();
+                            if let Expr::Num(w) = value {
+                                target_width = *w as f32;
+                            }
+                            if duration_ms > 0.0 {
+                                let start_val = track.stroke_width.evaluate(t_start_ms);
+                                track.stroke_width.add_keyframe(
+                                    t_start_ms,
+                                    start_val,
+                                    Easing::Linear,
+                                );
+                            }
+                            track
+                                .stroke_width
+                                .add_keyframe(t_end_ms, target_width, easing);
+                        }
+                        "stroke_color" => {
+                            let target_color = parse_color(value);
+                            if duration_ms > 0.0 {
+                                let start_val = track.stroke_color.evaluate(t_start_ms);
+                                track.stroke_color.add_keyframe(
+                                    t_start_ms,
+                                    start_val,
+                                    Easing::Linear,
+                                );
+                            }
+                            track
+                                .stroke_color
+                                .add_keyframe(t_end_ms, target_color, easing);
                         }
                         "size" => {
                             let mut target_size = track.size.last_value();
@@ -411,6 +458,8 @@ impl Timeline {
             let color = track.color.evaluate(time_ms);
             let shape_type = track.shape_type.evaluate(time_ms);
             let opacity = track.opacity.evaluate(time_ms);
+            let stroke_width = track.stroke_width.evaluate(time_ms);
+            let stroke_color = track.stroke_color.evaluate(time_ms);
 
             instances.push(SdfInstance {
                 position,
@@ -418,8 +467,8 @@ impl Timeline {
                 uv_rect: [0.0; 4],
                 shape_params: [0.0; 4],
                 fill_color: color,
-                stroke_color: [0.0; 4],
-                stroke_width: 0.0,
+                stroke_color,
+                stroke_width,
                 glow_radius: 0.0,
                 opacity,
                 shape_type,
