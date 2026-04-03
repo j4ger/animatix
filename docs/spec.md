@@ -56,6 +56,16 @@ btn: Button, text: "Submit" [2s]
 btn: another_button // morph into another pre-defined object
 ```
 
+**Implicit Objects**  
+The engine provides an implicit `scene` object representing the global environment. Its properties, such as `background_color` (defaulting to `black`), can be assigned and animated like any other property.
+```animatix
+#0s
+scene.background_color = black // Default
+
+#2s
+scene.background_color = white [2s]
+```
+
 ---
 
 ## 4. Timeline & Keyframes

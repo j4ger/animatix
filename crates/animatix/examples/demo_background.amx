@@ -1,0 +1,6 @@
+#0s
+scene.background_color = black
+circle: Circle, at: (400, 300), radius: 100, color: red
+
+#1s
+scene.background_color = white [2s]

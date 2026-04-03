@@ -146,12 +146,16 @@ impl AnimationTrack {
 #[derive(Debug, Clone)]
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
+    pub background_color: PropertyTrack<[f32; 4]>,
 }
 
 impl Timeline {
     pub fn new() -> Self {
+        let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
+        bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
             tracks: BTreeMap::new(),
+            background_color: bg_track,
         }
     }
 
@@ -266,11 +270,6 @@ impl Timeline {
                     value,
                     modifiers,
                 } => {
-                    let track = self
-                        .tracks
-                        .entry(target.clone())
-                        .or_insert_with(|| AnimationTrack::new(target.clone()));
-
                     let mut duration_ms = 0.0;
                     let mut easing = Easing::Linear;
 
@@ -304,6 +303,28 @@ impl Timeline {
 
                     let t_start_ms = time_ms as u64;
                     let t_end_ms = (time_ms + duration_ms) as u64;
+
+                    if target == "scene" {
+                        if property == "background_color" {
+                            let target_color = parse_color(value);
+                            if duration_ms > 0.0 {
+                                let start_val = self.background_color.evaluate(t_start_ms);
+                                self.background_color.add_keyframe(
+                                    t_start_ms,
+                                    start_val,
+                                    Easing::Linear,
+                                );
+                            }
+                            self.background_color
+                                .add_keyframe(t_end_ms, target_color, easing);
+                        }
+                        continue;
+                    }
+
+                    let track = self
+                        .tracks
+                        .entry(target.clone())
+                        .or_insert_with(|| AnimationTrack::new(target.clone()));
 
                     match property.as_str() {
                         "color" => {
@@ -379,9 +400,10 @@ impl Timeline {
         }
     }
 
-    pub fn evaluate(&self, time_s: f64) -> Vec<SdfInstance> {
+    pub fn evaluate(&self, time_s: f64) -> (Vec<SdfInstance>, [f32; 4]) {
         let time_ms = (time_s * 1000.0) as u64;
         let mut instances = Vec::new();
+        let bg_color = self.background_color.evaluate(time_ms);
 
         for track in self.tracks.values() {
             let position = track.position.evaluate(time_ms);
@@ -411,7 +433,7 @@ impl Timeline {
             });
         }
 
-        instances
+        (instances, bg_color)
     }
 }
 

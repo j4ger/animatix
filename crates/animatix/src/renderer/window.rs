@@ -116,7 +116,7 @@ impl State {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, bg_color: [f32; 4]) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -137,10 +137,10 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.1,
-                            a: 1.0,
+                            r: bg_color[0] as f64,
+                            g: bg_color[1] as f64,
+                            b: bg_color[2] as f64,
+                            a: bg_color[3] as f64,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -183,7 +183,7 @@ impl ApplicationHandler for App {
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
             self.window = Some(window.clone());
 
-            let initial_instances = self.timeline.evaluate(0.0);
+            let (initial_instances, _bg_color) = self.timeline.evaluate(0.0);
             let state = pollster::block_on(State::new(window.clone(), &initial_instances));
             self.state = Some(state);
 
@@ -220,9 +220,9 @@ impl ApplicationHandler for App {
                     self.start_time = Some(now);
                     0.0
                 };
-                let instances = self.timeline.evaluate(current_time);
+                let (instances, bg_color) = self.timeline.evaluate(current_time);
                 state.update_instances(&instances);
-                match state.render() {
+                match state.render(bg_color) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         state.resize(state.size);

@@ -87,7 +87,7 @@ async fn render_video_async(
     });
 
     let timeline = Timeline::build(ast);
-    let initial_instances = timeline.evaluate(0.0);
+    let (initial_instances, _) = timeline.evaluate(0.0);
 
     let core = RendererCore::new(
         device,
@@ -160,7 +160,7 @@ async fn render_video_async(
 
     for frame in 0..total_frames {
         let current_time = frame as f64 / fps as f64;
-        let instances = timeline.evaluate(current_time);
+        let (instances, bg_color) = timeline.evaluate(current_time);
 
         if let Some(buffer) = &core.instance_buffer {
             if instances.len() as u32 <= core.num_instances {
@@ -183,10 +183,10 @@ async fn render_video_async(
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.1,
-                            a: 1.0,
+                            r: bg_color[0] as f64,
+                            g: bg_color[1] as f64,
+                            b: bg_color[2] as f64,
+                            a: bg_color[3] as f64,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
