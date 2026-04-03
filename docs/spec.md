@@ -120,6 +120,15 @@ Modifiers are enclosed in square brackets immediately following the action.
 [path: arc]               // Morph interpolation path
 ```
 
+**Built-in Actions Registry**  
+The engine maintains a highly extensible registry of built-in actions, categorized by their primary visual effect:
+- **Entrance**: Actions that introduce an actor to the scene (e.g., `wipe-in`, `fade-in`).
+- **Exit**: Actions that remove an actor from the scene (e.g., `fade-out`).
+- **Morph**: Actions that transition one state or shape to another.
+- **Highlight**: Actions that draw attention to an actor (e.g., `pulse`).
+
+This architecture exposes rich action signatures (including `name`, `category`, `description`, `params`, and `modifiers`). This allows external tooling—such as Language Server Protocols (LSP) and visual UI editors—to dynamically discover, document, validate, and provide autocompletion for all supported animations.
+
 ---
 
 ## 6. Morphing System

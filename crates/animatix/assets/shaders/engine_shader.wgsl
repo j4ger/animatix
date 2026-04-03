@@ -42,6 +42,7 @@ struct VertexOutput {
     @location(3) @interpolate(flat) shape_type: u32,
     @location(4) size: vec2<f32>,
     @location(5) stroke_width: f32,
+    @location(6) shape_params: vec4<f32>,
 };
 
 @vertex
@@ -70,6 +71,7 @@ fn vs_main(
     out.shape_type = instance.shape_type;
     out.size = instance.size;
     out.stroke_width = instance.stroke_width;
+    out.shape_params = instance.shape_params;
 
     return out;
 }
@@ -89,11 +91,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let aa = 1.0;
 
-    let fill_alpha = 1.0 - smoothstep(-aa, aa, d);
+    let fill_opacity = in.shape_params[1];
+    let fill_alpha = (1.0 - smoothstep(-aa, aa, d)) * fill_opacity;
     let fill_col = vec4<f32>(in.fill_color.rgb, in.fill_color.a * fill_alpha);
 
+    let stroke_progress = in.shape_params[0];
+    let angle = atan2(in.uv.y, in.uv.x);
+    var normalized_angle = angle / (2.0 * 3.14159265);
+    if normalized_angle < 0.0 {
+        normalized_angle = normalized_angle + 1.0;
+    }
+
     let stroke_d = abs(d) - in.stroke_width / 2.0;
-    let stroke_alpha = 1.0 - smoothstep(-aa, aa, stroke_d);
+    var stroke_alpha = 1.0 - smoothstep(-aa, aa, stroke_d);
+    if normalized_angle > stroke_progress {
+        stroke_alpha = 0.0;
+    }
     let stroke_weight = select(0.0, 1.0, in.stroke_width > 0.0);
     let stroke_col = vec4<f32>(in.stroke_color.rgb, in.stroke_color.a * stroke_alpha * stroke_weight);
 
