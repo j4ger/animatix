@@ -18,8 +18,8 @@
   *Example:* `Row { Item1, Item2 }`
 - **Square Brackets (`[ ]`)**: Used for action modifiers (duration, easing).  
   *Example:* `[2s, ease: bounce]`
-- **Equals (`=`)**: Used for property assignment (instant change) or variable binding.  
-  *Example:* `btn.color = red`
+- **Equals (`=`)**: Used for property assignment (instant change or animated) or variable binding.
+  *Example:* `btn.color = red` or `morpher.size = (100, 100) [2s]`
 - **Comma (`,`)**: Separates object properties.  
   *Example:* `Type, prop: val, prop: val`
 - **Space (` `)**: Separates action verbs from arguments.  
@@ -132,11 +132,17 @@ Users can hint how the engine should handle topology changes.
 [strategy: fade]          // Cross-fade (ReplacementTransform)
 ```
 
-**Instant Change**  
+**Instant Change**
 Use zero duration or property assignment for instant updates.
 ```animatix
 btn: Button, text: "New" [0s]
 btn.text = "New"
+```
+
+**Property-Level State Tracking**
+Assignments can now take modifiers, allowing individual properties to be animated independently of the entire actor morph.
+```animatix
+morpher.size = (100, 100) [2s, ease: ease-out]
 ```
 
 ---

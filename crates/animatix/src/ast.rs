@@ -230,6 +230,7 @@ pub enum Stmt {
         target: String, // Can be path: container.child
         property: String,
         value: Expr,
+        modifiers: Vec<Modifier>,
     },
 
     // === Reactive Blocks ===

@@ -65,9 +65,9 @@ fn test_animation_track_evaluation() {
     let mut state3 = ActorState::new();
     state3.position = [100.0, 100.0];
 
-    track.add_keyframe(0.0, state1);
-    track.add_keyframe(1000.0, state2);
-    track.add_keyframe(2000.0, state3);
+    track.add_keyframe(0.0, state1, animatix::easing::Easing::Linear);
+    track.add_keyframe(1000.0, state2, animatix::easing::Easing::Linear);
+    track.add_keyframe(2000.0, state3, animatix::easing::Easing::Linear);
 
     // Before first keyframe
     assert_eq!(track.evaluate(-500.0).position, [0.0, 0.0]);
@@ -153,7 +153,7 @@ fn test_missing_properties() {
     let mut track = AnimationTrack::new("empty_actor".to_string());
 
     // An empty state uses defaults
-    track.add_keyframe(0.0, ActorState::new());
+    track.add_keyframe(0.0, ActorState::new(), animatix::easing::Easing::Linear);
 
     let state = track.evaluate(0.0);
     assert_eq!(state.position, [0.0, 0.0]);

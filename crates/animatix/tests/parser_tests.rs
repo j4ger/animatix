@@ -86,7 +86,26 @@ fn test_assignments_and_paths() {
         Stmt::Assignment {
             target: "btn".to_string(),
             property: "color".to_string(),
-            value: Expr::Str("red".to_string())
+            value: Expr::Str("red".to_string()),
+            modifiers: vec![],
+        }
+    );
+    assert_eq!(
+        parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease-out]"),
+        Stmt::Assignment {
+            target: "morpher".to_string(),
+            property: "size".to_string(),
+            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+            modifiers: vec![
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("2s".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("ease-out".to_string()),
+                },
+            ],
         }
     );
     assert_eq!(

@@ -161,11 +161,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(ident.clone())
             .then_ignore(just('=').padded())
             .then(expr.clone())
-            .map(|((target, property), value)| Stmt::Assignment {
-                target,
-                property,
-                value,
-            })
+            .then(modifiers.clone())
+            .map(
+                |(((target, property), value), modifiers)| Stmt::Assignment {
+                    target,
+                    property,
+                    value,
+                    modifiers,
+                },
+            )
             .padded();
 
         let actor_decl = ident
