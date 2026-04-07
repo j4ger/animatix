@@ -108,6 +108,8 @@ pub struct AnimationTrack {
     pub stroke_color: PropertyTrack<[f32; 4]>,
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
+    pub text_glyphs: Vec<crate::renderer::text::ExtractedGlyph>,
+    pub text_shapes: Vec<crate::renderer::text::ExtractedShape>,
 }
 
 impl AnimationTrack {
@@ -123,6 +125,8 @@ impl AnimationTrack {
             stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
+            text_glyphs: Vec::new(),
+            text_shapes: Vec::new(),
         }
     }
 }

@@ -103,7 +103,7 @@ fn test_timeline_build_and_evaluate() {
     assert_eq!(timeline.tracks.len(), 1);
 
     // Evaluate at 0.5s (500ms)
-    let (instances, _) = timeline.evaluate(0.5);
+    let (instances, _, _) = timeline.evaluate(0.5);
     assert_eq!(instances.len(), 1);
 
     let instance = &instances[0];

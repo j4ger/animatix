@@ -188,6 +188,17 @@ pub enum Stmt {
         value: Expr,
     },
 
+    // === Actors/Nodes ===
+    Text {
+        label: Option<String>,
+        props: Vec<Property>,
+    },
+
+    Math {
+        label: Option<String>,
+        props: Vec<Property>,
+    },
+
     /// Actor: btn: Button, text: "OK"
     /// Re-declaring an existing label triggers morphing logic in compiler
     ActorDecl {

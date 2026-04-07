@@ -8,7 +8,13 @@ bytemuck = { version = "1.25.0", features = ["derive"] }
 chrono = "0.4.44"
 chumsky = "0.12.0"
 clap = { version = "4.5.0", features = ["derive"] }
+fontdue = "0.9.3"
+image = "0.25.10"
+mitex = "0.2.4"
 pollster = "0.4.0"
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"] }
+typst = "0.14.2"
+typst-layout = "0.14.2"
+typst-syntax = "0.14.2"
 wgpu = "0.20.0"
 winit = "0.30.13"

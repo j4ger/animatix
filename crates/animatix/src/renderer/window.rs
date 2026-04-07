@@ -1,5 +1,5 @@
 use super::core::RendererCore;
-use super::types::SdfInstance;
+use super::types::{SdfInstance, TextInstance};
 use crate::ast::Stmt;
 use crate::timeline::Timeline;
 use std::sync::Arc;
@@ -18,7 +18,7 @@ struct State {
 }
 
 impl State {
-    async fn new(window: Arc<Window>, instances: &[SdfInstance]) -> Self {
+    async fn new(window: Arc<Window>, timeline: &Timeline) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -70,13 +70,19 @@ impl State {
 
         surface.configure(&device, &config);
 
+        let all_glyphs = timeline.extract_all_glyphs();
+        let font_atlas = crate::renderer::msdf::FontAtlas::new(&device, &queue, &all_glyphs);
+        let (instances, text_instances, _) = timeline.evaluate(0.0, &font_atlas);
+
         let core = RendererCore::new(
             device,
             queue,
             size.width,
             size.height,
             surface_format,
-            instances,
+            &instances,
+            &text_instances,
+            font_atlas,
         )
         .await;
 
@@ -106,12 +112,19 @@ impl State {
         }
     }
 
-    fn update_instances(&mut self, instances: &[SdfInstance]) {
+    fn update_instances(&mut self, instances: &[SdfInstance], text_instances: &[TextInstance]) {
         if let Some(buffer) = &self.core.instance_buffer {
             if instances.len() as u32 <= self.core.num_instances {
                 self.core
                     .queue
                     .write_buffer(buffer, 0, bytemuck::cast_slice(instances));
+            }
+        }
+        if let Some(buffer) = &self.core.text_instance_buffer {
+            if text_instances.len() as u32 <= self.core.num_text_instances {
+                self.core
+                    .queue
+                    .write_buffer(buffer, 0, bytemuck::cast_slice(text_instances));
             }
         }
     }
@@ -150,13 +163,28 @@ impl State {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&self.core.render_pipeline);
-            render_pass.set_bind_group(0, &self.core.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.core.vertex_buffer.slice(..));
+            if self.core.num_instances > 0 {
+                render_pass.set_pipeline(&self.core.render_pipeline);
+                render_pass.set_bind_group(0, &self.core.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.core.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..self.core.num_indices, 0, 0..self.core.num_instances);
+            }
 
-            render_pass
-                .set_index_buffer(self.core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.core.num_indices, 0, 0..self.core.num_instances);
+            if self.core.num_text_instances > 0 {
+                render_pass.set_pipeline(&self.core.text_render_pipeline);
+                render_pass.set_bind_group(0, &self.core.text_bind_group, &[]);
+                render_pass.set_bind_group(1, &self.core.font_atlas.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.core.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(
+                    0..self.core.num_indices,
+                    0,
+                    0..self.core.num_text_instances,
+                );
+            }
         }
 
         self.core.queue.submit(std::iter::once(encoder.finish()));
@@ -183,8 +211,7 @@ impl ApplicationHandler for App {
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
             self.window = Some(window.clone());
 
-            let (initial_instances, _bg_color) = self.timeline.evaluate(0.0);
-            let state = pollster::block_on(State::new(window.clone(), &initial_instances));
+            let state = pollster::block_on(State::new(window.clone(), &self.timeline));
             self.state = Some(state);
 
             window.request_redraw();
@@ -220,8 +247,9 @@ impl ApplicationHandler for App {
                     self.start_time = Some(now);
                     0.0
                 };
-                let (instances, bg_color) = self.timeline.evaluate(current_time);
-                state.update_instances(&instances);
+                let (instances, text_instances, bg_color) =
+                    self.timeline.evaluate(current_time, &state.core.font_atlas);
+                state.update_instances(&instances, &text_instances);
                 match state.render(bg_color) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {

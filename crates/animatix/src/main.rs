@@ -33,6 +33,27 @@ enum Commands {
         input: PathBuf,
     },
     /// Render a scene to a video file
+    /// Render a specific frame to an image file (PNG)
+    Image {
+        /// The input Animatix scene file (.amx)
+        input: PathBuf,
+
+        /// Output image width
+        #[arg(long, default_value_t = 1280)]
+        width: u32,
+
+        /// Output image height
+        #[arg(long, default_value_t = 720)]
+        height: u32,
+
+        /// Render time in seconds
+        #[arg(long, default_value_t = 0.0)]
+        time: f32,
+
+        /// Output filename
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     Video {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
@@ -134,6 +155,49 @@ fn main() {
 
             if let Some(ast) = ast {
                 renderer::run(&ast);
+            } else {
+                eprintln!("Failed to generate AST.");
+                std::process::exit(1);
+            }
+        }
+        Commands::Image {
+            input,
+            width,
+            height,
+            time,
+            output,
+        } => {
+            let src = match fs::read_to_string(&input) {
+                Ok(content) => content,
+                Err(e) => {
+                    eprintln!(
+                        "Error: Failed to read input file '{}': {}",
+                        input.display(),
+                        e
+                    );
+                    std::process::exit(1);
+                }
+            };
+            println!("Rendering Animatix image: {}", input.display());
+            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
+            if !errs.is_empty() {
+                eprintln!("\nParse Errors:");
+                for err in errs {
+                    eprintln!("{:?}", err);
+                }
+                std::process::exit(1);
+            }
+            if let Some(ast) = ast {
+                let output_file =
+                    output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
+                println!(
+                    "Output image: {}x{} at {}s -> {}",
+                    width,
+                    height,
+                    time,
+                    output_file.display()
+                );
+                renderer::render_image(&ast, width, height, time, &output_file);
             } else {
                 eprintln!("Failed to generate AST.");
                 std::process::exit(1);

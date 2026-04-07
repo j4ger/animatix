@@ -46,6 +46,15 @@ pub struct SdfInstance {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct TextInstance {
+    pub position: [f32; 2],
+    pub scale: [f32; 2],
+    pub color: [f32; 4],
+    pub uv_rect: [f32; 4],
+}
+
+#[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],

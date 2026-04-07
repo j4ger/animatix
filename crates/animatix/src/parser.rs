@@ -172,6 +172,31 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             )
             .padded();
 
+        let block_props = property
+            .clone()
+            .separated_by(just(',').padded())
+            .allow_trailing()
+            .collect::<Vec<_>>()
+            .delimited_by(just('{').padded(), just('}').padded());
+
+        let text_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Text"))
+            .then(block_props.clone())
+            .map(|(label, props)| Stmt::Text { label, props })
+            .padded();
+
+        let math_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Math"))
+            .then(block_props.clone())
+            .map(|(label, props)| Stmt::Math { label, props })
+            .padded();
+
         let actor_decl = ident
             .clone()
             .then_ignore(just(':').padded())
@@ -217,7 +242,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(Stmt::Comment)
             .padded();
 
-        choice((let_decl, assignment, actor_decl, action, comment))
+        choice((
+            let_decl, assignment, text_stmt, math_stmt, actor_decl, action, comment,
+        ))
     });
 
     let keyframe = just('#')

@@ -1,0 +1,4 @@
+scene.background_color = white
+
+#0s
+m1: Math { math: "\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}", at: (400, 300), color: yellow }

@@ -8,7 +8,7 @@ pub use utils::{parse_color, time_to_ms};
 
 use crate::ast::{Expr, Stmt};
 use crate::easing::*;
-use crate::renderer::types::SdfInstance;
+use crate::renderer::types::{SdfInstance, TextInstance};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -53,6 +53,128 @@ impl Timeline {
     fn process_body(&mut self, time_ms: f64, body: &[Stmt]) {
         for stmt in body {
             match stmt {
+                Stmt::Text { label, props } => {
+                    let label_str = label.clone().unwrap_or_else(|| "unnamed_text".to_string());
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str));
+
+                    let mut text_content = String::new();
+                    let mut font_size = 48.0;
+                    let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+
+                    for prop in props {
+                        match prop.name.as_str() {
+                            "text" => {
+                                if let Expr::Str(s) = &prop.value {
+                                    text_content = s.clone();
+                                }
+                            }
+                            "font_size" => {
+                                if let Expr::Num(s) = prop.value {
+                                    font_size = s as f32;
+                                }
+                            }
+                            "color" => {
+                                let c = parse_color(&prop.value);
+                                color = typst::visualize::Color::from_u8(
+                                    (c[0] * 255.0) as u8,
+                                    (c[1] * 255.0) as u8,
+                                    (c[2] * 255.0) as u8,
+                                    (c[3] * 255.0) as u8,
+                                );
+                                let t_ms = time_ms as u64;
+                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                            }
+                            "at" => {
+                                if let Expr::Tuple(arr) = &prop.value {
+                                    if arr.len() == 2 {
+                                        let mut pos = track.position.last_value();
+                                        if let Expr::Num(x) = arr[0] {
+                                            pos[0] = x as f32;
+                                        }
+                                        if let Expr::Num(y) = arr[1] {
+                                            pos[1] = y as f32;
+                                        }
+                                        track.position.add_keyframe(
+                                            time_ms as u64,
+                                            pos,
+                                            Easing::Linear,
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    let frame =
+                        crate::renderer::text::compile_math(&text_content, font_size, color);
+                    track.text_glyphs = crate::renderer::text::extract_glyphs(&frame);
+                    track.text_shapes = crate::renderer::text::extract_shapes(&frame);
+                }
+                Stmt::Math { label, props } => {
+                    let label_str = label.clone().unwrap_or_else(|| "unnamed_math".to_string());
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str));
+
+                    let mut latex_content = String::new();
+                    let mut font_size = 48.0;
+                    let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+
+                    for prop in props {
+                        match prop.name.as_str() {
+                            "latex" | "math" => {
+                                if let Expr::Str(s) = &prop.value {
+                                    latex_content = s.clone();
+                                }
+                            }
+                            "font_size" => {
+                                if let Expr::Num(s) = prop.value {
+                                    font_size = s as f32;
+                                }
+                            }
+                            "color" => {
+                                let c = parse_color(&prop.value);
+                                color = typst::visualize::Color::from_u8(
+                                    (c[0] * 255.0) as u8,
+                                    (c[1] * 255.0) as u8,
+                                    (c[2] * 255.0) as u8,
+                                    (c[3] * 255.0) as u8,
+                                );
+                                let t_ms = time_ms as u64;
+                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                            }
+                            "at" => {
+                                if let Expr::Tuple(arr) = &prop.value {
+                                    if arr.len() == 2 {
+                                        let mut pos = track.position.last_value();
+                                        if let Expr::Num(x) = arr[0] {
+                                            pos[0] = x as f32;
+                                        }
+                                        if let Expr::Num(y) = arr[1] {
+                                            pos[1] = y as f32;
+                                        }
+                                        track.position.add_keyframe(
+                                            time_ms as u64,
+                                            pos,
+                                            Easing::Linear,
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    let frame =
+                        crate::renderer::text::compile_math(&latex_content, font_size, color);
+                    track.text_glyphs = crate::renderer::text::extract_glyphs(&frame);
+                    track.text_shapes = crate::renderer::text::extract_shapes(&frame);
+                }
                 Stmt::ActorDecl {
                     label,
                     ty,
@@ -364,9 +486,24 @@ impl Timeline {
         }
     }
 
-    pub fn evaluate(&self, time_s: f64) -> (Vec<SdfInstance>, [f32; 4]) {
+    pub fn extract_all_glyphs(&self) -> Vec<crate::renderer::text::ExtractedGlyph> {
+        let mut glyphs = Vec::new();
+        for track in self.tracks.values() {
+            for glyph in &track.text_glyphs {
+                glyphs.push(glyph.clone());
+            }
+        }
+        glyphs
+    }
+
+    pub fn evaluate(
+        &self,
+        time_s: f64,
+        font_atlas: &crate::renderer::msdf::FontAtlas,
+    ) -> (Vec<SdfInstance>, Vec<TextInstance>, [f32; 4]) {
         let time_ms = (time_s * 1000.0) as u64;
         let mut instances = Vec::new();
+        let mut text_instances = Vec::new();
         let bg_color = self.background_color.evaluate(time_ms);
 
         for track in self.tracks.values() {
@@ -379,6 +516,57 @@ impl Timeline {
             let stroke_color = track.stroke_color.evaluate(time_ms);
             let stroke_progress = track.stroke_progress.evaluate(time_ms);
             let fill_opacity = track.fill_opacity.evaluate(time_ms);
+
+            for glyph in &track.text_glyphs {
+                let px = position[0] + glyph.x;
+                let py = position[1] + glyph.y;
+                let scale_x = glyph.scale * 1.0;
+                let scale_y = glyph.scale * 1.0;
+
+                let mut actual_color = color;
+                actual_color[3] *= opacity;
+
+                text_instances.push(TextInstance {
+                    position: [px, py],
+                    scale: [scale_x, scale_y],
+                    color: actual_color,
+                    uv_rect: font_atlas.get_uv_rect(glyph),
+                });
+            }
+
+            for shape in &track.text_shapes {
+                let transform = shape.transform;
+                let sx = transform.sx.get() as f32;
+                let sy = transform.sy.get() as f32;
+                let tx = transform.tx.to_pt() as f32;
+                let ty = transform.ty.to_pt() as f32;
+
+                let px = position[0] + tx;
+                let py = position[1] + ty;
+
+                let mut actual_color = color;
+                actual_color[3] *= opacity;
+
+                instances.push(SdfInstance {
+                    position: [px, py],
+                    size: [sx * 50.0, sy * 50.0],
+                    uv_rect: [0.0; 4],
+                    shape_params: [0.0; 4],
+                    fill_color: actual_color,
+                    stroke_color: actual_color,
+                    stroke_width: 1.0,
+                    glow_radius: 0.0,
+                    opacity,
+                    shape_type: 0,
+                    target_position: [px, py],
+                    target_size: [sx * 50.0, sy * 50.0],
+                    target_shape_params: [0.0; 4],
+                    target_shape_type: 0,
+                    shape_blend: 0.0,
+                    _padding1: [0.0; 2],
+                    morph_params: [0.0; 4],
+                });
+            }
 
             instances.push(SdfInstance {
                 position,
@@ -401,7 +589,7 @@ impl Timeline {
             });
         }
 
-        (instances, bg_color)
+        (instances, text_instances, bg_color)
     }
 }
 
