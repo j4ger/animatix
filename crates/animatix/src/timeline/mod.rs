@@ -1,17 +1,20 @@
 pub mod actions;
+pub mod svg;
 pub mod track;
 pub mod utils;
+pub mod vello_path;
 
 use actions::process_action;
+pub use svg::parse_svg;
 pub use track::{AnimationTrack, Interpolate, PropertyTrack};
 pub use utils::{parse_color, time_to_ms};
+pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Stmt};
 use crate::easing::*;
-use crate::renderer::types::{SdfInstance, TextInstance};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
@@ -111,8 +114,7 @@ impl Timeline {
 
                     let frame =
                         crate::renderer::text::compile_math(&text_content, font_size, color);
-                    track.text_glyphs = crate::renderer::text::extract_glyphs(&frame);
-                    track.text_shapes = crate::renderer::text::extract_shapes(&frame);
+                    track.text_paths = crate::renderer::text::extract_glyphs(&frame);
                 }
                 Stmt::Math { label, props } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_math".to_string());
@@ -172,8 +174,39 @@ impl Timeline {
 
                     let frame =
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
-                    track.text_glyphs = crate::renderer::text::extract_glyphs(&frame);
-                    track.text_shapes = crate::renderer::text::extract_shapes(&frame);
+                    track.text_paths = crate::renderer::text::extract_glyphs(&frame);
+                }
+                Stmt::Svg {
+                    label,
+                    url,
+                    at,
+                    scale,
+                } => {
+                    let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str));
+
+                    track
+                        .position
+                        .add_keyframe(time_ms as u64, [at.0, at.1], Easing::Linear);
+
+                    let svg_content = std::fs::read_to_string(url).unwrap_or_else(|e| {
+                        eprintln!("Failed to read SVG file {}: {}", url, e);
+                        String::new()
+                    });
+
+                    if !svg_content.is_empty() {
+                        let mut parsed_paths = crate::timeline::svg::parse_svg(&svg_content);
+                        if *scale != 1.0 {
+                            let affine = kurbo::Affine::scale(*scale as f64);
+                            for vp in &mut parsed_paths {
+                                vp.path.apply_affine(affine);
+                            }
+                        }
+                        track.svg_paths = parsed_paths;
+                    }
                 }
                 Stmt::ActorDecl {
                     label,
@@ -486,113 +519,91 @@ impl Timeline {
         }
     }
 
-    pub fn extract_all_glyphs(&self) -> Vec<crate::renderer::text::ExtractedGlyph> {
+    pub fn extract_all_glyphs(&self) -> Vec<crate::renderer::text::TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
-            for glyph in &track.text_glyphs {
+            for glyph in &track.text_paths {
                 glyphs.push(glyph.clone());
             }
         }
         glyphs
     }
 
-    pub fn evaluate(
-        &self,
-        time_s: f64,
-        font_atlas: &crate::renderer::msdf::FontAtlas,
-    ) -> (Vec<SdfInstance>, Vec<TextInstance>, [f32; 4]) {
+    pub fn evaluate(&self, time_s: f64) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
-        let mut instances = Vec::new();
-        let mut text_instances = Vec::new();
+        let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
+
+        let bg = vello::peniko::Color::new([
+            bg_color[0] as f32,
+            bg_color[1] as f32,
+            bg_color[2] as f32,
+            bg_color[3] as f32,
+        ]);
+        scene.fill(
+            vello::peniko::Fill::NonZero,
+            kurbo::Affine::IDENTITY,
+            bg,
+            None,
+            &kurbo::Rect::new(0.0, 0.0, 1920.0, 1080.0),
+        );
 
         for track in self.tracks.values() {
             let position = track.position.evaluate(time_ms);
-            let size = track.size.evaluate(time_ms);
-            let color = track.color.evaluate(time_ms);
-            let shape_type = track.shape_type.evaluate(time_ms);
             let opacity = track.opacity.evaluate(time_ms);
-            let stroke_width = track.stroke_width.evaluate(time_ms);
-            let stroke_color = track.stroke_color.evaluate(time_ms);
-            let stroke_progress = track.stroke_progress.evaluate(time_ms);
-            let fill_opacity = track.fill_opacity.evaluate(time_ms);
 
-            for glyph in &track.text_glyphs {
-                let px = position[0] + glyph.x;
-                let py = position[1] + glyph.y;
-                let scale_x = glyph.scale * 1.0;
-                let scale_y = glyph.scale * 1.0;
+            for text_path in &track.text_paths {
+                let color = match &text_path.color {
+                    typst::visualize::Paint::Solid(color) => {
+                        let rgba = color.to_vec4_u8();
+                        vello::peniko::Color::from_rgba8(
+                            rgba[0],
+                            rgba[1],
+                            rgba[2],
+                            (rgba[3] as f32 * opacity) as u8,
+                        )
+                    }
+                    _ => vello::peniko::Color::WHITE,
+                };
 
-                let mut actual_color = color;
-                actual_color[3] *= opacity;
-
-                text_instances.push(TextInstance {
-                    position: [px, py],
-                    scale: [scale_x, scale_y],
-                    color: actual_color,
-                    uv_rect: font_atlas.get_uv_rect(glyph),
-                });
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    kurbo::Affine::translate((position[0] as f64, position[1] as f64)),
+                    color,
+                    None,
+                    &text_path.path,
+                );
             }
 
-            for shape in &track.text_shapes {
-                let transform = shape.transform;
-                let sx = transform.sx.get() as f32;
-                let sy = transform.sy.get() as f32;
-                let tx = transform.tx.to_pt() as f32;
-                let ty = transform.ty.to_pt() as f32;
+            for svg_path in &track.svg_paths {
+                let transform = kurbo::Affine::translate((position[0] as f64, position[1] as f64));
 
-                let px = position[0] + tx;
-                let py = position[1] + ty;
+                if let Some(mut fill_color) = svg_path.fill {
+                    if opacity < 1.0 {
+                        fill_color = fill_color.with_alpha(fill_color.components[3] * opacity);
+                    }
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        transform,
+                        fill_color,
+                        None,
+                        &svg_path.path,
+                    );
+                }
 
-                let mut actual_color = color;
-                actual_color[3] *= opacity;
-
-                instances.push(SdfInstance {
-                    position: [px, py],
-                    size: [sx * 50.0, sy * 50.0],
-                    uv_rect: [0.0; 4],
-                    shape_params: [0.0; 4],
-                    fill_color: actual_color,
-                    stroke_color: actual_color,
-                    stroke_width: 1.0,
-                    glow_radius: 0.0,
-                    opacity,
-                    shape_type: 0,
-                    target_position: [px, py],
-                    target_size: [sx * 50.0, sy * 50.0],
-                    target_shape_params: [0.0; 4],
-                    target_shape_type: 0,
-                    shape_blend: 0.0,
-                    _padding1: [0.0; 2],
-                    morph_params: [0.0; 4],
-                });
+                if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
+                    if opacity < 1.0 {
+                        stroke_color = stroke_color.with_alpha(stroke_color.components[3] * opacity);
+                    }
+                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                    scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);
+                }
             }
-
-            instances.push(SdfInstance {
-                position,
-                size,
-                uv_rect: [0.0; 4],
-                shape_params: [stroke_progress, fill_opacity, 0.0, 0.0],
-                fill_color: color,
-                stroke_color,
-                stroke_width,
-                glow_radius: 0.0,
-                opacity,
-                shape_type,
-                target_position: position,
-                target_size: size,
-                target_shape_params: [0.0; 4],
-                target_shape_type: shape_type,
-                shape_blend: 0.0,
-                _padding1: [0.0; 2],
-                morph_params: [0.0; 4],
-            });
         }
 
-        (instances, text_instances, bg_color)
+        scene
     }
 }
-
 impl Default for Timeline {
     fn default() -> Self {
         Self::new()

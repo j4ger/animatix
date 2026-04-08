@@ -1,2 +1,0 @@
-#0s
-t1: Text { text: "Hello, Typst!", at: (100, 100), color: white }

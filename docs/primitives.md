@@ -145,12 +145,12 @@ These primitives load external files from the project directory.
 ## Svg
 **Description:** Scalable Vector Graphics file.
 **Properties:**
-- `path`: String (file path)
+- `url`: String (file path or URL to the SVG)
 - `scale`: Number (optional)
 
 **Example:**
 ```animatix
-icon: Svg, path: "assets/icon.svg", scale: 1.5
+icon: Svg, url: "assets/icon.svg", scale: 1.5
 ```
 
 ## Image

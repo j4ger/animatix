@@ -1,0 +1,18 @@
+#0s
+t: Text { text: "Animatix Engine", font_size: 100, color: (1.0, 1.0, 1.0, 1.0), at: (640, 200) }
+m: Math { math: "E = mc^2", font_size: 80, color: (0.5, 0.8, 1.0, 1.0), at: (640, 400) }
+v: Svg { url: "example/vector.svg", scale: 2.0, at: (640, 600) }
+c: Circle, radius: 80, color: (1.0, 0.2, 0.5, 1.0), at: (1000, 400)
+
+#1s
+t.color = (1.0, 0.5, 0.0, 1.0) [1s, ease: ease-in-out]
+t.at = (640, 250) [1s, ease: ease-in-out]
+m.font_size = 120 [1s, ease: ease-in-out]
+c.radius = 120 [1s, ease: ease-in-out]
+c.color = (0.2, 1.0, 0.5, 1.0) [1s, ease: ease-in-out]
+
+#2s
+scene.background_color = (0.1, 0.1, 0.15, 1.0) [1s, ease: ease-in-out]
+v.at = (640, 650) [1s, ease: ease-in-out]
+
+#4s

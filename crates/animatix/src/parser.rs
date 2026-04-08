@@ -197,6 +197,51 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(label, props)| Stmt::Math { label, props })
             .padded();
 
+        let svg_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Svg"))
+            .then(block_props.clone())
+            .map(|(label, props)| {
+                let mut url = String::new();
+                let mut at = (0.0, 0.0);
+                let mut scale = 1.0;
+                for p in props {
+                    match p.name.as_str() {
+                        "url" => {
+                            if let Expr::Str(s) = p.value {
+                                url = s;
+                            }
+                        }
+                        "at" => {
+                            if let Expr::Tuple(t) = p.value {
+                                if t.len() == 2 {
+                                    if let Expr::Num(x) = t[0] {
+                                        if let Expr::Num(y) = t[1] {
+                                            at = (x as f32, y as f32);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "scale" => {
+                            if let Expr::Num(n) = p.value {
+                                scale = n as f32;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Stmt::Svg {
+                    label,
+                    url,
+                    at,
+                    scale,
+                }
+            })
+            .padded();
+
         let actor_decl = ident
             .clone()
             .then_ignore(just(':').padded())
@@ -243,7 +288,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         choice((
-            let_decl, assignment, text_stmt, math_stmt, actor_decl, action, comment,
+            let_decl, assignment, text_stmt, math_stmt, svg_stmt, actor_decl, action, comment,
         ))
     });
 

@@ -1,4 +1,4 @@
-use crate::easing::{Easing, apply_easing};
+use crate::easing::{apply_easing, Easing};
 use std::collections::BTreeMap;
 
 pub trait Interpolate {
@@ -35,11 +35,15 @@ impl Interpolate for [f32; 4] {
 
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
     pub default_value: T,
@@ -96,7 +100,7 @@ impl<T: Interpolate + Copy + Clone> PropertyTrack<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AnimationTrack {
     pub label: String,
     pub position: PropertyTrack<[f32; 2]>,
@@ -108,8 +112,8 @@ pub struct AnimationTrack {
     pub stroke_color: PropertyTrack<[f32; 4]>,
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
-    pub text_glyphs: Vec<crate::renderer::text::ExtractedGlyph>,
-    pub text_shapes: Vec<crate::renderer::text::ExtractedShape>,
+    pub text_paths: Vec<crate::renderer::text::TextPath>,
+    pub svg_paths: Vec<crate::timeline::VelloPath>,
 }
 
 impl AnimationTrack {
@@ -125,8 +129,8 @@ impl AnimationTrack {
             stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
-            text_glyphs: Vec::new(),
-            text_shapes: Vec::new(),
+            text_paths: Vec::new(),
+            svg_paths: Vec::new(),
         }
     }
 }

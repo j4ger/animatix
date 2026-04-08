@@ -34,7 +34,7 @@ async fn render_video_async(
     duration: f32,
     output_file: &std::path::Path,
 ) {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
         ..Default::default()
     });
@@ -49,14 +49,13 @@ async fn render_video_async(
         .expect("Failed to find an appropriate adapter");
 
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-            },
-            None,
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            label: None,
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            memory_hints: Default::default(),
+            ..Default::default()
+        })
         .await
         .expect("Failed to create device");
 
@@ -70,8 +69,10 @@ async fn render_video_async(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::STORAGE_BINDING,
         label: Some("Output Texture"),
         view_formats: &[],
     };
@@ -86,22 +87,9 @@ async fn render_video_async(
         mapped_at_creation: false,
     });
 
-    let timeline = Timeline::build(ast);
-    let all_glyphs = timeline.extract_all_glyphs();
-    let font_atlas = crate::renderer::msdf::FontAtlas::new(&device, &queue, &all_glyphs);
-    let (initial_instances, initial_text_instances, _) = timeline.evaluate(0.0, &font_atlas);
+    let mut core = RendererCore::new(&device, &queue);
 
-    let core = RendererCore::new(
-        device,
-        queue,
-        width,
-        height,
-        wgpu::TextureFormat::Rgba8UnormSrgb,
-        &initial_instances,
-        &initial_text_instances,
-        font_atlas,
-    )
-    .await;
+    let timeline = Timeline::build(ast);
 
     let filename = CString::new(output_file.to_str().unwrap()).unwrap();
     let mut format_context = AVFormatContextOutput::create(&filename).unwrap();
@@ -163,83 +151,24 @@ async fn render_video_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
 
     for frame in 0..total_frames {
-        let current_time = frame as f64 / fps as f64;
-        let (instances, text_instances, bg_color) =
-            timeline.evaluate(current_time, &core.font_atlas);
-        println!("Text Instances: {}", text_instances.len());
-        for t in text_instances.iter().take(5) {
-            println!("{:?}", t);
-        }
+        let scene = timeline.evaluate((frame as f64) / (fps as f64));
 
-        if let Some(buffer) = &core.instance_buffer {
-            if instances.len() as u32 <= core.num_instances {
-                core.queue
-                    .write_buffer(buffer, 0, bytemuck::cast_slice(&instances));
-            }
-        }
-        if let Some(buffer) = &core.text_instance_buffer {
-            if text_instances.len() as u32 <= core.num_text_instances {
-                core.queue
-                    .write_buffer(buffer, 0, bytemuck::cast_slice(&text_instances));
-            }
-        }
+        core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
 
-        let mut encoder = core
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: bg_color[0] as f64,
-                            g: bg_color[1] as f64,
-                            b: bg_color[2] as f64,
-                            a: bg_color[3] as f64,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            if core.num_instances > 0 {
-                render_pass.set_pipeline(&core.render_pipeline);
-                render_pass.set_bind_group(0, &core.bind_group, &[]);
-                render_pass.set_vertex_buffer(0, core.vertex_buffer.slice(..));
-                render_pass
-                    .set_index_buffer(core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..core.num_indices, 0, 0..core.num_instances);
-            }
-            if core.num_text_instances > 0 {
-                render_pass.set_pipeline(&core.text_render_pipeline);
-                render_pass.set_bind_group(0, &core.text_bind_group, &[]);
-                render_pass.set_bind_group(1, &core.font_atlas.bind_group, &[]);
-                render_pass.set_vertex_buffer(0, core.vertex_buffer.slice(..));
-                render_pass
-                    .set_index_buffer(core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..core.num_indices, 0, 0..core.num_text_instances);
-            }
-        }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &output_buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(bytes_per_row),
                     rows_per_image: Some(height),
@@ -252,14 +181,19 @@ async fn render_video_async(
             },
         );
 
-        core.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
 
         let buffer_slice = output_buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).unwrap();
         });
-        core.device.poll(wgpu::Maintain::Wait);
+        device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .unwrap();
         rx.recv().unwrap().unwrap();
 
         {
@@ -340,7 +274,7 @@ async fn render_image_async(
     time: f32,
     output_file: &std::path::Path,
 ) {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
         ..Default::default()
     });
@@ -355,14 +289,13 @@ async fn render_image_async(
         .expect("Failed to find an appropriate adapter");
 
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-            },
-            None,
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            label: None,
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            memory_hints: Default::default(),
+            ..Default::default()
+        })
         .await
         .expect("Failed to create device");
 
@@ -376,8 +309,10 @@ async fn render_image_async(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::STORAGE_BINDING,
         label: Some("Output Texture"),
         view_formats: &[],
     };
@@ -392,97 +327,26 @@ async fn render_image_async(
         mapped_at_creation: false,
     });
 
-    let timeline = Timeline::build(ast);
-    let all_glyphs = timeline.extract_all_glyphs();
-    let font_atlas = crate::renderer::msdf::FontAtlas::new(&device, &queue, &all_glyphs);
-    let (initial_instances, initial_text_instances, _) = timeline.evaluate(0.0, &font_atlas);
+    let mut core = RendererCore::new(&device, &queue);
 
-    let core = RendererCore::new(
-        device,
-        queue,
-        width,
-        height,
-        wgpu::TextureFormat::Rgba8UnormSrgb,
-        &initial_instances,
-        &initial_text_instances,
-        font_atlas,
-    )
-    .await;
+        let timeline = Timeline::build(ast);
+    let scene = timeline.evaluate(time as f64);
+    core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
 
-    let current_time = time as f64;
-    let (instances, text_instances, bg_color) = timeline.evaluate(current_time, &core.font_atlas);
-    println!("Text Instances: {}", text_instances.len());
-    for t in text_instances.iter().take(5) {
-        println!("{:?}", t);
-    }
-
-    if let Some(buffer) = &core.instance_buffer {
-        if instances.len() as u32 <= core.num_instances {
-            core.queue
-                .write_buffer(buffer, 0, bytemuck::cast_slice(&instances));
-        }
-    }
-    if let Some(buffer) = &core.text_instance_buffer {
-        if text_instances.len() as u32 <= core.num_text_instances {
-            core.queue
-                .write_buffer(buffer, 0, bytemuck::cast_slice(&text_instances));
-        }
-    }
-
-    let mut encoder = core
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
-
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: bg_color[0] as f64,
-                        g: bg_color[1] as f64,
-                        b: bg_color[2] as f64,
-                        a: bg_color[3] as f64,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        if core.num_instances > 0 {
-            render_pass.set_pipeline(&core.render_pipeline);
-            render_pass.set_bind_group(0, &core.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, core.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..core.num_indices, 0, 0..core.num_instances);
-        }
-        if core.num_text_instances > 0 {
-            render_pass.set_pipeline(&core.text_render_pipeline);
-            render_pass.set_bind_group(0, &core.text_bind_group, &[]);
-            render_pass.set_bind_group(1, &core.font_atlas.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, core.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(core.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..core.num_indices, 0, 0..core.num_text_instances);
-        }
-    }
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Render Encoder"),
+    });
 
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture: &texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: &output_buffer,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(bytes_per_row),
                 rows_per_image: Some(height),
@@ -495,19 +359,23 @@ async fn render_image_async(
         },
     );
 
-    core.queue.submit(std::iter::once(encoder.finish()));
+    queue.submit(std::iter::once(encoder.finish()));
 
     let buffer_slice = output_buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::channel();
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
         tx.send(result).unwrap();
     });
-    core.device.poll(wgpu::Maintain::Wait);
+    device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        })
+        .unwrap();
     rx.recv().unwrap().unwrap();
 
     let data = buffer_slice.get_mapped_range();
 
-    // Save to PNG using image crate
     let mut img = image::RgbaImage::new(width, height);
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         let idx = (y * bytes_per_row + x * 4) as usize;

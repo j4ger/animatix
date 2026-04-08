@@ -199,6 +199,13 @@ pub enum Stmt {
         props: Vec<Property>,
     },
 
+    Svg {
+        label: Option<String>,
+        url: String,
+        at: (f32, f32),
+        scale: f32,
+    },
+
     /// Actor: btn: Button, text: "OK"
     /// Re-declaring an existing label triggers morphing logic in compiler
     ActorDecl {
