@@ -78,6 +78,85 @@ impl Interpolate for Vec<crate::renderer::text::TextPath> {
     }
 }
 
+fn lerp_color(c1: vello::peniko::Color, c2: vello::peniko::Color, t: f32) -> vello::peniko::Color {
+    let t = t.clamp(0.0, 1.0);
+    let comp1 = c1.to_rgba8();
+    let comp2 = c2.to_rgba8();
+    vello::peniko::Color::from_rgba8(
+        (comp1.r as f32 + (comp2.r as f32 - comp1.r as f32) * t) as u8,
+        (comp1.g as f32 + (comp2.g as f32 - comp1.g as f32) * t) as u8,
+        (comp1.b as f32 + (comp2.b as f32 - comp1.b as f32) * t) as u8,
+        (comp1.a as f32 + (comp2.a as f32 - comp1.a as f32) * t) as u8,
+    )
+}
+
+impl Interpolate for Vec<crate::timeline::vello_path::VelloPath> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        use crate::timeline::morph::{align_path_lists, align_subpaths, morph_paths};
+
+        let source_paths: Vec<_> = self.iter().map(|p| p.path.clone()).collect();
+        let target_paths: Vec<_> = other.iter().map(|p| p.path.clone()).collect();
+
+        let aligned_lists = align_path_lists(&source_paths, &target_paths);
+
+        let mut result = Vec::with_capacity(aligned_lists.len());
+
+        for (i, (s_path, t_path)) in aligned_lists.into_iter().enumerate() {
+            let (aligned_s, aligned_t) = align_subpaths(&s_path, &t_path);
+            let morphed_path = morph_paths(&aligned_s, &aligned_t, t as f64);
+
+            let s_elem = self.get(i);
+            let t_elem = other.get(i);
+
+            let fill = match (s_elem.and_then(|e| e.fill), t_elem.and_then(|e| e.fill)) {
+                (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
+                (Some(c), None) => Some(if t < 0.5 {
+                    c
+                } else {
+                    vello::peniko::Color::TRANSPARENT
+                }),
+                (None, Some(c)) => Some(if t >= 0.5 {
+                    c
+                } else {
+                    vello::peniko::Color::TRANSPARENT
+                }),
+                (None, None) => None,
+            };
+
+            let stroke = match (s_elem.and_then(|e| e.stroke), t_elem.and_then(|e| e.stroke)) {
+                (Some((c1, w1)), Some((c2, w2))) => {
+                    Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
+                }
+                (Some((c, w)), None) => Some((
+                    if t < 0.5 {
+                        c
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    },
+                    if t < 0.5 { w } else { 0.0 },
+                )),
+                (None, Some((c, w))) => Some((
+                    if t >= 0.5 {
+                        c
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    },
+                    if t >= 0.5 { w } else { 0.0 },
+                )),
+                (None, None) => None,
+            };
+
+            result.push(crate::timeline::vello_path::VelloPath {
+                path: morphed_path,
+                fill,
+                stroke,
+            });
+        }
+
+        result
+    }
+}
+
 #[derive(Clone)]
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
@@ -148,6 +227,7 @@ pub struct AnimationTrack {
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
     pub text_paths: PropertyTrack<Vec<crate::renderer::text::TextPath>>,
+    pub vector_paths: PropertyTrack<Vec<crate::timeline::vello_path::VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
 }
 
@@ -165,6 +245,7 @@ impl AnimationTrack {
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
             text_paths: PropertyTrack::new(Vec::new()),
+            vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
         }
     }

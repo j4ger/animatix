@@ -1,0 +1,9 @@
+#0s
+t1: Text { text: "hi", font_size: 150, color: (1.0, 1.0, 1.0, 1.0), at: (640, 200) }
+c: Circle, radius: 100, color: (1.0, 0.2, 0.5, 1.0), at: (640, 500)
+
+#2s
+t1: Text { text: "hello", font_size: 150, color: (0.2, 1.0, 0.5, 1.0), at: (640, 200) } [2s, ease: ease-in-out]
+c: Rect, size: (200, 200), color: (0.2, 1.0, 0.5, 1.0), at: (640, 500) [2s, ease: ease-in-out]
+
+#5s
