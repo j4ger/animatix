@@ -1,8 +1,8 @@
 use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::{Action, Expr};
 use crate::easing::Easing;
-use crate::timeline::track::AnimationTrack;
 use crate::timeline::Timeline;
+use crate::timeline::track::AnimationTrack;
 
 pub struct FadeOut;
 

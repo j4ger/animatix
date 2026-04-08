@@ -329,7 +329,7 @@ async fn render_image_async(
 
     let mut core = RendererCore::new(&device, &queue);
 
-        let timeline = Timeline::build(ast);
+    let timeline = Timeline::build(ast);
     let scene = timeline.evaluate(time as f64);
     core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
 

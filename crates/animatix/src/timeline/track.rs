@@ -1,4 +1,4 @@
-use crate::easing::{apply_easing, Easing};
+use crate::easing::{Easing, apply_easing};
 use std::collections::BTreeMap;
 
 pub trait Interpolate {
@@ -35,11 +35,46 @@ impl Interpolate for [f32; 4] {
 
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
+impl Interpolate for Vec<crate::renderer::text::TextPath> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        use crate::timeline::morph::{align_path_lists, align_subpaths, morph_paths};
+
+        let source_paths: Vec<_> = self.iter().map(|p| p.path.clone()).collect();
+        let target_paths: Vec<_> = other.iter().map(|p| p.path.clone()).collect();
+
+        let aligned_lists = align_path_lists(&source_paths, &target_paths);
+
+        let mut result = Vec::with_capacity(aligned_lists.len());
+
+        for (i, (s_path, t_path)) in aligned_lists.into_iter().enumerate() {
+            let (aligned_s, aligned_t) = align_subpaths(&s_path, &t_path);
+            let morphed_path = morph_paths(&aligned_s, &aligned_t, t as f64);
+
+            let color = if t < 0.5 {
+                self.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
+                    other.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
+                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                    })
+                })
+            } else {
+                other.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
+                    self.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
+                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                    })
+                })
+            };
+
+            result.push(crate::renderer::text::TextPath {
+                path: morphed_path,
+                color,
+            });
         }
+
+        result
     }
 }
 
@@ -49,7 +84,7 @@ pub struct PropertyTrack<T> {
     pub default_value: T,
 }
 
-impl<T: Interpolate + Copy + Clone> PropertyTrack<T> {
+impl<T: Interpolate + Clone> PropertyTrack<T> {
     pub fn new(default_value: T) -> Self {
         Self {
             keyframes: BTreeMap::new(),
@@ -63,29 +98,29 @@ impl<T: Interpolate + Copy + Clone> PropertyTrack<T> {
 
     pub fn evaluate(&self, time_ms: u64) -> T {
         if self.keyframes.is_empty() {
-            return self.default_value;
+            return self.default_value.clone();
         }
 
         let mut prev_time = 0;
-        let mut prev_val = self.default_value;
+        let mut prev_val = self.default_value.clone();
 
         // Initialize prev_val with the first keyframe if it exists
-        if let Some((&t, &(val, _))) = self.keyframes.iter().next() {
+        if let Some((&t, (val, _))) = self.keyframes.iter().next() {
             if time_ms <= t {
-                return val; // Before first keyframe
+                return val.clone(); // Before first keyframe
             }
         }
 
-        for (&t, &(val, easing)) in &self.keyframes {
+        for (&t, (val, easing)) in &self.keyframes {
             if t > time_ms {
                 let duration = (t - prev_time) as f32;
                 let elapsed = (time_ms - prev_time) as f32;
                 let progress = elapsed / duration;
-                let eased_progress = apply_easing(progress, easing);
+                let eased_progress = apply_easing(progress, *easing);
                 return prev_val.interpolate(&val, eased_progress);
             }
             prev_time = t;
-            prev_val = val;
+            prev_val = val.clone();
         }
 
         prev_val
@@ -95,8 +130,8 @@ impl<T: Interpolate + Copy + Clone> PropertyTrack<T> {
         self.keyframes
             .iter()
             .next_back()
-            .map(|(_, &(val, _))| val)
-            .unwrap_or(self.default_value)
+            .map(|(_, (val, _))| val.clone())
+            .unwrap_or_else(|| self.default_value.clone())
     }
 }
 
@@ -112,7 +147,7 @@ pub struct AnimationTrack {
     pub stroke_color: PropertyTrack<[f32; 4]>,
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
-    pub text_paths: Vec<crate::renderer::text::TextPath>,
+    pub text_paths: PropertyTrack<Vec<crate::renderer::text::TextPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
 }
 
@@ -129,7 +164,7 @@ impl AnimationTrack {
             stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
-            text_paths: Vec::new(),
+            text_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
         }
     }

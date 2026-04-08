@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod morph;
 pub mod svg;
 pub mod track;
 pub mod utils;
@@ -56,7 +57,11 @@ impl Timeline {
     fn process_body(&mut self, time_ms: f64, body: &[Stmt]) {
         for stmt in body {
             match stmt {
-                Stmt::Text { label, props } => {
+                Stmt::Text {
+                    label,
+                    props,
+                    modifiers,
+                } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_text".to_string());
                     let track = self
                         .tracks
@@ -114,9 +119,54 @@ impl Timeline {
 
                     let frame =
                         crate::renderer::text::compile_math(&text_content, font_size, color);
-                    track.text_paths = crate::renderer::text::extract_glyphs(&frame);
+                    let new_paths = crate::renderer::text::extract_glyphs(&frame);
+
+                    let mut duration_ms = 0.0;
+                    let mut easing = Easing::Linear;
+
+                    for modifier in modifiers {
+                        if modifier.name.as_deref() == Some("ease") {
+                            if let Expr::Ident(val) = &modifier.value {
+                                match val.as_str() {
+                                    "ease-in" => easing = Easing::EaseIn,
+                                    "ease-out" => easing = Easing::EaseOut,
+                                    "ease-in-out" => easing = Easing::EaseInOut,
+                                    "bounce" => easing = Easing::Bounce,
+                                    "linear" => easing = Easing::Linear,
+                                    _ => {}
+                                }
+                            }
+                        } else if modifier.name.is_none() {
+                            if let Expr::Ident(val) = &modifier.value {
+                                if val.ends_with("ms") {
+                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
+                                        duration_ms = ms;
+                                    }
+                                } else if val.ends_with('s') {
+                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
+                                        duration_ms = s * 1000.0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let t_start_ms = time_ms as u64;
+                    let t_end_ms = (time_ms + duration_ms) as u64;
+
+                    if duration_ms > 0.0 {
+                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        track
+                            .text_paths
+                            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    }
+                    track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
                 }
-                Stmt::Math { label, props } => {
+                Stmt::Math {
+                    label,
+                    props,
+                    modifiers,
+                } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_math".to_string());
                     let track = self
                         .tracks
@@ -174,7 +224,48 @@ impl Timeline {
 
                     let frame =
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
-                    track.text_paths = crate::renderer::text::extract_glyphs(&frame);
+                    let new_paths = crate::renderer::text::extract_glyphs(&frame);
+
+                    let mut duration_ms = 0.0;
+                    let mut easing = Easing::Linear;
+
+                    for modifier in modifiers {
+                        if modifier.name.as_deref() == Some("ease") {
+                            if let Expr::Ident(val) = &modifier.value {
+                                match val.as_str() {
+                                    "ease-in" => easing = Easing::EaseIn,
+                                    "ease-out" => easing = Easing::EaseOut,
+                                    "ease-in-out" => easing = Easing::EaseInOut,
+                                    "bounce" => easing = Easing::Bounce,
+                                    "linear" => easing = Easing::Linear,
+                                    _ => {}
+                                }
+                            }
+                        } else if modifier.name.is_none() {
+                            if let Expr::Ident(val) = &modifier.value {
+                                if val.ends_with("ms") {
+                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
+                                        duration_ms = ms;
+                                    }
+                                } else if val.ends_with('s') {
+                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
+                                        duration_ms = s * 1000.0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let t_start_ms = time_ms as u64;
+                    let t_end_ms = (time_ms + duration_ms) as u64;
+
+                    if duration_ms > 0.0 {
+                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        track
+                            .text_paths
+                            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    }
+                    track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
                 }
                 Stmt::Svg {
                     label,
@@ -522,7 +613,12 @@ impl Timeline {
     pub fn extract_all_glyphs(&self) -> Vec<crate::renderer::text::TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
-            for glyph in &track.text_paths {
+            for (_, (paths, _)) in &track.text_paths.keyframes {
+                for glyph in paths {
+                    glyphs.push(glyph.clone());
+                }
+            }
+            for glyph in &track.text_paths.default_value {
                 glyphs.push(glyph.clone());
             }
         }
@@ -551,8 +647,9 @@ impl Timeline {
         for track in self.tracks.values() {
             let position = track.position.evaluate(time_ms);
             let opacity = track.opacity.evaluate(time_ms);
+            let text_paths = track.text_paths.evaluate(time_ms);
 
-            for text_path in &track.text_paths {
+            for text_path in &text_paths {
                 let color = match &text_path.color {
                     typst::visualize::Paint::Solid(color) => {
                         let rgba = color.to_vec4_u8();
@@ -593,7 +690,8 @@ impl Timeline {
 
                 if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
                     if opacity < 1.0 {
-                        stroke_color = stroke_color.with_alpha(stroke_color.components[3] * opacity);
+                        stroke_color =
+                            stroke_color.with_alpha(stroke_color.components[3] * opacity);
                     }
                     let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
                     scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);

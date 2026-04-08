@@ -192,11 +192,13 @@ pub enum Stmt {
     Text {
         label: Option<String>,
         props: Vec<Property>,
+        modifiers: Vec<Modifier>,
     },
 
     Math {
         label: Option<String>,
         props: Vec<Property>,
+        modifiers: Vec<Modifier>,
     },
 
     Svg {

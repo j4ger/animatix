@@ -185,7 +185,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .then_ignore(text::keyword("Text"))
             .then(block_props.clone())
-            .map(|(label, props)| Stmt::Text { label, props })
+            .then(modifiers.clone())
+            .map(|((label, props), modifiers)| Stmt::Text {
+                label,
+                props,
+                modifiers,
+            })
             .padded();
 
         let math_stmt = ident
@@ -194,7 +199,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .then_ignore(text::keyword("Math"))
             .then(block_props.clone())
-            .map(|(label, props)| Stmt::Math { label, props })
+            .then(modifiers.clone())
+            .map(|((label, props), modifiers)| Stmt::Math {
+                label,
+                props,
+                modifiers,
+            })
             .padded();
 
         let svg_stmt = ident
