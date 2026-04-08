@@ -63,8 +63,10 @@ We have transitioned `animatix` to a Vector-First pipeline powered by **Vello**.
 - [x] CLI tool for `.png` and `.mp4` video rendering (via `rsmpeg`)
 - [x] Compute-shader vector pipeline (Vello Integration)
 - [x] Native SVG loading and rendering (`usvg`)
+- [x] Timeline architecture redesigned to support vector-first unified properties
+- [x] Manim-style Vector Morphing (Path Interpolation) for Text, Math, and Geometric Shapes (via `kurbo`)
 
 ### Upcoming
-- [ ] Timeline architecture redesign
-- [ ] Manim-style Vector Morphing (Path Interpolation)
 - [ ] Interactive UI for building animations
+- [ ] Advanced Path Effects (Trimming, dashing, etc.)
+- [ ] Full nested scene / grouping support
