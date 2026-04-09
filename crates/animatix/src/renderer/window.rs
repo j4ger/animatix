@@ -40,11 +40,14 @@ impl State {
             .await
             .unwrap();
 
+        let needed_limits = wgpu::Limits::default()
+            .using_resolution(adapter.limits());
+
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_limits: needed_limits,
                 memory_hints: Default::default(),
                 ..Default::default()
             })
@@ -60,7 +63,7 @@ impl State {
             .unwrap_or(surface_caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::STORAGE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width.max(1),
             height: size.height.max(1),
@@ -102,14 +105,42 @@ impl State {
 
         let scene = self.timeline.evaluate(current_time);
 
+        let render_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: self.config.width,
+                height: self.config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: Some("Vello Render Target"),
+            view_formats: &[],
+        });
+        let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         self.core.render_vello_scene(
             &self.device,
             &self.queue,
-            &view,
+            &render_view,
             self.config.width,
             self.config.height,
             &scene,
         );
+
+        let blitter = wgpu::util::TextureBlitter::new(&self.device, self.config.format);
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Blit Encoder"),
+        });
+        blitter.copy(
+            &self.device,
+            &mut encoder,
+            &render_view,
+            &view,
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
 
         output.present();
 
