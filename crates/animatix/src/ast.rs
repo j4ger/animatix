@@ -139,6 +139,7 @@ pub struct ParamDef {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComponentDef {
+    pub is_pub: bool,
     pub name: String,
     pub params: Vec<ParamDef>,
     pub body: Vec<Stmt>,
@@ -213,6 +214,7 @@ pub enum Stmt {
     /// Actor: btn: Button, text: "OK"
     /// Re-declaring an existing label triggers morphing logic in compiler
     ActorDecl {
+        is_pub: bool,
         label: String,
         ty: String,
         props: Vec<Property>,
@@ -220,9 +222,8 @@ pub enum Stmt {
         children: Vec<InlineItem>, // For containers: Row { A, B }
     },
 
-    /// Import: import Button from "path"
+    /// Import: import "path"
     Import {
-        name: String,
         path: String,
     },
 
@@ -338,9 +339,7 @@ pub enum FileType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
-    pub name: String,
     pub path: String,
-    pub items: Option<Vec<String>>, // None = import all, Some = specific items
 }
 
 #[derive(Clone, Debug, PartialEq)]

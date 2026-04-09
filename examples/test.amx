@@ -1,0 +1,3 @@
+pub actor ThemedRect() {
+  my_rect: Rect, color: red, corner_radius: 12
+}

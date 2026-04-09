@@ -1,0 +1,6 @@
+// simple.amx - Simple test file
+
+import "./components.amx"
+
+#0s
+circle: Circle, at: (100, 100), radius: 50

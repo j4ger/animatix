@@ -258,19 +258,22 @@ stop job
 
 ## 9. Components
 
-**Definition**  
-Components define reusable actors with parameters.
+### Definition
+Reusable actors can be defined and parameterized. To make an actor available to other files, it must be exported using the `pub` keyword.
+
 ```animatix
-Button(text: "Click", color: Color) {
-  pub bg: Rect, color: color
-  pub label: Text, text: text
+pub actor Button(text: "Click", color: Color) {
+  bg: Rect, color: color
+  label: Text, text: text
 }
 ```
 
-**Usage**  
-Import and instantiate like standard actors.
+### Import
+Use the `import` keyword to load external files. Exported actors become available via dot notation or directly if imported.
+
 ```animatix
-use Button from "button.actor"
+import "button.actor.amx"
+
 btn: Button, text: "Submit"
 ```
 
@@ -335,16 +338,17 @@ Outside a container, use dot notation.
 morph container.child into target [2s]
 ```
 
-**Import to Scope**  
-Bring specific children into local scope.
-```animatix
-use container.{child1, child2}
-morph child1 into target [2s]
-```
-
 **Query Access**  
 Access children by index or type.
 ```animatix
 container.children[0]
 container.children[Type: Tex]
 ```
+
+---
+
+## 12. Editor & Hot-Reloading
+
+File watching and hot-reload for realtime evaluation is intentionally **postponed**. The current architecture prioritizes a clean, stable evaluation model over live file watching. This decision keeps the core evaluation semantics simple and avoids the complexity of invalidation cascades that would arise from mid-evaluation file modifications. 
+
+Future versions will introduce a robust UI/Hot-Reload system that assigns a unique `FileId` to each module in a central module graph, preventing circular dependencies and allowing safe, incremental re-evaluation.

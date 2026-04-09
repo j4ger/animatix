@@ -1,0 +1,7 @@
+// cycle_a.amx - File that imports cycle_b (for cycle detection demo)
+
+import "./cycle_b.amx"
+
+pub component AComponent() {
+    // content
+}

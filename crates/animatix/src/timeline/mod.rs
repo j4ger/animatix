@@ -7,7 +7,7 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action;
-pub use kurbo_shapes::{KurboShape_, morph_kurbo_shapes, morph_kurbo_shapes_default};
+pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
 pub use svg::parse_svg;
 pub use track::{AnimationTrack, Interpolate, PropertyTrack};
 pub use utils::{parse_color, time_to_ms};
@@ -108,6 +108,7 @@ impl Timeline {
                     let id = format!("__anon_{}", self.anon_counter);
                     self.anon_counter += 1;
                     let stmt = Stmt::ActorDecl {
+                        is_pub: false,
                         label: id.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
@@ -124,6 +125,7 @@ impl Timeline {
                     children,
                 } => {
                     let stmt = Stmt::ActorDecl {
+                        is_pub: false,
                         label: label.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
@@ -385,6 +387,7 @@ impl Timeline {
                     }
                 }
                 Stmt::ActorDecl {
+                    is_pub: _,
                     label,
                     ty,
                     props,

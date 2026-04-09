@@ -18,7 +18,16 @@ The transition to Vello significantly changes our rendering dependencies:
 
 ## 3. The Unified Pipeline
 
-In the new architecture, the rendering loop changes from pushing instances to a vertex buffer, to building a `vello::Scene` graph on the CPU every frame and compiling it on the GPU.
+### Module Resolution & Dependency Graph (Load Time)
+
+Before evaluation, the compiler parses all files and resolves imports to create a unified AST. 
+
+1. **FileId Assignment**: Every file loaded is assigned a unique `FileId` (e.g., `FileId(u32)`). This acts as a lightweight, copyable handle to the file's AST and source text, heavily inspired by `rustc` and `rust-analyzer` patterns.
+2. **Import Resolution**: When an `import "path.amx"` is encountered, the path is resolved absolutely. If the file is already in the `ModuleGraph` (or `SourceMap`), its existing `FileId` is returned, preventing redundant parsing and re-evaluation.
+3. **Cycle Detection**: The loader tracks a `visited` set of `FileId`s during resolution. If an import resolves to a `FileId` currently in the `visited` set, a cyclic dependency error is thrown.
+4. **Linking**: Actors marked with `pub actor` are exposed to importing files. The final output is a single, flattened AST graph ready for the timeline.
+
+*Note on Hot-Reloading: While tracking file dependencies via a `ModuleGraph` naturally supports watching files for changes and invalidating specific `FileId`s, real-time hot-reloading is intentionally postponed until the UI/Editor phase to maintain a simple, stable evaluation model.*
 
 ### The Timeline Data Structure
 
@@ -60,7 +69,7 @@ function evaluate_node(node_id, parent_transform):
 This DFS ensures all descendants receive correctly accumulated transforms and opacities. The final render list contains only leaf nodes with their pre-computed global transforms.
 
 ### Phase A: Parsing and Data Unification (Load Time)
-When an `.amx` file is loaded, all visual assets are converted into a unified `PathTree` format (a collection of Bézier curves and fill/stroke commands).
+When an `.amx` file is loaded, the compiler parses it, resolves all imports (using `FileId` assignments to build the `ModuleGraph`), and converts all visual assets into a unified `PathTree` format (a collection of Bézier curves and fill/stroke commands).
 1.  **Text & Math:** The Typst layout engine calculates positions. For each glyph, we fetch its mathematical outline from the font (using `fontdue` or `ttf-parser`) and store it as a path.
 2.  **SVGs:** Loaded via `usvg` and converted to path definitions.
 3.  **Shapes:** `.amx` primitives (circles, rects) are generated as mathematical paths.

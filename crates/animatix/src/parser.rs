@@ -231,6 +231,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(name, value)| Stmt::LetDecl { name, value })
             .padded();
 
+        let import_stmt = text::keyword("import").padded()
+            .ignore_then(
+                just('"')
+                    .ignore_then(none_of('"').repeated().collect::<String>())
+                    .then_ignore(just('"')),
+            )
+            .map(|path| Stmt::Import { path })
+            .padded();
+
         let assignment = ident
             .clone()
             .then_ignore(just('.'))
@@ -328,8 +337,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
-        let actor_decl = ident
-            .clone()
+        let actor_decl = text::keyword("pub")
+            .or_not()
+            .map(|p| p.is_some())
+            .then(ident.clone())
             .then_ignore(just(':').padded())
             .then(ident.clone())
             .then(
@@ -353,7 +364,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .map(|c| c.unwrap_or_default()),
             )
             .map(
-                |((((label, ty), props), modifiers), children)| Stmt::ActorDecl {
+                |(((((is_pub, label), ty), props), modifiers), children)| Stmt::ActorDecl {
+                    is_pub,
                     label,
                     ty,
                     props,
@@ -382,8 +394,62 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(Stmt::Comment)
             .padded();
 
+        let param_def = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then(
+                str_val
+                    .clone()
+                    .map(|e| Some(e))
+                    .or(text::keyword("null").to(Some(Expr::Null))),
+            )
+            .map(|(name, default): (String, Option<Expr>)| ParamDef {
+                name,
+                param_type: None,
+                default: default,
+            });
+
+        let component_def = text::keyword("pub")
+            .or_not()
+            .map(|p| p.is_some())
+            .then(text::keyword("component"))
+            .then(ident.clone())
+            .then(
+                param_def
+                    .separated_by(just(',').padded())
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('(').padded(), just(')').padded())
+                    .or_not()
+                    .map(|p| p.unwrap_or_default()),
+            )
+            .then(
+                _stmt
+                    .clone()
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|((((is_pub, _), name), params), body)| {
+                Stmt::ComponentDef(ComponentDef {
+                    is_pub,
+                    name,
+                    params,
+                    body,
+                })
+            })
+            .padded();
+
         choice((
-            let_decl, assignment, text_stmt, math_stmt, svg_stmt, actor_decl, action, comment,
+            let_decl,
+            import_stmt,
+            assignment,
+            text_stmt,
+            math_stmt,
+            svg_stmt,
+            actor_decl,
+            component_def,
+            action,
+            comment,
         ))
     });
 

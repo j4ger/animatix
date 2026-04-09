@@ -62,6 +62,7 @@ fn test_timeline_build_and_evaluate() {
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
+                is_pub: false,
                 label: "actor1".to_string(),
                 ty: "Circle".to_string(),
                 props: vec![
@@ -81,6 +82,7 @@ fn test_timeline_build_and_evaluate() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
+                is_pub: false,
                 label: "actor1".to_string(),
                 ty: "Square".to_string(),
                 props: vec![

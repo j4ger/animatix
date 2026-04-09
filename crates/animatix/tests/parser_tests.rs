@@ -122,6 +122,7 @@ fn test_actor_decl_full() {
     assert_eq!(
         parse_single_stmt("circle: Circle, radius: 50, color: blue [2s, ease: bounce]"),
         Stmt::ActorDecl {
+            is_pub: false,
             label: "circle".to_string(),
             ty: "Circle".to_string(),
             props: vec![
@@ -154,6 +155,7 @@ fn test_actor_decl_nested() {
     assert_eq!(
         parse_single_stmt("group: Group { a: Circle, size: 10, b: Rect, size: 20 }"),
         Stmt::ActorDecl {
+            is_pub: false,
             label: "group".to_string(),
             ty: "Group".to_string(),
             props: vec![],
@@ -189,6 +191,7 @@ fn test_actor_decl_anonymous() {
     assert_eq!(
         parse_single_stmt("group: Group { Circle, size: 10, Rect, size: 20 }"),
         Stmt::ActorDecl {
+            is_pub: false,
             label: "group".to_string(),
             ty: "Group".to_string(),
             props: vec![],

@@ -1,8 +1,6 @@
-use animatix::parser::parser;
+use animatix::module::ModuleGraph;
 use animatix::renderer;
-use chumsky::Parser;
 use clap::{Parser as ClapParser, Subcommand};
-use std::fs;
 use std::path::PathBuf;
 
 #[derive(ClapParser, Debug)]
@@ -89,76 +87,37 @@ fn main() {
             compact,
             force,
         } => {
-            let src = match fs::read_to_string(&input) {
-                Ok(content) => content,
+            println!("Parsing Animatix file: {}", input.display());
+
+            let ast = match ModuleGraph::new().load_entry(&input) {
+                Ok(statements) => statements,
                 Err(e) => {
-                    eprintln!(
-                        "Error: Failed to read input file '{}': {}",
-                        input.display(),
-                        e
-                    );
+                    eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
 
-            println!("Parsing Animatix file: {}", input.display());
-
-            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
-
-            let has_errors = !errs.is_empty();
-
-            if let Some(ast) = ast {
-                if !has_errors || force {
-                    println!("\nAbstract Syntax Tree:");
-                    if compact {
-                        println!("{:?}", ast);
-                    } else {
-                        for stmt in ast {
-                            println!("{:#?}", stmt);
-                        }
-                    }
+            println!("\nAbstract Syntax Tree:");
+            if compact {
+                println!("{:?}", ast);
+            } else {
+                for stmt in &ast {
+                    println!("{:#?}", stmt);
                 }
-            }
-
-            if has_errors {
-                eprintln!("\nErrors:");
-                for err in errs {
-                    eprintln!("{:?}", err);
-                }
-                std::process::exit(1);
             }
         }
         Commands::Render { input } => {
-            let src = match fs::read_to_string(&input) {
-                Ok(content) => content,
+            println!("Rendering Animatix file: {}", input.display());
+
+            let ast = match ModuleGraph::new().load_entry(&input) {
+                Ok(statements) => statements,
                 Err(e) => {
-                    eprintln!(
-                        "Error: Failed to read input file '{}': {}",
-                        input.display(),
-                        e
-                    );
+                    eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
 
-            println!("Rendering Animatix file: {}", input.display());
-
-            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
-
-            if !errs.is_empty() {
-                eprintln!("\nParse Errors:");
-                for err in errs {
-                    eprintln!("{:?}", err);
-                }
-                std::process::exit(1);
-            }
-
-            if let Some(ast) = ast {
-                renderer::run(&ast);
-            } else {
-                eprintln!("Failed to generate AST.");
-                std::process::exit(1);
-            }
+            renderer::run(&ast);
         }
         Commands::Image {
             input,
@@ -167,41 +126,26 @@ fn main() {
             time,
             output,
         } => {
-            let src = match fs::read_to_string(&input) {
-                Ok(content) => content,
+            println!("Rendering Animatix image: {}", input.display());
+
+            let ast = match ModuleGraph::new().load_entry(&input) {
+                Ok(statements) => statements,
                 Err(e) => {
-                    eprintln!(
-                        "Error: Failed to read input file '{}': {}",
-                        input.display(),
-                        e
-                    );
+                    eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
-            println!("Rendering Animatix image: {}", input.display());
-            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
-            if !errs.is_empty() {
-                eprintln!("\nParse Errors:");
-                for err in errs {
-                    eprintln!("{:?}", err);
-                }
-                std::process::exit(1);
-            }
-            if let Some(ast) = ast {
-                let output_file =
-                    output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
-                println!(
-                    "Output image: {}x{} at {}s -> {}",
-                    width,
-                    height,
-                    time,
-                    output_file.display()
-                );
-                renderer::render_image(&ast, width, height, time, &output_file);
-            } else {
-                eprintln!("Failed to generate AST.");
-                std::process::exit(1);
-            }
+
+            let output_file =
+                output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
+            println!(
+                "Output image: {}x{} at {}s -> {}",
+                width,
+                height,
+                time,
+                output_file.display()
+            );
+            renderer::render_image(&ast, width, height, time, &output_file);
         }
         Commands::Video {
             input,
@@ -211,48 +155,29 @@ fn main() {
             duration,
             output,
         } => {
-            let src = match fs::read_to_string(&input) {
-                Ok(content) => content,
+            println!("Rendering Animatix video: {}", input.display());
+
+            let ast = match ModuleGraph::new().load_entry(&input) {
+                Ok(statements) => statements,
                 Err(e) => {
-                    eprintln!(
-                        "Error: Failed to read input file '{}': {}",
-                        input.display(),
-                        e
-                    );
+                    eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
 
-            println!("Rendering Animatix video: {}", input.display());
-
-            let (ast, errs) = parser().parse(src.as_str()).into_output_errors();
-
-            if !errs.is_empty() {
-                eprintln!("\nParse Errors:");
-                for err in errs {
-                    eprintln!("{:?}", err);
-                }
-                std::process::exit(1);
-            }
-
-            if let Some(ast) = ast {
-                let output_file = output.unwrap_or_else(|| {
-                    let now = chrono::Local::now();
-                    PathBuf::from(format!("animatix_{}.mp4", now.format("%y%m%d_%H%M_%S")))
-                });
-                println!(
-                    "Output configuration: {}x{} at {} FPS for {} seconds -> {}",
-                    width,
-                    height,
-                    fps,
-                    duration,
-                    output_file.display()
-                );
-                renderer::render_video(&ast, width, height, fps, duration, &output_file);
-            } else {
-                eprintln!("Failed to generate AST.");
-                std::process::exit(1);
-            }
+            let output_file = output.unwrap_or_else(|| {
+                let now = chrono::Local::now();
+                PathBuf::from(format!("animatix_{}.mp4", now.format("%y%m%d_%H%M_%S")))
+            });
+            println!(
+                "Output configuration: {}x{} at {} FPS for {} seconds -> {}",
+                width,
+                height,
+                fps,
+                duration,
+                output_file.display()
+            );
+            renderer::render_video(&ast, width, height, fps, duration, &output_file);
         }
     }
 }
