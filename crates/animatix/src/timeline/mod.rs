@@ -17,10 +17,19 @@ use crate::ast::{Expr, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone)]
+pub struct SceneNode {
+    pub label: String,
+    pub children: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
+    pub nodes: BTreeMap<String, SceneNode>,
+    pub root_nodes: Vec<String>,
+    pub anon_counter: usize,
 }
 
 impl Timeline {
@@ -30,6 +39,9 @@ impl Timeline {
         Self {
             tracks: BTreeMap::new(),
             background_color: bg_track,
+            nodes: BTreeMap::new(),
+            root_nodes: Vec::new(),
+            anon_counter: 0,
         }
     }
 
@@ -41,14 +53,14 @@ impl Timeline {
             match stmt {
                 Stmt::Keyframe { time, body } => {
                     current_time_ms = time_to_ms(time);
-                    timeline.process_body(current_time_ms, body);
+                    timeline.process_body(current_time_ms, body, None);
                 }
                 Stmt::RelativeKeyframe { offset, body } => {
                     current_time_ms += time_to_ms(offset);
-                    timeline.process_body(current_time_ms, body);
+                    timeline.process_body(current_time_ms, body, None);
                 }
                 Stmt::ActorDecl { .. } | Stmt::Assignment { .. } => {
-                    timeline.process_body(current_time_ms, &[stmt.clone()]);
+                    timeline.process_body(current_time_ms, &[stmt.clone()], None);
                 }
                 _ => {}
             }
@@ -56,7 +68,75 @@ impl Timeline {
         timeline
     }
 
-    fn process_body(&mut self, time_ms: f64, body: &[Stmt]) {
+    fn add_node(&mut self, label: String, parent_label: Option<&str>) {
+        if !self.nodes.contains_key(&label) {
+            self.nodes.insert(
+                label.clone(),
+                SceneNode {
+                    label: label.clone(),
+                    children: Vec::new(),
+                },
+            );
+            if let Some(parent) = parent_label {
+                if let Some(p) = self.nodes.get_mut(parent) {
+                    if !p.children.contains(&label) {
+                        p.children.push(label.clone());
+                    }
+                }
+            } else {
+                if !self.root_nodes.contains(&label) {
+                    self.root_nodes.push(label.clone());
+                }
+            }
+        }
+    }
+
+    fn process_inline_items(
+        &mut self,
+        time_ms: f64,
+        items: &[crate::ast::InlineItem],
+        parent_label: &str,
+    ) {
+        for item in items {
+            match item {
+                crate::ast::InlineItem::Anonymous {
+                    ty,
+                    props,
+                    modifiers,
+                    children,
+                } => {
+                    let id = format!("__anon_{}", self.anon_counter);
+                    self.anon_counter += 1;
+                    let stmt = Stmt::ActorDecl {
+                        label: id.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: children.clone(),
+                    };
+                    self.process_body(time_ms, &[stmt], Some(parent_label));
+                }
+                crate::ast::InlineItem::Labeled {
+                    label,
+                    ty,
+                    props,
+                    modifiers,
+                    children,
+                } => {
+                    let stmt = Stmt::ActorDecl {
+                        label: label.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: children.clone(),
+                    };
+                    self.process_body(time_ms, &[stmt], Some(parent_label));
+                }
+            }
+        }
+    }
+
+    fn process_body(&mut self, time_ms: f64, body: &[Stmt], parent_label: Option<&str>) {
         for stmt in body {
             match stmt {
                 Stmt::Text {
@@ -65,6 +145,7 @@ impl Timeline {
                     modifiers,
                 } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_text".to_string());
+                    self.add_node(label_str.clone(), parent_label);
                     let track = self
                         .tracks
                         .entry(label_str.clone())
@@ -170,6 +251,7 @@ impl Timeline {
                     modifiers,
                 } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_math".to_string());
+                    self.add_node(label_str.clone(), parent_label);
                     let track = self
                         .tracks
                         .entry(label_str.clone())
@@ -276,6 +358,7 @@ impl Timeline {
                     scale,
                 } => {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
+                    self.add_node(label_str.clone(), parent_label);
                     let track = self
                         .tracks
                         .entry(label_str.clone())
@@ -306,8 +389,10 @@ impl Timeline {
                     ty,
                     props,
                     modifiers,
-                    ..
+                    children,
                 } => {
+                    self.add_node(label.clone(), parent_label);
+                    self.process_inline_items(time_ms, children, label);
                     let track = self
                         .tracks
                         .entry(label.clone())
@@ -727,6 +812,111 @@ impl Timeline {
         glyphs
     }
 
+    fn evaluate_node(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        scene: &mut vello::Scene,
+    ) {
+        let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
+            let position = track.position.evaluate(time_ms);
+            let opacity = track.opacity.evaluate(time_ms);
+            let text_paths = track.text_paths.evaluate(time_ms);
+            let vector_paths = track.vector_paths.evaluate(time_ms);
+
+            let local_opacity = opacity * parent_opacity;
+            let local_transform = parent_transform
+                * kurbo::Affine::translate((position[0] as f64, position[1] as f64));
+
+            for vector_path in &vector_paths {
+                let transform = local_transform;
+                if let Some(mut fill_color) = vector_path.fill {
+                    if local_opacity < 1.0 {
+                        fill_color =
+                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                    }
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        transform,
+                        fill_color,
+                        None,
+                        &vector_path.path,
+                    );
+                }
+
+                if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
+                    if local_opacity < 1.0 {
+                        stroke_color =
+                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                    }
+                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                    scene.stroke(&stroke, transform, stroke_color, None, &vector_path.path);
+                }
+            }
+
+            for text_path in &text_paths {
+                let color = match &text_path.color {
+                    typst::visualize::Paint::Solid(color) => {
+                        let rgba = color.to_vec4_u8();
+                        vello::peniko::Color::from_rgba8(
+                            rgba[0],
+                            rgba[1],
+                            rgba[2],
+                            (rgba[3] as f32 * local_opacity) as u8,
+                        )
+                    }
+                    _ => vello::peniko::Color::WHITE,
+                };
+
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    local_transform,
+                    color,
+                    None,
+                    &text_path.path,
+                );
+            }
+
+            for svg_path in &track.svg_paths {
+                let transform = local_transform;
+                if let Some(mut fill_color) = svg_path.fill {
+                    if local_opacity < 1.0 {
+                        fill_color =
+                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                    }
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        transform,
+                        fill_color,
+                        None,
+                        &svg_path.path,
+                    );
+                }
+
+                if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
+                    if local_opacity < 1.0 {
+                        stroke_color =
+                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                    }
+                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                    scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);
+                }
+            }
+
+            (local_transform, local_opacity)
+        } else {
+            (parent_transform, parent_opacity)
+        };
+
+        if let Some(node) = self.nodes.get(node_label) {
+            for child in &node.children {
+                self.evaluate_node(child, time_ms, global_transform, global_opacity, scene);
+            }
+        }
+    }
+
     pub fn evaluate(&self, time_s: f64) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
         let mut scene = vello::Scene::new();
@@ -746,86 +936,8 @@ impl Timeline {
             &kurbo::Rect::new(0.0, 0.0, 1920.0, 1080.0),
         );
 
-        for track in self.tracks.values() {
-            let position = track.position.evaluate(time_ms);
-            let opacity = track.opacity.evaluate(time_ms);
-            let text_paths = track.text_paths.evaluate(time_ms);
-            let vector_paths = track.vector_paths.evaluate(time_ms);
-
-            for vector_path in &vector_paths {
-                let transform = kurbo::Affine::translate((position[0] as f64, position[1] as f64));
-
-                if let Some(mut fill_color) = vector_path.fill {
-                    if opacity < 1.0 {
-                        fill_color = fill_color.with_alpha(fill_color.components[3] * opacity);
-                    }
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        transform,
-                        fill_color,
-                        None,
-                        &vector_path.path,
-                    );
-                }
-
-                if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
-                    if opacity < 1.0 {
-                        stroke_color =
-                            stroke_color.with_alpha(stroke_color.components[3] * opacity);
-                    }
-                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                    scene.stroke(&stroke, transform, stroke_color, None, &vector_path.path);
-                }
-            }
-
-            for text_path in &text_paths {
-                let color = match &text_path.color {
-                    typst::visualize::Paint::Solid(color) => {
-                        let rgba = color.to_vec4_u8();
-                        vello::peniko::Color::from_rgba8(
-                            rgba[0],
-                            rgba[1],
-                            rgba[2],
-                            (rgba[3] as f32 * opacity) as u8,
-                        )
-                    }
-                    _ => vello::peniko::Color::WHITE,
-                };
-
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    kurbo::Affine::translate((position[0] as f64, position[1] as f64)),
-                    color,
-                    None,
-                    &text_path.path,
-                );
-            }
-
-            for svg_path in &track.svg_paths {
-                let transform = kurbo::Affine::translate((position[0] as f64, position[1] as f64));
-
-                if let Some(mut fill_color) = svg_path.fill {
-                    if opacity < 1.0 {
-                        fill_color = fill_color.with_alpha(fill_color.components[3] * opacity);
-                    }
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        transform,
-                        fill_color,
-                        None,
-                        &svg_path.path,
-                    );
-                }
-
-                if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
-                    if opacity < 1.0 {
-                        stroke_color =
-                            stroke_color.with_alpha(stroke_color.components[3] * opacity);
-                    }
-                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                    scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);
-                }
-            }
+        for root in &self.root_nodes {
+            self.evaluate_node(root, time_ms, kurbo::Affine::IDENTITY, 1.0, &mut scene);
         }
 
         scene

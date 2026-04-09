@@ -157,6 +157,7 @@ pub enum InlineItem {
     Anonymous {
         ty: String,
         props: Vec<Property>,
+        modifiers: Vec<Modifier>,
         children: Vec<InlineItem>,
     },
     // Labeled: btn: Button, text: "OK" (Added to scene graph)
@@ -164,6 +165,7 @@ pub enum InlineItem {
         label: String,
         ty: String,
         props: Vec<Property>,
+        modifiers: Vec<Modifier>,
         children: Vec<InlineItem>,
     },
 }

@@ -20,6 +20,45 @@ The transition to Vello significantly changes our rendering dependencies:
 
 In the new architecture, the rendering loop changes from pushing instances to a vertex buffer, to building a `vello::Scene` graph on the CPU every frame and compiling it on the GPU.
 
+### The Timeline Data Structure
+
+The `Timeline` stores animation state using two complementary structures:
+
+1. **`scene_graph`**: A hierarchical mapping of parent `SceneNode` identifiers to their child `SceneNode` identifiers. This forms a tree where each node represents a rendered entity (text, shape, SVG, or container).
+
+2. **`tracks`**: A `BTreeMap` mapping each `SceneNode`'s identifier to its `AnimationTrack`, which stores keyframed property values over time.
+
+```text
+scene_graph: HashMap<SceneNodeId, Vec<SceneNodeId>>
+tracks: BTreeMap<SceneNodeId, AnimationTrack>
+```
+
+The `scene_graph` enables parent-to-child traversal for transform inheritance, while `tracks` provide per-node animation data. Nodes without entries in `tracks` are static.
+
+### SceneNode Hierarchy
+
+`SceneNode`s form a tree with the following properties:
+- **Root nodes** attach directly to the scene (no parent transform to inherit).
+- **Container nodes** (`Row`, `Col`, `Group`) hold children and apply layout transforms.
+- **Leaf nodes** (`Text`, `Circle`, `Svg`) are fully resolved renderables.
+- **Anonymous nodes** receive auto-generated UIDs when no explicit label is provided, enabling individual keyframing without label collisions.
+
+### Evaluate Phase: Recursive DFS Transform Computation
+
+During `timeline.evaluate(time_ms)`, the engine traverses the scene graph recursively:
+
+```text
+function evaluate_node(node_id, parent_transform):
+    local_transform = tracks[node_id].sample(time_ms)
+    global_transform = parent_transform * local_transform
+    global_opacity = parent_opacity * local_opacity
+
+    for each child in scene_graph[node_id]:
+        evaluate_node(child, global_transform, global_opacity)
+```
+
+This DFS ensures all descendants receive correctly accumulated transforms and opacities. The final render list contains only leaf nodes with their pre-computed global transforms.
+
 ### Phase A: Parsing and Data Unification (Load Time)
 When an `.amx` file is loaded, all visual assets are converted into a unified `PathTree` format (a collection of Bézier curves and fill/stroke commands).
 1.  **Text & Math:** The Typst layout engine calculates positions. For each glyph, we fetch its mathematical outline from the font (using `fontdue` or `ttf-parser`) and store it as a path.
@@ -28,8 +67,15 @@ When an `.amx` file is loaded, all visual assets are converted into a unified `P
 
 ### Phase B: The Animation Engine & Interpolation (CPU, Per-Frame)
 During `timeline.evaluate(time_ms)`:
-1.  **Affine Transforms:** Animations like position, scale, and rotation are applied by multiplying a transformation matrix against the base paths.
-2.  **Morphing (The "Manim" Effect):**
+1.  **Scene Graph Traversal:** The `Timeline` maintains a hierarchical `scene_graph` mapping parent `SceneNode`s to their children. This tree structure enables true nested coordinate systems where transforms cascade down the hierarchy.
+2.  **Global Transform Computation:** The engine performs a recursive depth-first search (DFS) from root nodes down to leaves, accumulating transforms along the way. A node's global transform equals its parent's global transform multiplied by its local transform.
+    ```text
+    global_transform(node) = parent.global_transform * local_transform(node)
+    ```
+    This applies to position, scale, and rotation. A circle positioned at (50, 0) inside a group rotated 90 degrees will orbit at (50, 0) relative to the group's center, then inherit the 90-degree rotation.
+3.  **Opacity Inheritance:** Opacity also accumulates down the tree. A child with opacity 0.8 inside a parent with opacity 0.5 has a final opacity of 0.4 (0.5 * 0.8). This allows container-level fading to affect all descendants.
+4.  **Affine Transforms:** Animations like position, scale, and rotation are applied by multiplying a transformation matrix against the base paths.
+5.  **Morphing (The "Manim" Effect):**
     *   If a `Morph { from: path_a, to: path_b }` node exists, the engine pairs the control points of `path_a` with `path_b`.
     *   It mathematically interpolates the XY coordinates of the curves based on the `blend_factor` (0.0 to 1.0).
     *   The result is a brand-new, intermediate path generated purely on the CPU for that exact frame.

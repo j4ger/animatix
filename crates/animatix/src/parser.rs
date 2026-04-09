@@ -147,6 +147,82 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .or_not()
         .map(|m| m.unwrap_or_default());
 
+    let type_ident = ident
+        .clone()
+        .filter(|s: &String| s.chars().next().map_or(false, |c| c.is_uppercase()));
+
+    #[derive(Clone)]
+    enum FlatItem {
+        Labeled(String, String, Vec<Modifier>, Vec<InlineItem>),
+        Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
+        Prop(Property),
+    }
+
+    let inline_items = recursive(|inline_items| {
+        let children_block = inline_items
+            .clone()
+            .delimited_by(just('{').padded(), just('}').padded())
+            .or_not()
+            .map(|c| c.unwrap_or_default());
+
+        let flat_item = choice((
+            ident
+                .clone()
+                .then_ignore(just(':').padded())
+                .then(type_ident.clone())
+                .then(modifiers.clone())
+                .then(children_block.clone())
+                .map(|(((label, ty), mods), children)| {
+                    FlatItem::Labeled(label, ty, mods, children)
+                }),
+            type_ident
+                .clone()
+                .then(modifiers.clone())
+                .then(children_block.clone())
+                .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
+            property.clone().map(FlatItem::Prop),
+        ))
+        .padded();
+
+        flat_item
+            .separated_by(just(',').padded().or_not())
+            .allow_trailing()
+            .collect::<Vec<_>>()
+            .map(|items| {
+                let mut result = Vec::new();
+                for item in items {
+                    match item {
+                        FlatItem::Labeled(label, ty, mods, children) => {
+                            result.push(InlineItem::Labeled {
+                                label,
+                                ty,
+                                props: Vec::new(),
+                                modifiers: mods,
+                                children,
+                            });
+                        }
+                        FlatItem::Anonymous(ty, mods, children) => {
+                            result.push(InlineItem::Anonymous {
+                                ty,
+                                props: Vec::new(),
+                                modifiers: mods,
+                                children,
+                            });
+                        }
+                        FlatItem::Prop(p) => {
+                            if let Some(last) = result.last_mut() {
+                                match last {
+                                    InlineItem::Labeled { props, .. } => props.push(p),
+                                    InlineItem::Anonymous { props, .. } => props.push(p),
+                                }
+                            }
+                        }
+                    }
+                }
+                result
+            })
+    });
+
     let stmt = recursive(|_stmt| {
         let let_decl = text::keyword("let")
             .ignore_then(ident.clone())
@@ -269,13 +345,22 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .map(|p| p.unwrap_or_default()),
             )
             .then(modifiers.clone())
-            .map(|(((label, ty), props), modifiers)| Stmt::ActorDecl {
-                label,
-                ty,
-                props,
-                modifiers,
-                children: vec![], // Inline children left out for brevity in 0.25 mode
-            })
+            .then(
+                inline_items
+                    .clone()
+                    .delimited_by(just('{').padded(), just('}').padded())
+                    .or_not()
+                    .map(|c| c.unwrap_or_default()),
+            )
+            .map(
+                |((((label, ty), props), modifiers), children)| Stmt::ActorDecl {
+                    label,
+                    ty,
+                    props,
+                    modifiers,
+                    children,
+                },
+            )
             .padded();
 
         let action = ident

@@ -1,7 +1,7 @@
 use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::timeline::{
-    AnimationTrack, Interpolate, PropertyTrack, Timeline, parse_color, time_to_ms,
+    parse_color, time_to_ms, AnimationTrack, Interpolate, PropertyTrack, Timeline,
 };
 
 #[test]
@@ -102,18 +102,20 @@ fn test_timeline_build_and_evaluate() {
     let timeline = Timeline::build(&ast);
     assert_eq!(timeline.tracks.len(), 1);
 
-    // Evaluate at 0.5s (500ms)
-    let (instances, _, _) = timeline.evaluate(0.5);
-    assert_eq!(instances.len(), 1);
+    // Evaluate at 0.5s (500ms) — access the track directly instead of inspecting the rendered Scene
+    let track = timeline
+        .tracks
+        .get("actor1")
+        .expect("actor1 track should exist");
+    let position = track.position.evaluate(500);
+    let color = track.color.evaluate(500);
 
-    let instance = &instances[0];
-
-    // Position should be interpolated to 50.0, 50.0
-    assert_eq!(instance.position, [50.0, 50.0]);
+    // Position should be interpolated from [0.0, 0.0] to [100.0, 100.0] at 500ms → [50.0, 50.0]
+    assert_eq!(position, [50.0, 50.0]);
 
     // Color should be interpolated between red [1.0, 0.0, 0.0, 1.0] and blue [0.0, 0.0, 1.0, 1.0]
     // i.e., [0.5, 0.0, 0.5, 1.0]
-    assert_eq!(instance.fill_color, [0.5, 0.0, 0.5, 1.0]);
+    assert_eq!(color, [0.5, 0.0, 0.5, 1.0]);
 }
 
 #[test]

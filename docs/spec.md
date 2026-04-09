@@ -70,6 +70,9 @@ scene.background_color = white [2s]
 
 ## 4. Timeline & Keyframes
 
+**Timeline Structure**  
+The timeline maintains a hierarchical `scene_graph` mapping parent containers to their children. During evaluation, transforms and opacities cascade down this tree via depth-first search, accumulating parent values into child values.
+
 **Absolute Keyframes**  
 Marks a specific time in seconds or milliseconds.
 ```animatix
@@ -173,15 +176,48 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 - `Col`: Vertical layout
 - `Grid`: 2D grid layout
 - `Stack`: Overlapping layout
+- `Group`: Generic container for grouping and transform inheritance
 
 **Children Declaration**  
-Children are declared inline within curly brackets. They do not require labels unless accessed externally.
+Children are declared inline within curly brackets. Children may be **labeled** (explicit name) or **anonymous** (no name).
+
 ```animatix
 row: Row, gap: 10 {
-  Button, text: "A"
-  Button, text: "B"
+  Button, text: "A"       // labeled child: accessible as row.Button
+  Button, text: "B"       // another labeled child
 }
 ```
+
+**Anonymous Children and Auto-UID**
+
+Children without a label receive an auto-generated UID. This enables individual keyframing without label collisions:
+
+```animatix
+col: Col {
+  Rect, color: red        // anonymous: auto-UID assigned
+  Circle, color: blue     // anonymous: different auto-UID
+}
+
+#1s
+col[0].scale = 1.5 [1s]   // keyframe first anonymous child by index
+col[1].opacity = 0.5 [1s] // keyframe second anonymous child
+```
+
+Auto-UIDs are stable within a session, allowing reliable referencing of anonymous children across keyframes.
+
+**Nesting Containers**
+
+Containers can nest arbitrarily deep, with transforms accumulating down the hierarchy:
+
+```animatix
+scene: Group {
+  inner: Group {
+    leaf: Circle, at: (50, 0)
+  }
+}
+```
+
+The `leaf` circle inherits transforms from both `inner` and `scene`. Rotating `scene` 90 degrees causes `leaf` to orbit accordingly.
 
 ---
 

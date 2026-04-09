@@ -1,0 +1,10 @@
+#0s
+scene.background_color = black
+
+parent: Group, at: (100, 100) {
+    child1: Circle, at: (0, 0), radius: 50, color: red,
+    child2: Circle, at: (100, 0), radius: 50, color: blue
+}
+
+#2s
+parent.at = (500, 500) [2s, ease: ease-in-out]

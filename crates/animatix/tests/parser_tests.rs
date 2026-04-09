@@ -150,6 +150,81 @@ fn test_actor_decl_full() {
 }
 
 #[test]
+fn test_actor_decl_nested() {
+    assert_eq!(
+        parse_single_stmt("group: Group { a: Circle, size: 10, b: Rect, size: 20 }"),
+        Stmt::ActorDecl {
+            label: "group".to_string(),
+            ty: "Group".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "a".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(10.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "b".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                }
+            ],
+        }
+    );
+}
+
+#[test]
+fn test_actor_decl_anonymous() {
+    assert_eq!(
+        parse_single_stmt("group: Group { Circle, size: 10, Rect, size: 20 }"),
+        Stmt::ActorDecl {
+            label: "group".to_string(),
+            ty: "Group".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Anonymous {
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(10.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Anonymous {
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                }
+            ],
+        }
+    );
+}
+
+#[test]
+fn test_demo_nested_parse() {
+    let src = include_str!("../../../examples/nested.amx");
+    let ast = parser().parse(src).into_result().unwrap();
+    assert!(!ast.is_empty());
+}
+
+#[test]
 fn test_action() {
     assert_eq!(
         parse_single_stmt("fade-out ball [1s]"),

@@ -65,8 +65,10 @@ We have transitioned `animatix` to a Vector-First pipeline powered by **Vello**.
 - [x] Native SVG loading and rendering (`usvg`)
 - [x] Timeline architecture redesigned to support vector-first unified properties
 - [x] Manim-style Vector Morphing (Path Interpolation) for Text, Math, and Geometric Shapes (via `kurbo`)
+- [x] Hierarchical scene graph with nested containers (Row, Col, Group)
+- [x] Transform and opacity inheritance via recursive DFS evaluation
+- [x] Auto-UID generation for anonymous container children
 
 ### Upcoming
 - [ ] Interactive UI for building animations
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)
-- [ ] Full nested scene / grouping support
