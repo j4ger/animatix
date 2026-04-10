@@ -844,6 +844,16 @@ impl Timeline {
 
                     self.process_inline_items(time_ms, children, label);
 
+                    // For CartesianPlot and PolarPlot, get parent's position before mutable borrow
+                    let mut parent_position = None;
+                    if ty == "CartesianPlot" || ty == "PolarPlot" {
+                        if let Some(p_label) = parent_label {
+                            if let Some(track) = self.tracks.get(p_label) {
+                                parent_position = Some(track.position.last_value());
+                            }
+                        }
+                    }
+
                     let track = self
                         .tracks
                         .entry(label.clone())
@@ -901,13 +911,25 @@ impl Timeline {
                             }
                             "color" => {
                                 color = parse_color(&prop.value);
+                                // For plot types, also set stroke_color
+                                if ty == "CartesianPlot" || ty == "PolarPlot" {
+                                    stroke_color = parse_color(&prop.value);
+                                }
                             }
                             "stroke_width" => {
                                 let v = evaluate_expr(&prop.value, &self.env)
                                     .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
+                            "width" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                stroke_width = v.as_num() as f32;
+                            }
                             "stroke_color" => {
+                                stroke_color = parse_color(&prop.value);
+                            }
+                            "stroke" => {
                                 stroke_color = parse_color(&prop.value);
                             }
                             "stroke_progress" => {
@@ -921,6 +943,19 @@ impl Timeline {
                                 fill_opacity = v.as_num() as f32;
                             }
                             _ => {}
+                        }
+                    }
+
+                    // For Graph types, make them invisible (container only)
+                    if ty == "Graph" {
+                        fill_opacity = 0.0;
+                        stroke_width = 0.0;
+                    }
+
+                    // For CartesianPlot and PolarPlot, use parent's position if not explicitly set
+                    if (ty == "CartesianPlot" || ty == "PolarPlot") && position == [0.0, 0.0] {
+                        if let Some(p_pos) = parent_position {
+                            position = p_pos;
                         }
                     }
 
@@ -960,37 +995,6 @@ impl Timeline {
                         };
                         path.move_to((y_axis_x, -(size[1] as f64)));
                         path.line_to((y_axis_x, size[1] as f64));
-
-                        // Simple grid
-                        let grid_steps = 10;
-                        let mut grid_path = kurbo::BezPath::new();
-                        for i in 0..=grid_steps {
-                            let f = i as f64 / grid_steps as f64;
-                            let gx = -(size[0] as f64) + 2.0 * (size[0] as f64) * f;
-                            grid_path.move_to((gx, -(size[1] as f64)));
-                            grid_path.line_to((gx, size[1] as f64));
-
-                            // X-axis tick
-                            path.move_to((gx, x_axis_y - 5.0));
-                            path.line_to((gx, x_axis_y + 5.0));
-
-                            let gy = -(size[1] as f64) + 2.0 * (size[1] as f64) * f;
-                            grid_path.move_to((-(size[0] as f64), gy));
-                            grid_path.line_to((size[0] as f64, gy));
-
-                            // Y-axis tick
-                            path.move_to((y_axis_x - 5.0, gy));
-                            path.line_to((y_axis_x + 5.0, gy));
-                        }
-
-                        vello_paths.push(crate::timeline::vello_path::VelloPath {
-                            path: grid_path,
-                            fill: None,
-                            stroke: Some((
-                                vello::peniko::Color::from_rgba8(255, 255, 255, 50),
-                                1.0,
-                            )),
-                        });
 
                         vello_paths.push(crate::timeline::vello_path::VelloPath {
                             path,
@@ -1143,7 +1147,7 @@ impl Timeline {
                                 },
                             });
                         }
-                    } else {
+                    } else if ty != "Graph" && ty != "CartesianPlot" && ty != "PolarPlot" {
                         let vello_path = crate::timeline::vello_path::VelloPath {
                             path: shape.to_path_default(),
                             fill: if fill_opacity > 0.0 {

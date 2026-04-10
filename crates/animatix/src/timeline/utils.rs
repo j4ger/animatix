@@ -368,13 +368,37 @@ fn format_value(value: &Value) -> String {
 pub fn parse_color(expr: &Expr) -> [f32; 4] {
     if let Expr::Ident(name) = expr {
         match name.as_str() {
-            "red" => [1.0, 0.0, 0.0, 1.0],
-            "green" => [0.0, 1.0, 0.0, 1.0],
-            "blue" => [0.0, 0.0, 1.0, 1.0],
-            "black" => [0.0, 0.0, 0.0, 1.0],
-            "white" => [1.0, 1.0, 1.0, 1.0],
-            "yellow" => [1.0, 1.0, 0.0, 1.0],
+            "red" | "RED" => [1.0, 0.0, 0.0, 1.0],
+            "green" | "GREEN" => [0.0, 1.0, 0.0, 1.0],
+            "blue" | "BLUE" => [0.0, 0.0, 1.0, 1.0],
+            "black" | "BLACK" => [0.0, 0.0, 0.0, 1.0],
+            "white" | "WHITE" => [1.0, 1.0, 1.0, 1.0],
+            "yellow" | "YELLOW" => [1.0, 1.0, 0.0, 1.0],
+            "orange" | "ORANGE" => [1.0, 0.65, 0.0, 1.0],
             _ => [0.8, 0.8, 0.8, 1.0],
+        }
+    } else if let Expr::Tuple(items) = expr {
+        // Parse color tuple: (r, g, b) or (r, g, b, a)
+        if items.len() >= 3 {
+            let r = evaluate_expr(&items[0], &Environment::raw_new())
+                .map(|v| v.as_num() as f32)
+                .unwrap_or(0.8);
+            let g = evaluate_expr(&items[1], &Environment::raw_new())
+                .map(|v| v.as_num() as f32)
+                .unwrap_or(0.8);
+            let b = evaluate_expr(&items[2], &Environment::raw_new())
+                .map(|v| v.as_num() as f32)
+                .unwrap_or(0.8);
+            let a = if items.len() >= 4 {
+                evaluate_expr(&items[3], &Environment::raw_new())
+                    .map(|v| v.as_num() as f32)
+                    .unwrap_or(1.0)
+            } else {
+                1.0
+            };
+            [r, g, b, a]
+        } else {
+            [0.8, 0.8, 0.8, 1.0]
         }
     } else {
         [0.8, 0.8, 0.8, 1.0]
