@@ -51,7 +51,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .allow_trailing()
             .collect::<Vec<_>>()
             .delimited_by(just('(').padded(), just(')').padded())
-            .map(Expr::Tuple);
+            .map(Expr::Tuple)
+            .boxed();
 
         let array = expr
             .clone()
@@ -59,7 +60,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .allow_trailing()
             .collect::<Vec<_>>()
             .delimited_by(just('{').padded(), just('}').padded())
-            .map(Expr::Tuple); // Using Tuple for arrays as well per AST
+            .map(Expr::Tuple) // Using Tuple for arrays as well per AST
+            .boxed();
 
         let call = ident
             .clone()
@@ -70,7 +72,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .collect::<Vec<_>>()
                     .delimited_by(just('(').padded(), just(')').padded()),
             )
-            .map(|(name, args)| Expr::Call(name, args));
+            .map(|(name, args)| Expr::Call(name, args))
+            .boxed();
 
         // Prefix operators for unary negation and logical NOT
         let prefix_op = just('-').to(UnaryOp::Neg).or(just('!').to(UnaryOp::Not));
@@ -194,9 +197,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         ))
         .then_ignore(just("=>").padded())
         .then(expr.clone())
-        .map(|(args, body)| Expr::Closure(args, Box::new(body)));
+        .map(|(args, body)| Expr::Closure(args, Box::new(body)))
+        .boxed();
 
-        choice((closure, comparison))
+        choice((closure, comparison)).boxed()
     });
 
     let property = ident
@@ -224,14 +228,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             },
         }),
         expr.clone().map(|value| Modifier { name: None, value }),
-    ));
+    ))
+    .boxed();
 
     let modifiers = modifier
         .separated_by(just(',').padded())
         .collect::<Vec<_>>()
         .delimited_by(just('[').padded(), just(']').padded())
         .or_not()
-        .map(|m| m.unwrap_or_default());
+        .map(|m: Option<Vec<Modifier>>| m.unwrap_or_default());
 
     let type_ident = ident
         .clone()
@@ -440,7 +445,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                             .collect::<Vec<_>>(),
                     )
                     .or_not()
-                    .map(|p| p.unwrap_or_default()),
+                    .map(|p: Option<Vec<Property>>| p.unwrap_or_default()),
             )
             .then(modifiers.clone())
             .then(
@@ -719,6 +724,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             yield_stmt,
             comment,
         ))
+        .boxed()
     });
 
     let keyframe = just('#')
@@ -744,6 +750,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     ))
     .repeated()
     .collect::<Vec<_>>()
+    .boxed()
 }
 
 #[cfg(test)]
