@@ -49,7 +49,7 @@ The `scene_graph` enables parent-to-child traversal for transform inheritance, w
 `SceneNode`s form a tree with the following properties:
 - **Root nodes** attach directly to the scene (no parent transform to inherit).
 - **Container nodes** (`Row`, `Col`, `Group`) hold children and apply layout transforms.
-- **Leaf nodes** (`Text`, `Circle`, `Svg`) are fully resolved renderables.
+- **Leaf nodes** (`Text`, `Math`, `Circle`, `Svg`) are fully resolved renderables.
 - **Anonymous nodes** receive auto-generated UIDs when no explicit label is provided, enabling individual keyframing without label collisions.
 
 ### Evaluate Phase: Recursive DFS Transform Computation

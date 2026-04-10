@@ -124,7 +124,9 @@ for t in (0..=100).map(|i| i as f64 / 100.0) {
 
 ## Integration with Timeline
 
-Currently, the kurbo_shapes module provides the low-level morphing functionality. To integrate shapes into the timeline DSL, you would use the shapes in Rust code:
+> **Note:** Currently, Shapes must be converted to `BezPath` before morphing via Rust API. DSL integration (e.g., `morph` action) is Planned.
+
+The kurbo_shapes module provides the low-level morphing functionality. To integrate shapes into the timeline DSL, you would use the shapes in Rust code:
 
 ```rust
 use animatix::timeline::kurbo_shapes::*;

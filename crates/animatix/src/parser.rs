@@ -109,8 +109,24 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             },
         );
 
+        // Comparison operators
+        let compare_op = choice((
+            just(">=").to(BinaryOp::Gte),
+            just("<=").to(BinaryOp::Lte),
+            just("==").to(BinaryOp::Eq),
+            just("!=").to(BinaryOp::Neq),
+            just('>').to(BinaryOp::Gt),
+            just('<').to(BinaryOp::Lt),
+        ));
+
+        let comparison = access
+            .clone()
+            .then(compare_op)
+            .then(access.clone())
+            .map(|((left, op), right)| Expr::Binary(Box::new(left), op, Box::new(right)));
+
         // We can add operators here, but for brevity we stick to the basic atoms and paths
-        access
+        comparison.or(access)
     });
 
     let property = ident
@@ -231,7 +247,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(name, value)| Stmt::LetDecl { name, value })
             .padded();
 
-        let import_stmt = text::keyword("import").padded()
+        let import_stmt = text::keyword("import")
+            .padded()
             .ignore_then(
                 just('"')
                     .ignore_then(none_of('"').repeated().collect::<String>())
@@ -394,6 +411,167 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(Stmt::Comment)
             .padded();
 
+        // Loop statement: loop { } | loop N times { } | loop Ns { }
+        let loop_body = _stmt
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .delimited_by(just('{').padded(), just('}').padded());
+
+        // Helper enum to carry suffix info through the count parser
+        #[derive(Clone)]
+        enum LoopKindKind {
+            Count,
+            BoundedSec,
+            BoundedMs,
+        }
+
+        // Parse loop with a number, then look ahead to decide kind.
+        // Captures the number FIRST, then checks suffix — no backtracking issues.
+        let loop_with_num = text::keyword("loop")
+            .ignore_then(just(' '))
+            .then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap_or(1)))
+            .then_ignore(
+                just(' ')
+                    .ignore_then(text::keyword("times"))
+                    .ignore_then(just(' ')),
+            )
+            .padded()
+            .map(|(_, count)| (count, LoopKindKind::Count));
+
+        // Count loop: "loop N times { }"
+        let loop_count = loop_with_num
+            .then(loop_body.clone())
+            .map(|((count, _), body)| Stmt::Loop {
+                kind: LoopKind::Count(count),
+                label: None,
+                body,
+            })
+            .padded();
+
+        // Bounded loop: "loop Ns { }" or "loop Nms { }"
+        let loop_bounded = text::keyword("loop")
+            .ignore_then(just(' '))
+            .ignore_then(time.clone())
+            .then(loop_body.clone())
+            .map(|(kind, body)| Stmt::Loop {
+                kind: LoopKind::Bounded(kind),
+                label: None,
+                body,
+            })
+            .padded();
+
+        // Infinite loop: "loop { }"
+        let loop_infinite = text::keyword("loop")
+            .ignore_then(loop_body.clone())
+            .map(|body| Stmt::Loop {
+                kind: LoopKind::Infinite,
+                label: None,
+                body,
+            })
+            .padded();
+
+        let loop_stmt = choice((loop_infinite, loop_count, loop_bounded));
+
+        // Labeled loop: job: loop N times { } | job: loop Ns { }
+        let labeled_loop_with_num = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then(text::keyword("loop"))
+            .then(just(' '))
+            .then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap_or(1)))
+            .then_ignore(
+                just(' ')
+                    .ignore_then(text::keyword("times"))
+                    .ignore_then(just(' ')),
+            )
+            .padded()
+            .map(|(((label, _), _), count)| (label, count, LoopKindKind::Count));
+
+        // Labeled count loop: "job: loop N times { }"
+        let labeled_loop_count = labeled_loop_with_num
+            .then(loop_body.clone())
+            .map(|((label, count, _), body)| Stmt::Loop {
+                kind: LoopKind::Count(count),
+                label: Some(label),
+                body,
+            })
+            .padded();
+
+        // Labeled bounded loop: "job: loop Ns { }"
+        let labeled_loop_bounded = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then(text::keyword("loop"))
+            .then(just(' '))
+            .then(time.clone())
+            .then(loop_body.clone())
+            .map(|((((label, _), _), time_val), body)| Stmt::Loop {
+                kind: LoopKind::Bounded(time_val),
+                label: Some(label),
+                body,
+            })
+            .padded();
+
+        let labeled_loop_stmt = choice((labeled_loop_count, labeled_loop_bounded));
+
+        // Always statement: always { }
+        let always_body = _stmt
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .delimited_by(just('{').padded(), just('}').padded());
+
+        let always_stmt = text::keyword("always")
+            .ignore_then(always_body.clone())
+            .map(|body| Stmt::Always { body })
+            .padded();
+
+        let labeled_always_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then(text::keyword("always"))
+            .then(always_body.clone())
+            .map(|((label, _), body)| Stmt::LabeledAlways { label, body })
+            .padded();
+
+        // Conditional: if expr { }
+        let conditional_stmt = text::keyword("if")
+            .ignore_then(expr.clone())
+            .then(always_body.clone())
+            .then(
+                text::keyword("else")
+                    .ignore_then(always_body.clone())
+                    .or_not(),
+            )
+            .map(
+                |((condition, then_branch), else_branch)| Stmt::Conditional {
+                    condition,
+                    then_branch,
+                    else_branch,
+                },
+            )
+            .padded();
+
+        // For loop: for i in items { }
+        let for_loop_body = _stmt
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .delimited_by(just('{').padded(), just('}').padded());
+
+        let for_stmt = text::keyword("for")
+            .ignore_then(ident.clone())
+            .then_ignore(text::keyword("in").padded())
+            .then(expr.clone())
+            .then(for_loop_body)
+            .map(|((var, iterable), body)| Stmt::ForLoop {
+                var,
+                iterable,
+                body,
+            })
+            .padded();
+
         let param_def = ident
             .clone()
             .then_ignore(just(':').padded())
@@ -446,6 +624,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             text_stmt,
             math_stmt,
             svg_stmt,
+            labeled_loop_stmt,
+            loop_stmt,
+            labeled_always_stmt,
+            always_stmt,
+            conditional_stmt,
+            for_stmt,
             actor_decl,
             component_def,
             action,

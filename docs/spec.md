@@ -1,3 +1,7 @@
+# Animatix Language Specification
+
+---
+
 ## 1. File Types
 
 - **Scene Files (`.amx`)**: Main animation scripts. Contain keyframes, actors, and timeline definitions.
@@ -23,7 +27,7 @@
 - **Comma (`,`)**: Separates object properties.  
   *Example:* `Type, prop: val, prop: val`
 - **Space (` `)**: Separates action verbs from arguments.  
-  *Example:* `move btn to (100, 100)`
+  *Example:* `fade-in btn [1s]`
 - **Dot (`.`)**: Used for nested access (namespacing).  
   *Example:* `container.child`
 
@@ -91,7 +95,7 @@ Marks a time relative to the previous keyframe.
 Actions listed under the same keyframe execute simultaneously.
 ```animatix
 #2s
-move A to (100, 100) [2s]
+fade-in A [1s]
 color B to red [2s]
 ```
 
@@ -100,12 +104,10 @@ color B to red [2s]
 ## 5. Actions & Modifiers
 
 **Action Invocation**  
-Actions use space-separated verbs.
+Actions use verb-first syntax with space-separated arguments.
 ```animatix
-fade-in actor [1s]
-fade-out actor
-move actor (x, y)
-pulse actor
+fade-in btn [1s]
+fade-out btn [1s]
 ```
 
 **Modifiers**  
@@ -127,8 +129,6 @@ Modifiers are enclosed in square brackets immediately following the action.
 The engine maintains a highly extensible registry of built-in actions, categorized by their primary visual effect:
 - **Entrance**: Actions that introduce an actor to the scene (e.g., `wipe-in`, `fade-in`).
 - **Exit**: Actions that remove an actor from the scene (e.g., `fade-out`).
-- **Morph**: Actions that transition one state or shape to another.
-- **Highlight**: Actions that draw attention to an actor (e.g., `pulse`).
 
 This architecture exposes rich action signatures (including `name`, `category`, `description`, `params`, and `modifiers`). This allows external tooling—such as Language Server Protocols (LSP) and visual UI editors—to dynamically discover, document, validate, and provide autocompletion for all supported animations.
 
@@ -171,12 +171,28 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 ## 7. Containers & Layout
 
+> **Status: Partial** — Row and Col are implemented. Grid, Stack, and Group are planned.
+
 **Container Types**
-- `Row`: Horizontal layout
-- `Col`: Vertical layout
-- `Grid`: 2D grid layout
-- `Stack`: Overlapping layout
-- `Group`: Generic container for grouping and transform inheritance
+
+- `Row`: Horizontal layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for vertical alignment). (Implemented)
+- `Col`: Vertical layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for horizontal alignment). (Implemented)
+- `Grid`: 2D grid layout (Planned)
+- `Stack`: Overlapping layout (Planned)
+- `Group`: Generic container for grouping and transform inheritance (Planned)
+
+**Layout Properties**
+
+The `gap` property sets uniform spacing between children. The `align` property controls perpendicular alignment:
+- For `Row`: aligns children vertically ("start" = top, "center" = middle, "end" = bottom)
+- For `Col`: aligns children horizontally ("start" = left, "center" = middle, "end" = right)
+
+```animatix
+row: Row, gap: 12, align: center {
+  Rect, color: red
+  Circle, color: blue
+}
+```
 
 **Children Declaration**  
 Children are declared inline within curly brackets. Children may be **labeled** (explicit name) or **anonymous** (no name).
@@ -223,6 +239,8 @@ The `leaf` circle inherits transforms from both `inner` and `scene`. Rotating `s
 
 ## 8. Reactive System
 
+> **Status: Planned/Deferred** — `always`, `loop`, and reactive patterns are parsed but not fully evaluated.
+
 **Always Blocks**  
 Code inside always blocks evaluates every frame. Useful for physics, live data, and continuous motion.
 ```animatix
@@ -257,6 +275,8 @@ stop job
 ---
 
 ## 9. Components
+
+> **Status: Planned/Deferred** — `ComponentDef` and related patterns are parsed but not fully evaluated.
 
 ### Definition
 Reusable actors can be defined and parameterized. To make an actor available to other files, it must be exported using the `pub` keyword.
@@ -295,6 +315,8 @@ collapse btn1
 
 ## 10. Math & Graphs
 
+> **Status: Planned/Deferred** — 2D Graph and plot functionality are parsed but not fully evaluated.
+
 **2D Graph Actor**  
 Container for plots with coordinate systems.
 ```animatix
@@ -308,9 +330,11 @@ plot: graph.plot, func: "x^2 + 3", color: red
 ```
 
 **Math Functions**  
-Built-in support for standard math.
-- `sin`, `cos`, `tan`
-- `sqrt`, `abs`, `log`, `exp`
+Built-in support for standard math (implemented):
+- `sin(x)`, `cos(x)`
+
+**Planned Math Functions**:
+- `tan`, `sqrt`, `abs`, `log`, `exp`
 - `lerp(a, b, t)`
 
 **Text Formatting**  

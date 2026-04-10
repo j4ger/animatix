@@ -47,9 +47,10 @@ cargo run -- image example/showcase.amx --output debug_showcase.png --time 1.0
 ## Documentation
 
 The `docs/` folder contains detailed technical information:
-- [`architecture_v2.md`](docs/architecture_v2.md): Details of the Vello-based Vector-First rendering architecture.
-- [`primitives.md`](docs/primitives.md): List of supported primitives (Shapes, Text, Math, SVG) and their properties.
+- [`architecture.md`](docs/architecture.md): Details of the Vello-based Vector-First rendering architecture.
+- [`primitives.md`](docs/primitives.md): List of supported primitives (Shapes, Text, Math, Svg) and their properties.
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
+- [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
 
 ## Architecture & Roadmap
 
@@ -68,7 +69,13 @@ We have transitioned `animatix` to a Vector-First pipeline powered by **Vello**.
 - [x] Hierarchical scene graph with nested containers (Row, Col, Group)
 - [x] Transform and opacity inheritance via recursive DFS evaluation
 - [x] Auto-UID generation for anonymous container children
+- [x] Row/Col container layout algorithm
 
-### Upcoming
-- [ ] Interactive UI for building animations
+### Planned
+- [ ] Reactive System (`always`, `loop`, `if`) - requires per-frame evaluation model
+- [ ] 2D Graph/Plot system - depends on reactive system for live data
+- [ ] Component system with parameter passing and lifecycle hooks
+- [ ] Grid/Stack layout algorithms
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)
+- [ ] Math functions (sin, cos, format) in expressions
+- [ ] Interactive UI for building animations

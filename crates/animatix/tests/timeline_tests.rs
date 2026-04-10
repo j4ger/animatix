@@ -1,7 +1,7 @@
 use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::timeline::{
-    parse_color, time_to_ms, AnimationTrack, Interpolate, PropertyTrack, Timeline,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PropertyTrack, Timeline,
 };
 
 #[test]
@@ -129,4 +129,130 @@ fn test_missing_properties() {
     assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.opacity.evaluate(0), 1.0);
+}
+
+#[test]
+fn test_evaluate_expr_sin_cos() {
+    // sin(0) = 0
+    let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]));
+    assert!({
+        let v = result.as_num();
+        v.abs() < 1e-10
+    });
+
+    // sin(PI/2) ≈ 1
+    let result = evaluate_expr(&Expr::Call(
+        "sin".to_string(),
+        vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+    ));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+    // cos(0) = 1
+    let result = evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+    // cos(PI) ≈ -1
+    let result = evaluate_expr(&Expr::Call(
+        "cos".to_string(),
+        vec![Expr::Num(std::f64::consts::PI)],
+    ));
+    assert!((result.as_num() + 1.0).abs() < 1e-10);
+
+    // sin nested: sin(PI/6) * 2
+    let result = evaluate_expr(&Expr::Binary(
+        Box::new(Expr::Call(
+            "sin".to_string(),
+            vec![Expr::Num(std::f64::consts::FRAC_PI_6)],
+        )),
+        animatix::ast::BinaryOp::Mul,
+        Box::new(Expr::Num(2.0)),
+    ));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn test_evaluate_expr_format() {
+    // format("value: {}", 42)
+    let result = evaluate_expr(&Expr::Call(
+        "format".to_string(),
+        vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)],
+    ));
+    assert_eq!(result.as_str(), "value: 42");
+
+    // format("x={}, y={}", 10, 20)
+    let result = evaluate_expr(&Expr::Call(
+        "format".to_string(),
+        vec![
+            Expr::Str("x={}, y={}".to_string()),
+            Expr::Num(10.0),
+            Expr::Num(20.0),
+        ],
+    ));
+    assert_eq!(result.as_str(), "x=10, y=20");
+
+    // format with no args
+    let result = evaluate_expr(&Expr::Call("format".to_string(), vec![]));
+    assert_eq!(result.as_str(), "");
+
+    // format with text and sin
+    let result = evaluate_expr(&Expr::Call(
+        "format".to_string(),
+        vec![
+            Expr::Str("sin(π/2) = {}".to_string()),
+            Expr::Call(
+                "sin".to_string(),
+                vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+            ),
+        ],
+    ));
+    assert_eq!(result.as_str(), "sin(π/2) = 1");
+}
+
+#[test]
+fn test_evaluate_expr_constants() {
+    assert!(
+        (evaluate_expr(&Expr::Ident("PI".to_string())).as_num() - std::f64::consts::PI).abs()
+            < 1e-10
+    );
+    assert!(
+        (evaluate_expr(&Expr::Ident("TAU".to_string())).as_num() - std::f64::consts::TAU).abs()
+            < 1e-10
+    );
+}
+
+#[test]
+fn test_evaluate_expr_tuple() {
+    let result = evaluate_expr(&Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]));
+    assert_eq!(result.as_tuple2(), [100.0, 200.0]);
+
+    // Tuple with call expressions
+    let result = evaluate_expr(&Expr::Tuple(vec![
+        Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+        Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+    ]));
+    assert_eq!(result.as_tuple2(), [0.0, 1.0]);
+}
+
+#[test]
+fn test_timeline_with_expr_call_properties() {
+    // Verify that sin/cos expressions work in property values during timeline build
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Assignment {
+            target: "actor1".to_string(),
+            property: "position".to_string(),
+            value: Expr::Tuple(vec![
+                Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+                Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+            ]),
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("actor1").expect("actor1 should exist");
+    let pos = track.position.evaluate(0);
+    // sin(0)=0, cos(0)=1
+    assert!((pos[0] - 0.0).abs() < 1e-6);
+    assert!((pos[1] - 1.0).abs() < 1e-6);
 }

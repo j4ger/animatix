@@ -1,0 +1,27 @@
+#0s
+scene.background_color = (0.1, 0.1, 0.2, 1.0)
+
+// Test Parser Completeness (These should parse without error, but do nothing currently)
+always {
+  let a = 1
+}
+
+job: loop 3 times {
+  fade-in test [1s]
+}
+
+if x > 0 {
+  fade-in btn [1s]
+}
+
+for i in items {
+  fade-in c [1s]
+}
+
+// Test simple elements
+t: Text { text: "Hello", font_size: 40, color: (1.0, 1.0, 1.0, 1.0), at: (400, 300) }
+c: Circle, radius: 50, color: (1.0, 0.2, 0.2, 1.0), at: (400, 400)
+r: Rect, size: (50, 50), color: (0.2, 1.0, 0.2, 1.0), at: (400, 500)
+
+#1s
+t.text = "World" [1s]

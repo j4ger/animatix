@@ -1,3 +1,5 @@
+# Primitives
+
 # 1. Overview
 
 Primitives are the basic building blocks of an Animatix scene. Each primitive defines a specific type of rendered object, such as a shape, text, or external asset. Primitives are declared using the actor declaration syntax.
@@ -103,25 +105,25 @@ Text primitives use signed distance field (SDF) font atlases for crisp rendering
 ## Text
 **Description:** Standard rendered text string.
 **Properties:**
-- `content`: String
+- `text`: String
 - `font`: String (font family name)
 - `size`: Number (points or pixels)
 - `weight`: String (normal, bold, light)
 
 **Example:**
 ```animatix
-t: Text, content: "Hello World", font: "Inter", size: 24pt
+t: Text, text: "Hello World", font: "Inter", size: 24pt
 ```
 
-## MathTex
+## Math
 **Description:** LaTeX-style mathematical notation.
 **Properties:**
-- `content`: String (LaTeX syntax)
+- `math`: String (LaTeX syntax)
 - `size`: Number
 
 **Example:**
 ```animatix
-eq: MathTex, content: "x^2 + 3", size: 18pt
+eq: Math, math: "x^2 + 3", size: 18pt
 ```
 
 ## Code
@@ -142,7 +144,7 @@ c: Code, content: "let x = 0", language: "rust", size: 12pt
 
 These primitives load external files from the project directory.
 
-## Svg
+## SVG
 **Description:** Scalable Vector Graphics file.
 **Properties:**
 - `url`: String (file path or URL to the SVG)
@@ -150,7 +152,7 @@ These primitives load external files from the project directory.
 
 **Example:**
 ```animatix
-icon: Svg, url: "assets/icon.svg", scale: 1.5
+icon: SVG, url: "assets/icon.svg", scale: 1.5
 ```
 
 ## Image
@@ -168,17 +170,17 @@ img: Image, path: "assets/photo.png", size: (400, 300)
 
 # 5. Rendering Strategies
 
-The engine automatically selects the best rendering strategy based on the primitive type. To allow for massive scene capacity and complex morphing, instance data for all strategies is uploaded to the GPU via **Storage Buffers**.
+Animatix uses **Vello** as its rendering backbone, a vector-first GPU-accelerated rendering engine. This approach prioritizes resolution-independent, crisp rendering at any scale while maintaining high performance for complex scenes.
 
-## SDF (Signed Distance Field)
-- **Used for:** Circle, Rect, Ellipse, Arc, Text
-- **Benefits:** Resolution independent, smooth edges, bypasses vertex attribute limits
-- **Behavior:** Shapes are defined by mathematical formulas in the shader and rendered on tightly bounded quads, looking up instance configurations directly from the active Storage Buffer.
+## Vector (Vello)
+- **Used for:** All primitives including Circle, Rect, Ellipse, Arc, Text, Path, Polygon, Line, SVG, and Image
+- **Benefits:** Resolution independent, smooth edges at any zoom level, efficient batched rendering, native path curve support
+- **Behavior:** All shapes are converted to vector paths and processed by Vello's parallel rendering pipeline. Instance data is uploaded to the GPU via **Storage Buffers** for massive scene capacity and complex animations.
 
-## Vertex (Mesh)
-- **Used for:** Path, Polygon, Line, Svg, Image
-- **Benefits:** Arbitrary shapes, supports complex geometry
-- **Behavior:** Shapes are tessellated into vertices. Dynamic path data and point-matching transforms can also be evaluated via Storage Buffers to scale efficiently.
+## Raster (Fallback)
+- **Used for:** Complex raster images that require pixel-level manipulation
+- **Benefits:** Full raster editing capabilities when needed
+- **Behavior:** When vector processing is not suitable, raster assets are rendered via traditional GPU texture sampling.
 
 ---
 
@@ -247,15 +249,15 @@ You can tweak the morphing behavior using optional modifiers:
 ```animatix
 #0s
   c: Circle, radius: 50, color: blue, at: (50%, 50%)
-  appear c [1s]
+  fade-in c [1s]
 ```
 
 ## Text and Math
 ```animatix
 #0s
-  title: Text, content: "Demo", size: 24pt, at: (50%, 90%)
-  formula: MathTex, content: "E = mc^2", size: 18pt, at: (50%, 50%)
-  appear {title, formula} [1s]
+  title: Text, text: "Demo", size: 24pt, at: (50%, 90%)
+  formula: Math, math: "E = mc^2", size: 18pt, at: (50%, 50%)
+  fade-in {title, formula} [1s]
 ```
 
 ## Morphing with Modifiers
@@ -264,5 +266,35 @@ You can tweak the morphing behavior using optional modifiers:
   box: Rect, width: 50, height: 50, color: red, at: (10, 10)
 #2s
   # Transform into text using a fade transform
-  box: Text, content: "Done!", color: white, at: (50, 50) [1.5s, strategy: fade_transform, stretch: false]
+  box: Text, text: "Done!", color: white, at: (50, 50) [1.5s, strategy: fade_transform, stretch: false]
+```
+
+---
+
+# 9. Containers & Layout
+
+Containers group multiple primitives and control their spatial arrangement.
+
+## Row
+**Description:** A horizontal container that arranges child elements in a left-to-right flow.
+
+**Properties:**
+- `gap`: Number (pixels) - Space between child elements
+- `align`: String - Vertical alignment of children within the row ("start", "center", "end")
+
+## Col
+**Description:** A vertical container that arranges child elements in a top-to-bottom flow.
+
+**Properties:**
+- `gap`: Number (pixels) - Space between child elements
+- `align`: String - Horizontal alignment of children within the column ("start", "center", "end")
+
+**Example:**
+```animatix
+#0s
+  Row, gap: 10, align: "center" {
+    c1: Circle, radius: 30, color: blue
+    c2: Circle, radius: 30, color: green
+    c3: Circle, radius: 30, color: red
+  }
 ```

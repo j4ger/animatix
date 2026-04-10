@@ -1,4 +1,4 @@
-use animatix::ast::{Action, Expr, Modifier, Property, Stmt, Time};
+use animatix::ast::{Action, Expr, LoopKind, Modifier, Property, Stmt, Time};
 use animatix::parser::parser;
 use chumsky::Parser;
 
@@ -275,4 +275,193 @@ fn test_keyframes() {
     } else {
         panic!("Expected Keyframe");
     }
+}
+
+#[test]
+fn test_loop_infinite() {
+    let result = parse_single_stmt("loop { move btn [1s] }");
+    assert_eq!(
+        result,
+        Stmt::Loop {
+            kind: LoopKind::Infinite,
+            label: None,
+            body: vec![Stmt::Action(Action {
+                verb: "move".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+            })],
+        }
+    );
+}
+
+#[test]
+fn test_loop_bounded_time() {
+    let result = parse_single_stmt("loop 5s { fade btn [1s] }");
+    assert_eq!(
+        result,
+        Stmt::Loop {
+            kind: LoopKind::Bounded(Time::Seconds(5.0)),
+            label: None,
+            body: vec![Stmt::Action(Action {
+                verb: "fade".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+            })],
+        }
+    );
+}
+
+#[test]
+fn test_loop_count() {
+    let result = parse_single_stmt("loop 3s { shake btn [0.5s] }");
+    assert_eq!(
+        result,
+        Stmt::Loop {
+            kind: LoopKind::Bounded(Time::Seconds(3.0)),
+            label: None,
+            body: vec![Stmt::Action(Action {
+                verb: "shake".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("0.5s".to_string()),
+                }],
+            })],
+        }
+    );
+}
+
+#[test]
+fn test_always() {
+    let result = parse_single_stmt("always { let x = btn.x }");
+    assert_eq!(
+        result,
+        Stmt::Always {
+            body: vec![Stmt::LetDecl {
+                name: "x".to_string(),
+                value: Expr::Path(vec!["btn".to_string(), "x".to_string()]),
+            }],
+        }
+    );
+}
+
+#[test]
+fn test_labeled_always() {
+    let result = parse_single_stmt("reactive: always { btn.color = red }");
+    assert_eq!(
+        result,
+        Stmt::LabeledAlways {
+            label: "reactive".to_string(),
+            body: vec![Stmt::Assignment {
+                target: "btn".to_string(),
+                property: "color".to_string(),
+                value: Expr::Ident("red".to_string()),
+                modifiers: vec![],
+            }],
+        }
+    );
+}
+
+#[test]
+fn test_labeled_always_simple() {
+    let result = parse_single_stmt("reactive: always { let x = 1 }");
+    assert_eq!(
+        result,
+        Stmt::LabeledAlways {
+            label: "reactive".to_string(),
+            body: vec![Stmt::LetDecl {
+                name: "x".to_string(),
+                value: Expr::Num(1.0),
+            }],
+        }
+    );
+}
+
+#[test]
+fn test_conditional() {
+    let result = parse_single_stmt("if active { appear btn }");
+    assert_eq!(
+        result,
+        Stmt::Conditional {
+            condition: Expr::Ident("active".to_string()),
+            then_branch: vec![Stmt::Action(Action {
+                verb: "appear".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![],
+            })],
+            else_branch: None,
+        }
+    );
+}
+
+#[test]
+fn test_conditional_with_else() {
+    let result = parse_single_stmt("if active { fade-in btn } else { fade-out btn }");
+    assert_eq!(
+        result,
+        Stmt::Conditional {
+            condition: Expr::Ident("active".to_string()),
+            then_branch: vec![Stmt::Action(Action {
+                verb: "fade-in".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![],
+            })],
+            else_branch: Some(vec![Stmt::Action(Action {
+                verb: "fade-out".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![],
+            })]),
+        }
+    );
+}
+
+#[test]
+fn test_for_loop() {
+    let result = parse_single_stmt("for item in buttons { appear item }");
+    assert_eq!(
+        result,
+        Stmt::ForLoop {
+            var: "item".to_string(),
+            iterable: Expr::Ident("buttons".to_string()),
+            body: vec![Stmt::Action(Action {
+                verb: "appear".to_string(),
+                targets: vec!["item".to_string()],
+                args: vec![],
+                modifiers: vec![],
+            })],
+        }
+    );
+}
+
+#[test]
+fn test_for_loop_with_range() {
+    let result = parse_single_stmt("for i in {1, 2, 3} { scale btn [0.1s] }");
+    assert_eq!(
+        result,
+        Stmt::ForLoop {
+            var: "i".to_string(),
+            iterable: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
+            body: vec![Stmt::Action(Action {
+                verb: "scale".to_string(),
+                targets: vec!["btn".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("0.1s".to_string()),
+                }],
+            })],
+        }
+    );
 }
