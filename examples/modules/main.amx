@@ -7,5 +7,5 @@ header: Header, text: "Animatix Modules"
 btn: Button, text: "Get Started"
 
 #1s
-header appear
-btn appear
+fade-in header [1s]
+fade-in btn [1s]

@@ -4,13 +4,13 @@ pub mod registry;
 
 use crate::ast::Action;
 use crate::timeline::Timeline;
-use entrance::WipeIn;
+use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use registry::{ActionSignature, BuiltinAction};
 
 /// Returns a list of all registered built-in actions.
 fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
-    vec![Box::new(WipeIn), Box::new(FadeOut)]
+    vec![Box::new(FadeIn), Box::new(WipeIn), Box::new(FadeOut)]
 }
 
 /// Looks up the action by verb and executes it if found.
