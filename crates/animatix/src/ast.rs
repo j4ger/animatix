@@ -284,6 +284,9 @@ pub enum Stmt {
         label: String,
     },
 
+    /// Yield execution for current frame
+    Yield,
+
     // === Control Flow ===
     /// Conditional: if x > 0 { ... }
     Conditional {

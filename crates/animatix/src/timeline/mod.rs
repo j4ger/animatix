@@ -15,7 +15,7 @@ pub use track::{AnimationTrack, Interpolate, PropertyTrack};
 pub use utils::{evaluate_expr, parse_color, time_to_ms};
 pub use vello_path::VelloPath;
 
-use crate::ast::{Expr, Stmt};
+use crate::ast::{Expr, LoopKind, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
 
@@ -233,6 +233,19 @@ pub struct SceneNode {
 }
 
 #[derive(Clone)]
+pub struct LoopState {
+    pub label: Option<String>,
+    pub kind: LoopKind,
+    pub body: Vec<Stmt>,
+    pub pc: usize,
+    pub local_env: Environment,
+    pub is_active: bool,
+    pub is_paused: bool,
+    pub time_remaining: Option<f64>,
+    pub iteration_count: u32,
+}
+
+#[derive(Clone)]
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
@@ -240,6 +253,9 @@ pub struct Timeline {
     pub root_nodes: Vec<String>,
     pub anon_counter: usize,
     pub env: Environment,
+    pub modifiers: Vec<Stmt>,
+    pub loops: std::rc::Rc<std::cell::RefCell<Vec<LoopState>>>,
+    pub last_eval_time_ms: std::rc::Rc<std::cell::RefCell<Option<u64>>>,
 }
 
 impl Timeline {
@@ -253,6 +269,9 @@ impl Timeline {
             root_nodes: Vec::new(),
             anon_counter: 0,
             env: Environment::raw_new(),
+            modifiers: Vec::new(),
+            loops: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
+            last_eval_time_ms: std::rc::Rc::new(std::cell::RefCell::new(None)),
         }
     }
 
@@ -1431,6 +1450,40 @@ impl Timeline {
                         .vector_paths
                         .add_keyframe(t_end_ms, vec![target_vello_path], easing);
                 }
+                Stmt::Always { body } => {
+                    self.modifiers.extend(body.clone());
+                }
+                Stmt::LabeledAlways { label: _, body } => {
+                    self.modifiers.extend(body.clone());
+                }
+                Stmt::Loop { kind, label, body } => {
+                    self.loops.borrow_mut().push(LoopState {
+                        label: label.clone(),
+                        kind: kind.clone(),
+                        body: body.clone(),
+                        pc: 0,
+                        local_env: self.env.clone(),
+                        is_active: true,
+                        is_paused: false,
+                        time_remaining: None,
+                        iteration_count: 0,
+                    });
+                }
+                Stmt::ForLoop {
+                    var,
+                    iterable,
+                    body,
+                } => {
+                    let iter_val = evaluate_expr(iterable, &self.env).unwrap_or(Value::Num(0.0));
+                    if let Value::Vec2([start, end]) = iter_val {
+                        let start = start as i64;
+                        let end = end as i64;
+                        for i in start..end {
+                            self.env.set(var, Value::Num(i as f64));
+                            self.process_body(time_ms, body, parent_label);
+                        }
+                    }
+                }
                 Stmt::Action(action) => {
                     process_action(action, time_ms, self);
                 }
@@ -1461,12 +1514,35 @@ impl Timeline {
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
         scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
-            let position = track.position.evaluate(time_ms);
-            let opacity = track.opacity.evaluate(time_ms);
+            let mut position = track.position.evaluate(time_ms);
+            let mut opacity = track.opacity.evaluate(time_ms);
             let text_paths = track.text_paths.evaluate(time_ms);
-            let vector_paths = track.vector_paths.evaluate(time_ms);
+            let mut vector_paths = track.vector_paths.evaluate(time_ms);
+
+            if let Some(node_overrides) = overrides.get(node_label) {
+                if let Some(Value::Vec2(pos)) = node_overrides.get("at") {
+                    position = [pos[0] as f32, pos[1] as f32];
+                }
+                if let Some(Value::Num(op)) = node_overrides.get("opacity") {
+                    opacity = *op as f32;
+                }
+                if let Some(Value::Color(c)) = node_overrides.get("color") {
+                    let fill_color = vello::peniko::Color::from_rgba8(
+                        (c[0] * 255.0) as u8,
+                        (c[1] * 255.0) as u8,
+                        (c[2] * 255.0) as u8,
+                        (c[3] * 255.0) as u8,
+                    );
+                    for vp in &mut vector_paths {
+                        if vp.fill.is_some() {
+                            vp.fill = Some(fill_color);
+                        }
+                    }
+                }
+            }
 
             let local_opacity = opacity * parent_opacity;
             let local_transform = parent_transform
@@ -1554,7 +1630,14 @@ impl Timeline {
 
         if let Some(node) = self.nodes.get(node_label) {
             for child in &node.children {
-                self.evaluate_node(child, time_ms, global_transform, global_opacity, scene);
+                self.evaluate_node(
+                    child,
+                    time_ms,
+                    global_transform,
+                    global_opacity,
+                    scene,
+                    overrides,
+                );
             }
         }
     }
@@ -1563,6 +1646,164 @@ impl Timeline {
         let time_ms = (time_s * 1000.0) as u64;
         let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
+
+        let mut frame_env = self.env.clone();
+        let mut overrides: std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, Value>,
+        > = std::collections::HashMap::new();
+
+        frame_env.set("t", Value::Num(time_s));
+
+        for modifier in &self.modifiers {
+            if let Stmt::Assignment {
+                target,
+                property,
+                value,
+                ..
+            } = modifier
+            {
+                if let Ok(val) = evaluate_expr(value, &frame_env) {
+                    overrides
+                        .entry(target.clone())
+                        .or_default()
+                        .insert(property.clone(), val);
+                }
+            } else if let Stmt::LetDecl { name, value } = modifier {
+                if let Ok(val) = evaluate_expr(value, &frame_env) {
+                    frame_env.set(name, val);
+                }
+            } else if let Stmt::LoopControl { command, label } = modifier {
+                for l in self.loops.borrow_mut().iter_mut() {
+                    if l.label.as_ref() == Some(label) {
+                        match command {
+                            crate::ast::LoopCommand::Stop => l.is_active = false,
+                            crate::ast::LoopCommand::Pause => l.is_paused = true,
+                            crate::ast::LoopCommand::Resume => l.is_paused = false,
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut last_eval_borrow = self.last_eval_time_ms.borrow_mut();
+        let mut loops_borrow = self.loops.borrow_mut();
+
+        let mut reset_loops = false;
+        let mut dt_ms = 0;
+
+        if let Some(last) = *last_eval_borrow {
+            if time_ms < last || time_ms == 0 {
+                reset_loops = true;
+            } else {
+                dt_ms = time_ms - last;
+            }
+        } else {
+            reset_loops = true;
+        }
+
+        *last_eval_borrow = Some(time_ms);
+
+        if reset_loops {
+            for l in loops_borrow.iter_mut() {
+                l.pc = 0;
+                l.is_active = true;
+                l.is_paused = false;
+                l.iteration_count = 0;
+                l.time_remaining = match &l.kind {
+                    crate::ast::LoopKind::Bounded(t) => {
+                        Some(crate::timeline::utils::time_to_ms(&t))
+                    }
+                    _ => None,
+                };
+                l.local_env = self.env.clone();
+            }
+        } else {
+            for l in loops_borrow.iter_mut() {
+                if let Some(ref mut tr) = l.time_remaining {
+                    *tr -= dt_ms as f64;
+                    if *tr <= 0.0 {
+                        l.is_active = false;
+                    }
+                }
+            }
+        }
+
+        let shared_frame_env = std::rc::Rc::new(std::cell::RefCell::new(frame_env.clone()));
+        for l in loops_borrow.iter_mut() {
+            if !l.is_active || l.is_paused {
+                continue;
+            }
+
+            l.local_env.set_parent(shared_frame_env.clone());
+
+            let mut yielded = false;
+            while !yielded && l.pc < l.body.len() && l.is_active && !l.is_paused {
+                let stmt = &l.body[l.pc];
+                match stmt {
+                    Stmt::Yield => {
+                        l.pc += 1;
+                        yielded = true;
+                    }
+                    Stmt::Assignment {
+                        target,
+                        property,
+                        value,
+                        ..
+                    } => {
+                        if let Ok(val) = evaluate_expr(value, &l.local_env) {
+                            overrides
+                                .entry(target.clone())
+                                .or_default()
+                                .insert(property.clone(), val);
+                        }
+                        l.pc += 1;
+                    }
+                    Stmt::LetDecl { name, value } => {
+                        if let Ok(val) = evaluate_expr(value, &l.local_env) {
+                            l.local_env.set(name, val);
+                        }
+                        l.pc += 1;
+                    }
+                    Stmt::LoopControl { command, label } => {
+                        if l.label.as_ref() == Some(label) {
+                            match command {
+                                crate::ast::LoopCommand::Stop => l.is_active = false,
+                                crate::ast::LoopCommand::Pause => l.is_paused = true,
+                                crate::ast::LoopCommand::Resume => l.is_paused = false,
+                            }
+                        }
+                        l.pc += 1;
+                    }
+                    _ => {
+                        l.pc += 1;
+                    }
+                }
+            }
+
+            if l.pc >= l.body.len() {
+                match l.kind {
+                    crate::ast::LoopKind::Infinite => {
+                        l.pc = 0;
+                    }
+                    crate::ast::LoopKind::Count(c) => {
+                        l.iteration_count += 1;
+                        if l.iteration_count >= c {
+                            l.is_active = false;
+                        } else {
+                            l.pc = 0;
+                        }
+                    }
+                    crate::ast::LoopKind::Bounded(_) => {
+                        if l.time_remaining.unwrap_or(0.0) > 0.0 {
+                            l.pc = 0;
+                        } else {
+                            l.is_active = false;
+                        }
+                    }
+                }
+            }
+        }
 
         let bg = vello::peniko::Color::new([
             bg_color[0] as f32,
@@ -1579,7 +1820,14 @@ impl Timeline {
         );
 
         for root in &self.root_nodes {
-            self.evaluate_node(root, time_ms, kurbo::Affine::IDENTITY, 1.0, &mut scene);
+            self.evaluate_node(
+                root,
+                time_ms,
+                kurbo::Affine::IDENTITY,
+                1.0,
+                &mut scene,
+                &overrides,
+            );
         }
 
         scene
@@ -1588,5 +1836,67 @@ impl Timeline {
 impl Default for Timeline {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_loop_state_machine() {
+        let mut timeline = Timeline::new();
+
+        let label = "job".to_string();
+
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "ball".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::Loop {
+                kind: crate::ast::LoopKind::Count(2),
+                label: Some(label.clone()),
+                body: vec![
+                    Stmt::Assignment {
+                        target: "ball".to_string(),
+                        property: "x".to_string(),
+                        value: Expr::Num(10.0),
+                        modifiers: vec![],
+                    },
+                    Stmt::Yield,
+                    Stmt::Assignment {
+                        target: "ball".to_string(),
+                        property: "x".to_string(),
+                        value: Expr::Num(20.0),
+                        modifiers: vec![],
+                    },
+                    Stmt::Yield,
+                ],
+            },
+        ];
+
+        timeline.process_body(0.0, &stmts, None);
+
+        assert_eq!(timeline.loops.borrow().len(), 1);
+
+        let _scene1 = timeline.evaluate(0.0);
+        assert_eq!(timeline.loops.borrow()[0].pc, 2);
+        assert_eq!(timeline.loops.borrow()[0].iteration_count, 0);
+
+        let _scene2 = timeline.evaluate(1.0);
+        assert_eq!(timeline.loops.borrow()[0].pc, 0);
+        assert_eq!(timeline.loops.borrow()[0].iteration_count, 1);
+
+        let _scene3 = timeline.evaluate(2.0);
+        assert_eq!(timeline.loops.borrow()[0].pc, 2);
+        assert_eq!(timeline.loops.borrow()[0].iteration_count, 1);
+
+        let _scene4 = timeline.evaluate(3.0);
+        assert_eq!(timeline.loops.borrow()[0].is_active, false);
     }
 }

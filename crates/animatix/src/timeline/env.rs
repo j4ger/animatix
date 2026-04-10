@@ -156,6 +156,10 @@ impl Environment {
             None
         }
     }
+
+    pub fn set_parent(&mut self, parent: Rc<RefCell<Environment>>) {
+        self.parent = Some(parent);
+    }
 }
 
 pub fn load_standard_library(env: &mut Environment) {

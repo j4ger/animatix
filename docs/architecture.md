@@ -356,3 +356,83 @@ This directly translates to:
 - **Predictable performance** that scales with curve complexity rather than arbitrary resolution settings
 
 The tolerance-based approach also means mathematical expressions like `sin(1/x)` near zero naturally receive more segments where oscillation is rapid, without requiring user-specified resolution parameters.
+
+## 7. The Hybrid Evaluation Engine (Reactive System)
+
+The reactive system resolves a fundamental conflict in animation: static keyframes describe a fixed timeline, but dynamic behavior requires per-frame evaluation. The hybrid engine handles both by separating concerns into two distinct layers.
+
+### The Per-Frame Evaluation Pipeline
+
+Each frame, the engine executes a strict four-stage pipeline:
+
+1. **Advance Time**: Increment the timeline clock. Check for loop boundaries and reset internal counters if a `loop` block has completed an iteration.
+2. **Evaluate Keyframe Tracks (Base Layer)**: Sample all `AnimationTrack` entries at the current time. This produces the default state for every animated property. Nodes without keyframes retain their static values from the scene graph.
+3. **Execute Reactive Blocks (Modifier Layer)**: Run all `always`, `loop`, and `for` blocks. These can override, compose with, or entirely replace values from the base layer.
+4. **Render**: Commit the final property values to the render list.
+
+The key insight is that the base layer is purely declarative. It declares what the values *should be* at any given time. The modifier layer is procedural. It can inspect the current frame state and make runtime decisions.
+
+### The Three Reactive Primitives
+
+**`for` loops (compile-time unrolling)**
+
+Bounded `for` loops are fully resolved at compile time. The compiler generates one set of keyframes per iteration, each offset in time by the loop body duration. At runtime, there is no loop structure, only a static animation track.
+
+```text
+for i in 0..3 {
+  star[i]: Circle, radius: 20
+}
+```
+
+This generates three `Circle` nodes at positions `star[0]`, `star[1]`, `star[2]`, each with its own timeline. The loop itself vanishes after compilation.
+
+**`always` blocks (render-time evaluation)**
+
+An `always` block runs every frame without exception. It receives the current frame state and produces values that override or compose with the base layer.
+
+```text
+always { ball.at = (mouse.x, mouse.y) }
+```
+
+This runs on every frame. The expression `mouse.x` and `mouse.y` are evaluated fresh each time, giving live mouse tracking. There is no keyframe interpolation, no timeline, no concept of "before" or "after". Just pure per-frame execution.
+
+**`loop` blocks (stateful coroutines)**
+
+A `loop` block maintains internal state across frames. It executes like a generator, pausing at `yield` points and resuming on the next frame from exactly where it stopped.
+
+```text
+job: loop 5s {
+  ball.at = (0, 0)
+  yield
+  ball.at = (100, 0)
+  yield
+}
+```
+
+Each `yield` pauses execution and returns control to the timeline. On the next frame, execution resumes after that `yield`. This produces a two-state toggle that cycles every 5 seconds.
+
+### Compile-Time vs Render-Time
+
+The distinction matters for performance and semantics:
+
+| Construct | When Resolved | Runtime Cost | State |
+|-----------|---------------|--------------|-------|
+| `for` | Compile time | Zero | Static keyframes |
+| `always` | Every frame | Full expression re-evaluation | None (stateless) |
+| `loop` | Per iteration | Expression + state restore | Yes (paused PC, variables) |
+
+`for` produces no runtime overhead. The entire loop collapses into timeline data before the first frame renders.
+
+`always` re-evaluates its expressions every frame. If the expression tree is expensive, that cost is paid every frame.
+
+`loop` restores a saved program counter and local variables on each iteration. The cost is a struct restore plus expression evaluation.
+
+### Composition Rules
+
+When both a keyframe track and an `always` block affect the same property:
+
+1. The base layer samples the keyframe track at the current time
+2. The modifier layer evaluates the `always` block
+3. The modifier wins. `always` overrides keyframes unless explicitly designed to compose (e.g., `ball.at.x = base.at.x + offset`)
+
+This gives `always` the semantics of a render-time patch applied on top of the static timeline.

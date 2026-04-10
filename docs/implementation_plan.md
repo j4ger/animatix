@@ -4,7 +4,7 @@
 
 | Category | Parser | Runtime | Status |
 |----------|--------|---------|--------|
-| **Reactive System** | Partial | Missing | **NOT IMPLEMENTED** |
+| **Reactive System** | Complete | Complete | **IMPLEMENTED** |
 | **Math/Graph** | Complete | Complete | **IMPLEMENTED** |
 | **Containers (Row, Col)** | Complete | Complete | **IMPLEMENTED** |
 | **Containers (Grid, Stack)** | Missing | Missing | **NOT IMPLEMENTED** |
@@ -12,52 +12,81 @@
 
 ---
 
-## 1. Reactive System (`loop`, `always`, `if`)
+## 1. Reactive System (`loop`, `always`, `for`)
 
-### Status: NOT IMPLEMENTED
+### Status: IMPLEMENTED (Phases 1, 2 & 3 Complete)
 
-**AST is defined** (`ast.rs`):
-- `LoopKind`: `Infinite`, `Bounded(Time)`, `Count(u32)`
-- `LoopCommand`: `Stop`, `Pause`, `Resume`
-- `Always`, `LabeledAlways`: Per-frame evaluation blocks
-- `Conditional`: If/else expressions
-- `ForLoop`: Iteration
+The reactive system uses a hybrid evaluation architecture, implemented via phased rollout.
 
-**Parser** (`parser.rs`):
-- **MISSING**: No parsing for `always`, `loop`, `if`, `for` statements
+### Phase 1: Per-Frame Evaluation Pipeline (IMPLEMENTED)
 
-**Runtime** (`timeline/mod.rs`):
-- **MISSING**: `process_body()` falls through to `_ => {}` for all reactive statements
+**Goal**: Establish the two-layer evaluation model (Base + Modifier).
+
+**Status**: **COMPLETE**. The four-stage pipeline correctly passes base keyframes and layers over transient per-frame modifiers via a HashMap override system.
+
+### Phase 2: Compile `for` Loops into Unrolled Keyframes (IMPLEMENTED)
+
+**Goal**: Eliminate loop structures at compile time.
+
+**Status**: **COMPLETE**. `for` loops expand statically during parse/timeline building to prevent runtime overhead.
+
+### Phase 3: Stateful `loop` Blocks & Generators (IMPLEMENTED)
+
+**Goal**: Stateful, per-frame expression evaluation.
+
+**Tasks**:
+1. Compile `always` blocks into AST evaluator closures that run every frame
+2. Compile `loop` blocks into generator-style closures that maintain state across frames
+3. Implement `yield` as a pause/resume mechanism
+4. Support labeled loops (`job: loop 5s { ... }`) with `Stop`, `Pause`, `Resume` commands
+
+**Status**: **COMPLETE**. `LoopState` manages program counters, `time_remaining`, and frame environments across evaluations in the `Timeline`. `Yield` properly defers execution to the next frame.
+
+**`loop` Execution Model**:
+- Each labeled `loop` maintains a struct with: program counter, local variables, remaining time
+- On `yield`, the struct is serialized to the timeline state
+- On the next frame, the struct is restored and execution resumes
+
+**`always` Execution Model**:
+- No state maintained between frames
+- Full expression tree re-evaluated every frame
+- Can read from base layer values for composition
 
 ### Target Syntax
 
 ```animatix
 // Per-frame evaluation
-always { ball.at = (x, sin(x)) }
+always { ball.at = (mouse.x, mouse.y) }
 
-// Loop constructs
-job: loop 3 times { ... }
-loop 5s { ... }
+// Loop constructs (stateful)
+job: loop 5s {
+  ball.at = (0, 0)
+  yield
+  ball.at = (100, 0)
+  yield
+}
 stop job
 
-// Conditionals
-if x > 0 { ... } else { ... }
-
-// Iteration
-for item in items { ... }
+// Bounded iteration (compile-time unrolling)
+for i in 0..3 {
+  star[i]: Circle, radius: 20
+}
 ```
 
-### Why Deferred
-1. Requires per-frame evaluation model (vs keyframe model)
-2. No clear use case in current examples
-3. Interactive UI (slider integration) is the main driver
-4. AST and data structures are already designed
+### Why Three Phases
+1. Phase 1 established the evaluation infrastructure and override mechanism.
+2. Phase 2 performed pure compiler transformations for bounds unrolling.
+3. Phase 3 & 4 added internal generator state management to maintain contexts between yields and handle dynamic control flow.
 
 ---
 
-## 2. Containers (`Grid`, `Stack`)
+## What Is Left To Do: Future Phases
 
-### Status: Row and Col IMPLEMENTED, Grid and Stack NOT IMPLEMENTED
+To maintain a steady cadence, the remaining work is organized into distinct actionable phases.
+
+### Phase 5: 2D Layout Containers (`Grid`, `Stack`)
+
+**Goal**: Complete 2D geometry container types.
 
 **Implemented:**
 - `Row`: Horizontal layout with `gap` and `align`
@@ -86,7 +115,9 @@ stack: Stack {
 
 ---
 
-## 3. Components
+## Phase 6: Components
+
+**Goal**: Full reusable module components mechanism.
 
 ### Status: DEFINED (AST), NOT IMPLEMENTED (Runtime)
 

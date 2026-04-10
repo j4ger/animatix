@@ -687,6 +687,18 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        let yield_stmt = text::keyword("yield").map(|_| Stmt::Yield).padded();
+
+        let loop_control_stmt = choice((
+            text::keyword("stop").to(LoopCommand::Stop),
+            text::keyword("pause").to(LoopCommand::Pause),
+            text::keyword("resume").to(LoopCommand::Resume),
+        ))
+        .then_ignore(just(' '))
+        .then(ident.clone())
+        .map(|(command, label)| Stmt::LoopControl { command, label })
+        .padded();
+
         choice((
             let_decl,
             import_stmt,
@@ -703,6 +715,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             actor_decl,
             component_def,
             action,
+            loop_control_stmt,
+            yield_stmt,
             comment,
         ))
     });
