@@ -173,7 +173,7 @@ img: Image, path: "assets/photo.png", size: (400, 300)
 Graph primitives provide container-based plotting with coordinate system mapping and closure-evaluated functions.
 
 ## Graph
-**Description:** A container that maps logical mathematical domains to physical screen bounds. It does not render directly but establishes the coordinate system for child plots.
+**Description:** A container that maps logical mathematical domains to physical screen bounds. It renders axes with tick marks and establishes the coordinate system for child plots.
 
 **Properties:**
 - `x_range`: Tuple (min, max) defining the logical x-domain
@@ -195,11 +195,14 @@ graph: Graph, x_range: (-5, 5), y_range: (-10, 30)
 - `func`: Closure `(x) => expression` defining the function to plot
 - `color`: Color (optional, defaults to white)
 - `width`: Number (optional, stroke width)
+- `tolerance`: Number (optional, default 0.5) - Maximum perpendicular distance from midpoint to line segment before subdivision
+- `max_depth`: Number (optional, default 10) - Maximum recursion depth for adaptive sampling
 
 **Example:**
 ```animatix
 parabola: CartesianPlot, func: (x) => x^2 + 3, color: red
 sine: CartesianPlot, func: (t) => sin(t), color: blue, width: 2
+high_fidelity: CartesianPlot, func: (x) => sin(1/x), tolerance: 0.001, max_depth: 12
 ```
 
 ## PolarPlot
@@ -209,11 +212,14 @@ sine: CartesianPlot, func: (t) => sin(t), color: blue, width: 2
 - `func`: Closure `(theta) => expression` defining radius as a function of angle
 - `color`: Color (optional, defaults to white)
 - `width`: Number (optional, stroke width)
+- `tolerance`: Number (optional, default 0.5) - Maximum perpendicular distance from midpoint to line segment before subdivision
+- `max_depth`: Number (optional, default 10) - Maximum recursion depth for adaptive sampling
 
 **Example:**
 ```animatix
 spiral: PolarPlot, func: (t) => t, color: green
 circle: PolarPlot, func: (t) => 1, color: red
+high_fidelity: PolarPlot, func: (t) => 1/sin(t), tolerance: 0.001, max_depth: 12
 ```
 
 ---

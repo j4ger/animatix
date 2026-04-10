@@ -334,6 +334,18 @@ adaptive_sample(closure, x_start, x_end, depth):
         return left + right
 ```
 
+**Discontinuity and Asymptote Detection:**
+
+The engine detects steep asymptotes by monitoring the ratio of consecutive sample deltas. When a delta exceeds a threshold relative to the domain span, the algorithm identifies a potential discontinuity. Rather than drawing a misleading straight line through the asymptote, the engine injects `NAN` values into the path. Vello's path builder skips `NAN` coordinates, effectively breaking the path into separate segments. This prevents visual artifacts like vertical lines through `1/x` at zero.
+
+**Bounding-Box Culling:**
+
+During subdivision, the engine checks whether a segment lies entirely outside the graph's physical screen bounds. If both endpoints and the midpoint map to coordinates outside the visible region, the entire segment is discarded without further subdivision. This optimization reduces unnecessary function evaluations and path segments for portions of the curve that would not render anyway.
+
+**AST Integration:**
+
+The `tolerance` and `max_depth` parameters are extracted directly from the AST at parse time. `CartesianPlot` and `PolarPlot` nodes carry these values as properties, allowing the sampling engine to configure subdivision behavior per-plot without runtime string parsing.
+
 **Why This Matters for Vello `BezPath` Performance:**
 
 Vello renders paths by computing coverage per pixel. When you submit a path with many small segments, each segment still requires separate processing. The adaptive algorithm produces exactly the number of segments needed for visual accuracy: dense sampling where the curve bends sharply, sparse sampling where it is nearly linear.

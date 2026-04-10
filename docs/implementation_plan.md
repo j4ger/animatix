@@ -123,32 +123,34 @@ btn: Button, text: "Submit", color: blue
 
 ---
 
-## Future Improvements
+## Stage 3 (Complete)
 
 ### User-Configurable Sampling Parameters
 
-Expose `precision` and `tolerance` properties to the Animatix language AST:
+The plotting engine exposes `tolerance` and `max_depth` properties to the Animatix language AST:
 
 ```animatix
 // High fidelity for smooth curves
-smooth_curve: CartesianPlot, func: (x) => sin(x), precision: 0.001, max_depth: 12
+smooth_curve: CartesianPlot, func: (x) => sin(x), tolerance: 0.001, max_depth: 12
 
 // Fast rendering for previews
-preview_curve: CartesianPlot, func: (x) => x^2, precision: 0.1, max_depth: 6
+preview_curve: CartesianPlot, func: (x) => x^2, tolerance: 0.5, max_depth: 6
 ```
 
 ### Discontinuity Detection
 
-Improve plotting near mathematical discontinuities like asymptotes. For example, plotting `y = 1/x` across `(-1, 1)` draws a massive vertical line through the origin.
+The plotting engine detects and handles mathematical discontinuities like asymptotes. For example, plotting `y = 1/x` across `(-1, 1)` no longer draws a massive vertical line through the origin.
 
-Improve by detecting discontinuities:
-1. Check if `y` values jump by more than a threshold between adjacent samples
-2. Break the path into separate segments at the discontinuity point
-3. Optionally insert visual markers to indicate the discontinuity
+The engine:
+1. Checks if `y` values jump by more than a threshold between adjacent samples
+2. Breaks the path into separate segments at the discontinuity point
+3. Injects `NAN` to break the Vello path at discontinuities
 
 ### Bounding-Box Culling
 
-Optimize plotting by stopping subdivision when a segment is entirely outside the graph's physical screen bounds.
+Optimizes plotting by stopping subdivision when a segment is entirely outside the graph's physical screen bounds.
+
+## Future Improvements
 
 ### Parametric and Implicit Curve Plotting
 
