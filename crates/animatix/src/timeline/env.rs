@@ -1,0 +1,228 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt;
+use std::rc::Rc;
+
+#[derive(Debug, Clone)]
+pub enum EvalError {
+    UndefinedVariable(String),
+    TypeMismatch(String),
+    NotCallable(String),
+}
+
+impl fmt::Display for EvalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvalError::UndefinedVariable(v) => write!(f, "Undefined variable: {}", v),
+            EvalError::TypeMismatch(e) => write!(f, "Type mismatch: {}", e),
+            EvalError::NotCallable(n) => write!(f, "Not callable: {}", n),
+        }
+    }
+}
+
+impl std::error::Error for EvalError {}
+
+#[derive(Clone)]
+pub enum Value {
+    Num(f64),
+    Str(String),
+    Bool(bool),
+    Vec2([f64; 2]),
+    Vec3([f64; 3]),
+    Vec4([f64; 4]),
+    Color([f64; 4]),
+    NativeFn(Rc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError>>),
+}
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Num(n) => write!(f, "Num({})", n),
+            Value::Str(s) => write!(f, "Str({:?})", s),
+            Value::Bool(b) => write!(f, "Bool({})", b),
+            Value::Vec2(v) => write!(f, "Vec2({:?})", v),
+            Value::Vec3(v) => write!(f, "Vec3({:?})", v),
+            Value::Vec4(v) => write!(f, "Vec4({:?})", v),
+            Value::Color(c) => write!(f, "Color({:?})", c),
+            Value::NativeFn(_) => write!(f, "<NativeFn>"),
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Num(a), Value::Num(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Vec2(a), Value::Vec2(b)) => a == b,
+            (Value::Vec3(a), Value::Vec3(b)) => a == b,
+            (Value::Vec4(a), Value::Vec4(b)) => a == b,
+            (Value::Color(a), Value::Color(b)) => a == b,
+            // Native functions cannot be compared for equality
+            _ => false,
+        }
+    }
+}
+
+impl Value {
+    pub fn as_num(&self) -> f64 {
+        match self {
+            Value::Num(n) => *n,
+            _ => 0.0,
+        }
+    }
+
+    pub fn as_str(&self) -> String {
+        match self {
+            Value::Str(s) => s.clone(),
+            _ => String::new(),
+        }
+    }
+
+    pub fn as_bool(&self) -> bool {
+        match self {
+            Value::Bool(b) => *b,
+            _ => false,
+        }
+    }
+
+    pub fn as_vec2(&self) -> [f64; 2] {
+        match self {
+            Value::Vec2(v) => *v,
+            _ => [0.0, 0.0],
+        }
+    }
+
+    pub fn as_vec3(&self) -> [f64; 3] {
+        match self {
+            Value::Vec3(v) => *v,
+            _ => [0.0, 0.0, 0.0],
+        }
+    }
+
+    pub fn as_vec4(&self) -> [f64; 4] {
+        match self {
+            Value::Vec4(v) => *v,
+            _ => [0.0, 0.0, 0.0, 0.0],
+        }
+    }
+
+    pub fn as_color(&self) -> [f64; 4] {
+        match self {
+            Value::Color(c) => *c,
+            _ => [0.0, 0.0, 0.0, 1.0],
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Environment {
+    values: HashMap<String, Value>,
+    parent: Option<Rc<RefCell<Environment>>>,
+}
+
+impl Environment {
+    pub fn raw_new() -> Self {
+        Environment {
+            values: HashMap::new(),
+            parent: None,
+        }
+    }
+
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::raw_new()))
+    }
+
+    pub fn child(parent: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Environment {
+            values: HashMap::new(),
+            parent: Some(parent),
+        }))
+    }
+
+    pub fn set(&mut self, name: &str, value: Value) {
+        self.values.insert(name.to_string(), value);
+    }
+
+    pub fn get(&self, name: &str) -> Option<Value> {
+        if let Some(val) = self.values.get(name) {
+            Some(val.clone())
+        } else if let Some(parent) = &self.parent {
+            parent.borrow().get(name)
+        } else {
+            None
+        }
+    }
+}
+
+pub fn load_standard_library(env: &mut Environment) {
+    env.set("PI", Value::Num(std::f64::consts::PI));
+    env.set("E", Value::Num(std::f64::consts::E));
+    env.set("TAU", Value::Num(std::f64::consts::TAU));
+
+    env.set(
+        "sin",
+        Value::NativeFn(Rc::new(|args, _env| {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "sin expects 1 argument".to_string(),
+                ));
+            }
+            if let Value::Num(n) = &args[0] {
+                Ok(Value::Num(n.sin()))
+            } else {
+                Err(EvalError::TypeMismatch("sin expects a number".to_string()))
+            }
+        })),
+    );
+
+    env.set(
+        "cos",
+        Value::NativeFn(Rc::new(|args, _env| {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "cos expects 1 argument".to_string(),
+                ));
+            }
+            if let Value::Num(n) = &args[0] {
+                Ok(Value::Num(n.cos()))
+            } else {
+                Err(EvalError::TypeMismatch("cos expects a number".to_string()))
+            }
+        })),
+    );
+
+    env.set(
+        "lerp",
+        Value::NativeFn(Rc::new(|args, _env| {
+            if args.len() != 3 {
+                return Err(EvalError::TypeMismatch(
+                    "lerp expects 3 arguments".to_string(),
+                ));
+            }
+            match (&args[0], &args[1], &args[2]) {
+                (Value::Num(start), Value::Num(end), Value::Num(t)) => {
+                    Ok(Value::Num(start + (end - start) * t))
+                }
+                _ => Err(EvalError::TypeMismatch(
+                    "lerp expects 3 numbers".to_string(),
+                )),
+            }
+        })),
+    );
+
+    env.set(
+        "rand",
+        Value::NativeFn(Rc::new(|_args, _env| {
+            Ok(Value::Num(rand::random::<f64>()))
+        })),
+    );
+
+    env.set("RED", Value::Color([1.0, 0.0, 0.0, 1.0]));
+    env.set("GREEN", Value::Color([0.0, 1.0, 0.0, 1.0]));
+    env.set("BLUE", Value::Color([0.0, 0.0, 1.0, 1.0]));
+    env.set("BLACK", Value::Color([0.0, 0.0, 0.0, 1.0]));
+    env.set("WHITE", Value::Color([1.0, 1.0, 1.0, 1.0]));
+}
+

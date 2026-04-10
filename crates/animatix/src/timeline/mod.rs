@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod env;
 pub mod kurbo_shapes;
 pub mod morph;
 pub mod svg;
@@ -10,7 +11,8 @@ use actions::process_action;
 pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
 pub use svg::parse_svg;
 pub use track::{AnimationTrack, Interpolate, PropertyTrack};
-pub use utils::{evaluate_expr, parse_color, time_to_ms, Value};
+pub use utils::{evaluate_expr, parse_color, time_to_ms};
+pub use env::{Value, Environment, EvalError, load_standard_library};
 pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Stmt};
@@ -30,6 +32,7 @@ pub struct Timeline {
     pub nodes: BTreeMap<String, SceneNode>,
     pub root_nodes: Vec<String>,
     pub anon_counter: usize,
+    pub env: Environment,
 }
 
 impl Timeline {
@@ -42,11 +45,13 @@ impl Timeline {
             nodes: BTreeMap::new(),
             root_nodes: Vec::new(),
             anon_counter: 0,
+            env: Environment::raw_new(),
         }
     }
 
     pub fn build(ast: &[Stmt]) -> Self {
         let mut timeline = Self::new();
+        load_standard_library(&mut timeline.env);
         let mut current_time_ms = 0.0;
 
         for stmt in ast {
@@ -314,7 +319,7 @@ impl Timeline {
                                 }
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
@@ -329,8 +334,8 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value);
-                                if let Value::Tuple2([x, y]) = pos_val {
+                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([x, y]) = pos_val {
                                     track.position.add_keyframe(
                                         time_ms as u64,
                                         [x as f32, y as f32],
@@ -411,7 +416,7 @@ impl Timeline {
                                 }
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
@@ -426,8 +431,8 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value);
-                                if let Value::Tuple2([x, y]) = pos_val {
+                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([x, y]) = pos_val {
                                     track.position.add_keyframe(
                                         time_ms as u64,
                                         [x as f32, y as f32],
@@ -561,20 +566,20 @@ impl Timeline {
                     for prop in props {
                         match prop.name.as_str() {
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value);
-                                if let Value::Tuple2([x, y]) = pos_val {
+                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([x, y]) = pos_val {
                                     position[0] = x as f32;
                                     position[1] = y as f32;
                                 }
                             }
                             "radius" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
                             }
                             "size" => {
-                                let size_val = evaluate_expr(&prop.value);
-                                if let Value::Tuple2([w, h]) = size_val {
+                                let size_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
                                 }
@@ -583,18 +588,18 @@ impl Timeline {
                                 color = parse_color(&prop.value);
                             }
                             "stroke_width" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
                                 stroke_color = parse_color(&prop.value);
                             }
                             "stroke_progress" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 stroke_progress = v.as_num() as f32;
                             }
                             "fill_opacity" => {
-                                let v = evaluate_expr(&prop.value);
+                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
                             _ => {}
@@ -663,7 +668,7 @@ impl Timeline {
                         for prop in props {
                             match prop.name.as_str() {
                                 "gap" => {
-                                    let v = evaluate_expr(&prop.value);
+                                    let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
                                     gap = v.as_num() as f32;
                                 }
                                 "align" => {
@@ -753,7 +758,7 @@ impl Timeline {
                             track.color.add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_width" => {
-                            let target_width = evaluate_expr(value).as_num() as f32;
+                            let target_width = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_width.evaluate(t_start_ms);
                                 track.stroke_width.add_keyframe(
@@ -781,7 +786,7 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_progress" => {
-                            let target_val = evaluate_expr(value).as_num() as f32;
+                            let target_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_progress.evaluate(t_start_ms);
                                 track.stroke_progress.add_keyframe(
@@ -795,7 +800,7 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "fill_opacity" => {
-                            let target_val = evaluate_expr(value).as_num() as f32;
+                            let target_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.fill_opacity.evaluate(t_start_ms);
                                 track.fill_opacity.add_keyframe(
@@ -809,8 +814,8 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "size" => {
-                            let size_val = evaluate_expr(value);
-                            let target_size = if let Value::Tuple2([w, h]) = size_val {
+                            let size_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
+                            let target_size = if let Value::Vec2([w, h]) = size_val {
                                 [w as f32 / 2.0, h as f32 / 2.0]
                             } else {
                                 track.size.last_value()
@@ -824,8 +829,8 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "position" | "at" => {
-                            let pos_val = evaluate_expr(value);
-                            let target_pos = if let Value::Tuple2([x, y]) = pos_val {
+                            let pos_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
+                            let target_pos = if let Value::Vec2([x, y]) = pos_val {
                                 [x as f32, y as f32]
                             } else {
                                 track.position.last_value()
@@ -839,7 +844,7 @@ impl Timeline {
                             track.position.add_keyframe(t_end_ms, target_pos, easing);
                         }
                         "radius" => {
-                            let r = evaluate_expr(value).as_num() as f32;
+                            let r = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
                             let target_size = [r, r];
                             if duration_ms > 0.0 {
                                 let start_val = track.size.evaluate(t_start_ms);

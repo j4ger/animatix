@@ -1,0 +1,60 @@
+// Stage 2 Math Operations Demo
+// Demonstrates vector math, color blending, modulo operations, and random values
+
+#0s
+// Background
+scene.background_color = (0.05, 0.05, 0.1, 1.0)
+
+// Base positions
+base_pos: (200, 200)
+
+// Vector addition: (200, 200) + (100, 100) = (300, 300)
+vec1: Circle, radius: 40, color: RED, at: (base_pos + (100, 100))
+
+// Vector subtraction
+vec2: Circle, radius: 40, color: GREEN, at: (vec1.at - (50, 50))
+
+// Scalar multiplication: 2 * (100, 100) = (200, 200)
+vec3: Circle, radius: 40, color: BLUE, at: (400, 400) + (0.5 * (200, 200))
+
+// Modulo operation: 17 % 5 = 2
+// Position based on modulo: (100 + 2*50, 300) = (200, 300)
+mod_circle: Circle, radius: 30, color: (1.0, 0.8, 0.0, 1.0), at: (100 + (17 % 5) * 50, 300)
+
+// Random positions (will vary each run)
+r1: Circle, radius: 25, color: (rand(), rand(), rand(), 1.0), at: (rand() * 800, rand() * 400 + 100)
+r2: Circle, radius: 25, color: (rand(), rand(), rand(), 1.0), at: (rand() * 800, rand() * 400 + 100)
+r3: Circle, radius: 25, color: (rand(), rand(), rand(), 1.0), at: (rand() * 800, rand() * 400 + 100)
+
+// Color blending demonstrations
+c1: Circle, radius: 50, color: RED + GREEN, at: (600, 150)     // Yellow
+c2: Circle, radius: 50, color: RED + BLUE, at: (700, 150)       // Magenta
+c3: Circle, radius: 50, color: GREEN + BLUE, at: (650, 220)     // Cyan
+
+// Color scaling
+c4: Circle, radius: 50, color: 0.5 * RED, at: (600, 290)        // Dim red
+c5: Circle, radius: 50, color: 2 * BLUE, at: (700, 290)         // Bright blue (clamped to 1.0)
+
+// Animated color using modulo for cycling
+anim_color: Circle, radius: 40, color: (sin(0), cos(0), sin(PI/4), 1.0), at: (650, 400)
+
+// Text labels
+label1: Text { text: "Vector Math", font_size: 24, color: WHITE, at: (150, 50) }
+label2: Text { text: "Color Blend", font_size: 24, color: WHITE, at: (650, 50) }
+label3: Text { text: "Random", font_size: 24, color: WHITE, at: (200, 500) }
+label4: Text { text: "Modulo: 17 % 5 = 2", font_size: 18, color: WHITE, at: (200, 350) }
+
+#3s
+// Animate random circles moving
+r1.at = (rand() * 800, rand() * 400 + 100) [2s]
+r2.at = (rand() * 800, rand() * 400 + 100) [2s]
+r3.at = (rand() * 800, rand() * 400 + 100) [2s]
+
+// Color cycling using modulo
+anim_color.color = (sin(0), cos(0), sin(PI/2), 1.0) [1s]
+
+#5s
+// Reset random positions
+r1.at = (rand() * 800, rand() * 400 + 100) [2s]
+r2.at = (rand() * 800, rand() * 400 + 100) [2s]
+r3.at = (rand() * 800, rand() * 400 + 100) [2s]

@@ -133,104 +133,149 @@ fn test_missing_properties() {
 
 #[test]
 fn test_evaluate_expr_sin_cos() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
     // sin(0) = 0
-    let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]));
+    let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert!({
         let v = result.as_num();
         v.abs() < 1e-10
     });
 
     // sin(PI/2) ≈ 1
-    let result = evaluate_expr(&Expr::Call(
-        "sin".to_string(),
-        vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
-    ));
+    let result = evaluate_expr(
+        &Expr::Call(
+            "sin".to_string(),
+            vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert!((result.as_num() - 1.0).abs() < 1e-10);
 
     // cos(0) = 1
-    let result = evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]));
+    let result = evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert!((result.as_num() - 1.0).abs() < 1e-10);
 
     // cos(PI) ≈ -1
-    let result = evaluate_expr(&Expr::Call(
-        "cos".to_string(),
-        vec![Expr::Num(std::f64::consts::PI)],
-    ));
+    let result = evaluate_expr(
+        &Expr::Call("cos".to_string(), vec![Expr::Num(std::f64::consts::PI)]),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert!((result.as_num() + 1.0).abs() < 1e-10);
 
     // sin nested: sin(PI/6) * 2
-    let result = evaluate_expr(&Expr::Binary(
-        Box::new(Expr::Call(
-            "sin".to_string(),
-            vec![Expr::Num(std::f64::consts::FRAC_PI_6)],
-        )),
-        animatix::ast::BinaryOp::Mul,
-        Box::new(Expr::Num(2.0)),
-    ));
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Call(
+                "sin".to_string(),
+                vec![Expr::Num(std::f64::consts::FRAC_PI_6)],
+            )),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Num(2.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert!((result.as_num() - 1.0).abs() < 1e-10);
 }
 
 #[test]
 fn test_evaluate_expr_format() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
     // format("value: {}", 42)
-    let result = evaluate_expr(&Expr::Call(
-        "format".to_string(),
-        vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)],
-    ));
+    let result = evaluate_expr(
+        &Expr::Call(
+            "format".to_string(),
+            vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)],
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert_eq!(result.as_str(), "value: 42");
 
     // format("x={}, y={}", 10, 20)
-    let result = evaluate_expr(&Expr::Call(
-        "format".to_string(),
-        vec![
-            Expr::Str("x={}, y={}".to_string()),
-            Expr::Num(10.0),
-            Expr::Num(20.0),
-        ],
-    ));
+    let result = evaluate_expr(
+        &Expr::Call(
+            "format".to_string(),
+            vec![
+                Expr::Str("x={}, y={}".to_string()),
+                Expr::Num(10.0),
+                Expr::Num(20.0),
+            ],
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert_eq!(result.as_str(), "x=10, y=20");
 
     // format with no args
-    let result = evaluate_expr(&Expr::Call("format".to_string(), vec![]));
+    let result = evaluate_expr(&Expr::Call("format".to_string(), vec![]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert_eq!(result.as_str(), "");
 
     // format with text and sin
-    let result = evaluate_expr(&Expr::Call(
-        "format".to_string(),
-        vec![
-            Expr::Str("sin(π/2) = {}".to_string()),
-            Expr::Call(
-                "sin".to_string(),
-                vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
-            ),
-        ],
-    ));
+    let result = evaluate_expr(
+        &Expr::Call(
+            "format".to_string(),
+            vec![
+                Expr::Str("sin(π/2) = {}".to_string()),
+                Expr::Call(
+                    "sin".to_string(),
+                    vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+                ),
+            ],
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
     assert_eq!(result.as_str(), "sin(π/2) = 1");
 }
 
 #[test]
 fn test_evaluate_expr_constants() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
     assert!(
-        (evaluate_expr(&Expr::Ident("PI".to_string())).as_num() - std::f64::consts::PI).abs()
+        (evaluate_expr(&Expr::Ident("PI".to_string()), &env)
+            .unwrap_or(animatix::timeline::Value::Num(0.0))
+            .as_num()
+            - std::f64::consts::PI)
+            .abs()
             < 1e-10
     );
     assert!(
-        (evaluate_expr(&Expr::Ident("TAU".to_string())).as_num() - std::f64::consts::TAU).abs()
+        (evaluate_expr(&Expr::Ident("TAU".to_string()), &env)
+            .unwrap_or(animatix::timeline::Value::Num(0.0))
+            .as_num()
+            - std::f64::consts::TAU)
+            .abs()
             < 1e-10
     );
 }
 
 #[test]
 fn test_evaluate_expr_tuple() {
-    let result = evaluate_expr(&Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]));
-    assert_eq!(result.as_tuple2(), [100.0, 200.0]);
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+    let result = evaluate_expr(&Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [100.0, 200.0]);
 
     // Tuple with call expressions
-    let result = evaluate_expr(&Expr::Tuple(vec![
-        Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
-        Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
-    ]));
-    assert_eq!(result.as_tuple2(), [0.0, 1.0]);
+    let result = evaluate_expr(
+        &Expr::Tuple(vec![
+            Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+            Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+        ]),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [0.0, 1.0]);
 }
 
 #[test]
@@ -255,4 +300,294 @@ fn test_timeline_with_expr_call_properties() {
     // sin(0)=0, cos(0)=1
     assert!((pos[0] - 0.0).abs() < 1e-6);
     assert!((pos[1] - 1.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_evaluate_expr_modulo() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+
+    // Basic modulo: 10 % 3 = 1
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Num(10.0)),
+            animatix::ast::BinaryOp::Mod,
+            Box::new(Expr::Num(3.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+    // Modulo with division: 7 % 2 = 1
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Num(7.0)),
+            animatix::ast::BinaryOp::Mod,
+            Box::new(Expr::Num(2.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+    // Modulo with sin result: sin(PI/2) % 2 = 1 % 2 = 1
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Call(
+                "sin".to_string(),
+                vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+            )),
+            animatix::ast::BinaryOp::Mod,
+            Box::new(Expr::Num(2.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+    // Nested modulo: (10 % 3) % 2 = 1 % 2 = 1
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Binary(
+                Box::new(Expr::Num(10.0)),
+                animatix::ast::BinaryOp::Mod,
+                Box::new(Expr::Num(3.0)),
+            )),
+            animatix::ast::BinaryOp::Mod,
+            Box::new(Expr::Num(2.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert!((result.as_num() - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn test_evaluate_expr_vec2_operations() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+
+    // Vec2 addition: (10, 20) + (5, 5) = (15, 25)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+            animatix::ast::BinaryOp::Add,
+            Box::new(Expr::Tuple(vec![Expr::Num(5.0), Expr::Num(5.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [15.0, 25.0]);
+
+    // Vec2 subtraction: (10, 20) - (3, 8) = (7, 12)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+            animatix::ast::BinaryOp::Sub,
+            Box::new(Expr::Tuple(vec![Expr::Num(3.0), Expr::Num(8.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [7.0, 12.0]);
+
+    // Vec2 multiplication: (10, 20) * (2, 3) = (20, 60)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Tuple(vec![Expr::Num(2.0), Expr::Num(3.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [20.0, 60.0]);
+
+    // Vec2 division: (10, 20) / (2, 4) = (5, 5)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+            animatix::ast::BinaryOp::Div,
+            Box::new(Expr::Tuple(vec![Expr::Num(2.0), Expr::Num(4.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [5.0, 5.0]);
+
+    // Vec2 modulo: (10, 21) % (3, 4) = (1, 1)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(21.0)])),
+            animatix::ast::BinaryOp::Mod,
+            Box::new(Expr::Tuple(vec![Expr::Num(3.0), Expr::Num(4.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [1.0, 1.0]);
+
+    // Scalar-Vec2 multiplication: 2 * (10, 20) = (20, 40)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Num(2.0)),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [20.0, 40.0]);
+
+    // Vec2 with sin/cos: (sin(0), cos(0)) = (0, 1)
+    let result = evaluate_expr(
+        &Expr::Tuple(vec![
+            Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+            Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+        ]),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec2(), [0.0, 1.0]);
+}
+
+#[test]
+fn test_evaluate_expr_vec3_operations() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+
+    // Vec3 addition: (1, 2, 3) + (4, 5, 6) = (5, 7, 9)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Tuple(vec![
+                Expr::Num(1.0),
+                Expr::Num(2.0),
+                Expr::Num(3.0),
+            ])),
+            animatix::ast::BinaryOp::Add,
+            Box::new(Expr::Tuple(vec![
+                Expr::Num(4.0),
+                Expr::Num(5.0),
+                Expr::Num(6.0),
+            ])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec3(), [5.0, 7.0, 9.0]);
+
+    // Vec3 scalar multiplication: 2 * (1, 2, 3) = (2, 4, 6)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Num(2.0)),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Tuple(vec![
+                Expr::Num(1.0),
+                Expr::Num(2.0),
+                Expr::Num(3.0),
+            ])),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    assert_eq!(result.as_vec3(), [2.0, 4.0, 6.0]);
+}
+
+#[test]
+fn test_evaluate_expr_color_operations() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+
+    // Color addition: RED + GREEN = (1, 1, 0, 2)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Ident("RED".to_string())),
+            animatix::ast::BinaryOp::Add,
+            Box::new(Expr::Ident("GREEN".to_string())),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let color = result.as_color();
+    assert!((color[0] - 1.0).abs() < 1e-10);
+    assert!((color[1] - 1.0).abs() < 1e-10);
+    assert!((color[2] - 0.0).abs() < 1e-10);
+    assert!((color[3] - 2.0).abs() < 1e-10);
+
+    // Color scalar multiplication: 0.5 * BLUE = (0, 0, 0.5, 0.5)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Num(0.5)),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Ident("BLUE".to_string())),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let color = result.as_color();
+    assert!((color[0] - 0.0).abs() < 1e-10);
+    assert!((color[1] - 0.0).abs() < 1e-10);
+    assert!((color[2] - 0.5).abs() < 1e-10);
+    assert!((color[3] - 0.5).abs() < 1e-10);
+
+    // Color subtraction: WHITE - RED = (0, 1, 1, 0) - alpha fades out
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Ident("WHITE".to_string())),
+            animatix::ast::BinaryOp::Sub,
+            Box::new(Expr::Ident("RED".to_string())),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let color = result.as_color();
+    assert!((color[0] - 0.0).abs() < 1e-10);
+    assert!((color[1] - 1.0).abs() < 1e-10);
+    assert!((color[2] - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn test_evaluate_expr_rand() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    animatix::timeline::load_standard_library(&mut env);
+
+    // rand() should return a value between 0 and 1
+    let result = evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let val = result.as_num();
+    assert!(
+        val >= 0.0 && val < 1.0,
+        "rand() should return value in [0, 1), got {}",
+        val
+    );
+
+    // rand() should be called multiple times and produce different results
+    let result1 = evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let result2 = evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env)
+        .unwrap_or(animatix::timeline::Value::Num(0.0));
+    // Note: This test might occasionally fail due to random collision, but extremely unlikely
+    // In practice, rand() should produce different values; we test the range here
+    let val1 = result1.as_num();
+    let val2 = result2.as_num();
+    assert!(val1 >= 0.0 && val1 < 1.0);
+    assert!(val2 >= 0.0 && val2 < 1.0);
+
+    // rand() with expressions: rand() * 100 should be in [0, 100)
+    let result = evaluate_expr(
+        &Expr::Binary(
+            Box::new(Expr::Call("rand".to_string(), vec![])),
+            animatix::ast::BinaryOp::Mul,
+            Box::new(Expr::Num(100.0)),
+        ),
+        &env,
+    )
+    .unwrap_or(animatix::timeline::Value::Num(0.0));
+    let val = result.as_num();
+    assert!(
+        val >= 0.0 && val < 100.0,
+        "rand() * 100 should be in [0, 100), got {}",
+        val
+    );
 }

@@ -61,11 +61,23 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .delimited_by(just('{').padded(), just('}').padded())
             .map(Expr::Tuple); // Using Tuple for arrays as well per AST
 
+        let call = ident
+            .clone()
+            .then(
+                expr.clone()
+                    .separated_by(just(',').padded())
+                    .allow_trailing()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('(').padded(), just(')').padded()),
+            )
+            .map(|(name, args)| Expr::Call(name, args));
+
         let atom = choice((
             num,
             str_val,
             bool_val,
             null_val,
+            call,
             tuple,
             array,
             ident.clone().map(Expr::Ident),
@@ -109,7 +121,40 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             },
         );
 
-        // Comparison operators
+        // Mathematical and logical operators precedence
+        let pow = recursive(|pow| {
+            access
+                .clone()
+                .then(just('^').padded().to(BinaryOp::Pow).then(pow).or_not())
+                .map(|(lhs, rhs)| {
+                    if let Some((op, rhs)) = rhs {
+                        Expr::Binary(Box::new(lhs), op, Box::new(rhs))
+                    } else {
+                        lhs
+                    }
+                })
+        });
+
+        let product = pow.clone().foldl(
+            choice((
+                just('*').to(BinaryOp::Mul),
+                just('/').to(BinaryOp::Div),
+                just('%').to(BinaryOp::Mod),
+            ))
+            .padded()
+            .then(pow.clone())
+            .repeated(),
+            |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
+        );
+
+        let sum = product.clone().foldl(
+            choice((just('+').to(BinaryOp::Add), just('-').to(BinaryOp::Sub)))
+                .padded()
+                .then(product.clone())
+                .repeated(),
+            |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
+        );
+
         let compare_op = choice((
             just(">=").to(BinaryOp::Gte),
             just("<=").to(BinaryOp::Lte),
@@ -119,14 +164,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             just('<').to(BinaryOp::Lt),
         ));
 
-        let comparison = access
-            .clone()
-            .then(compare_op)
-            .then(access.clone())
-            .map(|((left, op), right)| Expr::Binary(Box::new(left), op, Box::new(right)));
+        let comparison = sum.clone().foldl(
+            compare_op.padded().then(sum.clone()).repeated(),
+            |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
+        );
 
-        // We can add operators here, but for brevity we stick to the basic atoms and paths
-        comparison.or(access)
+        comparison
     });
 
     let property = ident
