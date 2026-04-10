@@ -315,27 +315,66 @@ collapse btn1
 
 ## 10. Math & Graphs
 
-> **Status: Planned/Deferred** — 2D Graph and plot functionality are parsed but not fully evaluated.
+> **Status: Active Stage 3** — Graph and plot functionality uses closure-based evaluation.
 
-**2D Graph Actor**  
-Container for plots with coordinate systems.
+### Graph Container
+
+The `Graph` primitive is a container that maps logical mathematical domains to physical screen bounds. It does not render directly but establishes the coordinate system for its child plots.
+
+**Properties:**
+- `x_range`: Tuple (min, max) defining the logical x-domain
+- `y_range`: Tuple (min, max) defining the logical y-domain
+- `width`: Number (optional, physical width in pixels)
+- `height`: Number (optional, physical height in pixels)
+
 ```animatix
-graph: 2dGraph, x_range: {-5, 5}, y_range: {-10, 30}
+graph: Graph, x_range: (-5, 5), y_range: (-10, 30)
 ```
 
-**Plots**  
-Functions bound to a graph actor.
+### CartesianPlot
+
+A child plot that renders a function in Cartesian coordinates. The function is defined as a closure using arrow syntax `(args) => expression`.
+
+**Properties:**
+- `func`: Closure `(x) => expression` defining the mathematical function to plot
+- `color`: Color (optional, defaults to white)
+- `width`: Number (optional, stroke width)
+
 ```animatix
-plot: graph.plot, func: "x^2 + 3", color: red
+parabola: CartesianPlot, func: (x) => x^2 + 3, color: red
 ```
 
-**Math Functions**  
+### PolarPlot
+
+A child plot that renders a function in polar coordinates `r(theta)`.
+
+**Properties:**
+- `func`: Closure `(theta) => expression` defining the radius as a function of angle
+- `color`: Color (optional, defaults to white)
+- `width`: Number (optional, stroke width)
+
+```animatix
+spiral: PolarPlot, func: (t) => t, color: blue
+```
+
+### Closure Syntax
+
+Functions are defined using closure syntax that is natively parsed in the AST:
+
+```animatix
+(x) => x^2              // Single parameter
+(x, y) => x + y          // Multiple parameters
+(t) => sin(t) * cos(t)   // Mathematical expressions
+```
+
+Closures capture the lexical environment, enabling variable references from the surrounding scope.
+
+### Math Functions
+
 Built-in support for standard math (implemented):
-- `sin(x)`, `cos(x)`
-
-**Planned Math Functions**:
-- `tan`, `sqrt`, `abs`, `log`, `exp`
-- `lerp(a, b, t)`
+- `sin(x)`, `cos(x)`, `tan(x)`
+- `sqrt(x)`, `abs(x)`, `log(x)`, `exp(x)`
+- `pow(base, exp)`, `lerp(a, b, t)`
 
 **Text Formatting**  
 Dynamic text using format strings.

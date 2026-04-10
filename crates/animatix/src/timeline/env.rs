@@ -32,6 +32,7 @@ pub enum Value {
     Vec4([f64; 4]),
     Color([f64; 4]),
     NativeFn(Rc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError>>),
+    Closure(Vec<String>, Box<crate::ast::Expr>),
 }
 
 impl fmt::Debug for Value {
@@ -45,6 +46,7 @@ impl fmt::Debug for Value {
             Value::Vec4(v) => write!(f, "Vec4({:?})", v),
             Value::Color(c) => write!(f, "Color({:?})", c),
             Value::NativeFn(_) => write!(f, "<NativeFn>"),
+            Value::Closure(args, _) => write!(f, "<Closure({:?})>", args),
         }
     }
 }
@@ -59,7 +61,7 @@ impl PartialEq for Value {
             (Value::Vec3(a), Value::Vec3(b)) => a == b,
             (Value::Vec4(a), Value::Vec4(b)) => a == b,
             (Value::Color(a), Value::Color(b)) => a == b,
-            // Native functions cannot be compared for equality
+            // Native functions and closures cannot be compared for equality
             _ => false,
         }
     }
@@ -214,9 +216,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "rand",
-        Value::NativeFn(Rc::new(|_args, _env| {
-            Ok(Value::Num(rand::random::<f64>()))
-        })),
+        Value::NativeFn(Rc::new(|_args, _env| Ok(Value::Num(rand::random::<f64>())))),
     );
 
     env.set("RED", Value::Color([1.0, 0.0, 0.0, 1.0]));
@@ -225,4 +225,3 @@ pub fn load_standard_library(env: &mut Environment) {
     env.set("BLACK", Value::Color([0.0, 0.0, 0.0, 1.0]));
     env.set("WHITE", Value::Color([1.0, 1.0, 1.0, 1.0]));
 }
-

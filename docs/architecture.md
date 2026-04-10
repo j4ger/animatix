@@ -235,3 +235,112 @@ Given: `sin(x * PI / 180)` where `x = 90`
    - `evaluate_expr(Ident("PI"), env)` -> `Ok(Num(3.14159...))` (from env)
    - Evaluate the binary expression `x * PI / 180` -> `Ok(Num(1.57079...))`
 4. Call `registry[sin_idx]([Num(1.57079...)])` -> `Ok(Num(1.0))`
+
+### Closure Evaluation
+
+The system evaluates mathematical functions via closures that are natively parsed in the AST. Closures capture their lexical environment, enabling variable references from the surrounding scope.
+
+#### Closure Syntax
+
+Closures use arrow syntax with parameters and a body expression:
+
+```text
+(x) => x^2
+(x, y) => x + y
+(t) => sin(t) * cos(t)
+```
+
+#### Closure AST Node
+
+```text
+Expr::Closure {
+    params: Vec<Ident>,      // Parameter names: [x, y]
+    body: Box<Expr>,          // The expression body: x + y
+    captured_env: Rc<RefCell<Environment>>, // Lexical environment
+}
+```
+
+#### Evaluation Process
+
+When evaluating a closure:
+
+1. **Binding parameters**: Create a new local scope with parameter names bound to argument values
+2. **Extending environment**: Push the local scope onto the captured environment chain
+3. **Evaluating body**: Evaluate the closure body in this extended environment
+4. **Restoring environment**: Pop the local scope after evaluation
+
+```text
+evaluate_closure(Closure { params: [x], body: x^2, cap_env }, [Num(3)])
+1. local_scope = { "x": Num(3) }
+2. extended_env = cap_env + local_scope
+3. evaluate(body, extended_env) -> Num(9)
+4. restore to cap_env
+```
+
+#### Graph Plotting with Closures
+
+The `Graph` primitive maps logical mathematical domains to physical screen bounds. Child plots (`CartesianPlot`, `PolarPlot`) sample the closure `func` at discrete points across the domain.
+
+**CartesianPlot evaluation:**
+1. Graph determines logical x-range and sampling density
+2. For each sample point `x_i` in the domain:
+   - Evaluate `closure(x_i)` to get `y_i`
+   - Map `(x_i, y_i)` from logical to physical coordinates
+3. Connect sampled points to form the plot line
+
+**PolarPlot evaluation:**
+1. Graph determines logical theta-range and sampling density
+2. For each sample point `theta_i`:
+   - Evaluate `closure(theta_i)` to get `r_i`
+   - Convert `(r_i, theta_i)` to Cartesian `(x, y)`
+   - Map from logical to physical coordinates
+3. Connect sampled points to form the curve
+
+This approach treats functions as first-class values evaluated natively through the AST, rather than via string interpretation.
+
+#### Adaptive Subsampling Algorithm
+
+The plotting system uses an adaptive sampling strategy to efficiently render mathematical curves. Instead of uniformly sampling at a fixed resolution, the algorithm recursively refines areas where the curve deviates significantly from a straight line approximation.
+
+**Algorithm Overview:**
+
+1. **Initial sampling**: Start with a coarse resolution of 10 segments across the domain
+2. **Midpoint evaluation**: For each line segment, evaluate the function at the true midpoint
+3. **Tolerance check**: Compute the perpendicular distance from the midpoint to the linear segment connecting the endpoints
+4. **Recursive subdivision**: If the distance exceeds the tolerance threshold, subdivide the segment at the midpoint and recurse
+5. **Depth limit**: Cap recursion at a maximum depth of 10 to prevent infinite subdivision
+
+**Pseudocode:**
+
+```text
+adaptive_sample(closure, x_start, x_end, depth):
+    if depth >= max_depth:
+        return [(x_start, closure(x_start)), (x_end, closure(x_end))]
+
+    mid = (x_start + x_end) / 2
+    y_start = closure(x_start)
+    y_mid = closure(mid)
+    y_end = closure(x_end)
+
+    // Compute perpendicular distance from midpoint to line segment
+    line_mid = (y_start + y_end) / 2
+    distance = |y_mid - line_mid|
+
+    if distance <= tolerance:
+        return [(x_start, y_start), (x_end, y_end)]
+    else:
+        left = adaptive_sample(closure, x_start, mid, depth + 1)
+        right = adaptive_sample(closure, mid, x_end, depth + 1)
+        return left + right
+```
+
+**Why This Matters for Vello `BezPath` Performance:**
+
+Vello renders paths by computing coverage per pixel. When you submit a path with many small segments, each segment still requires separate processing. The adaptive algorithm produces exactly the number of segments needed for visual accuracy: dense sampling where the curve bends sharply, sparse sampling where it is nearly linear.
+
+This directly translates to:
+- **Fewer path segments** submitted to Vello, reducing GPU command processing overhead
+- **Smoother curves** at discontinuities without massive vertical lines from naive uniform sampling
+- **Predictable performance** that scales with curve complexity rather than arbitrary resolution settings
+
+The tolerance-based approach also means mathematical expressions like `sin(1/x)` near zero naturally receive more segments where oscillation is rapid, without requiring user-specified resolution parameters.

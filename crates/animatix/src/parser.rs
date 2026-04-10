@@ -72,7 +72,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             )
             .map(|(name, args)| Expr::Call(name, args));
 
-        let atom = choice((
+        // Prefix operators for unary negation and logical NOT
+        let prefix_op = just('-').to(UnaryOp::Neg).or(just('!').to(UnaryOp::Not));
+
+        let base_atom = choice((
             num,
             str_val,
             bool_val,
@@ -81,8 +84,19 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             tuple,
             array,
             ident.clone().map(Expr::Ident),
-        ))
-        .padded();
+        ));
+
+        // Prefix expressions: fold multiple prefix ops around an atom
+        let atom = prefix_op
+            .padded()
+            .repeated()
+            .collect::<Vec<_>>()
+            .then(base_atom)
+            .map(|(ops, expr)| {
+                ops.into_iter()
+                    .fold(expr, |acc, op| Expr::Unary(op, Box::new(acc)))
+            })
+            .padded();
 
         // Method calls and indexing
         let access = atom.foldl(
@@ -169,7 +183,20 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
         );
 
-        comparison
+        let closure = choice((
+            ident
+                .clone()
+                .separated_by(just(',').padded())
+                .allow_trailing()
+                .collect::<Vec<_>>()
+                .delimited_by(just('(').padded(), just(')').padded()),
+            ident.clone().map(|i| vec![i]),
+        ))
+        .then_ignore(just("=>").padded())
+        .then(expr.clone())
+        .map(|(args, body)| Expr::Closure(args, Box::new(body)));
+
+        choice((closure, comparison))
     });
 
     let property = ident
@@ -703,4 +730,38 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     ))
     .repeated()
     .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chumsky::Parser;
+
+    #[test]
+    fn test_closure_parser() {
+        let input = "let f = (x) => x ^ 2";
+        let res = parser().parse(input).unwrap();
+
+        // Find the LetDecl stmt
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::LetDecl { name, value } = &body[0] {
+                assert_eq!(name, "f");
+                assert_eq!(
+                    *value,
+                    Expr::Closure(
+                        vec!["x".to_string()],
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Ident("x".to_string())),
+                            BinaryOp::Pow,
+                            Box::new(Expr::Num(2.0))
+                        ))
+                    )
+                );
+            } else {
+                panic!("Expected LetDecl");
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
 }

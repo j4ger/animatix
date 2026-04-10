@@ -7,7 +7,7 @@ After analyzing the codebase (AST, parser, timeline, renderer), here is the curr
 | Category | Parser | Runtime | Status |
 |----------|--------|---------|--------|
 | **Reactive System** | ❌ Missing | ❌ Missing | **PLANNED** |
-| **Math/Graph** | ✅ | ✅ Math done, Graph deferred | **MATH DONE** |
+| **Math/Graph** | ✅ | ✅ Math done, Plotting Complete | **✅ COMPLETE** |
 | **Containers** | ✅ | ✅ Layout | **LAYOUT DONE** |
 | **Components** | ✅ | ❌ Missing | **PLANNED** |
 
@@ -63,33 +63,30 @@ for item in items { ... }
 - Formula: `eq: Math, math: "E = mc^2", font_size: 18pt`
 
 **NOT Implemented:**
-- `2dGraph` container type
-- `graph.plot` method/actor
-- Math functions (`sin`, `cos`, `sqrt`, etc.) for live computation
-- `format()` function
-- User-defined functions with closures
+- `Graph` container with coordinate mapping
+- `CartesianPlot` and `PolarPlot` child plots
+- Closure evaluation for function plotting
 
-### Planned Syntax
+### New Syntax (Stage 3)
 
 ```animatix
+// Graph: container mapping logical domains to physical bounds
+graph: Graph, x_range: (-5, 5), y_range: (-10, 30)
+
+// CartesianPlot: samples closure func at discrete points
+parabola: CartesianPlot, func: (x) => x^2 + 3, color: red
+
+// PolarPlot: plots radius as function of angle
+spiral: PolarPlot, func: (t) => t, color: blue
+
 // Stage 1-2: Math functions and formatting
 ball.at = (x, sin(x))
 label.text = format("Value: {}", result)
-
-// Stage 3: User-defined functions
-fn easeInOut(t: Float) -> Float {
-  if t < 0.5 { 2 * t * t }
-  else { 1 - (-2 * t + 2)^2 / 2 }
-}
-
-// Stage 4: Graph rendering
-graph: 2dGraph, x_range: {-5, 5}, y_range: {-10, 30}
-plot: graph.plot, func: "x^2 + 3", color: red
 ```
 
 ### Recommendation: **PHASED APPROACH**
 
-Build a string-lookup-based AST evaluator (`Environment`) now, defer Bytecode VM to later.
+Build a context-aware AST evaluator (`Environment`) now, defer Bytecode VM to later.
 
 #### Stage 1: Context-Aware AST Evaluator
 **Focus:** Core evaluation infrastructure
@@ -139,15 +136,16 @@ Build a string-lookup-based AST evaluator (`Environment`) now, defer Bytecode VM
 
 **Deliverable:** Full arithmetic support with rich type system for spatial math and color operations.
 
-#### Stage 3: User-Defined Functions
-**Focus:** Closures and custom behavior
+#### Stage 3 (Active): Graph Container and Closure-Based Plotting
+**Focus:** Container-based plotting with native closure evaluation
 
-- `Function` struct with captured environment (closure)
-- `Expr::FuncDef` AST node with parameter bindings
-- Scope chain: local scope -> closure scope -> global registry
-- Recursive function support
+- `Graph` primitive: container mapping logical domains to physical bounds
+- `CartesianPlot` child: samples closure `func` in Cartesian coordinates
+- `PolarPlot` child: samples closure `func` in polar coordinates
+- `Expr::Closure` AST node: captures parameters and body for function evaluation
+- Closure sampling: child plots sample the closure at discrete points across the domain
 
-**Deliverable:** User-defined functions with proper scoping.
+**Deliverable:** Graph container with CartesianPlot and PolarPlot using closure syntax `(args) => expr`.
 
 #### Stage 4 (Deferred): Bytecode VM
 **Focus:** Extreme performance for complex computations
@@ -327,7 +325,6 @@ btn: Button, text: "Submit", color: blue
 | Feature | Reason for Deferral |
 |---------|---------------------|
 | Reactive System (`always`, `loop`, `if`) | Requires per-frame evaluation model; depends on interactive UI |
-| Graph/Plot system | Complex coordinate system; depends on reactive system for live data |
 | Components | Requires mature module system; can use Group as interim solution |
 | Lifecycle hooks | Depends on component system |
 | Config blocks | Not critical for core functionality |
@@ -343,8 +340,61 @@ btn: Button, text: "Submit", color: blue
 
 **Plan for Later:**
 1. 🔲 Reactive system - needs architecture work
-2. 🔲 Graph rendering - depends on reactive
-3. 🔲 Components - depends on module system
-4. 🔲 Advanced layout (Grid, Stack) - can build on Row/Col
+2. 🔲 Components - depends on module system
+3. 🔲 Advanced layout (Grid, Stack) - can build on Row/Col
+4. 🔲 Bytecode VM - performance optimization if needed
+
+**Stage 3 (Complete):**
+- Graph container with CartesianPlot and PolarPlot
+- Closure-based function evaluation via native AST parsing
+- Adaptive subsampling algorithm for efficient curve rendering
 
 The codebase is well-structured and the AST design is sound. Container layout, math functions, and parser completeness are now complete.
+
+---
+
+## Future Improvements (Plotting)
+
+### User-Configurable Sampling Parameters
+
+Expose `precision` and `tolerance` properties to the Animatix language AST. Currently the subsampling algorithm uses fixed defaults (tolerance = 0.01, max_depth = 10). Users should be able to override these for specific plots:
+
+```animatix
+// High fidelity for smooth curves
+smooth_curve: CartesianPlot, func: (x) => sin(x), precision: 0.001, max_depth: 12
+
+// Fast rendering for previews
+preview_curve: CartesianPlot, func: (x) => x^2, precision: 0.1, max_depth: 6
+```
+
+This requires adding new properties to the `CartesianPlot` and `PolarPlot` AST nodes and propagating them through to the sampling function.
+
+### Discontinuity Detection
+
+The current adaptive algorithm still produces artifacts near mathematical discontinuities like asymptotes. For example, plotting `y = 1/x` across `(-1, 1)` draws a massive vertical line through the origin.
+
+Improve by detecting discontinuities:
+1. When sampling, check if `y` values jump by more than a threshold between adjacent samples
+2. Break the path into separate segments at the discontinuity point
+3. Optionally insert visual markers (e.g., dashed lines) to indicate the discontinuity
+
+### Bounding-Box Culling
+
+Optimize plotting by stopping subdivision when a segment is entirely outside the graph's physical screen bounds. This avoids wasted sampling calls for parts of the curve that would not be visible anyway.
+
+Implementation:
+1. After coordinate mapping, check if the segment's screen-space bounding box is entirely outside the viewport
+2. Skip recursive subdivision for culled segments
+3. Also skip evaluation of the closure at those points
+
+This is especially valuable for functions with extended domains like `y = tan(x)` where most of the domain maps off-screen.
+
+### Parametric and Implicit Curve Plotting
+
+Expand beyond `y = f(x)` and `r = f(theta)` to support more general curve definitions:
+
+**Parametric curves:** `ParametricPlot, x_func: (t) => cos(t), y_func: (t) => sin(t), t_range: (0, 2π)`
+
+**Implicit equations:** `ImplicitPlot, equation: (x, y) => x^2 + y^2 - 1, x_range: (-1.5, 1.5), y_range: (-1.5, 1.5)`
+
+The adaptive subsampling algorithm can be extended to handle these cases by adapting the distance metric for parametric t-values or using gradient-based approaches for implicit equations.

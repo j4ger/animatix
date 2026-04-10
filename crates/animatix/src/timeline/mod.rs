@@ -8,16 +8,93 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action;
+pub use env::{load_standard_library, Environment, EvalError, Value};
 pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
 pub use svg::parse_svg;
 pub use track::{AnimationTrack, Interpolate, PropertyTrack};
 pub use utils::{evaluate_expr, parse_color, time_to_ms};
-pub use env::{Value, Environment, EvalError, load_standard_library};
 pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
+
+fn sample_recursive(
+    min_t: f64,
+    max_t: f64,
+    p0: (f64, f64),
+    p1: (f64, f64),
+    depth: usize,
+    ty: &str,
+    env: &mut Environment,
+    arg_name: &str,
+    body: &Expr,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    path: &mut kurbo::BezPath,
+) {
+    if depth > 10 {
+        path.line_to(p1);
+        return;
+    }
+
+    let mid_t = (min_t + max_t) / 2.0;
+    env.set(arg_name, Value::Num(mid_t));
+    let val = evaluate_expr(body, env).unwrap_or(Value::Num(0.0)).as_num();
+
+    let (math_x, math_y) = if ty == "CartesianPlot" {
+        (mid_t, val)
+    } else {
+        (val * mid_t.cos(), val * mid_t.sin())
+    };
+
+    let screen_x = -(p_size[0] / 2.0)
+        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
+    let screen_y = (p_size[1] / 2.0)
+        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+
+    let p_mid = (screen_x, screen_y);
+
+    let expected_mid_x = (p0.0 + p1.0) / 2.0;
+    let expected_mid_y = (p0.1 + p1.1) / 2.0;
+    let dist_sq = (p_mid.0 - expected_mid_x).powi(2) + (p_mid.1 - expected_mid_y).powi(2);
+
+    if dist_sq > 0.5 || depth < 3 {
+        sample_recursive(
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            ty,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            path,
+        );
+        sample_recursive(
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            ty,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            path,
+        );
+    } else {
+        path.line_to(p1);
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SceneNode {
@@ -319,7 +396,8 @@ impl Timeline {
                                 }
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
@@ -334,7 +412,8 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let pos_val = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([x, y]) = pos_val {
                                     track.position.add_keyframe(
                                         time_ms as u64,
@@ -416,7 +495,8 @@ impl Timeline {
                                 }
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
@@ -431,7 +511,8 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let pos_val = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([x, y]) = pos_val {
                                     track.position.add_keyframe(
                                         time_ms as u64,
@@ -531,7 +612,77 @@ impl Timeline {
                     children,
                 } => {
                     self.add_node(label.clone(), parent_label);
+
+                    let mut x_domain = [-10.0, 10.0];
+                    let mut y_domain = [-10.0, 10.0];
+                    let mut t_domain = [0.0, std::f64::consts::TAU];
+                    let mut func = None;
+                    let mut initial_size = [50.0, 50.0];
+
+                    for prop in props {
+                        match prop.name.as_str() {
+                            "size" => {
+                                let size_val = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([w, h]) = size_val {
+                                    initial_size[0] = w as f32 / 2.0;
+                                    initial_size[1] = h as f32 / 2.0;
+                                }
+                            }
+                            "radius" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                let r = v.as_num() as f32;
+                                initial_size = [r, r];
+                            }
+                            "x_domain" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([min, max]) = v {
+                                    x_domain = [min, max];
+                                }
+                            }
+                            "y_domain" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([min, max]) = v {
+                                    y_domain = [min, max];
+                                }
+                            }
+                            "t_domain" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                if let Value::Vec2([min, max]) = v {
+                                    t_domain = [min, max];
+                                }
+                            }
+                            "func" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                if let Value::Closure(args, body) = v {
+                                    func = Some((args, body));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if ty == "Graph" {
+                        self.env
+                            .set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
+                        self.env
+                            .set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
+                        self.env.set(
+                            &format!("{}_size", label),
+                            Value::Vec2([
+                                initial_size[0] as f64 * 2.0,
+                                initial_size[1] as f64 * 2.0,
+                            ]),
+                        );
+                    }
+
                     self.process_inline_items(time_ms, children, label);
+
                     let track = self
                         .tracks
                         .entry(label.clone())
@@ -566,19 +717,22 @@ impl Timeline {
                     for prop in props {
                         match prop.name.as_str() {
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let pos_val = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([x, y]) = pos_val {
                                     position[0] = x as f32;
                                     position[1] = y as f32;
                                 }
                             }
                             "radius" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
                             }
                             "size" => {
-                                let size_val = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let size_val = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
@@ -588,18 +742,21 @@ impl Timeline {
                                 color = parse_color(&prop.value);
                             }
                             "stroke_width" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
                                 stroke_color = parse_color(&prop.value);
                             }
                             "stroke_progress" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 stroke_progress = v.as_num() as f32;
                             }
                             "fill_opacity" => {
-                                let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
                             _ => {}
@@ -619,37 +776,203 @@ impl Timeline {
                         },
                     };
 
-                    let vello_path = crate::timeline::vello_path::VelloPath {
-                        path: shape.to_path_default(),
-                        fill: if fill_opacity > 0.0 {
-                            Some(vello::peniko::Color::from_rgba8(
-                                (color[0] * 255.0) as u8,
-                                (color[1] * 255.0) as u8,
-                                (color[2] * 255.0) as u8,
-                                (color[3] * 255.0 * fill_opacity) as u8,
-                            ))
+                    let mut vello_paths = vec![];
+
+                    if ty == "Graph" {
+                        let mut path = kurbo::BezPath::new();
+                        // X axis
+                        let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+                            size[1] as f64
+                                * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
                         } else {
-                            None
-                        },
-                        stroke: if stroke_width > 0.0 {
-                            Some((
-                                vello::peniko::Color::from_rgba8(
-                                    (stroke_color[0] * 255.0) as u8,
-                                    (stroke_color[1] * 255.0) as u8,
-                                    (stroke_color[2] * 255.0) as u8,
-                                    (stroke_color[3] * 255.0) as u8,
-                                ),
-                                stroke_width,
-                            ))
+                            size[1] as f64
+                        };
+                        path.move_to((-(size[0] as f64), x_axis_y));
+                        path.line_to((size[0] as f64, x_axis_y));
+
+                        // Y axis
+                        let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+                            size[0] as f64
+                                * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]))
                         } else {
-                            None
-                        },
-                    };
+                            -(size[0] as f64)
+                        };
+                        path.move_to((y_axis_x, -(size[1] as f64)));
+                        path.line_to((y_axis_x, size[1] as f64));
+
+                        // Simple grid
+                        let grid_steps = 10;
+                        let mut grid_path = kurbo::BezPath::new();
+                        for i in 0..=grid_steps {
+                            let f = i as f64 / grid_steps as f64;
+                            let gx = -(size[0] as f64) + 2.0 * (size[0] as f64) * f;
+                            grid_path.move_to((gx, -(size[1] as f64)));
+                            grid_path.line_to((gx, size[1] as f64));
+
+                            let gy = -(size[1] as f64) + 2.0 * (size[1] as f64) * f;
+                            grid_path.move_to((-(size[0] as f64), gy));
+                            grid_path.line_to((size[0] as f64, gy));
+                        }
+
+                        vello_paths.push(crate::timeline::vello_path::VelloPath {
+                            path: grid_path,
+                            fill: None,
+                            stroke: Some((
+                                vello::peniko::Color::from_rgba8(255, 255, 255, 50),
+                                1.0,
+                            )),
+                        });
+
+                        vello_paths.push(crate::timeline::vello_path::VelloPath {
+                            path,
+                            fill: None,
+                            stroke: Some((
+                                vello::peniko::Color::from_rgba8(255, 255, 255, 255),
+                                2.0,
+                            )),
+                        });
+                    } else if ty == "CartesianPlot" || ty == "PolarPlot" {
+                        let p_label = parent_label.unwrap_or("").to_string();
+                        let mut p_x_domain = [-10.0, 10.0];
+                        let mut p_y_domain = [-10.0, 10.0];
+                        let mut p_size = [500.0, 500.0];
+
+                        if let Some(Value::Vec2(xd)) =
+                            self.env.get(&format!("{}_x_domain", p_label))
+                        {
+                            p_x_domain = xd;
+                        }
+                        if let Some(Value::Vec2(yd)) =
+                            self.env.get(&format!("{}_y_domain", p_label))
+                        {
+                            p_y_domain = yd;
+                        }
+                        if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+                            p_size = sz;
+                        }
+
+                        if let Some((args, body)) = func {
+                            let mut path = kurbo::BezPath::new();
+
+                            let mut env_copy = self.env.clone();
+                            let arg_name = if !args.is_empty() {
+                                args[0].clone()
+                            } else {
+                                "x".to_string()
+                            };
+
+                            let (min_t, max_t) = if ty == "CartesianPlot" {
+                                (p_x_domain[0], p_x_domain[1])
+                            } else {
+                                (t_domain[0], t_domain[1])
+                            };
+
+                            env_copy.set(&arg_name, Value::Num(min_t));
+                            let start_val = evaluate_expr(&body, &env_copy)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num();
+                            let (start_math_x, start_math_y) = if ty == "CartesianPlot" {
+                                (min_t, start_val)
+                            } else {
+                                (start_val * min_t.cos(), start_val * min_t.sin())
+                            };
+                            let start_screen_x = -(p_size[0] / 2.0)
+                                + p_size[0]
+                                    * ((start_math_x - p_x_domain[0])
+                                        / (p_x_domain[1] - p_x_domain[0]));
+                            let start_screen_y = (p_size[1] / 2.0)
+                                - p_size[1]
+                                    * ((start_math_y - p_y_domain[0])
+                                        / (p_y_domain[1] - p_y_domain[0]));
+
+                            path.move_to((start_screen_x, start_screen_y));
+
+                            env_copy.set(&arg_name, Value::Num(max_t));
+                            let end_val = evaluate_expr(&body, &env_copy)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num();
+                            let (end_math_x, end_math_y) = if ty == "CartesianPlot" {
+                                (max_t, end_val)
+                            } else {
+                                (end_val * max_t.cos(), end_val * max_t.sin())
+                            };
+                            let end_screen_x = -(p_size[0] / 2.0)
+                                + p_size[0]
+                                    * ((end_math_x - p_x_domain[0])
+                                        / (p_x_domain[1] - p_x_domain[0]));
+                            let end_screen_y = (p_size[1] / 2.0)
+                                - p_size[1]
+                                    * ((end_math_y - p_y_domain[0])
+                                        / (p_y_domain[1] - p_y_domain[0]));
+
+                            let p0 = (start_screen_x, start_screen_y);
+                            let p1 = (end_screen_x, end_screen_y);
+
+                            sample_recursive(
+                                min_t,
+                                max_t,
+                                p0,
+                                p1,
+                                0,
+                                ty,
+                                &mut env_copy,
+                                &arg_name,
+                                &body,
+                                &p_x_domain,
+                                &p_y_domain,
+                                &p_size,
+                                &mut path,
+                            );
+                            vello_paths.push(crate::timeline::vello_path::VelloPath {
+                                path,
+                                fill: None,
+                                stroke: if stroke_width > 0.0 {
+                                    Some((
+                                        vello::peniko::Color::from_rgba8(
+                                            (stroke_color[0] * 255.0) as u8,
+                                            (stroke_color[1] * 255.0) as u8,
+                                            (stroke_color[2] * 255.0) as u8,
+                                            (stroke_color[3] * 255.0) as u8,
+                                        ),
+                                        stroke_width,
+                                    ))
+                                } else {
+                                    None
+                                },
+                            });
+                        }
+                    } else {
+                        let vello_path = crate::timeline::vello_path::VelloPath {
+                            path: shape.to_path_default(),
+                            fill: if fill_opacity > 0.0 {
+                                Some(vello::peniko::Color::from_rgba8(
+                                    (color[0] * 255.0) as u8,
+                                    (color[1] * 255.0) as u8,
+                                    (color[2] * 255.0) as u8,
+                                    (color[3] * 255.0 * fill_opacity) as u8,
+                                ))
+                            } else {
+                                None
+                            },
+                            stroke: if stroke_width > 0.0 {
+                                Some((
+                                    vello::peniko::Color::from_rgba8(
+                                        (stroke_color[0] * 255.0) as u8,
+                                        (stroke_color[1] * 255.0) as u8,
+                                        (stroke_color[2] * 255.0) as u8,
+                                        (stroke_color[3] * 255.0) as u8,
+                                    ),
+                                    stroke_width,
+                                ))
+                            } else {
+                                None
+                            },
+                        };
+                        vello_paths.push(vello_path);
+                    }
 
                     let t_ms = time_ms as u64;
-                    track
-                        .vector_paths
-                        .add_keyframe(t_ms, vec![vello_path], easing);
+                    track.vector_paths.add_keyframe(t_ms, vello_paths, easing);
                     track.position.add_keyframe(t_ms, position, easing);
                     track.size.add_keyframe(t_ms, size, easing);
                     track.color.add_keyframe(t_ms, color, easing);
@@ -668,7 +991,8 @@ impl Timeline {
                         for prop in props {
                             match prop.name.as_str() {
                                 "gap" => {
-                                    let v = evaluate_expr(&prop.value, &self.env).unwrap_or(Value::Num(0.0));
+                                    let v = evaluate_expr(&prop.value, &self.env)
+                                        .unwrap_or(Value::Num(0.0));
                                     gap = v.as_num() as f32;
                                 }
                                 "align" => {
@@ -758,7 +1082,9 @@ impl Timeline {
                             track.color.add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_width" => {
-                            let target_width = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
+                            let target_width = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_width.evaluate(t_start_ms);
                                 track.stroke_width.add_keyframe(
@@ -786,7 +1112,9 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_progress" => {
-                            let target_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
+                            let target_val = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_progress.evaluate(t_start_ms);
                                 track.stroke_progress.add_keyframe(
@@ -800,7 +1128,9 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "fill_opacity" => {
-                            let target_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
+                            let target_val = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.fill_opacity.evaluate(t_start_ms);
                                 track.fill_opacity.add_keyframe(
@@ -814,7 +1144,8 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "size" => {
-                            let size_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
+                            let size_val =
+                                evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
                             let target_size = if let Value::Vec2([w, h]) = size_val {
                                 [w as f32 / 2.0, h as f32 / 2.0]
                             } else {
@@ -829,7 +1160,8 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "position" | "at" => {
-                            let pos_val = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
+                            let pos_val =
+                                evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
                             let target_pos = if let Value::Vec2([x, y]) = pos_val {
                                 [x as f32, y as f32]
                             } else {
@@ -844,7 +1176,9 @@ impl Timeline {
                             track.position.add_keyframe(t_end_ms, target_pos, easing);
                         }
                         "radius" => {
-                            let r = evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0)).as_num() as f32;
+                            let r = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(0.0))
+                                .as_num() as f32;
                             let target_size = [r, r];
                             if duration_ms > 0.0 {
                                 let start_val = track.size.evaluate(t_start_ms);

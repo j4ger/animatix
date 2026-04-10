@@ -39,6 +39,7 @@ pub enum Expr {
     // Functions & Methods
     Call(String, Vec<Expr>),              // format("{}", x)
     Method(Box<Expr>, String, Vec<Expr>), // graph.plot(func)
+    Closure(Vec<String>, Box<Expr>),      // (x) => x ^ 2
 
     // Conditionals
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>), // if cond { a } else { b }

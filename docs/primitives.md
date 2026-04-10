@@ -168,7 +168,57 @@ img: Image, path: "assets/photo.png", size: (400, 300)
 
 ---
 
-# 5. Rendering Strategies
+# 5. Graph Primitives
+
+Graph primitives provide container-based plotting with coordinate system mapping and closure-evaluated functions.
+
+## Graph
+**Description:** A container that maps logical mathematical domains to physical screen bounds. It does not render directly but establishes the coordinate system for child plots.
+
+**Properties:**
+- `x_range`: Tuple (min, max) defining the logical x-domain
+- `y_range`: Tuple (min, max) defining the logical y-domain
+- `width`: Number (optional, physical width in pixels)
+- `height`: Number (optional, physical height in pixels)
+
+**Example:**
+```animatix
+graph: Graph, x_range: (-5, 5), y_range: (-10, 30)
+```
+
+**Child Plots:** `Graph` contains `CartesianPlot` and `PolarPlot` children that sample closure functions.
+
+## CartesianPlot
+**Description:** Renders a mathematical function in Cartesian coordinates by sampling the closure `func` at discrete points.
+
+**Properties:**
+- `func`: Closure `(x) => expression` defining the function to plot
+- `color`: Color (optional, defaults to white)
+- `width`: Number (optional, stroke width)
+
+**Example:**
+```animatix
+parabola: CartesianPlot, func: (x) => x^2 + 3, color: red
+sine: CartesianPlot, func: (t) => sin(t), color: blue, width: 2
+```
+
+## PolarPlot
+**Description:** Renders a mathematical function in polar coordinates, plotting radius as a function of angle.
+
+**Properties:**
+- `func`: Closure `(theta) => expression` defining radius as a function of angle
+- `color`: Color (optional, defaults to white)
+- `width`: Number (optional, stroke width)
+
+**Example:**
+```animatix
+spiral: PolarPlot, func: (t) => t, color: green
+circle: PolarPlot, func: (t) => 1, color: red
+```
+
+---
+
+# 6. Rendering Strategies
 
 Animatix uses **Vello** as its rendering backbone, a vector-first GPU-accelerated rendering engine. This approach prioritizes resolution-independent, crisp rendering at any scale while maintaining high performance for complex scenes.
 
@@ -184,7 +234,7 @@ Animatix uses **Vello** as its rendering backbone, a vector-first GPU-accelerate
 
 ---
 
-# 6. Common Properties
+# 7. Common Properties
 
 All primitives share the following standard properties.
 
@@ -198,7 +248,7 @@ All primitives share the following standard properties.
 
 ---
 
-# 7. Multi-Strategy Morphing
+# 8. Multi-Strategy Morphing
 
 Primitives support automatic morphing when re-declared at a new keyframe. Taking inspiration from advanced animation engines like Manim, Animatix utilizes a **Multi-Strategy** morphing algorithm determined automatically during scene compilation, which can be overridden by user modifiers.
 
@@ -243,7 +293,7 @@ You can tweak the morphing behavior using optional modifiers:
 
 ---
 
-# 8. Syntax Examples
+# 9. Syntax Examples
 
 ## Basic Shapes
 ```animatix
@@ -271,7 +321,7 @@ You can tweak the morphing behavior using optional modifiers:
 
 ---
 
-# 9. Containers & Layout
+# 10. Containers & Layout
 
 Containers group multiple primitives and control their spatial arrangement.
 
