@@ -52,30 +52,14 @@ The `docs/` folder contains detailed technical information:
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
 - [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
 
-## Architecture & Roadmap
+## Roadmap
 
-We have transitioned `animatix` to a Vector-First pipeline powered by **Vello**. This bypasses raster/texture-atlas limitations and extracts exact mathematical Bézier curves (`kurbo::BezPath`) for Text, Math, and SVGs.
+The `docs/implementation_plan.md` file tracks what's left to build.
 
-### Current Features
-- [x] `.amx` AST parser and compiler
-- [x] Basic animation timeline with easing functions
-- [x] Mathematical formula parsing (Typst)
-- [x] Precise Vector Text rendering (Typst to BezPaths)
-- [x] CLI tool for `.png` and `.mp4` video rendering (via `rsmpeg`)
-- [x] Compute-shader vector pipeline (Vello Integration)
-- [x] Native SVG loading and rendering (`usvg`)
-- [x] Timeline architecture redesigned to support vector-first unified properties
-- [x] Manim-style Vector Morphing (Path Interpolation) for Text, Math, and Geometric Shapes (via `kurbo`)
-- [x] Hierarchical scene graph with nested containers (Row, Col, Group)
-- [x] Transform and opacity inheritance via recursive DFS evaluation
-- [x] Auto-UID generation for anonymous container children
-- [x] Row/Col container layout algorithm
-
-### Planned
-- [ ] Reactive System (`always`, `loop`, `if`) - requires per-frame evaluation model
-- [ ] 2D Graph/Plot system - depends on reactive system for live data
+### What's Left
+- [ ] Reactive System (`always`, `loop`, `if`)
+- [ ] 2D Graph/Plot system
 - [ ] Component system with parameter passing and lifecycle hooks
 - [ ] Grid/Stack layout algorithms
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)
-- [ ] Math functions (sin, cos, format) in expressions
 - [ ] Interactive UI for building animations

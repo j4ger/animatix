@@ -171,7 +171,7 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 ## 7. Containers & Layout
 
-> **Status: Partial** — Row and Col are implemented. Grid, Stack, and Group are planned.
+> **Status: Row, Col, and Group implemented. Grid and Stack are planned.**
 
 **Container Types**
 
@@ -179,7 +179,7 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 - `Col`: Vertical layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for horizontal alignment). (Implemented)
 - `Grid`: 2D grid layout (Planned)
 - `Stack`: Overlapping layout (Planned)
-- `Group`: Generic container for grouping and transform inheritance (Planned)
+- `Group`: Generic container for grouping and transform inheritance (Implemented)
 
 **Layout Properties**
 
@@ -315,7 +315,7 @@ collapse btn1
 
 ## 10. Math & Graphs
 
-> **Status: Active Stage 3** — Graph and plot functionality uses closure-based evaluation.
+> **Status: Fully Implemented** — Graph and plot functionality uses closure-based evaluation.
 
 ### Graph Container
 
