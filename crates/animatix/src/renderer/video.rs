@@ -48,8 +48,7 @@ async fn render_video_async(
         .await
         .expect("Failed to find an appropriate adapter");
 
-    let needed_limits = wgpu::Limits::default()
-        .using_resolution(adapter.limits());
+    let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
 
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
@@ -291,8 +290,7 @@ async fn render_image_async(
         .await
         .expect("Failed to find an appropriate adapter");
 
-    let needed_limits = wgpu::Limits::default()
-        .using_resolution(adapter.limits());
+    let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
 
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {

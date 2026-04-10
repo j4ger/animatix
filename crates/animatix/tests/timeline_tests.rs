@@ -1,7 +1,7 @@
 use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PropertyTrack, Timeline,
+    AnimationTrack, Interpolate, PropertyTrack, Timeline, evaluate_expr, parse_color, time_to_ms,
 };
 
 #[test]

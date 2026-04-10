@@ -19,23 +19,53 @@ use crate::ast::{Expr, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
 
-fn sample_recursive(
+fn sample_recursive_cartesian(
     min_t: f64,
     max_t: f64,
-    p0: (f64, f64),
-    p1: (f64, f64),
+    p0: kurbo::Point,
+    p1: kurbo::Point,
     depth: usize,
-    ty: &str,
+    max_depth: usize,
+    tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
-    path: &mut kurbo::BezPath,
+    pts: &mut Vec<kurbo::Point>,
 ) {
-    if depth > 10 {
-        path.line_to(p1);
+    let screen_height = p_size[1];
+
+    let margin_y = screen_height * 2.0;
+    let min_screen_y = -(p_size[1] / 2.0) - margin_y;
+    let max_screen_y = (p_size[1] / 2.0) + margin_y;
+
+    if (p0.y < min_screen_y && p1.y < min_screen_y) || (p0.y > max_screen_y && p1.y > max_screen_y)
+    {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        return;
+    }
+
+    let dx = (p1.x - p0.x).abs();
+    let dy = (p1.y - p0.y).abs();
+    if dx > 0.0 && (dy / dx) > 1000.0 {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    }
+
+    // Discontinuity detection (steep slope)
+    let dx = (p1.x - p0.x).abs();
+    let dy = (p1.y - p0.y).abs();
+    if dx > 0.0 && (dy / dx) > 1000.0 {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    }
+
+    if depth >= max_depth {
+        pts.push(p1);
         return;
     }
 
@@ -43,56 +73,156 @@ fn sample_recursive(
     env.set(arg_name, Value::Num(mid_t));
     let val = evaluate_expr(body, env).unwrap_or(Value::Num(0.0)).as_num();
 
-    let (math_x, math_y) = if ty == "CartesianPlot" {
-        (mid_t, val)
-    } else {
-        (val * mid_t.cos(), val * mid_t.sin())
-    };
+    let math_x = mid_t;
+    let math_y = val;
 
     let screen_x = -(p_size[0] / 2.0)
         + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
     let screen_y = (p_size[1] / 2.0)
         - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
 
-    let p_mid = (screen_x, screen_y);
+    let p_mid = kurbo::Point::new(screen_x, screen_y);
 
-    let expected_mid_x = (p0.0 + p1.0) / 2.0;
-    let expected_mid_y = (p0.1 + p1.1) / 2.0;
-    let dist_sq = (p_mid.0 - expected_mid_x).powi(2) + (p_mid.1 - expected_mid_y).powi(2);
+    let expected_mid_x = (p0.x + p1.x) / 2.0;
+    let expected_mid_y = (p0.y + p1.y) / 2.0;
+    let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > 0.5 || depth < 3 {
-        sample_recursive(
+    if dist_sq > tolerance || depth < 3 {
+        sample_recursive_cartesian(
             min_t,
             mid_t,
             p0,
             p_mid,
             depth + 1,
-            ty,
+            max_depth,
+            tolerance,
             env,
             arg_name,
             body,
             p_x_domain,
             p_y_domain,
             p_size,
-            path,
+            pts,
         );
-        sample_recursive(
+        sample_recursive_cartesian(
             mid_t,
             max_t,
             p_mid,
             p1,
             depth + 1,
-            ty,
+            max_depth,
+            tolerance,
             env,
             arg_name,
             body,
             p_x_domain,
             p_y_domain,
             p_size,
-            path,
+            pts,
         );
     } else {
-        path.line_to(p1);
+        pts.push(p1);
+    }
+}
+
+fn sample_recursive_polar(
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    depth: usize,
+    max_depth: usize,
+    tolerance: f64,
+    env: &mut Environment,
+    arg_name: &str,
+    body: &Expr,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    pts: &mut Vec<kurbo::Point>,
+) {
+    let margin_y = p_size[1] * 2.0;
+    let min_screen_y = -(p_size[1] / 2.0) - margin_y;
+    let max_screen_y = (p_size[1] / 2.0) + margin_y;
+
+    let margin_x = p_size[0] * 2.0;
+    let min_screen_x = -(p_size[0] / 2.0) - margin_x;
+    let max_screen_x = (p_size[0] / 2.0) + margin_x;
+
+    if ((p0.y < min_screen_y && p1.y < min_screen_y)
+        || (p0.y > max_screen_y && p1.y > max_screen_y))
+        && ((p0.x < min_screen_x && p1.x < min_screen_x)
+            || (p0.x > max_screen_x && p1.x > max_screen_x))
+    {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        return;
+    }
+
+    let dist_sq_jump = (p1.x - p0.x).powi(2) + (p1.y - p0.y).powi(2);
+    if dist_sq_jump > (p_size[0].max(p_size[1])).powi(2) * 4.0 {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    }
+
+    if depth >= max_depth {
+        pts.push(p1);
+        return;
+    }
+
+    let mid_t = (min_t + max_t) / 2.0;
+    env.set(arg_name, Value::Num(mid_t));
+    let val = evaluate_expr(body, env).unwrap_or(Value::Num(0.0)).as_num();
+
+    let math_x = val * mid_t.cos();
+    let math_y = val * mid_t.sin();
+
+    let screen_x = -(p_size[0] / 2.0)
+        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
+    let screen_y = (p_size[1] / 2.0)
+        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+
+    let p_mid = kurbo::Point::new(screen_x, screen_y);
+
+    let expected_mid_x = (p0.x + p1.x) / 2.0;
+    let expected_mid_y = (p0.y + p1.y) / 2.0;
+    let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
+
+    if dist_sq > tolerance || depth < 3 {
+        sample_recursive_polar(
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            pts,
+        );
+        sample_recursive_polar(
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            pts,
+        );
+    } else {
+        pts.push(p1);
     }
 }
 
@@ -618,6 +748,8 @@ impl Timeline {
                     let mut t_domain = [0.0, std::f64::consts::TAU];
                     let mut func = None;
                     let mut initial_size = [50.0, 50.0];
+                    let mut tolerance = 0.5;
+                    let mut max_depth = 10.0;
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -662,6 +794,16 @@ impl Timeline {
                                 if let Value::Closure(args, body) = v {
                                     func = Some((args, body));
                                 }
+                            }
+                            "tolerance" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                tolerance = v.as_num();
+                            }
+                            "max_depth" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                max_depth = v.as_num();
                             }
                             _ => {}
                         }
@@ -809,9 +951,17 @@ impl Timeline {
                             grid_path.move_to((gx, -(size[1] as f64)));
                             grid_path.line_to((gx, size[1] as f64));
 
+                            // X-axis tick
+                            path.move_to((gx, x_axis_y - 5.0));
+                            path.line_to((gx, x_axis_y + 5.0));
+
                             let gy = -(size[1] as f64) + 2.0 * (size[1] as f64) * f;
                             grid_path.move_to((-(size[0] as f64), gy));
                             grid_path.line_to((size[0] as f64, gy));
+
+                            // Y-axis tick
+                            path.move_to((y_axis_x - 5.0, gy));
+                            path.line_to((y_axis_x + 5.0, gy));
                         }
 
                         vello_paths.push(crate::timeline::vello_path::VelloPath {
@@ -885,8 +1035,6 @@ impl Timeline {
                                     * ((start_math_y - p_y_domain[0])
                                         / (p_y_domain[1] - p_y_domain[0]));
 
-                            path.move_to((start_screen_x, start_screen_y));
-
                             env_copy.set(&arg_name, Value::Num(max_t));
                             let end_val = evaluate_expr(&body, &env_copy)
                                 .unwrap_or(Value::Num(0.0))
@@ -905,24 +1053,59 @@ impl Timeline {
                                     * ((end_math_y - p_y_domain[0])
                                         / (p_y_domain[1] - p_y_domain[0]));
 
-                            let p0 = (start_screen_x, start_screen_y);
-                            let p1 = (end_screen_x, end_screen_y);
+                            let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
+                            let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
 
-                            sample_recursive(
-                                min_t,
-                                max_t,
-                                p0,
-                                p1,
-                                0,
-                                ty,
-                                &mut env_copy,
-                                &arg_name,
-                                &body,
-                                &p_x_domain,
-                                &p_y_domain,
-                                &p_size,
-                                &mut path,
-                            );
+                            let mut pts = vec![p0];
+
+                            if ty == "CartesianPlot" {
+                                sample_recursive_cartesian(
+                                    min_t,
+                                    max_t,
+                                    p0,
+                                    p1,
+                                    0,
+                                    max_depth as usize,
+                                    tolerance,
+                                    &mut env_copy,
+                                    &arg_name,
+                                    &body,
+                                    &p_x_domain,
+                                    &p_y_domain,
+                                    &p_size,
+                                    &mut pts,
+                                );
+                            } else {
+                                sample_recursive_polar(
+                                    min_t,
+                                    max_t,
+                                    p0,
+                                    p1,
+                                    0,
+                                    max_depth as usize,
+                                    tolerance,
+                                    &mut env_copy,
+                                    &arg_name,
+                                    &body,
+                                    &p_x_domain,
+                                    &p_y_domain,
+                                    &p_size,
+                                    &mut pts,
+                                );
+                            }
+
+                            let mut first = true;
+                            for pt in pts {
+                                if pt.x.is_nan() || pt.y.is_nan() {
+                                    first = true;
+                                } else if first {
+                                    path.move_to((pt.x, pt.y));
+                                    first = false;
+                                } else {
+                                    path.line_to((pt.x, pt.y));
+                                }
+                            }
+
                             vello_paths.push(crate::timeline::vello_path::VelloPath {
                                 path,
                                 fill: None,

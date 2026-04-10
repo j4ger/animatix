@@ -40,8 +40,7 @@ impl State {
             .await
             .unwrap();
 
-        let needed_limits = wgpu::Limits::default()
-            .using_resolution(adapter.limits());
+        let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -115,7 +114,10 @@ impl State {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: Some("Vello Render Target"),
             view_formats: &[],
         });
@@ -131,15 +133,12 @@ impl State {
         );
 
         let blitter = wgpu::util::TextureBlitter::new(&self.device, self.config.format);
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Blit Encoder"),
-        });
-        blitter.copy(
-            &self.device,
-            &mut encoder,
-            &render_view,
-            &view,
-        );
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Blit Encoder"),
+            });
+        blitter.copy(&self.device, &mut encoder, &render_view, &view);
         self.queue.submit(std::iter::once(encoder.finish()));
 
         output.present();

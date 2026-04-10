@@ -18,6 +18,13 @@ my_graph: Graph {
         width: 2
     },
 
+    asymptote: CartesianPlot {
+        func: (x) => 1 / x,
+        color: ORANGE,
+        tolerance: 0.1,
+        max_depth: 12
+    },
+
     polar: PolarPlot {
         func: (t) => 3 * sin(4 * t),
         t_domain: (0, 6),
