@@ -1,9 +1,28 @@
 use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
+use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
     Timeline, evaluate_expr, parse_color, time_to_ms,
 };
+use kurbo::Shape;
+
+fn text_paths_width(paths: &[TextPath]) -> f64 {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+
+    for text_path in paths {
+        let bounds = text_path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+    }
+
+    if min_x.is_finite() && max_x.is_finite() {
+        max_x - min_x
+    } else {
+        0.0
+    }
+}
 
 #[test]
 fn test_time_to_ms() {
@@ -119,6 +138,63 @@ fn test_timeline_build_and_evaluate() {
     // Color should be interpolated between red [1.0, 0.0, 0.0, 1.0] and blue [0.0, 0.0, 1.0, 1.0]
     // i.e., [0.5, 0.0, 0.5, 1.0]
     assert_eq!(color, [0.5, 0.0, 0.5, 1.0]);
+}
+
+#[test]
+fn test_text_spacing_preserves_space_width() {
+    let text_with_space = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Text {
+            label: Some("spaced".to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("A B".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(48.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let text_without_space = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Text {
+            label: Some("tight".to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("AB".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(48.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let spaced_timeline = Timeline::build(&text_with_space);
+    let tight_timeline = Timeline::build(&text_without_space);
+
+    let spaced_paths = &spaced_timeline
+        .tracks
+        .get("spaced")
+        .expect("spaced track should exist")
+        .text_paths
+        .evaluate(0);
+    let tight_paths = &tight_timeline
+        .tracks
+        .get("tight")
+        .expect("tight track should exist")
+        .text_paths
+        .evaluate(0);
+
+    assert!(text_paths_width(spaced_paths) > text_paths_width(tight_paths));
 }
 
 #[test]

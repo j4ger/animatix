@@ -760,7 +760,7 @@ impl Timeline {
                     }
 
                     let frame =
-                        crate::renderer::text::compile_math(&text_content, font_size, color);
+                        crate::renderer::text::compile_text(&text_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
                     let mut duration_ms = 0.0;

@@ -140,6 +140,25 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color)
     document.pages[0].frame.clone()
 }
 
+pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
+    let escaped = text
+        .replace('\\', "\\\\")
+        .replace('[', "\\[")
+        .replace(']', "\\]");
+    let markup = format!(
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n[{}]",
+        font_size,
+        color.to_hex(),
+        escaped
+    );
+
+    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let world = TypstWorld::new(source);
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+
+    document.pages[0].frame.clone()
+}
+
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
