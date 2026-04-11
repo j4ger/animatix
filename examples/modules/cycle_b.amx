@@ -1,7 +1,0 @@
-// cycle_b.amx - File that imports cycle_a (creates circular dependency)
-
-import "./cycle_a.amx"
-
-pub component BComponent() {
-    // content
-}

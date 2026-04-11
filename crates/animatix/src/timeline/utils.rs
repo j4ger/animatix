@@ -224,8 +224,6 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     ))),
                 },
                 _ => {
-                    // Fallback to old behavior for anything else just in case? Or type mismatch
-                    // Let's just treat as nums for == and != as a fallback or return TypeMismatch
                     if *op == BinaryOp::Eq {
                         Ok(Value::Num(if l_val == r_val { 1.0 } else { 0.0 }))
                     } else if *op == BinaryOp::Neq {

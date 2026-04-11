@@ -1,0 +1,8 @@
+#0s
+scene.background_color = (0.06, 0.07, 0.10, 1.0)
+
+title: Text { text: "Text Morph Demo", font_size: 32, color: WHITE, at: (640, 80) }
+word: Text { text: "hi", font_size: 150, color: (1.0, 1.0, 1.0, 1.0), at: (640, 360) }
+
+#2s
+word: Text { text: "hello", font_size: 150, color: (0.25, 1.0, 0.55, 1.0), at: (640, 360) } [2s, ease: ease-in-out]

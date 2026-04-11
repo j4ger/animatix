@@ -1,4 +1,4 @@
-use crate::easing::{apply_easing, Easing};
+use crate::easing::{Easing, apply_easing};
 use std::collections::BTreeMap;
 
 pub trait Interpolate {
@@ -35,11 +35,7 @@ impl Interpolate for [f32; 4] {
 
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 

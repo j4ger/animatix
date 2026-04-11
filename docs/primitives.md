@@ -184,7 +184,6 @@ Text and math content are rendered through text-path keyframes; shape actors are
 
 **Not implemented in the DSL/runtime yet:**
 - `strategy`, `path_arc`, and `stretch` modifiers
-- Dedicated DSL actions such as `morph_to`
 - High-level multi-strategy morph selection described in older drafts
 
 ---

@@ -1,0 +1,26 @@
+#0s
+scene.background_color = (0.08, 0.10, 0.16, 1.0)
+
+title: Text { text: "Layout Demo", font_size: 34, color: (1.0, 1.0, 1.0, 1.0), at: (640, 70) }
+
+row: Row, at: (320, 260), gap: 28, align: "center" {
+  a: Circle, radius: 28, color: (0.95, 0.35, 0.35, 1.0),
+  b: Circle, radius: 22, color: (0.30, 0.85, 0.55, 1.0),
+  c: Circle, radius: 36, color: (0.35, 0.60, 1.0, 1.0)
+}
+
+col: Col, at: (900, 250), gap: 24, align: "center" {
+  top: Rect, size: (120, 50), color: (0.95, 0.80, 0.30, 1.0),
+  mid: Rect, size: (160, 70), color: (0.30, 0.85, 0.90, 1.0),
+  bot: Rect, size: (100, 100), color: (0.95, 0.35, 0.80, 1.0)
+}
+
+nested: Group, at: (610, 500) {
+  frame: Rect, size: (220, 140), color: (0.18, 0.24, 0.42, 1.0),
+  marker: Circle, radius: 24, color: (1.0, 1.0, 1.0, 1.0), at: (60, 0)
+}
+
+#2s
+row.at = (320, 320) [1s, ease: ease-in-out]
+col.at = (900, 320) [1s, ease: ease-in-out]
+nested.at = (610, 540) [1s, ease: ease-in-out]

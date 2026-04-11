@@ -1,5 +1,0 @@
-// components.amx - Shared components library
-
-pub component Button(text: "Click") {
-    let x = 1
-}

@@ -1,0 +1,24 @@
+// PLANNED EXAMPLE — not expected to run on the current runtime.
+// This file documents the intended direction for component runtime support
+// and the missing Grid / Stack layout containers.
+
+#0s
+scene.background_color = (0.06, 0.07, 0.10, 1.0)
+
+pub component MetricCard(title: "Latency", value: "12ms") {
+  card: Rect, size: (220, 120), color: (0.12, 0.16, 0.28, 1.0)
+  heading: Text { text: title, font_size: 18, at: (0, -25) }
+  number: Text { text: value, font_size: 34, at: (0, 20) }
+}
+
+dashboard: Grid, cols: 2, gap: 20, at: (640, 300) {
+  MetricCard, title: "Latency", value: "12ms"
+  MetricCard, title: "FPS", value: "60"
+  MetricCard, title: "Nodes", value: "128"
+  MetricCard, title: "GPU", value: "Ready"
+}
+
+overlay: Stack, at: (640, 580) {
+  Rect, size: (420, 90), color: (0.10, 0.12, 0.20, 1.0)
+  Text { text: "Grid + Stack + component instantiation" }
+}

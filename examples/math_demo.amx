@@ -1,0 +1,31 @@
+#0s
+scene.background_color = (0.05, 0.05, 0.10, 1.0)
+
+let base = (220, 220)
+let offset = (140, 80)
+
+title: Text { text: "Math Demo", font_size: 32, color: WHITE, at: (640, 60) }
+subtitle: Text { text: "Expressions drive positions, colors, and animation targets", font_size: 18, color: (0.80, 0.85, 0.95, 1.0), at: (640, 105) }
+
+sum_circle: Circle, radius: 42, color: RED, at: base + offset
+orbit_circle: Circle, radius: 34, color: GREEN + BLUE, at: (760 + 110 * cos(PI / 4), 250 + 110 * sin(PI / 4))
+lerp_circle: Circle, radius: 38, color: (lerp(0.2, 0.9, 0.5), 0.45, 0.9, 1.0), at: (920, 240)
+mod_circle: Circle, radius: 28, color: (1.0, 0.85, 0.20, 1.0), at: (140 + 17 % 5 * 70, 470)
+rand_circle_1: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (220 + rand() * 180, 520 + rand() * 90)
+rand_circle_2: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (520 + rand() * 180, 520 + rand() * 90)
+rand_circle_3: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (820 + rand() * 180, 520 + rand() * 90)
+
+label_sum: Text { text: "tuple addition", font_size: 18, color: WHITE, at: (360, 170) }
+label_orbit: Text { text: "sin / cos", font_size: 18, color: WHITE, at: (860, 170) }
+label_mod: Text { text: "modulo", font_size: 18, color: WHITE, at: (280, 420) }
+label_rand: Text { text: "rand()", font_size: 18, color: WHITE, at: (640, 470) }
+
+#3s
+sum_circle.at = base + offset + (120, 60) [1.5s, ease: ease-in-out]
+orbit_circle.color = (0.25, 0.90, 1.0, 1.0) [1.5s]
+lerp_circle.radius = 54 [1.5s]
+
+#5s
+rand_circle_1.at = (220 + rand() * 180, 520 + rand() * 90) [1.5s]
+rand_circle_2.at = (520 + rand() * 180, 520 + rand() * 90) [1.5s]
+rand_circle_3.at = (820 + rand() * 180, 520 + rand() * 90) [1.5s]

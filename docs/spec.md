@@ -124,7 +124,6 @@ Modifiers are enclosed in square brackets immediately following the action.
 ```animatix
 [2s]                      // Duration
 [ease: ease-in-out]       // Easing curve
-[path: arc]               // Morph interpolation path
 ```
 
 **Built-in Actions Registry**  
@@ -132,7 +131,7 @@ The runtime currently registers three built-in actions:
 - **Entrance**: `fade-in`, `wipe-in`
 - **Exit**: `fade-out`
 
-The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work, but the broader visual editor workflow described elsewhere is still future work.
+The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work. Higher-level editor workflows remain future work.
 
 ---
 
@@ -154,6 +153,8 @@ The runtime morphs vector path data when a supported actor is re-declared, but a
 [strategy: auto]          // Engine decides (default)
 [strategy: match]         // Force point alignment
 [strategy: fade]          // Cross-fade (ReplacementTransform)
+[path_arc: 1.57]          // Planned curved interpolation hint
+[stretch: false]          // Planned bounds-fitting control
 ```
 
 **Instant Change**

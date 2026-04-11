@@ -1,219 +1,202 @@
 # Animatix Implementation Plan
 
-## Status Overview
-
-| Category | Parser | Runtime | Status |
-|----------|--------|---------|--------|
-| **Core Scene Primitives (`Text`, `Math`, `Svg`, `Circle`, `Rect`)** | Complete | Complete | **IMPLEMENTED** |
-| **Reactive System** | Complete | Complete | **IMPLEMENTED** |
-| **Math/Graph** | Complete | Complete | **IMPLEMENTED** |
-| **Containers (Row, Col)** | Complete | Complete | **IMPLEMENTED** |
-| **Containers (Grid, Stack)** | Missing | Missing | **NOT IMPLEMENTED** |
-| **Components** | Partial | Missing | **NOT IMPLEMENTED** |
-| **Additional Scene Primitives (`Line`, `Path`, `Polygon`, `Arc`, `Ellipse`, `Image`, `Code`)** | Mixed | Missing | **NOT IMPLEMENTED** |
+This plan is intentionally grounded in the runtime that exists today. It does not treat parser-only syntax, design sketches, or low-level Rust helpers as shipped user-facing features.
 
 ---
 
-## 1. Reactive System (`loop`, `always`, `for`)
+## 1. Current Baseline
 
-### Status: IMPLEMENTED (Phases 1, 2 & 3 Complete)
+### Shipped Runtime Surface
 
-The reactive system uses a hybrid evaluation architecture, implemented via phased rollout.
+| Area | Status | Notes |
+|---|---|---|
+| Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect` |
+| Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
+| Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
+| Containers | Partially implemented | `Row`, `Col`, `Group` are usable; `Grid`, `Stack` are not |
+| Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
+| Components | Parser-only | AST/parser exist; runtime instantiation does not |
 
-### Phase 1: Per-Frame Evaluation Pipeline (IMPLEMENTED)
+### Known Gaps
 
-**Goal**: Establish the two-layer evaluation model (Base + Modifier).
+These are the major holes between the documented language surface and the runtime:
 
-**Status**: **COMPLETE**. The four-stage pipeline correctly passes base keyframes and layers over transient per-frame modifiers via a HashMap override system.
-
-### Phase 2: Compile `for` Loops into Unrolled Keyframes (IMPLEMENTED)
-
-**Goal**: Eliminate loop structures at compile time.
-
-**Status**: **COMPLETE**. `for` loops expand statically during parse/timeline building to prevent runtime overhead.
-
-### Phase 3: Stateful `loop` Blocks & Generators (IMPLEMENTED)
-
-**Goal**: Stateful, per-frame expression evaluation.
-
-**Tasks**:
-1. Compile `always` blocks into AST evaluator closures that run every frame
-2. Compile `loop` blocks into generator-style closures that maintain state across frames
-3. Implement `yield` as a pause/resume mechanism
-4. Support labeled loops (`job: loop 5s { ... }`) with `Stop`, `Pause`, `Resume` commands
-
-**Status**: **COMPLETE**. `LoopState` manages program counters, `time_remaining`, and frame environments across evaluations in the `Timeline`. `Yield` properly defers execution to the next frame.
-
-**`loop` Execution Model**:
-- Each labeled `loop` maintains a struct with: program counter, local variables, remaining time
-- On `yield`, the struct is serialized to the timeline state
-- On the next frame, the struct is restored and execution resumes
-
-**`always` Execution Model**:
-- No state maintained between frames
-- Full expression tree re-evaluated every frame
-- Can read from base layer values for composition
-
-### Target Syntax
-
-```animatix
-// Per-frame evaluation
-always { ball.at = (mouse.x, mouse.y) }
-
-// Loop constructs (stateful)
-job: loop 5s {
-  ball.at = (0, 0)
-  yield
-  ball.at = (100, 0)
-  yield
-}
-stop job
-
-// Bounded iteration (compile-time unrolling)
-for i in 0..3 {
-  star[i]: Circle, radius: 20
-}
-```
-
-### Why Three Phases
-1. Phase 1 established the evaluation infrastructure and override mechanism.
-2. Phase 2 performed pure compiler transformations for bounds unrolling.
-3. Phase 3 added internal generator state management to maintain contexts between yields and handle dynamic control flow.
+1. **Primitive coverage is too narrow.** The runtime only exposes `Circle` and `Rect` as scene shape actors.
+2. **Layout is incomplete.** `Grid` and `Stack` are still missing.
+3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
+4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
 
 ---
 
-## What Is Left To Do: Future Phases
+## 2. Planning Principles
 
-To maintain a steady cadence, the remaining work is organized into distinct actionable phases.
+The next implementation steps should follow these rules:
 
-### Phase 5: 2D Layout Containers (`Grid`, `Stack`)
-
-**Goal**: Complete 2D geometry container types.
-
-**Implemented:**
-- `Row`: Horizontal layout with `gap` and `align`
-- `Col`: Vertical layout with `gap` and `align`
-- `Group`: Generic container for grouping and transform inheritance
-
-**NOT Implemented:**
-- `Grid`: 2D grid layout
-- `Stack`: Overlapping layout
-
-### Target Syntax
-
-```animatix
-// Grid: 2D layout
-grid: Grid, cols: 3, gap: 10 {
-  Item1, Item2, Item3
-  Item4, Item5, Item6
-}
-
-// Stack: Overlapping elements
-stack: Stack {
-  background: Rect, width: 100, height: 100
-  foreground: Circle, radius: 30
-}
-```
+1. **Reduce parser/runtime mismatch first.** The highest-value work is closing gaps where the language appears larger than the runtime really is.
+2. **Prefer vertical slices over broad promises.** Each phase should deliver runtime behavior, documentation, examples, and validation together.
+3. **Ship current-facing features before future-facing syntax.** A smaller reliable language is better than a broader but misleading one.
+4. **Keep examples honest.** User-facing demos should only showcase runnable features. Planned syntax belongs in a clearly separated planned section.
 
 ---
 
-## Phase 6: Components
+## 3. Recommended Execution Order
 
-**Goal**: Full reusable module components mechanism.
+### Phase 0 — Surface Alignment
+**Status:** In progress / immediate maintenance work
 
-### Status: DEFINED (AST), NOT IMPLEMENTED (Runtime)
+**Goal:** Make the docs, examples, and roadmap reflect the real engine.
 
-**Implemented:**
-- `ComponentDef` AST node
-- `component_def` parser
-- `LifecycleEvent`, `ComponentAction` AST nodes
+**Includes:**
+- Rewrite docs to distinguish runtime-supported vs parser-only features
+- Curate examples into a small runnable set
+- Move future syntax sketches into clearly marked planned examples
 
-**NOT Implemented:**
-- Component instantiation from `.actor.amx` files
-- Parameter passing to components
-- Lifecycle hooks (`on appear`, `on disappear`)
-- Custom actions on components
-- `@config` block
-
-### Target Syntax
-
-```animatix
-// button.actor.amx
-pub component Button(text: "Click") {
-  let x = 1
-}
-
-// scene.amx
-import "button.actor.amx"
-btn: Button, text: "Submit", color: blue
-```
-
-### Why Deferred
-1. Depends on module import system being fully functional
-2. Requires significant design work (parameter scoping, action inheritance)
-3. Current `Group` with inline children provides similar functionality
+**Exit criteria:**
+- No user-facing example depends on unimplemented runtime features
+- Docs and roadmap agree on current capabilities
 
 ---
 
-## Stage 3 (Complete)
+### Phase 1 — Expand Core Runtime Primitives
+**Priority:** Highest next implementation phase
 
-### User-Configurable Sampling Parameters
+**Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
-The plotting engine exposes `tolerance` and `max_depth` properties to the Animatix language AST:
+**Recommended implementation order:**
+1. `Line`
+2. `Ellipse`
+3. `Arc`
+4. `Polygon`
+5. `Path`
+6. `Image`
+7. `Code`
 
-```animatix
-// High fidelity for smooth curves
-smooth_curve: CartesianPlot, func: (x) => sin(x), tolerance: 0.001, max_depth: 12
+**Why this phase comes first:**
+- It directly reduces the parser/runtime mismatch
+- It increases expressive power immediately
+- It unlocks more meaningful demos and lowers pressure to over-promise future features
 
-// Fast rendering for previews
-preview_curve: CartesianPlot, func: (x) => x^2, tolerance: 0.5, max_depth: 6
-```
+**Suggested scope discipline:**
+- Add each primitive end-to-end: parser support (if needed), timeline handling, rendering, docs, and one demo
+- Do not bundle all primitives into one risky change
 
-### Discontinuity Detection
+**Exit criteria:**
+- At least the first two added primitives are fully runnable and documented
+- `docs/primitives.md` can be expanded without caveats for those primitives
 
-The plotting engine detects and handles mathematical discontinuities like asymptotes. For example, plotting `y = 1/x` across `(-1, 1)` no longer draws a massive vertical line through the origin.
+---
 
-The engine:
-1. Checks if `y` values jump by more than a threshold between adjacent samples
-2. Breaks the path into separate segments at the discontinuity point
-3. Injects `NAN` to break the Vello path at discontinuities
+### Phase 2 — Complete Layout Containers
+**Priority:** High
 
-### Bounding-Box Culling
+**Goal:** Finish the scene layout model by implementing `Grid` and `Stack`.
 
-Optimizes plotting by stopping subdivision when a segment is entirely outside the graph's physical screen bounds.
+**Scope:**
+- `Grid`: row/column placement, `gap`, and predictable child flow
+- `Stack`: overlapping placement with transform inheritance and simple alignment rules
 
-## Future Improvements
+**Why after primitives:**
+- Layout is more valuable when there are more primitives to place
+- The current engine already has enough container infrastructure to make this a focused extension
 
-### Additional Runtime Primitives
+**Exit criteria:**
+- `Grid` and `Stack` are runtime-real, not just documented names
+- A dedicated layout demo can show all five containers: `Row`, `Col`, `Group`, `Grid`, `Stack`
 
-- `Line`
-- `Path`
-- `Polygon`
-- `Arc`
-- `Ellipse`
-- `Image`
-- `Code`
+---
 
-### Parametric and Implicit Curve Plotting
+### Phase 3 — Component Runtime
+**Priority:** High, but after primitive/layout stabilization
 
-**Parametric curves:**
-```animatix
-ParametricPlot, x_func: (t) => cos(t), y_func: (t) => sin(t), t_range: (0, 2π)
-```
+**Goal:** Turn `pub component ...` from parser-only syntax into a usable runtime feature.
 
-**Implicit equations:**
-```animatix
-ImplicitPlot, equation: (x, y) => x^2 + y^2 - 1, x_domain: (-1.5, 1.5), y_domain: (-1.5, 1.5)
-```
+**Must include:**
+- Component instantiation from imported files
+- Parameter binding
+- Local component scope rules
+- Clear behavior for nested labels and exported names
 
-### Advanced Path Effects
+**Should defer until later within this phase:**
+- Lifecycle hooks
+- Custom component actions
+- `@config` support
 
-- Path trimming
-- Dashing patterns
-- Stroke animations
+**Why this phase is later than primitives/layout:**
+- It is the largest semantic step in the language
+- It multiplies complexity around scope, imports, and instantiation
+- It benefits from having the base primitive/layout surface already stable
 
-### DSL-Level Morph Controls
+**Exit criteria:**
+- A minimal imported component example renders successfully
+- The spec can describe component behavior without parser-only disclaimers
 
-- `strategy` modifiers
-- `path_arc`
-- `stretch`
+---
+
+### Phase 4 — Advanced Plotting and Morph Controls
+**Priority:** Medium
+
+**Goal:** Build on the now-stable base language with higher-level expressive features.
+
+**Candidate work:**
+- `ParametricPlot`
+- `ImplicitPlot`
+- DSL-level morph controls such as `strategy`, `path_arc`, and `stretch`
+- Better path/stroke effects such as trimming and dashing
+
+**Why this is not earlier:**
+- These features are valuable, but they are not the most harmful current gap
+- They should be added once the basic runtime surface is less misleading
+
+**Exit criteria:**
+- Each new feature has one focused demo and one focused spec section
+
+---
+
+### Phase 5 — Authoring UX and Tooling
+**Priority:** Later
+
+**Goal:** Improve the creator experience after the language/runtime foundation is dependable.
+
+**Candidate work:**
+- Interactive UI/editor
+- Hot reload and file watching
+- Richer action/component discovery for tooling
+- More formal examples/tutorial structure
+
+This phase should not begin until the runtime surface is trustworthy enough that an editor is not teaching unstable or unimplemented syntax.
+
+---
+
+## 4. Work That Is Already Done
+
+These items should be treated as shipped foundations, not future roadmap bullets:
+
+- Reactive `always` / `loop` evaluation model
+- `yield`-driven loop state machine
+- `for` expansion during timeline building
+- Graph plotting with adaptive sampling
+- Discontinuity detection for problematic functions like `1/x`
+- Bounding-box culling for plotting work
+- `Row` / `Col` auto-layout
+
+---
+
+## 5. What We Should Not Do Next
+
+The following would be premature before Phases 1–3 are complete:
+
+- Expanding the spec with more aspirational syntax
+- Adding more broken or future-only demos to the main example set
+- Building an editor/UI on top of an unstable user-facing language surface
+
+---
+
+## 6. Immediate Next Implementation Recommendation
+
+If implementation starts right after this planning rework, the best next move is:
+
+1. **Implement one additional runtime primitive family**
+2. **Update docs and demos for that primitive immediately**
+3. **Then move on to layout completion**
+
+The cleanest starting candidates are `Line` and `Ellipse`, because low-level geometry support already exists and they meaningfully expand the scene language without forcing the component system to land first.

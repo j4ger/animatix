@@ -1,2 +1,0 @@
-// Testing the new Environment math evaluator
-c: Circle, radius: sin(PI), color: (1.0, 0.0, 0.0, 1.0), at: (100, lerp(10, 50, 0.5))

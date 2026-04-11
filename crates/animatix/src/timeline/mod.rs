@@ -8,8 +8,8 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action;
-pub use env::{load_standard_library, Environment, EvalError, Value};
-pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
+pub use env::{Environment, EvalError, Value, load_standard_library};
+pub use kurbo_shapes::{KurboShape_, morph_kurbo_shapes, morph_kurbo_shapes_default};
 pub use svg::parse_svg;
 pub use track::{AnimationTrack, Interpolate, PropertyTrack};
 pub use utils::{evaluate_expr, parse_color, time_to_ms};

@@ -17,28 +17,41 @@ Animatix is powered by **Vello** and currently ships a working vector-first runt
 ```animatix
 // examples/showcase.amx
 #0s
-t: Text { text: "Animatix Engine", font_size: 100, color: (1.0, 1.0, 1.0, 1.0), at: (640, 200) }
-m: Math { math: "E = mc^2", font_size: 80, color: (0.5, 0.8, 1.0, 1.0), at: (640, 400) }
-v: Svg { url: "examples/vector.svg", scale: 2.0, at: (640, 600) }
-c: Circle, radius: 80, color: (1.0, 0.2, 0.5, 1.0), at: (1000, 400)
+scene.background_color = (0.07, 0.08, 0.12, 1.0)
 
-#1s
-t.color = (1.0, 0.5, 0.0, 1.0) [1s, ease: ease-in-out]
-t.at = (640, 250) [1s, ease: ease-in-out]
-m.color = (1.0, 0.9, 0.2, 1.0) [1s, ease: ease-in-out]
-c.radius = 120 [1s, ease: ease-in-out]
-c.color = (0.2, 1.0, 0.5, 1.0) [1s, ease: ease-in-out]
+title: Text { text: "Animatix", font_size: 92, color: (1.0, 1.0, 1.0, 1.0), at: (640, 150) }
+formula: Math { math: "E = mc^2", font_size: 80, color: (0.50, 0.80, 1.0, 1.0), at: (340, 370) }
+logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (940, 360) }
+orb: Circle, radius: 82, color: (1.0, 0.25, 0.55, 1.0), at: (250, 560)
+panel: Rect, size: (240, 120), color: (0.22, 0.85, 0.55, 1.0), at: (980, 580)
 
-#2s
-scene.background_color = (0.1, 0.1, 0.15, 1.0) [1s, ease: ease-in-out]
-v.at = (640, 650) [1s, ease: ease-in-out]
+#1.5s
+title.at = (640, 190) [1s, ease: ease-in-out]
+title.color = (1.0, 0.75, 0.25, 1.0) [1s, ease: ease-in-out]
+orb.radius = 120 [1s, ease: ease-in-out]
+orb.color = (0.25, 1.0, 0.65, 1.0) [1s, ease: ease-in-out]
+panel.size = (320, 160) [1s, ease: ease-in-out]
+
+#3s
+scene.background_color = (0.10, 0.10, 0.16, 1.0) [1s, ease: ease-in-out]
+logo.at = (900, 330) [1s, ease: ease-in-out]
+panel.at = (980, 540) [1s, ease: ease-in-out]
 ```
 
 ## Quick Start
 
-You can run Animatix from the project root to generate videos or static images.
+You can run Animatix from the project root to inspect scene structure, preview scenes, or render frames and videos.
 
 ```bash
+# Print the parsed AST for a scene
+cargo run -- ast examples/showcase.amx
+
+# Print AST on one line for quick inspection or diffing
+cargo run -- ast examples/showcase.amx --compact
+
+# Open the scene in the live renderer
+cargo run -- render examples/showcase.amx
+
 # Render to MP4 video (30 FPS)
 cargo run -- video examples/showcase.amx --output showcase.mp4 --fps 30
 
@@ -46,13 +59,48 @@ cargo run -- video examples/showcase.amx --output showcase.mp4 --fps 30
 cargo run -- image examples/showcase.amx --output debug_showcase.png --time 1.0
 ```
 
+## Internal Debugging and Validation Utilities
+
+Animatix currently exposes these contributor-facing utilities through the CLI:
+
+- `ast <file>`: inspect the parsed module-expanded AST before runtime evaluation
+- `render <file>`: open a live preview window for quick visual checks
+- `image <file> --time <seconds>`: export a specific frame to PNG for timeline debugging
+- `video <file>`: export a full MP4 render for end-to-end validation
+
+Useful flags:
+
+- `ast --compact`: print AST output on one line
+- `ast --force`: currently present as a CLI/debug flag, but not meaningfully wired beyond argument parsing yet
+- `image --time`: inspect the scene at an exact point on the timeline
+- `image/video --width/--height`: validate layout and rendering at fixed resolutions
+
+### About keyframes and exports
+
+The engine has an internal keyframed timeline system, but there is **not** currently a dedicated public CLI command for exporting compiled keyframes or timeline tracks. Today, the practical debugging workflow is to inspect the AST with `ast` and validate timeline behavior with `image --time ...` or `video` renders.
+
+## Examples
+
+The curated runnable demos live in `examples/`:
+- `showcase.amx`
+- `layout_demo.amx`
+- `plotting_demo.amx`
+- `math_demo.amx`
+- `text_morph_demo.amx`
+- `shape_morph_demo.amx`
+
+Future-facing syntax sketches live in `examples/planned/` and are intentionally not expected to run yet.
+
 ## Documentation
 
 The `docs/` folder contains detailed technical information:
 - [`architecture.md`](docs/architecture.md): Details of the Vello-based Vector-First rendering architecture.
+- [`development.md`](docs/development.md): Internal debugging utilities, validation workflow, and contributor-oriented development notes.
 - [`primitives.md`](docs/primitives.md): Current runtime-supported primitives, graph containers, and parser-only/planned items.
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
 - [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
+- [`examples/README.md`](examples/README.md): Guide to the curated runnable demos and planned syntax sketches.
+- [`../CONTRIBUTING.md`](CONTRIBUTING.md): Contribution workflow, design/doc sync expectations, code quality rules, and validation standards.
 
 ## Roadmap
 

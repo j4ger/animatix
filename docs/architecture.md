@@ -1,6 +1,6 @@
-# Animatix V2 Architecture: The Vector-First Pipeline
+# Animatix Architecture: The Vector-First Pipeline
 
-This document outlines the architectural roadmap for transforming the `animatix` rendering engine from a **Raster-First** pipeline (using texture atlases and MSDF/Alpha maps) into a **Vector-First** pipeline powered by **Vello**.
+This document describes the current vector-first architecture used by Animatix and highlights a few design notes that still point toward future work. Historical migration notes are kept here only where they still help explain the current system.
 
 ## 1. The Goal
 
@@ -11,7 +11,7 @@ The primary objectives of the Vector-First architecture are:
 
 ## 2. The Core Tech Stack
 
-The transition to Vello significantly changes our rendering dependencies:
+The current renderer is built around these dependencies:
 *   **Vello (WGPU Compute):** The heart of the new engine. Vello uses GPU compute shaders to draw 2D paths incredibly fast, handling anti-aliasing and complex fills perfectly without the CPU triangulating shapes.
 *   **Typst / Fontdue (Path extraction):** Instead of rasterizing glyphs to bitmaps, we extract the raw Bézier curves (outlines) of the glyphs for rendering.
 *   **usvg:** For parsing standard SVG files into paths.
@@ -25,7 +25,7 @@ Before evaluation, the compiler parses all files and resolves imports to create 
 1. **FileId Assignment**: Every file loaded is assigned a unique `FileId` (e.g., `FileId(u32)`). This acts as a lightweight, copyable handle to the file's AST and source text, heavily inspired by `rustc` and `rust-analyzer` patterns.
 2. **Import Resolution**: When an `import "path.amx"` is encountered, the path is resolved absolutely. If the file is already in the `ModuleGraph` (or `SourceMap`), its existing `FileId` is returned, preventing redundant parsing and re-evaluation.
 3. **Cycle Detection**: The loader tracks a `visited` set of `FileId`s during resolution. If an import resolves to a `FileId` currently in the `visited` set, a cyclic dependency error is thrown.
-4. **Linking**: Actors marked with `pub actor` are exposed to importing files. The final output is a single, flattened AST graph ready for the timeline.
+4. **Linking**: Imported modules are flattened into a single AST for timeline compilation. Parser support for `pub component` definitions exists, but runtime component instantiation is still pending.
 
 *Note on Hot-Reloading: While tracking file dependencies via a `ModuleGraph` naturally supports watching files for changes and invalidating specific `FileId`s, real-time hot-reloading is intentionally postponed until the UI/Editor phase to maintain a simple, stable evaluation model.*
 
@@ -49,7 +49,7 @@ The `scene_graph` enables parent-to-child traversal for transform inheritance, w
 `SceneNode`s form a tree with the following properties:
 - **Root nodes** attach directly to the scene (no parent transform to inherit).
 - **Container nodes** (`Row`, `Col`, `Group`) hold children and apply layout transforms.
-- **Leaf nodes** (`Text`, `Math`, `Circle`, `Svg`) are fully resolved renderables.
+- **Leaf nodes** (`Text`, `Math`, `Svg`, `Circle`, `Rect`, and plot output paths) are fully resolved renderables.
 - **Anonymous nodes** receive auto-generated UIDs when no explicit label is provided, enabling individual keyframing without label collisions.
 
 ### Evaluate Phase: Recursive DFS Transform Computation
@@ -84,10 +84,10 @@ During `timeline.evaluate(time_ms)`:
     This applies to position, scale, and rotation. A circle positioned at (50, 0) inside a group rotated 90 degrees will orbit at (50, 0) relative to the group's center, then inherit the 90-degree rotation.
 3.  **Opacity Inheritance:** Opacity also accumulates down the tree. A child with opacity 0.8 inside a parent with opacity 0.5 has a final opacity of 0.4 (0.5 * 0.8). This allows container-level fading to affect all descendants.
 4.  **Affine Transforms:** Animations like position, scale, and rotation are applied by multiplying a transformation matrix against the base paths.
-5.  **Morphing (The "Manim" Effect):**
-    *   If a `Morph { from: path_a, to: path_b }` node exists, the engine pairs the control points of `path_a` with `path_b`.
-    *   It mathematically interpolates the XY coordinates of the curves based on the `blend_factor` (0.0 to 1.0).
-    *   The result is a brand-new, intermediate path generated purely on the CPU for that exact frame.
+5.  **Morphing:**
+    *   When a supported actor is re-declared at a later keyframe, the engine pairs compatible vector path data between the previous and next states.
+    *   It mathematically interpolates the XY coordinates of the curves based on the sampled blend factor.
+    *   The result is a brand-new intermediate path generated on the CPU for that exact frame.
 
 ### Phase C: Vello Scene Compilation (GPU, Per-Frame)
 1.  The timeline yields a final, flattened list of paths and their colors/gradients for the current frame.
@@ -102,15 +102,14 @@ Because text is no longer a single block or a texture lookup, but rather a colle
 *   We can apply different transformation matrices to the paths of individual letters (e.g., making the "e" in "Hello" jump).
 *   We can morph the curves of the letter "A" directly into the curves of the letter "B".
 
-## 5. Architecture Migration Steps
+## 5. Architecture Notes on What Is Already Landed
 
-When we are ready to implement this, the migration will happen in these phases:
-1.  **Add Vello dependency:** Update `Cargo.toml`.
-2.  **Rip out the Texture Atlas:** Delete `msdf.rs`, `text_shader.wgsl`, and the `TextInstance` WGPU buffers.
-3.  **Implement Path Extraction:** Update `text.rs` to extract `vello::kurbo::BezPath` objects instead of calculating bounding boxes for rasterization.
-4.  **Setup Vello Renderer:** Rewrite `RendererCore` in `core.rs` to hold a `vello::Renderer`. Update the `render_image` and `render_video` loops to construct and render a `vello::Scene`.
-5.  **Implement Morphing Engine:** Write the algorithm to match and interpolate points between two `BezPath` objects.
-6.  **Add SVG Support:** Extend the `ast.rs` and `timeline/mod.rs` to support parsing and evaluating these new vector formats.
+The major vector-first migration work is already reflected in the current repository:
+1.  **Vello-backed rendering** is the active rendering path.
+2.  **Path-based text, math, SVG, plotting, and shape rendering** are part of the current runtime.
+3.  **Timeline-driven interpolation and path morphing infrastructure** already exist.
+
+The remaining work is mostly about expanding the runtime surface on top of this architecture rather than replacing the renderer again.
 
 ## 6. Expression Evaluation: Context-Aware Math Engine
 
@@ -175,14 +174,14 @@ NativeFunctionRegistry = Vec<fn(&[Value]) -> Result<Value, EvalError>>
 
 When evaluation encounters a `Value::NativeFn(idx)`, it looks up the function in the registry and calls it with the evaluated arguments.
 
-Standard library functions (registered at startup):
+User-facing and runtime-available functions include:
 - `sin`, `cos`, `tan` - trigonometric operations
 - `sqrt`, `abs`, `pow` - mathematical operations
 - `min`, `max` - comparison operations
 - `format` - string interpolation
 - `rand` - random number between 0.0 and 1.0
-- `noise(x, y)` - 2D noise for organic motion
-- `parse_color(color_str)` - convert color names/hex to Color value
+
+Some helper functions such as color parsing also exist internally in the runtime, but they are not all part of the documented public DSL surface.
 
 ### Context-Aware Evaluation
 

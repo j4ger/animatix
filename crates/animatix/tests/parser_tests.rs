@@ -221,8 +221,8 @@ fn test_actor_decl_anonymous() {
 }
 
 #[test]
-fn test_demo_nested_parse() {
-    let src = include_str!("../../../examples/nested.amx");
+fn test_demo_layout_parse() {
+    let src = include_str!("../../../examples/layout_demo.amx");
     let ast = parser().parse(src).into_result().unwrap();
     assert!(!ast.is_empty());
 }

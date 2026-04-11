@@ -1,9 +1,0 @@
-// Shape Morphing Demo! Watch a circle turn into a square.
-#0s
-c: Circle, radius: 100, color: (1.0, 0.2, 0.5, 1.0), at: (640, 360)
-
-#2s
-// By re-declaring `c` with a different shape type, it smoothly morphs!
-c: Rect, size: (200, 200), color: (0.2, 1.0, 0.5, 1.0), at: (640, 360) [2s, ease: ease-in-out]
-
-#5s

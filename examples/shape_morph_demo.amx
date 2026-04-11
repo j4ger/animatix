@@ -1,0 +1,11 @@
+#0s
+scene.background_color = (0.07, 0.08, 0.12, 1.0)
+
+title: Text { text: "Shape Morph Demo", font_size: 32, color: WHITE, at: (640, 80) }
+shape: Circle, radius: 100, color: (1.0, 0.30, 0.55, 1.0), at: (640, 360)
+
+#2s
+shape: Rect, size: (220, 220), color: (0.25, 1.0, 0.55, 1.0), at: (640, 360) [2s, ease: ease-in-out]
+
+#5s
+shape.color = (0.25, 0.75, 1.0, 1.0) [1s]

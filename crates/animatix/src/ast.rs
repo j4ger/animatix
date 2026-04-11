@@ -1,11 +1,4 @@
-// ============================================================================
-// Animatix Abstract Syntax Tree (AST) Definitions
-// File: src/parser/ast.rs
-// ============================================================================
-// This module defines the core data structures representing the Animatix language.
-// The AST is designed to be declarative, capturing scene states, timelines,
-// and reactive logic without imperative implementation details.
-// ============================================================================
+//! Core AST definitions for the Animatix language.
 
 use std::fmt::Debug;
 
@@ -366,7 +359,6 @@ pub struct AnimatixFile {
 }
 
 impl AnimatixFile {
-    // Constructor placeholder
     pub fn new(path: &str, file_type: FileType) -> Self {
         Self {
             path: path.to_string(),

@@ -1,1 +1,0 @@
-pub ThemedRect: Rect, color: red, corner_radius: 12
