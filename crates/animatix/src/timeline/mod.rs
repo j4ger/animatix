@@ -11,7 +11,9 @@ use actions::process_action;
 pub use env::{Environment, EvalError, Value, load_standard_library};
 pub use kurbo_shapes::{KurboShape_, morph_kurbo_shapes, morph_kurbo_shapes_default};
 pub use svg::parse_svg;
-pub use track::{AnimationTrack, Interpolate, PropertyTrack};
+pub use track::{
+    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
+};
 pub use utils::{evaluate_expr, parse_color, time_to_ms};
 pub use vello_path::VelloPath;
 
@@ -232,6 +234,136 @@ pub struct SceneNode {
     pub children: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneDimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Default for SceneDimensions {
+    fn default() -> Self {
+        Self {
+            width: 1920,
+            height: 1080,
+        }
+    }
+}
+
+fn is_layout_container(container_ty: &str) -> bool {
+    matches!(container_ty, "Row" | "Col" | "Stack" | "Grid")
+}
+
+fn parse_scene_anchor(expr: &Expr) -> Option<SceneAnchor> {
+    match expr {
+        Expr::Path(parts) if parts.len() == 2 && parts[0] == "scene" => match parts[1].as_str() {
+            "top_left" => Some(SceneAnchor::TopLeft),
+            "top" => Some(SceneAnchor::Top),
+            "top_right" => Some(SceneAnchor::TopRight),
+            "left" => Some(SceneAnchor::Left),
+            "center" => Some(SceneAnchor::Center),
+            "right" => Some(SceneAnchor::Right),
+            "bottom_left" => Some(SceneAnchor::BottomLeft),
+            "bottom" => Some(SceneAnchor::Bottom),
+            "bottom_right" => Some(SceneAnchor::BottomRight),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32; 2]> {
+    match evaluate_expr(expr, env).ok()? {
+        Value::Vec2([x, y]) => Some([x as f32, y as f32]),
+        _ => None,
+    }
+}
+
+fn parse_percent_vec2(expr: &Expr) -> Option<[f32; 2]> {
+    match expr {
+        Expr::Tuple(items) if items.len() == 2 => match (&items[0], &items[1]) {
+            (Expr::Percent(x), Expr::Percent(y)) => {
+                Some([(*x as f32) / 100.0, (*y as f32) / 100.0])
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn resolve_position_binding(
+    at_expr: Option<&Expr>,
+    anchor_expr: Option<&Expr>,
+    offset_expr: Option<&Expr>,
+    env: &Environment,
+) -> Option<(PositionBinding, Option<[f32; 2]>)> {
+    let offset = offset_expr
+        .and_then(|expr| parse_numeric_vec2(expr, env))
+        .unwrap_or([0.0, 0.0]);
+
+    if let Some(anchor_expr) = anchor_expr {
+        if let Some(anchor) = parse_scene_anchor(anchor_expr) {
+            return Some((PositionBinding::SceneAnchor { anchor, offset }, None));
+        }
+    }
+
+    if let Some(at_expr) = at_expr {
+        if let Some(anchor) = parse_scene_anchor(at_expr) {
+            return Some((PositionBinding::SceneAnchor { anchor, offset }, None));
+        }
+
+        if let Some([x, y]) = parse_percent_vec2(at_expr) {
+            return Some((PositionBinding::ScenePercent { x, y, offset }, None));
+        }
+
+        if let Some(position) = parse_numeric_vec2(at_expr, env) {
+            return Some((PositionBinding::Absolute, Some(position)));
+        }
+    }
+
+    None
+}
+
+fn scene_anchor_point(anchor: SceneAnchor, scene_dimensions: SceneDimensions) -> kurbo::Point {
+    let width = scene_dimensions.width as f64;
+    let height = scene_dimensions.height as f64;
+    match anchor {
+        SceneAnchor::TopLeft => kurbo::Point::new(0.0, 0.0),
+        SceneAnchor::Top => kurbo::Point::new(width / 2.0, 0.0),
+        SceneAnchor::TopRight => kurbo::Point::new(width, 0.0),
+        SceneAnchor::Left => kurbo::Point::new(0.0, height / 2.0),
+        SceneAnchor::Center => kurbo::Point::new(width / 2.0, height / 2.0),
+        SceneAnchor::Right => kurbo::Point::new(width, height / 2.0),
+        SceneAnchor::BottomLeft => kurbo::Point::new(0.0, height),
+        SceneAnchor::Bottom => kurbo::Point::new(width / 2.0, height),
+        SceneAnchor::BottomRight => kurbo::Point::new(width, height),
+    }
+}
+
+fn resolve_bound_position(
+    binding: PositionBinding,
+    base_position: [f32; 2],
+    parent_transform: kurbo::Affine,
+    scene_dimensions: SceneDimensions,
+) -> [f32; 2] {
+    let scene_point = match binding {
+        PositionBinding::Absolute => return base_position,
+        PositionBinding::SceneAnchor { anchor, offset } => {
+            let point = scene_anchor_point(anchor, scene_dimensions);
+            kurbo::Point::new(point.x + offset[0] as f64, point.y + offset[1] as f64)
+        }
+        PositionBinding::ScenePercent { x, y, offset } => kurbo::Point::new(
+            scene_dimensions.width as f64 * x as f64 + offset[0] as f64,
+            scene_dimensions.height as f64 * y as f64 + offset[1] as f64,
+        ),
+        PositionBinding::ContainerDefault { anchor } => {
+            scene_anchor_point(anchor, scene_dimensions)
+        }
+    };
+
+    let local_point = parent_transform.inverse() * scene_point;
+    [local_point.x as f32, local_point.y as f32]
+}
+
 #[derive(Clone)]
 pub struct LoopState {
     pub label: Option<String>,
@@ -336,16 +468,8 @@ impl Timeline {
         time_ms: f64,
         gap: f32,
         align: Option<&str>,
+        cols: Option<usize>,
     ) {
-        let container_pos = if let Some(track) = self.tracks.get(container_label) {
-            track.position.last_value()
-        } else {
-            [0.0, 0.0]
-        };
-
-        let container_x = container_pos[0];
-        let container_y = container_pos[1];
-
         let children = if let Some(node) = self.nodes.get(container_label) {
             node.children.clone()
         } else {
@@ -354,37 +478,107 @@ impl Timeline {
 
         let is_row = container_ty == "Row";
         let is_col = container_ty == "Col";
+        let is_stack = container_ty == "Stack";
+        let is_grid = container_ty == "Grid";
 
-        if !is_row && !is_col {
-            return; // Group, Stack, Grid don't use auto-layout yet
+        if !is_row && !is_col && !is_stack && !is_grid {
+            return;
+        }
+
+        let child_extents: Vec<(f32, f32)> = children
+            .iter()
+            .filter_map(|cl| {
+                self.tracks.get(cl).map(|t| {
+                    let s = t.size.last_value();
+                    (s[0] * 2.0, s[1] * 2.0)
+                })
+            })
+            .collect();
+
+        let t_ms = time_ms as u64;
+
+        if is_stack {
+            for child_label in &children {
+                if let Some(track) = self.tracks.get_mut(child_label) {
+                    if track.placement_mode.last_value() == PlacementMode::LayoutManaged {
+                        track
+                            .position
+                            .add_keyframe(t_ms, [0.0, 0.0], Easing::Linear);
+                    }
+                }
+            }
+            return;
+        }
+
+        if is_grid {
+            let cols = cols.unwrap_or(1).max(1);
+            let rows = children.len().div_ceil(cols);
+            let mut col_widths = vec![0.0f32; cols];
+            let mut row_heights = vec![0.0f32; rows.max(1)];
+
+            for (index, (child_w, child_h)) in child_extents.iter().copied().enumerate() {
+                let row = index / cols;
+                let col = index % cols;
+                col_widths[col] = col_widths[col].max(child_w);
+                row_heights[row] = row_heights[row].max(child_h);
+            }
+
+            let total_width =
+                col_widths.iter().sum::<f32>() + gap * (col_widths.len().saturating_sub(1) as f32);
+            let total_height = row_heights.iter().sum::<f32>()
+                + gap * (row_heights.len().saturating_sub(1) as f32);
+
+            let mut row_starts = Vec::with_capacity(row_heights.len());
+            let mut current_y = -total_height / 2.0;
+            for row_height in &row_heights {
+                row_starts.push(current_y);
+                current_y += *row_height + gap;
+            }
+
+            let mut col_starts = Vec::with_capacity(col_widths.len());
+            let mut current_x = -total_width / 2.0;
+            for col_width in &col_widths {
+                col_starts.push(current_x);
+                current_x += *col_width + gap;
+            }
+
+            for (index, child_label) in children.iter().enumerate() {
+                if let Some(track) = self.tracks.get_mut(child_label) {
+                    if track.placement_mode.last_value() != PlacementMode::LayoutManaged {
+                        continue;
+                    }
+
+                    let row = index / cols;
+                    let col = index % cols;
+                    if row >= row_heights.len() || col >= col_widths.len() {
+                        continue;
+                    }
+
+                    let x = col_starts[col] + col_widths[col] / 2.0;
+                    let y = row_starts[row] + row_heights[row] / 2.0;
+                    track.position.add_keyframe(t_ms, [x, y], Easing::Linear);
+                }
+            }
+            return;
         }
 
         // Pre-compute total content extent to support alignment.
         // For Row: total width; for Col: total height.
         let mut total_extent = 0.0f32;
         let mut max_cross_extent = 0.0f32; // max height for Row, max width for Col
-        let child_extents: Vec<(f32, f32)> = children
-            .iter()
-            .filter_map(|cl| {
-                self.tracks.get(cl).map(|t| {
-                    let s = t.size.last_value();
-                    let w = s[0] * 2.0;
-                    let h = s[1] * 2.0;
-                    if is_row {
-                        total_extent += w;
-                        if max_cross_extent < h {
-                            max_cross_extent = h;
-                        }
-                    } else {
-                        total_extent += h;
-                        if max_cross_extent < w {
-                            max_cross_extent = w;
-                        }
-                    }
-                    (w, h)
-                })
-            })
-            .collect();
+        for (w, h) in child_extents.iter().copied() {
+            if is_row {
+                total_extent += w;
+                if max_cross_extent < h {
+                    max_cross_extent = h;
+                }
+            } else {
+                total_extent += h;
+                if max_cross_extent < w {
+                    max_cross_extent = w;
+                }
+            }
+        }
 
         // Add gaps between children
         if !children.is_empty() && children.len() > 1 {
@@ -395,41 +589,25 @@ impl Timeline {
         let cross_offset = match align.unwrap_or("center") {
             "start" => {
                 if is_row {
-                    // Align to top (lower Y is top in canvas coords)
-                    container_y - max_cross_extent / 2.0
+                    -max_cross_extent / 2.0
                 } else {
-                    // Align to left (lower X)
-                    container_x - max_cross_extent / 2.0
+                    -max_cross_extent / 2.0
                 }
             }
             "end" => {
                 if is_row {
-                    // Align to bottom (higher Y)
-                    container_y + max_cross_extent / 2.0
+                    max_cross_extent / 2.0
                 } else {
-                    // Align to right (higher X)
-                    container_x + max_cross_extent / 2.0
+                    max_cross_extent / 2.0
                 }
             }
-            _ /* "center" or unknown */ => {
-                // Center on the container axis
-                if is_row {
-                    container_y
-                } else {
-                    container_x
-                }
-            }
+            _ => 0.0,
         };
 
         // Compute the starting offset along the main axis (centered within container)
-        let main_start = if is_row {
-            container_x - total_extent / 2.0
-        } else {
-            container_y - total_extent / 2.0
-        };
+        let main_start = -total_extent / 2.0;
 
         let mut offset = 0.0f32;
-        let t_ms = time_ms as u64;
 
         for (i, child_label) in children.iter().enumerate() {
             if let Some(track) = self.tracks.get_mut(child_label) {
@@ -463,8 +641,8 @@ impl Timeline {
                     (cx, cy)
                 };
 
-                let current_pos = track.position.last_value();
-                if current_pos[0] == 0.0 && current_pos[1] == 0.0 {
+                let placement_mode = track.placement_mode.last_value();
+                if placement_mode == PlacementMode::LayoutManaged {
                     track.position.add_keyframe(t_ms, [x, y], Easing::Linear);
                 }
             }
@@ -536,6 +714,9 @@ impl Timeline {
                     let mut text_content = String::new();
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut at_expr: Option<Expr> = None;
+                    let mut anchor_expr: Option<Expr> = None;
+                    let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -561,18 +742,21 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env)
-                                    .unwrap_or(Value::Num(0.0));
-                                if let Value::Vec2([x, y]) = pos_val {
-                                    track.position.add_keyframe(
-                                        time_ms as u64,
-                                        [x as f32, y as f32],
-                                        Easing::Linear,
-                                    );
-                                }
+                                at_expr = Some(prop.value.clone());
                             }
+                            "anchor" => anchor_expr = Some(prop.value.clone()),
+                            "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
+                    }
+
+                    if let Some((binding, position)) = resolve_position_binding(
+                        at_expr.as_ref(),
+                        anchor_expr.as_ref(),
+                        offset_expr.as_ref(),
+                        &self.env,
+                    ) {
+                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
                     }
 
                     let frame =
@@ -635,6 +819,9 @@ impl Timeline {
                     let mut latex_content = String::new();
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut at_expr: Option<Expr> = None;
+                    let mut anchor_expr: Option<Expr> = None;
+                    let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -660,18 +847,21 @@ impl Timeline {
                                 track.color.add_keyframe(t_ms, c, Easing::Linear);
                             }
                             "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env)
-                                    .unwrap_or(Value::Num(0.0));
-                                if let Value::Vec2([x, y]) = pos_val {
-                                    track.position.add_keyframe(
-                                        time_ms as u64,
-                                        [x as f32, y as f32],
-                                        Easing::Linear,
-                                    );
-                                }
+                                at_expr = Some(prop.value.clone());
                             }
+                            "anchor" => anchor_expr = Some(prop.value.clone()),
+                            "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
+                    }
+
+                    if let Some((binding, position)) = resolve_position_binding(
+                        at_expr.as_ref(),
+                        anchor_expr.as_ref(),
+                        offset_expr.as_ref(),
+                        &self.env,
+                    ) {
+                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
                     }
 
                     let frame =
@@ -769,6 +959,9 @@ impl Timeline {
                     let mut initial_size = [50.0, 50.0];
                     let mut tolerance = 0.5;
                     let mut max_depth = 10.0;
+                    let mut at_expr: Option<Expr> = None;
+                    let mut anchor_expr: Option<Expr> = None;
+                    let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -824,6 +1017,9 @@ impl Timeline {
                                     .unwrap_or(Value::Num(0.0));
                                 max_depth = v.as_num();
                             }
+                            "at" => at_expr = Some(prop.value.clone()),
+                            "anchor" => anchor_expr = Some(prop.value.clone()),
+                            "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
                     }
@@ -844,16 +1040,6 @@ impl Timeline {
 
                     self.process_inline_items(time_ms, children, label);
 
-                    // For CartesianPlot and PolarPlot, get parent's position before mutable borrow
-                    let mut parent_position = None;
-                    if ty == "CartesianPlot" || ty == "PolarPlot" {
-                        if let Some(p_label) = parent_label {
-                            if let Some(track) = self.tracks.get(p_label) {
-                                parent_position = Some(track.position.last_value());
-                            }
-                        }
-                    }
-
                     let track = self
                         .tracks
                         .entry(label.clone())
@@ -868,6 +1054,9 @@ impl Timeline {
                     let mut stroke_color = track.stroke_color.last_value();
                     let mut stroke_progress = track.stroke_progress.last_value();
                     let mut fill_opacity = track.fill_opacity.last_value();
+                    let mut gap = 0.0f32;
+                    let mut align: Option<String> = None;
+                    let mut cols: Option<usize> = None;
 
                     let mut easing = Easing::Linear;
                     for modifier in modifiers {
@@ -887,14 +1076,7 @@ impl Timeline {
 
                     for prop in props {
                         match prop.name.as_str() {
-                            "at" => {
-                                let pos_val = evaluate_expr(&prop.value, &self.env)
-                                    .unwrap_or(Value::Num(0.0));
-                                if let Value::Vec2([x, y]) = pos_val {
-                                    position[0] = x as f32;
-                                    position[1] = y as f32;
-                                }
-                            }
+                            "at" | "anchor" | "offset" => {}
                             "radius" => {
                                 let v = evaluate_expr(&prop.value, &self.env)
                                     .unwrap_or(Value::Num(0.0));
@@ -942,6 +1124,23 @@ impl Timeline {
                                     .unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
+                            "gap" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(0.0));
+                                gap = v.as_num() as f32;
+                            }
+                            "align" => {
+                                if let Expr::Str(s) = &prop.value {
+                                    align = Some(s.clone());
+                                } else if let Expr::Ident(s) = &prop.value {
+                                    align = Some(s.clone());
+                                }
+                            }
+                            "cols" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(1.0));
+                                cols = Some(v.as_num().max(1.0) as usize);
+                            }
                             _ => {}
                         }
                     }
@@ -952,11 +1151,27 @@ impl Timeline {
                         stroke_width = 0.0;
                     }
 
-                    // For CartesianPlot and PolarPlot, use parent's position if not explicitly set
-                    if (ty == "CartesianPlot" || ty == "PolarPlot") && position == [0.0, 0.0] {
-                        if let Some(p_pos) = parent_position {
-                            position = p_pos;
+                    if let Some((binding, bound_position)) = resolve_position_binding(
+                        at_expr.as_ref(),
+                        anchor_expr.as_ref(),
+                        offset_expr.as_ref(),
+                        &self.env,
+                    ) {
+                        set_track_position_binding(track, time_ms as u64, binding);
+                        if let Some(bound_position) = bound_position {
+                            position = bound_position;
+                            mark_track_manual_position(track, time_ms as u64);
+                        } else {
+                            mark_track_manual_position(track, time_ms as u64);
                         }
+                    } else if is_layout_container(ty) && parent_label.is_none() {
+                        set_track_position_binding(
+                            track,
+                            time_ms as u64,
+                            PositionBinding::ContainerDefault {
+                                anchor: SceneAnchor::Center,
+                            },
+                        );
                     }
 
                     let shape = match shape_type {
@@ -1191,27 +1406,15 @@ impl Timeline {
                         .add_keyframe(t_ms, stroke_progress, easing);
                     track.fill_opacity.add_keyframe(t_ms, fill_opacity, easing);
 
-                    if ty == "Row" || ty == "Col" {
-                        let mut gap = 0.0f32;
-                        let mut align: Option<String> = None;
-                        for prop in props {
-                            match prop.name.as_str() {
-                                "gap" => {
-                                    let v = evaluate_expr(&prop.value, &self.env)
-                                        .unwrap_or(Value::Num(0.0));
-                                    gap = v.as_num() as f32;
-                                }
-                                "align" => {
-                                    if let Expr::Str(s) = &prop.value {
-                                        align = Some(s.clone());
-                                    } else if let Expr::Ident(s) = &prop.value {
-                                        align = Some(s.clone());
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                        self.apply_container_layout(label, ty, time_ms, gap, align.as_deref());
+                    if is_layout_container(ty) {
+                        self.apply_container_layout(
+                            label,
+                            ty,
+                            time_ms,
+                            gap,
+                            align.as_deref(),
+                            cols,
+                        );
                     }
                 }
                 Stmt::Assignment {
@@ -1366,10 +1569,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "position" | "at" => {
-                            let pos_val =
-                                evaluate_expr(value, &self.env).unwrap_or(Value::Num(0.0));
-                            let target_pos = if let Value::Vec2([x, y]) = pos_val {
-                                [x as f32, y as f32]
+                            let target_pos = if let Some((binding, position)) =
+                                resolve_position_binding(Some(value), None, None, &self.env)
+                            {
+                                mark_track_manual_position(track, t_start_ms);
+                                set_track_position_binding(track, t_start_ms, binding);
+                                position.unwrap_or_else(|| track.position.last_value())
                             } else {
                                 track.position.last_value()
                             };
@@ -1517,11 +1722,15 @@ impl Timeline {
         time_ms: u64,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
+        scene_dimensions: SceneDimensions,
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
-            let mut position = track.position.evaluate(time_ms);
+            let base_position = track.position.evaluate(time_ms);
+            let binding = track.position_binding.evaluate(time_ms);
+            let mut position =
+                resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
             let mut opacity = track.opacity.evaluate(time_ms);
             let text_paths = track.text_paths.evaluate(time_ms);
             let mut vector_paths = track.vector_paths.evaluate(time_ms);
@@ -1639,6 +1848,7 @@ impl Timeline {
                     time_ms,
                     global_transform,
                     global_opacity,
+                    scene_dimensions,
                     scene,
                     overrides,
                 );
@@ -1646,7 +1856,7 @@ impl Timeline {
         }
     }
 
-    pub fn evaluate(&self, time_s: f64) -> vello::Scene {
+    pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
         let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
@@ -1658,6 +1868,8 @@ impl Timeline {
         > = std::collections::HashMap::new();
 
         frame_env.set("t", Value::Num(time_s));
+        frame_env.set("scene_width", Value::Num(scene_dimensions.width as f64));
+        frame_env.set("scene_height", Value::Num(scene_dimensions.height as f64));
 
         for modifier in &self.modifiers {
             if let Stmt::Assignment {
@@ -1820,7 +2032,12 @@ impl Timeline {
             kurbo::Affine::IDENTITY,
             bg,
             None,
-            &kurbo::Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            &kurbo::Rect::new(
+                0.0,
+                0.0,
+                scene_dimensions.width as f64,
+                scene_dimensions.height as f64,
+            ),
         );
 
         for root in &self.root_nodes {
@@ -1829,6 +2046,7 @@ impl Timeline {
                 time_ms,
                 kurbo::Affine::IDENTITY,
                 1.0,
+                scene_dimensions,
                 &mut scene,
                 &overrides,
             );
@@ -1888,19 +2106,45 @@ mod tests {
 
         assert_eq!(timeline.loops.borrow().len(), 1);
 
-        let _scene1 = timeline.evaluate(0.0);
+        let _scene1 = timeline.evaluate(0.0, SceneDimensions::default());
         assert_eq!(timeline.loops.borrow()[0].pc, 2);
         assert_eq!(timeline.loops.borrow()[0].iteration_count, 0);
 
-        let _scene2 = timeline.evaluate(1.0);
+        let _scene2 = timeline.evaluate(1.0, SceneDimensions::default());
         assert_eq!(timeline.loops.borrow()[0].pc, 0);
         assert_eq!(timeline.loops.borrow()[0].iteration_count, 1);
 
-        let _scene3 = timeline.evaluate(2.0);
+        let _scene3 = timeline.evaluate(2.0, SceneDimensions::default());
         assert_eq!(timeline.loops.borrow()[0].pc, 2);
         assert_eq!(timeline.loops.borrow()[0].iteration_count, 1);
 
-        let _scene4 = timeline.evaluate(3.0);
+        let _scene4 = timeline.evaluate(3.0, SceneDimensions::default());
         assert_eq!(timeline.loops.borrow()[0].is_active, false);
+    }
+}
+fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
+    track
+        .placement_mode
+        .add_keyframe(time_ms, PlacementMode::Manual, Easing::Linear);
+}
+
+fn set_track_position_binding(track: &mut AnimationTrack, time_ms: u64, binding: PositionBinding) {
+    track
+        .position_binding
+        .add_keyframe(time_ms, binding, Easing::Linear);
+}
+
+fn apply_explicit_position_binding(
+    track: &mut AnimationTrack,
+    time_ms: u64,
+    binding: PositionBinding,
+    position: Option<[f32; 2]>,
+) {
+    mark_track_manual_position(track, time_ms);
+    set_track_position_binding(track, time_ms, binding);
+    if let Some(position) = position {
+        track
+            .position
+            .add_keyframe(time_ms, position, Easing::Linear);
     }
 }

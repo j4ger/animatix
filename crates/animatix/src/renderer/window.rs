@@ -1,6 +1,6 @@
 use super::core::RendererCore;
 use crate::ast::Stmt;
-use crate::timeline::Timeline;
+use crate::timeline::{SceneDimensions, Timeline};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -102,7 +102,13 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let scene = self.timeline.evaluate(current_time);
+        let scene = self.timeline.evaluate(
+            current_time,
+            SceneDimensions {
+                width: self.config.width,
+                height: self.config.height,
+            },
+        );
 
         let render_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {

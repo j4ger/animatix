@@ -39,6 +39,60 @@ impl Interpolate for u32 {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlacementMode {
+    LayoutManaged,
+    Manual,
+}
+
+impl Interpolate for PlacementMode {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SceneAnchor {
+    TopLeft,
+    Top,
+    TopRight,
+    Left,
+    Center,
+    Right,
+    BottomLeft,
+    Bottom,
+    BottomRight,
+}
+
+impl Interpolate for SceneAnchor {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PositionBinding {
+    Absolute,
+    SceneAnchor {
+        anchor: SceneAnchor,
+        offset: [f32; 2],
+    },
+    ScenePercent {
+        x: f32,
+        y: f32,
+        offset: [f32; 2],
+    },
+    ContainerDefault {
+        anchor: SceneAnchor,
+    },
+}
+
+impl Interpolate for PositionBinding {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
 impl Interpolate for Vec<crate::renderer::text::TextPath> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         use crate::timeline::morph::{align_path_lists, align_subpaths, morph_paths};
@@ -218,6 +272,8 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
 pub struct AnimationTrack {
     pub label: String,
     pub position: PropertyTrack<[f32; 2]>,
+    pub placement_mode: PropertyTrack<PlacementMode>,
+    pub position_binding: PropertyTrack<PositionBinding>,
     pub size: PropertyTrack<[f32; 2]>,
     pub color: PropertyTrack<[f32; 4]>,
     pub shape_type: PropertyTrack<u32>,
@@ -236,6 +292,8 @@ impl AnimationTrack {
         Self {
             label,
             position: PropertyTrack::new([0.0, 0.0]),
+            placement_mode: PropertyTrack::new(PlacementMode::LayoutManaged),
+            position_binding: PropertyTrack::new(PositionBinding::Absolute),
             size: PropertyTrack::new([50.0, 50.0]),
             color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             shape_type: PropertyTrack::new(0),

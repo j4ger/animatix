@@ -6,9 +6,8 @@
 
 ## 1. File Types
 
-- **Scene Files (`.amx`)**: Main animation scripts. Contain keyframes, actors, and timeline definitions.
-- **Component Files (`.actor.amx`)**: Reusable actor definitions. Contain parameters, internal structure, and custom actions.
-- **Library Files (`.lib.amx`)**: Collections of utility functions, math helpers, and constants.
+- **Animatix Files (`.amx`)**: Main source files loaded by the runtime through `import "..."`.
+- Naming conventions such as `.actor.amx` or `.lib.amx` may still appear in examples, but they are conventions rather than distinct runtime file kinds today.
 
 ---
 
@@ -40,8 +39,10 @@
 **Actor Declaration**  
 Actors are rendered objects. They must be declared with a label and a type.
 ```animatix
-label: Type, property: value, at: (x, y)
+label: Type, property: value
 ```
+
+Absolute positioning via `at: (x, y)` remains fully supported, but it should be understood as one placement mode rather than the only composition model.
 
 **Variable Declaration**  
 Variables are computed values. They are not rendered directly.
@@ -174,15 +175,24 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 ## 7. Containers & Layout
 
-> **Status: `Row`, `Col`, and `Group` are implemented. `Grid` and `Stack` parse as type names but do not have layout behavior yet.**
+> **Status: `Row`, `Col`, `Grid`, `Stack`, and `Group` are implemented. Layout containers support explicit manual-vs-layout placement semantics for children, root layout containers may omit `at` and default to `scene.center`, and scene-relative placement is available through `anchor: scene.*`, `offset`, and percentage-based `at`. Authored `at` values — including `(0, 0)` — are preserved instead of being treated as an unset sentinel.**
 
 **Container Types**
 
 - `Row`: Horizontal layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for vertical alignment). (Implemented)
 - `Col`: Vertical layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for horizontal alignment). (Implemented)
-- `Grid`: Planned runtime layout container
-- `Stack`: Planned runtime layout container
+- `Grid`: Two-dimensional layout container with `cols` and `gap` support (Implemented)
+- `Stack`: Layered layout container that overlaps layout-managed children around a shared origin (Implemented)
 - `Group`: Generic container for grouping and transform inheritance (implemented, but without auto-layout)
+
+**Design Direction**
+
+Animatix is moving toward a container-first layout model:
+
+- Layout containers should be the default way to compose scenes
+- Absolute positioning should remain available for precise motion-graphics-style work
+- Parent containers should own placement when layout semantics are active
+- The language should prefer deterministic layout over fully general constraints
 
 **Layout Properties**
 
@@ -191,21 +201,72 @@ The `gap` property sets uniform spacing between children. The `align` property c
 - For `Col`: aligns children horizontally ("start" = left, "center" = middle, "end" = right)
 
 ```animatix
-row: Row, gap: 12, align: center {
+row: Row, gap: 12, align: "center" {
   Rect, color: red
   Circle, color: blue
 }
 ```
+
+Layout containers may omit explicit absolute placement and rely on a deterministic container default. The current default for root layout containers is `scene.center`. Explicit `at` on the container remains valid.
+
+**Absolute Positioning**
+
+Absolute placement remains part of the language and should continue to work for both root actors and layout children when a scene intentionally needs hand-tuned coordinates.
+
+Within layout containers, an authored child `at` opts that child into manual placement. Children without `at` remain layout-managed.
+
+```animatix
+badge: Circle, radius: 24, at: (1180, 80)
+```
+
+```animatix
+row: Row, at: (640, 360), gap: 16 {
+  pinned: Circle, radius: 20, at: (0, 0)
+  auto: Circle, radius: 20
+}
+```
+
+The design intent is not to remove absolute positioning, but to stop forcing it as the default composition strategy.
+
+**Scene-relative Placement**
+
+Scene-relative placement is now available through anchors, offsets, and percentage coordinates:
+
+```animatix
+title: Text { text: "Layout", anchor: scene.top, offset: (0, 80) }
+badge: Stack, at: (82%, 76%) {
+  Rect, size: (220, 80)
+  Circle, radius: 18
+}
+```
+
+Supported scene anchors are: `scene.top_left`, `scene.top`, `scene.top_right`, `scene.left`, `scene.center`, `scene.right`, `scene.bottom_left`, `scene.bottom`, and `scene.bottom_right`.
+
+**Phase 1 Layout Surface**
+
+The current layout-related runtime surface is:
+
+- `Row`, `Col`, `Grid`, and `Stack` runtime behavior
+- root layout-container defaults to `scene.center` when `at` is omitted
+- scene-relative anchors and percentage-based placement
+- explicit child opt-out / manual-placement semantics inside layout containers
+- `Group` as the non-layout grouping/transform container
+
+General-purpose constraint solving is intentionally deferred. The preferred model is predictable parent-driven layout with explicit escape hatches.
+
+The concrete precedence rules and rollout slices for this direction are documented in [`layout_design.md`](layout_design.md).
 
 **Children Declaration**  
 Children are declared inline within curly brackets. Children may be **labeled** (explicit name) or **anonymous** (no name).
 
 ```animatix
 row: Row, gap: 10 {
-  Button, text: "A"       // labeled child: accessible as row.Button
-  Button, text: "B"       // another labeled child
+  left: Rect, color: red
+  right: Circle, color: blue
 }
 ```
+
+Current runnable demos should use standalone `Text { ... }` and `Math { ... }` statements for explanatory labels. Inline container children are processed through the generic actor-declaration path, so user-facing captions are clearer and safer as sibling text nodes today.
 
 **Anonymous Children and Auto-UID**
 
@@ -370,10 +431,11 @@ Closures can reference values in the current evaluation environment.
 
 ### Math Functions
 
-Built-in support for standard math (implemented):
-- `sin(x)`, `cos(x)`, `tan(x)`
-- `sqrt(x)`, `abs(x)`, `log(x)`, `exp(x)`
-- `pow(base, exp)`, `lerp(a, b, t)`
+Built-in support for standard math and helpers (implemented):
+- `sin(x)`, `cos(x)`
+- `lerp(a, b, t)`
+- `rand()`
+- `format("template {}", value, ...)`
 
 **Text Formatting**  
 Dynamic text using format strings.

@@ -16,6 +16,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(Expr::Num)
         .padded();
 
+    let percent = text::int(10)
+        .then(just('.').ignore_then(text::digits(10)).or_not())
+        .to_slice()
+        .from_str()
+        .unwrapped()
+        .then_ignore(just('%'))
+        .map(Expr::Percent)
+        .padded();
+
     let str_val = just('"')
         .ignore_then(none_of('"').repeated().collect::<String>())
         .then_ignore(just('"'))
@@ -79,6 +88,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         let prefix_op = just('-').to(UnaryOp::Neg).or(just('!').to(UnaryOp::Not));
 
         let base_atom = choice((
+            percent,
             num,
             str_val,
             bool_val,

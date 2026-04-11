@@ -1,7 +1,8 @@
 use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::timeline::{
-    AnimationTrack, Interpolate, PropertyTrack, Timeline, evaluate_expr, parse_color, time_to_ms,
+    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
+    Timeline, evaluate_expr, parse_color, time_to_ms,
 };
 
 #[test]
@@ -125,10 +126,604 @@ fn test_missing_properties() {
     let track = AnimationTrack::new("empty_actor".to_string());
 
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+    assert_eq!(
+        track.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::Absolute
+    );
     assert_eq!(track.size.evaluate(0), [50.0, 50.0]);
     assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.opacity.evaluate(0), 1.0);
+}
+
+#[test]
+fn test_row_child_with_explicit_origin_stays_manual() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![],
+            children: vec![animatix::ast::InlineItem::Labeled {
+                label: "origin_child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(20.0),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("origin_child")
+        .expect("origin_child track should exist");
+
+    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+}
+
+#[test]
+fn test_row_child_without_at_is_layout_managed() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
+                },
+                Property {
+                    name: "gap".to_string(),
+                    value: Expr::Num(20.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![animatix::ast::InlineItem::Labeled {
+                label: "auto_child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(20.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("auto_child")
+        .expect("auto_child track should exist");
+
+    assert_eq!(
+        track.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+}
+
+#[test]
+fn test_row_mixed_manual_and_layout_children() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
+                },
+                Property {
+                    name: "gap".to_string(),
+                    value: Expr::Num(20.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "manual_child".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![
+                        Property {
+                            name: "radius".to_string(),
+                            value: Expr::Num(20.0),
+                        },
+                        Property {
+                            name: "at".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "layout_child".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let manual_track = timeline
+        .tracks
+        .get("manual_child")
+        .expect("manual_child track should exist");
+    let layout_track = timeline
+        .tracks
+        .get("layout_child")
+        .expect("layout_child track should exist");
+
+    assert_eq!(
+        manual_track.placement_mode.evaluate(0),
+        PlacementMode::Manual
+    );
+    assert_eq!(manual_track.position.evaluate(0), [0.0, 0.0]);
+    assert_eq!(
+        layout_track.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(layout_track.position.evaluate(0), [30.0, 0.0]);
+}
+
+#[test]
+fn test_col_child_with_explicit_origin_stays_manual() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "col".to_string(),
+            ty: "Col".to_string(),
+            props: vec![
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(400.0)]),
+                },
+                Property {
+                    name: "gap".to_string(),
+                    value: Expr::Num(10.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![animatix::ast::InlineItem::Labeled {
+                label: "origin_child".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(60.0)]),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("origin_child")
+        .expect("origin_child track should exist");
+
+    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+}
+
+#[test]
+fn test_row_child_with_explicit_non_origin_stays_manual() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![],
+            children: vec![animatix::ast::InlineItem::Labeled {
+                label: "manual_child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(20.0),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(45.0), Expr::Num(55.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("manual_child")
+        .expect("manual_child track should exist");
+
+    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.position.evaluate(0), [45.0, 55.0]);
+}
+
+#[test]
+fn test_assignment_at_marks_manual_from_assignment_start() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(20.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: "child".to_string(),
+                property: "at".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(50.0)]),
+                modifiers: vec![animatix::ast::Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("child")
+        .expect("child track should exist");
+
+    assert_eq!(track.placement_mode.evaluate(1000), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.evaluate(1500), PlacementMode::Manual);
+    assert_eq!(track.position.evaluate(1500), [50.0, 25.0]);
+}
+
+#[test]
+fn test_root_row_without_at_uses_container_default_center_binding() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("row").expect("row track should exist");
+
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::ContainerDefault {
+            anchor: SceneAnchor::Center,
+        }
+    );
+}
+
+#[test]
+fn test_grid_layout_positions_children_in_cells() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "grid".to_string(),
+            ty: "Grid".to_string(),
+            props: vec![
+                Property {
+                    name: "cols".to_string(),
+                    value: Expr::Num(2.0),
+                },
+                Property {
+                    name: "gap".to_string(),
+                    value: Expr::Num(10.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "a".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "b".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "c".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "d".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline
+            .tracks
+            .get("a")
+            .expect("a track")
+            .position
+            .evaluate(0),
+        [-25.0, -15.0]
+    );
+    assert_eq!(
+        timeline
+            .tracks
+            .get("b")
+            .expect("b track")
+            .position
+            .evaluate(0),
+        [25.0, -15.0]
+    );
+    assert_eq!(
+        timeline
+            .tracks
+            .get("c")
+            .expect("c track")
+            .position
+            .evaluate(0),
+        [-25.0, 15.0]
+    );
+    assert_eq!(
+        timeline
+            .tracks
+            .get("d")
+            .expect("d track")
+            .position
+            .evaluate(0),
+        [25.0, 15.0]
+    );
+}
+
+#[test]
+fn test_stack_layout_overlaps_children_by_default() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "stack".to_string(),
+            ty: "Stack".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "base".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(50.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "overlay".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(12.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline
+            .tracks
+            .get("base")
+            .expect("base track")
+            .position
+            .evaluate(0),
+        [0.0, 0.0]
+    );
+    assert_eq!(
+        timeline
+            .tracks
+            .get("overlay")
+            .expect("overlay track")
+            .position
+            .evaluate(0),
+        [0.0, 0.0]
+    );
+}
+
+#[test]
+fn test_scene_relative_bindings_are_recorded_on_tracks() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "anchored".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "anchor".to_string(),
+                        value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
+                    },
+                    Property {
+                        name: "offset".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "percent".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline
+            .tracks
+            .get("anchored")
+            .expect("anchored track")
+            .position_binding
+            .evaluate(0),
+        PositionBinding::SceneAnchor {
+            anchor: SceneAnchor::Top,
+            offset: [0.0, 48.0],
+        }
+    );
+    assert_eq!(
+        timeline
+            .tracks
+            .get("percent")
+            .expect("percent track")
+            .position_binding
+            .evaluate(0),
+        PositionBinding::ScenePercent {
+            x: 0.5,
+            y: 0.25,
+            offset: [0.0, 0.0],
+        }
+    );
+}
+
+#[test]
+fn test_plot_without_at_stays_local_to_parent_graph() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "graph".to_string(),
+            ty: "Graph".to_string(),
+            props: vec![Property {
+                name: "func".to_string(),
+                value: Expr::Closure(
+                    vec!["x".to_string()],
+                    Box::new(Expr::Ident("x".to_string())),
+                ),
+            }],
+            modifiers: vec![],
+            children: vec![animatix::ast::InlineItem::Labeled {
+                label: "plot".to_string(),
+                ty: "CartesianPlot".to_string(),
+                props: vec![Property {
+                    name: "func".to_string(),
+                    value: Expr::Closure(
+                        vec!["x".to_string()],
+                        Box::new(Expr::Ident("x".to_string())),
+                    ),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("plot")
+        .expect("plot track should exist");
+    assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::Absolute
+    );
 }
 
 #[test]

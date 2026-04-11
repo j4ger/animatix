@@ -131,12 +131,19 @@ graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400
 
 # 3. Containers
 
+Animatix is standardizing on an **auto-layout-first** scene model. Containers should become the default composition tool, while explicit `at` remains the opt-in way to do handcrafted placement.
+
 ## Row
 **Status:** Implemented in runtime auto-layout.
 
 Properties:
 - `gap`: Number
 - `align`: `start | center | end`
+
+Design direction:
+- should remain a primary default authoring primitive
+- container placement is now optional for root layout containers via the default `scene.center` binding
+- explicit absolute placement on the container should remain supported
 
 ## Col
 **Status:** Implemented in runtime auto-layout.
@@ -145,15 +152,37 @@ Properties:
 - `gap`: Number
 - `align`: `start | center | end`
 
+Design direction:
+- should remain a primary default authoring primitive
+- container placement should become optional in the future
+- explicit absolute placement on the container should remain supported
+
 ## Group
 **Status:** Implemented as a grouping container.
 
 `Group` participates in the scene graph and transform inheritance, but does not run a layout algorithm.
 
-## Grid / Stack
-**Status:** Not implemented in runtime.
+Design direction:
+- remains the grouping/transform container
+- should coexist with layout containers for scenes that mix structured layout and manual composition
 
-These names can appear as actor types, but there is no grid or stacking layout behavior yet.
+## Grid / Stack
+**Status:** Implemented in runtime.
+
+`Grid` and `Stack` now participate in the runtime layout system.
+
+Current role:
+- `Grid`: structured two-dimensional layout for AI-friendly dashboards, panels, equations, legends, and repeated visual blocks
+- `Stack`: layered composition for overlays, badges, callouts, and foreground/background composition without manual coordinate math
+
+Phase 1 semantics implemented today:
+- `Grid` supports `cols` and `gap` with deterministic declaration-order placement
+- `Stack` overlaps layout-managed children around a shared origin
+- root layout containers can omit `at` and default to `scene.center`
+- scene-relative placement is supported through `anchor: scene.*`, `offset`, and percentage-based `at`
+- manual child `at` remains an explicit opt-out inside layout containers
+
+For current runnable demos, explanatory copy should use standalone `Text` / `Math` statements placed beside containers rather than inline text children.
 
 ---
 
@@ -172,6 +201,8 @@ The current runtime has explicit assignment handling for these actor properties:
 - `scene.background_color`
 
 Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
+
+Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.
 
 ---
 

@@ -77,6 +77,13 @@ fn test_collections() {
             ])
         }
     );
+    assert_eq!(
+        parse_single_stmt("let pct = (50%, 25%)"),
+        Stmt::LetDecl {
+            name: "pct".to_string(),
+            value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)])
+        }
+    );
 }
 
 #[test]
@@ -113,6 +120,13 @@ fn test_assignments_and_paths() {
         Stmt::LetDecl {
             name: "x".to_string(),
             value: Expr::Path(vec!["container".to_string(), "child".to_string()])
+        }
+    );
+    assert_eq!(
+        parse_single_stmt("let center = scene.center"),
+        Stmt::LetDecl {
+            name: "center".to_string(),
+            value: Expr::Path(vec!["scene".to_string(), "center".to_string()])
         }
     );
 }

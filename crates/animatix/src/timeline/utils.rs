@@ -5,6 +5,7 @@ use crate::timeline::env::{Environment, EvalError, Value};
 pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
     match expr {
         Expr::Num(n) => Ok(Value::Num(*n)),
+        Expr::Percent(n) => Ok(Value::Num(*n / 100.0)),
         Expr::Str(s) => Ok(Value::Str(s.clone())),
         Expr::Bool(b) => Ok(Value::Bool(*b)),
         Expr::Null => Ok(Value::Num(0.0)),

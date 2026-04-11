@@ -13,7 +13,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 | Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect` |
 | Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
-| Containers | Partially implemented | `Row`, `Col`, `Group` are usable; `Grid`, `Stack` are not |
+| Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
 | Components | Parser-only | AST/parser exist; runtime instantiation does not |
 
@@ -21,8 +21,8 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 These are the major holes between the documented language surface and the runtime:
 
-1. **Primitive coverage is too narrow.** The runtime only exposes `Circle` and `Rect` as scene shape actors.
-2. **Layout is incomplete.** `Grid` and `Stack` are still missing.
+1. **Primitive coverage is still too narrow.** The runtime’s basic shape-actor surface is still centered on `Circle` and `Rect`, even though `Text`, `Math`, `Svg`, and plotting are implemented.
+2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
 3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
 
@@ -57,8 +57,51 @@ The next implementation steps should follow these rules:
 
 ---
 
-### Phase 1 — Expand Core Runtime Primitives
-**Priority:** Highest next implementation phase
+### Phase 1 — Layout Foundation for AI Authorship
+**Priority:** Completed foundation phase
+
+**Goal:** Make structured layout the default composition path while preserving absolute positioning as a first-class explicit escape hatch.
+
+**Core design decision:**
+- auto-layout-first for normal scene composition
+- explicit absolute positioning remains fully supported
+- parent-driven placement beats free-form constraint solving unless proven insufficient
+
+**Scope:**
+1. Fix current layout semantics (`Row` / `Col` behavior, explicit-vs-auto placement distinction)
+2. Remove implicit sentinel behavior around `(0, 0)`-as-unset and replace it with explicit layout/manual placement semantics
+3. Implement `Stack`
+4. Implement `Grid`
+5. Add optional container placement defaults
+6. Add scene-relative placement primitives (anchors / percentages / scene-derived positions)
+
+**Detailed design reference:** [`layout_design.md`](layout_design.md)
+
+**Current progress note:**
+- Phase 1 layout work is now implemented in the runtime: explicit child placement semantics, plot sentinel cleanup, root layout-container defaults, `Stack`, `Grid`, and scene-relative placement have all landed together with tests and a runnable demo.
+- The next work after Phase 1 should focus on expanding primitive/runtime surface area rather than revisiting layout fundamentals.
+
+**Why this phase comes first:**
+- AI-authored scenes currently pay the highest cost in manual coordinate math
+- layout quality has a larger effect on authoring ergonomics than adding more primitive types first
+- better layout primitives reduce the need for brittle generated absolute coordinates
+
+**Suggested scope discipline:**
+- ship layout in vertical slices with docs and demos
+- preserve existing absolute-position scenes
+- avoid introducing a full constraint solver in this phase
+
+**Exit criteria:**
+- `Grid` and `Stack` are runtime-real
+- containers can be authored without mandatory absolute placement in common cases
+- absolute positioning still works cleanly for deliberate manual composition
+- docs and demos show layout-first scenes as the preferred authoring style
+- runtime precedence rules for layout-managed vs manual placement are explicit and tested
+
+---
+
+### Phase 2 — Expand Core Runtime Primitives
+**Priority:** High
 
 **Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
@@ -71,10 +114,10 @@ The next implementation steps should follow these rules:
 6. `Image`
 7. `Code`
 
-**Why this phase comes first:**
+**Why this phase follows layout:**
 - It directly reduces the parser/runtime mismatch
 - It increases expressive power immediately
-- It unlocks more meaningful demos and lowers pressure to over-promise future features
+- It becomes much more valuable once layout containers can place those primitives effectively
 
 **Suggested scope discipline:**
 - Add each primitive end-to-end: parser support (if needed), timeline handling, rendering, docs, and one demo
@@ -83,25 +126,6 @@ The next implementation steps should follow these rules:
 **Exit criteria:**
 - At least the first two added primitives are fully runnable and documented
 - `docs/primitives.md` can be expanded without caveats for those primitives
-
----
-
-### Phase 2 — Complete Layout Containers
-**Priority:** High
-
-**Goal:** Finish the scene layout model by implementing `Grid` and `Stack`.
-
-**Scope:**
-- `Grid`: row/column placement, `gap`, and predictable child flow
-- `Stack`: overlapping placement with transform inheritance and simple alignment rules
-
-**Why after primitives:**
-- Layout is more valuable when there are more primitives to place
-- The current engine already has enough container infrastructure to make this a focused extension
-
-**Exit criteria:**
-- `Grid` and `Stack` are runtime-real, not just documented names
-- A dedicated layout demo can show all five containers: `Row`, `Col`, `Group`, `Grid`, `Stack`
 
 ---
 
@@ -178,16 +202,18 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Discontinuity detection for problematic functions like `1/x`
 - Bounding-box culling for plotting work
 - `Row` / `Col` auto-layout
+- Absolute positioning as a working placement mechanism
 
 ---
 
 ## 5. What We Should Not Do Next
 
-The following would be premature before Phases 1–3 are complete:
+The following would be premature before Phases 2–3 are complete:
 
 - Expanding the spec with more aspirational syntax
 - Adding more broken or future-only demos to the main example set
 - Building an editor/UI on top of an unstable user-facing language surface
+- Jumping straight to a full general-purpose constraint solver
 
 ---
 
@@ -197,6 +223,6 @@ If implementation starts right after this planning rework, the best next move is
 
 1. **Implement one additional runtime primitive family**
 2. **Update docs and demos for that primitive immediately**
-3. **Then move on to layout completion**
+3. **Keep component work behind the now-stable layout and primitive foundation**
 
-The cleanest starting candidates are `Line` and `Ellipse`, because low-level geometry support already exists and they meaningfully expand the scene language without forcing the component system to land first.
+The cleanest starting candidates are `Line` and `Ellipse`, because low-level geometry support already exists and they meaningfully expand the scene language without destabilizing the now-shipped layout foundation.

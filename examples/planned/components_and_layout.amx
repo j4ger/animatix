@@ -1,6 +1,6 @@
 // PLANNED EXAMPLE — not expected to run on the current runtime.
-// This file documents the intended direction for component runtime support
-// and the missing Grid / Stack layout containers.
+// Grid and Stack are now implemented; this file remains planned because it
+// sketches component-runtime composition that the current engine does not yet support.
 
 #0s
 scene.background_color = (0.06, 0.07, 0.10, 1.0)

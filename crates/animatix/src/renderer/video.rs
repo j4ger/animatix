@@ -1,6 +1,6 @@
 use super::core::RendererCore;
 use crate::ast::Stmt;
-use crate::timeline::Timeline;
+use crate::timeline::{SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVFrame, AVRational};
@@ -153,7 +153,10 @@ async fn render_video_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
 
     for frame in 0..total_frames {
-        let scene = timeline.evaluate((frame as f64) / (fps as f64));
+        let scene = timeline.evaluate(
+            (frame as f64) / (fps as f64),
+            SceneDimensions { width, height },
+        );
 
         core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
 
@@ -334,7 +337,7 @@ async fn render_image_async(
     let mut core = RendererCore::new(&device, &queue);
 
     let timeline = Timeline::build(ast);
-    let scene = timeline.evaluate(time as f64);
+    let scene = timeline.evaluate(time as f64, SceneDimensions { width, height });
     core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
 
     let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

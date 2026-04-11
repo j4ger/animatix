@@ -9,7 +9,8 @@ Animatix is powered by **Vello** and currently ships a working vector-first runt
 - SVG loading and rendering (via `usvg`)
 - Shape actors backed by the runtime today: `Circle` and `Rect`
 - Graph containers with `CartesianPlot` and `PolarPlot`
-- `Row`, `Col`, and `Group` scene containers (`Row`/`Col` auto-layout; `Group` transform grouping)
+- `Row`, `Col`, `Grid`, `Stack`, and `Group` scene containers
+- Layout-first composition primitives: root layout defaults, scene anchors, percentage placement, and manual child overrides
 - Reactive evaluation primitives: `always`, `loop`, `for`, `yield`, `stop`/`pause`/`resume`
 
 ## Demo Showcase
@@ -95,6 +96,7 @@ Future-facing syntax sketches live in `examples/planned/` and are intentionally 
 
 The `docs/` folder contains detailed technical information:
 - [`architecture.md`](docs/architecture.md): Details of the Vello-based Vector-First rendering architecture.
+- [`layout_design.md`](docs/layout_design.md): Concrete layout-model design, precedence rules, and Phase 1 implementation plan.
 - [`development.md`](docs/development.md): Internal debugging utilities, validation workflow, and contributor-oriented development notes.
 - [`primitives.md`](docs/primitives.md): Current runtime-supported primitives, graph containers, and parser-only/planned items.
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
@@ -108,7 +110,6 @@ The `docs/implementation_plan.md` file tracks what's left to build.
 
 ### What's Left
 - [ ] Component runtime (instantiation, parameter passing, lifecycle hooks, custom actions)
-- [ ] Grid/Stack layout algorithms
 - [ ] Additional runtime primitives (`Line`, `Path`, `Polygon`, `Arc`, `Ellipse`, `Image`, `Code`)
 - [ ] DSL-level morph strategy controls (`strategy`, `path_arc`, `stretch`)
 - [ ] Parametric and implicit plotting primitives

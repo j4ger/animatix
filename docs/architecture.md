@@ -48,7 +48,7 @@ The `scene_graph` enables parent-to-child traversal for transform inheritance, w
 
 `SceneNode`s form a tree with the following properties:
 - **Root nodes** attach directly to the scene (no parent transform to inherit).
-- **Container nodes** (`Row`, `Col`, `Group`) hold children and apply layout transforms.
+- **Container nodes** (`Row`, `Col`, `Grid`, `Stack`, `Group`) hold children and apply layout and transform rules.
 - **Leaf nodes** (`Text`, `Math`, `Svg`, `Circle`, `Rect`, and plot output paths) are fully resolved renderables.
 - **Anonymous nodes** receive auto-generated UIDs when no explicit label is provided, enabling individual keyframing without label collisions.
 
@@ -67,6 +67,49 @@ function evaluate_node(node_id, parent_transform):
 ```
 
 This DFS ensures all descendants receive correctly accumulated transforms and opacities. The final render list contains only leaf nodes with their pre-computed global transforms.
+
+### Layout Architecture Direction
+
+Animatix is moving toward a **layout-first authoring model** for scene composition.
+
+The design goal is:
+
+1. **Auto-layout should be the default authoring path** for AI-generated and human-authored scenes.
+2. **Absolute positioning remains a first-class escape hatch** for motion graphics, fine-grained composition, and deliberate manual placement.
+3. **Parent containers should own child placement** whenever layout semantics are in use.
+
+This means the long-term scene model is not "remove `at`"; it is "stop requiring `at` as the primary way to compose scenes." Authors should be able to describe hierarchy, grouping, spacing, and alignment first, and only drop down to explicit coordinates when they intentionally want handcrafted placement.
+
+The architectural consequence is that layout must become a real runtime concern rather than a one-off convenience pass. Containers should be able to:
+
+- infer placement from layout rules
+- expose explicit alignment and spacing semantics
+- coexist with manually positioned children when needed
+- preserve deterministic results for AI-authored scenes
+
+### Current Layout Model
+
+The shipped layout model has four layers, in order of preference:
+
+1. **Container layout by default**
+   - `Row`, `Col`, `Grid`, `Stack`
+   - container-owned placement
+   - alignment, gap, padding, and predictable child ordering
+
+2. **Scene-relative placement**
+   - anchors such as scene center / edges / corners
+   - percentage-based or scene-derived placement for coarse composition
+
+3. **Manual override within layout**
+   - individual children may opt out of container placement where appropriate
+   - explicit placement is allowed, but should be intentional rather than the baseline assumption
+
+4. **Fully absolute positioning**
+   - direct `at: (x, y)` remains supported for motion graphics and precise art direction
+
+This layered model is deliberately simpler than a full general-purpose constraint solver. The architecture prefers deterministic parent-driven layout over highly dynamic constraint solving unless the simpler model proves insufficient.
+
+For the concrete Phase 1 semantics and rollout slices, see [`layout_design.md`](layout_design.md).
 
 ### Phase A: Parsing and Data Unification (Load Time)
 When an `.amx` file is loaded, the compiler parses it, resolves all imports (using `FileId` assignments to build the `ModuleGraph`), and converts all visual assets into a unified `PathTree` format (a collection of Bézier curves and fill/stroke commands).
@@ -89,6 +132,12 @@ During `timeline.evaluate(time_ms)`:
     *   It mathematically interpolates the XY coordinates of the curves based on the sampled blend factor.
     *   The result is a brand-new intermediate path generated on the CPU for that exact frame.
 
+### Layout Evaluation Implication
+
+Today, some container layout behavior is applied during timeline construction. The target architecture should evolve toward a model where layout-relevant placement can be recomputed from sampled child state when necessary. This matters for scenes where child size, visibility, or spacing-related properties animate over time.
+
+That does **not** mean every scene needs an expensive global layout solve every frame. It means layout containers should own a well-defined placement step whose semantics are compatible with timeline evaluation.
+
 ### Phase C: Vello Scene Compilation (GPU, Per-Frame)
 1.  The timeline yields a final, flattened list of paths and their colors/gradients for the current frame.
 2.  The engine pushes these paths into a `vello::Scene` object.
@@ -108,16 +157,17 @@ The major vector-first migration work is already reflected in the current reposi
 1.  **Vello-backed rendering** is the active rendering path.
 2.  **Path-based text, math, SVG, plotting, and shape rendering** are part of the current runtime.
 3.  **Timeline-driven interpolation and path morphing infrastructure** already exist.
+4.  **Runtime container layout support** exists for `Row`, `Col`, `Grid`, and `Stack`, with `Group` remaining the non-layout transform/grouping container.
 
 The remaining work is mostly about expanding the runtime surface on top of this architecture rather than replacing the renderer again.
 
 ## 6. Expression Evaluation: Context-Aware Math Engine
 
-The animation engine evaluates mathematical expressions for properties like positions, sizes, colors, and durations. The new math architecture replaces the stateless `evaluate_expr` with a context-aware evaluator that uses an `Environment` for variable and function lookup.
+The animation engine evaluates mathematical expressions for properties like positions, sizes, colors, and durations through a context-aware `evaluate_expr` path that uses an `Environment` for variable and function lookup.
 
 ### The Environment Pattern
 
-The `Environment` provides runtime context for expression evaluation. It stores variables and native functions in a shared, mutable dictionary.
+The `Environment` provides runtime context for expression evaluation. It stores variables and built-in callable values alongside ordinary runtime values.
 
 ```text
 Environment = Rc<RefCell<HashMap<String, Value>>>
@@ -133,107 +183,48 @@ Example environment contents:
 {
     "x": Num(100.0),
     "y": Num(200.0),
-    "my_shape": NativeFn(sin_fn_id),
+    "sin": <built-in function>,
     "PI": Num(3.14159...)
 }
 ```
 
-### Value Enum Expansion
+### Current Built-in Function Surface
 
-The `Value` enum represents all runtime values produced by evaluation. The new architecture extends this with a `NativeFn` variant for callable native functions:
+The currently documented runtime-facing helper set is intentionally small:
+- `sin`
+- `cos`
+- `lerp`
+- `rand`
+- `format`
 
-```text
-enum Value {
-    Num(f64),           // Numeric values
-    Str(String),        // String values
-    Bool(bool),         // Boolean values
-    Vec2([f64; 2]),     // 2D vectors (positions, scales)
-    Vec3([f64; 3]),     // 3D vectors (RGB colors, 3D positions)
-    Vec4([f64; 4]),     // 4D vectors (RGBA colors)
-    Color(Color),       // Color values with RGBA components
-    NativeFn(usize),    // Reference to a registered native function
-}
-```
-
-**Vector Types (`Vec2`, `Vec3`, `Vec4`):** Support for multi-dimensional spatial math commonly needed in animation. Vectors support element-wise arithmetic with scalars and other vectors.
-
-**Color Type:** Dedicated color type separate from Vec4 to allow specialized color operations. Internally stores RGBA components (0.0-1.0 range).
-
-The `NativeFn` variant holds an index into a function registry. This indirection allows:
-1. Efficient cloning of values containing functions
-2. A stable ABI for native functions
-3. Functions to be stored in the environment like any other value
-
-### Native Function Registry
-
-The `NativeFunctionRegistry` maps indices to actual function implementations:
-
-```text
-NativeFunctionRegistry = Vec<fn(&[Value]) -> Result<Value, EvalError>>
-```
-
-When evaluation encounters a `Value::NativeFn(idx)`, it looks up the function in the registry and calls it with the evaluated arguments.
-
-User-facing and runtime-available functions include:
-- `sin`, `cos`, `tan` - trigonometric operations
-- `sqrt`, `abs`, `pow` - mathematical operations
-- `min`, `max` - comparison operations
-- `format` - string interpolation
-- `rand` - random number between 0.0 and 1.0
-
-Some helper functions such as color parsing also exist internally in the runtime, but they are not all part of the documented public DSL surface.
+The evaluator also supports numeric, vector, and color arithmetic directly in expression trees. This document should stay conservative about additional built-ins unless they are explicitly wired into the current runtime.
 
 ### Context-Aware Evaluation
 
-The new `evaluate_expr` signature:
+The current `evaluate_expr` shape is conceptually:
 
 ```text
 fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
 ```
 
-Differences from the old stateless version:
+Key points:
 
-1. **Environment parameter**: Variable lookups consult the environment. Identifiers not found in the environment return an error rather than a default value.
-
-2. **Error handling**: Returns `Result<Value, EvalError>` instead of panicking or returning sentinel values (like 0.0 for unknown identifiers).
-
-3. **Function calls**: When evaluating `Expr::Call(name, args)`, the evaluator:
-   - Looks up `name` in the environment
-   - If found and is `NativeFn(idx)`, retrieves the function from the registry
-   - Evaluates all arguments in the same environment
-   - Calls the function and returns the result
-
-4. **Error types** (`EvalError`):
-   - `UndefinedVariable(String)` - reference to an unbound variable
-   - `TypeMismatch { expected: String, got: String }` - wrong value type for operation
-   - `DivisionByZero` - explicit division by zero error
-   - `WrongArgumentCount { expected: usize, got: usize }` - function called with wrong arity
-   - `TypeMismatchForBinaryOp { op: String, left: String, right: String }` - binary operation on incompatible types
-
-5. **Dynamic Type Evaluation for Binary Operations**
-   When evaluating `Expr::Binary(left, op, right)`, the evaluator determines the operation result based on operand types:
-   - `Num op Num` -> Num (standard arithmetic: `+`, `-`, `*`, `/`, `%`, `^`)
-   - `Vec2 op Vec2` -> Vec2 (element-wise operations)
-   - `Vec2 * Num` -> Vec2 (scalar multiplication)
-   - `Vec2 / Num` -> Vec2 (scalar division)
-   - `Vec3 * Num` -> Vec3 (scalar multiplication)
-   - `Color * Num` -> Color (brightness scaling)
-   - `Color + Color` -> Color (color blend)
-   - `Vec2 op Vec3` -> Error (dimensionality mismatch)
-   
-   This polymorphic dispatch allows natural expression of spatial and color math.
+1. **Environment parameter**: Variable lookups consult the environment.
+2. **Function calls**: Built-ins like `sin`, `cos`, `lerp`, `rand`, and `format` are resolved through that environment.
+3. **Typed arithmetic**: The evaluator handles numeric, vector, and color arithmetic directly on expression values.
+4. **Conservative docs**: Internal callable storage and exhaustive error details should be documented only when they match the current code precisely.
 
 ### Example Evaluation Flow
 
 Given: `sin(x * PI / 180)` where `x = 90`
 
 1. `evaluate_expr(Call("sin", [Binary(Ident("x"), Mul, ...)]), env)`
-2. Look up `sin` in env -> `NativeFn(sin_idx)`
+2. Look up `sin` in the environment as a built-in callable value
 3. Evaluate arguments recursively:
    - `evaluate_expr(Ident("x"), env)` -> `Ok(Num(90.0))` (from env)
    - `evaluate_expr(Ident("PI"), env)` -> `Ok(Num(3.14159...))` (from env)
    - Evaluate the binary expression `x * PI / 180` -> `Ok(Num(1.57079...))`
-4. Call `registry[sin_idx]([Num(1.57079...)])` -> `Ok(Num(1.0))`
+4. Call the resolved built-in with the evaluated argument -> `Ok(Num(1.0))`
 
 ### Closure Evaluation
 

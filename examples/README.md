@@ -8,7 +8,7 @@ This directory is split into two groups:
 ## Current Demos
 
 - `showcase.amx` — broad overview of the current runtime surface
-- `layout_demo.amx` — `Row`, `Col`, and `Group`
+- `layout_demo.amx` — layout-first scene demo with visible on-screen captions for `Grid`, `Col`, `Stack`, anchors, percentages, root defaults, and manual child overrides
 - `plotting_demo.amx` — `Graph`, `CartesianPlot`, `PolarPlot`
 - `math_demo.amx` — expression evaluation and math helpers in scene properties
 - `text_morph_demo.amx` — text path morphing

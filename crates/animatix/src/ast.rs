@@ -13,6 +13,7 @@ use std::fmt::Debug;
 pub enum Expr {
     // Literals
     Num(f64),
+    Percent(f64),
     Str(String),
     Bool(bool),
     Null,
