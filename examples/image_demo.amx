@@ -1,0 +1,12 @@
+// Runnable example: raster image primitive with natural-size and explicit-size rendering.
+#0s
+scene.background_color = (0.08, 0.10, 0.14, 1.0)
+
+title: Text { text: "Image Primitive", font_size: 34, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.top, offset: (0, 60) }
+caption: Text { text: "The left image uses its natural size. The right image uses explicit size scaling.", font_size: 18, color: (0.80, 0.86, 0.96, 1.0), anchor: scene.top, offset: (0, 96) }
+
+natural: Image { url: "examples/checker.ppm", at: (280, 250) }
+scaled: Image { url: "examples/checker.ppm", at: (760, 230), size: (240, 240) }
+
+left_label: Text { text: "natural size", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (320, 470) }
+right_label: Text { text: "size: (240, 240)", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (840, 470) }

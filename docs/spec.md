@@ -172,11 +172,12 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 ```
 
 **Additional Runtime Primitives**
-`Arc`, `Polygon`, and `Path` are now implemented runtime primitives.
+`Arc`, `Polygon`, `Path`, and `Image` are now implemented runtime primitives.
 
 - `Arc` is a stroke-first primitive using `radius_x`, `radius_y`, `start_angle`, and `sweep_angle`.
 - `Polygon` is built around explicit `points` input rather than higher-level helpers like `sides`.
 - `Path` is built around structured `commands` such as `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, and `close()`.
+- `Image` is a file-backed raster primitive using `url`, `at`, and optional `size`.
 
 This `Path` surface intentionally reuses existing call-expression syntax rather than introducing a separate SVG-style path-string grammar.
 

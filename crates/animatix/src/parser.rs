@@ -439,6 +439,57 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        let image_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Image"))
+            .then(block_props.clone())
+            .map(|(label, props)| {
+                let mut url = String::new();
+                let mut at = (0.0, 0.0);
+                let mut size = None;
+                for p in props {
+                    match p.name.as_str() {
+                        "url" => {
+                            if let Expr::Str(s) = p.value {
+                                url = s;
+                            }
+                        }
+                        "at" => {
+                            if let Expr::Tuple(t) = p.value {
+                                if t.len() == 2 {
+                                    if let Expr::Num(x) = t[0] {
+                                        if let Expr::Num(y) = t[1] {
+                                            at = (x as f32, y as f32);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "size" => {
+                            if let Expr::Tuple(t) = p.value {
+                                if t.len() == 2 {
+                                    if let Expr::Num(width) = t[0] {
+                                        if let Expr::Num(height) = t[1] {
+                                            size = Some((width as f32, height as f32));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Stmt::Image {
+                    label,
+                    url,
+                    at,
+                    size,
+                }
+            })
+            .padded();
+
         let actor_decl = text::keyword("pub")
             .or_not()
             .map(|p| p.is_some())
@@ -721,6 +772,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             text_stmt,
             math_stmt,
             svg_stmt,
+            image_stmt,
             labeled_loop_stmt,
             loop_stmt,
             labeled_always_stmt,

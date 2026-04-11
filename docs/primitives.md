@@ -47,6 +47,21 @@ eq: Math { math: "x^2 + 3", font_size: 18, at: (640, 360) }
 icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 ```
 
+## Image
+**Status:** Implemented in parser and runtime.
+
+**Properties used by the runtime:**
+- `url`: String
+- `at`: Tuple `(x, y)`
+- `size`: Optional tuple `(width, height)`
+
+If `size` is omitted, the runtime uses the image's natural pixel size. The initial implementation keeps the surface intentionally small and file-based.
+
+**Example:**
+```animatix
+photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
+```
+
 ## Circle
 **Status:** Implemented in parser and runtime.
 
@@ -325,7 +340,6 @@ Absolute positioning is intentionally preserved in the language. The design chan
 
 These primitives are still not currently wired into the scene runtime:
 
-- `Image`
 - `Code`
 
 Some shape-oriented concepts also exist in lower-level Rust modules such as `kurbo_shapes.rs`; `Arc`, `Polygon`, and `Path` are now part of the shipped runtime surface described above.

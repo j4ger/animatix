@@ -7,6 +7,10 @@ use animatix::timeline::{
 };
 use kurbo::Shape;
 
+fn example_path(name: &str) -> String {
+    format!("{}/../../examples/{}", env!("CARGO_MANIFEST_DIR"), name)
+}
+
 fn text_paths_width(paths: &[TextPath]) -> f64 {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -228,6 +232,57 @@ fn test_missing_properties() {
     assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.opacity.evaluate(0), 1.0);
+}
+
+#[test]
+fn test_image_properties_are_animatable() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::Image {
+                label: Some("photo".to_string()),
+                url: example_path("checker.ppm"),
+                at: (100.0, 120.0),
+                size: Some((48.0, 48.0)),
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![
+                Stmt::Assignment {
+                    target: "photo".to_string(),
+                    property: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(96.0), Expr::Num(96.0)]),
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    }],
+                },
+                Stmt::Assignment {
+                    target: "photo".to_string(),
+                    property: "url".to_string(),
+                    value: Expr::Str(example_path("checker.ppm")),
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    }],
+                },
+            ],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("photo")
+        .expect("photo track should exist");
+
+    assert_eq!(track.position.evaluate(0), [100.0, 120.0]);
+    assert_eq!(track.size.evaluate(0), [24.0, 24.0]);
+    assert_eq!(track.size.evaluate(1500), [36.0, 36.0]);
+    assert_eq!(track.size.evaluate(2000), [48.0, 48.0]);
+    assert!(track.image.evaluate(0).is_some());
+    assert!(track.image.evaluate(1500).is_some());
 }
 
 #[test]

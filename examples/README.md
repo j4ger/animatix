@@ -12,6 +12,8 @@ Each runnable file should explain itself through its filename, header comment, a
 - `math_demo.amx`
 - `line_and_ellipse_demo.amx`
 - `arc_polygon_path_demo.amx`
+- `image_demo.amx`
+- `image_animation_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
 

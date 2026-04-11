@@ -1,0 +1,14 @@
+// Runnable example: animated image placement and scaling through property tracks.
+#0s
+scene.background_color = (0.08, 0.10, 0.14, 1.0)
+
+title: Text { text: "Animated Image Properties", font_size: 34, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.top, offset: (0, 60) }
+caption: Text { text: "This image animates with at and size assignments like the other primitives.", font_size: 18, color: (0.80, 0.86, 0.96, 1.0), anchor: scene.top, offset: (0, 96) }
+
+photo: Image { url: "examples/checker.ppm", at: (260, 250), size: (64, 64) }
+status: Text { text: "t = 0s", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (260, 330) }
+
+#1s
+photo.at = (760, 230) [1s, ease: ease-in-out]
+photo.size = (220, 220) [1s, ease: ease-in-out]
+status: Text { text: "t = 1s", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (760, 370) }

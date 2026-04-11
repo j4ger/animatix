@@ -227,6 +227,16 @@ impl Interpolate for Vec<crate::timeline::vello_path::VelloPath> {
     }
 }
 
+impl Interpolate for Option<crate::timeline::image::SceneImage> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 {
+            self.clone()
+        } else {
+            other.clone()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
@@ -304,6 +314,7 @@ pub struct AnimationTrack {
     pub text_paths: PropertyTrack<Vec<crate::renderer::text::TextPath>>,
     pub vector_paths: PropertyTrack<Vec<crate::timeline::vello_path::VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
+    pub image: PropertyTrack<Option<crate::timeline::image::SceneImage>>,
 }
 
 impl AnimationTrack {
@@ -327,6 +338,7 @@ impl AnimationTrack {
             text_paths: PropertyTrack::new(Vec::new()),
             vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
+            image: PropertyTrack::new(None),
         }
     }
 }

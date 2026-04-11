@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod env;
+pub mod image;
 pub mod kurbo_shapes;
 pub mod morph;
 pub mod svg;
@@ -9,6 +10,7 @@ pub mod vello_path;
 
 use actions::process_action;
 pub use env::{load_standard_library, Environment, EvalError, Value};
+pub use image::load_image;
 pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
 pub use svg::parse_svg;
 pub use track::{
@@ -1145,6 +1147,38 @@ impl Timeline {
                         track.svg_paths = parsed_paths;
                     }
                 }
+                Stmt::Image {
+                    label,
+                    url,
+                    at,
+                    size,
+                } => {
+                    let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
+                    self.add_node(label_str.clone(), parent_label);
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str));
+
+                    track
+                        .position
+                        .add_keyframe(time_ms as u64, [at.0, at.1], Easing::Linear);
+
+                    if let Some(image) = crate::timeline::image::load_image(url) {
+                        let display_size = size
+                            .map(|(width, height)| [width / 2.0, height / 2.0])
+                            .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
+
+                        track
+                            .size
+                            .add_keyframe(time_ms as u64, display_size, Easing::Linear);
+                        track
+                            .image
+                            .add_keyframe(time_ms as u64, Some(image), Easing::Linear);
+                    } else {
+                        eprintln!("Failed to load image file {}", url);
+                    }
+                }
                 Stmt::ActorDecl {
                     is_pub: _,
                     label,
@@ -1802,6 +1836,30 @@ impl Timeline {
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
+                        "url" => {
+                            let target_url = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Str(String::new()))
+                                .as_str();
+                            if !target_url.is_empty() {
+                                if let Some(target_image) =
+                                    crate::timeline::image::load_image(&target_url)
+                                {
+                                    if duration_ms > 0.0 {
+                                        let start_val = track.image.evaluate(t_start_ms);
+                                        track.image.add_keyframe(
+                                            t_start_ms,
+                                            start_val,
+                                            Easing::Linear,
+                                        );
+                                    }
+                                    track
+                                        .image
+                                        .add_keyframe(t_end_ms, Some(target_image), easing);
+                                } else {
+                                    eprintln!("Failed to load image file {}", target_url);
+                                }
+                            }
+                        }
                         "position" | "at" => {
                             let target_pos = if let Some((binding, position)) =
                                 resolve_position_binding(Some(value), None, None, &self.env)
@@ -1926,54 +1984,59 @@ impl Timeline {
                         _ => {}
                     }
 
-                    let shape_type = track.shape_type.last_value();
-                    let size = track.size.last_value();
-                    let line_from = track.line_from.last_value();
-                    let line_to = track.line_to.last_value();
-                    let arc_angles = track.arc_angles.last_value();
-                    let color = track.color.last_value();
-                    let stroke_width = track.stroke_width.last_value();
-                    let stroke_color = track.stroke_color.last_value();
-                    let fill_opacity = track.fill_opacity.last_value();
+                    if !track.vector_paths.default_value.is_empty()
+                        || !track.vector_paths.keyframes.is_empty()
+                    {
+                        let shape_type = track.shape_type.last_value();
+                        let size = track.size.last_value();
+                        let line_from = track.line_from.last_value();
+                        let line_to = track.line_to.last_value();
+                        let arc_angles = track.arc_angles.last_value();
+                        let color = track.color.last_value();
+                        let stroke_width = track.stroke_width.last_value();
+                        let stroke_color = track.stroke_color.last_value();
+                        let fill_opacity = track.fill_opacity.last_value();
 
-                    let target_vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
-                        let existing_path = track
-                            .vector_paths
-                            .last_value()
-                            .first()
-                            .map(|vp| vp.path.clone())
-                            .unwrap_or_else(kurbo::BezPath::new);
-                        styled_vello_path(
-                            existing_path,
-                            shape_type,
-                            color,
-                            stroke_width,
-                            stroke_color,
-                            fill_opacity,
-                        )
-                    } else {
-                        build_shape_vello_path(
-                            shape_type,
-                            size,
-                            line_from,
-                            line_to,
-                            arc_angles,
-                            color,
-                            stroke_width,
-                            stroke_color,
-                            fill_opacity,
-                        )
-                    };
+                        let target_vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH)
+                        {
+                            let existing_path = track
+                                .vector_paths
+                                .last_value()
+                                .first()
+                                .map(|vp| vp.path.clone())
+                                .unwrap_or_else(kurbo::BezPath::new);
+                            styled_vello_path(
+                                existing_path,
+                                shape_type,
+                                color,
+                                stroke_width,
+                                stroke_color,
+                                fill_opacity,
+                            )
+                        } else {
+                            build_shape_vello_path(
+                                shape_type,
+                                size,
+                                line_from,
+                                line_to,
+                                arc_angles,
+                                color,
+                                stroke_width,
+                                stroke_color,
+                                fill_opacity,
+                            )
+                        };
 
-                    if duration_ms > 0.0 {
-                        let start_val = track.vector_paths.evaluate(t_start_ms);
+                        if duration_ms > 0.0 {
+                            let start_val = track.vector_paths.evaluate(t_start_ms);
+                            track
+                                .vector_paths
+                                .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                        }
                         track
                             .vector_paths
-                            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            .add_keyframe(t_end_ms, vec![target_vello_path], easing);
                     }
-                    track
-                        .vector_paths
-                        .add_keyframe(t_end_ms, vec![target_vello_path], easing);
                 }
                 Stmt::Always { body } => {
                     self.modifiers.extend(body.clone());
@@ -2076,6 +2139,8 @@ impl Timeline {
             let local_opacity = opacity * parent_opacity;
             let local_transform = parent_transform
                 * kurbo::Affine::translate((position[0] as f64, position[1] as f64));
+            let image = track.image.evaluate(time_ms);
+            let half_size = track.size.evaluate(time_ms);
 
             for vector_path in &vector_paths {
                 let transform = local_transform;
@@ -2150,6 +2215,24 @@ impl Timeline {
                     let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
                     scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);
                 }
+            }
+
+            if let Some(image) = image {
+                let [natural_width, natural_height] = image.natural_size;
+                let display_width = half_size[0] * 2.0;
+                let display_height = half_size[1] * 2.0;
+                let image_transform = local_transform
+                    * kurbo::Affine::scale_non_uniform(
+                        (display_width / natural_width) as f64,
+                        (display_height / natural_height) as f64,
+                    );
+
+                let brush = vello::peniko::ImageBrush::new(image.data.clone())
+                    .with_extend(vello::peniko::Extend::Pad)
+                    .with_quality(vello::peniko::ImageQuality::Medium)
+                    .with_alpha(local_opacity);
+
+                scene.draw_image(&brush, image_transform);
             }
 
             (local_transform, local_opacity)

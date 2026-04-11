@@ -165,6 +165,21 @@ fn test_actor_decl_full() {
 }
 
 #[test]
+fn test_image_stmt() {
+    assert_eq!(
+        parse_single_stmt(
+            "photo: Image { url: \"examples/checker.ppm\", at: (100, 120), size: (240, 180) }"
+        ),
+        Stmt::Image {
+            label: Some("photo".to_string()),
+            url: "examples/checker.ppm".to_string(),
+            at: (100.0, 120.0),
+            size: Some((240.0, 180.0)),
+        }
+    );
+}
+
+#[test]
 fn test_line_actor_decl() {
     assert_eq!(
         parse_single_stmt("axis: Line, from: (-40, 0), to: (40, 0), stroke: blue, stroke_width: 3"),
