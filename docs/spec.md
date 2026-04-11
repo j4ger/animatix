@@ -1,5 +1,7 @@
 # Animatix Language Specification
 
+> This document describes the current implemented language surface first. Status callouts distinguish shipped runtime behavior from parser-only or planned syntax.
+
 ---
 
 ## 1. File Types
@@ -126,11 +128,11 @@ Modifiers are enclosed in square brackets immediately following the action.
 ```
 
 **Built-in Actions Registry**  
-The engine maintains a highly extensible registry of built-in actions, categorized by their primary visual effect:
-- **Entrance**: Actions that introduce an actor to the scene (e.g., `wipe-in`, `fade-in`).
-- **Exit**: Actions that remove an actor from the scene (e.g., `fade-out`).
+The runtime currently registers three built-in actions:
+- **Entrance**: `fade-in`, `wipe-in`
+- **Exit**: `fade-out`
 
-This architecture exposes rich action signatures (including `name`, `category`, `description`, `params`, and `modifiers`). This allows external tooling—such as Language Server Protocols (LSP) and visual UI editors—to dynamically discover, document, validate, and provide autocompletion for all supported animations.
+The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work, but the broader visual editor workflow described elsewhere is still future work.
 
 ---
 
@@ -147,7 +149,7 @@ circle: Circle, at: (100, 100) [2s]
 ```
 
 **Morph Strategies**  
-Users can hint how the engine should handle topology changes.
+The runtime morphs vector path data when a supported actor is re-declared, but advanced strategy modifiers are not wired into the runtime yet. The following syntax is still planned rather than implemented:
 ```animatix
 [strategy: auto]          // Engine decides (default)
 [strategy: match]         // Force point alignment
@@ -171,15 +173,15 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 ## 7. Containers & Layout
 
-> **Status: Row, Col, and Group implemented. Grid and Stack are planned.**
+> **Status: `Row`, `Col`, and `Group` are implemented. `Grid` and `Stack` parse as type names but do not have layout behavior yet.**
 
 **Container Types**
 
 - `Row`: Horizontal layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for vertical alignment). (Implemented)
 - `Col`: Vertical layout container. Supports `gap` (number, spacing between children) and `align` ("start", "center", "end" for horizontal alignment). (Implemented)
-- `Grid`: 2D grid layout (Planned)
-- `Stack`: Overlapping layout (Planned)
-- `Group`: Generic container for grouping and transform inheritance (Implemented)
+- `Grid`: Planned runtime layout container
+- `Stack`: Planned runtime layout container
+- `Group`: Generic container for grouping and transform inheritance (implemented, but without auto-layout)
 
 **Layout Properties**
 
@@ -206,7 +208,7 @@ row: Row, gap: 10 {
 
 **Anonymous Children and Auto-UID**
 
-Children without a label receive an auto-generated UID. This enables individual keyframing without label collisions:
+Children without a label receive an auto-generated UID internally. This is used by the runtime to build the scene graph and lay out inline items.
 
 ```animatix
 col: Col {
@@ -215,11 +217,8 @@ col: Col {
 }
 
 #1s
-col[0].scale = 1.5 [1s]   // keyframe first anonymous child by index
-col[1].opacity = 0.5 [1s] // keyframe second anonymous child
+// direct index-based keyframing is planned API surface, not current runtime behavior
 ```
-
-Auto-UIDs are stable within a session, allowing reliable referencing of anonymous children across keyframes.
 
 **Nesting Containers**
 
@@ -239,7 +238,7 @@ The `leaf` circle inherits transforms from both `inner` and `scene`. Rotating `s
 
 ## 8. Reactive System
 
-> **Status: Planned/Deferred** — `always`, `loop`, and reactive patterns are parsed but not fully evaluated.
+> **Status: Implemented.** `always`, `loop`, labeled loops, `yield`, loop control, inline conditionals, and compile-time `for` expansion all run in the current runtime.
 
 **Always Blocks**  
 Code inside always blocks evaluates every frame. Useful for physics, live data, and continuous motion.
@@ -276,20 +275,19 @@ stop job
 
 ## 9. Components
 
-> **Status: Planned/Deferred** — `ComponentDef` and related patterns are parsed but not fully evaluated.
+> **Status: Parser/AST only.** `ComponentDef` and related AST nodes exist, but component instantiation/runtime behavior is not implemented yet.
 
 ### Definition
-Reusable actors can be defined and parameterized. To make an actor available to other files, it must be exported using the `pub` keyword.
+The parser currently accepts `pub component ...` definitions. Runtime instantiation is still pending.
 
 ```animatix
-pub actor Button(text: "Click", color: Color) {
-  bg: Rect, color: color
-  label: Text, text: text
+pub component Button(text: "Click") {
+  let x = 1
 }
 ```
 
 ### Import
-Use the `import` keyword to load external files. Exported actors become available via dot notation or directly if imported.
+Use the `import` keyword to load external files. Module loading is implemented, but component instantiation from imported component definitions is not.
 
 ```animatix
 import "button.actor.amx"
@@ -315,20 +313,19 @@ collapse btn1
 
 ## 10. Math & Graphs
 
-> **Status: Fully Implemented** — Graph and plot functionality uses closure-based evaluation.
+> **Status: Implemented for `Graph`, `CartesianPlot`, and `PolarPlot`. Parametric and implicit plot types are still future work.**
 
 ### Graph Container
 
 The `Graph` primitive is a container that maps logical mathematical domains to physical screen bounds. It does not render directly but establishes the coordinate system for its child plots.
 
 **Properties:**
-- `x_range`: Tuple (min, max) defining the logical x-domain
-- `y_range`: Tuple (min, max) defining the logical y-domain
-- `width`: Number (optional, physical width in pixels)
-- `height`: Number (optional, physical height in pixels)
+- `x_domain`: Tuple (min, max) defining the logical x-domain
+- `y_domain`: Tuple (min, max) defining the logical y-domain
+- `size`: Tuple `(width, height)` defining the physical graph bounds
 
 ```animatix
-graph: Graph, x_range: (-5, 5), y_range: (-10, 30)
+graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400)
 ```
 
 ### CartesianPlot
@@ -350,6 +347,7 @@ A child plot that renders a function in polar coordinates `r(theta)`.
 
 **Properties:**
 - `func`: Closure `(theta) => expression` defining the radius as a function of angle
+- `t_domain`: Tuple (min, max) defining the sampled angle range
 - `color`: Color (optional, defaults to white)
 - `width`: Number (optional, stroke width)
 
@@ -359,7 +357,7 @@ spiral: PolarPlot, func: (t) => t, color: blue
 
 ### Closure Syntax
 
-Functions are defined using closure syntax that is natively parsed in the AST:
+Functions are defined using closure syntax that is parsed in the AST and evaluated by the current runtime:
 
 ```animatix
 (x) => x^2              // Single parameter
@@ -367,7 +365,7 @@ Functions are defined using closure syntax that is natively parsed in the AST:
 (t) => sin(t) * cos(t)   // Mathematical expressions
 ```
 
-Closures capture the lexical environment, enabling variable references from the surrounding scope.
+Closures can reference values in the current evaluation environment.
 
 ### Math Functions
 
@@ -386,27 +384,13 @@ format("Value: {val:.2f}")
 
 ## 11. Namespacing & Access
 
-**Internal Scope**  
-Inside a container, children can be accessed by bare name.
+**Imports and Modules**  
+The current module system resolves `import "..."` statements, flattens imported files, and detects cycles.
 ```animatix
-container: Group {
-  child: Type
-  appear child
-}
+import "./shared.amx"
 ```
 
-**External Scope**  
-Outside a container, use dot notation.
-```animatix
-morph container.child into target [2s]
-```
-
-**Query Access**  
-Access children by index or type.
-```animatix
-container.children[0]
-container.children[Type: Tex]
-```
+Nested/path/index access exists in the expression AST, but the runtime currently targets labeled actors directly for property assignment and action execution. Rich query syntax remains future-facing.
 
 ---
 

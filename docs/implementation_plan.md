@@ -4,11 +4,13 @@
 
 | Category | Parser | Runtime | Status |
 |----------|--------|---------|--------|
+| **Core Scene Primitives (`Text`, `Math`, `Svg`, `Circle`, `Rect`)** | Complete | Complete | **IMPLEMENTED** |
 | **Reactive System** | Complete | Complete | **IMPLEMENTED** |
 | **Math/Graph** | Complete | Complete | **IMPLEMENTED** |
 | **Containers (Row, Col)** | Complete | Complete | **IMPLEMENTED** |
 | **Containers (Grid, Stack)** | Missing | Missing | **NOT IMPLEMENTED** |
 | **Components** | Partial | Missing | **NOT IMPLEMENTED** |
+| **Additional Scene Primitives (`Line`, `Path`, `Polygon`, `Arc`, `Ellipse`, `Image`, `Code`)** | Mixed | Missing | **NOT IMPLEMENTED** |
 
 ---
 
@@ -76,7 +78,7 @@ for i in 0..3 {
 ### Why Three Phases
 1. Phase 1 established the evaluation infrastructure and override mechanism.
 2. Phase 2 performed pure compiler transformations for bounds unrolling.
-3. Phase 3 & 4 added internal generator state management to maintain contexts between yields and handle dynamic control flow.
+3. Phase 3 added internal generator state management to maintain contexts between yields and handle dynamic control flow.
 
 ---
 
@@ -137,9 +139,8 @@ stack: Stack {
 
 ```animatix
 // button.actor.amx
-pub actor Button(text: "Click", color: Color) {
-  bg: Rect, color: color
-  label: Text, text: text
+pub component Button(text: "Click") {
+  let x = 1
 }
 
 // scene.amx
@@ -183,6 +184,16 @@ Optimizes plotting by stopping subdivision when a segment is entirely outside th
 
 ## Future Improvements
 
+### Additional Runtime Primitives
+
+- `Line`
+- `Path`
+- `Polygon`
+- `Arc`
+- `Ellipse`
+- `Image`
+- `Code`
+
 ### Parametric and Implicit Curve Plotting
 
 **Parametric curves:**
@@ -192,7 +203,7 @@ ParametricPlot, x_func: (t) => cos(t), y_func: (t) => sin(t), t_range: (0, 2π)
 
 **Implicit equations:**
 ```animatix
-ImplicitPlot, equation: (x, y) => x^2 + y^2 - 1, x_range: (-1.5, 1.5), y_range: (-1.5, 1.5)
+ImplicitPlot, equation: (x, y) => x^2 + y^2 - 1, x_domain: (-1.5, 1.5), y_domain: (-1.5, 1.5)
 ```
 
 ### Advanced Path Effects
@@ -200,3 +211,9 @@ ImplicitPlot, equation: (x, y) => x^2 + y^2 - 1, x_range: (-1.5, 1.5), y_range: 
 - Path trimming
 - Dashing patterns
 - Stroke animations
+
+### DSL-Level Morph Controls
+
+- `strategy` modifiers
+- `path_arc`
+- `stretch`

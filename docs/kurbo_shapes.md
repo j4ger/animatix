@@ -227,5 +227,5 @@ pub enum KurboShape_ {
 
 ## See Also
 
-- [Morph Module](../src/timeline/morph.rs) - Low-level path morphing
+- [Morph Module](../crates/animatix/src/timeline/morph.rs) - Low-level path morphing
 - [Kurbo Documentation](https://docs.rs/kurbo/0.13.0) - Shape geometry primitives
