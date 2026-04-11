@@ -1,3 +1,4 @@
+// Runnable example: layout-focused scene showing Grid, Col, Stack, anchors, percentages, and manual overrides.
 #0s
 scene.background_color = (0.06, 0.08, 0.14, 1.0)
 

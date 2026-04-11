@@ -124,7 +124,7 @@ for t in (0..=100).map(|i| i as f64 / 100.0) {
 
 ## Integration with Timeline
 
-> **Note:** Currently, Shapes must be converted to `BezPath` before morphing via Rust API. DSL integration (e.g., `morph` action) is Planned.
+> **Note:** `Line` and `Ellipse` are now available as runtime scene primitives in the DSL. Higher-level morph authoring remains lower-level: shapes still flow through `BezPath`, and DSL-native morph controls/actions are still planned.
 
 The kurbo_shapes module provides the low-level morphing functionality. To integrate shapes into the timeline DSL, you would use the shapes in Rust code:
 

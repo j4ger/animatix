@@ -1,4 +1,4 @@
-use crate::easing::{Easing, apply_easing};
+use crate::easing::{apply_easing, Easing};
 use std::collections::BTreeMap;
 
 pub trait Interpolate {
@@ -35,7 +35,11 @@ impl Interpolate for [f32; 4] {
 
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
     }
 }
 
@@ -47,7 +51,11 @@ pub enum PlacementMode {
 
 impl Interpolate for PlacementMode {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
     }
 }
 
@@ -66,7 +74,11 @@ pub enum SceneAnchor {
 
 impl Interpolate for SceneAnchor {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
     }
 }
 
@@ -89,7 +101,11 @@ pub enum PositionBinding {
 
 impl Interpolate for PositionBinding {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
     }
 }
 
@@ -275,6 +291,8 @@ pub struct AnimationTrack {
     pub placement_mode: PropertyTrack<PlacementMode>,
     pub position_binding: PropertyTrack<PositionBinding>,
     pub size: PropertyTrack<[f32; 2]>,
+    pub line_from: PropertyTrack<[f32; 2]>,
+    pub line_to: PropertyTrack<[f32; 2]>,
     pub color: PropertyTrack<[f32; 4]>,
     pub shape_type: PropertyTrack<u32>,
     pub opacity: PropertyTrack<f32>,
@@ -295,6 +313,8 @@ impl AnimationTrack {
             placement_mode: PropertyTrack::new(PlacementMode::LayoutManaged),
             position_binding: PropertyTrack::new(PositionBinding::Absolute),
             size: PropertyTrack::new([50.0, 50.0]),
+            line_from: PropertyTrack::new([-50.0, 0.0]),
+            line_to: PropertyTrack::new([50.0, 0.0]),
             color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             shape_type: PropertyTrack::new(0),
             opacity: PropertyTrack::new(1.0),

@@ -1,3 +1,4 @@
+// Runnable example: graph plotting with Cartesian and polar curves, plus animated graph sizing/position.
 #0s
 scene.background_color = (0.08, 0.08, 0.12, 1.0)
 

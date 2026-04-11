@@ -1,0 +1,16 @@
+// Runnable example: the Line and Ellipse primitives with animated endpoint and radius updates.
+#0s
+scene.background_color = (0.07, 0.08, 0.12, 1.0)
+
+title: Text { text: "Line + Ellipse Demo", font_size: 32, color: WHITE, at: (640, 80) }
+ring: Ellipse, radius_x: 180, radius_y: 90, color: (0.20, 0.80, 1.0, 0.30), stroke: (0.20, 0.80, 1.0, 1.0), stroke_width: 4, at: (640, 360)
+axis: Line, from: (-220, 0), to: (220, 0), stroke: (1.0, 0.85, 0.25, 1.0), stroke_width: 6, at: (640, 360)
+
+#2s
+ring.radius_x = 120 [1s, ease: ease-in-out]
+ring.radius_y = 140 [1s, ease: ease-in-out]
+axis.to = (220, 120) [1s, ease: ease-in-out]
+
+#4s
+axis.from = (-220, -120) [1s, ease: ease-in-out]
+ring.color = (0.40, 1.0, 0.55, 0.35) [1s, ease: ease-in-out]

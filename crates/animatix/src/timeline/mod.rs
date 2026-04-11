@@ -8,8 +8,8 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action;
-pub use env::{Environment, EvalError, Value, load_standard_library};
-pub use kurbo_shapes::{KurboShape_, morph_kurbo_shapes, morph_kurbo_shapes_default};
+pub use env::{load_standard_library, Environment, EvalError, Value};
+pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
 pub use svg::parse_svg;
 pub use track::{
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
@@ -362,6 +362,101 @@ fn resolve_bound_position(
 
     let local_point = parent_transform.inverse() * scene_point;
     [local_point.x as f32, local_point.y as f32]
+}
+
+const SHAPE_RECT: u32 = 0;
+const SHAPE_CIRCLE: u32 = 1;
+const SHAPE_LINE: u32 = 2;
+const SHAPE_ELLIPSE: u32 = 3;
+
+fn shape_type_for_actor(ty: &str) -> u32 {
+    match ty {
+        "Circle" => SHAPE_CIRCLE,
+        "Line" => SHAPE_LINE,
+        "Ellipse" => SHAPE_ELLIPSE,
+        _ => SHAPE_RECT,
+    }
+}
+
+fn build_shape(
+    shape_type: u32,
+    size: [f32; 2],
+    line_from: [f32; 2],
+    line_to: [f32; 2],
+) -> KurboShape_ {
+    match shape_type {
+        SHAPE_CIRCLE => KurboShape_::Circle {
+            center: kurbo::Point::new(0.0, 0.0),
+            radius: size[0] as f64,
+        },
+        SHAPE_LINE => KurboShape_::Line {
+            p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
+            p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
+        },
+        SHAPE_ELLIPSE => KurboShape_::Ellipse {
+            center: kurbo::Point::new(0.0, 0.0),
+            radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
+            rotation: 0.0,
+        },
+        _ => KurboShape_::Rect {
+            x0: -(size[0] as f64),
+            y0: -(size[1] as f64),
+            x1: size[0] as f64,
+            y1: size[1] as f64,
+        },
+    }
+}
+
+fn shape_fill_color(
+    shape_type: u32,
+    color: [f32; 4],
+    fill_opacity: f32,
+) -> Option<vello::peniko::Color> {
+    if shape_type == SHAPE_LINE || fill_opacity <= 0.0 {
+        return None;
+    }
+
+    Some(vello::peniko::Color::from_rgba8(
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+        (color[3] * 255.0 * fill_opacity) as u8,
+    ))
+}
+
+fn shape_stroke(stroke_color: [f32; 4], stroke_width: f32) -> Option<(vello::peniko::Color, f32)> {
+    if stroke_width <= 0.0 {
+        return None;
+    }
+
+    Some((
+        vello::peniko::Color::from_rgba8(
+            (stroke_color[0] * 255.0) as u8,
+            (stroke_color[1] * 255.0) as u8,
+            (stroke_color[2] * 255.0) as u8,
+            (stroke_color[3] * 255.0) as u8,
+        ),
+        stroke_width,
+    ))
+}
+
+fn build_shape_vello_path(
+    shape_type: u32,
+    size: [f32; 2],
+    line_from: [f32; 2],
+    line_to: [f32; 2],
+    color: [f32; 4],
+    stroke_width: f32,
+    stroke_color: [f32; 4],
+    fill_opacity: f32,
+) -> VelloPath {
+    let shape = build_shape(shape_type, size, line_from, line_to);
+
+    VelloPath {
+        path: shape.to_path_default(),
+        fill: shape_fill_color(shape_type, color, fill_opacity),
+        stroke: shape_stroke(stroke_color, stroke_width),
+    }
 }
 
 #[derive(Clone)]
@@ -1047,8 +1142,10 @@ impl Timeline {
 
                     let mut position = track.position.last_value();
                     let mut size = track.size.last_value();
+                    let mut line_from = track.line_from.last_value();
+                    let mut line_to = track.line_to.last_value();
                     let mut color = track.color.last_value();
-                    let shape_type = if ty == "Circle" { 1 } else { 0 };
+                    let shape_type = shape_type_for_actor(ty);
                     let opacity = track.opacity.last_value();
                     let mut stroke_width = track.stroke_width.last_value();
                     let mut stroke_color = track.stroke_color.last_value();
@@ -1090,6 +1187,26 @@ impl Timeline {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
                                 }
+                            }
+                            "from" if ty == "Line" => {
+                                if let Some(parsed) = parse_numeric_vec2(&prop.value, &self.env) {
+                                    line_from = parsed;
+                                }
+                            }
+                            "to" if ty == "Line" => {
+                                if let Some(parsed) = parse_numeric_vec2(&prop.value, &self.env) {
+                                    line_to = parsed;
+                                }
+                            }
+                            "radius_x" if ty == "Ellipse" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(size[0] as f64));
+                                size[0] = v.as_num() as f32;
+                            }
+                            "radius_y" if ty == "Ellipse" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(size[1] as f64));
+                                size[1] = v.as_num() as f32;
                             }
                             "color" => {
                                 color = parse_color(&prop.value);
@@ -1173,19 +1290,6 @@ impl Timeline {
                             },
                         );
                     }
-
-                    let shape = match shape_type {
-                        1 => crate::timeline::kurbo_shapes::KurboShape_::Circle {
-                            center: kurbo::Point::new(0.0, 0.0),
-                            radius: size[0] as f64,
-                        },
-                        _ => crate::timeline::kurbo_shapes::KurboShape_::Rect {
-                            x0: -(size[0] as f64),
-                            y0: -(size[1] as f64),
-                            x1: size[0] as f64,
-                            y1: size[1] as f64,
-                        },
-                    };
 
                     let mut vello_paths = vec![];
 
@@ -1363,32 +1467,16 @@ impl Timeline {
                             });
                         }
                     } else if ty != "Graph" && ty != "CartesianPlot" && ty != "PolarPlot" {
-                        let vello_path = crate::timeline::vello_path::VelloPath {
-                            path: shape.to_path_default(),
-                            fill: if fill_opacity > 0.0 {
-                                Some(vello::peniko::Color::from_rgba8(
-                                    (color[0] * 255.0) as u8,
-                                    (color[1] * 255.0) as u8,
-                                    (color[2] * 255.0) as u8,
-                                    (color[3] * 255.0 * fill_opacity) as u8,
-                                ))
-                            } else {
-                                None
-                            },
-                            stroke: if stroke_width > 0.0 {
-                                Some((
-                                    vello::peniko::Color::from_rgba8(
-                                        (stroke_color[0] * 255.0) as u8,
-                                        (stroke_color[1] * 255.0) as u8,
-                                        (stroke_color[2] * 255.0) as u8,
-                                        (stroke_color[3] * 255.0) as u8,
-                                    ),
-                                    stroke_width,
-                                ))
-                            } else {
-                                None
-                            },
-                        };
+                        let vello_path = build_shape_vello_path(
+                            shape_type,
+                            size,
+                            line_from,
+                            line_to,
+                            color,
+                            stroke_width,
+                            stroke_color,
+                            fill_opacity,
+                        );
                         vello_paths.push(vello_path);
                     }
 
@@ -1396,6 +1484,8 @@ impl Timeline {
                     track.vector_paths.add_keyframe(t_ms, vello_paths, easing);
                     track.position.add_keyframe(t_ms, position, easing);
                     track.size.add_keyframe(t_ms, size, easing);
+                    track.line_from.add_keyframe(t_ms, line_from, easing);
+                    track.line_to.add_keyframe(t_ms, line_to, easing);
                     track.color.add_keyframe(t_ms, color, easing);
                     track.shape_type.add_keyframe(t_ms, shape_type, easing);
                     track.opacity.add_keyframe(t_ms, opacity, easing);
@@ -1599,55 +1689,82 @@ impl Timeline {
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
+                        "radius_x" => {
+                            let target_radius = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
+                                .as_num() as f32;
+                            let mut target_size = track.size.last_value();
+                            target_size[0] = target_radius;
+                            if duration_ms > 0.0 {
+                                let start_val = track.size.evaluate(t_start_ms);
+                                track
+                                    .size
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            }
+                            track.size.add_keyframe(t_end_ms, target_size, easing);
+                        }
+                        "radius_y" => {
+                            let target_radius = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
+                                .as_num() as f32;
+                            let mut target_size = track.size.last_value();
+                            target_size[1] = target_radius;
+                            if duration_ms > 0.0 {
+                                let start_val = track.size.evaluate(t_start_ms);
+                                track
+                                    .size
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            }
+                            track.size.add_keyframe(t_end_ms, target_size, easing);
+                        }
+                        "from" => {
+                            if let Some(target_from) = parse_numeric_vec2(value, &self.env) {
+                                if duration_ms > 0.0 {
+                                    let start_val = track.line_from.evaluate(t_start_ms);
+                                    track.line_from.add_keyframe(
+                                        t_start_ms,
+                                        start_val,
+                                        Easing::Linear,
+                                    );
+                                }
+                                track.line_from.add_keyframe(t_end_ms, target_from, easing);
+                            }
+                        }
+                        "to" => {
+                            if let Some(target_to) = parse_numeric_vec2(value, &self.env) {
+                                if duration_ms > 0.0 {
+                                    let start_val = track.line_to.evaluate(t_start_ms);
+                                    track.line_to.add_keyframe(
+                                        t_start_ms,
+                                        start_val,
+                                        Easing::Linear,
+                                    );
+                                }
+                                track.line_to.add_keyframe(t_end_ms, target_to, easing);
+                            }
+                        }
                         _ => {}
                     }
 
                     let shape_type = track.shape_type.last_value();
                     let size = track.size.last_value();
+                    let line_from = track.line_from.last_value();
+                    let line_to = track.line_to.last_value();
                     let color = track.color.last_value();
                     let stroke_width = track.stroke_width.last_value();
                     let stroke_color = track.stroke_color.last_value();
                     let fill_opacity = track.fill_opacity.last_value();
 
-                    let shape = match shape_type {
-                        1 => crate::timeline::kurbo_shapes::KurboShape_::Circle {
-                            center: kurbo::Point::new(0.0, 0.0),
-                            radius: size[0] as f64,
-                        },
-                        _ => crate::timeline::kurbo_shapes::KurboShape_::Rect {
-                            x0: -(size[0] as f64),
-                            y0: -(size[1] as f64),
-                            x1: size[0] as f64,
-                            y1: size[1] as f64,
-                        },
-                    };
-
-                    let target_vello_path = crate::timeline::vello_path::VelloPath {
-                        path: shape.to_path_default(),
-                        fill: if fill_opacity > 0.0 {
-                            Some(vello::peniko::Color::from_rgba8(
-                                (color[0] * 255.0) as u8,
-                                (color[1] * 255.0) as u8,
-                                (color[2] * 255.0) as u8,
-                                (color[3] * 255.0 * fill_opacity) as u8,
-                            ))
-                        } else {
-                            None
-                        },
-                        stroke: if stroke_width > 0.0 {
-                            Some((
-                                vello::peniko::Color::from_rgba8(
-                                    (stroke_color[0] * 255.0) as u8,
-                                    (stroke_color[1] * 255.0) as u8,
-                                    (stroke_color[2] * 255.0) as u8,
-                                    (stroke_color[3] * 255.0) as u8,
-                                ),
-                                stroke_width,
-                            ))
-                        } else {
-                            None
-                        },
-                    };
+                    let target_vello_path = build_shape_vello_path(
+                        shape_type,
+                        size,
+                        line_from,
+                        line_to,
+                        color,
+                        stroke_width,
+                        stroke_color,
+                        fill_opacity,
+                    );
 
                     if duration_ms > 0.0 {
                         let start_val = track.vector_paths.evaluate(t_start_ms);

@@ -10,7 +10,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 | Area | Status | Notes |
 |---|---|---|
-| Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect` |
+| Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect`, `Line`, `Ellipse` |
 | Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
@@ -21,7 +21,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 These are the major holes between the documented language surface and the runtime:
 
-1. **Primitive coverage is still too narrow.** The runtime’s basic shape-actor surface is still centered on `Circle` and `Rect`, even though `Text`, `Math`, `Svg`, and plotting are implemented.
+1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, and `Ellipse`, but other planned scene primitives such as `Path`, `Polygon`, `Arc`, `Image`, and `Code` are still missing.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
 3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
@@ -106,13 +106,11 @@ The next implementation steps should follow these rules:
 **Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
 **Recommended implementation order:**
-1. `Line`
-2. `Ellipse`
-3. `Arc`
-4. `Polygon`
-5. `Path`
-6. `Image`
-7. `Code`
+1. `Arc`
+2. `Polygon`
+3. `Path`
+4. `Image`
+5. `Code`
 
 **Why this phase follows layout:**
 - It directly reduces the parser/runtime mismatch
@@ -124,8 +122,8 @@ The next implementation steps should follow these rules:
 - Do not bundle all primitives into one risky change
 
 **Exit criteria:**
-- At least the first two added primitives are fully runnable and documented
-- `docs/primitives.md` can be expanded without caveats for those primitives
+- At least one additional primitive beyond `Line` / `Ellipse` is fully runnable and documented
+- `docs/primitives.md` can be expanded without caveats for the newly landed primitive
 
 ---
 
@@ -201,6 +199,7 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Graph plotting with adaptive sampling
 - Discontinuity detection for problematic functions like `1/x`
 - Bounding-box culling for plotting work
+- Runtime `Line` and `Ellipse` scene primitives
 - `Row` / `Col` auto-layout
 - Absolute positioning as a working placement mechanism
 
@@ -219,10 +218,10 @@ The following would be premature before Phases 2–3 are complete:
 
 ## 6. Immediate Next Implementation Recommendation
 
-If implementation starts right after this planning rework, the best next move is:
+Now that `Line` and `Ellipse` are shipped, the best next move is:
 
 1. **Implement one additional runtime primitive family**
 2. **Update docs and demos for that primitive immediately**
 3. **Keep component work behind the now-stable layout and primitive foundation**
 
-The cleanest starting candidates are `Line` and `Ellipse`, because low-level geometry support already exists and they meaningfully expand the scene language without destabilizing the now-shipped layout foundation.
+The cleanest next candidate is `Arc`, followed by either `Polygon` or `Path`. That keeps the work in the same geometry/runtime slice before the much larger semantic jump to components.

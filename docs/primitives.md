@@ -83,6 +83,42 @@ The runtime uses the generic actor path with `size` rather than dedicated `width
 r: Rect, size: (160, 80), color: blue, at: (400, 300)
 ```
 
+## Line
+**Status:** Implemented in parser and runtime.
+
+**Properties used by the runtime:**
+- `from`: Tuple `(x, y)` in local actor coordinates
+- `to`: Tuple `(x, y)` in local actor coordinates
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `at`: Tuple `(x, y)`
+
+`Line` is stroke-oriented in the current runtime. It does not produce a fill path.
+
+**Example:**
+```animatix
+axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (640, 360)
+```
+
+## Ellipse
+**Status:** Implemented in parser and runtime.
+
+**Properties used by the runtime:**
+- `radius_x`: Number
+- `radius_y`: Number
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `at`: Tuple `(x, y)`
+
+The first runtime pass supports axis-aligned ellipses. Rotation is still future work at the DSL/runtime surface.
+
+**Example:**
+```animatix
+halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
+```
+
 ---
 
 # 2. Graph Primitives
@@ -198,6 +234,10 @@ The current runtime has explicit assignment handling for these actor properties:
 - `size`
 - `at` / `position`
 - `radius`
+- `radius_x`
+- `radius_y`
+- `from`
+- `to`
 - `scene.background_color`
 
 Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
@@ -221,13 +261,11 @@ Absolute positioning is intentionally preserved in the language. The design chan
 
 # 6. Parser-Only or Planned Primitives
 
-The docs previously listed several primitives as if they were runtime-ready. They are not currently wired into the scene runtime:
+The docs previously listed several primitives as if they were runtime-ready. These are still not currently wired into the scene runtime:
 
-- `Line`
 - `Path`
 - `Polygon`
 - `Arc`
-- `Ellipse`
 - `Image`
 - `Code`
 

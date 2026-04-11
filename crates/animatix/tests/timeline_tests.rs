@@ -2,8 +2,8 @@ use animatix::ast::{Expr, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
-    Timeline, evaluate_expr, parse_color, time_to_ms,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PlacementMode,
+    PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use kurbo::Shape;
 
@@ -22,6 +22,17 @@ fn text_paths_width(paths: &[TextPath]) -> f64 {
     } else {
         0.0
     }
+}
+
+fn vector_path_bounds(timeline: &Timeline, label: &str, time_ms: u64) -> kurbo::Rect {
+    timeline
+        .tracks
+        .get(label)
+        .expect("track should exist")
+        .vector_paths
+        .evaluate(time_ms)[0]
+        .path
+        .bounding_box()
 }
 
 #[test]
@@ -211,9 +222,181 @@ fn test_missing_properties() {
         PositionBinding::Absolute
     );
     assert_eq!(track.size.evaluate(0), [50.0, 50.0]);
+    assert_eq!(track.line_from.evaluate(0), [-50.0, 0.0]);
+    assert_eq!(track.line_to.evaluate(0), [50.0, 0.0]);
     assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.opacity.evaluate(0), 1.0);
+}
+
+#[test]
+fn test_line_actor_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "axis".to_string(),
+            ty: "Line".to_string(),
+            props: vec![
+                Property {
+                    name: "from".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-40.0), Expr::Num(0.0)]),
+                },
+                Property {
+                    name: "to".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(20.0)]),
+                },
+                Property {
+                    name: "stroke_width".to_string(),
+                    value: Expr::Num(3.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("axis")
+        .expect("axis track should exist");
+    let bounds = vector_path_bounds(&timeline, "axis", 0);
+
+    assert_eq!(track.shape_type.evaluate(0), 2);
+    assert_eq!(track.line_from.evaluate(0), [-40.0, 0.0]);
+    assert_eq!(track.line_to.evaluate(0), [60.0, 20.0]);
+    assert!(track.vector_paths.evaluate(0)[0].fill.is_none());
+    assert_eq!(bounds.x0, -40.0);
+    assert_eq!(bounds.y0, 0.0);
+    assert_eq!(bounds.x1, 60.0);
+    assert_eq!(bounds.y1, 20.0);
+}
+
+#[test]
+fn test_ellipse_actor_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "halo".to_string(),
+            ty: "Ellipse".to_string(),
+            props: vec![
+                Property {
+                    name: "radius_x".to_string(),
+                    value: Expr::Num(80.0),
+                },
+                Property {
+                    name: "radius_y".to_string(),
+                    value: Expr::Num(30.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("halo")
+        .expect("halo track should exist");
+    let bounds = vector_path_bounds(&timeline, "halo", 0);
+
+    assert_eq!(track.shape_type.evaluate(0), 3);
+    assert_eq!(track.size.evaluate(0), [80.0, 30.0]);
+    assert!((bounds.x0 + 80.0).abs() < 0.1);
+    assert!((bounds.y0 + 30.0).abs() < 0.1);
+    assert!((bounds.x1 - 80.0).abs() < 0.1);
+    assert!((bounds.y1 - 30.0).abs() < 0.1);
+}
+
+#[test]
+fn test_line_assignments_rebuild_runtime_path() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "axis".to_string(),
+                ty: "Line".to_string(),
+                props: vec![
+                    Property {
+                        name: "from".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(-20.0), Expr::Num(0.0)]),
+                    },
+                    Property {
+                        name: "to".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(0.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: "axis".to_string(),
+                property: "to".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(40.0)]),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let bounds = vector_path_bounds(&timeline, "axis", 1000);
+
+    assert_eq!(timeline.tracks["axis"].line_to.evaluate(1000), [20.0, 40.0]);
+    assert_eq!(bounds.x0, -20.0);
+    assert_eq!(bounds.y0, 0.0);
+    assert_eq!(bounds.x1, 20.0);
+    assert_eq!(bounds.y1, 40.0);
+}
+
+#[test]
+fn test_ellipse_assignments_rebuild_runtime_path() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "halo".to_string(),
+                ty: "Ellipse".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius_x".to_string(),
+                        value: Expr::Num(80.0),
+                    },
+                    Property {
+                        name: "radius_y".to_string(),
+                        value: Expr::Num(30.0),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: "halo".to_string(),
+                property: "radius_y".to_string(),
+                value: Expr::Num(60.0),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let bounds = vector_path_bounds(&timeline, "halo", 1000);
+
+    assert_eq!(timeline.tracks["halo"].size.evaluate(1000), [80.0, 60.0]);
+    assert!((bounds.x0 + 80.0).abs() < 0.1);
+    assert!((bounds.y0 + 60.0).abs() < 0.1);
+    assert!((bounds.x1 - 80.0).abs() < 0.1);
+    assert!((bounds.y1 - 60.0).abs() < 0.1);
 }
 
 #[test]

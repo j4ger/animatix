@@ -1,4 +1,4 @@
-use animatix::ast::{Action, Expr, LoopKind, Modifier, Property, Stmt, Time};
+use animatix::ast::{Action, Expr, LoopKind, Modifier, Property, Stmt, Time, UnaryOp};
 use animatix::parser::parser;
 use chumsky::Parser;
 
@@ -159,6 +159,69 @@ fn test_actor_decl_full() {
                     value: Expr::Ident("bounce".to_string())
                 }
             ],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_line_actor_decl() {
+    assert_eq!(
+        parse_single_stmt("axis: Line, from: (-40, 0), to: (40, 0), stroke: blue, stroke_width: 3"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "axis".to_string(),
+            ty: "Line".to_string(),
+            props: vec![
+                Property {
+                    name: "from".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
+                        Expr::Num(0.0),
+                    ]),
+                },
+                Property {
+                    name: "to".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(0.0)]),
+                },
+                Property {
+                    name: "stroke".to_string(),
+                    value: Expr::Ident("blue".to_string()),
+                },
+                Property {
+                    name: "stroke_width".to_string(),
+                    value: Expr::Num(3.0),
+                }
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_ellipse_actor_decl() {
+    assert_eq!(
+        parse_single_stmt("halo: Ellipse, radius_x: 80, radius_y: 30, color: green"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "halo".to_string(),
+            ty: "Ellipse".to_string(),
+            props: vec![
+                Property {
+                    name: "radius_x".to_string(),
+                    value: Expr::Num(80.0),
+                },
+                Property {
+                    name: "radius_y".to_string(),
+                    value: Expr::Num(30.0),
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("green".to_string()),
+                }
+            ],
+            modifiers: vec![],
             children: vec![],
         }
     );

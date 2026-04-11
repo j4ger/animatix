@@ -1,3 +1,4 @@
+// Runnable example: broad current-runtime overview with text, math, SVG, and basic shape animation.
 #0s
 scene.background_color = (0.07, 0.08, 0.12, 1.0)
 

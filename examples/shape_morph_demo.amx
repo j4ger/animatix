@@ -1,3 +1,4 @@
+// Runnable example: circle-to-rectangle morphing using runtime vector-path interpolation.
 #0s
 scene.background_color = (0.07, 0.08, 0.12, 1.0)
 
