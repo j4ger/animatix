@@ -57,6 +57,8 @@ icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 
 If `size` is omitted, the runtime uses the image's natural pixel size. The initial implementation keeps the surface intentionally small and file-based.
 
+**Transition note:** Animating `url` currently produces a discrete source swap, not a crossfade between two raster images. If you need a fade today, layer images manually and animate opacity instead.
+
 **Example:**
 ```animatix
 photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }

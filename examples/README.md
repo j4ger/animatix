@@ -4,6 +4,8 @@ Runnable demos live in `examples/`. Future-facing sketches live in `examples/pla
 
 Each runnable file should explain itself through its filename, header comment, and on-screen copy.
 
+The shipped GUI MVP opens these `.amx` files directly from `crates/animatix-gui` for editing, scrubbing, and preview.
+
 ## Runnable
 
 - `showcase.amx`

@@ -12,6 +12,7 @@ fontdue = "0.9.3"
 image = "0.25.10"
 kurbo = "0.13.0"
 mitex = "0.2.4"
+naga = { version = "28.0.0", features = ["termcolor"] }
 pollster = "0.4.0"
 rand = "0.10.0"
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"] }
@@ -23,3 +24,6 @@ usvg = "0.47.0"
 vello = "0.8.0"
 wgpu = "28.0.0"
 winit = "0.30.13"
+
+[build-dependencies]
+naga = { version = "28.0.0", features = ["termcolor"] }

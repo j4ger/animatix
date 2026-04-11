@@ -32,6 +32,11 @@ struct ParsedModule {
     imports: Vec<Import>,
 }
 
+struct SourceOverride<'a> {
+    path: &'a Path,
+    source: &'a str,
+}
+
 struct LoadResult {
     statements: Vec<Stmt>,
     import_ids: Vec<FileId>,
@@ -97,6 +102,7 @@ impl ModuleGraph {
         &mut self,
         path: &Path,
         visiting: &mut HashSet<PathBuf>,
+        source_override: Option<&SourceOverride<'_>>,
     ) -> Result<LoadResult, ModuleError> {
         let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
 
@@ -124,7 +130,10 @@ impl ModuleGraph {
 
         visiting.insert(canonical.clone());
 
-        let source = fs::read_to_string(&canonical).map_err(ModuleError::IoError)?;
+        let source = source_override
+            .filter(|override_source| override_source.path == canonical.as_path())
+            .map(|override_source| override_source.source.to_owned())
+            .unwrap_or(fs::read_to_string(&canonical).map_err(ModuleError::IoError)?);
 
         let (statements, parse_errors) = parser().parse(&source).into_output_errors();
 
@@ -155,7 +164,7 @@ impl ModuleGraph {
             let import_path =
                 Self::resolve_path(canonical.parent().unwrap_or(Path::new(".")), &import.path);
 
-            let result = self.load_file(&import_path, visiting)?;
+            let result = self.load_file(&import_path, visiting, source_override)?;
             all_import_ids.push(
                 self.paths
                     .get(&fs::canonicalize(&import_path).map_err(ModuleError::IoError)?)
@@ -207,10 +216,23 @@ impl ModuleGraph {
     }
 
     pub fn load_entry(&mut self, path: &Path) -> Result<Vec<Stmt>, ModuleError> {
-        let mut visiting = HashSet::new();
-        self.load_file(path, &mut visiting)?;
+        self.load_entry_with_source(path, None)
+    }
 
+    pub fn load_entry_with_source(
+        &mut self,
+        path: &Path,
+        source: Option<&str>,
+    ) -> Result<Vec<Stmt>, ModuleError> {
+        let mut visiting = HashSet::new();
         let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
+        let source_override = source.map(|source| SourceOverride {
+            path: canonical.as_path(),
+            source,
+        });
+
+        self.load_file(path, &mut visiting, source_override.as_ref())?;
+
         let entry_id = self
             .paths
             .get(&canonical)

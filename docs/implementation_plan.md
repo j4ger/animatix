@@ -14,6 +14,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 | Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
+| GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, line-oriented code editing, save/reload, timeline scrubbing/playback, and snapshot-based preview |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
 | Components | Parser-only | AST/parser exist; runtime instantiation does not |
 
@@ -21,7 +22,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 These are the major holes between the documented language surface and the runtime:
 
-1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`, but other planned scene primitives such as `Image` and `Code` are still missing.
+1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, and `Image`, but planned primitives such as `Code` are still missing.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
 3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
@@ -106,8 +107,7 @@ The next implementation steps should follow these rules:
 **Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
 **Recommended implementation order:**
-1. `Image`
-2. `Code`
+1. `Code`
 
 **Why this phase follows layout:**
 - It directly reduces the parser/runtime mismatch
@@ -119,7 +119,10 @@ The next implementation steps should follow these rules:
 - Do not bundle all primitives into one risky change
 - Prefer explicit, low-risk v1 property surfaces over broader shorthand syntax
 
-**Current v1 recommendation for the next three primitives:**
+**Current progress note:**
+- `Image` is now implemented, including runtime rendering and timeline-driven property animation.
+
+**Current v1 recommendation for the next remaining primitive work:**
 - `Arc`: `radius_x`, `radius_y`, `start_angle`, `sweep_angle`; stroke-first rather than filled sector semantics
 - `Polygon`: explicit `points` input rather than generated regular polygons
 - `Path`: structured `commands` using existing expression call syntax instead of a new path-string parser
@@ -183,12 +186,15 @@ The next implementation steps should follow these rules:
 **Goal:** Improve the creator experience after the language/runtime foundation is dependable.
 
 **Candidate work:**
-- Interactive UI/editor
+- Extend the shipped GUI beyond its MVP scope
 - Hot reload and file watching
 - Richer action/component discovery for tooling
 - More formal examples/tutorial structure
 
-This phase should not begin until the runtime surface is trustworthy enough that an editor is not teaching unstable or unimplemented syntax.
+**Current progress note:**
+- A first GPUI-based GUI MVP now exists in `crates/animatix-gui`.
+- It is intentionally narrow: line-oriented editing, save/reload, timeline scrubbing/playback, and snapshot-based preview.
+- Future work in this phase is about improving that shell, not starting from zero.
 
 ---
 
@@ -204,8 +210,10 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Bounding-box culling for plotting work
 - Runtime `Line` and `Ellipse` scene primitives
 - Runtime `Arc`, `Polygon`, and `Path` scene primitives
+- Runtime `Image` scene primitive and animated image properties
 - `Row` / `Col` auto-layout
 - Absolute positioning as a working placement mechanism
+- GPUI-based GUI MVP for preview/scrubbing/editing
 
 ---
 
@@ -215,17 +223,17 @@ The following would be premature before Phases 2–3 are complete:
 
 - Expanding the spec with more aspirational syntax
 - Adding more broken or future-only demos to the main example set
-- Building an editor/UI on top of an unstable user-facing language surface
+- Jumping straight from the shipped GUI MVP to a full visual editor on top of an unstable user-facing language surface
 - Jumping straight to a full general-purpose constraint solver
 
 ---
 
 ## 6. Immediate Next Implementation Recommendation
 
-Now that `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path` are shipped, the best next move is:
+Now that `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, `Image`, and the first GUI MVP are shipped, the best next move is:
 
-1. **Implement one additional runtime primitive family**
-2. **Update docs and demos for that primitive immediately**
-3. **Keep component work behind the now-stable layout and primitive foundation**
+1. **Implement the remaining `Code` primitive family**
+2. **Update docs and demos for it immediately**
+3. **Keep component work behind the now-stable layout and primitive foundation, while improving the GUI incrementally**
 
-The cleanest next candidate is `Image`, followed by `Code`. That keeps the work focused on expanding the remaining primitive surface before the much larger semantic jump to components.
+The cleanest next candidate is now `Code`, followed by targeted improvements to the GUI MVP and then component runtime work.

@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "crates/animatix"
+    "crates/animatix",
+    "crates/animatix-gui"
 ]
 resolver = "2"
