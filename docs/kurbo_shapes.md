@@ -124,7 +124,7 @@ for t in (0..=100).map(|i| i as f64 / 100.0) {
 
 ## Integration with Timeline
 
-> **Note:** `Line` and `Ellipse` are now available as runtime scene primitives in the DSL. Higher-level morph authoring remains lower-level: shapes still flow through `BezPath`, and DSL-native morph controls/actions are still planned.
+> **Note:** `Line`, `Ellipse`, and `Arc` are now available as runtime scene primitives in the DSL. `Polygon` and structured `Path` primitives also build on this same low-level `BezPath` path layer. Higher-level morph authoring remains lower-level: shapes still flow through `BezPath`, and DSL-native morph controls/actions are still planned.
 
 The kurbo_shapes module provides the low-level morphing functionality. To integrate shapes into the timeline DSL, you would use the shapes in Rust code:
 
@@ -221,7 +221,7 @@ pub enum KurboShape_ {
 
 ### Future Enhancements
 - Direct shape morphing (e.g., Circle → Circle with radius interpolation)
-- Shape morphing in timeline DSL (need AST extensions)
+- Shape morphing in timeline DSL beyond the current primitive surface (for example: richer path authoring and future shape helpers building on `BezPath`)
 - Advanced morphing strategies (feature-based, skeleton-based)
 - Shape keyframe tracks in Animation system
 

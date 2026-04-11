@@ -64,6 +64,12 @@ pub enum KurboShape_ {
         sweep_angle: f64,
         rotation: f64,
     },
+
+    /// Closed polygon defined by explicit points
+    Polygon { points: Vec<Point> },
+
+    /// Raw Bezier path
+    Path { path: BezPath },
 }
 
 impl KurboShape_ {
@@ -180,6 +186,16 @@ impl KurboShape_ {
         }
     }
 
+    /// Create a polygon from explicit points
+    pub fn polygon(points: Vec<Point>) -> Self {
+        KurboShape_::Polygon { points }
+    }
+
+    /// Create a raw path wrapper
+    pub fn path(path: BezPath) -> Self {
+        KurboShape_::Path { path }
+    }
+
     /// Convert this shape to a BezPath with specified tolerance
     pub fn to_path(&self, tolerance: f64) -> BezPath {
         match self {
@@ -217,6 +233,18 @@ impl KurboShape_ {
                 rotation,
             } => Arc::new(*center, *radii, *start_angle, *sweep_angle, *rotation)
                 .into_path(tolerance),
+            KurboShape_::Polygon { points } => {
+                let mut path = BezPath::new();
+                if let Some(first) = points.first() {
+                    path.move_to(*first);
+                    for point in points.iter().skip(1) {
+                        path.line_to(*point);
+                    }
+                    path.close_path();
+                }
+                path
+            }
+            KurboShape_::Path { path } => path.clone(),
         }
     }
 
@@ -321,6 +349,32 @@ mod tests {
 
         // Arc should convert to path with curves
         assert!(!path.elements().is_empty());
+    }
+
+    #[test]
+    fn test_polygon_conversion() {
+        let polygon = KurboShape_::polygon(vec![
+            Point::new(-40.0, 0.0),
+            Point::new(0.0, -60.0),
+            Point::new(50.0, 10.0),
+            Point::new(10.0, 70.0),
+        ]);
+        let path = polygon.to_path_default();
+
+        assert!(!path.elements().is_empty());
+    }
+
+    #[test]
+    fn test_raw_path_conversion() {
+        let mut raw = BezPath::new();
+        raw.move_to((0.0, 0.0));
+        raw.line_to((100.0, 0.0));
+        raw.line_to((100.0, 50.0));
+        raw.close_path();
+
+        let path = KurboShape_::path(raw.clone()).to_path_default();
+
+        assert_eq!(path.elements(), raw.elements());
     }
 
     #[test]

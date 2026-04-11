@@ -368,14 +368,98 @@ const SHAPE_RECT: u32 = 0;
 const SHAPE_CIRCLE: u32 = 1;
 const SHAPE_LINE: u32 = 2;
 const SHAPE_ELLIPSE: u32 = 3;
+const SHAPE_ARC: u32 = 4;
+const SHAPE_POLYGON: u32 = 5;
+const SHAPE_PATH: u32 = 6;
 
 fn shape_type_for_actor(ty: &str) -> u32 {
     match ty {
         "Circle" => SHAPE_CIRCLE,
         "Line" => SHAPE_LINE,
         "Ellipse" => SHAPE_ELLIPSE,
+        "Arc" => SHAPE_ARC,
+        "Polygon" => SHAPE_POLYGON,
+        "Path" => SHAPE_PATH,
         _ => SHAPE_RECT,
     }
+}
+
+fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
+    match expr {
+        Expr::Tuple(items) => {
+            let mut points = Vec::with_capacity(items.len());
+            for item in items {
+                let [x, y] = parse_numeric_vec2(item, env)?;
+                points.push(kurbo::Point::new(x as f64, y as f64));
+            }
+            Some(points)
+        }
+        _ => None,
+    }
+}
+
+fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
+    let Expr::Tuple(items) = expr else {
+        return None;
+    };
+
+    let mut path = kurbo::BezPath::new();
+
+    for item in items {
+        let Expr::Call(name, args) = item else {
+            return None;
+        };
+
+        match name.as_str() {
+            "move_to" => {
+                if args.len() != 2 {
+                    return None;
+                }
+                let x = evaluate_expr(&args[0], env).ok()?.as_num();
+                let y = evaluate_expr(&args[1], env).ok()?.as_num();
+                path.move_to((x, y));
+            }
+            "line_to" => {
+                if args.len() != 2 {
+                    return None;
+                }
+                let x = evaluate_expr(&args[0], env).ok()?.as_num();
+                let y = evaluate_expr(&args[1], env).ok()?.as_num();
+                path.line_to((x, y));
+            }
+            "quad_to" => {
+                if args.len() != 4 {
+                    return None;
+                }
+                let x1 = evaluate_expr(&args[0], env).ok()?.as_num();
+                let y1 = evaluate_expr(&args[1], env).ok()?.as_num();
+                let x2 = evaluate_expr(&args[2], env).ok()?.as_num();
+                let y2 = evaluate_expr(&args[3], env).ok()?.as_num();
+                path.quad_to((x1, y1), (x2, y2));
+            }
+            "curve_to" => {
+                if args.len() != 6 {
+                    return None;
+                }
+                let x1 = evaluate_expr(&args[0], env).ok()?.as_num();
+                let y1 = evaluate_expr(&args[1], env).ok()?.as_num();
+                let x2 = evaluate_expr(&args[2], env).ok()?.as_num();
+                let y2 = evaluate_expr(&args[3], env).ok()?.as_num();
+                let x3 = evaluate_expr(&args[4], env).ok()?.as_num();
+                let y3 = evaluate_expr(&args[5], env).ok()?.as_num();
+                path.curve_to((x1, y1), (x2, y2), (x3, y3));
+            }
+            "close" => {
+                if !args.is_empty() {
+                    return None;
+                }
+                path.close_path();
+            }
+            _ => return None,
+        }
+    }
+
+    Some(path)
 }
 
 fn build_shape(
@@ -383,6 +467,7 @@ fn build_shape(
     size: [f32; 2],
     line_from: [f32; 2],
     line_to: [f32; 2],
+    arc_angles: [f32; 2],
 ) -> KurboShape_ {
     match shape_type {
         SHAPE_CIRCLE => KurboShape_::Circle {
@@ -396,6 +481,13 @@ fn build_shape(
         SHAPE_ELLIPSE => KurboShape_::Ellipse {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
+            rotation: 0.0,
+        },
+        SHAPE_ARC => KurboShape_::Arc {
+            center: kurbo::Point::new(0.0, 0.0),
+            radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
+            start_angle: arc_angles[0] as f64,
+            sweep_angle: arc_angles[1] as f64,
             rotation: 0.0,
         },
         _ => KurboShape_::Rect {
@@ -412,7 +504,7 @@ fn shape_fill_color(
     color: [f32; 4],
     fill_opacity: f32,
 ) -> Option<vello::peniko::Color> {
-    if shape_type == SHAPE_LINE || fill_opacity <= 0.0 {
+    if matches!(shape_type, SHAPE_LINE | SHAPE_ARC) || fill_opacity <= 0.0 {
         return None;
     }
 
@@ -445,15 +537,31 @@ fn build_shape_vello_path(
     size: [f32; 2],
     line_from: [f32; 2],
     line_to: [f32; 2],
+    arc_angles: [f32; 2],
     color: [f32; 4],
     stroke_width: f32,
     stroke_color: [f32; 4],
     fill_opacity: f32,
 ) -> VelloPath {
-    let shape = build_shape(shape_type, size, line_from, line_to);
+    let shape = build_shape(shape_type, size, line_from, line_to, arc_angles);
 
     VelloPath {
         path: shape.to_path_default(),
+        fill: shape_fill_color(shape_type, color, fill_opacity),
+        stroke: shape_stroke(stroke_color, stroke_width),
+    }
+}
+
+fn styled_vello_path(
+    path: kurbo::BezPath,
+    shape_type: u32,
+    color: [f32; 4],
+    stroke_width: f32,
+    stroke_color: [f32; 4],
+    fill_opacity: f32,
+) -> VelloPath {
+    VelloPath {
+        path,
         fill: shape_fill_color(shape_type, color, fill_opacity),
         stroke: shape_stroke(stroke_color, stroke_width),
     }
@@ -1144,6 +1252,7 @@ impl Timeline {
                     let mut size = track.size.last_value();
                     let mut line_from = track.line_from.last_value();
                     let mut line_to = track.line_to.last_value();
+                    let mut arc_angles = track.arc_angles.last_value();
                     let mut color = track.color.last_value();
                     let shape_type = shape_type_for_actor(ty);
                     let opacity = track.opacity.last_value();
@@ -1154,6 +1263,7 @@ impl Timeline {
                     let mut gap = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
+                    let mut custom_path: Option<kurbo::BezPath> = None;
 
                     let mut easing = Easing::Linear;
                     for modifier in modifiers {
@@ -1198,15 +1308,35 @@ impl Timeline {
                                     line_to = parsed;
                                 }
                             }
-                            "radius_x" if ty == "Ellipse" => {
+                            "radius_x" if ty == "Ellipse" || ty == "Arc" => {
                                 let v = evaluate_expr(&prop.value, &self.env)
                                     .unwrap_or(Value::Num(size[0] as f64));
                                 size[0] = v.as_num() as f32;
                             }
-                            "radius_y" if ty == "Ellipse" => {
+                            "radius_y" if ty == "Ellipse" || ty == "Arc" => {
                                 let v = evaluate_expr(&prop.value, &self.env)
                                     .unwrap_or(Value::Num(size[1] as f64));
                                 size[1] = v.as_num() as f32;
+                            }
+                            "start_angle" if ty == "Arc" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(arc_angles[0] as f64));
+                                arc_angles[0] = v.as_num() as f32;
+                            }
+                            "sweep_angle" if ty == "Arc" => {
+                                let v = evaluate_expr(&prop.value, &self.env)
+                                    .unwrap_or(Value::Num(arc_angles[1] as f64));
+                                arc_angles[1] = v.as_num() as f32;
+                            }
+                            "points" if ty == "Polygon" => {
+                                if let Some(points) = parse_point_list_expr(&prop.value, &self.env)
+                                {
+                                    custom_path =
+                                        Some(KurboShape_::Polygon { points }.to_path_default());
+                                }
+                            }
+                            "commands" if ty == "Path" => {
+                                custom_path = parse_path_commands_expr(&prop.value, &self.env);
                             }
                             "color" => {
                                 color = parse_color(&prop.value);
@@ -1467,16 +1597,29 @@ impl Timeline {
                             });
                         }
                     } else if ty != "Graph" && ty != "CartesianPlot" && ty != "PolarPlot" {
-                        let vello_path = build_shape_vello_path(
-                            shape_type,
-                            size,
-                            line_from,
-                            line_to,
-                            color,
-                            stroke_width,
-                            stroke_color,
-                            fill_opacity,
-                        );
+                        let vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
+                            let path = custom_path.unwrap_or_else(kurbo::BezPath::new);
+                            styled_vello_path(
+                                path,
+                                shape_type,
+                                color,
+                                stroke_width,
+                                stroke_color,
+                                fill_opacity,
+                            )
+                        } else {
+                            build_shape_vello_path(
+                                shape_type,
+                                size,
+                                line_from,
+                                line_to,
+                                arc_angles,
+                                color,
+                                stroke_width,
+                                stroke_color,
+                                fill_opacity,
+                            )
+                        };
                         vello_paths.push(vello_path);
                     }
 
@@ -1486,6 +1629,7 @@ impl Timeline {
                     track.size.add_keyframe(t_ms, size, easing);
                     track.line_from.add_keyframe(t_ms, line_from, easing);
                     track.line_to.add_keyframe(t_ms, line_to, easing);
+                    track.arc_angles.add_keyframe(t_ms, arc_angles, easing);
                     track.color.add_keyframe(t_ms, color, easing);
                     track.shape_type.add_keyframe(t_ms, shape_type, easing);
                     track.opacity.add_keyframe(t_ms, opacity, easing);
@@ -1717,6 +1861,42 @@ impl Timeline {
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
+                        "start_angle" => {
+                            let target_angle = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(track.arc_angles.last_value()[0] as f64))
+                                .as_num() as f32;
+                            let mut target_angles = track.arc_angles.last_value();
+                            target_angles[0] = target_angle;
+                            if duration_ms > 0.0 {
+                                let start_val = track.arc_angles.evaluate(t_start_ms);
+                                track.arc_angles.add_keyframe(
+                                    t_start_ms,
+                                    start_val,
+                                    Easing::Linear,
+                                );
+                            }
+                            track
+                                .arc_angles
+                                .add_keyframe(t_end_ms, target_angles, easing);
+                        }
+                        "sweep_angle" => {
+                            let target_angle = evaluate_expr(value, &self.env)
+                                .unwrap_or(Value::Num(track.arc_angles.last_value()[1] as f64))
+                                .as_num() as f32;
+                            let mut target_angles = track.arc_angles.last_value();
+                            target_angles[1] = target_angle;
+                            if duration_ms > 0.0 {
+                                let start_val = track.arc_angles.evaluate(t_start_ms);
+                                track.arc_angles.add_keyframe(
+                                    t_start_ms,
+                                    start_val,
+                                    Easing::Linear,
+                                );
+                            }
+                            track
+                                .arc_angles
+                                .add_keyframe(t_end_ms, target_angles, easing);
+                        }
                         "from" => {
                             if let Some(target_from) = parse_numeric_vec2(value, &self.env) {
                                 if duration_ms > 0.0 {
@@ -1750,21 +1930,40 @@ impl Timeline {
                     let size = track.size.last_value();
                     let line_from = track.line_from.last_value();
                     let line_to = track.line_to.last_value();
+                    let arc_angles = track.arc_angles.last_value();
                     let color = track.color.last_value();
                     let stroke_width = track.stroke_width.last_value();
                     let stroke_color = track.stroke_color.last_value();
                     let fill_opacity = track.fill_opacity.last_value();
 
-                    let target_vello_path = build_shape_vello_path(
-                        shape_type,
-                        size,
-                        line_from,
-                        line_to,
-                        color,
-                        stroke_width,
-                        stroke_color,
-                        fill_opacity,
-                    );
+                    let target_vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
+                        let existing_path = track
+                            .vector_paths
+                            .last_value()
+                            .first()
+                            .map(|vp| vp.path.clone())
+                            .unwrap_or_else(kurbo::BezPath::new);
+                        styled_vello_path(
+                            existing_path,
+                            shape_type,
+                            color,
+                            stroke_width,
+                            stroke_color,
+                            fill_opacity,
+                        )
+                    } else {
+                        build_shape_vello_path(
+                            shape_type,
+                            size,
+                            line_from,
+                            line_to,
+                            arc_angles,
+                            color,
+                            stroke_width,
+                            stroke_color,
+                            fill_opacity,
+                        )
+                    };
 
                     if duration_ms > 0.0 {
                         let start_val = track.vector_paths.evaluate(t_start_ms);

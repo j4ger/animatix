@@ -119,6 +119,66 @@ The first runtime pass supports axis-aligned ellipses. Rotation is still future 
 halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
 ```
 
+## Arc
+**Status:** Implemented in parser and runtime.
+
+**Intended v1 properties:**
+- `radius_x`: Number
+- `radius_y`: Number
+- `start_angle`: Number
+- `sweep_angle`: Number
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `at`: Tuple `(x, y)`
+
+The current runtime is stroke-first. It renders an open arc path, not a filled pie slice.
+
+**Example:**
+```animatix
+ring: Arc, radius_x: 160, radius_y: 110, start_angle: -0.5, sweep_angle: 4.0, stroke: gold, width: 5, at: (640, 360)
+```
+
+## Polygon
+**Status:** Implemented in parser and runtime.
+
+**Intended v1 properties:**
+- `points`: Tuple/list of point tuples
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `at`: Tuple `(x, y)`
+
+The current runtime uses explicit points rather than higher-level helpers such as `sides` or `radius`. Geometry changes are expected to come from re-declaration/morphing rather than property-level point animation.
+
+**Example:**
+```animatix
+badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan, at: (640, 360)
+```
+
+## Path
+**Status:** Implemented in parser and runtime.
+
+**Intended v1 properties:**
+- `commands`: Tuple/list of path commands using existing call syntax
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `at`: Tuple `(x, y)`
+
+The current runtime uses structured commands such as `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, and `close()`. This keeps the implementation aligned with the existing expression/parser model instead of introducing a separate SVG path-string parser.
+
+**Example:**
+```animatix
+guide: Path, commands: {
+  move_to(-120, 0),
+  line_to(-40, -80),
+  curve_to(20, -120, 80, 40, 140, -10),
+  close()
+}, stroke: white, width: 4, at: (640, 360)
+```
+
 ---
 
 # 2. Graph Primitives
@@ -240,6 +300,8 @@ The current runtime has explicit assignment handling for these actor properties:
 - `to`
 - `scene.background_color`
 
+Current runtime additions include `start_angle` and `sweep_angle` for `Arc`. `Polygon.points` and `Path.commands` are declaration-time geometry inputs rather than property-level animated tracks.
+
 Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
 
 Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.
@@ -259,17 +321,14 @@ Absolute positioning is intentionally preserved in the language. The design chan
 
 ---
 
-# 6. Parser-Only or Planned Primitives
+# 6. Other Planned Primitives
 
-The docs previously listed several primitives as if they were runtime-ready. These are still not currently wired into the scene runtime:
+These primitives are still not currently wired into the scene runtime:
 
-- `Path`
-- `Polygon`
-- `Arc`
 - `Image`
 - `Code`
 
-Some of these concepts exist in lower-level Rust modules such as `kurbo_shapes.rs`, but they are not first-class scene primitives in the current Animatix runtime.
+Some shape-oriented concepts also exist in lower-level Rust modules such as `kurbo_shapes.rs`; `Arc`, `Polygon`, and `Path` are now part of the shipped runtime surface described above.
 
 ---
 

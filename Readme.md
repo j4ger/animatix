@@ -7,7 +7,7 @@ Animatix is a declarative animation language and rendering engine, built in Rust
 Animatix is powered by **Vello** and currently ships a working vector-first runtime for:
 - Standard Text and Math (via Typst)
 - SVG loading and rendering (via `usvg`)
-- Shape actors backed by the runtime today: `Circle`, `Rect`, `Line`, and `Ellipse`
+- Shape actors backed by the runtime today: `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`
 - Graph containers with `CartesianPlot` and `PolarPlot`
 - `Row`, `Col`, `Grid`, `Stack`, and `Group` scene containers
 - Layout-first composition primitives: root layout defaults, scene anchors, percentage placement, and manual child overrides
@@ -89,6 +89,7 @@ The curated runnable demos live in `examples/`:
 - `plotting_demo.amx`
 - `math_demo.amx`
 - `line_and_ellipse_demo.amx`
+- `arc_polygon_path_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
 
@@ -112,7 +113,7 @@ The `docs/implementation_plan.md` file tracks what's left to build.
 
 ### What's Left
 - [ ] Component runtime (instantiation, parameter passing, lifecycle hooks, custom actions)
-- [ ] Additional runtime primitives (`Path`, `Polygon`, `Arc`, `Image`, `Code`)
+- [ ] Additional runtime primitives (`Image`, `Code`)
 - [ ] DSL-level morph strategy controls (`strategy`, `path_arc`, `stretch`)
 - [ ] Parametric and implicit plotting primitives
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)

@@ -1,4 +1,4 @@
-use animatix::ast::{Expr, Property, Stmt, Time};
+use animatix::ast::{Expr, Modifier, Property, Stmt, Time};
 use animatix::easing::Easing;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
@@ -224,6 +224,7 @@ fn test_missing_properties() {
     assert_eq!(track.size.evaluate(0), [50.0, 50.0]);
     assert_eq!(track.line_from.evaluate(0), [-50.0, 0.0]);
     assert_eq!(track.line_to.evaluate(0), [50.0, 0.0]);
+    assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
     assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.opacity.evaluate(0), 1.0);
@@ -312,6 +313,184 @@ fn test_ellipse_actor_builds_runtime_path() {
 }
 
 #[test]
+fn test_arc_actor_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "ring".to_string(),
+            ty: "Arc".to_string(),
+            props: vec![
+                Property {
+                    name: "radius_x".to_string(),
+                    value: Expr::Num(80.0),
+                },
+                Property {
+                    name: "radius_y".to_string(),
+                    value: Expr::Num(40.0),
+                },
+                Property {
+                    name: "start_angle".to_string(),
+                    value: Expr::Num(0.0),
+                },
+                Property {
+                    name: "sweep_angle".to_string(),
+                    value: Expr::Num(std::f64::consts::PI),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("ring")
+        .expect("ring track should exist");
+    let vector_path = &track.vector_paths.evaluate(0)[0];
+    let bounds = vector_path.path.bounding_box();
+
+    assert_eq!(track.shape_type.evaluate(0), 4);
+    assert_eq!(track.size.evaluate(0), [80.0, 40.0]);
+    assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
+    assert!(vector_path.fill.is_none());
+    assert!((bounds.x0 + 80.0).abs() < 0.1);
+    assert!((bounds.x1 - 80.0).abs() < 0.1);
+}
+
+#[test]
+fn test_polygon_actor_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Polygon".to_string(),
+            props: vec![Property {
+                name: "points".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Tuple(vec![Expr::Num(-80.0), Expr::Num(0.0)]),
+                    Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-70.0)]),
+                    Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
+                    Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
+                ]),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+    let vector_path = &track.vector_paths.evaluate(0)[0];
+    let bounds = vector_path.path.bounding_box();
+
+    assert_eq!(track.shape_type.evaluate(0), 5);
+    assert!(vector_path.fill.is_some());
+    assert!((bounds.x0 + 80.0).abs() < 0.1);
+    assert!((bounds.y0 + 70.0).abs() < 0.1);
+    assert!((bounds.x1 - 90.0).abs() < 0.1);
+    assert!((bounds.y1 - 80.0).abs() < 0.1);
+}
+
+#[test]
+fn test_path_actor_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "guide".to_string(),
+            ty: "Path".to_string(),
+            props: vec![Property {
+                name: "commands".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Call(
+                        "move_to".to_string(),
+                        vec![Expr::Num(-120.0), Expr::Num(0.0)],
+                    ),
+                    Expr::Call(
+                        "line_to".to_string(),
+                        vec![Expr::Num(-40.0), Expr::Num(-80.0)],
+                    ),
+                    Expr::Call(
+                        "curve_to".to_string(),
+                        vec![
+                            Expr::Num(20.0),
+                            Expr::Num(-120.0),
+                            Expr::Num(80.0),
+                            Expr::Num(40.0),
+                            Expr::Num(140.0),
+                            Expr::Num(-10.0),
+                        ],
+                    ),
+                    Expr::Call("close".to_string(), vec![]),
+                ]),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("guide")
+        .expect("guide track should exist");
+    let vector_path = &track.vector_paths.evaluate(0)[0];
+    let bounds = vector_path.path.bounding_box();
+
+    assert_eq!(track.shape_type.evaluate(0), 6);
+    assert!(vector_path.stroke.is_some());
+    assert!((bounds.x0 + 120.0).abs() < 0.1);
+    assert!(bounds.y0 < -80.0);
+    assert!((bounds.x1 - 140.0).abs() < 0.1);
+    assert!(bounds.y1 > -20.0);
+}
+
+#[test]
+fn test_path_quad_to_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "quad".to_string(),
+            ty: "Path".to_string(),
+            props: vec![Property {
+                name: "commands".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Call(
+                        "move_to".to_string(),
+                        vec![Expr::Num(-80.0), Expr::Num(0.0)],
+                    ),
+                    Expr::Call(
+                        "quad_to".to_string(),
+                        vec![
+                            Expr::Num(0.0),
+                            Expr::Num(-120.0),
+                            Expr::Num(100.0),
+                            Expr::Num(20.0),
+                        ],
+                    ),
+                ]),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let bounds = vector_path_bounds(&timeline, "quad", 0);
+
+    assert!(bounds.x0 <= -80.0);
+    assert!(bounds.x1 >= 100.0);
+    assert!(bounds.y0 < 0.0);
+}
+
+#[test]
 fn test_line_assignments_rebuild_runtime_path() {
     let ast = vec![
         Stmt::Keyframe {
@@ -397,6 +576,276 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
     assert!((bounds.y0 + 60.0).abs() < 0.1);
     assert!((bounds.x1 - 80.0).abs() < 0.1);
     assert!((bounds.y1 - 60.0).abs() < 0.1);
+}
+
+#[test]
+fn test_arc_assignments_rebuild_runtime_path() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "ring".to_string(),
+                ty: "Arc".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius_x".to_string(),
+                        value: Expr::Num(80.0),
+                    },
+                    Property {
+                        name: "radius_y".to_string(),
+                        value: Expr::Num(40.0),
+                    },
+                    Property {
+                        name: "start_angle".to_string(),
+                        value: Expr::Num(0.0),
+                    },
+                    Property {
+                        name: "sweep_angle".to_string(),
+                        value: Expr::Num(std::f64::consts::PI / 2.0),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: "ring".to_string(),
+                property: "sweep_angle".to_string(),
+                value: Expr::Num(std::f64::consts::PI),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let bounds = vector_path_bounds(&timeline, "ring", 1000);
+
+    assert_eq!(
+        timeline.tracks["ring"].arc_angles.evaluate(1000),
+        [0.0, std::f32::consts::PI]
+    );
+    assert!((bounds.x0 + 80.0).abs() < 0.1);
+    assert!((bounds.x1 - 80.0).abs() < 0.1);
+}
+
+#[test]
+fn test_arc_negative_sweep_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "ring".to_string(),
+            ty: "Arc".to_string(),
+            props: vec![
+                Property {
+                    name: "radius_x".to_string(),
+                    value: Expr::Num(70.0),
+                },
+                Property {
+                    name: "radius_y".to_string(),
+                    value: Expr::Num(50.0),
+                },
+                Property {
+                    name: "start_angle".to_string(),
+                    value: Expr::Num(std::f64::consts::PI),
+                },
+                Property {
+                    name: "sweep_angle".to_string(),
+                    value: Expr::Num(-std::f64::consts::PI / 2.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let path = &timeline.tracks["ring"].vector_paths.evaluate(0)[0].path;
+
+    assert!(!path.elements().is_empty());
+}
+
+#[test]
+fn test_polygon_style_assignment_preserves_geometry() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Polygon".to_string(),
+                props: vec![Property {
+                    name: "points".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Tuple(vec![Expr::Num(-80.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-70.0)]),
+                        Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
+                    ]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: "badge".to_string(),
+                property: "color".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Num(0.2),
+                    Expr::Num(0.9),
+                    Expr::Num(0.7),
+                    Expr::Num(1.0),
+                ]),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let start_bounds = vector_path_bounds(&timeline, "badge", 0);
+    let end_path = &timeline.tracks["badge"].vector_paths.evaluate(1000)[0];
+    let end_bounds = end_path.path.bounding_box();
+
+    assert!((start_bounds.x0 - end_bounds.x0).abs() < 0.1);
+    assert!((start_bounds.y0 - end_bounds.y0).abs() < 0.1);
+    assert!(end_path.fill.is_some());
+}
+
+#[test]
+fn test_polygon_redeclaration_rebuilds_geometry() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Polygon".to_string(),
+                props: vec![Property {
+                    name: "points".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Tuple(vec![Expr::Num(-80.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-70.0)]),
+                        Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
+                    ]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Polygon".to_string(),
+                props: vec![Property {
+                    name: "points".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Tuple(vec![Expr::Num(-110.0), Expr::Num(-20.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-120.0)]),
+                        Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(-10.0)]),
+                        Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(120.0)]),
+                        Expr::Tuple(vec![Expr::Num(-80.0), Expr::Num(90.0)]),
+                    ]),
+                }],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let start_bounds = vector_path_bounds(&timeline, "badge", 0);
+    let end_bounds = vector_path_bounds(&timeline, "badge", 1000);
+
+    assert!(end_bounds.x0 < start_bounds.x0);
+    assert!(end_bounds.y0 < start_bounds.y0);
+    assert!(end_bounds.y1 > start_bounds.y1);
+}
+
+#[test]
+fn test_path_redeclaration_rebuilds_geometry() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "guide".to_string(),
+                ty: "Path".to_string(),
+                props: vec![Property {
+                    name: "commands".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Call(
+                            "move_to".to_string(),
+                            vec![Expr::Num(-120.0), Expr::Num(40.0)],
+                        ),
+                        Expr::Call(
+                            "line_to".to_string(),
+                            vec![Expr::Num(80.0), Expr::Num(100.0)],
+                        ),
+                        Expr::Call("close".to_string(), vec![]),
+                    ]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "guide".to_string(),
+                ty: "Path".to_string(),
+                props: vec![Property {
+                    name: "commands".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Call(
+                            "move_to".to_string(),
+                            vec![Expr::Num(-130.0), Expr::Num(20.0)],
+                        ),
+                        Expr::Call(
+                            "curve_to".to_string(),
+                            vec![
+                                Expr::Num(-40.0),
+                                Expr::Num(-140.0),
+                                Expr::Num(90.0),
+                                Expr::Num(-20.0),
+                                Expr::Num(130.0),
+                                Expr::Num(50.0),
+                            ],
+                        ),
+                        Expr::Call(
+                            "line_to".to_string(),
+                            vec![Expr::Num(20.0), Expr::Num(120.0)],
+                        ),
+                        Expr::Call("close".to_string(), vec![]),
+                    ]),
+                }],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let start_bounds = vector_path_bounds(&timeline, "guide", 0);
+    let end_bounds = vector_path_bounds(&timeline, "guide", 1000);
+
+    assert!(end_bounds.x0 < start_bounds.x0);
+    assert!(end_bounds.y0 < start_bounds.y0);
+    assert!(end_bounds.x1 > start_bounds.x1);
 }
 
 #[test]

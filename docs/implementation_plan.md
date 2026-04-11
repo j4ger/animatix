@@ -21,7 +21,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 These are the major holes between the documented language surface and the runtime:
 
-1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, and `Ellipse`, but other planned scene primitives such as `Path`, `Polygon`, `Arc`, `Image`, and `Code` are still missing.
+1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`, but other planned scene primitives such as `Image` and `Code` are still missing.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
 3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
@@ -106,11 +106,8 @@ The next implementation steps should follow these rules:
 **Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
 **Recommended implementation order:**
-1. `Arc`
-2. `Polygon`
-3. `Path`
-4. `Image`
-5. `Code`
+1. `Image`
+2. `Code`
 
 **Why this phase follows layout:**
 - It directly reduces the parser/runtime mismatch
@@ -120,10 +117,16 @@ The next implementation steps should follow these rules:
 **Suggested scope discipline:**
 - Add each primitive end-to-end: parser support (if needed), timeline handling, rendering, docs, and one demo
 - Do not bundle all primitives into one risky change
+- Prefer explicit, low-risk v1 property surfaces over broader shorthand syntax
+
+**Current v1 recommendation for the next three primitives:**
+- `Arc`: `radius_x`, `radius_y`, `start_angle`, `sweep_angle`; stroke-first rather than filled sector semantics
+- `Polygon`: explicit `points` input rather than generated regular polygons
+- `Path`: structured `commands` using existing expression call syntax instead of a new path-string parser
 
 **Exit criteria:**
-- At least one additional primitive beyond `Line` / `Ellipse` is fully runnable and documented
-- `docs/primitives.md` can be expanded without caveats for the newly landed primitive
+- `Arc`, `Polygon`, and `Path` are fully runnable and documented
+- `docs/primitives.md` can describe the remaining primitive gaps without caveats for these three
 
 ---
 
@@ -200,6 +203,7 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Discontinuity detection for problematic functions like `1/x`
 - Bounding-box culling for plotting work
 - Runtime `Line` and `Ellipse` scene primitives
+- Runtime `Arc`, `Polygon`, and `Path` scene primitives
 - `Row` / `Col` auto-layout
 - Absolute positioning as a working placement mechanism
 
@@ -218,10 +222,10 @@ The following would be premature before Phases 2–3 are complete:
 
 ## 6. Immediate Next Implementation Recommendation
 
-Now that `Line` and `Ellipse` are shipped, the best next move is:
+Now that `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path` are shipped, the best next move is:
 
 1. **Implement one additional runtime primitive family**
 2. **Update docs and demos for that primitive immediately**
 3. **Keep component work behind the now-stable layout and primitive foundation**
 
-The cleanest next candidate is `Arc`, followed by either `Polygon` or `Path`. That keeps the work in the same geometry/runtime slice before the much larger semantic jump to components.
+The cleanest next candidate is `Image`, followed by `Code`. That keeps the work focused on expanding the remaining primitive surface before the much larger semantic jump to components.

@@ -1,6 +1,7 @@
 // PLANNED EXAMPLE — not expected to run on the current runtime.
-// This file captures the intended higher-level graphics surface once the
-// missing primitives and advanced plotting features are implemented.
+// This file still captures future-only graphics surface beyond the current
+// Arc / Polygon / Path runtime slice, including alternate shorthand syntax
+// and plot types that are not implemented yet.
 
 #0s
 scene.background_color = (0.04, 0.05, 0.08, 1.0)

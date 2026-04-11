@@ -228,6 +228,131 @@ fn test_ellipse_actor_decl() {
 }
 
 #[test]
+fn test_arc_actor_decl() {
+    assert_eq!(
+        parse_single_stmt(
+            "ring: Arc, radius_x: 80, radius_y: 50, start_angle: 0, sweep_angle: 3.14, stroke: gold"
+        ),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "ring".to_string(),
+            ty: "Arc".to_string(),
+            props: vec![
+                Property {
+                    name: "radius_x".to_string(),
+                    value: Expr::Num(80.0),
+                },
+                Property {
+                    name: "radius_y".to_string(),
+                    value: Expr::Num(50.0),
+                },
+                Property {
+                    name: "start_angle".to_string(),
+                    value: Expr::Num(0.0),
+                },
+                Property {
+                    name: "sweep_angle".to_string(),
+                    value: Expr::Num(3.14),
+                },
+                Property {
+                    name: "stroke".to_string(),
+                    value: Expr::Ident("gold".to_string()),
+                }
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_polygon_actor_decl() {
+    assert_eq!(
+        parse_single_stmt(
+            "badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan"
+        ),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Polygon".to_string(),
+            props: vec![
+                Property {
+                    name: "points".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Tuple(vec![
+                            Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(80.0))),
+                            Expr::Num(0.0),
+                        ]),
+                        Expr::Tuple(vec![
+                            Expr::Num(0.0),
+                            Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(70.0)))
+                        ]),
+                        Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
+                    ]),
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("cyan".to_string()),
+                }
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_path_actor_decl() {
+    assert_eq!(
+        parse_single_stmt(
+            "guide: Path, commands: {move_to(-120, 0), line_to(-40, -80), curve_to(20, -120, 80, 40, 140, -10), close()}, stroke: white"
+        ),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "guide".to_string(),
+            ty: "Path".to_string(),
+            props: vec![
+                Property {
+                    name: "commands".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Call(
+                            "move_to".to_string(),
+                            vec![Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))), Expr::Num(0.0)],
+                        ),
+                        Expr::Call(
+                            "line_to".to_string(),
+                            vec![
+                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
+                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(80.0))),
+                            ],
+                        ),
+                        Expr::Call(
+                            "curve_to".to_string(),
+                            vec![
+                                Expr::Num(20.0),
+                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))),
+                                Expr::Num(80.0),
+                                Expr::Num(40.0),
+                                Expr::Num(140.0),
+                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(10.0))),
+                            ],
+                        ),
+                        Expr::Call("close".to_string(), vec![]),
+                    ]),
+                },
+                Property {
+                    name: "stroke".to_string(),
+                    value: Expr::Ident("white".to_string()),
+                }
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
 fn test_actor_decl_nested() {
     assert_eq!(
         parse_single_stmt("group: Group { a: Circle, size: 10, b: Rect, size: 20 }"),
