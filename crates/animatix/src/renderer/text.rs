@@ -146,7 +146,7 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color) 
         .replace('[', "\\[")
         .replace(']', "\\]");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n[{}]",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n{}",
         font_size,
         color.to_hex(),
         escaped
