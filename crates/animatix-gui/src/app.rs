@@ -1,6 +1,18 @@
 use crate::state::{SessionState, default_file_path};
 use crate::text_input::{TextInput, TextInputEvent};
-use gpui::{actions, div, img, App, Bounds, Context, Entity, FocusHandle, Focusable, IntoElement, KeyBinding, Render, Subscription, Task, Window, WindowBounds, WindowOptions, hsla, prelude::*, px, size};
+use gpui::{
+    actions, div, img, App, Bounds, Context, Entity, FocusHandle, Focusable, IntoElement,
+    KeyBinding, Render, Subscription, Task, Window, WindowBounds, WindowOptions, prelude::*, px,
+    size,
+};
+use gpui_component::{
+    ActiveTheme, Root,
+    button::{Button, ButtonVariants},
+    h_flex,
+    resizable::{h_resizable, resizable_panel},
+    StyledExt,
+    v_flex,
+};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -10,6 +22,7 @@ pub fn run_gui(path: Option<PathBuf>) {
     let file_path = path.unwrap_or_else(default_file_path);
 
     gpui::Application::new().run(move |cx: &mut App| {
+        gpui_component::init(cx);
         cx.activate(true);
         cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
         cx.bind_keys([
@@ -38,7 +51,10 @@ pub fn run_gui(path: Option<PathBuf>) {
                 ))),
                 ..Default::default()
             },
-            |window, cx| cx.new(|cx| AnimatixGui::new(file_path.clone(), window, cx)),
+            |window, cx| {
+                let view = cx.new(|cx| AnimatixGui::new(file_path.clone(), window, cx));
+                cx.new(|cx| Root::new(view, window, cx))
+            },
         )
         .expect("Failed to open Animatix GUI window");
     });
@@ -58,11 +74,11 @@ pub struct AnimatixGui {
 
 impl AnimatixGui {
     fn new(file_path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let session = SessionState::load(file_path).unwrap_or_else(|error| {
-            SessionState::from_error(default_file_path(), error)
+        let session = SessionState::load(file_path.clone()).unwrap_or_else(|error| {
+            SessionState::from_error(file_path.clone(), error)
         });
 
-        let source_lines = split_lines(&session.source_text);
+        let source_lines = split_lines(session.source_text());
         let initial_line = source_lines.first().cloned().unwrap_or_default();
         let line_editor = cx.new(|cx| TextInput::new(initial_line, "Edit selected line", cx));
 
@@ -104,8 +120,7 @@ impl AnimatixGui {
     }
 
     fn sync_source_text(&mut self) {
-        self.session
-            .set_source_text(self.source_lines.join("\n"));
+        self.session.set_source_text(self.source_lines.join("\n"));
     }
 
     fn schedule_rebuild(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -123,7 +138,7 @@ impl AnimatixGui {
                 }
 
                 if let Err(error) = this.session.rebuild() {
-                    this.session.preview.error = Some(error);
+                    this.session.preview.state.error = Some(error);
                 }
                 cx.notify();
             });
@@ -172,7 +187,7 @@ impl AnimatixGui {
 
     fn on_save(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         if let Err(error) = self.session.save_to_disk() {
-            self.session.preview.error = Some(error);
+            self.session.preview.state.error = Some(error);
         }
         cx.notify();
     }
@@ -180,17 +195,17 @@ impl AnimatixGui {
     fn on_reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.session.reload_from_disk() {
             Ok(()) => {
-                self.source_lines = split_lines(&self.session.source_text);
+                self.source_lines = split_lines(self.session.source_text());
                 self.select_line(self.selected_line.min(self.source_lines.len().saturating_sub(1)), window, cx);
             }
-            Err(error) => self.session.preview.error = Some(error),
+            Err(error) => self.session.preview.state.error = Some(error),
         }
         cx.notify();
     }
 
     fn on_play_pause(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.session.toggle_playback();
-        if self.session.is_playing {
+        if self.session.preview.is_playing {
             self.start_playback_loop(window, cx);
         }
         cx.notify();
@@ -208,18 +223,18 @@ impl AnimatixGui {
 
                 let mut keep_running = true;
                 let _ = view.update_in(cx, |this, _, cx| {
-                    if !this.session.is_playing {
+                    if !this.session.preview.is_playing {
                         keep_running = false;
                         return;
                     }
 
                     if let Err(error) = this.session.tick_playback(delta) {
-                        this.session.preview.error = Some(error);
-                        this.session.is_playing = false;
+                        this.session.preview.state.error = Some(error);
+                        this.session.preview.is_playing = false;
                         keep_running = false;
                     }
 
-                    if !this.session.is_playing {
+                    if !this.session.preview.is_playing {
                         keep_running = false;
                     }
                     cx.notify();
@@ -233,25 +248,28 @@ impl AnimatixGui {
     }
 
     fn set_timeline_fraction(&mut self, fraction: f64, cx: &mut Context<Self>) {
-        self.session.is_playing = false;
+        self.session.preview.is_playing = false;
         if let Err(error) = self
             .session
-            .set_current_time(self.session.duration_s * fraction.clamp(0.0, 1.0))
+            .set_current_time(self.session.preview.duration_s * fraction.clamp(0.0, 1.0))
         {
-            self.session.preview.error = Some(error);
+            self.session.preview.state.error = Some(error);
         }
         cx.notify();
     }
 
     fn render_source_list(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
         let view = cx.entity();
+
         div()
             .id("source-lines")
             .overflow_scroll()
             .flex_1()
             .border_1()
-            .border_color(hsla(220. / 360., 0.08, 0.30, 1.0))
-            .rounded(px(6.0))
+            .border_color(theme.border)
+            .bg(theme.list)
+            .rounded(theme.radius)
             .child(
                 div().flex().flex_col().w_full().children(
                     self.source_lines.iter().enumerate().map(move |(index, line)| {
@@ -264,13 +282,16 @@ impl AnimatixGui {
                             .px_2()
                             .py_1()
                             .bg(if is_selected {
-                                hsla(215. / 360., 0.45, 0.26, 1.0)
+                                theme.list_active
                             } else {
-                                hsla(220. / 360., 0.16, 0.12, 1.0)
+                                theme.list
                             })
-                            .hover(|this| this.bg(hsla(215. / 360., 0.35, 0.22, 1.0)))
-                            .text_color(hsla(210. / 360., 0.20, 0.92, 1.0))
-                            .font_family("monospace")
+                            .when(is_selected, |this| {
+                                this.border_l_2().border_color(theme.list_active_border)
+                            })
+                            .hover(|this| this.bg(theme.list_hover))
+                            .text_color(theme.foreground)
+                            .font_family(theme.mono_font_family.clone())
                             .child(format!("{:>3}", index + 1))
                             .child(if line.is_empty() { " ".to_string() } else { line.clone() })
                             .on_click(move |_, window, cx| {
@@ -284,11 +305,12 @@ impl AnimatixGui {
     }
 
     fn render_timeline(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
         let segments = 40usize;
-        let active = if self.session.duration_s <= f64::EPSILON {
+        let active = if self.session.preview.duration_s <= f64::EPSILON {
             0usize
         } else {
-            ((self.session.current_time_s / self.session.duration_s) * segments as f64)
+            ((self.session.preview.current_time_s / self.session.preview.duration_s) * segments as f64)
                 .round()
                 .clamp(0.0, segments as f64 - 1.0) as usize
         };
@@ -299,11 +321,7 @@ impl AnimatixGui {
             .gap_1()
             .children((0..segments).map(move |ix| {
                 let view = view.clone();
-                let fill = if ix <= active {
-                    hsla(195. / 360., 0.88, 0.56, 1.0)
-                } else {
-                    hsla(220. / 360., 0.10, 0.28, 1.0)
-                };
+                let fill = if ix <= active { theme.primary } else { theme.muted };
                 let fraction = ix as f64 / (segments.saturating_sub(1)) as f64;
                 div()
                     .id(("segment", ix))
@@ -321,7 +339,14 @@ impl AnimatixGui {
     }
 
     fn render_preview(&self) -> impl IntoElement {
-        let body = if let Some(path) = &self.session.preview.image_path {
+        let body = if let Some(path) = self
+            .session
+            .preview
+            .state
+            .artifact
+            .as_ref()
+            .and_then(|artifact| artifact.snapshot_path())
+        {
             img(path.clone())
                 .size_full()
                 .object_fit(gpui::ObjectFit::Contain)
@@ -356,118 +381,193 @@ impl Focusable for AnimatixGui {
 impl Render for AnimatixGui {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _subscriptions_keepalive = &self.subscriptions;
+        let theme = cx.theme().clone();
 
         div()
             .size_full()
             .track_focus(&self.focus_handle)
-            .bg(hsla(220. / 360., 0.18, 0.10, 1.0))
-            .text_color(hsla(210. / 360., 0.20, 0.92, 1.0))
-            .p_3()
+            .bg(theme.background)
+            .text_color(theme.foreground)
             .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .items_center()
+                v_flex()
+                    .size_full()
                     .child(
-                        div()
-                            .px_2()
-                            .py_1()
-                            .rounded(px(4.0))
-                            .bg(hsla(220. / 360., 0.10, 0.18, 1.0))
-                            .child(format!("File: {}", self.session.file_path.display())),
-                    )
-                    .child(
-                        div()
-                            .px_2()
-                            .py_1()
-                            .rounded(px(4.0))
-                            .bg(hsla(220. / 360., 0.10, 0.18, 1.0))
-                            .child(if self.session.is_dirty { "Modified" } else { "Saved" }),
-                    )
-                    .child(
-                        div()
-                            .ml_auto()
-                            .flex()
+                        h_flex()
+                            .px_3()
+                            .py_2()
                             .gap_2()
+                            .items_center()
+                            .border_b_1()
+                            .border_color(theme.title_bar_border)
+                            .bg(theme.title_bar)
                             .child(
-                                div()
-                                    .px_2()
-                                    .py_1()
-                                    .rounded(px(4.0))
-                                    .bg(hsla(220. / 360., 0.10, 0.18, 1.0))
-                                    .child(self.session.preview.status.clone()),
-                            ),
-                    ),
-            )
-            .child(
-                div()
-                    .mt_3()
-                    .flex()
-                    .gap_3()
-                    .h_full()
-                    .child(
-                        div()
-                            .flex_1()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child("Source")
-                            .child(self.render_source_list(cx))
-                            .child(
-                                div()
-                                    .flex()
-                                    .gap_2()
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .child(self.line_editor.clone()),
-                                    )
-                                    .child(
-                                        button("+ Line", cx.entity(), |this, window, cx| {
-                                            this.insert_line_after(window, cx);
-                                        }),
-                                    )
-                                    .child(button("- Line", cx.entity(), |this, window, cx| {
-                                        this.on_delete_line(window, cx);
-                                    })),
+                                status_chip(
+                                    "File",
+                                    self.session.file_path().display().to_string(),
+                                    theme.secondary,
+                                    theme.secondary_foreground,
+                                    theme.radius,
+                                ),
                             )
                             .child(
-                                div()
-                                    .flex()
-                                    .gap_2()
-                                    .child(button("Save", cx.entity(), |this, window, cx| {
-                                        this.on_save(window, cx);
-                                    }))
-                                    .child(button("Reload", cx.entity(), |this, window, cx| {
-                                        this.on_reload(window, cx);
-                                    })),
-                            ),
+                                status_chip(
+                                    "State",
+                                    if self.session.is_dirty() {
+                                        "Modified".to_string()
+                                    } else {
+                                        "Saved".to_string()
+                                    },
+                                    if self.session.is_dirty() {
+                                        theme.warning
+                                    } else {
+                                        theme.success
+                                    },
+                                    if self.session.is_dirty() {
+                                        theme.warning_foreground
+                                    } else {
+                                        theme.success_foreground
+                                    },
+                                    theme.radius,
+                                ),
+                            )
+                            .child(
+                                status_chip(
+                                    "Preview",
+                                    self.session.preview.state.status.clone(),
+                                    theme.accent,
+                                    theme.accent_foreground,
+                                    theme.radius,
+                                ),
+                            )
+                            .child(div().ml_auto())
+                            .child(
+                                action_button("Save", "save", cx.entity(), |this, window, cx| {
+                                    this.on_save(window, cx);
+                                })
+                                .primary(),
+                            )
+                            .child(
+                                action_button("Reload", "reload", cx.entity(), |this, window, cx| {
+                                    this.on_reload(window, cx);
+                                })
+                                .ghost(),
+                            )
                     )
                     .child(
-                        div()
-                            .flex_1()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child("Preview")
-                            .child(self.render_preview())
+                        h_resizable("animatix-shell")
                             .child(
-                                div()
-                                    .flex()
-                                    .gap_2()
-                                    .items_center()
-                                    .child(button(if self.session.is_playing { "Pause" } else { "Play" }, cx.entity(), |this, window, cx| {
+                                resizable_panel().size(px(520.0)).child(
+                                    panel_shell("Source", &theme).child(
+                                        v_flex()
+                                            .size_full()
+                                            .gap_3()
+                                            .child(self.render_source_list(cx))
+                                            .child(
+                                                h_flex()
+                                                    .gap_2()
+                                                    .items_center()
+                                                    .child(div().flex_1().child(self.line_editor.clone()))
+                                                    .child(
+                                                        action_button(
+                                                            "+ Line",
+                                                            "insert-line",
+                                                            cx.entity(),
+                                                            |this, window, cx| {
+                                                                this.insert_line_after(window, cx);
+                                                            },
+                                                        )
+                                                        .ghost(),
+                                                    )
+                                                    .child(action_button(
+                                                        "- Line",
+                                                        "delete-line",
+                                                        cx.entity(),
+                                                        |this, window, cx| {
+                                                            this.on_delete_line(window, cx);
+                                                        },
+                                                    )),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_sm()
+                                                    .text_color(theme.muted_foreground)
+                                                    .child("Line-oriented editor stays custom for precise text behavior."),
+                                            ),
+                                    ),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().child(
+                                    panel_shell("Preview", &theme).child(
+                                        v_flex()
+                                            .size_full()
+                                            .gap_3()
+                                            .child(self.render_preview())
+                                            .child(
+                                                h_flex()
+                                                    .gap_2()
+                                                    .items_center()
+                                                    .child(action_button(
+                                                        if self.session.preview.is_playing {
+                                                            "Pause"
+                                                        } else {
+                                                            "Play"
+                                                        },
+                                                        "toggle-playback",
+                                                        cx.entity(),
+                                                        |this, window, cx| {
                                         this.on_play_pause(window, cx);
-                                    }))
-                                    .child(format!("t = {:.2}s / {:.2}s", self.session.current_time_s, self.session.duration_s)),
+                                                        },
+                                                    )
+                                                    .primary())
+                                                    .child(
+                                                        div().text_sm().text_color(theme.muted_foreground).child(
+                                                            format!(
+                                                                "t = {:.2}s / {:.2}s",
+                                                                self.session.preview.current_time_s,
+                                                                self.session.preview.duration_s
+                                                            ),
+                                                        ),
+                                                    ),
+                                            )
+                                            .child(self.render_timeline(cx))
+                                            .child(
+                                                div()
+                                                    .rounded(theme.radius)
+                                                    .border_1()
+                                                    .border_color(if self.session.preview.state.error.is_some() {
+                                                        theme.danger
+                                                    } else {
+                                                        theme.border
+                                                    })
+                                                    .bg(if self.session.preview.state.error.is_some() {
+                                                        theme.danger
+                                                    } else {
+                                                        theme.secondary
+                                                    })
+                                                    .px_2()
+                                                    .py_2()
+                                                    .text_sm()
+                                                    .text_color(if self.session.preview.state.error.is_some() {
+                                                        theme.danger_foreground
+                                                    } else {
+                                                        theme.secondary_foreground
+                                                    })
+                                                    .child(
+                                                        self.session
+                                                            .preview
+                                                            .state
+                                                            .error
+                                                            .clone()
+                                                            .unwrap_or_else(|| {
+                                                                "Snapshot preview backend active; future surface seam remains preserved."
+                                                                    .to_string()
+                                                            }),
+                                                    ),
+                                            ),
+                                    ),
+                                ),
                             )
-                            .child(self.render_timeline(cx))
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(hsla(10. / 360., 0.75, 0.75, 1.0))
-                                    .child(self.session.preview.error.clone().unwrap_or_else(|| "No errors".to_string())),
-                            ),
                     ),
             )
     }
@@ -481,21 +581,51 @@ fn split_lines(source: &str) -> Vec<String> {
     lines
 }
 
-fn button(
-    text: &'static str,
-    view: Entity<AnimatixGui>,
-    handler: impl Fn(&mut AnimatixGui, &mut Window, &mut Context<AnimatixGui>) + 'static,
-) -> impl IntoElement {
-    div()
-        .id(text)
+fn panel_shell(title: &'static str, theme: &gpui_component::Theme) -> gpui::Div {
+    v_flex()
+        .size_full()
+        .m_3()
+        .rounded(theme.radius_lg)
+        .border_1()
+        .border_color(theme.border)
+        .bg(theme.sidebar)
+        .overflow_hidden()
+        .child(
+            h_flex()
+                .px_3()
+                .py_2()
+                .border_b_1()
+                .border_color(theme.border)
+                .bg(theme.title_bar)
+                .child(div().font_bold().child(title)),
+        )
+}
+
+fn status_chip(
+    title: &'static str,
+    value: String,
+    background: gpui::Hsla,
+    foreground: gpui::Hsla,
+    radius: gpui::Pixels,
+) -> gpui::Div {
+    h_flex()
+        .gap_1()
         .px_2()
         .py_1()
-        .rounded(px(4.0))
-        .bg(hsla(215. / 360., 0.55, 0.32, 1.0))
-        .text_color(gpui::white())
-        .hover(|this| this.opacity(0.85))
-        .child(text)
-        .on_click(move |_, window, cx| {
+        .rounded(radius)
+        .bg(background)
+        .text_color(foreground)
+        .child(div().text_xs().font_bold().child(format!("{title}:")))
+        .child(div().text_sm().child(value))
+}
+
+fn action_button(
+    text: &'static str,
+    id: &'static str,
+    view: Entity<AnimatixGui>,
+    handler: impl Fn(&mut AnimatixGui, &mut Window, &mut Context<AnimatixGui>) + 'static,
+) -> Button {
+    Button::new(id).label(text).on_click(move |_, window, cx| {
             let _ = view.update(cx, |this, cx| {
                 handler(this, window, cx);
             });

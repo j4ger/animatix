@@ -1,6 +1,6 @@
 # Animatix GUI Implementation Plan
 
-This file now tracks both what has landed and what remains after the first GUI MVP.
+This file now tracks both what has landed and what remains after the first GUI MVP and the preview-architecture refactor.
 
 ## Phase 1: Workspace and Shell
 
@@ -11,6 +11,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 - establish shared session/app state
 - open a GPUI window with editor, preview, and timeline regions
 - use a snapshot-based preview path for the first release rather than direct embedded GPU-surface composition
+- migrate the app shell onto `gpui-component` primitives for root/window chrome, themed controls, and resizable workspace layout
 
 ## Phase 2: Core Interactivity
 
@@ -40,11 +41,21 @@ This file now tracks both what has landed and what remains after the first GUI M
 - make window resizing update preview dimensions **(still open)**
 - validate the GUI against existing examples
 
+## Phase 5: Preview Architecture Refactor
+
+**Status:** Completed for the snapshot-backed stage
+
+- split GUI state into document-oriented and preview-oriented responsibilities
+- move snapshot rendering behind a `PreviewBackend` abstraction
+- represent preview output as an artifact rather than baking PNG paths into the whole session model
+- leave a reserved seam for a future embedded preview surface backend
+
 ## Remaining Follow-up Work
 
 - replace the line-oriented editor with a fuller multiline editing surface
 - clean up generated preview temp files automatically
 - move from snapshot-based preview to direct embedded GPU rendering if/when the integration cost is justified
+- decide whether additional custom widgets should migrate to `gpui-component` or remain domain-specific
 - add more focused GUI/session tests beyond the current duration/state smoke coverage
 - add keyboard transport shortcuts and richer editor ergonomics
 
