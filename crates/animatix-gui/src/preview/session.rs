@@ -1,7 +1,6 @@
 use crate::preview::artifact::PreviewArtifact;
 use crate::preview::backend::PreviewBackend;
-use animatix::ast::Stmt;
-use animatix::timeline::SceneDimensions;
+use animatix::timeline::{SceneDimensions, Timeline};
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -87,10 +86,10 @@ impl PreviewSession {
         self.is_playing = !self.is_playing;
     }
 
-    pub fn render(&mut self, ast: &[Stmt]) -> Result<(), String> {
+    pub fn render(&mut self, timeline: &Timeline) -> Result<(), String> {
         let artifact = self
             .backend
-            .render(ast, self.current_time_s, self.dimensions)
+            .render(timeline, self.current_time_s, self.dimensions)
             .map_err(|err| err.to_string())?;
 
         self.state.status = format!(

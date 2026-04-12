@@ -14,7 +14,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 | Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
-| GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, line-oriented code editing, save/reload, timeline scrubbing/playback, and snapshot-based preview |
+| GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, multiline code editing, save/reload, timeline scrubbing/playback, and cross-platform offscreen live preview |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
 | Components | Parser-only | AST/parser exist; runtime instantiation does not |
 
@@ -193,7 +193,7 @@ The next implementation steps should follow these rules:
 
 **Current progress note:**
 - A first GPUI-based GUI MVP now exists in `crates/animatix-gui`.
-- It is intentionally narrow: line-oriented editing, save/reload, timeline scrubbing/playback, and snapshot-based preview.
+- It is intentionally narrow: multiline code editing, save/reload, timeline scrubbing/playback, and offscreen live preview presented inside GPUI.
 - Future work in this phase is about improving that shell, not starting from zero.
 
 ---

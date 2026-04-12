@@ -1,15 +1,16 @@
-use std::path::PathBuf;
+use gpui::RenderImage;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum PreviewArtifact {
-    Snapshot(PathBuf),
+    Image(Arc<RenderImage>),
     FutureSurface,
 }
 
 impl PreviewArtifact {
-    pub fn snapshot_path(&self) -> Option<&PathBuf> {
+    pub fn render_image(&self) -> Option<&Arc<RenderImage>> {
         match self {
-            Self::Snapshot(path) => Some(path),
+            Self::Image(image) => Some(image),
             Self::FutureSurface => None,
         }
     }

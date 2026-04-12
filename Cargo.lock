@@ -161,6 +161,7 @@ dependencies = [
  "animatix",
  "gpui",
  "gpui-component",
+ "image",
  "naga 28.0.0",
  "unicode-segmentation",
 ]

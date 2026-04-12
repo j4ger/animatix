@@ -1,14 +1,14 @@
 use crate::preview::artifact::PreviewArtifact;
-use animatix::ast::Stmt;
-use animatix::renderer::render_image;
-use animatix::timeline::SceneDimensions;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use animatix::renderer::{OffscreenRenderer, RenderedFrame};
+use animatix::timeline::{SceneDimensions, Timeline};
+use gpui::RenderImage;
+use image::{Frame, RgbaImage};
+use std::sync::Arc;
 
 pub trait PreviewBackend {
     fn render(
         &mut self,
-        ast: &[Stmt],
+        timeline: &Timeline,
         time_s: f64,
         dimensions: SceneDimensions,
     ) -> Result<PreviewArtifact, String>;
@@ -16,44 +16,38 @@ pub trait PreviewBackend {
     fn backend_name(&self) -> &'static str;
 }
 
-pub struct SnapshotBackend {
-    revision: u64,
+pub struct OffscreenPreviewBackend {
+    renderer: Option<OffscreenRenderer>,
 }
 
-impl SnapshotBackend {
+impl OffscreenPreviewBackend {
     pub fn new() -> Self {
-        Self { revision: 0 }
+        Self { renderer: None }
     }
 }
 
-impl PreviewBackend for SnapshotBackend {
+impl PreviewBackend for OffscreenPreviewBackend {
     fn render(
         &mut self,
-        ast: &[Stmt],
+        timeline: &Timeline,
         time_s: f64,
         dimensions: SceneDimensions,
     ) -> Result<PreviewArtifact, String> {
-        self.revision += 1;
-        let preview_path = preview_output_path(self.revision);
-        render_image(
-            ast,
-            dimensions.width,
-            dimensions.height,
-            time_s as f32,
-            &preview_path,
-        );
-        Ok(PreviewArtifact::Snapshot(preview_path))
+        let renderer = self.renderer.get_or_insert(OffscreenRenderer::new()?);
+        let frame = renderer.render_timeline(timeline, time_s, dimensions)?;
+        Ok(PreviewArtifact::Image(render_image_from_frame(frame)?))
     }
 
     fn backend_name(&self) -> &'static str {
-        "Snapshot"
+        "Live"
     }
 }
 
-fn preview_output_path(revision: u64) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    std::env::temp_dir().join(format!("animatix_gui_preview_{stamp}_{revision}.png"))
+fn render_image_from_frame(frame: RenderedFrame) -> Result<Arc<RenderImage>, String> {
+    let mut buffer = RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
+        .ok_or_else(|| "Failed to create preview image buffer".to_string())?;
+    for pixel in buffer.chunks_exact_mut(4) {
+        pixel.swap(0, 2);
+    }
+    Ok(Arc::new(RenderImage::new(vec![Frame::new(buffer)])))
 }

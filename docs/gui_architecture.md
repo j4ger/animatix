@@ -12,19 +12,18 @@ What exists today:
 
 - a GPUI desktop app
 - startup loading of an `.amx` file
-- line-oriented source editing
+- multiline source editing with a code-editor widget
 - save and reload actions
 - debounced rebuilds through the real Animatix loader/parser path
 - timeline scrubbing and play/pause
-- snapshot-based preview rendering using the shipped `render_image` runtime path
+- cross-platform live preview rendering via a persistent offscreen GPU renderer with in-memory GPUI image presentation
 - a split internal architecture between document state and preview state
-- a preview backend seam that preserves snapshot rendering today and leaves room for a future true preview surface
+- a preview backend seam that supports the current offscreen live-preview path and leaves room for a future true native preview surface
 - a `gpui-component`-based shell using `Root`, themed panels, resizable layout, and component buttons
 
 What is intentionally not shipped yet:
 
-- a full multiline document editor inside the main pane
-- embedded live Vello surface composition inside GPUI
+- embedded live native GPU surface composition inside GPUI
 - syntax highlighting / autocomplete / code intelligence
 - visual timeline lanes or scene inspectors
 
@@ -32,7 +31,7 @@ What is intentionally not shipped yet:
 
 The initial window is split into three functional regions:
 
-1. **Editor pane** — line-oriented `.amx` source editing
+1. **Editor pane** — multiline `.amx` source editing
 2. **Preview pane** — live render of the current timeline time
 3. **Timeline pane** — scrubber, time display, and play/pause controls
 
@@ -55,7 +54,7 @@ The GUI crate should not fork parsing or evaluation logic. It should call into t
 The current GUI uses a hybrid composition model:
 
 - `gpui-component` for shell-level UI concerns such as the root app wrapper, theme tokens, action buttons, and resizable workspace layout
-- custom GPUI views for domain-specific elements such as the preview host and the line-oriented text editor
+- custom GPUI views for domain-specific elements such as the preview host and editor/preview coordination
 
 This keeps the app visually more coherent without giving up the custom pieces that are still specific to Animatix behavior.
 
@@ -71,6 +70,7 @@ Owns:
 - current source text
 - dirty/clean state
 - latest compiled AST
+- latest compiled timeline
 - derived timeline duration
 
 This layer handles file loading, save/reload, and rebuilds through the real Animatix loader/parser path.
@@ -107,23 +107,23 @@ The preview subsystem now has an explicit transport boundary.
 
 ### `PreviewBackend`
 
-The GUI does not assume that preview output is always a PNG file. Instead, a backend produces a `PreviewArtifact`.
+The GUI does not assume that preview output is always a file on disk. Instead, a backend produces a `PreviewArtifact`.
 
 Current artifact shape:
 
-- `Snapshot(PathBuf)`
+- in-memory `RenderImage` frames generated from the live offscreen renderer
 
 Reserved future shape:
 
-- embedded surface / GPU-backed artifact
+- native embedded surface / shared GPU-backed artifact
 
 ### Current backend
 
-The shipped backend is `SnapshotBackend`, which wraps the existing `render_image` path and produces snapshot artifacts.
+The shipped backend is an offscreen live-preview backend. It owns a persistent WGPU/Vello renderer, renders the current timeline time into an offscreen texture, reads the frame back into memory, and presents that frame inside GPUI as an in-memory image.
 
 ### Future backend
 
-A future `EmbeddedSurfaceBackend` can render into a true preview surface without changing document editing, playback, or timeline logic. The migration point is the backend layer, though the preview pane/UI plumbing will still need an additional rendering branch for non-snapshot artifacts.
+A future `EmbeddedSurfaceBackend` can render into a true native preview surface without changing document editing, playback, or timeline logic. The migration point is the backend layer, though the preview pane/UI plumbing will still need an additional rendering branch for non-image artifacts.
 
 The critical architectural rule remains the same: GPUI owns the application shell and event flow, while the core Animatix library owns evaluation and render data generation.
 
@@ -140,11 +140,11 @@ The scrubber does not expose editable keyframe blocks in the first release. It i
 
 ## Editor Architecture
 
-The editor pane is text-based. The first release ships a **line-oriented editor**: the source is shown as numbered lines, and the selected line is edited through a focused text field. This keeps the first GPUI integration small and dependable while still allowing real code editing, insertion, deletion, save, reload, and rebuild.
+The editor pane is text-based and now uses a multiline code-editor surface from `gpui-component`, rather than the older line-oriented MVP approach.
 
 Desired properties:
 
-- dependable line editing
+- dependable multiline editing
 - fast rebuild after edits
 - visible error state
 - save command
@@ -152,11 +152,11 @@ Desired properties:
 
 ## Preview Delivery Strategy
 
-The current GUI preview is intentionally pragmatic: it uses the existing `render_image` path from the core runtime to generate a PNG snapshot for the current time and displays that image inside the GPUI window.
+The current GUI preview is intentionally pragmatic but no longer file-based: it uses a persistent offscreen GPU renderer from the core runtime to render the current time, converts that frame into an in-memory GPUI image, and displays it inside the preview pane.
 
-That means the preview is still backed by the real Animatix runtime and scene evaluation path, but it is **snapshot-based**, not a shared live GPU surface embedded directly into GPUI. This is a deliberate MVP tradeoff to keep the GUI buildable and honest while avoiding a much larger GPUI/Vello surface-integration effort.
+That means the preview is still backed by the real Animatix runtime and scene evaluation path, but it is still **not** a shared native GPU surface embedded directly into GPUI. The transport is now in-memory image upload rather than PNG temp files. This is the current cross-platform solution because GPUI does not yet expose a generic embedded native `wgpu` surface path.
 
-The important architectural change is that this is now implemented as a backend choice rather than a hardcoded assumption in the main session state.
+The important architectural change is that this is implemented as a backend choice rather than a hardcoded assumption in the main session state. A true native embedded surface remains a future improvement if GPUI grows a supported cross-platform API for it.
 
 ## Error Model
 
@@ -173,10 +173,8 @@ The UI should show these clearly without crashing or destroying the last good st
 
 These are deliberately out of scope for the first GUI crate:
 
-- full multiline document editor replacing the line-oriented MVP editor
-- preview temp-file cleanup and more incremental preview updates
-- direct Vello surface embedding inside GPUI
-- an embedded-surface preview backend implementation
+- native embedded surface composition inside GPUI
+- an embedded-surface preview backend implementation when GPUI supports it cross-platform
 - a full migration of every custom widget to `gpui-component`
 - visual scene inspector
 - property editor

@@ -139,9 +139,12 @@ impl AnimatixGui {
                     return;
                 }
 
+                let previous_artifact = this.session.preview.state.artifact.clone();
+
                 if let Err(error) = this.session.rebuild() {
                     this.session.preview.state.error = Some(error);
                 }
+                this.drop_replaced_preview_image(previous_artifact, None, cx);
                 cx.notify();
             });
         });
@@ -156,6 +159,7 @@ impl AnimatixGui {
 
     fn on_reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.pending_rebuild_generation += 1;
+        let previous_artifact = self.session.preview.state.artifact.clone();
         match self.session.reload_from_disk() {
             Ok(()) => {
                 let source = self.session.source_text().to_owned();
@@ -167,6 +171,7 @@ impl AnimatixGui {
             }
             Err(error) => self.session.preview.state.error = Some(error),
         }
+        self.drop_replaced_preview_image(previous_artifact, Some(window), cx);
         cx.notify();
     }
 
@@ -179,9 +184,11 @@ impl AnimatixGui {
     }
 
     fn on_rebuild(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let previous_artifact = self.session.preview.state.artifact.clone();
         if let Err(error) = self.session.rebuild() {
             self.session.preview.state.error = Some(error);
         }
+        self.drop_replaced_preview_image(previous_artifact, None, cx);
         cx.notify();
     }
 
@@ -202,11 +209,15 @@ impl AnimatixGui {
                         return;
                     }
 
+                    let previous_artifact = this.session.preview.state.artifact.clone();
+
                     if let Err(error) = this.session.tick_playback(delta) {
                         this.session.preview.state.error = Some(error);
                         this.session.preview.is_playing = false;
                         keep_running = false;
                     }
+
+                    this.drop_replaced_preview_image(previous_artifact, None, cx);
 
                     if !this.session.preview.is_playing {
                         keep_running = false;
@@ -223,13 +234,42 @@ impl AnimatixGui {
 
     fn set_timeline_fraction(&mut self, fraction: f64, cx: &mut Context<Self>) {
         self.session.preview.is_playing = false;
+        let previous_artifact = self.session.preview.state.artifact.clone();
         if let Err(error) = self
             .session
             .set_current_time(self.session.preview.duration_s * fraction.clamp(0.0, 1.0))
         {
             self.session.preview.state.error = Some(error);
         }
+        self.drop_replaced_preview_image(previous_artifact, None, cx);
         cx.notify();
+    }
+
+    fn drop_replaced_preview_image(
+        &self,
+        previous_artifact: Option<crate::preview::artifact::PreviewArtifact>,
+        window: Option<&mut Window>,
+        cx: &mut App,
+    ) {
+        let Some(previous_image) = previous_artifact.and_then(|artifact| match artifact {
+            crate::preview::artifact::PreviewArtifact::Image(image) => Some(image),
+            crate::preview::artifact::PreviewArtifact::FutureSurface => None,
+        }) else {
+            return;
+        };
+
+        let current_image_id = self
+            .session
+            .preview
+            .state
+            .artifact
+            .as_ref()
+            .and_then(|artifact| artifact.render_image())
+            .map(|image| image.id);
+
+        if Some(previous_image.id) != current_image_id {
+            cx.drop_image(previous_image, window);
+        }
     }
 
     fn render_file_tree(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -321,15 +361,15 @@ impl AnimatixGui {
 
     fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let body = if let Some(path) = self
+        let body = if let Some(image) = self
             .session
             .preview
             .state
             .artifact
             .as_ref()
-            .and_then(|artifact| artifact.snapshot_path())
+            .and_then(|artifact| artifact.render_image())
         {
-            img(path.clone())
+            img(image.clone())
                 .size_full()
                 .object_fit(gpui::ObjectFit::Contain)
                 .into_any_element()

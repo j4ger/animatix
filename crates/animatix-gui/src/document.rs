@@ -8,6 +8,7 @@ pub struct DocumentSession {
     pub file_path: PathBuf,
     pub source_text: String,
     pub ast: Option<Vec<Stmt>>,
+    pub timeline: Option<Timeline>,
     pub is_dirty: bool,
     pub duration_s: f64,
 }
@@ -21,6 +22,7 @@ impl DocumentSession {
             file_path,
             source_text,
             ast: None,
+            timeline: None,
             is_dirty: false,
             duration_s: 5.0,
         };
@@ -34,6 +36,7 @@ impl DocumentSession {
             file_path,
             source_text: String::new(),
             ast: None,
+            timeline: None,
             is_dirty: false,
             duration_s: 5.0,
         }
@@ -64,6 +67,7 @@ impl DocumentSession {
             Ok(ast) => ast,
             Err(err) => {
                 self.ast = None;
+                self.timeline = None;
                 self.duration_s = 0.1;
                 return Err(err.to_string());
             }
@@ -71,6 +75,7 @@ impl DocumentSession {
         let timeline = Timeline::build(&ast);
         self.duration_s = timeline_duration_seconds(&timeline).max(0.1);
         self.ast = Some(ast);
+        self.timeline = Some(timeline);
         Ok(())
     }
 }

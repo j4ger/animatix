@@ -10,7 +10,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 - create a GUI binary entry point
 - establish shared session/app state
 - open a GPUI window with editor, preview, and timeline regions
-- use a snapshot-based preview path for the first release rather than direct embedded GPU-surface composition
+- use a cross-platform offscreen GPU preview path for the current release rather than direct embedded GPU-surface composition
 - migrate the app shell onto `gpui-component` primitives for root/window chrome, themed controls, and resizable workspace layout
 
 ## Phase 2: Core Interactivity
@@ -43,18 +43,17 @@ This file now tracks both what has landed and what remains after the first GUI M
 
 ## Phase 5: Preview Architecture Refactor
 
-**Status:** Completed for the snapshot-backed stage
+**Status:** Completed for the offscreen live-preview stage
 
 - split GUI state into document-oriented and preview-oriented responsibilities
-- move snapshot rendering behind a `PreviewBackend` abstraction
-- represent preview output as an artifact rather than baking PNG paths into the whole session model
-- leave a reserved seam for a future embedded preview surface backend
+- move preview rendering behind a `PreviewBackend` abstraction
+- represent preview output as an artifact rather than baking file paths into the whole session model
+- ship a persistent offscreen GPU renderer with in-memory GPUI image presentation
+- leave a reserved seam for a future native embedded preview surface backend
 
 ## Remaining Follow-up Work
 
-- replace the line-oriented editor with a fuller multiline editing surface
-- clean up generated preview temp files automatically
-- move from snapshot-based preview to direct embedded GPU rendering if/when the integration cost is justified
+- consider moving from the current offscreen-image transport to direct native embedded GPU rendering if/when GPUI exposes a supported cross-platform path
 - decide whether additional custom widgets should migrate to `gpui-component` or remain domain-specific
 - add more focused GUI/session tests beyond the current duration/state smoke coverage
 - add keyboard transport shortcuts and richer editor ergonomics
@@ -70,8 +69,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 
 ## Deferred After MVP
 
-- full multiline editor widget inside the main pane
-- direct Vello-in-GPUI surface embedding
+- direct native Vello / `wgpu` surface embedding inside GPUI
 - syntax highlighting
 - scene graph inspector
 - export controls

@@ -1,4 +1,5 @@
 use super::core::RendererCore;
+use super::offscreen::OffscreenRenderer;
 use crate::ast::Stmt;
 use crate::timeline::{SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
@@ -279,121 +280,12 @@ async fn render_image_async(
     time: f32,
     output_file: &std::path::Path,
 ) {
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::PRIMARY,
-        ..Default::default()
-    });
-
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        })
-        .await
-        .expect("Failed to find an appropriate adapter");
-
-    let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: None,
-            required_features: wgpu::Features::empty(),
-            required_limits: needed_limits,
-            memory_hints: Default::default(),
-            ..Default::default()
-        })
-        .await
-        .expect("Failed to create device");
-
-    let bytes_per_row = (width * 4 + 255) & !255;
-    let texture_desc = wgpu::TextureDescriptor {
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::COPY_SRC
-            | wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING,
-        label: Some("Output Texture"),
-        view_formats: &[],
-    };
-    let texture = device.create_texture(&texture_desc);
-    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    let output_buffer_size = (bytes_per_row * height) as wgpu::BufferAddress;
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        size: output_buffer_size,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        label: None,
-        mapped_at_creation: false,
-    });
-
-    let mut core = RendererCore::new(&device, &queue);
-
     let timeline = Timeline::build(ast);
-    let scene = timeline.evaluate(time as f64, SceneDimensions { width, height });
-    core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
-
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Render Encoder"),
-    });
-
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &output_buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(height),
-            },
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
-
-    queue.submit(std::iter::once(encoder.finish()));
-
-    let buffer_slice = output_buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        tx.send(result).unwrap();
-    });
-    device
-        .poll(wgpu::PollType::Wait {
-            submission_index: None,
-            timeout: None,
-        })
-        .unwrap();
-    rx.recv().unwrap().unwrap();
-
-    let data = buffer_slice.get_mapped_range();
-
-    let mut img = image::RgbaImage::new(width, height);
-    for (x, y, pixel) in img.enumerate_pixels_mut() {
-        let idx = (y * bytes_per_row + x * 4) as usize;
-        let r = data[idx];
-        let g = data[idx + 1];
-        let b = data[idx + 2];
-        let a = data[idx + 3];
-        *pixel = image::Rgba([r, g, b, a]);
-    }
+    let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
+    let frame = renderer
+        .render_timeline(&timeline, time as f64, SceneDimensions { width, height })
+        .expect("Failed to render offscreen frame");
+    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
+        .expect("Failed to create image buffer from offscreen frame");
     img.save(output_file).unwrap();
-    drop(data);
-
-    output_buffer.unmap();
 }

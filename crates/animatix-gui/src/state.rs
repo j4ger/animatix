@@ -1,5 +1,5 @@
 use crate::document::DocumentSession;
-use crate::preview::backend::{PreviewBackend, SnapshotBackend};
+use crate::preview::backend::{OffscreenPreviewBackend, PreviewBackend};
 use crate::preview::session::PreviewSession;
 use animatix::timeline::SceneDimensions;
 use std::path::PathBuf;
@@ -13,10 +13,14 @@ pub struct SessionState {
 impl SessionState {
     pub fn load(file_path: PathBuf) -> Result<Self, String> {
         let document = DocumentSession::load(file_path)?;
-        let mut preview = Self::new_preview_session(Box::new(SnapshotBackend::new()));
+        let mut preview = Self::new_preview_session(Box::new(OffscreenPreviewBackend::new()));
         preview.set_duration(document.duration_s);
-        if let Some(ast) = document.ast.as_ref() {
-            preview.render(ast)?;
+        if let Some(timeline) = document.timeline.as_ref() {
+            if let Err(error) = preview.render(timeline) {
+                preview.state.error = Some(error);
+                preview.state.status =
+                    "Preview unavailable • using last good frame when possible".to_string();
+            }
         }
         Ok(Self { document, preview })
     }
@@ -25,7 +29,7 @@ impl SessionState {
         Self {
             document: DocumentSession::from_error(file_path),
             preview: PreviewSession::from_error(
-                Box::new(SnapshotBackend::new()),
+                Box::new(OffscreenPreviewBackend::new()),
                 Self::default_dimensions(),
                 error,
             ),
@@ -51,7 +55,7 @@ impl SessionState {
     pub fn reload_from_disk(&mut self) -> Result<(), String> {
         self.document.reload_from_disk().map_err(|error| {
             self.set_preview_error(format!(
-                "Reload failed • preview cleared for {}",
+                "Reload failed • keeping last good preview for {}",
                 self.document.file_path.display()
             ));
             error
@@ -68,7 +72,7 @@ impl SessionState {
 
     pub fn rebuild(&mut self) -> Result<(), String> {
         self.document.rebuild().map_err(|error| {
-            self.set_preview_error("Build failed • preview cleared".to_string());
+            self.set_preview_error("Build failed • keeping last good preview".to_string());
             error
         })?;
         self.preview.set_duration(self.document.duration_s);
@@ -95,18 +99,17 @@ impl SessionState {
     }
 
     fn render_preview(&mut self) -> Result<(), String> {
-        let Some(ast) = self.document.ast.as_ref() else {
+        let Some(timeline) = self.document.timeline.as_ref() else {
             let error = "No compiled scene available for preview".to_string();
-            self.set_preview_error("Preview unavailable • no compiled scene".to_string());
+            self.set_preview_error("Preview unavailable • keeping last good frame".to_string());
             return Err(error);
         };
-        self.preview.render(ast).inspect_err(|_| {
-            self.set_preview_error("Preview unavailable • render failed".to_string())
+        self.preview.render(timeline).inspect_err(|_| {
+            self.set_preview_error("Preview unavailable • keeping last good frame".to_string())
         })
     }
 
     fn set_preview_error(&mut self, status: String) {
-        self.preview.state.artifact = None;
         self.preview.state.status = status;
     }
 
