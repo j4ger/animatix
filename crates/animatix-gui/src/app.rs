@@ -1,45 +1,39 @@
 use crate::state::{SessionState, default_file_path};
-use crate::text_input::{TextInput, TextInputEvent};
 use gpui::{
-    actions, div, img, App, Bounds, Context, Entity, FocusHandle, Focusable, IntoElement,
-    KeyBinding, Render, Subscription, Task, Window, WindowBounds, WindowOptions, prelude::*, px,
-    size,
+    actions, div, img, prelude::*, px, size, App, Bounds, Context, Entity, FocusHandle,
+    Focusable, IntoElement, KeyBinding, Render, Subscription, Task, Window, WindowBounds,
+    WindowOptions,
 };
 use gpui_component::{
+    input::{Input, InputEvent, InputState, TabSize},
+    resizable::{h_resizable, resizable_panel},
+    scroll::ScrollableElement,
+    theme::{Theme, ThemeMode},
     ActiveTheme, Root,
     button::{Button, ButtonVariants},
     h_flex,
-    resizable::{h_resizable, resizable_panel},
     StyledExt,
     v_flex,
 };
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 actions!(animatix_gui, [Quit]);
+
+const MAX_FILE_TREE_DEPTH: usize = 3;
+const MAX_FILE_TREE_ENTRIES: usize = 160;
 
 pub fn run_gui(path: Option<PathBuf>) {
     let file_path = path.unwrap_or_else(default_file_path);
 
     gpui::Application::new().run(move |cx: &mut App| {
         gpui_component::init(cx);
+        Theme::change(ThemeMode::Dark, None, cx);
         cx.activate(true);
         cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
-        cx.bind_keys([
-            KeyBinding::new("cmd-q", Quit, None),
-            KeyBinding::new("backspace", crate::text_input::Backspace, None),
-            KeyBinding::new("delete", crate::text_input::Delete, None),
-            KeyBinding::new("left", crate::text_input::Left, None),
-            KeyBinding::new("right", crate::text_input::Right, None),
-            KeyBinding::new("shift-left", crate::text_input::SelectLeft, None),
-            KeyBinding::new("shift-right", crate::text_input::SelectRight, None),
-            KeyBinding::new("cmd-a", crate::text_input::SelectAll, None),
-            KeyBinding::new("cmd-v", crate::text_input::Paste, None),
-            KeyBinding::new("cmd-c", crate::text_input::Copy, None),
-            KeyBinding::new("cmd-x", crate::text_input::Cut, None),
-            KeyBinding::new("home", crate::text_input::Home, None),
-            KeyBinding::new("end", crate::text_input::End, None),
-        ]);
+        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
 
         let file_path = file_path.clone();
         cx.open_window(
@@ -60,11 +54,20 @@ pub fn run_gui(path: Option<PathBuf>) {
     });
 }
 
+#[derive(Clone)]
+struct FileTreeEntry {
+    path: PathBuf,
+    depth: usize,
+    is_dir: bool,
+    is_current: bool,
+}
+
 pub struct AnimatixGui {
     session: SessionState,
-    source_lines: Vec<String>,
-    selected_line: usize,
-    line_editor: Entity<TextInput>,
+    editor: Entity<InputState>,
+    workspace_root: PathBuf,
+    file_tree: Vec<FileTreeEntry>,
+    applying_editor_value: bool,
     focus_handle: FocusHandle,
     subscriptions: Vec<Subscription>,
     rebuild_task: Task<()>,
@@ -74,53 +77,52 @@ pub struct AnimatixGui {
 
 impl AnimatixGui {
     fn new(file_path: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let session = SessionState::load(file_path.clone()).unwrap_or_else(|error| {
-            SessionState::from_error(file_path.clone(), error)
+        let session = SessionState::load(file_path.clone())
+            .unwrap_or_else(|error| SessionState::from_error(file_path.clone(), error));
+        let workspace_root = workspace_root_for(session.file_path());
+        let file_tree = build_file_tree(&workspace_root, session.file_path());
+        let language = editor_language(session.file_path());
+        let initial_source = session.source_text().to_owned();
+
+        let editor = cx.new(|cx| {
+            InputState::new(window, cx)
+                .code_editor(language)
+                .line_number(true)
+                .soft_wrap(false)
+                .tab_size(TabSize {
+                    tab_size: 2,
+                    hard_tabs: false,
+                })
+                .default_value(initial_source)
         });
 
-        let source_lines = split_lines(session.source_text());
-        let initial_line = source_lines.first().cloned().unwrap_or_default();
-        let line_editor = cx.new(|cx| TextInput::new(initial_line, "Edit selected line", cx));
-
         let subscriptions = vec![cx.subscribe_in(
-            &line_editor,
+            &editor,
             window,
-            |this, _, event: &TextInputEvent, window, cx| {
-                match event {
-                    TextInputEvent::Change(text) => {
-                        this.update_selected_line(text.clone());
-                        this.schedule_rebuild(window, cx);
+            |this, state, event: &InputEvent, window, cx| {
+                if matches!(event, InputEvent::Change) {
+                    let next_source = state.read(cx).value().to_string();
+                    if this.applying_editor_value || next_source == this.session.source_text() {
+                        return;
                     }
+                    this.session.set_source_text(next_source);
+                    this.schedule_rebuild(window, cx);
                 }
             },
         )];
 
         Self {
             session,
-            source_lines,
-            selected_line: 0,
-            line_editor,
+            editor,
+            workspace_root,
+            file_tree,
+            applying_editor_value: false,
             focus_handle: cx.focus_handle(),
             subscriptions,
             rebuild_task: Task::ready(()),
             playback_task: None,
             pending_rebuild_generation: 0,
         }
-    }
-
-    fn update_selected_line(&mut self, text: String) {
-        if self.source_lines.is_empty() {
-            self.source_lines.push(text);
-            self.selected_line = 0;
-        } else if let Some(line) = self.source_lines.get_mut(self.selected_line) {
-            *line = text;
-        }
-
-        self.sync_source_text();
-    }
-
-    fn sync_source_text(&mut self) {
-        self.session.set_source_text(self.source_lines.join("\n"));
     }
 
     fn schedule_rebuild(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -145,46 +147,6 @@ impl AnimatixGui {
         });
     }
 
-    fn select_line(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        self.selected_line = index.min(self.source_lines.len().saturating_sub(1));
-        let selected = self
-            .source_lines
-            .get(self.selected_line)
-            .cloned()
-            .unwrap_or_default();
-        self.line_editor.update(cx, |editor, cx| {
-            editor.set_value(selected, window, cx);
-        });
-        cx.notify();
-    }
-
-    fn insert_line_after(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let insert_at = self.selected_line.saturating_add(1).min(self.source_lines.len());
-        self.source_lines.insert(insert_at, String::new());
-        self.sync_source_text();
-        self.select_line(insert_at, window, cx);
-        self.schedule_rebuild(window, cx);
-    }
-
-    fn delete_selected_line(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.source_lines.len() > 1 {
-            self.source_lines.remove(self.selected_line.min(self.source_lines.len() - 1));
-            if self.selected_line >= self.source_lines.len() {
-                self.selected_line = self.source_lines.len() - 1;
-            }
-        } else if let Some(line) = self.source_lines.first_mut() {
-            line.clear();
-        }
-
-        self.sync_source_text();
-        self.select_line(self.selected_line, window, cx);
-        self.schedule_rebuild(window, cx);
-    }
-
-    fn on_delete_line(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.delete_selected_line(window, cx);
-    }
-
     fn on_save(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         if let Err(error) = self.session.save_to_disk() {
             self.session.preview.state.error = Some(error);
@@ -193,10 +155,15 @@ impl AnimatixGui {
     }
 
     fn on_reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.pending_rebuild_generation += 1;
         match self.session.reload_from_disk() {
             Ok(()) => {
-                self.source_lines = split_lines(self.session.source_text());
-                self.select_line(self.selected_line.min(self.source_lines.len().saturating_sub(1)), window, cx);
+                let source = self.session.source_text().to_owned();
+                self.applying_editor_value = true;
+                self.editor
+                    .update(cx, |editor, cx| editor.set_value(source, window, cx));
+                self.applying_editor_value = false;
+                self.file_tree = build_file_tree(&self.workspace_root, self.session.file_path());
             }
             Err(error) => self.session.preview.state.error = Some(error),
         }
@@ -207,6 +174,13 @@ impl AnimatixGui {
         self.session.toggle_playback();
         if self.session.preview.is_playing {
             self.start_playback_loop(window, cx);
+        }
+        cx.notify();
+    }
+
+    fn on_rebuild(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Err(error) = self.session.rebuild() {
+            self.session.preview.state.error = Some(error);
         }
         cx.notify();
     }
@@ -258,50 +232,60 @@ impl AnimatixGui {
         cx.notify();
     }
 
-    fn render_source_list(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_file_tree(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let view = cx.entity();
 
-        div()
-            .id("source-lines")
-            .overflow_scroll()
-            .flex_1()
-            .border_1()
-            .border_color(theme.border)
-            .bg(theme.list)
-            .rounded(theme.radius)
-            .child(
-                div().flex().flex_col().w_full().children(
-                    self.source_lines.iter().enumerate().map(move |(index, line)| {
-                        let is_selected = index == self.selected_line;
-                        let view = view.clone();
-                        div()
-                            .id(("line", index))
-                            .flex()
-                            .gap_2()
-                            .px_2()
-                            .py_1()
-                            .bg(if is_selected {
-                                theme.list_active
-                            } else {
-                                theme.list
-                            })
-                            .when(is_selected, |this| {
-                                this.border_l_2().border_color(theme.list_active_border)
-                            })
-                            .hover(|this| this.bg(theme.list_hover))
+        div().flex_1().overflow_scrollbar().child(
+            v_flex().w_full().children(self.file_tree.iter().map(|entry| {
+                let depth_indent = px((entry.depth as f32) * 14.0);
+                let icon = if entry.is_dir { "▾" } else { "•" };
+                let name = entry
+                    .path
+                    .file_name()
+                    .unwrap_or_else(|| OsStr::new("workspace"))
+                    .to_string_lossy()
+                    .to_string();
+                let metadata = if entry.is_dir {
+                    "folder".to_string()
+                } else {
+                    entry.path
+                        .strip_prefix(&self.workspace_root)
+                        .unwrap_or(&entry.path)
+                        .display()
+                        .to_string()
+                };
+
+                h_flex()
+                    .id(("file-tree", file_tree_entry_id(entry)))
+                    .w_full()
+                    .gap_2()
+                    .items_start()
+                    .px_2()
+                    .py_1()
+                    .pl_2()
+                    .when(entry.is_current, |this| {
+                        this.bg(theme.list_active)
                             .text_color(theme.foreground)
-                            .font_family(theme.mono_font_family.clone())
-                            .child(format!("{:>3}", index + 1))
-                            .child(if line.is_empty() { " ".to_string() } else { line.clone() })
-                            .on_click(move |_, window, cx| {
-                                let _ = view.update(cx, |this, cx| {
-                                    this.select_line(index, window, cx);
-                                });
-                            })
-                    }),
-                ),
-            )
+                            .border_l_2()
+                            .border_color(theme.list_active_border)
+                    })
+                    .when(!entry.is_current, |this| {
+                        this.text_color(if entry.is_dir {
+                            theme.muted_foreground
+                        } else {
+                            theme.foreground
+                        })
+                    })
+                    .child(div().pt_1().text_sm().text_color(theme.muted_foreground).child(icon))
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .pl(depth_indent)
+                            .child(div().text_sm().font_family(theme.mono_font_family.clone()).child(name))
+                            .child(div().text_xs().text_color(theme.muted_foreground).child(metadata)),
+                    )
+            })),
+        )
     }
 
     fn render_timeline(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -316,29 +300,27 @@ impl AnimatixGui {
         };
         let view = cx.entity();
 
-        div()
-            .flex()
-            .gap_1()
-            .children((0..segments).map(move |ix| {
-                let view = view.clone();
-                let fill = if ix <= active { theme.primary } else { theme.muted };
-                let fraction = ix as f64 / (segments.saturating_sub(1)) as f64;
-                div()
-                    .id(("segment", ix))
-                    .flex_1()
-                    .h(px(18.0))
-                    .rounded(px(3.0))
-                    .bg(fill)
-                    .hover(|this| this.opacity(0.85))
-                    .on_click(move |_, _, cx| {
-                        let _ = view.update(cx, |this, cx| {
-                            this.set_timeline_fraction(fraction, cx);
-                        });
-                    })
-            }))
+        div().flex().gap_1().children((0..segments).map(move |ix| {
+            let view = view.clone();
+            let fill = if ix <= active { theme.primary } else { theme.muted };
+            let fraction = ix as f64 / (segments.saturating_sub(1)) as f64;
+            div()
+                .id(("timeline-segment", ix))
+                .flex_1()
+                .h(px(16.0))
+                .rounded(theme.radius)
+                .bg(fill)
+                .hover(|this| this.opacity(0.85))
+                .on_click(move |_, _, cx| {
+                    let _ = view.update(cx, |this, cx| {
+                        this.set_timeline_fraction(fraction, cx);
+                    });
+                })
+        }))
     }
 
-    fn render_preview(&self) -> impl IntoElement {
+    fn render_preview(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
         let body = if let Some(path) = self
             .session
             .preview
@@ -357,16 +339,19 @@ impl AnimatixGui {
                 .flex()
                 .items_center()
                 .justify_center()
-                .text_color(gpui::white())
+                .text_color(theme.muted_foreground)
+                .font_family(theme.mono_font_family.clone())
                 .child("No preview available")
                 .into_any_element()
         };
 
         div()
             .flex_1()
-            .min_h(px(320.0))
-            .rounded(px(8.0))
-            .bg(gpui::black())
+            .min_h(px(280.0))
+            .rounded(theme.radius_lg)
+            .bg(theme.background)
+            .border_1()
+            .border_color(theme.border)
             .overflow_hidden()
             .child(body)
     }
@@ -382,6 +367,22 @@ impl Render for AnimatixGui {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _subscriptions_keepalive = &self.subscriptions;
         let theme = cx.theme().clone();
+        let file_name = self
+            .session
+            .file_path()
+            .file_name()
+            .unwrap_or_else(|| OsStr::new("untitled"))
+            .to_string_lossy()
+            .to_string();
+        let file_path = self.session.file_path().display().to_string();
+        let dirty_label = if self.session.is_dirty() { "Modified" } else { "Saved" };
+        let preview_message = self
+            .session
+            .preview
+            .state
+            .error
+            .clone()
+            .unwrap_or_else(|| self.session.preview.state.status.clone());
 
         div()
             .size_full()
@@ -391,32 +392,36 @@ impl Render for AnimatixGui {
             .child(
                 v_flex()
                     .size_full()
+                    .bg(theme.background)
                     .child(
                         h_flex()
                             .px_3()
                             .py_2()
-                            .gap_2()
+                            .gap_3()
                             .items_center()
                             .border_b_1()
-                            .border_color(theme.title_bar_border)
+                            .border_color(theme.border)
                             .bg(theme.title_bar)
                             .child(
-                                status_chip(
-                                    "File",
-                                    self.session.file_path().display().to_string(),
-                                    theme.secondary,
-                                    theme.secondary_foreground,
-                                    theme.radius,
-                                ),
+                                h_flex()
+                                    .gap_3()
+                                    .items_center()
+                                    .child(div().font_bold().child("Animatix"))
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .text_sm()
+                                            .text_color(theme.muted_foreground)
+                                            .child("File")
+                                            .child("Edit")
+                                            .child("Preview")
+                                            .child("Run"),
+                                    ),
                             )
+                            .child(div().ml_auto())
                             .child(
-                                status_chip(
-                                    "State",
-                                    if self.session.is_dirty() {
-                                        "Modified".to_string()
-                                    } else {
-                                        "Saved".to_string()
-                                    },
+                                status_badge(
+                                    dirty_label,
                                     if self.session.is_dirty() {
                                         theme.warning
                                     } else {
@@ -430,105 +435,134 @@ impl Render for AnimatixGui {
                                     theme.radius,
                                 ),
                             )
-                            .child(
-                                status_chip(
-                                    "Preview",
-                                    self.session.preview.state.status.clone(),
-                                    theme.accent,
-                                    theme.accent_foreground,
-                                    theme.radius,
-                                ),
-                            )
-                            .child(div().ml_auto())
-                            .child(
-                                action_button("Save", "save", cx.entity(), |this, window, cx| {
-                                    this.on_save(window, cx);
-                                })
-                                .primary(),
-                            )
-                            .child(
-                                action_button("Reload", "reload", cx.entity(), |this, window, cx| {
+                            .child(action_button("Save", "save", cx.entity(), |this, window, cx| {
+                                this.on_save(window, cx);
+                            })
+                            .primary())
+                            .child(action_button(
+                                "Reload",
+                                "reload",
+                                cx.entity(),
+                                |this, window, cx| {
                                     this.on_reload(window, cx);
-                                })
-                                .ghost(),
+                                },
                             )
+                            .ghost())
+                            .child(action_button(
+                                "Rebuild",
+                                "rebuild",
+                                cx.entity(),
+                                |this, window, cx| {
+                                    this.on_rebuild(window, cx);
+                                },
+                            )
+                            .ghost())
+                            .child(action_button(
+                                if self.session.preview.is_playing {
+                                    "Pause"
+                                } else {
+                                    "Play"
+                                },
+                                "toggle-playback",
+                                cx.entity(),
+                                |this, window, cx| {
+                                    this.on_play_pause(window, cx);
+                                },
+                            )
+                            .primary()),
                     )
                     .child(
-                        h_resizable("animatix-shell")
+                        h_resizable("animatix-editor-shell")
                             .child(
-                                resizable_panel().size(px(520.0)).child(
-                                    panel_shell("Source", &theme).child(
+                                resizable_panel().size(px(260.0)).child(
+                                    editor_panel(
+                                        "Explorer",
+                                        self.workspace_root.display().to_string(),
+                                        &theme,
+                                    )
+                                    .child(self.render_file_tree(cx)),
+                                ),
+                            )
+                            .child(
+                                resizable_panel().size(px(720.0)).child(
+                                    editor_panel("Editor", file_name.clone(), &theme).child(
                                         v_flex()
                                             .size_full()
-                                            .gap_3()
-                                            .child(self.render_source_list(cx))
+                                            .gap_1()
                                             .child(
                                                 h_flex()
+                                                    .px_3()
+                                                    .py_2()
                                                     .gap_2()
                                                     .items_center()
-                                                    .child(div().flex_1().child(self.line_editor.clone()))
+                                                    .border_b_1()
+                                                    .border_color(theme.border)
+                                                    .bg(theme.background)
                                                     .child(
-                                                        action_button(
-                                                            "+ Line",
-                                                            "insert-line",
-                                                            cx.entity(),
-                                                            |this, window, cx| {
-                                                                this.insert_line_after(window, cx);
-                                                            },
-                                                        )
-                                                        .ghost(),
+                                                        div()
+                                                            .text_sm()
+                                                            .font_family(theme.mono_font_family.clone())
+                                                            .child(file_name),
                                                     )
-                                                    .child(action_button(
-                                                        "- Line",
-                                                        "delete-line",
-                                                        cx.entity(),
-                                                        |this, window, cx| {
-                                                            this.on_delete_line(window, cx);
-                                                        },
-                                                    )),
+                                                    .child(
+                                                        div()
+                                                            .text_xs()
+                                                            .text_color(theme.muted_foreground)
+                                                            .child(file_path.clone()),
+                                                    ),
                                             )
                                             .child(
                                                 div()
-                                                    .text_sm()
-                                                    .text_color(theme.muted_foreground)
-                                                    .child("Line-oriented editor stays custom for precise text behavior."),
+                                                    .flex_1()
+                                                    .bg(theme.background)
+                                                    .child(
+                                                        Input::new(&self.editor)
+                                                            .h_full()
+                                                            .appearance(false)
+                                                            .bordered(false)
+                                                            .focus_bordered(false),
+                                                    ),
                                             ),
                                     ),
                                 ),
                             )
                             .child(
-                                resizable_panel().child(
-                                    panel_shell("Preview", &theme).child(
+                                resizable_panel().size(px(420.0)).child(
+                                    editor_panel(
+                                        "Preview",
+                                        self.session.preview.state.status.clone(),
+                                        &theme,
+                                    )
+                                    .child(
                                         v_flex()
                                             .size_full()
                                             .gap_3()
-                                            .child(self.render_preview())
+                                            .child(self.render_preview(cx))
                                             .child(
                                                 h_flex()
                                                     .gap_2()
                                                     .items_center()
-                                                    .child(action_button(
-                                                        if self.session.preview.is_playing {
-                                                            "Pause"
-                                                        } else {
-                                                            "Play"
-                                                        },
-                                                        "toggle-playback",
-                                                        cx.entity(),
-                                                        |this, window, cx| {
-                                        this.on_play_pause(window, cx);
-                                                        },
-                                                    )
-                                                    .primary())
                                                     .child(
-                                                        div().text_sm().text_color(theme.muted_foreground).child(
-                                                            format!(
+                                                        div()
+                                                            .text_sm()
+                                                            .text_color(theme.muted_foreground)
+                                                            .child(format!(
                                                                 "t = {:.2}s / {:.2}s",
                                                                 self.session.preview.current_time_s,
                                                                 self.session.preview.duration_s
-                                                            ),
-                                                        ),
-                                                    ),
+                                                            )),
+                                                    )
+                                                    .child(div().ml_auto())
+                                                    .child(status_badge(
+                                                        if self.session.preview.is_playing {
+                                                            "Playing"
+                                                        } else {
+                                                            "Paused"
+                                                        },
+                                                        theme.accent,
+                                                        theme.accent_foreground,
+                                                        theme.radius,
+                                                    )),
                                             )
                                             .child(self.render_timeline(cx))
                                             .child(
@@ -545,7 +579,7 @@ impl Render for AnimatixGui {
                                                     } else {
                                                         theme.secondary
                                                     })
-                                                    .px_2()
+                                                    .px_3()
                                                     .py_2()
                                                     .text_sm()
                                                     .text_color(if self.session.preview.state.error.is_some() {
@@ -553,38 +587,60 @@ impl Render for AnimatixGui {
                                                     } else {
                                                         theme.secondary_foreground
                                                     })
-                                                    .child(
-                                                        self.session
-                                                            .preview
-                                                            .state
-                                                            .error
-                                                            .clone()
-                                                            .unwrap_or_else(|| {
-                                                                "Snapshot preview backend active; future surface seam remains preserved."
-                                                                    .to_string()
-                                                            }),
-                                                    ),
+                                                    .child(preview_message),
                                             ),
                                     ),
                                 ),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .px_3()
+                            .py_2()
+                            .gap_3()
+                            .items_center()
+                            .border_t_1()
+                            .border_color(theme.border)
+                            .bg(theme.title_bar)
+                            .text_sm()
+                            .child(
+                                div()
+                                    .font_family(theme.mono_font_family.clone())
+                                    .child(file_path),
                             )
+                            .child(div().text_color(theme.muted_foreground).child("•"))
+                            .child(
+                                div().child(if self.session.is_dirty() {
+                                    "Dirty"
+                                } else {
+                                    "Saved"
+                                }),
+                            )
+                            .child(div().text_color(theme.muted_foreground).child("•"))
+                            .child(div().child(format!(
+                                "{:.2}s / {:.2}s",
+                                self.session.preview.current_time_s, self.session.preview.duration_s
+                            )))
+                            .child(div().text_color(theme.muted_foreground).child("•"))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .child(self.session.preview.state.status.clone()),
+                            )
+                            .when_some(self.session.preview.state.error.clone(), |this, error| {
+                                this.child(div().text_color(theme.danger_foreground).child(error))
+                            }),
                     ),
             )
     }
 }
 
-fn split_lines(source: &str) -> Vec<String> {
-    let mut lines = source.lines().map(|line| line.to_string()).collect::<Vec<_>>();
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
-}
-
-fn panel_shell(title: &'static str, theme: &gpui_component::Theme) -> gpui::Div {
+fn editor_panel(title: &'static str, subtitle: String, theme: &gpui_component::Theme) -> gpui::Div {
     v_flex()
         .size_full()
-        .m_3()
+        .m_2()
         .rounded(theme.radius_lg)
         .border_1()
         .border_color(theme.border)
@@ -594,29 +650,45 @@ fn panel_shell(title: &'static str, theme: &gpui_component::Theme) -> gpui::Div 
             h_flex()
                 .px_3()
                 .py_2()
+                .gap_2()
+                .items_center()
                 .border_b_1()
                 .border_color(theme.border)
                 .bg(theme.title_bar)
-                .child(div().font_bold().child(title)),
+                .child(div().font_bold().child(title))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .child(subtitle),
+                ),
         )
 }
 
-fn status_chip(
-    title: &'static str,
-    value: String,
+fn file_tree_entry_id(entry: &FileTreeEntry) -> usize {
+    entry
+        .path
+        .to_string_lossy()
+        .bytes()
+        .fold(entry.depth, |acc, byte| acc.wrapping_mul(31).wrapping_add(byte as usize))
+}
+
+fn status_badge(
+    text: impl Into<gpui::SharedString>,
     background: gpui::Hsla,
     foreground: gpui::Hsla,
     radius: gpui::Pixels,
 ) -> gpui::Div {
-    h_flex()
-        .gap_1()
+    div()
         .px_2()
         .py_1()
         .rounded(radius)
         .bg(background)
         .text_color(foreground)
-        .child(div().text_xs().font_bold().child(format!("{title}:")))
-        .child(div().text_sm().child(value))
+        .text_sm()
+        .child(text.into())
 }
 
 fn action_button(
@@ -626,8 +698,157 @@ fn action_button(
     handler: impl Fn(&mut AnimatixGui, &mut Window, &mut Context<AnimatixGui>) + 'static,
 ) -> Button {
     Button::new(id).label(text).on_click(move |_, window, cx| {
-            let _ = view.update(cx, |this, cx| {
-                handler(this, window, cx);
-            });
-        })
+        let _ = view.update(cx, |this, cx| {
+            handler(this, window, cx);
+        });
+    })
+}
+
+fn workspace_root_for(file_path: &Path) -> PathBuf {
+    let search_start = file_path.parent().unwrap_or(file_path);
+    for ancestor in search_start.ancestors() {
+        if ancestor.join("Cargo.toml").exists() || ancestor.join(".git").exists() {
+            return ancestor.to_path_buf();
+        }
+    }
+    search_start.to_path_buf()
+}
+
+fn build_file_tree(workspace_root: &Path, current_file: &Path) -> Vec<FileTreeEntry> {
+    let mut entries = Vec::new();
+    collect_tree_entries(
+        workspace_root,
+        workspace_root,
+        current_file,
+        0,
+        &mut entries,
+        &mut 0,
+    );
+
+    if !entries.iter().any(|entry| entry.path == current_file) {
+        entries.push(FileTreeEntry {
+            path: current_file.to_path_buf(),
+            depth: current_file
+                .strip_prefix(workspace_root)
+                .ok()
+                .map(|path| path.components().count().saturating_sub(1))
+                .unwrap_or(0),
+            is_dir: false,
+            is_current: true,
+        });
+    }
+
+    entries
+}
+
+fn collect_tree_entries(
+    workspace_root: &Path,
+    dir: &Path,
+    current_file: &Path,
+    depth: usize,
+    entries: &mut Vec<FileTreeEntry>,
+    seen: &mut usize,
+) {
+    if depth > MAX_FILE_TREE_DEPTH || *seen >= MAX_FILE_TREE_ENTRIES {
+        return;
+    }
+
+    let Ok(read_dir) = fs::read_dir(dir) else {
+        return;
+    };
+
+    let mut children = read_dir
+        .flatten()
+        .filter(|entry| !is_hidden(&entry.path()))
+        .collect::<Vec<_>>();
+
+    children.sort_by(|left, right| {
+        let left_path = left.path();
+        let right_path = right.path();
+        let left_is_dir = left_path.is_dir();
+        let right_is_dir = right_path.is_dir();
+
+        right_is_dir
+            .cmp(&left_is_dir)
+            .then_with(|| left.file_name().cmp(&right.file_name()))
+    });
+
+    for child in children {
+        if *seen >= MAX_FILE_TREE_ENTRIES {
+            break;
+        }
+
+        let path = child.path();
+        let is_dir = path.is_dir();
+        let is_current = path == current_file;
+        let contains_current = current_file.starts_with(&path);
+        let should_show = depth < 2
+            || is_current
+            || contains_current
+            || same_parent(&path, current_file)
+            || matches_relevant_file(&path);
+
+        if !should_show {
+            continue;
+        }
+
+        *seen += 1;
+        entries.push(FileTreeEntry {
+            path: path.clone(),
+            depth,
+            is_dir,
+            is_current,
+        });
+
+        if is_dir && (contains_current || depth < 1) {
+            collect_tree_entries(
+                workspace_root,
+                &path,
+                current_file,
+                depth + 1,
+                entries,
+                seen,
+            );
+        }
+    }
+
+    let _ = workspace_root;
+}
+
+fn same_parent(path: &Path, current_file: &Path) -> bool {
+    path.parent()
+        .zip(current_file.parent())
+        .map(|(left, right)| left == right)
+        .unwrap_or(false)
+}
+
+fn matches_relevant_file(path: &Path) -> bool {
+    path.is_dir()
+        || path
+            .extension()
+            .and_then(OsStr::to_str)
+            .map(|ext| matches!(ext, "amx" | "rs" | "toml" | "md"))
+            .unwrap_or(false)
+}
+
+fn is_hidden(path: &Path) -> bool {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .map(|name| name.starts_with('.'))
+        .unwrap_or(false)
+}
+
+fn editor_language(path: &Path) -> &'static str {
+    match path.extension().and_then(OsStr::to_str) {
+        Some("rs") => "rust",
+        Some("json") => "json",
+        Some("toml") => "toml",
+        Some("md") => "markdown",
+        Some("html") => "html",
+        Some("css") => "css",
+        Some("js") => "javascript",
+        Some("ts") => "typescript",
+        Some("yaml" | "yml") => "yaml",
+        _ => "rust",
+    }
 }

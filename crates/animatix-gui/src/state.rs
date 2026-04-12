@@ -49,7 +49,13 @@ impl SessionState {
     }
 
     pub fn reload_from_disk(&mut self) -> Result<(), String> {
-        self.document.reload_from_disk()?;
+        self.document.reload_from_disk().map_err(|error| {
+            self.set_preview_error(format!(
+                "Reload failed • preview cleared for {}",
+                self.document.file_path.display()
+            ));
+            error
+        })?;
         self.preview.set_duration(self.document.duration_s);
         self.render_preview()
     }
@@ -61,7 +67,10 @@ impl SessionState {
     }
 
     pub fn rebuild(&mut self) -> Result<(), String> {
-        self.document.rebuild()?;
+        self.document.rebuild().map_err(|error| {
+            self.set_preview_error("Build failed • preview cleared".to_string());
+            error
+        })?;
         self.preview.set_duration(self.document.duration_s);
         self.preview.state.status = format!(
             "Built timeline • {:.2}s total duration",
@@ -86,12 +95,19 @@ impl SessionState {
     }
 
     fn render_preview(&mut self) -> Result<(), String> {
-        let ast = self
-            .document
-            .ast
-            .as_ref()
-            .ok_or_else(|| "No compiled scene available for preview".to_string())?;
-        self.preview.render(ast)
+        let Some(ast) = self.document.ast.as_ref() else {
+            let error = "No compiled scene available for preview".to_string();
+            self.set_preview_error("Preview unavailable • no compiled scene".to_string());
+            return Err(error);
+        };
+        self.preview.render(ast).inspect_err(|_| {
+            self.set_preview_error("Preview unavailable • render failed".to_string())
+        })
+    }
+
+    fn set_preview_error(&mut self, status: String) {
+        self.preview.state.artifact = None;
+        self.preview.state.status = status;
     }
 
     fn new_preview_session(backend: Box<dyn PreviewBackend>) -> PreviewSession {

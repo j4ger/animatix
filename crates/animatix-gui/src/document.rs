@@ -60,9 +60,14 @@ impl DocumentSession {
 
     pub fn rebuild(&mut self) -> Result<(), String> {
         let mut graph = ModuleGraph::new();
-        let ast = graph
-            .load_entry_with_source(&self.file_path, Some(&self.source_text))
-            .map_err(|err| err.to_string())?;
+        let ast = match graph.load_entry_with_source(&self.file_path, Some(&self.source_text)) {
+            Ok(ast) => ast,
+            Err(err) => {
+                self.ast = None;
+                self.duration_s = 0.1;
+                return Err(err.to_string());
+            }
+        };
         let timeline = Timeline::build(&ast);
         self.duration_s = timeline_duration_seconds(&timeline).max(0.1);
         self.ast = Some(ast);
