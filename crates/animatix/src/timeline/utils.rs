@@ -263,9 +263,13 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
 
         Expr::Closure(args, body) => Ok(Value::Closure(args.clone(), body.clone())),
 
-        Expr::Method(_, _, _) | Expr::Path(_) | Expr::Index(_, _) | Expr::Construct(_, _) => {
-            Ok(Value::Num(0.0))
+        Expr::Path(parts) => {
+            let dotted = parts.join(".");
+            env.get(&dotted)
+                .ok_or_else(|| EvalError::UndefinedVariable(dotted))
         }
+
+        Expr::Method(_, _, _) | Expr::Index(_, _) | Expr::Construct(_, _) => Ok(Value::Num(0.0)),
     }
 }
 
@@ -365,6 +369,10 @@ fn format_value(value: &Value) -> String {
 }
 
 pub fn parse_color(expr: &Expr) -> [f32; 4] {
+    parse_color_in_env(expr, &Environment::raw_new())
+}
+
+pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
     if let Expr::Ident(name) = expr {
         match name.as_str() {
             "red" | "RED" => [1.0, 0.0, 0.0, 1.0],
@@ -376,20 +384,27 @@ pub fn parse_color(expr: &Expr) -> [f32; 4] {
             "orange" | "ORANGE" => [1.0, 0.65, 0.0, 1.0],
             _ => [0.8, 0.8, 0.8, 1.0],
         }
+    } else if let Ok(value) = evaluate_expr(expr, env) {
+        match value {
+            Value::Color([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
+            Value::Vec4([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
+            Value::Vec3([r, g, b]) => [r as f32, g as f32, b as f32, 1.0],
+            _ => [0.8, 0.8, 0.8, 1.0],
+        }
     } else if let Expr::Tuple(items) = expr {
         // Parse color tuple: (r, g, b) or (r, g, b, a)
         if items.len() >= 3 {
-            let r = evaluate_expr(&items[0], &Environment::raw_new())
+            let r = evaluate_expr(&items[0], env)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(0.8);
-            let g = evaluate_expr(&items[1], &Environment::raw_new())
+            let g = evaluate_expr(&items[1], env)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(0.8);
-            let b = evaluate_expr(&items[2], &Environment::raw_new())
+            let b = evaluate_expr(&items[2], env)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(0.8);
             let a = if items.len() >= 4 {
-                evaluate_expr(&items[3], &Environment::raw_new())
+                evaluate_expr(&items[3], env)
                     .map(|v| v.as_num() as f32)
                     .unwrap_or(1.0)
             } else {

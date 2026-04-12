@@ -319,6 +319,10 @@ The current runtime has explicit assignment handling for these actor properties:
 
 Current runtime additions include `start_angle` and `sweep_angle` for `Arc`. `Polygon.points` and `Path.commands` are declaration-time geometry inputs rather than property-level animated tracks.
 
+Assignments can now target nested runtime labels through multi-segment dotted paths. For example, a component-expanded nested actor can be updated with `left.badge.color = red` or `right.frame.radius = 20`. This is label targeting, not a general object-property query system.
+
+The same dotted path surface now works on the rhs for sampled property reads. Common examples are `copy.at = left.badge.at`, `echo.radius = right.badge.radius`, and scalar/vector component reads such as `source.at.x`.
+
 Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
 
 Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.

@@ -11,12 +11,12 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 | Area | Status | Notes |
 |---|---|---|
 | Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect`, `Line`, `Ellipse` |
-| Reactive evaluation | Implemented | `always`, `loop`, `yield`, labeled loop state, compile-time `for` expansion |
+| Reactive evaluation | Implemented | Stateless `always` evaluation and compile-time `for` expansion are the shipped reactive model |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
 | GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, multiline code editing, save/reload, timeline scrubbing/playback, and cross-platform offscreen live preview |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
-| Components | Parser-only | AST/parser exist; runtime instantiation does not |
+| Components | Partially implemented | Imported `pub component` instantiation, parameter binding, nested-label isolation, dotted nested-label assignment targets, and sampled rhs property lookup are runtime-real; lifecycle hooks and custom actions still are not |
 
 ### Known Gaps
 
@@ -24,7 +24,7 @@ These are the major holes between the documented language surface and the runtim
 
 1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, and `Image`, but planned primitives such as `Code` are still missing.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
-3. **Components stop at parsing.** Imports work, but reusable component runtime behavior does not exist.
+3. **Component runtime is only partially landed.** Imported `pub component` instantiation now works, nested labels can be targeted and queried through dotted property paths, but lifecycle hooks, custom actions, and richer component scope remain unfinished.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
 
 ---
@@ -37,6 +37,7 @@ The next implementation steps should follow these rules:
 2. **Prefer vertical slices over broad promises.** Each phase should deliver runtime behavior, documentation, examples, and validation together.
 3. **Ship current-facing features before future-facing syntax.** A smaller reliable language is better than a broader but misleading one.
 4. **Keep examples honest.** User-facing demos should only showcase runnable features. Planned syntax belongs in a clearly separated planned section.
+5. **Prefer random-access semantics.** Preview, scrubbing, image export, and playback should agree on the frame at time `t` wherever possible.
 
 ---
 
@@ -55,6 +56,18 @@ The next implementation steps should follow these rules:
 **Exit criteria:**
 - No user-facing example depends on unimplemented runtime features
 - Docs and roadmap agree on current capabilities
+
+---
+
+### Phase 0.5 — Reactive Model Simplification
+**Status:** Completed
+
+**Outcome:**
+- `for` owns structural repetition
+- `always` owns runtime reactive behavior
+- the shipped evaluation contract is random-access and stateless for the requested time `t`
+
+**Detailed design reference:** [`stateless_reactive_design.md`](stateless_reactive_design.md)
 
 ---
 
@@ -158,6 +171,12 @@ The next implementation steps should follow these rules:
 - A minimal imported component example renders successfully
 - The spec can describe component behavior without parser-only disclaimers
 
+**Current progress note:**
+- A minimal runtime slice is now shipped: imported `pub component` definitions can be instantiated, params bind from instance props/defaults, and nested labels are isolated per instance during expansion.
+- Dotted assignment targets now work against nested runtime labels, including those emitted by imported component expansion.
+- Rhs dotted property lookup now resolves sampled actor and scene values through the same runtime label space, enabling composition such as copying `node.at` or `node.radius` into other properties.
+- Lifecycle hooks, custom component actions, and richer component namespace rules still remain for later work inside this phase.
+
 ---
 
 ### Phase 4 — Advanced Plotting and Morph Controls
@@ -202,9 +221,9 @@ The next implementation steps should follow these rules:
 
 These items should be treated as shipped foundations, not future roadmap bullets:
 
-- Reactive `always` / `loop` evaluation model
-- `yield`-driven loop state machine
+- Reactive `always` evaluation model
 - `for` expansion during timeline building
+- Random-access stateless frame evaluation contract
 - Graph plotting with adaptive sampling
 - Discontinuity detection for problematic functions like `1/x`
 - Bounding-box culling for plotting work

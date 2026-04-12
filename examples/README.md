@@ -18,6 +18,12 @@ The shipped GUI MVP opens these `.amx` files directly from `crates/animatix-gui`
 - `image_animation_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
+- `component_modules_demo.amx`
+- `reactive_runtime.amx`
+
+`component_modules_demo.amx` is the focused example for imported `pub component` instantiation, rhs property querying, and multi-segment dotted assignment targets against nested labels such as `left.badge.color = red` and `echo.radius = right.badge.radius`.
+
+`reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
 
 ## Planned
 

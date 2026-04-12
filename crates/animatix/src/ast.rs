@@ -105,20 +105,6 @@ pub enum Time {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum LoopKind {
-    Infinite,      // loop { ... }
-    Bounded(Time), // loop 5s { ... }
-    Count(u32),    // loop 3 times { ... }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum LoopCommand {
-    Stop,
-    Pause,
-    Resume,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum LifecycleEvent {
     Appear,
     Disappear,
@@ -253,7 +239,7 @@ pub enum Stmt {
     // === Assignments ===
     /// Property: btn.color = red
     Assignment {
-        target: String, // Can be path: container.child
+        target: Vec<String>, // Label path segments, e.g. ["container", "child"]
         property: String,
         value: Expr,
         modifiers: Vec<Modifier>,
@@ -270,23 +256,6 @@ pub enum Stmt {
         label: String,
         body: Vec<Stmt>,
     },
-
-    // === Loops ===
-    /// Loop: loop 3 times { ... }
-    Loop {
-        kind: LoopKind,
-        label: Option<String>,
-        body: Vec<Stmt>,
-    },
-
-    /// Loop Control: stop job
-    LoopControl {
-        command: LoopCommand,
-        label: String,
-    },
-
-    /// Yield execution for current frame
-    Yield,
 
     // === Control Flow ===
     /// Conditional: if x > 0 { ... }

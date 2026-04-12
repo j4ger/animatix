@@ -1,0 +1,7 @@
+// Reusable imported component used by component_modules_demo.amx.
+
+pub component MetricCard(title: "Metric") {
+    frame: Rect, size: (280, 150), color: (0.14, 0.18, 0.28, 1.0)
+    title_text: Text { text: title, font_size: 34, color: (1.0, 1.0, 1.0, 1.0), at: (0, -18) }
+    badge: Circle, radius: 12, color: gold, at: (-102, 34)
+}

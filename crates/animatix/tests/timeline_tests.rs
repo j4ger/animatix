@@ -1,11 +1,15 @@
 use animatix::ast::{Expr, Modifier, Property, Stmt, Time};
 use animatix::easing::Easing;
+use animatix::module::ModuleGraph;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PlacementMode,
     PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use kurbo::Shape;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn example_path(name: &str) -> String {
     format!("{}/../../examples/{}", env!("CARGO_MANIFEST_DIR"), name)
@@ -37,6 +41,28 @@ fn vector_path_bounds(timeline: &Timeline, label: &str, time_ms: u64) -> kurbo::
         .evaluate(time_ms)[0]
         .path
         .bounding_box()
+}
+
+fn temp_project_dir(name: &str) -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!(
+        "animatix_timeline_{}_{}_{}",
+        name,
+        std::process::id(),
+        unique
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn write_file(path: &Path, contents: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, contents).unwrap();
 }
 
 #[test]
@@ -235,6 +261,253 @@ fn test_missing_properties() {
 }
 
 #[test]
+fn imported_component_instances_expand_with_isolated_labels_and_props() {
+    let dir = temp_project_dir("component_instances");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    title_text: Text { text: title, at: (0, -20) }
+    badge: Circle, radius: 12, color: gold
+    badge.color = red
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+first: MetricCard, title: "Latency"
+second: MetricCard, title: "Throughput"
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    assert!(timeline.tracks.contains_key("first"));
+    assert!(timeline.tracks.contains_key("second"));
+    assert!(timeline.tracks.contains_key("first.title_text"));
+    assert!(timeline.tracks.contains_key("second.title_text"));
+    assert!(timeline.tracks.contains_key("first.badge"));
+    assert!(timeline.tracks.contains_key("second.badge"));
+
+    let first_paths = timeline
+        .tracks
+        .get("first.title_text")
+        .expect("first title track")
+        .text_paths
+        .evaluate(0);
+    let second_paths = timeline
+        .tracks
+        .get("second.title_text")
+        .expect("second title track")
+        .text_paths
+        .evaluate(0);
+
+    assert!(text_paths_width(&first_paths) > 0.0);
+    assert!(text_paths_width(&second_paths) > text_paths_width(&first_paths));
+
+    let first_badge = timeline
+        .tracks
+        .get("first.badge")
+        .expect("first badge track");
+    let second_badge = timeline
+        .tracks
+        .get("second.badge")
+        .expect("second badge track");
+    assert_eq!(first_badge.color.evaluate(0), [1.0, 0.0, 0.0, 1.0]);
+    assert_eq!(second_badge.color.evaluate(0), [1.0, 0.0, 0.0, 1.0]);
+}
+
+#[test]
+fn imported_component_nested_assignment_targets_update_prefixed_tracks() {
+    let dir = temp_project_dir("component_nested_targets");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    title_text: Text { text: title, color: white, at: (0, -20) }
+    badge: Circle, radius: 12, color: gold
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+left: MetricCard, title: "Latency"
+
+#1s
+left.badge.color = red
+left.title_text.color = green
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    assert_eq!(
+        timeline.tracks["left.badge"].color.evaluate(1000),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+    assert!(!timeline.tracks["left.title_text"]
+        .text_paths
+        .evaluate(1000)
+        .is_empty());
+}
+
+#[test]
+fn rhs_path_lookup_reads_existing_actor_properties() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "source".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(18.0),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "mirror".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Path(vec!["source".to_string(), "radius".to_string()]),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Path(vec!["source".to_string(), "at".to_string()]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(timeline.tracks["mirror"].size.evaluate(0), [18.0, 18.0]);
+    assert_eq!(
+        timeline.tracks["mirror"].position.evaluate(0),
+        [120.0, 80.0]
+    );
+}
+
+#[test]
+fn rhs_path_lookup_supports_vector_components() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "source".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "target".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Path(vec![
+                            "source".to_string(),
+                            "at".to_string(),
+                            "x".to_string(),
+                        ]),
+                        Expr::Path(vec![
+                            "source".to_string(),
+                            "at".to_string(),
+                            "y".to_string(),
+                        ]),
+                    ]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline.tracks["target"].position.evaluate(0),
+        [320.0, 240.0]
+    );
+}
+
+#[test]
+fn rhs_path_lookup_reads_nested_component_properties() {
+    let dir = temp_project_dir("component_rhs_lookup");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 14, color: red, at: (-80, 20)
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+left: MetricCard, title: "Latency"
+copy: Circle, radius: left.badge.radius, at: left.badge.at, color: left.badge.color
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    assert_eq!(timeline.tracks["copy"].size.evaluate(0), [14.0, 14.0]);
+    assert_eq!(timeline.tracks["copy"].position.evaluate(0), [-80.0, 20.0]);
+    assert_eq!(
+        timeline.tracks["copy"].color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+}
+
+#[test]
 fn test_image_properties_are_animatable() {
     let ast = vec![
         Stmt::Keyframe {
@@ -250,7 +523,7 @@ fn test_image_properties_are_animatable() {
             offset: Time::Seconds(1.0),
             body: vec![
                 Stmt::Assignment {
-                    target: "photo".to_string(),
+                    target: vec!["photo".to_string()],
                     property: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(96.0), Expr::Num(96.0)]),
                     modifiers: vec![Modifier {
@@ -259,7 +532,7 @@ fn test_image_properties_are_animatable() {
                     }],
                 },
                 Stmt::Assignment {
-                    target: "photo".to_string(),
+                    target: vec!["photo".to_string()],
                     property: "url".to_string(),
                     value: Expr::Str(example_path("checker.ppm")),
                     modifiers: vec![Modifier {
@@ -571,7 +844,7 @@ fn test_line_assignments_rebuild_runtime_path() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
-                target: "axis".to_string(),
+                target: vec!["axis".to_string()],
                 property: "to".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(40.0)]),
                 modifiers: vec![],
@@ -615,7 +888,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
-                target: "halo".to_string(),
+                target: vec!["halo".to_string()],
                 property: "radius_y".to_string(),
                 value: Expr::Num(60.0),
                 modifiers: vec![],
@@ -667,7 +940,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
-                target: "ring".to_string(),
+                target: vec!["ring".to_string()],
                 property: "sweep_angle".to_string(),
                 value: Expr::Num(std::f64::consts::PI),
                 modifiers: vec![],
@@ -748,7 +1021,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
-                target: "badge".to_string(),
+                target: vec!["badge".to_string()],
                 property: "color".to_string(),
                 value: Expr::Tuple(vec![
                     Expr::Num(0.2),
@@ -1172,7 +1445,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
-                target: "child".to_string(),
+                target: vec!["child".to_string()],
                 property: "at".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(50.0)]),
                 modifiers: vec![animatix::ast::Modifier {
@@ -1595,6 +1868,24 @@ fn test_evaluate_expr_format() {
 }
 
 #[test]
+fn test_evaluate_expr_path_uses_dotted_environment_lookup() {
+    let mut env = animatix::timeline::Environment::raw_new();
+    env.set("left.badge.color", animatix::timeline::Value::Num(7.0));
+
+    let result = evaluate_expr(
+        &Expr::Path(vec![
+            "left".to_string(),
+            "badge".to_string(),
+            "color".to_string(),
+        ]),
+        &env,
+    )
+    .expect("path lookup should resolve from dotted environment key");
+
+    assert_eq!(result.as_num(), 7.0);
+}
+
+#[test]
 fn test_evaluate_expr_constants() {
     let mut env = animatix::timeline::Environment::raw_new();
     animatix::timeline::load_standard_library(&mut env);
@@ -1642,7 +1933,7 @@ fn test_timeline_with_expr_call_properties() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::Assignment {
-            target: "actor1".to_string(),
+            target: vec!["actor1".to_string()],
             property: "position".to_string(),
             value: Expr::Tuple(vec![
                 Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),

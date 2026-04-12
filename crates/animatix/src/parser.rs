@@ -5,8 +5,45 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     let ident = text::ident()
         .then(just('-').then(text::ident()).repeated())
         .to_slice()
-        .map(String::from)
+        .try_map(|ident: &str, span| {
+            let reserved = [
+                "let",
+                "import",
+                "always",
+                "if",
+                "else",
+                "for",
+                "in",
+                "pub",
+                "component",
+                "true",
+                "false",
+                "null",
+                "loop",
+                "yield",
+                "stop",
+                "pause",
+                "resume",
+                "action",
+                "on",
+            ];
+            if reserved.contains(&ident) {
+                Err(Rich::custom(
+                    span,
+                    format!("'{}' is a reserved keyword", ident),
+                ))
+            } else {
+                Ok(String::from(ident))
+            }
+        })
         .padded();
+
+    let dotted_ident = ident
+        .clone()
+        .separated_by(just('.').padded())
+        .at_least(1)
+        .collect::<Vec<_>>()
+        .boxed();
 
     let num = text::int(10)
         .then(just('.').ignore_then(text::digits(10)).or_not())
@@ -60,7 +97,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .allow_trailing()
             .collect::<Vec<_>>()
             .delimited_by(just('(').padded(), just(')').padded())
-            .map(Expr::Tuple)
+            .map(|items| {
+                if items.len() == 1 {
+                    items.into_iter().next().unwrap()
+                } else {
+                    Expr::Tuple(items)
+                }
+            })
             .boxed();
 
         let array = expr
@@ -111,42 +154,34 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
-        // Method calls and indexing
-        let access = atom.foldl(
-            choice((just('.')
-                .ignore_then(ident.clone())
-                .then(
-                    expr.clone()
-                        .separated_by(just(',').padded())
-                        .collect::<Vec<_>>()
-                        .delimited_by(just('(').padded(), just(')').padded())
-                        .or_not(),
-                )
-                .map(|(name, args)| {
-                    if let Some(_args) = args {
-                        // Method call: obj.method(args)
-                        vec![name, "()".to_string()] // A bit of a hack to pass through foldl
-                    } else {
-                        // Path access: obj.field
-                        vec![name]
-                    }
-                }),))
-            .repeated(),
-            |acc, parts| {
-                // Simplified Path construction for AST matching
-                if parts.len() == 1 {
-                    Expr::Path(vec![
-                        match acc {
-                            Expr::Ident(s) => s,
-                            _ => "".to_string(), // Simplified
-                        },
-                        parts[0].clone(),
-                    ])
+        let access = atom
+            .clone()
+            .then(
+                just('.')
+                    .padded()
+                    .ignore_then(ident.clone())
+                    .repeated()
+                    .collect::<Vec<_>>(),
+            )
+            .map(|(base, segments)| {
+                if segments.is_empty() {
+                    base
                 } else {
-                    acc
+                    match base {
+                        Expr::Ident(name) => {
+                            let mut parts = Vec::with_capacity(segments.len() + 1);
+                            parts.push(name);
+                            parts.extend(segments);
+                            Expr::Path(parts)
+                        }
+                        Expr::Path(mut parts) => {
+                            parts.extend(segments);
+                            Expr::Path(parts)
+                        }
+                        other => other,
+                    }
                 }
-            },
-        );
+            });
 
         // Mathematical and logical operators precedence
         let pow = recursive(|pow| {
@@ -196,6 +231,27 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
         );
 
+        let conditional_expr = text::keyword("if")
+            .ignore_then(expr.clone())
+            .then(
+                expr.clone()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .then(
+                text::keyword("else").ignore_then(
+                    expr.clone()
+                        .delimited_by(just('{').padded(), just('}').padded()),
+                ),
+            )
+            .map(|((condition, then_branch), else_branch)| {
+                Expr::Conditional(
+                    Box::new(condition),
+                    Box::new(then_branch),
+                    Box::new(else_branch),
+                )
+            })
+            .boxed();
+
         let closure = choice((
             ident
                 .clone()
@@ -210,7 +266,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(|(args, body)| Expr::Closure(args, Box::new(body)))
         .boxed();
 
-        choice((closure, comparison)).boxed()
+        choice((closure, conditional_expr, comparison)).boxed()
     });
 
     let property = ident
@@ -342,21 +398,28 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|path| Stmt::Import { path })
             .padded();
 
-        let assignment = ident
+        let assignment = dotted_ident
             .clone()
-            .then_ignore(just('.'))
-            .then(ident.clone())
             .then_ignore(just('=').padded())
             .then(expr.clone())
             .then(modifiers.clone())
-            .map(
-                |(((target, property), value), modifiers)| Stmt::Assignment {
-                    target,
-                    property,
-                    value,
-                    modifiers,
-                },
-            )
+            .try_map(|((path, value), modifiers), span| {
+                if path.len() < 2 {
+                    Err(Rich::custom(
+                        span,
+                        "assignment target must include at least one '.' before the property",
+                    ))
+                } else {
+                    let property = path.last().cloned().unwrap_or_default();
+                    let target = path[..path.len() - 1].to_vec();
+                    Ok(Stmt::Assignment {
+                        target,
+                        property,
+                        value,
+                        modifiers,
+                    })
+                }
+            })
             .padded();
 
         let block_props = property
@@ -491,6 +554,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let actor_decl = text::keyword("pub")
+            .padded()
             .or_not()
             .map(|p| p.is_some())
             .then(ident.clone())
@@ -546,110 +610,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .ignore_then(none_of("\r\n").repeated().to_slice().map(String::from))
             .map(Stmt::Comment)
             .padded();
-
-        // Loop statement: loop { } | loop N times { } | loop Ns { }
-        let loop_body = _stmt
-            .clone()
-            .repeated()
-            .collect::<Vec<_>>()
-            .delimited_by(just('{').padded(), just('}').padded());
-
-        // Helper enum to carry suffix info through the count parser
-        #[derive(Clone)]
-        enum LoopKindKind {
-            Count,
-            BoundedSec,
-            BoundedMs,
-        }
-
-        // Parse loop with a number, then look ahead to decide kind.
-        // Captures the number FIRST, then checks suffix — no backtracking issues.
-        let loop_with_num = text::keyword("loop")
-            .ignore_then(just(' '))
-            .then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap_or(1)))
-            .then_ignore(
-                just(' ')
-                    .ignore_then(text::keyword("times"))
-                    .ignore_then(just(' ')),
-            )
-            .padded()
-            .map(|(_, count)| (count, LoopKindKind::Count));
-
-        // Count loop: "loop N times { }"
-        let loop_count = loop_with_num
-            .then(loop_body.clone())
-            .map(|((count, _), body)| Stmt::Loop {
-                kind: LoopKind::Count(count),
-                label: None,
-                body,
-            })
-            .padded();
-
-        // Bounded loop: "loop Ns { }" or "loop Nms { }"
-        let loop_bounded = text::keyword("loop")
-            .ignore_then(just(' '))
-            .ignore_then(time.clone())
-            .then(loop_body.clone())
-            .map(|(kind, body)| Stmt::Loop {
-                kind: LoopKind::Bounded(kind),
-                label: None,
-                body,
-            })
-            .padded();
-
-        // Infinite loop: "loop { }"
-        let loop_infinite = text::keyword("loop")
-            .ignore_then(loop_body.clone())
-            .map(|body| Stmt::Loop {
-                kind: LoopKind::Infinite,
-                label: None,
-                body,
-            })
-            .padded();
-
-        let loop_stmt = choice((loop_infinite, loop_count, loop_bounded));
-
-        // Labeled loop: job: loop N times { } | job: loop Ns { }
-        let labeled_loop_with_num = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .then(text::keyword("loop"))
-            .then(just(' '))
-            .then(text::int(10).map(|s: &str| s.parse::<u32>().unwrap_or(1)))
-            .then_ignore(
-                just(' ')
-                    .ignore_then(text::keyword("times"))
-                    .ignore_then(just(' ')),
-            )
-            .padded()
-            .map(|(((label, _), _), count)| (label, count, LoopKindKind::Count));
-
-        // Labeled count loop: "job: loop N times { }"
-        let labeled_loop_count = labeled_loop_with_num
-            .then(loop_body.clone())
-            .map(|((label, count, _), body)| Stmt::Loop {
-                kind: LoopKind::Count(count),
-                label: Some(label),
-                body,
-            })
-            .padded();
-
-        // Labeled bounded loop: "job: loop Ns { }"
-        let labeled_loop_bounded = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .then(text::keyword("loop"))
-            .then(just(' '))
-            .then(time.clone())
-            .then(loop_body.clone())
-            .map(|((((label, _), _), time_val), body)| Stmt::Loop {
-                kind: LoopKind::Bounded(time_val),
-                label: Some(label),
-                body,
-            })
-            .padded();
-
-        let labeled_loop_stmt = choice((labeled_loop_count, labeled_loop_bounded));
 
         // Always statement: always { }
         let always_body = _stmt
@@ -724,9 +684,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             });
 
         let component_def = text::keyword("pub")
+            .padded()
             .or_not()
             .map(|p| p.is_some())
-            .then(text::keyword("component"))
+            .then_ignore(text::keyword("component").padded())
             .then(ident.clone())
             .then(
                 param_def
@@ -743,7 +704,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .collect::<Vec<_>>()
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
-            .map(|((((is_pub, _), name), params), body)| {
+            .map(|(((is_pub, name), params), body)| {
                 Stmt::ComponentDef(ComponentDef {
                     is_pub,
                     name,
@@ -753,18 +714,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
-        let yield_stmt = text::keyword("yield").map(|_| Stmt::Yield).padded();
-
-        let loop_control_stmt = choice((
-            text::keyword("stop").to(LoopCommand::Stop),
-            text::keyword("pause").to(LoopCommand::Pause),
-            text::keyword("resume").to(LoopCommand::Resume),
-        ))
-        .then_ignore(just(' '))
-        .then(ident.clone())
-        .map(|(command, label)| Stmt::LoopControl { command, label })
-        .padded();
-
         choice((
             let_decl,
             import_stmt,
@@ -773,17 +722,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             math_stmt,
             svg_stmt,
             image_stmt,
-            labeled_loop_stmt,
-            loop_stmt,
             labeled_always_stmt,
             always_stmt,
             conditional_stmt,
             for_stmt,
-            actor_decl,
             component_def,
+            actor_decl,
             action,
-            loop_control_stmt,
-            yield_stmt,
             comment,
         ))
         .boxed()

@@ -85,7 +85,7 @@ fn main() {
         Commands::Ast {
             input,
             compact,
-            force,
+            force: _,
         } => {
             println!("Parsing Animatix file: {}", input.display());
 
@@ -109,8 +109,8 @@ fn main() {
         Commands::Render { input } => {
             println!("Rendering Animatix file: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_entry(&input) {
-                Ok(statements) => statements,
+            let ast = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => program.expand_components(),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -128,8 +128,8 @@ fn main() {
         } => {
             println!("Rendering Animatix image: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_entry(&input) {
-                Ok(statements) => statements,
+            let ast = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => program.expand_components(),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -157,8 +157,8 @@ fn main() {
         } => {
             println!("Rendering Animatix video: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_entry(&input) {
-                Ok(statements) => statements,
+            let ast = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => program.expand_components(),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);

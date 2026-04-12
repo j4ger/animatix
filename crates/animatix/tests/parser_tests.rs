@@ -1,4 +1,6 @@
-use animatix::ast::{Action, Expr, LoopKind, Modifier, Property, Stmt, Time, UnaryOp};
+use animatix::ast::{
+    Action, ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, Time, UnaryOp,
+};
 use animatix::parser::parser;
 use chumsky::Parser;
 
@@ -10,6 +12,10 @@ fn parse_single_stmt(src: &str) -> Stmt {
     } else {
         panic!("Expected implicit Keyframe wrapper");
     }
+}
+
+fn parse_error(src: &str) -> bool {
+    parser().parse(src).into_result().is_err()
 }
 
 #[test]
@@ -91,7 +97,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.color = \"red\""),
         Stmt::Assignment {
-            target: "btn".to_string(),
+            target: vec!["btn".to_string()],
             property: "color".to_string(),
             value: Expr::Str("red".to_string()),
             modifiers: vec![],
@@ -100,7 +106,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease-out]"),
         Stmt::Assignment {
-            target: "morpher".to_string(),
+            target: vec!["morpher".to_string()],
             property: "size".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![
@@ -116,10 +122,30 @@ fn test_assignments_and_paths() {
         }
     );
     assert_eq!(
+        parse_single_stmt("left.badge.color = red"),
+        Stmt::Assignment {
+            target: vec!["left".to_string(), "badge".to_string()],
+            property: "color".to_string(),
+            value: Expr::Ident("red".to_string()),
+            modifiers: vec![],
+        }
+    );
+    assert_eq!(
         parse_single_stmt("let x = container.child"),
         Stmt::LetDecl {
             name: "x".to_string(),
             value: Expr::Path(vec!["container".to_string(), "child".to_string()])
+        }
+    );
+    assert_eq!(
+        parse_single_stmt("let fill = left.badge.color"),
+        Stmt::LetDecl {
+            name: "fill".to_string(),
+            value: Expr::Path(vec![
+                "left".to_string(),
+                "badge".to_string(),
+                "color".to_string()
+            ])
         }
     );
     assert_eq!(
@@ -159,6 +185,47 @@ fn test_actor_decl_full() {
                     value: Expr::Ident("bounce".to_string())
                 }
             ],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_component_definition_and_instantiation_parse() {
+    assert_eq!(
+        parse_single_stmt(
+            "pub component MetricCard(title: \"Throughput\") { label: Text { text: title } }"
+        ),
+        Stmt::ComponentDef(ComponentDef {
+            is_pub: true,
+            name: "MetricCard".to_string(),
+            params: vec![ParamDef {
+                name: "title".to_string(),
+                param_type: None,
+                default: Some(Expr::Str("Throughput".to_string())),
+            }],
+            body: vec![Stmt::Text {
+                label: Some("label".to_string()),
+                props: vec![Property {
+                    name: "text".to_string(),
+                    value: Expr::Ident("title".to_string()),
+                }],
+                modifiers: vec![],
+            }],
+        })
+    );
+
+    assert_eq!(
+        parse_single_stmt("card: MetricCard, title: \"Latency\""),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "card".to_string(),
+            ty: "MetricCard".to_string(),
+            props: vec![Property {
+                name: "title".to_string(),
+                value: Expr::Str("Latency".to_string()),
+            }],
+            modifiers: vec![],
             children: vec![],
         }
     );
@@ -495,69 +562,6 @@ fn test_keyframes() {
 }
 
 #[test]
-fn test_loop_infinite() {
-    let result = parse_single_stmt("loop { move btn [1s] }");
-    assert_eq!(
-        result,
-        Stmt::Loop {
-            kind: LoopKind::Infinite,
-            label: None,
-            body: vec![Stmt::Action(Action {
-                verb: "move".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                }],
-            })],
-        }
-    );
-}
-
-#[test]
-fn test_loop_bounded_time() {
-    let result = parse_single_stmt("loop 5s { fade btn [1s] }");
-    assert_eq!(
-        result,
-        Stmt::Loop {
-            kind: LoopKind::Bounded(Time::Seconds(5.0)),
-            label: None,
-            body: vec![Stmt::Action(Action {
-                verb: "fade".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                }],
-            })],
-        }
-    );
-}
-
-#[test]
-fn test_loop_count() {
-    let result = parse_single_stmt("loop 3s { shake btn [0.5s] }");
-    assert_eq!(
-        result,
-        Stmt::Loop {
-            kind: LoopKind::Bounded(Time::Seconds(3.0)),
-            label: None,
-            body: vec![Stmt::Action(Action {
-                verb: "shake".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("0.5s".to_string()),
-                }],
-            })],
-        }
-    );
-}
-
-#[test]
 fn test_always() {
     let result = parse_single_stmt("always { let x = btn.x }");
     assert_eq!(
@@ -572,6 +576,33 @@ fn test_always() {
 }
 
 #[test]
+fn test_expression_conditional() {
+    assert_eq!(
+        parse_single_stmt("pulse.size = if active { (120, 120) } else { (180, 180) }"),
+        Stmt::Assignment {
+            target: vec!["pulse".to_string()],
+            property: "size".to_string(),
+            value: Expr::Conditional(
+                Box::new(Expr::Ident("active".to_string())),
+                Box::new(Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)])),
+                Box::new(Expr::Tuple(vec![Expr::Num(180.0), Expr::Num(180.0)])),
+            ),
+            modifiers: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_legacy_loop_syntax_rejected() {
+    assert!(parse_error("loop { move btn [1s] }"));
+    assert!(parse_error("loop 5s { fade btn [1s] }"));
+    assert!(parse_error("yield"));
+    assert!(parse_error("stop job"));
+    assert!(parse_error("pause job"));
+    assert!(parse_error("resume job"));
+}
+
+#[test]
 fn test_labeled_always() {
     let result = parse_single_stmt("reactive: always { btn.color = red }");
     assert_eq!(
@@ -579,7 +610,7 @@ fn test_labeled_always() {
         Stmt::LabeledAlways {
             label: "reactive".to_string(),
             body: vec![Stmt::Assignment {
-                target: "btn".to_string(),
+                target: vec!["btn".to_string()],
                 property: "color".to_string(),
                 value: Expr::Ident("red".to_string()),
                 modifiers: vec![],

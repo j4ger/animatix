@@ -83,6 +83,8 @@ For runtime, layout, rendering, or timeline changes:
 ```bash
 cargo run -- image path/to/scene.amx --time 0.0 --output /tmp/frame0.png
 cargo run -- image path/to/scene.amx --time 1.5 --output /tmp/frame1.png
+cargo run -- image examples/reactive_runtime.amx --time 0.5 --output /tmp/reactive_a.png
+cargo run -- image examples/reactive_runtime.amx --time 1.5 --output /tmp/reactive_b.png
 cargo run -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
 cargo test
 ```

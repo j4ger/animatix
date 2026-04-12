@@ -349,34 +349,34 @@ The tolerance-based approach also means mathematical expressions like `sin(1/x)`
 
 ## 7. The Hybrid Evaluation Engine (Reactive System)
 
-The reactive system resolves a fundamental conflict in animation: static keyframes describe a fixed timeline, but dynamic behavior requires per-frame evaluation. The hybrid engine handles both by separating concerns into two distinct layers.
+The reactive system resolves a fundamental conflict in animation: static keyframes describe a fixed timeline, but dynamic behavior requires per-frame evaluation. The shipped engine resolves this by making the rendered frame at time `t` a direct function of `t`.
 
 ### The Per-Frame Evaluation Pipeline
 
-Each frame, the engine executes a strict four-stage pipeline:
+Each frame, the engine executes a four-stage pipeline:
 
-1. **Advance Time**: Increment the timeline clock. Check for loop boundaries and reset internal counters if a `loop` block has completed an iteration.
+1. **Advance Time**: Determine the requested timeline time.
 2. **Evaluate Keyframe Tracks (Base Layer)**: Sample all `AnimationTrack` entries at the current time. This produces the default state for every animated property. Nodes without keyframes retain their static values from the scene graph.
-3. **Execute Reactive Blocks (Modifier Layer)**: Run all `always`, `loop`, and `for` blocks. These can override, compose with, or entirely replace values from the base layer.
+3. **Execute Reactive Blocks (Modifier Layer)**: Run stateless `always` evaluation on top of the sampled scene state. `for` has already been expanded during timeline construction.
 4. **Render**: Commit the final property values to the render list.
 
-The key insight is that the base layer is purely declarative. It declares what the values *should be* at any given time. The modifier layer is procedural. It can inspect the current frame state and make runtime decisions.
+The key insight is that the base layer is purely declarative. It declares what the values *should be* at any given time. The modifier layer should stay random-access and preview-friendly by deriving results from the requested time rather than hidden execution history.
 
-### The Three Reactive Primitives
+### Reactive Model
 
-**`for` loops (compile-time unrolling)**
+**`for` (compile-time structural expansion)**
 
-Bounded `for` loops are fully resolved at compile time. The compiler generates one set of keyframes per iteration, each offset in time by the loop body duration. At runtime, there is no loop structure, only a static animation track.
+`for` loops are resolved during timeline construction. At runtime, there is no loop structure, only expanded scene/timeline data.
 
 ```text
-for i in 0..3 {
-  star[i]: Circle, radius: 20
+for item in items {
+  // generate repeated structure during timeline build
 }
 ```
 
-This generates three `Circle` nodes at positions `star[0]`, `star[1]`, `star[2]`, each with its own timeline. The loop itself vanishes after compilation.
+The repeated structure is expanded before runtime evaluation and is compatible with random-access preview.
 
-**`always` blocks (render-time evaluation)**
+**`always` blocks (stateless render-time evaluation)**
 
 An `always` block runs every frame without exception. It receives the current frame state and produces values that override or compose with the base layer.
 
@@ -384,22 +384,19 @@ An `always` block runs every frame without exception. It receives the current fr
 always { ball.at = (mouse.x, mouse.y) }
 ```
 
-This runs on every frame. The expression `mouse.x` and `mouse.y` are evaluated fresh each time, giving live mouse tracking. There is no keyframe interpolation, no timeline, no concept of "before" or "after". Just pure per-frame execution.
+This runs for the requested frame. The expression `mouse.x` and `mouse.y` are evaluated fresh each time, giving live mouse tracking. There is no saved program counter and no hidden prior-frame dependence — just time/context-based evaluation.
 
-**`loop` blocks (stateful coroutines)**
+**Repeated behavior**
 
-A `loop` block maintains internal state across frames. It executes like a generator, pausing at `yield` points and resuming on the next frame from exactly where it stopped.
+Repeated behavior is expressed as explicit time math inside `always`, while structural repetition uses `for`.
 
 ```text
-job: loop 5s {
-  ball.at = (0, 0)
-  yield
-  ball.at = (100, 0)
-  yield
+always {
+  pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 }
 ```
 
-Each `yield` pauses execution and returns control to the timeline. On the next frame, execution resumes after that `yield`. This produces a two-state toggle that cycles every 5 seconds.
+This keeps evaluation stateless and random-access.
 
 ### Compile-Time vs Render-Time
 
@@ -408,14 +405,11 @@ The distinction matters for performance and semantics:
 | Construct | When Resolved | Runtime Cost | State |
 |-----------|---------------|--------------|-------|
 | `for` | Compile time | Zero | Static keyframes |
-| `always` | Every frame | Full expression re-evaluation | None (stateless) |
-| `loop` | Per iteration | Expression + state restore | Yes (paused PC, variables) |
+| `always` | Per requested frame | Full expression re-evaluation | None (stateless) |
 
 `for` produces no runtime overhead. The entire loop collapses into timeline data before the first frame renders.
 
-`always` re-evaluates its expressions every frame. If the expression tree is expensive, that cost is paid every frame.
-
-`loop` restores a saved program counter and local variables on each iteration. The cost is a struct restore plus expression evaluation.
+`always` re-evaluates its expressions for each requested frame. If the expression tree is expensive, that cost is paid each time the preview/export asks for a frame.
 
 ### Composition Rules
 
@@ -426,3 +420,11 @@ When both a keyframe track and an `always` block affect the same property:
 3. The modifier wins. `always` overrides keyframes unless explicitly designed to compose (e.g., `ball.at.x = base.at.x + offset`)
 
 This gives `always` the semantics of a render-time patch applied on top of the static timeline.
+
+### Target Language Promise
+
+The recommended long-term contract is:
+
+> the frame at time `t` should be derivable directly from `t`, the scene source, and the render dimensions.
+
+That contract is the shipped evaluation model for keyframes, layout, sampled path/property lookup, and `always`.

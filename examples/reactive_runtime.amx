@@ -1,6 +1,4 @@
-// PLANNED / EXPERIMENTAL EXAMPLE — not part of the runnable demo set.
-// The runtime has reactive evaluation machinery, but the authoring surface for
-// polished public demos still needs parser and UX refinement.
+// Runnable example: stateless reactive evaluation with `always` and time-derived behavior.
 
 #0s
 scene.background_color = (0.05, 0.07, 0.11, 1.0)
@@ -8,14 +6,11 @@ scene.background_color = (0.05, 0.07, 0.11, 1.0)
 center: Circle, radius: 8, color: WHITE, at: (640, 360)
 orbiter: Circle, radius: 36, color: (0.25, 0.80, 1.0, 1.0), at: (820, 360)
 pulse: Rect, size: (120, 120), color: (0.80, 0.35, 0.90, 1.0), at: (280, 360)
+echo: Circle, radius: 22, color: (1.0, 0.75, 0.30, 1.0), at: pulse.at
 
 always {
   orbiter.at = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
-}
-
-pulse_job: loop 4 times {
-  pulse.size = (120, 120)
-  yield
-  pulse.size = (180, 180)
-  yield
+  pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
+  echo.radius = pulse.size.x / 6
+  echo.at = orbiter.at
 }

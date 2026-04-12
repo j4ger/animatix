@@ -11,7 +11,10 @@ Animatix is powered by **Vello** and currently ships a working vector-first runt
 - Graph containers with `CartesianPlot` and `PolarPlot`
 - `Row`, `Col`, `Grid`, `Stack`, and `Group` scene containers
 - Layout-first composition primitives: root layout defaults, scene anchors, percentage placement, and manual child overrides
-- Reactive evaluation primitives: `always`, `loop`, `for`, `yield`, `stop`/`pause`/`resume`
+- Reactive evaluation primitives: stateless `always` and compile-time `for`
+- Imported `pub component` runtime instantiation with parameter binding and isolated nested labels
+- Multi-segment dotted assignment targets for nested labels such as `left.badge.color = red`
+- Sampled rhs path lookup for actor and scene properties such as `copy.at = left.badge.at` and `echo.radius = right.badge.radius`
 
 ## Demo Showcase
 
@@ -92,6 +95,8 @@ The curated runnable demos live in `examples/`:
 - `arc_polygon_path_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
+- `component_modules_demo.amx`
+- `reactive_runtime.amx`
 
 Future-facing syntax sketches live in `examples/planned/` and are intentionally not expected to run yet.
 
@@ -103,6 +108,7 @@ The `docs/` folder contains detailed technical information:
 - [`development.md`](docs/development.md): Internal debugging utilities, validation workflow, and contributor-oriented development notes.
 - [`primitives.md`](docs/primitives.md): Current runtime-supported primitives, graph containers, and parser-only/planned items.
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
+- [`stateless_reactive_design.md`](docs/stateless_reactive_design.md): Implemented stateless reactive model and migration rationale.
 - [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
 - [`examples/README.md`](examples/README.md): Guide to the curated runnable demos and planned syntax sketches.
 - [`../CONTRIBUTING.md`](CONTRIBUTING.md): Contribution workflow, design/doc sync expectations, code quality rules, and validation standards.
@@ -112,8 +118,8 @@ The `docs/` folder contains detailed technical information:
 The `docs/implementation_plan.md` file tracks what's left to build.
 
 ### What's Left
-- [ ] Component runtime (instantiation, parameter passing, lifecycle hooks, custom actions)
-- [ ] Additional runtime primitives (`Image`, `Code`)
+- [ ] Expand component runtime beyond imported `pub component` instantiation (lifecycle hooks, custom actions, richer scoping)
+- [ ] Additional runtime primitives (`Code`)
 - [ ] DSL-level morph strategy controls (`strategy`, `path_arc`, `stretch`)
 - [ ] Parametric and implicit plotting primitives
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)
