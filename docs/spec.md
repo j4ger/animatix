@@ -43,9 +43,9 @@ This matrix is the quick-reference status view for the current language surface.
 
 For executable examples, prefer the curated runnable set in `examples/README.md`. Planned features documented in this spec should not be treated as current runtime guarantees unless they are also backed by runnable examples and tests.
 
-The parser implementation in `crates/animatix/src/parser.rs` is the executable source of truth for accepted syntax. Editor-facing syntax metadata such as a future Tree-sitter grammar should be treated as a synchronized derivative of that parser surface rather than as an independent language authority.
+The parser implementation in `crates/animatix/src/parser.rs` is the executable source of truth for accepted syntax. Editor-facing syntax metadata such as the shipped [`tree-sitter-animatix`](../tree-sitter-animatix/) grammar should be treated as a synchronized derivative of that parser surface rather than as an independent language authority.
 
-For Tree-sitter work, this means the grammar should cover only parser-accepted `.amx` syntax, using runnable examples and parser tests as the primary corpus. Removed or dead internal surface area should not be exposed as grammar rules, keywords, or highlight queries.
+For Tree-sitter work, this means the grammar should cover only parser-accepted `.amx` syntax, using runnable examples and parser tests as the primary corpus. Removed or dead internal surface area should not be exposed as grammar rules, keywords, or highlight queries. The package-local maintenance workflow lives in [`tree-sitter-animatix/README.md`](../tree-sitter-animatix/README.md).
 
 ---
 

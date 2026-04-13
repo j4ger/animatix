@@ -57,15 +57,15 @@ This file now tracks both what has landed and what remains after the first GUI M
 - decide whether additional custom widgets should migrate to `gpui-component` or remain domain-specific
 - add more focused GUI/session tests beyond the current duration/state smoke coverage
 - add keyboard transport shortcuts and richer editor ergonomics
-- replace the current local `.amx` fallback syntax definition with shared Tree-sitter-backed language metadata once that grammar exists
+- replace the current local `.amx` fallback syntax definition with the shared Tree-sitter-backed language metadata now shipped in `tree-sitter-animatix/`
 
 ## Phase 6: Syntax Metadata and Highlighting
 
-**Status:** Planned
+**Status:** Grammar package shipped; GUI integration still pending
 
-- ship a dedicated Tree-sitter grammar for `.amx`
-- declare `.amx` through standard Tree-sitter metadata so external editors/tools can discover it
-- add highlight queries for the currently shipped parser surface
+- the dedicated Tree-sitter grammar for `.amx` now exists in `tree-sitter-animatix/`
+- `.amx` is declared through standard Tree-sitter metadata for downstream editors/tools
+- highlight queries now exist for the currently shipped parser surface
 - keep the GUI aligned with the parser/spec/docs by consuming those shared syntax assets instead of extending the ad hoc keyword list in isolation
 - treat parser tests and runnable examples as the initial highlighting/grammar validation corpus
 - exclude removed or non-parser syntax from the initial grammar scope so the GUI does not regress into documenting dead language surface
@@ -77,6 +77,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 - the GUI can map `.amx` files to shared language metadata without introducing a second independent syntax definition
 - external tools can discover the language through standard Tree-sitter packaging metadata
 - the initial query set and keyword captures come from the shipped language surface, not historical placeholders
+- the GUI no longer needs to invent a second independent keyword list once integration work lands
 
 ## Verification Checklist
 

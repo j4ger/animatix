@@ -38,7 +38,7 @@ The next implementation steps should follow these rules:
 3. **Ship current-facing features before future-facing syntax.** A smaller reliable language is better than a broader but misleading one.
 4. **Keep examples honest.** User-facing demos should only showcase runnable features. Future-facing ideas belong in docs until they are runnable.
 5. **Prefer random-access semantics.** Preview, scrubbing, image export, and playback should agree on the frame at time `t` wherever possible.
-6. **Keep syntax assets derived, not divergent.** The parser in `crates/animatix/src/parser.rs` defines accepted syntax; future editor-facing grammars such as Tree-sitter must track that surface rather than inventing a parallel language contract.
+6. **Keep syntax assets derived, not divergent.** The parser in `crates/animatix/src/parser.rs` defines accepted syntax; editor-facing grammars such as Tree-sitter must track that surface rather than inventing a parallel language contract.
 
 ---
 
@@ -54,7 +54,7 @@ The next implementation steps should follow these rules:
 - Curate examples into a small runnable set
 - Keep future syntax sketches out of the runnable example set
 - Correct parser/spec drift in the current language reference (for example, keyframe markers and component-syntax claims)
-- Record the synchronization rule between the parser, docs, GUI fallback highlighting, and future Tree-sitter assets
+- Record the synchronization rule between the parser, docs, GUI fallback highlighting, and Tree-sitter assets
 
 **Exit criteria:**
 - No user-facing example depends on unimplemented runtime features
@@ -62,23 +62,34 @@ The next implementation steps should follow these rules:
 - Parser-accepted syntax and spec examples use the same forms for keyframes and component syntax
 
 ### Phase 0.25 — Syntax Declaration and Editor Grammar
-**Status:** Planned
+**Status:** Completed
 
 **Goal:** Ship a reusable syntax declaration for `.amx` so external editors, tooling, and the Animatix GUI can consume the same language metadata.
 
-**Deliverables:**
-- a standalone `tree-sitter-animatix` grammar package
-- `tree-sitter.json` metadata with `.amx` file-type registration and a stable scope name
-- `queries/highlights.scm` using standard Tree-sitter capture names
-- corpus tests built from shipped parser tests and runnable examples
-- documentation describing the grammar as a synchronized derivative of the real parser surface
+**Outcome:**
+- a standalone `tree-sitter-animatix` grammar package now lives at the repo root
+- `tree-sitter.json` declares `.amx` with a stable `source.animatix` scope
+- `queries/highlights.scm` exists for the shipped parser surface
+- corpus tests exist under `tree-sitter-animatix/test/corpus/`
+- generated parser artifacts now exist under `tree-sitter-animatix/src/`
+- documentation describes the grammar as a synchronized derivative of the real parser surface
 
 **Scope rules:**
 - cover only syntax that is actually accepted by `crates/animatix/src/parser.rs`
 - treat non-parser surface such as custom component actions and removed legacy hook syntax as out of scope until the parser truly accepts them
 - use runnable examples and parser tests as the primary grammar-validation corpus
 - keep the GUI's current ad hoc syntax fallback as a temporary bridge, not a second language definition
-- document the intended initial package shape (`grammar.js`, `tree-sitter.json`, `queries/highlights.scm`, corpus tests) before implementation begins
+- keep grammar package docs explicit about what is intentionally excluded from syntax support
+
+**Validation evidence:**
+- `tree-sitter generate` succeeds in `tree-sitter-animatix/`
+- `tree-sitter test` passes against the shipped corpus
+- `tree-sitter highlight` succeeds on a runnable `.amx` example
+
+**Ongoing maintenance contract:**
+- parser-surface changes must update `crates/animatix/src/parser.rs`, `crates/animatix/tests/parser_tests.rs`, runnable examples when relevant, and `tree-sitter-animatix/` together
+- new grammar support should land corpus coverage before or with highlight-query updates
+- Tree-sitter should remain a syntactic derivative, not a home for speculative language design
 
 **Exit criteria:**
 - `.amx` is declared through standard Tree-sitter metadata for downstream tools
@@ -235,7 +246,7 @@ The next implementation steps should follow these rules:
 **Candidate work:**
 - Extend the shipped GUI beyond its MVP scope
 - Hot reload and file watching
-- Replace the current hardcoded editor keyword list with Tree-sitter-backed language metadata derived from the shipped parser surface
+- Replace the current hardcoded editor keyword list with the shipped Tree-sitter-backed language metadata derived from the parser surface
 - Richer action/component discovery for tooling
 - More formal examples/tutorial structure
 

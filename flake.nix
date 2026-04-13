@@ -21,6 +21,9 @@
             ffmpeg_7
             pkg-config
             rustPlatform.bindgenHook
+            tree-sitter
+            nodejs
+            clang
 
 	    xorg.libX11
 	    xorg.libXcursor

@@ -78,6 +78,15 @@ cargo run -- ast path/to/scene.amx
 cargo test
 ```
 
+If the change affects accepted syntax or syntax-highlighting structure:
+
+```bash
+cd tree-sitter-animatix
+tree-sitter generate
+tree-sitter test
+tree-sitter highlight ../examples/reactive_runtime.amx
+```
+
 For runtime, layout, rendering, or timeline changes:
 
 ```bash
@@ -102,5 +111,6 @@ For demo work:
 - `crates/animatix/src/module.rs` — import/module loading
 - `crates/animatix/src/timeline/` — keyframed runtime evaluation, actions, morphing, plotting
 - `crates/animatix/src/renderer/` — rendering backend integration
+- `tree-sitter-animatix/` — parser-derived editor/tooling grammar package for `.amx`
 
 These are the main places to inspect when debugging a mismatch between language syntax, timeline behavior, and rendered output.

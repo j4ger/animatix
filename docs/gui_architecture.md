@@ -152,9 +152,9 @@ Desired properties:
 - save command
 - reload from disk
 
-### Planned Syntax Metadata Integration
+### Syntax Metadata Integration
 
-The next syntax step should be a dedicated Tree-sitter grammar for `.amx`, consumed as shared language metadata by external editors/tools and, later, by the GUI itself.
+A dedicated Tree-sitter grammar for `.amx` now lives in `tree-sitter-animatix/`. It is intended to be consumed as shared language metadata by external editors/tools and, later, by the GUI itself.
 
 Architectural rules for that integration:
 
@@ -163,6 +163,12 @@ Architectural rules for that integration:
 - the GUI should migrate away from its ad hoc keyword list toward those shared syntax assets rather than maintaining a separate grammar definition
 - initial GUI adoption should focus on highlighting first; richer code intelligence can follow later
 - the initial grammar corpus should come from curated runnable examples plus parser tests, not from deprecated or removed syntax sketches
+
+Current status:
+
+- the grammar package exists and passes its local generate/test workflow
+- the GUI still uses the local fallback syntax in `crates/animatix-gui/src/editor.rs`
+- GUI integration remains follow-up work; shipping the grammar package does not yet mean the GUI is consuming it
 
 ## Preview Delivery Strategy
 

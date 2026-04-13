@@ -1,0 +1,74 @@
+================================================================================
+Expressions
+================================================================================
+
+let coords = (10, 20.5)
+let arr = {a, b}
+let pct = (50%, 25%)
+let x = container.child
+let f = (x) => x ^ 2
+let orbit = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
+let decision = if active { (120, 120) } else { (180, 180) }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (tuple_expression
+      (number)
+      (number)))
+  (let_declaration
+    name: (identifier)
+    value: (brace_array
+      (identifier)
+      (identifier)))
+  (let_declaration
+    name: (identifier)
+    value: (tuple_expression
+      (percentage)
+      (percentage)))
+  (let_declaration
+    name: (identifier)
+    value: (path_expression
+      base: (identifier)
+      segment: (identifier)))
+  (let_declaration
+    name: (identifier)
+    value: (closure_expression
+      parameters: (closure_parameters
+        (identifier))
+      body: (power_expression
+        left: (identifier)
+        right: (number))))
+  (let_declaration
+    name: (identifier)
+    value: (tuple_expression
+      (sum_expression
+        left: (number)
+        right: (product_expression
+          left: (number)
+          right: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)))))
+      (sum_expression
+        left: (number)
+        right: (product_expression
+          left: (number)
+          right: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (product_expression
+                left: (identifier)
+                right: (number))))))))
+  (let_declaration
+    name: (identifier)
+    value: (conditional_expression
+      condition: (identifier)
+      consequence: (tuple_expression
+        (number)
+        (number))
+      alternative: (tuple_expression
+        (number)
+        (number)))))

@@ -37,8 +37,11 @@ Keep these files in sync when relevant:
 - `docs/spec.md` — language behavior and status callouts
 - `docs/implementation_plan.md` — what is shipped vs what is still missing
 - `examples/README.md` — curated runnable demos
+- `tree-sitter-animatix/README.md` — grammar package scope and maintenance contract for parser-surface changes
 
 If you add, remove, or substantially change a feature, update the related docs in the same change.
+
+If you change accepted `.amx` syntax, update the grammar package in the same change unless the parser/test/example change is intentionally incomplete and still not ready for tooling exposure.
 
 ## Implementation Rules
 
@@ -85,6 +88,7 @@ Add or update tests when changing:
 - timeline evaluation
 - morphing/path logic
 - module/import handling
+- Tree-sitter grammar shape or highlight queries
 
 Tests should be targeted and readable. Prefer focused coverage over giant snapshot-style tests that are hard to debug.
 
@@ -96,6 +100,19 @@ Examples are part of the product surface. Keep them honest.
 - If a demo depends on unimplemented syntax, it does not belong in the runnable example set
 
 When adding a new runtime feature, try to add one focused demo that proves it is real.
+
+### Grammar validation
+
+If a change affects accepted `.amx` syntax or syntax highlighting support, validate the grammar package too:
+
+```bash
+cd tree-sitter-animatix
+tree-sitter generate
+tree-sitter test
+tree-sitter highlight ../examples/reactive_runtime.amx
+```
+
+Keep Tree-sitter changes corpus-first. A new grammar rule should arrive with a corpus case, and highlight-query changes should follow the real generated node shapes rather than assumptions.
 
 ## Validation Checklist
 

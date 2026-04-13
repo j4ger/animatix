@@ -1,0 +1,25 @@
+{
+  "name": "tree-sitter-animatix",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the shipped Animatix .amx syntax",
+  "license": "MIT",
+  "keywords": [
+    "tree-sitter",
+    "grammar",
+    "animatix",
+    "amx"
+  ],
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "queries",
+    "src"
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.3"
+  }
+}

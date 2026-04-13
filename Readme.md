@@ -111,7 +111,7 @@ The `docs/` folder contains detailed technical information:
 - [`examples/README.md`](examples/README.md): Guide to the curated runnable demos.
 - [`../CONTRIBUTING.md`](CONTRIBUTING.md): Contribution workflow, design/doc sync expectations, code quality rules, and validation standards.
 
-Current language-plumbing note: `crates/animatix/src/parser.rs` is the executable source of truth for accepted `.amx` syntax. The next editor/tooling step is a shared Tree-sitter grammar package for `.amx`, and that grammar is intended to stay synchronized with the parser and `docs/spec.md` rather than define a separate language surface.
+Current language-plumbing note: `crates/animatix/src/parser.rs` is the executable source of truth for accepted `.amx` syntax. A shared Tree-sitter grammar package now lives in [`tree-sitter-animatix/`](tree-sitter-animatix/), and that grammar is intended to stay synchronized with the parser and `docs/spec.md` rather than define a separate language surface.
 
 ## Roadmap
 
