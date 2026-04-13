@@ -4,7 +4,7 @@ Runnable demos live in `examples/`.
 
 Each runnable file should explain itself through its filename, header comment, and on-screen copy.
 
-The shipped GUI MVP opens these `.amx` files directly from `crates/animatix-gui` for editing, scrubbing, and preview.
+The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for editing, preview, visual timeline scrubbing, and transport-bar-driven playback checks.
 
 ## Runnable
 

@@ -160,6 +160,41 @@ pub fn timeline_duration_seconds(timeline: &Timeline) -> f64 {
         / 1000.0
 }
 
+pub fn timeline_keyframe_times_s(timeline: &Timeline) -> Vec<f64> {
+    let mut times_ms = Vec::new();
+
+    for track in timeline.tracks.values() {
+        collect_track_keyframe_times(&mut times_ms, track);
+    }
+
+    times_ms.sort_unstable();
+    times_ms.dedup();
+    times_ms
+        .into_iter()
+        .map(|time_ms| time_ms as f64 / 1000.0)
+        .collect()
+}
+
+fn collect_track_keyframe_times(times_ms: &mut Vec<u64>, track: &AnimationTrack) {
+    times_ms.extend(track.position.keyframes.keys().copied());
+    times_ms.extend(track.placement_mode.keyframes.keys().copied());
+    times_ms.extend(track.position_binding.keyframes.keys().copied());
+    times_ms.extend(track.size.keyframes.keys().copied());
+    times_ms.extend(track.line_from.keyframes.keys().copied());
+    times_ms.extend(track.line_to.keyframes.keys().copied());
+    times_ms.extend(track.arc_angles.keyframes.keys().copied());
+    times_ms.extend(track.color.keyframes.keys().copied());
+    times_ms.extend(track.shape_type.keyframes.keys().copied());
+    times_ms.extend(track.opacity.keyframes.keys().copied());
+    times_ms.extend(track.stroke_width.keyframes.keys().copied());
+    times_ms.extend(track.stroke_color.keyframes.keys().copied());
+    times_ms.extend(track.stroke_progress.keyframes.keys().copied());
+    times_ms.extend(track.fill_opacity.keyframes.keys().copied());
+    times_ms.extend(track.text_paths.keyframes.keys().copied());
+    times_ms.extend(track.vector_paths.keyframes.keys().copied());
+    times_ms.extend(track.image.keyframes.keys().copied());
+}
+
 pub fn default_file_path() -> PathBuf {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -231,5 +266,58 @@ mod tests {
         let ast = vec![Stmt::Comment("no config".to_string())];
 
         assert_eq!(document_scene_dimensions(&ast), SceneDimensions::default());
+    }
+
+    #[test]
+    fn timeline_keyframe_times_are_sorted_and_deduped() {
+        let ast = vec![
+            Stmt::Keyframe {
+                time: Time::Seconds(0.0),
+                body: vec![Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "box".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                }],
+            },
+            Stmt::RelativeKeyframe {
+                offset: Time::Seconds(1.0),
+                body: vec![Stmt::Assignment {
+                    target: vec!["box".to_string()],
+                    property: "opacity".to_string(),
+                    value: Expr::Num(0.5),
+                    modifiers: vec![],
+                }],
+            },
+            Stmt::RelativeKeyframe {
+                offset: Time::Seconds(1.0),
+                body: vec![Stmt::Assignment {
+                    target: vec!["box".to_string()],
+                    property: "stroke_width".to_string(),
+                    value: Expr::Num(4.0),
+                    modifiers: vec![],
+                }],
+            },
+            Stmt::RelativeKeyframe {
+                offset: Time::Seconds(1.5),
+                body: vec![Stmt::Assignment {
+                    target: vec!["box".to_string()],
+                    property: "opacity".to_string(),
+                    value: Expr::Num(1.0),
+                    modifiers: vec![],
+                }],
+            },
+        ];
+
+        let timeline = Timeline::build(&ast);
+        assert_eq!(
+            timeline_keyframe_times_s(&timeline),
+            vec![0.0, 1.0, 2.0, 3.5]
+        );
     }
 }

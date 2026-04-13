@@ -338,7 +338,7 @@ Phase 3 work should refine this contract, not replace it.
 
 **Current progress note:**
 - A first egui-based GUI MVP now exists in `crates/animatix-gui`.
-- It is intentionally narrow: multiline code editing, save/reload, timeline scrubbing/playback, and offscreen live preview presented inside the egui app shell.
+- It is still editor-first, but it is no longer just the bare MVP shell: the current app now includes a denser explorer, simplified top bar, scene-sized preview fitting, a visual scrubber, and a unified bottom transport bar.
 - Future work in this phase is about improving that shell, not starting from zero.
 
 ---
@@ -358,7 +358,7 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Runtime `Image` scene primitive and animated image properties
 - `Row` / `Col` auto-layout
 - Absolute positioning as a working placement mechanism
-- egui-based GUI MVP for preview/scrubbing/editing
+- egui-based GUI shell for preview/scrubbing/editing, including the current transport-bar and preview-layout pass
 
 ---
 

@@ -16,7 +16,11 @@ What exists today:
 - save and reload actions
 - debounced rebuilds through the real Animatix loader/parser path
 - timeline scrubbing and play/pause
+- a visual timeline scrubber with click-and-drag seeking, timeline ticks, and keyframe markers
 - cross-platform live preview rendering via a persistent offscreen GPU renderer with in-memory egui texture presentation
+- preview sizing that stays fixed to the document scene dimensions rather than following tile size
+- a denser explorer and a simplified top bar for the current editor-first shell
+- a unified bottom transport bar that anchors transport controls and the timeline to the bottom of the preview tile
 - a split internal architecture between document state and preview state
 - a preview surface seam that supports the current offscreen live-preview path and leaves room for future preview delivery changes
 - a docked workspace shell built with egui panels and tabs rather than a separate node-editor environment
@@ -32,8 +36,8 @@ What is intentionally not shipped yet:
 The initial window is split into three functional regions:
 
 1. **Editor pane** — multiline `.amx` source editing
-2. **Preview pane** — live render of the current timeline time
-3. **Timeline pane** — scrubber, time display, and play/pause controls
+2. **Preview pane** — live render of the current timeline time with a fixed-aspect preview surface derived from scene dimensions
+3. **Explorer / transport shell** — docked file navigation plus a bottom-anchored transport bar inside the preview tile
 
 This keeps the first GUI aligned with the current language/runtime maturity. The app is an interactive companion to the DSL, not yet a full scene authoring environment.
 
@@ -73,6 +77,7 @@ Owns:
 - latest compiled AST
 - latest compiled timeline
 - derived timeline duration
+- derived scene dimensions from document config/defaults
 
 This layer handles file loading, save/reload, and rebuilds through the real Animatix loader/parser path.
 
@@ -128,14 +133,15 @@ The critical architectural rule remains the same: the egui app shell owns window
 
 ## Timeline Architecture
 
-The timeline pane is intentionally minimal in the MVP:
+The timeline transport is intentionally minimal in the MVP:
 
-- scrubber/slider
+- visual scrubber track
+- keyframe markers and timeline ticks
 - current time label
-- play/pause
-- optional duration label
+- play/pause and rebuild controls
+- duration and resolution metadata inside the transport bar
 
-The scrubber does not expose editable keyframe blocks in the first release. It is a playback/navigation control over the existing runtime timeline.
+The shipped scrubber is still a navigation control rather than an editable keyframe lane editor. It now provides a visual transport surface, but it does not yet expose draggable keyframe blocks or per-track lanes.
 
 ## Editor Architecture
 
@@ -197,7 +203,7 @@ These are deliberately out of scope for the first GUI crate:
 - a full migration away from the current small fallback syntax definition once Tree-sitter-backed highlighting lands
 - visual scene inspector
 - property editor
-- keyframe lane editor
+- editable keyframe lane editor
 - export dialogs
 - collaborative/project workflows
 - syntax-aware code intelligence beyond grammar-backed highlighting

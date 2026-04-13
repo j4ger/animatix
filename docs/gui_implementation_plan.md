@@ -25,21 +25,26 @@ This file now tracks both what has landed and what remains after the first GUI M
 
 ## Phase 3: Preview and Timeline
 
-**Status:** Completed for the MVP scope
+**Status:** Completed and refined beyond the MVP baseline
 
 - evaluate the current timeline time from the shared state
 - render a live preview
 - add timeline scrubber and current-time display
 - add play/pause and timer-driven time advancement
+- replace the plain scrubber with a visual transport timeline that supports click-and-drag seeking, markers, and tick guides
+- unify time/meta controls and transport actions into a bottom transport bar inside the preview tile
 
 ## Phase 4: Stability and Usability
 
-**Status:** Partially completed
+**Status:** Completed for the current shell pass
 
 - keep the last successful timeline while edits are invalid
 - handle missing files/import failures gracefully
 - make window resizing update preview dimensions
 - validate the GUI against existing examples
+- keep preview sizing fixed to document scene dimensions/defaults rather than tile size
+- densify the docked explorer so more entries are visible at once
+- simplify the top bar so the shell emphasizes the current document and primary actions
 
 ## Phase 5: Preview Architecture Refactor
 
@@ -87,6 +92,8 @@ This file now tracks both what has landed and what remains after the first GUI M
 - save persists changes to disk
 - timeline scrubbing updates the preview
 - play/pause advances and stops time correctly
+- preview surface keeps a stable scene-derived aspect ratio while the tile resizes
+- the transport bar remains visible at the bottom of the preview tile
 
 ## Deferred After MVP
 
@@ -95,5 +102,5 @@ This file now tracks both what has landed and what remains after the first GUI M
 - scene graph inspector
 - export controls
 - multi-file project sidebar
-- visual timeline/keyframe lanes
+- editable timeline/keyframe lanes beyond the shipped visual scrubber
 - property panels and direct manipulation

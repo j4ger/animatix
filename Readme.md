@@ -108,6 +108,8 @@ The `docs/` folder contains detailed technical information:
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
 - [`stateless_reactive_design.md`](docs/stateless_reactive_design.md): Implemented stateless reactive model and migration rationale.
 - [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
+- [`gui_architecture.md`](docs/gui_architecture.md): Current GUI shell architecture, preview delivery model, and transport design.
+- [`gui_implementation_plan.md`](docs/gui_implementation_plan.md): GUI status tracker covering the shipped editor/preview shell and current follow-up work.
 - [`examples/README.md`](examples/README.md): Guide to the curated runnable demos.
 - [`../CONTRIBUTING.md`](CONTRIBUTING.md): Contribution workflow, design/doc sync expectations, code quality rules, and validation standards.
 
@@ -123,4 +125,4 @@ The `docs/implementation_plan.md` file tracks what's left to build.
 - [ ] DSL-level morph strategy controls (`strategy`, `path_arc`, `stretch`)
 - [ ] Parametric and implicit plotting primitives
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)
-- [ ] Interactive UI for building animations
+- [~] Interactive UI for building animations (editor-first GUI shell shipped; deeper visual authoring still remains)

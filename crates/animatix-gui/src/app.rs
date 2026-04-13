@@ -1,4 +1,4 @@
-use crate::document::{DocumentSession, default_file_path};
+use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::timeline::SceneDimensions;
@@ -29,6 +29,10 @@ const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
 const EXPLORER_ROW_HEIGHT: f32 = 20.0;
 const EXPLORER_INDENT_PX: f32 = 10.0;
+const TIMELINE_HEIGHT: f32 = 36.0;
+const PREVIEW_TRANSPORT_HEIGHT: f32 = 84.0;
+const PREVIEW_NON_CANVAS_HEIGHT: f32 = 170.0;
+const PREVIEW_MAX_HEIGHT_RATIO: f32 = 0.62;
 
 pub fn run_gui(path: Option<PathBuf>) {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -647,6 +651,12 @@ impl GuiShell {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
             file_tree: &self.file_tree,
+            timeline_markers: self
+                .document
+                .timeline
+                .as_ref()
+                .map(timeline_keyframe_times_s)
+                .unwrap_or_default(),
             editor: &mut self.editor,
             preview: &mut self.preview,
             preview_texture_id,
@@ -679,6 +689,7 @@ impl GuiShell {
         if let Some(next_time) = actions.scrub_to {
             self.preview.current_time_s = next_time;
             self.preview.clamp_time();
+            self.preview.is_playing = false;
             self.preview_dirty = true;
         }
         if actions.editor_changed {
@@ -785,6 +796,7 @@ struct WorkspaceViewer<'a> {
     current_file: &'a Path,
     workspace_root: &'a Path,
     file_tree: &'a [FileTreeEntry],
+    timeline_markers: Vec<f64>,
     editor: &'a mut EditorBuffer,
     preview: &'a mut PreviewPaneState,
     preview_texture_id: Option<egui::TextureId>,
@@ -907,64 +919,106 @@ impl WorkspaceViewer<'_> {
             ui.separator();
 
             let available = ui.available_size_before_wrap();
-            let image_height = (available.y - 96.0).max(220.0);
-            let desired = fit_preview(self.preview.dimensions, Vec2::new(available.x.max(200.0), image_height));
+            let reserved_height = PREVIEW_NON_CANVAS_HEIGHT.min((available.y - 80.0).max(0.0));
+            let image_height = ((available.y - reserved_height).max(180.0))
+                .min((available.y * PREVIEW_MAX_HEIGHT_RATIO).max(180.0));
+            let desired = fit_preview(
+                self.preview.dimensions,
+                Vec2::new(available.x.max(200.0), image_height),
+            );
 
-            egui::Frame::canvas(ui.style())
-                .stroke(Stroke::new(1.0, Color32::from_rgb(58, 63, 74)))
+            let (preview_rect, _) = ui.allocate_exact_size(desired, egui::Sense::hover());
+            ui.painter().rect_stroke(
+                preview_rect,
+                6.0,
+                Stroke::new(1.0, Color32::from_rgb(58, 63, 74)),
+                egui::StrokeKind::Outside,
+            );
+            ui.painter()
+                .rect_filled(preview_rect, 6.0, Color32::from_rgb(18, 20, 24));
+
+            match self.preview_texture_id {
+                Some(texture_id) => {
+                    ui.put(preview_rect, egui::Image::new((texture_id, desired)));
+                }
+                None => {
+                    ui.painter().text(
+                        preview_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Preview initializing…",
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        Color32::from_rgb(150, 155, 168),
+                    );
+                }
+            }
+
+            let has_error = self.preview.error.is_some();
+            let transport_height = PREVIEW_TRANSPORT_HEIGHT + if has_error { 26.0 } else { 0.0 };
+            ui.add_space((ui.available_height() - transport_height).max(0.0));
+
+            egui::Frame::new()
+                .fill(Color32::from_rgb(22, 25, 31))
+                .stroke(Stroke::new(1.0, Color32::from_rgb(52, 58, 68)))
+                .corner_radius(egui::CornerRadius::same(10))
+                .inner_margin(egui::Margin::symmetric(12, 10))
                 .show(ui, |ui| {
-                    ui.set_min_size(desired);
-                    match self.preview_texture_id {
-                        Some(texture_id) => {
-                            ui.centered_and_justified(|ui| {
-                                ui.image((texture_id, desired));
+                    ui.set_width(ui.available_width());
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(format!(
+                                        "t = {:.2}s / {:.2}s",
+                                        self.preview.current_time_s, self.preview.duration_s
+                                    ))
+                                    .strong(),
+                                );
+                                ui.separator();
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{} × {}",
+                                        self.preview.dimensions.width, self.preview.dimensions.height
+                                    ))
+                                    .small()
+                                    .weak(),
+                                );
                             });
-                        }
-                        None => {
-                            ui.centered_and_justified(|ui| {
-                                ui.label(RichText::new("Preview initializing…").weak());
+
+                            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                                if ui.button("Rebuild").clicked() {
+                                    self.actions.rebuild = true;
+                                }
+                                if ui
+                                    .button(if self.preview.is_playing {
+                                        "Pause"
+                                    } else {
+                                        "Play"
+                                    })
+                                    .clicked()
+                                {
+                                    self.actions.toggle_playback = true;
+                                }
                             });
+                        });
+
+                        if let Some(error) = &self.preview.error {
+                            ui.add_space(2.0);
+                            ui.colored_label(Color32::from_rgb(255, 136, 136), error);
                         }
-                    }
+
+                        ui.add_space(4.0);
+                        let mut scrub = self.preview.current_time_s;
+                        if paint_timeline_scrubber(
+                            ui,
+                            &mut scrub,
+                            self.preview.duration_s,
+                            &self.timeline_markers,
+                            self.preview.is_playing,
+                        ) {
+                            self.actions.scrub_to = Some(scrub);
+                        }
+                    });
                 });
-
-            ui.horizontal(|ui| {
-                ui.label(format!(
-                    "{} × {}",
-                    self.preview.dimensions.width, self.preview.dimensions.height
-                ));
-                ui.separator();
-                ui.label(RichText::new(format!(
-                    "t = {:.2}s / {:.2}s",
-                    self.preview.current_time_s, self.preview.duration_s
-                )));
-                if ui
-                    .button(if self.preview.is_playing {
-                        "Pause"
-                    } else {
-                        "Play"
-                    })
-                    .clicked()
-                {
-                    self.actions.toggle_playback = true;
-                }
-                if ui.button("Rebuild").clicked() {
-                    self.actions.rebuild = true;
-                }
-            });
-
-            let mut scrub = self.preview.current_time_s;
-            let slider = egui::Slider::new(&mut scrub, 0.0..=self.preview.duration_s.max(0.1))
-                .show_value(false)
-                .step_by(0.01);
-            if ui.add(slider).changed() {
-                self.actions.scrub_to = Some(scrub);
-            }
-
-            if let Some(error) = &self.preview.error {
-                ui.separator();
-                ui.colored_label(Color32::from_rgb(255, 136, 136), error);
-            }
         });
     }
 }
@@ -1082,6 +1136,152 @@ fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 {
     }
 }
 
+fn paint_timeline_scrubber(
+    ui: &mut egui::Ui,
+    current_time_s: &mut f64,
+    duration_s: f64,
+    markers_s: &[f64],
+    is_playing: bool,
+) -> bool {
+    let desired_size = Vec2::new(ui.available_width().max(120.0), TIMELINE_HEIGHT);
+    let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
+    let duration_s = duration_s.max(0.1);
+    let painter = ui.painter_at(rect);
+    let visuals = ui.visuals();
+    let track_rect = rect.shrink2(Vec2::new(6.0, 11.0));
+    let fraction = timeline_fraction(*current_time_s, duration_s);
+    let playhead_x = egui::lerp(track_rect.left()..=track_rect.right(), fraction);
+    let played_rect = egui::Rect::from_min_max(
+        track_rect.min,
+        egui::pos2(playhead_x.max(track_rect.left()), track_rect.bottom()),
+    );
+
+    painter.rect_filled(track_rect, 7.0, Color32::from_rgb(28, 31, 38));
+    painter.rect_stroke(
+        track_rect,
+        7.0,
+        Stroke::new(1.0, Color32::from_rgb(56, 60, 73)),
+        egui::StrokeKind::Outside,
+    );
+    painter.rect_filled(
+        played_rect,
+        7.0,
+        if is_playing {
+            Color32::from_rgb(84, 110, 255)
+        } else {
+            Color32::from_rgb(76, 92, 148)
+        },
+    );
+
+    for tick in timeline_tick_times(duration_s) {
+        let x = egui::lerp(track_rect.left()..=track_rect.right(), timeline_fraction(tick, duration_s));
+        painter.line_segment(
+            [
+                egui::pos2(x, track_rect.top() + 4.0),
+                egui::pos2(x, track_rect.bottom() - 4.0),
+            ],
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 24)),
+        );
+    }
+
+    for marker in markers_s {
+        let x = egui::lerp(
+            track_rect.left()..=track_rect.right(),
+            timeline_fraction(*marker, duration_s),
+        );
+        painter.line_segment(
+            [
+                egui::pos2(x, track_rect.top() + 2.0),
+                egui::pos2(x, track_rect.bottom() - 2.0),
+            ],
+            Stroke::new(1.5, Color32::from_rgb(255, 196, 92)),
+        );
+    }
+
+    painter.line_segment(
+        [
+            egui::pos2(playhead_x, track_rect.top() - 3.0),
+            egui::pos2(playhead_x, track_rect.bottom() + 3.0),
+        ],
+        Stroke::new(2.0, Color32::WHITE),
+    );
+    painter.circle_filled(
+        egui::pos2(playhead_x, track_rect.center().y),
+        5.0,
+        Color32::WHITE,
+    );
+
+    painter.text(
+        rect.left_bottom() + Vec2::new(0.0, -1.0),
+        egui::Align2::LEFT_BOTTOM,
+        format_time_label(0.0),
+        egui::TextStyle::Small.resolve(ui.style()),
+        visuals.text_color(),
+    );
+    painter.text(
+        rect.right_bottom() + Vec2::new(0.0, -1.0),
+        egui::Align2::RIGHT_BOTTOM,
+        format_time_label(duration_s),
+        egui::TextStyle::Small.resolve(ui.style()),
+        visuals.text_color(),
+    );
+
+    if (response.clicked() || response.dragged()) && response.interact_pointer_pos().is_some() {
+        *current_time_s = time_from_pointer_x(
+            track_rect,
+            response.interact_pointer_pos().unwrap().x,
+            duration_s,
+        );
+        return true;
+    }
+
+    false
+}
+
+fn timeline_fraction(current_time_s: f64, duration_s: f64) -> f32 {
+    (current_time_s / duration_s.max(0.1)).clamp(0.0, 1.0) as f32
+}
+
+fn time_from_pointer_x(rect: egui::Rect, pointer_x: f32, duration_s: f64) -> f64 {
+    let width = rect.width().max(1.0);
+    let normalized = ((pointer_x - rect.left()) / width).clamp(0.0, 1.0) as f64;
+    normalized * duration_s.max(0.1)
+}
+
+fn timeline_tick_times(duration_s: f64) -> Vec<f64> {
+    let duration_s = duration_s.max(0.1);
+    let step = if duration_s <= 2.0 {
+        0.25
+    } else if duration_s <= 5.0 {
+        0.5
+    } else if duration_s <= 15.0 {
+        1.0
+    } else if duration_s <= 45.0 {
+        5.0
+    } else {
+        10.0
+    };
+
+    let mut ticks = Vec::new();
+    let mut tick = 0.0;
+    while tick < duration_s {
+        ticks.push(tick);
+        tick += step;
+    }
+    ticks.push(duration_s);
+    ticks
+}
+
+fn format_time_label(time_s: f64) -> String {
+    if time_s >= 60.0 {
+        let minutes = (time_s / 60.0).floor() as u32;
+        let seconds = time_s % 60.0;
+        format!("{minutes}:{seconds:04.1}")
+    } else {
+        format!("{time_s:.1}s")
+    }
+}
+
 fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
     let button = if primary {
         egui::Button::new(label).fill(Color32::from_rgb(84, 110, 255))
@@ -1106,7 +1306,9 @@ fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkspaceTab, default_dock_state, fit_preview};
+    use super::{
+        WorkspaceTab, default_dock_state, fit_preview, time_from_pointer_x, timeline_fraction,
+    };
     use animatix::timeline::SceneDimensions;
     use egui::Vec2;
 
@@ -1142,5 +1344,20 @@ mod tests {
             Vec2::new(400.0, 200.0),
         );
         assert!((fitted.x - fitted.y).abs() < 0.001);
+    }
+
+    #[test]
+    fn timeline_fraction_clamps_to_bounds() {
+        assert_eq!(timeline_fraction(-1.0, 10.0), 0.0);
+        assert_eq!(timeline_fraction(5.0, 10.0), 0.5);
+        assert_eq!(timeline_fraction(20.0, 10.0), 1.0);
+    }
+
+    #[test]
+    fn pointer_position_maps_to_scrub_time() {
+        let rect = egui::Rect::from_min_max(egui::pos2(10.0, 0.0), egui::pos2(210.0, 20.0));
+        assert_eq!(time_from_pointer_x(rect, 10.0, 8.0), 0.0);
+        assert!((time_from_pointer_x(rect, 110.0, 8.0) - 4.0).abs() < 0.001);
+        assert_eq!(time_from_pointer_x(rect, 210.0, 8.0), 8.0);
     }
 }
