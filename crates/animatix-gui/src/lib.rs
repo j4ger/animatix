@@ -1,7 +1,6 @@
 pub mod app;
 pub mod document;
-pub mod preview;
-pub mod state;
-pub mod text_input;
+pub mod editor;
+pub mod preview_surface;
 
 pub use app::run_gui;
