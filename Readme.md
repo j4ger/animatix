@@ -98,8 +98,6 @@ The curated runnable demos live in `examples/`:
 - `component_modules_demo.amx`
 - `reactive_runtime.amx`
 
-Future-facing syntax sketches live in `examples/planned/` and are intentionally not expected to run yet.
-
 ## Documentation
 
 The `docs/` folder contains detailed technical information:
@@ -110,7 +108,7 @@ The `docs/` folder contains detailed technical information:
 - [`morphing_design.md`](docs/morphing_design.md): The planned design for Manim-style vector morphing between `kurbo::BezPath` instances.
 - [`stateless_reactive_design.md`](docs/stateless_reactive_design.md): Implemented stateless reactive model and migration rationale.
 - [`implementation_plan.md`](docs/implementation_plan.md): Detailed implementation status and roadmap for Reactive System, Math/Graph, Containers, and Components.
-- [`examples/README.md`](examples/README.md): Guide to the curated runnable demos and planned syntax sketches.
+- [`examples/README.md`](examples/README.md): Guide to the curated runnable demos.
 - [`../CONTRIBUTING.md`](CONTRIBUTING.md): Contribution workflow, design/doc sync expectations, code quality rules, and validation standards.
 
 ## Roadmap
@@ -119,7 +117,7 @@ The `docs/implementation_plan.md` file tracks what's left to build.
 
 ### What's Left
 - [ ] Expand component runtime beyond imported `pub component` instantiation (lifecycle hooks, custom actions, richer scoping)
-- [ ] Additional runtime primitives (`Code`)
+- [x] Additional runtime primitives (`Code`)
 - [ ] DSL-level morph strategy controls (`strategy`, `path_arc`, `stretch`)
 - [ ] Parametric and implicit plotting primitives
 - [ ] Advanced Path Effects (Trimming, dashing, etc.)

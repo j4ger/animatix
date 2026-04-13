@@ -36,7 +36,7 @@ Keep these files in sync when relevant:
 - `docs/primitives.md` — runtime-supported primitives and planned gaps
 - `docs/spec.md` — language behavior and status callouts
 - `docs/implementation_plan.md` — what is shipped vs what is still missing
-- `examples/README.md` — runnable demos vs planned sketches
+- `examples/README.md` — curated runnable demos
 
 If you add, remove, or substantially change a feature, update the related docs in the same change.
 
@@ -93,8 +93,7 @@ Tests should be targeted and readable. Prefer focused coverage over giant snapsh
 Examples are part of the product surface. Keep them honest.
 
 - `examples/*.amx` should be runnable on the current runtime
-- `examples/planned/*.amx` can describe future direction, but must be clearly marked as not expected to run
-- If a demo depends on planned syntax, it does not belong in the runnable example set
+- If a demo depends on unimplemented syntax, it does not belong in the runnable example set
 
 When adding a new runtime feature, try to add one focused demo that proves it is real.
 

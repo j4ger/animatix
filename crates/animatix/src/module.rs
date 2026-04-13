@@ -517,6 +517,9 @@ fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
             | Stmt::Math {
                 label: Some(label), ..
             }
+            | Stmt::Code {
+                label: Some(label), ..
+            }
             | Stmt::ActorDecl { label, .. } => return Some(label.clone()),
             Stmt::Svg {
                 label: Some(label), ..
@@ -544,6 +547,9 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
             label: Some(label), ..
         }
         | Stmt::Math {
+            label: Some(label), ..
+        }
+        | Stmt::Code {
             label: Some(label), ..
         }
         | Stmt::ActorDecl { label, .. } => {
@@ -615,6 +621,17 @@ fn rewrite_stmt(
             props,
             modifiers,
         } => Stmt::Math {
+            label: label
+                .as_ref()
+                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
+            props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
+            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+        },
+        Stmt::Code {
+            label,
+            props,
+            modifiers,
+        } => Stmt::Code {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),

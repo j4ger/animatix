@@ -1,4 +1,5 @@
 use animatix::module::{ModuleError, ModuleGraph};
+use animatix::timeline::Timeline;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -105,4 +106,40 @@ dashboard: MetricCard
         ModuleError::DuplicateComponent { name, .. } => assert_eq!(name, "MetricCard"),
         other => panic!("expected duplicate component error, got {other:?}"),
     }
+}
+
+#[test]
+fn load_program_expand_components_produces_build_input() {
+    let dir = temp_project_dir("compile_boundary");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Throughput") {
+    title_text: Text { text: title }
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+card: MetricCard, title: "Latency"
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
+
+    assert!(!expanded_debug.contains("MetricCard"));
+    assert!(expanded_debug.contains("card"));
+    assert!(expanded_debug.contains("Latency"));
+
+    let timeline = Timeline::build(&expanded);
+    assert!(timeline.tracks.contains_key("card"));
 }

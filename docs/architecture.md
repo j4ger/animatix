@@ -29,6 +29,39 @@ Before evaluation, the compiler parses all files and resolves imports to create 
 
 *Note on Hot-Reloading: While tracking file dependencies via a `ModuleGraph` naturally supports watching files for changes and invalidating specific `FileId`s, real-time hot-reloading is intentionally postponed until the UI/Editor phase to maintain a simple, stable evaluation model.*
 
+### Current Compile Boundary
+
+The practical compile target for Animatix is **the post-expansion program produced after module loading and component expansion**, not the raw parser AST from a single source file.
+
+In current code, that means:
+
+1. parse source files into `Vec<Stmt>` with `parser.rs`
+2. resolve imports and collect component definitions through `ModuleGraph::load_program(...)`
+3. expand component instances into ordinary statements with `LoadedProgram::expand_components()`
+4. lower that expanded statement list into an executable `Timeline` with `Timeline::build(...)`
+
+This is the boundary future IR work should target first. A future compiler should compile the **expanded program** into a timeline-oriented executable form, rather than trying to lower the raw parser AST directly.
+
+### Current Build-Time Responsibilities
+
+Today, `Timeline::build(...)` is the one-time lowering pass between the expanded program and frame evaluation.
+
+Build-time work currently includes:
+
+- standard-library seeding for expression evaluation
+- scene-node and root-node construction
+- keyframe and property-track creation
+- `for` expansion during body processing
+- built-in action lowering into track keyframes
+- component-expanded label handling
+- text / math / code glyph extraction into renderable paths
+- SVG and image asset loading
+- current layout placement decisions for `Row`, `Col`, `Grid`, and `Stack`
+- current plotting geometry sampling for `CartesianPlot` and `PolarPlot`
+- collecting `always` / labeled-`always` bodies into the retained modifier list for later frame-time execution
+
+The output of this phase is a compiled timeline package in memory: scene graph structure, typed tracks, prebuilt assets/paths, and retained modifier statements.
+
 ### The Timeline Data Structure
 
 The `Timeline` stores animation state using two complementary structures:
@@ -67,6 +100,52 @@ function evaluate_node(node_id, parent_transform):
 ```
 
 This DFS ensures all descendants receive correctly accumulated transforms and opacities. The final render list contains only leaf nodes with their pre-computed global transforms.
+
+### Current Frame-Time Responsibilities
+
+`Timeline::evaluate(...)` is the frame-time execution entry point.
+
+Frame-time work currently includes:
+
+- seeding the per-frame evaluation environment, including `t`, scene dimensions, and sampled runtime lookup values
+- executing retained `always` modifier bodies through `apply_modifier_stmt(...)`
+- applying frame-local overrides on top of sampled track values
+- resolving scene-anchor, percent, and container-default position bindings
+- traversing the scene graph and sampling property tracks at the requested time
+- interpolating morphable path/text track data through `PropertyTrack::evaluate(...)`
+- emitting the final `vello::Scene` for rasterization
+
+The renderer backends are host-side consumers of that evaluated scene. They do not own language semantics.
+
+### Current Limitation
+
+The current CLI does not expose the expanded post-`module.rs` program directly, so this boundary is documented from code paths and tests rather than from a user-facing dump command.
+
+### Current IR Foothold
+
+The first IR layer in the repository is intentionally narrow: a **modifier IR** for `always` / labeled-`always` bodies whose payloads are compiled expressions.
+
+This IR does not replace `Timeline::build(...)` or `Timeline::evaluate(...)` yet. Its purpose is to stabilize the expression subset that already crosses the build-time / frame-time boundary:
+
+- `let` values inside modifier blocks
+- conditional expressions and conditions
+- assignment right-hand sides
+- dotted runtime lookup loads such as `node.at.x` and `scene.background_color`
+
+Unsupported forms such as closures, method/index/construct expressions, and non-modifier statements remain on explicit rejection or AST fallback paths until later phases broaden the IR surface deliberately.
+
+### Current Bytecode Foothold
+
+The current bytecode VM sits one layer below that modifier IR. It compiles the already-supported modifier IR subset into a small stack machine and executes it with parity against the IR interpreter.
+
+Current bytecode scope is intentionally limited to:
+
+- compiled modifier expressions
+- `let`, `assign`, and `if` modifier statements
+- env loads/stores and override writes
+- arithmetic, vector construction, conditional flow, and the built-ins `sin`, `cos`, `lerp`, and `format`
+
+It does **not** yet compile the full timeline builder, layout system, plotting pipeline, or renderer-facing scene operations.
 
 ### Layout Architecture Direction
 
@@ -228,7 +307,7 @@ Given: `sin(x * PI / 180)` where `x = 90`
 
 ### Closure Evaluation
 
-The system evaluates mathematical functions via closures that are natively parsed in the AST. Closures capture their lexical environment, enabling variable references from the surrounding scope.
+The system evaluates mathematical functions via closures that are natively parsed in the AST. In the current runtime, closures do not store a separate captured environment snapshot. Instead, the closure body is evaluated against a clone of the call-time environment with parameter bindings added.
 
 #### Closure Syntax
 
@@ -245,8 +324,7 @@ Closures use arrow syntax with parameters and a body expression:
 ```text
 Expr::Closure {
     params: Vec<Ident>,      // Parameter names: [x, y]
-    body: Box<Expr>,          // The expression body: x + y
-    captured_env: Rc<RefCell<Environment>>, // Lexical environment
+    body: Box<Expr>,         // The expression body: x + y
 }
 ```
 
@@ -254,17 +332,17 @@ Expr::Closure {
 
 When evaluating a closure:
 
-1. **Binding parameters**: Create a new local scope with parameter names bound to argument values
-2. **Extending environment**: Push the local scope onto the captured environment chain
-3. **Evaluating body**: Evaluate the closure body in this extended environment
-4. **Restoring environment**: Pop the local scope after evaluation
+1. **Evaluate arguments** in the current caller environment
+2. **Clone the current caller environment**
+3. **Bind parameters** into that cloned environment
+4. **Evaluate the body** in the extended clone
 
 ```text
-evaluate_closure(Closure { params: [x], body: x^2, cap_env }, [Num(3)])
-1. local_scope = { "x": Num(3) }
-2. extended_env = cap_env + local_scope
-3. evaluate(body, extended_env) -> Num(9)
-4. restore to cap_env
+evaluate_closure(Closure { params: [x], body: x^2 }, [Num(3)])
+1. arg_values = [Num(3)]
+2. child_env = clone(caller_env)
+3. child_env["x"] = Num(3)
+4. evaluate(body, child_env) -> Num(9)
 ```
 
 #### Graph Plotting with Closures

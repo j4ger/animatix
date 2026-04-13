@@ -1,6 +1,6 @@
 # Animatix Examples
 
-Runnable demos live in `examples/`. Future-facing sketches live in `examples/planned/`.
+Runnable demos live in `examples/`.
 
 Each runnable file should explain itself through its filename, header comment, and on-screen copy.
 
@@ -18,6 +18,7 @@ The shipped GUI MVP opens these `.amx` files directly from `crates/animatix-gui`
 - `image_animation_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
+- `code_demo.amx`
 - `component_modules_demo.amx`
 - `reactive_runtime.amx`
 
@@ -25,6 +26,4 @@ The shipped GUI MVP opens these `.amx` files directly from `crates/animatix-gui`
 
 `reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
 
-## Planned
-
-Files under `examples/planned/` document intended future surface area and are not expected to run on the current runtime.
+`code_demo.amx` is the focused example for the shipped v1 `Code` primitive: code content rendered through the existing text-path pipeline with animated position, color, and re-declaration updates.

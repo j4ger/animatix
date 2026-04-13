@@ -22,7 +22,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 These are the major holes between the documented language surface and the runtime:
 
-1. **Primitive coverage is still narrower than the parser/docs imply.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, and `Image`, but planned primitives such as `Code` are still missing.
+1. **Primitive coverage is much closer to the documented surface.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, `Image`, and a first v1 `Code` primitive rendered through the text pipeline.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
 3. **Component runtime is only partially landed.** Imported `pub component` instantiation now works, nested labels can be targeted and queried through dotted property paths, but lifecycle hooks, custom actions, and richer component scope remain unfinished.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
@@ -36,7 +36,7 @@ The next implementation steps should follow these rules:
 1. **Reduce parser/runtime mismatch first.** The highest-value work is closing gaps where the language appears larger than the runtime really is.
 2. **Prefer vertical slices over broad promises.** Each phase should deliver runtime behavior, documentation, examples, and validation together.
 3. **Ship current-facing features before future-facing syntax.** A smaller reliable language is better than a broader but misleading one.
-4. **Keep examples honest.** User-facing demos should only showcase runnable features. Planned syntax belongs in a clearly separated planned section.
+4. **Keep examples honest.** User-facing demos should only showcase runnable features. Future-facing ideas belong in docs until they are runnable.
 5. **Prefer random-access semantics.** Preview, scrubbing, image export, and playback should agree on the frame at time `t` wherever possible.
 
 ---
@@ -51,7 +51,7 @@ The next implementation steps should follow these rules:
 **Includes:**
 - Rewrite docs to distinguish runtime-supported vs parser-only features
 - Curate examples into a small runnable set
-- Move future syntax sketches into clearly marked planned examples
+- Keep future syntax sketches out of the runnable example set
 
 **Exit criteria:**
 - No user-facing example depends on unimplemented runtime features
@@ -120,7 +120,7 @@ The next implementation steps should follow these rules:
 **Goal:** Close the most obvious runtime surface gap by adding more real scene primitives.
 
 **Recommended implementation order:**
-1. `Code`
+1. `Code` ✅
 
 **Why this phase follows layout:**
 - It directly reduces the parser/runtime mismatch
@@ -134,6 +134,7 @@ The next implementation steps should follow these rules:
 
 **Current progress note:**
 - `Image` is now implemented, including runtime rendering and timeline-driven property animation.
+- `Code` is now implemented as a conservative v1 primitive using the text-path pipeline, with parser/runtime/docs/demo coverage.
 
 **Current v1 recommendation for the next remaining primitive work:**
 - `Arc`: `radius_x`, `radius_y`, `start_angle`, `sweep_angle`; stroke-first rather than filled sector semantics
@@ -249,10 +250,10 @@ The following would be premature before Phases 2–3 are complete:
 
 ## 6. Immediate Next Implementation Recommendation
 
-Now that `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, `Image`, and the first GUI MVP are shipped, the best next move is:
+Now that `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, `Image`, `Code`, and the first GUI MVP are shipped, the best next move is:
 
-1. **Implement the remaining `Code` primitive family**
-2. **Update docs and demos for it immediately**
-3. **Keep component work behind the now-stable layout and primitive foundation, while improving the GUI incrementally**
+1. **Keep component work behind the now-stable layout and primitive foundation**
+2. **Continue improving the GUI incrementally**
+3. **Leave advanced plotting and morph controls for their dedicated later phase**
 
-The cleanest next candidate is now `Code`, followed by targeted improvements to the GUI MVP and then component runtime work.
+The cleanest next candidate is now deeper component runtime work, followed by targeted improvements to the GUI MVP.

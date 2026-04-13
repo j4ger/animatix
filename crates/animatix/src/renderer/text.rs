@@ -1,11 +1,11 @@
 use kurbo::{Affine, BezPath, Point};
 use mitex::convert_math;
-use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
+use typst::World;
 use typst::{Library, LibraryExt};
 
 #[derive(Clone)]
@@ -142,6 +142,25 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color)
 
 pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
     let escaped = text
+        .replace('\\', "\\\\")
+        .replace('[', "\\[")
+        .replace(']', "\\]");
+    let markup = format!(
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n{}",
+        font_size,
+        color.to_hex(),
+        escaped
+    );
+
+    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let world = TypstWorld::new(source);
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+
+    document.pages[0].frame.clone()
+}
+
+pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
+    let escaped = code
         .replace('\\', "\\\\")
         .replace('[', "\\[")
         .replace(']', "\\]");

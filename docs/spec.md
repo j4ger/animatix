@@ -4,6 +4,48 @@
 
 ---
 
+## Language Status Matrix
+
+This matrix is the quick-reference status view for the current language surface.
+
+| Area | Surface | Parser | Runtime | Tests | Docs | Notes |
+|---|---|---|---|---|---|---|
+| Reactive | `always` | Yes | Runtime-real | Yes | Yes | Shipped stateless reactive model; see `docs/stateless_reactive_design.md` and `examples/reactive_runtime.amx`. |
+| Reactive | `for` | Yes | Runtime-real | Yes | Yes | Structural expansion is treated as compile-time/timeline-build behavior. |
+| Reactive | `loop` / `yield` / `stop` / `pause` / `resume` | Rejected | Removed | Yes | Yes | Explicitly removed from the shipped model and covered by negative parser tests. |
+| Components | imported `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Public imported components expand and instantiate through `module.rs`; see `examples/component_modules_demo.amx`. |
+| Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Covered by module/timeline tests and current component demo. |
+| Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Supports nested-label writes and sampled reads such as `left.badge.color` and `echo.radius = right.badge.radius`. |
+| Components | lifecycle hooks (`on appear`, `on disappear`) | Yes | Parser-only | No | Yes | Parsed in the surface language, but not executed by the current runtime. |
+| Components | custom component actions | Yes | Parser-only | No | Yes | Parsed and carried through component structures, but not executed at runtime. |
+| Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | This is the stable expression core exercised by current runtime tests and examples. |
+| Expressions | closures | Yes | Runtime-real | Yes | Yes | Used by current plotting and reactive examples; runtime semantics should still be tightened before VM work. |
+| Expressions | `Expr::Method` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects method expressions instead of inventing semantics. |
+| Expressions | `Expr::Index` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects index expressions instead of inventing semantics. |
+| Expressions | `Expr::Construct` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects inline construct expressions instead of inventing semantics. |
+| Primitives | `Text`, `Math`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path` | Yes | Runtime-real | Yes | Yes | Covered by current docs and runnable examples such as `showcase.amx`, `arc_polygon_path_demo.amx`, and `image_demo.amx`. |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | Shipped as a small v1 primitive rendered through the text-path pipeline; see `examples/code_demo.amx`. |
+| Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | Shipped plotting surface; see `examples/plotting_demo.amx`. |
+| Plotting | `ParametricPlot`, `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing plotting types documented as not yet implemented. |
+| Morphing | re-declaration morphing and current path/text interpolation | Yes | Runtime-real | Yes | Yes | Current runtime supports the core morph path via re-declaration and interpolation. |
+| Morphing | DSL modifiers `strategy`, `path_arc`, `stretch` | Planned surface only | Planned | No | Yes | Documented as future-facing controls, not wired into the runtime today. |
+| Actions | built-ins `fade-in`, `wipe-in`, `fade-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
+| Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
+
+### Matrix Conventions
+
+- **Parser = Yes** means the current source surface is accepted by the parser and represented in the AST or statement model.
+- **Runtime-real** means the current execution path supports the feature end-to-end in the shipped runtime.
+- **Parser-only** means syntax is accepted but the runtime does not execute it.
+- **Placeholder** means the current runtime has a stand-in behavior that should not be treated as real semantics.
+- **Explicit error** means the parser or AST surface exists, but the runtime intentionally rejects evaluation rather than silently inventing behavior.
+- **Planned** means the feature is documented or reserved for future work but is not part of the current executable language surface.
+- **Tests = Yes** means the repo has direct automated evidence today, not just a documentation claim.
+
+For executable examples, prefer the curated runnable set in `examples/README.md`. Planned features documented in this spec should not be treated as current runtime guarantees unless they are also backed by runnable examples and tests.
+
+---
+
 ## 1. File Types
 
 - **Animatix Files (`.amx`)**: Main source files loaded by the runtime through `import "..."`.
@@ -463,6 +505,13 @@ Functions are defined using closure syntax that is parsed in the AST and evaluat
 
 Closures can reference values in the current evaluation environment.
 
+Current runtime contract:
+- closure parameters bind by name at call time
+- the closure body is evaluated against a clone of the current call-time environment with those parameter bindings added
+- free variables therefore resolve from the environment that exists when the closure is invoked, not from a separately stored lexical snapshot
+
+This is the contract future execution work should preserve unless the runtime model is intentionally changed and re-tested.
+
 ### Math Functions
 
 Built-in support for standard math and helpers (implemented):
@@ -498,7 +547,8 @@ This is intentionally narrower than a full object/query system:
 - assignment targets are interpreted as `label.path.property`
 - the final segment is the property name
 - the earlier segments resolve to the runtime actor label
-- rhs dotted paths can read sampled actor/scene properties such as `node.at`, `node.radius`, `node.color`, `scene.background_color`, and vector/color components like `.x`, `.y`, `.r`, `.g`, `.b`, `.a`
+- rhs dotted paths are resolved as flat dotted lookup keys in the runtime environment rather than recursive object traversal
+- the runtime seeds sampled actor/scene properties under those dotted keys, such as `node.at`, `node.radius`, `node.color`, `scene.background_color`, and vector/color component keys like `node.at.x`, `node.at.y`, `node.color.r`, `node.color.g`, `node.color.b`, `node.color.a`
 - rich object-style traversal, index-based access, and method-style query composition remain future-facing
 
 ---

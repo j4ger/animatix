@@ -457,6 +457,20 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        let code_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Code"))
+            .then(block_props.clone())
+            .then(modifiers.clone())
+            .map(|((label, props), modifiers)| Stmt::Code {
+                label,
+                props,
+                modifiers,
+            })
+            .padded();
+
         let svg_stmt = ident
             .clone()
             .then_ignore(just(':').padded())
@@ -720,6 +734,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             assignment,
             text_stmt,
             math_stmt,
+            code_stmt,
             svg_stmt,
             image_stmt,
             labeled_always_stmt,

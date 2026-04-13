@@ -232,6 +232,27 @@ fn test_component_definition_and_instantiation_parse() {
 }
 
 #[test]
+fn test_code_stmt_parse() {
+    assert_eq!(
+        parse_single_stmt("snippet: Code { code: \"fn main() {}\", font_size: 18 }"),
+        Stmt::Code {
+            label: Some("snippet".to_string()),
+            props: vec![
+                Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("fn main() {}".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(18.0),
+                },
+            ],
+            modifiers: vec![],
+        }
+    );
+}
+
+#[test]
 fn test_image_stmt() {
     assert_eq!(
         parse_single_stmt(

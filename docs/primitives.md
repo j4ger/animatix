@@ -34,6 +34,24 @@ title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 eq: Math { math: "x^2 + 3", font_size: 18, at: (640, 360) }
 ```
 
+## Code
+**Status:** Implemented in parser and runtime.
+
+The current v1 `Code` primitive is intentionally small. It renders code content through the same text-path pipeline used by `Text`, which makes it a real scene primitive without committing the runtime to syntax highlighting or editor-like behavior yet.
+
+**Properties used by the runtime:**
+- `code`: String
+- `font_size`: Number
+- `color`: Color
+- `at`: Tuple `(x, y)`
+- `anchor`: Scene anchor
+- `offset`: Tuple `(x, y)`
+
+**Example:**
+```animatix
+snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
+```
+
 ## Svg
 **Status:** Implemented in parser and runtime.
 
@@ -343,10 +361,6 @@ Absolute positioning is intentionally preserved in the language. The design chan
 ---
 
 # 6. Other Planned Primitives
-
-These primitives are still not currently wired into the scene runtime:
-
-- `Code`
 
 Some shape-oriented concepts also exist in lower-level Rust modules such as `kurbo_shapes.rs`; `Arc`, `Polygon`, and `Path` are now part of the shipped runtime surface described above.
 

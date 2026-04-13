@@ -239,6 +239,115 @@ fn test_text_spacing_preserves_space_width() {
 }
 
 #[test]
+fn test_code_primitive_builds_text_paths() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Code {
+            label: Some("snippet".to_string()),
+            props: vec![
+                Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("fn main() {}".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(24.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let paths = timeline
+        .tracks
+        .get("snippet")
+        .expect("snippet track should exist")
+        .text_paths
+        .evaluate(0);
+
+    assert!(!paths.is_empty());
+}
+
+#[test]
+fn test_code_primitive_respects_position_binding() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Code {
+            label: Some("anchored_code".to_string()),
+            props: vec![
+                Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("let x = 1;".to_string()),
+                },
+                Property {
+                    name: "anchor".to_string(),
+                    value: Expr::Path(vec!["scene".to_string(), "center".to_string()]),
+                },
+                Property {
+                    name: "offset".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)]),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline
+            .tracks
+            .get("anchored_code")
+            .expect("anchored_code track should exist")
+            .position_binding
+            .evaluate(0),
+        PositionBinding::SceneAnchor {
+            anchor: SceneAnchor::Center,
+            offset: [0.0, 24.0],
+        }
+    );
+}
+
+#[test]
+fn test_code_primitive_redeclaration_updates_text_paths() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::Code {
+                label: Some("snippet".to_string()),
+                props: vec![Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("let x = 1;".to_string()),
+                }],
+                modifiers: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Code {
+                label: Some("snippet".to_string()),
+                props: vec![Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("let x = 2;".to_string()),
+                }],
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("snippet")
+        .expect("snippet track should exist");
+
+    assert!(!track.text_paths.evaluate(0).is_empty());
+    assert!(!track.text_paths.evaluate(1000).is_empty());
+    assert!(track.text_paths.keyframes.contains_key(&0));
+    assert!(track.text_paths.keyframes.contains_key(&1000));
+}
+
+#[test]
 fn test_missing_properties() {
     let track = AnimationTrack::new("empty_actor".to_string());
 

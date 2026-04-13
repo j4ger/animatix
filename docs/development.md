@@ -92,7 +92,6 @@ cargo test
 For demo work:
 
 - keep runnable demos under `examples/`
-- keep future-only sketches under `examples/planned/`
 - verify runnable demos with both `ast` and `image`/`video`
 
 ## Source Areas Worth Knowing

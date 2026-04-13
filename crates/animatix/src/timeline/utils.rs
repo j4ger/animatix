@@ -269,7 +269,11 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                 .ok_or_else(|| EvalError::UndefinedVariable(dotted))
         }
 
-        Expr::Method(_, _, _) | Expr::Index(_, _) | Expr::Construct(_, _) => Ok(Value::Num(0.0)),
+        Expr::Method(_, name, _) => Err(EvalError::UnsupportedMethod(name.clone())),
+
+        Expr::Index(_, _) => Err(EvalError::UnsupportedIndex),
+
+        Expr::Construct(name, _) => Err(EvalError::UnsupportedConstruct(name.clone())),
     }
 }
 
@@ -448,5 +452,82 @@ mod tests {
         let result = evaluate_expr(&call_expr, &env).expect("Evaluation failed");
 
         assert_eq!(result, Value::Num(8.0));
+    }
+
+    #[test]
+    fn test_evaluate_method_returns_explicit_error() {
+        let env = Environment::raw_new();
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("graph".to_string())),
+            "plot".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env);
+
+        assert!(matches!(
+            result,
+            Err(EvalError::UnsupportedMethod(name)) if name == "plot"
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_index_returns_explicit_error() {
+        let env = Environment::raw_new();
+        let expr = Expr::Index(
+            Box::new(Expr::Ident("items".to_string())),
+            Box::new(Expr::Num(0.0)),
+        );
+
+        let result = evaluate_expr(&expr, &env);
+
+        assert!(matches!(result, Err(EvalError::UnsupportedIndex)));
+    }
+
+    #[test]
+    fn test_evaluate_construct_returns_explicit_error() {
+        let env = Environment::raw_new();
+        let expr = Expr::Construct("Button".to_string(), vec![]);
+
+        let result = evaluate_expr(&expr, &env);
+
+        assert!(matches!(
+            result,
+            Err(EvalError::UnsupportedConstruct(name)) if name == "Button"
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_closure_uses_call_time_environment() {
+        let mut env = Environment::raw_new();
+        env.set(
+            "f",
+            Value::Closure(
+                vec!["x".to_string()],
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Ident("x".to_string())),
+                    BinaryOp::Add,
+                    Box::new(Expr::Ident("y".to_string())),
+                )),
+            ),
+        );
+        env.set("y", Value::Num(3.0));
+        env.set("y", Value::Num(10.0));
+
+        let call_expr = Expr::Call("f".to_string(), vec![Expr::Num(4.0)]);
+        let result = evaluate_expr(&call_expr, &env).expect("Evaluation failed");
+
+        assert_eq!(result, Value::Num(14.0));
+    }
+
+    #[test]
+    fn test_evaluate_path_uses_flat_dotted_lookup_key() {
+        let mut env = Environment::raw_new();
+        env.set("node.at.x", Value::Num(320.0));
+
+        let expr = Expr::Path(vec!["node".to_string(), "at".to_string(), "x".to_string()]);
+        let result = evaluate_expr(&expr, &env).expect("path lookup should succeed");
+
+        assert_eq!(result, Value::Num(320.0));
     }
 }

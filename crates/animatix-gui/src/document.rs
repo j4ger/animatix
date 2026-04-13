@@ -161,7 +161,7 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(2.0),
                 body: vec![Stmt::Assignment {
-                    target: "box".to_string(),
+                    target: vec!["box".to_string()],
                     property: "opacity".to_string(),
                     value: animatix::ast::Expr::Num(0.5),
                     modifiers: vec![],

@@ -8,6 +8,9 @@ pub enum EvalError {
     UndefinedVariable(String),
     TypeMismatch(String),
     NotCallable(String),
+    UnsupportedMethod(String),
+    UnsupportedIndex,
+    UnsupportedConstruct(String),
 }
 
 impl fmt::Display for EvalError {
@@ -16,6 +19,15 @@ impl fmt::Display for EvalError {
             EvalError::UndefinedVariable(v) => write!(f, "Undefined variable: {}", v),
             EvalError::TypeMismatch(e) => write!(f, "Type mismatch: {}", e),
             EvalError::NotCallable(n) => write!(f, "Not callable: {}", n),
+            EvalError::UnsupportedMethod(name) => {
+                write!(f, "Unsupported runtime method call: {}", name)
+            }
+            EvalError::UnsupportedIndex => {
+                write!(f, "Unsupported runtime index expression")
+            }
+            EvalError::UnsupportedConstruct(name) => {
+                write!(f, "Unsupported runtime construct expression: {}", name)
+            }
         }
     }
 }

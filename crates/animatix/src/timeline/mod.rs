@@ -686,6 +686,15 @@ impl Timeline {
         env
     }
 
+    pub fn frame(
+        &self,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    ) -> Environment {
+        self.frame_eval_env(time_ms, scene_dimensions, overrides)
+    }
+
     fn inject_runtime_lookup_values(
         &self,
         env: &mut Environment,
@@ -918,6 +927,48 @@ impl Timeline {
             }
             _ => {}
         }
+    }
+
+    pub fn apply_modifier_stmt_for_test(
+        &self,
+        stmt: &Stmt,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        frame_env: &mut Environment,
+        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    ) {
+        self.apply_modifier_stmt(stmt, time_ms, scene_dimensions, frame_env, overrides)
+    }
+
+    pub fn apply_modifier_ir_program(
+        &self,
+        program: &crate::ir::ModifierIrProgram,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        frame_env: &mut Environment,
+        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    ) -> Result<(), EvalError> {
+        crate::ir::execute_modifier_ir(program, frame_env, overrides, |frame_env, overrides| {
+            *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
+        })
+    }
+
+    pub fn apply_modifier_bytecode_program(
+        &self,
+        program: &crate::vm::ModifierBytecodeProgram,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        frame_env: &mut Environment,
+        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    ) -> Result<(), EvalError> {
+        crate::vm::execute_modifier_bytecode(
+            program,
+            frame_env,
+            overrides,
+            |frame_env, overrides| {
+                *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
+            },
+        )
     }
 
     fn add_node(&mut self, label: String, parent_label: Option<&str>) {
@@ -1357,6 +1408,112 @@ impl Timeline {
 
                     let frame =
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
+                    let new_paths = crate::renderer::text::extract_glyphs(&frame);
+
+                    let mut duration_ms = 0.0;
+                    let mut easing = Easing::Linear;
+
+                    for modifier in modifiers {
+                        if modifier.name.as_deref() == Some("ease") {
+                            if let Expr::Ident(val) = &modifier.value {
+                                match val.as_str() {
+                                    "ease-in" => easing = Easing::EaseIn,
+                                    "ease-out" => easing = Easing::EaseOut,
+                                    "ease-in-out" => easing = Easing::EaseInOut,
+                                    "bounce" => easing = Easing::Bounce,
+                                    "linear" => easing = Easing::Linear,
+                                    _ => {}
+                                }
+                            }
+                        } else if modifier.name.is_none() {
+                            if let Expr::Ident(val) = &modifier.value {
+                                if val.ends_with("ms") {
+                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
+                                        duration_ms = ms;
+                                    }
+                                } else if val.ends_with('s') {
+                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
+                                        duration_ms = s * 1000.0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let t_start_ms = time_ms as u64;
+                    let t_end_ms = (time_ms + duration_ms) as u64;
+
+                    if duration_ms > 0.0 {
+                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        track
+                            .text_paths
+                            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    }
+                    track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
+                }
+                Stmt::Code {
+                    label,
+                    props,
+                    modifiers,
+                } => {
+                    let label_str = label.clone().unwrap_or_else(|| "unnamed_code".to_string());
+                    let eval_env = self.build_eval_env(time_ms as u64);
+                    self.add_node(label_str.clone(), parent_label);
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str));
+
+                    let mut code_content = String::new();
+                    let mut font_size = 24.0;
+                    let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut at_expr: Option<Expr> = None;
+                    let mut anchor_expr: Option<Expr> = None;
+                    let mut offset_expr: Option<Expr> = None;
+
+                    for prop in props {
+                        match prop.name.as_str() {
+                            "code" => {
+                                code_content = evaluate_expr(&prop.value, &eval_env)
+                                    .map(|v| v.as_str())
+                                    .unwrap_or_default();
+                            }
+                            "font_size" => {
+                                let v = evaluate_expr(&prop.value, &eval_env)
+                                    .unwrap_or(Value::Num(0.0));
+                                font_size = v.as_num() as f32;
+                            }
+                            "color" => {
+                                let c = parse_color_in_env(&prop.value, &eval_env);
+                                color = typst::visualize::Color::from_u8(
+                                    (c[0] * 255.0) as u8,
+                                    (c[1] * 255.0) as u8,
+                                    (c[2] * 255.0) as u8,
+                                    (c[3] * 255.0) as u8,
+                                );
+                                let t_ms = time_ms as u64;
+                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                            }
+                            "at" => {
+                                at_expr = Some(prop.value.clone());
+                            }
+                            "anchor" => anchor_expr = Some(prop.value.clone()),
+                            "offset" => offset_expr = Some(prop.value.clone()),
+                            _ => {}
+                        }
+                    }
+
+                    if let Some((binding, position)) = resolve_position_binding(
+                        at_expr.as_ref(),
+                        anchor_expr.as_ref(),
+                        offset_expr.as_ref(),
+                        &eval_env,
+                    ) {
+                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                    }
+
+                    let frame =
+                        crate::renderer::text::compile_code(&code_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
                     let mut duration_ms = 0.0;

@@ -186,6 +186,12 @@ pub enum Stmt {
         modifiers: Vec<Modifier>,
     },
 
+    Code {
+        label: Option<String>,
+        props: Vec<Property>,
+        modifiers: Vec<Modifier>,
+    },
+
     Svg {
         label: Option<String>,
         url: String,
