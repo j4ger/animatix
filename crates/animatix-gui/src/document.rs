@@ -1,6 +1,6 @@
-use animatix::ast::Stmt;
+use animatix::ast::{Expr, Stmt};
 use animatix::module::ModuleGraph;
-use animatix::timeline::{AnimationTrack, PropertyTrack, Timeline};
+use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -11,6 +11,7 @@ pub struct DocumentSession {
     pub timeline: Option<Timeline>,
     pub is_dirty: bool,
     pub duration_s: f64,
+    pub scene_dimensions: SceneDimensions,
 }
 
 impl DocumentSession {
@@ -25,6 +26,7 @@ impl DocumentSession {
             timeline: None,
             is_dirty: false,
             duration_s: 5.0,
+            scene_dimensions: SceneDimensions::default(),
         };
 
         document.rebuild()?;
@@ -39,6 +41,7 @@ impl DocumentSession {
             timeline: None,
             is_dirty: false,
             duration_s: 5.0,
+            scene_dimensions: SceneDimensions::default(),
         }
     }
 
@@ -69,15 +72,47 @@ impl DocumentSession {
                 self.ast = None;
                 self.timeline = None;
                 self.duration_s = 0.1;
+                self.scene_dimensions = SceneDimensions::default();
                 return Err(err.to_string());
             }
         };
         let timeline = Timeline::build(&ast);
         self.duration_s = timeline_duration_seconds(&timeline).max(0.1);
+        self.scene_dimensions = document_scene_dimensions(&ast);
         self.ast = Some(ast);
         self.timeline = Some(timeline);
         Ok(())
     }
+}
+
+fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
+    ast.iter()
+        .find_map(|stmt| match stmt {
+            Stmt::Config { settings } => settings.iter().find_map(|property| {
+                if property.name != "resolution" {
+                    return None;
+                }
+
+                let Expr::Tuple(items) = &property.value else {
+                    return None;
+                };
+                if items.len() != 2 {
+                    return None;
+                }
+
+                match (&items[0], &items[1]) {
+                    (Expr::Num(width), Expr::Num(height)) if *width > 0.0 && *height > 0.0 => {
+                        Some(SceneDimensions {
+                            width: width.round() as u32,
+                            height: height.round() as u32,
+                        })
+                    }
+                    _ => None,
+                }
+            }),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 fn latest_keyframe_ms<T>(track: &PropertyTrack<T>) -> Option<u64> {
@@ -171,5 +206,30 @@ mod tests {
 
         let timeline = Timeline::build(&ast);
         assert_eq!(timeline_duration_seconds(&timeline), 2.0);
+    }
+
+    #[test]
+    fn scene_dimensions_use_config_resolution_when_present() {
+        let ast = vec![Stmt::Config {
+            settings: vec![Property {
+                name: "resolution".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
+            }],
+        }];
+
+        assert_eq!(
+            document_scene_dimensions(&ast),
+            SceneDimensions {
+                width: 1280,
+                height: 720,
+            }
+        );
+    }
+
+    #[test]
+    fn scene_dimensions_fall_back_to_default_when_missing() {
+        let ast = vec![Stmt::Comment("no config".to_string())];
+
+        assert_eq!(document_scene_dimensions(&ast), SceneDimensions::default());
     }
 }

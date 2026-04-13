@@ -21,12 +21,14 @@ use winit::window::{Window, WindowId};
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
-    width: 1280,
-    height: 720,
+    width: 1920,
+    height: 1080,
 };
 const REBUILD_DEBOUNCE: Duration = Duration::from_millis(150);
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
+const EXPLORER_ROW_HEIGHT: f32 = 20.0;
+const EXPLORER_INDENT_PX: f32 = 10.0;
 
 pub fn run_gui(path: Option<PathBuf>) {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -427,14 +429,14 @@ struct PreviewPaneState {
 }
 
 impl PreviewPaneState {
-    fn new(duration_s: f64) -> Self {
+    fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
         Self {
             current_time_s: 0.0,
             duration_s,
             is_playing: false,
             status: "Loaded file".to_string(),
             error: None,
-            dimensions: DEFAULT_PREVIEW_SIZE,
+            dimensions,
         }
     }
 
@@ -493,7 +495,7 @@ impl GuiShell {
         let dock_state =
             load_workspace_persistence(&persistence_path).unwrap_or_else(default_dock_state);
         let duration_s = document.duration_s.max(0.1);
-        let mut preview = PreviewPaneState::new(duration_s);
+        let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
         if let Some(status) = status {
             preview.status = status;
         }
@@ -556,47 +558,21 @@ impl GuiShell {
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
             ui.label(RichText::new("Animatix").strong().size(18.0));
             ui.separator();
-
-            ui.menu_button("File", |ui| {
-                if ui.button("Save").clicked() {
-                    actions.save = true;
-                    ui.close();
-                }
-                if ui.button("Reload").clicked() {
-                    actions.reload = true;
-                    ui.close();
-                }
-            });
-            ui.menu_button("Edit", |ui| {
-                ui.label("Text editing lives in the center editor pane.");
-            });
-            ui.menu_button("Preview", |ui| {
-                if ui
-                    .button(if self.preview.is_playing {
-                        "Pause"
-                    } else {
-                        "Play"
-                    })
-                    .clicked()
-                {
-                    actions.toggle_playback = true;
-                    ui.close();
-                }
-                if ui.button("Rebuild").clicked() {
-                    actions.rebuild = true;
-                    ui.close();
-                }
-            });
-            ui.menu_button("Run", |ui| {
-                if ui.button("Rebuild now").clicked() {
-                    actions.rebuild = true;
-                    ui.close();
-                }
-            });
+            ui.label(
+                RichText::new(
+                    self.document
+                        .file_path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("Untitled"),
+                )
+                .small()
+                .weak(),
+            );
 
             ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                 action_button(
@@ -613,9 +589,6 @@ impl GuiShell {
                 );
                 action_button(ui, "Rebuild", false, || {
                     actions.rebuild = true;
-                });
-                action_button(ui, "Reload", false, || {
-                    actions.reload = true;
                 });
                 action_button(ui, "Save", true, || {
                     actions.save = true;
@@ -638,7 +611,7 @@ impl GuiShell {
                 }
             });
         });
-        ui.add_space(4.0);
+        ui.add_space(6.0);
     }
 
     fn status_bar_ui(&self, ui: &mut egui::Ui) {
@@ -708,15 +681,6 @@ impl GuiShell {
             self.preview.clamp_time();
             self.preview_dirty = true;
         }
-        if let Some(dimensions) = actions.preview_dimensions {
-            if dimensions.width > 0
-                && dimensions.height > 0
-                && self.preview.dimensions != dimensions
-            {
-                self.preview.dimensions = dimensions;
-                self.preview_dirty = true;
-            }
-        }
         if actions.editor_changed {
             self.document
                 .set_source_text(self.editor.text().to_string());
@@ -738,6 +702,7 @@ impl GuiShell {
                 self.preview.duration_s = document.duration_s.max(0.1);
                 self.preview.current_time_s = 0.0;
                 self.preview.is_playing = false;
+                self.preview.dimensions = document.scene_dimensions;
                 self.preview.status = format!("Opened {}", document.file_path.display());
                 self.preview.error = None;
                 self.document = document;
@@ -761,6 +726,7 @@ impl GuiShell {
         self.editor
             .set_document(&self.document.file_path, self.document.source_text.clone());
         self.preview.duration_s = self.document.duration_s.max(0.1);
+        self.preview.dimensions = self.document.scene_dimensions;
         self.preview.clamp_time();
         self.preview.status = format!("Reloaded {}", self.document.file_path.display());
         self.preview.error = None;
@@ -772,6 +738,7 @@ impl GuiShell {
     fn rebuild(&mut self) -> Result<(), String> {
         self.document.rebuild()?;
         self.preview.duration_s = self.document.duration_s.max(0.1);
+        self.preview.dimensions = self.document.scene_dimensions;
         self.preview.clamp_time();
         self.preview.status = format!(
             "Built timeline • {:.2}s total duration",
@@ -810,7 +777,6 @@ struct UiActions {
     rebuild: bool,
     toggle_playback: bool,
     scrub_to: Option<f64>,
-    preview_dimensions: Option<SceneDimensions>,
     editor_changed: bool,
     request_repaint: bool,
 }
@@ -862,16 +828,21 @@ impl WorkspaceViewer<'_> {
             ui.separator();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(4.0, 2.0);
                 for entry in self.file_tree {
                     let selected = entry.path == self.current_file;
                     ui.horizontal(|ui| {
-                        ui.add_space(entry.depth as f32 * 14.0);
+                        ui.set_min_height(EXPLORER_ROW_HEIGHT);
+                        ui.add_space(entry.depth as f32 * EXPLORER_INDENT_PX);
                         let label = if entry.is_dir {
                             format!("▾ {}", entry.name)
                         } else {
                             format!("• {}", entry.name)
                         };
-                        let response = ui.selectable_label(selected, label);
+                        let response = ui.add_sized(
+                            [ui.available_width(), EXPLORER_ROW_HEIGHT],
+                            egui::Button::new(RichText::new(label).small()).selected(selected),
+                        );
                         if response.clicked() && !entry.is_dir {
                             self.actions.open_file = Some(entry.path.clone());
                         }
@@ -937,12 +908,7 @@ impl WorkspaceViewer<'_> {
 
             let available = ui.available_size_before_wrap();
             let image_height = (available.y - 96.0).max(220.0);
-            let desired = fit_16_9(Vec2::new(available.x.max(200.0), image_height));
-            let dimensions = SceneDimensions {
-                width: (desired.x * ui.ctx().pixels_per_point()).round().max(1.0) as u32,
-                height: (desired.y * ui.ctx().pixels_per_point()).round().max(1.0) as u32,
-            };
-            self.actions.preview_dimensions = Some(dimensions);
+            let desired = fit_preview(self.preview.dimensions, Vec2::new(available.x.max(200.0), image_height));
 
             egui::Frame::canvas(ui.style())
                 .stroke(Stroke::new(1.0, Color32::from_rgb(58, 63, 74)))
@@ -963,6 +929,11 @@ impl WorkspaceViewer<'_> {
                 });
 
             ui.horizontal(|ui| {
+                ui.label(format!(
+                    "{} × {}",
+                    self.preview.dimensions.width, self.preview.dimensions.height
+                ));
+                ui.separator();
                 ui.label(RichText::new(format!(
                     "t = {:.2}s / {:.2}s",
                     self.preview.current_time_s, self.preview.duration_s
@@ -1097,8 +1068,12 @@ fn collect_tree_entries(
     }
 }
 
-fn fit_16_9(available: Vec2) -> Vec2 {
-    let aspect = 16.0 / 9.0;
+fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 {
+    let aspect = if dimensions.width == 0 || dimensions.height == 0 {
+        DEFAULT_PREVIEW_SIZE.width as f32 / DEFAULT_PREVIEW_SIZE.height as f32
+    } else {
+        dimensions.width as f32 / dimensions.height as f32
+    };
     let width_limited_height = available.x / aspect;
     if width_limited_height <= available.y {
         Vec2::new(available.x, width_limited_height)
@@ -1131,7 +1106,8 @@ fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkspaceTab, default_dock_state, fit_16_9};
+    use super::{WorkspaceTab, default_dock_state, fit_preview};
+    use animatix::timeline::SceneDimensions;
     use egui::Vec2;
 
     #[test]
@@ -1146,7 +1122,25 @@ mod tests {
 
     #[test]
     fn preview_fit_preserves_aspect_ratio() {
-        let fitted = fit_16_9(Vec2::new(400.0, 400.0));
+        let fitted = fit_preview(
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+            Vec2::new(400.0, 400.0),
+        );
         assert!((fitted.x / fitted.y - 16.0 / 9.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn preview_fit_uses_scene_dimensions_aspect_ratio() {
+        let fitted = fit_preview(
+            SceneDimensions {
+                width: 1000,
+                height: 1000,
+            },
+            Vec2::new(400.0, 200.0),
+        );
+        assert!((fitted.x - fitted.y).abs() < 0.001);
     }
 }
