@@ -583,6 +583,47 @@ fn test_keyframes() {
 }
 
 #[test]
+fn test_relative_keyframes() {
+    let src = r#"
+        #0s
+        let x = 1
+        #+500ms
+        let y = 2
+        #+1.5s
+        let z = 3
+    "#;
+    let ast = parser().parse(src).into_result().unwrap();
+    assert_eq!(ast.len(), 3);
+
+    if let Stmt::Keyframe { time, body } = &ast[0] {
+        assert_eq!(*time, Time::Seconds(0.0));
+        assert_eq!(body.len(), 1);
+    } else {
+        panic!("Expected absolute Keyframe");
+    }
+
+    if let Stmt::RelativeKeyframe { offset, body } = &ast[1] {
+        assert_eq!(*offset, Time::Milliseconds(500));
+        assert_eq!(body.len(), 1);
+    } else {
+        panic!("Expected RelativeKeyframe");
+    }
+
+    if let Stmt::RelativeKeyframe { offset, body } = &ast[2] {
+        assert_eq!(*offset, Time::Seconds(1.5));
+        assert_eq!(body.len(), 1);
+    } else {
+        panic!("Expected RelativeKeyframe");
+    }
+}
+
+#[test]
+fn test_negative_relative_keyframes_rejected() {
+    assert!(parse_error("#-1s\nlet x = 1"));
+    assert!(parse_error("#+-1s\nlet x = 1"));
+}
+
+#[test]
 fn test_always() {
     let result = parse_single_stmt("always { let x = btn.x }");
     assert_eq!(

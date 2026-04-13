@@ -460,7 +460,7 @@ import "./components.amx"
 
 left: MetricCard, title: "Latency"
 
-#1s
+#+1s
 left.badge.color = red
 left.title_text.color = green
 "#,
