@@ -434,10 +434,6 @@ fn expand_stmt_into(
             iterable: iterable.clone(),
             body: expand_statements(body, components),
         }),
-        Stmt::LifecycleHook { event, body } => output.push(Stmt::LifecycleHook {
-            event: event.clone(),
-            body: expand_statements(body, components),
-        }),
         Stmt::ComponentAction { name, params, body } => output.push(Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
@@ -572,7 +568,6 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
         | Stmt::Always { body }
-        | Stmt::LifecycleHook { body, .. }
         | Stmt::ComponentAction { body, .. }
         | Stmt::ForLoop { body, .. } => {
             for stmt in body {
@@ -783,13 +778,6 @@ fn rewrite_stmt(
         Stmt::ComponentAction { name, params, body } => Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
-            body: body
-                .iter()
-                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
-                .collect(),
-        },
-        Stmt::LifecycleHook { event, body } => Stmt::LifecycleHook {
-            event: event.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))

@@ -25,7 +25,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "pause",
                 "resume",
                 "action",
-                "on",
             ];
             if reserved.contains(&ident) {
                 Err(Rich::custom(

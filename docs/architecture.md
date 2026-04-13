@@ -25,7 +25,7 @@ Before evaluation, the compiler parses all files and resolves imports to create 
 1. **FileId Assignment**: Every file loaded is assigned a unique `FileId` (e.g., `FileId(u32)`). This acts as a lightweight, copyable handle to the file's AST and source text, heavily inspired by `rustc` and `rust-analyzer` patterns.
 2. **Import Resolution**: When an `import "path.amx"` is encountered, the path is resolved absolutely. If the file is already in the `ModuleGraph` (or `SourceMap`), its existing `FileId` is returned, preventing redundant parsing and re-evaluation.
 3. **Cycle Detection**: The loader tracks a `visited` set of `FileId`s during resolution. If an import resolves to a `FileId` currently in the `visited` set, a cyclic dependency error is thrown.
-4. **Linking**: Imported modules are flattened into a single AST for timeline compilation. Imported `pub component` definitions are now collected and expanded before timeline build, while lifecycle hooks and custom component actions remain future-facing syntax.
+4. **Linking**: Imported modules are flattened into a single AST for timeline compilation. Imported `pub component` definitions are now collected and expanded before timeline build, while custom component actions remain future-facing syntax.
 
 *Note on Hot-Reloading: While tracking file dependencies via a `ModuleGraph` naturally supports watching files for changes and invalidating specific `FileId`s, real-time hot-reloading is intentionally postponed until the UI/Editor phase to maintain a simple, stable evaluation model.*
 

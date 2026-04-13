@@ -105,14 +105,6 @@ pub enum Time {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum LifecycleEvent {
-    Appear,
-    Disappear,
-    Hover,
-    Click,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct ParamDef {
     pub name: String,
     pub param_type: Option<String>, // Optional type hint
@@ -286,12 +278,6 @@ pub enum Stmt {
     ComponentAction {
         name: String,
         params: Vec<ParamDef>,
-        body: Vec<Stmt>,
-    },
-
-    /// Lifecycle Hook: on appear { ... }
-    LifecycleHook {
-        event: LifecycleEvent,
         body: Vec<Stmt>,
     },
 

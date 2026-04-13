@@ -24,7 +24,7 @@ What exists today:
 What is intentionally not shipped yet:
 
 - embedded live native GPU surface composition inside GPUI
-- syntax highlighting / autocomplete / code intelligence
+- Tree-sitter-backed syntax highlighting / autocomplete / code intelligence
 - visual timeline lanes or scene inspectors
 
 ## Product Shape
@@ -142,6 +142,8 @@ The scrubber does not expose editable keyframe blocks in the first release. It i
 
 The editor pane is text-based and now uses a multiline code-editor surface from `gpui-component`, rather than the older line-oriented MVP approach.
 
+Today the shipped editor still uses a local fallback syntax configuration from `crates/animatix-gui/src/editor.rs`. That fallback is intentionally small and keyword-driven; it is not a reusable language package and should not be treated as the long-term source of syntax truth.
+
 Desired properties:
 
 - dependable multiline editing
@@ -149,6 +151,18 @@ Desired properties:
 - visible error state
 - save command
 - reload from disk
+
+### Planned Syntax Metadata Integration
+
+The next syntax step should be a dedicated Tree-sitter grammar for `.amx`, consumed as shared language metadata by external editors/tools and, later, by the GUI itself.
+
+Architectural rules for that integration:
+
+- `crates/animatix/src/parser.rs` remains the executable source of truth for accepted syntax
+- Tree-sitter grammar/query assets are derived editor-facing metadata that must stay synchronized with the parser and `docs/spec.md`
+- the GUI should migrate away from its ad hoc keyword list toward those shared syntax assets rather than maintaining a separate grammar definition
+- initial GUI adoption should focus on highlighting first; richer code intelligence can follow later
+- the initial grammar corpus should come from curated runnable examples plus parser tests, not from deprecated or removed syntax sketches
 
 ## Preview Delivery Strategy
 
@@ -181,4 +195,4 @@ These are deliberately out of scope for the first GUI crate:
 - keyframe lane editor
 - export dialogs
 - collaborative/project workflows
-- syntax-aware code intelligence
+- syntax-aware code intelligence beyond grammar-backed highlighting

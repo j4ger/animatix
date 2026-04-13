@@ -16,7 +16,6 @@ This matrix is the quick-reference status view for the current language surface.
 | Components | imported `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Public imported components expand and instantiate through `module.rs`; see `examples/component_modules_demo.amx`. |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Covered by module/timeline tests and current component demo. |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Supports nested-label writes and sampled reads such as `left.badge.color` and `echo.radius = right.badge.radius`. |
-| Components | lifecycle hooks (`on appear`, `on disappear`) | No current parser surface | Planned | No | Yes | `ast.rs` still contains lifecycle-hook statement shapes, but `parser.rs` currently reserves `on` and rejects the syntax. |
 | Components | custom component actions | No current parser surface | Planned | No | Yes | `ast.rs` still contains component-action statement shapes, but `parser.rs` currently reserves `action` and rejects the syntax. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | This is the stable expression core exercised by current runtime tests and examples. |
 | Expressions | closures | Yes | Runtime-real | Yes | Yes | Used by current plotting and reactive examples; runtime semantics should still be tightened before VM work. |
@@ -45,6 +44,8 @@ This matrix is the quick-reference status view for the current language surface.
 For executable examples, prefer the curated runnable set in `examples/README.md`. Planned features documented in this spec should not be treated as current runtime guarantees unless they are also backed by runnable examples and tests.
 
 The parser implementation in `crates/animatix/src/parser.rs` is the executable source of truth for accepted syntax. Editor-facing syntax metadata such as a future Tree-sitter grammar should be treated as a synchronized derivative of that parser surface rather than as an independent language authority.
+
+For Tree-sitter work, this means the grammar should cover only parser-accepted `.amx` syntax, using runnable examples and parser tests as the primary corpus. Removed or dead internal surface area should not be exposed as grammar rules, keywords, or highlight queries.
 
 ---
 
@@ -407,7 +408,7 @@ Repeated runtime behavior should be expressed with explicit time math inside `al
 
 ## 9. Components
 
-> **Status: Partially implemented.** Imported `pub component` definitions can now be instantiated at runtime with parameter binding and instance-prefixed nested labels. Lifecycle hooks and custom component actions are still planned syntax, not part of the current parser surface.
+> **Status: Partially implemented.** Imported `pub component` definitions can now be instantiated at runtime with parameter binding and instance-prefixed nested labels. Custom component actions remain future-facing and are not part of the current parser surface.
 
 ### Definition
 The parser accepts `pub component ...` definitions, and the runtime now expands imported public components into ordinary scene statements before timeline build.
@@ -433,14 +434,7 @@ Current MVP behavior:
 - nested labels are instance-prefixed to avoid collisions across repeated uses
 - nested labels can be targeted with dotted assignment paths such as `card.badge.color = red`
 - nested labels can also be queried on the rhs through sampled property paths such as `copy.at = card.badge.at`
-- lifecycle hooks and custom actions remain future-facing and are not currently accepted by the parser
-
-**Lifecycle Hooks**  
-Lifecycle hooks remain planned syntax. The current AST still reserves space for them, but `parser.rs` currently rejects `on ...` forms.
-```animatix
-on appear { ... }
-on disappear { ... }
-```
+- custom component actions remain future-facing and are not currently accepted by the parser
 
 **Custom Actions**  
 Custom component actions also remain planned syntax. The current AST still reserves space for them, but `parser.rs` currently rejects `action ...` forms.

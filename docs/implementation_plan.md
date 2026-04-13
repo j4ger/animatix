@@ -16,7 +16,7 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
 | GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, multiline code editing, save/reload, timeline scrubbing/playback, and cross-platform offscreen live preview |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
-| Components | Partially implemented | Imported `pub component` instantiation, parameter binding, nested-label isolation, dotted nested-label assignment targets, and sampled rhs property lookup are runtime-real; lifecycle hooks and custom actions still are not |
+| Components | Partially implemented | Imported `pub component` instantiation, parameter binding, nested-label isolation, dotted nested-label assignment targets, and sampled rhs property lookup are runtime-real; custom component actions and richer component scoping still are not |
 
 ### Known Gaps
 
@@ -24,7 +24,7 @@ These are the major holes between the documented language surface and the runtim
 
 1. **Primitive coverage is much closer to the documented surface.** The runtime now includes `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path`, `Image`, and a first v1 `Code` primitive rendered through the text pipeline.
 2. **Layout fundamentals are shipped, but the higher-level authoring surface still needs maintenance.** The runtime now supports `Grid`, `Stack`, root layout defaults, scene-relative placement, and explicit manual child overrides; the remaining work is keeping docs/examples aligned and expanding the broader runtime surface.
-3. **Component runtime is only partially landed.** Imported `pub component` instantiation now works, nested labels can be targeted and queried through dotted property paths, but lifecycle hooks, custom actions, and richer component scope remain unfinished.
+3. **Component runtime is only partially landed.** Imported `pub component` instantiation now works, nested labels can be targeted and queried through dotted property paths, but custom actions and richer component scope remain unfinished.
 4. **Advanced authoring syntax is ahead of execution.** Morph strategy controls, richer query syntax, and planned plotting types are not implemented.
 
 ---
@@ -38,6 +38,7 @@ The next implementation steps should follow these rules:
 3. **Ship current-facing features before future-facing syntax.** A smaller reliable language is better than a broader but misleading one.
 4. **Keep examples honest.** User-facing demos should only showcase runnable features. Future-facing ideas belong in docs until they are runnable.
 5. **Prefer random-access semantics.** Preview, scrubbing, image export, and playback should agree on the frame at time `t` wherever possible.
+6. **Keep syntax assets derived, not divergent.** The parser in `crates/animatix/src/parser.rs` defines accepted syntax; future editor-facing grammars such as Tree-sitter must track that surface rather than inventing a parallel language contract.
 
 ---
 
@@ -52,10 +53,37 @@ The next implementation steps should follow these rules:
 - Rewrite docs to distinguish runtime-supported vs parser-only features
 - Curate examples into a small runnable set
 - Keep future syntax sketches out of the runnable example set
+- Correct parser/spec drift in the current language reference (for example, keyframe markers and component-syntax claims)
+- Record the synchronization rule between the parser, docs, GUI fallback highlighting, and future Tree-sitter assets
 
 **Exit criteria:**
 - No user-facing example depends on unimplemented runtime features
 - Docs and roadmap agree on current capabilities
+- Parser-accepted syntax and spec examples use the same forms for keyframes and component syntax
+
+### Phase 0.25 — Syntax Declaration and Editor Grammar
+**Status:** Planned
+
+**Goal:** Ship a reusable syntax declaration for `.amx` so external editors, tooling, and the Animatix GUI can consume the same language metadata.
+
+**Deliverables:**
+- a standalone `tree-sitter-animatix` grammar package
+- `tree-sitter.json` metadata with `.amx` file-type registration and a stable scope name
+- `queries/highlights.scm` using standard Tree-sitter capture names
+- corpus tests built from shipped parser tests and runnable examples
+- documentation describing the grammar as a synchronized derivative of the real parser surface
+
+**Scope rules:**
+- cover only syntax that is actually accepted by `crates/animatix/src/parser.rs`
+- treat non-parser surface such as custom component actions and removed legacy hook syntax as out of scope until the parser truly accepts them
+- use runnable examples and parser tests as the primary grammar-validation corpus
+- keep the GUI's current ad hoc syntax fallback as a temporary bridge, not a second language definition
+- document the intended initial package shape (`grammar.js`, `tree-sitter.json`, `queries/highlights.scm`, corpus tests) before implementation begins
+
+**Exit criteria:**
+- `.amx` is declared through standard Tree-sitter metadata for downstream tools
+- highlighting queries cover the shipped language subset
+- docs explain how parser, spec, GUI, and Tree-sitter assets stay in sync
 
 ---
 
@@ -159,7 +187,6 @@ The next implementation steps should follow these rules:
 - Clear behavior for nested labels and exported names
 
 **Should defer until later within this phase:**
-- Lifecycle hooks
 - Custom component actions
 - `@config` support
 
@@ -176,7 +203,7 @@ The next implementation steps should follow these rules:
 - A minimal runtime slice is now shipped: imported `pub component` definitions can be instantiated, params bind from instance props/defaults, and nested labels are isolated per instance during expansion.
 - Dotted assignment targets now work against nested runtime labels, including those emitted by imported component expansion.
 - Rhs dotted property lookup now resolves sampled actor and scene values through the same runtime label space, enabling composition such as copying `node.at` or `node.radius` into other properties.
-- Lifecycle hooks, custom component actions, and richer component namespace rules still remain for later work inside this phase.
+- Custom component actions and richer component namespace rules still remain for later work inside this phase.
 
 ---
 
@@ -208,6 +235,7 @@ The next implementation steps should follow these rules:
 **Candidate work:**
 - Extend the shipped GUI beyond its MVP scope
 - Hot reload and file watching
+- Replace the current hardcoded editor keyword list with Tree-sitter-backed language metadata derived from the shipped parser surface
 - Richer action/component discovery for tooling
 - More formal examples/tutorial structure
 

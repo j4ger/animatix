@@ -624,6 +624,23 @@ fn test_negative_relative_keyframes_rejected() {
 }
 
 #[test]
+fn test_lifecycle_hook_syntax_rejected() {
+    assert!(parse_error("on appear { fade-in btn }"));
+    assert!(parse_error("on disappear { fade-out btn }"));
+}
+
+#[test]
+fn test_on_is_not_reserved_identifier() {
+    assert_eq!(
+        parse_single_stmt("let on = 1"),
+        Stmt::LetDecl {
+            name: "on".to_string(),
+            value: Expr::Num(1.0),
+        }
+    );
+}
+
+#[test]
 fn test_always() {
     let result = parse_single_stmt("always { let x = btn.x }");
     assert_eq!(
