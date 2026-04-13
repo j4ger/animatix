@@ -2,7 +2,7 @@
 
 ## Overview
 
-`animatix-gui` is a separate desktop application crate that wraps the existing Animatix runtime with a GPUI shell built on top of `gpui-component` for the application chrome. The GUI is intentionally editor-first, not node-editor-first: the source of truth remains `.amx` text, while the app provides live preview and timeline control.
+`animatix-gui` is a separate desktop application crate that wraps the existing Animatix runtime with an egui-based desktop shell. The GUI is intentionally editor-first, not node-editor-first: the source of truth remains `.amx` text, while the app provides live preview and timeline control.
 
 ## Current Status
 
@@ -10,20 +10,20 @@ The first GUI MVP is now shipped in `crates/animatix-gui`.
 
 What exists today:
 
-- a GPUI desktop app
+- an egui desktop app built on `egui`, `egui-winit`, `egui_dock`, `egui_wgpu_backend`, `winit`, and `wgpu`
 - startup loading of an `.amx` file
 - multiline source editing with a code-editor widget
 - save and reload actions
 - debounced rebuilds through the real Animatix loader/parser path
 - timeline scrubbing and play/pause
-- cross-platform live preview rendering via a persistent offscreen GPU renderer with in-memory GPUI image presentation
+- cross-platform live preview rendering via a persistent offscreen GPU renderer with in-memory egui texture presentation
 - a split internal architecture between document state and preview state
-- a preview backend seam that supports the current offscreen live-preview path and leaves room for a future true native preview surface
-- a `gpui-component`-based shell using `Root`, themed panels, resizable layout, and component buttons
+- a preview surface seam that supports the current offscreen live-preview path and leaves room for future preview delivery changes
+- a docked workspace shell built with egui panels and tabs rather than a separate node-editor environment
 
 What is intentionally not shipped yet:
 
-- embedded live native GPU surface composition inside GPUI
+- embedded live native GPU surface composition inside the current egui shell
 - Tree-sitter-backed syntax highlighting / autocomplete / code intelligence
 - visual timeline lanes or scene inspectors
 
@@ -51,12 +51,13 @@ The GUI crate should not fork parsing or evaluation logic. It should call into t
 
 ## UI Composition Strategy
 
-The current GUI uses a hybrid composition model:
+The current GUI uses egui for both shell-level and domain-specific composition:
 
-- `gpui-component` for shell-level UI concerns such as the root app wrapper, theme tokens, action buttons, and resizable workspace layout
-- custom GPUI views for domain-specific elements such as the preview host and editor/preview coordination
+- `egui_dock` manages the docked workspace regions
+- `egui_code_editor` provides the multiline editor widget
+- custom app/session code coordinates document rebuilds, preview playback, file navigation, and preview rendering
 
-This keeps the app visually more coherent without giving up the custom pieces that are still specific to Animatix behavior.
+This keeps the implementation close to the runtime while still leaving room for future UI refinement.
 
 ## Main State Model
 
@@ -75,19 +76,18 @@ Owns:
 
 This layer handles file loading, save/reload, and rebuilds through the real Animatix loader/parser path.
 
-### `PreviewSession`
+### `PreviewPaneState`
 
 Owns:
 
 - current preview time
 - playback state
 - preview dimensions
-- preview artifact/status/error state
-- active preview backend
+- preview status/error state
 
-This layer controls how a compiled document becomes something visible in the preview pane.
+This layer controls playback state and the preview-pane contract seen by the UI.
 
-The editor updates `DocumentSession`. Rebuild operations refresh the compiled document and duration. The preview pane renders from `PreviewSession`, which asks its backend to present the current frame.
+The editor updates `DocumentSession`. Rebuild operations refresh the compiled document and duration. `PreviewPaneState` owns current time, playback state, status text, errors, and preview dimensions.
 
 ## Rebuild Flow
 
@@ -103,29 +103,28 @@ This avoids blanking the app on every transient typing mistake.
 
 ## Preview Architecture
 
-The preview subsystem now has an explicit transport boundary.
+The preview subsystem now has a dedicated rendering surface object.
 
-### `PreviewBackend`
+### `PreviewSurface`
 
-The GUI does not assume that preview output is always a file on disk. Instead, a backend produces a `PreviewArtifact`.
+The GUI does not assume that preview output is a file on disk. `PreviewSurface` owns the offscreen textures and the bridge from the core runtime renderer into an egui texture.
 
-Current artifact shape:
+Current responsibilities:
 
-- in-memory `RenderImage` frames generated from the live offscreen renderer
+- allocate and resize offscreen render/sample textures
+- evaluate the current timeline time through the core runtime
+- render into the offscreen texture via `RendererCore`
+- copy the result into an egui-visible texture
 
-Reserved future shape:
+### Current implementation
 
-- native embedded surface / shared GPU-backed artifact
+The shipped implementation is an offscreen live-preview path. `PreviewSurface` owns a persistent renderer, renders the current timeline time into an offscreen texture, and keeps that result synchronized with an egui texture for presentation in the preview pane.
 
-### Current backend
+### Future direction
 
-The shipped backend is an offscreen live-preview backend. It owns a persistent WGPU/Vello renderer, renders the current timeline time into an offscreen texture, reads the frame back into memory, and presents that frame inside GPUI as an in-memory image.
+A future embedded-surface path could render more directly into the windowing stack, but that is a later rendering-architecture decision rather than something already abstracted behind a shipped backend trait.
 
-### Future backend
-
-A future `EmbeddedSurfaceBackend` can render into a true native preview surface without changing document editing, playback, or timeline logic. The migration point is the backend layer, though the preview pane/UI plumbing will still need an additional rendering branch for non-image artifacts.
-
-The critical architectural rule remains the same: GPUI owns the application shell and event flow, while the core Animatix library owns evaluation and render data generation.
+The critical architectural rule remains the same: the egui app shell owns window/event/UI flow, while the core Animatix library owns parsing, evaluation, and render-data generation.
 
 ## Timeline Architecture
 
@@ -140,7 +139,7 @@ The scrubber does not expose editable keyframe blocks in the first release. It i
 
 ## Editor Architecture
 
-The editor pane is text-based and now uses a multiline code-editor surface from `gpui-component`, rather than the older line-oriented MVP approach.
+The editor pane is text-based and uses `egui_code_editor` for the multiline editing surface.
 
 Today the shipped editor still uses a local fallback syntax configuration from `crates/animatix-gui/src/editor.rs`. That fallback is intentionally small and keyword-driven; it is not a reusable language package and should not be treated as the long-term source of syntax truth.
 
@@ -172,11 +171,11 @@ Current status:
 
 ## Preview Delivery Strategy
 
-The current GUI preview is intentionally pragmatic but no longer file-based: it uses a persistent offscreen GPU renderer from the core runtime to render the current time, converts that frame into an in-memory GPUI image, and displays it inside the preview pane.
+The current GUI preview is intentionally pragmatic but no longer file-based: it uses a persistent offscreen GPU renderer from the core runtime to render the current time, synchronizes that frame into an egui texture, and displays it inside the preview pane.
 
-That means the preview is still backed by the real Animatix runtime and scene evaluation path, but it is still **not** a shared native GPU surface embedded directly into GPUI. The transport is now in-memory image upload rather than PNG temp files. This is the current cross-platform solution because GPUI does not yet expose a generic embedded native `wgpu` surface path.
+That means the preview is still backed by the real Animatix runtime and scene evaluation path, but it is still **not** a separately embedded native preview surface. The transport is an offscreen renderer plus egui texture synchronization rather than PNG temp files.
 
-The important architectural change is that this is implemented as a backend choice rather than a hardcoded assumption in the main session state. A true native embedded surface remains a future improvement if GPUI grows a supported cross-platform API for it.
+The important architectural change is that preview delivery is isolated in `PreviewSurface` rather than smeared through the document/session layer. A more direct surface path remains a future improvement if the window/render stack grows a cleaner cross-platform integration point.
 
 ## Error Model
 
@@ -193,9 +192,9 @@ The UI should show these clearly without crashing or destroying the last good st
 
 These are deliberately out of scope for the first GUI crate:
 
-- native embedded surface composition inside GPUI
-- an embedded-surface preview backend implementation when GPUI supports it cross-platform
-- a full migration of every custom widget to `gpui-component`
+- native embedded surface composition inside the egui shell
+- a more direct preview-surface integration strategy if the render stack warrants it later
+- a full migration away from the current small fallback syntax definition once Tree-sitter-backed highlighting lands
 - visual scene inspector
 - property editor
 - keyframe lane editor

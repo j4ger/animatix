@@ -9,9 +9,9 @@ This file now tracks both what has landed and what remains after the first GUI M
 - add `crates/animatix-gui` to the workspace
 - create a GUI binary entry point
 - establish shared session/app state
-- open a GPUI window with editor, preview, and timeline regions
+- open an egui window with editor, preview, and timeline regions
 - use a cross-platform offscreen GPU preview path for the current release rather than direct embedded GPU-surface composition
-- migrate the app shell onto `gpui-component` primitives for root/window chrome, themed controls, and resizable workspace layout
+- build the app shell on egui workspace primitives, docked panels, and custom session logic
 
 ## Phase 2: Core Interactivity
 
@@ -38,7 +38,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 
 - keep the last successful timeline while edits are invalid
 - handle missing files/import failures gracefully
-- make window resizing update preview dimensions **(still open)**
+- make window resizing update preview dimensions
 - validate the GUI against existing examples
 
 ## Phase 5: Preview Architecture Refactor
@@ -46,15 +46,15 @@ This file now tracks both what has landed and what remains after the first GUI M
 **Status:** Completed for the offscreen live-preview stage
 
 - split GUI state into document-oriented and preview-oriented responsibilities
-- move preview rendering behind a `PreviewBackend` abstraction
-- represent preview output as an artifact rather than baking file paths into the whole session model
-- ship a persistent offscreen GPU renderer with in-memory GPUI image presentation
-- leave a reserved seam for a future native embedded preview surface backend
+- consolidate preview rendering behind `PreviewSurface`
+- keep preview delivery independent from file-path-based temp artifacts
+- ship a persistent offscreen GPU renderer with in-memory egui texture presentation
+- leave room for future preview-delivery refactors without changing document rebuild flow
 
 ## Remaining Follow-up Work
 
-- consider moving from the current offscreen-image transport to direct native embedded GPU rendering if/when GPUI exposes a supported cross-platform path
-- decide whether additional custom widgets should migrate to `gpui-component` or remain domain-specific
+- consider moving from the current offscreen-texture path to a more direct embedded preview surface if the render/window stack warrants it later
+- decide whether additional custom widgets should stay local or be replaced as the egui shell evolves
 - add more focused GUI/session tests beyond the current duration/state smoke coverage
 - add keyboard transport shortcuts and richer editor ergonomics
 - replace the current local `.amx` fallback syntax definition with the shared Tree-sitter-backed language metadata now shipped in `tree-sitter-animatix/`
@@ -90,7 +90,7 @@ This file now tracks both what has landed and what remains after the first GUI M
 
 ## Deferred After MVP
 
-- direct native Vello / `wgpu` surface embedding inside GPUI
+- direct native Vello / `wgpu` surface embedding inside the current egui shell
 - syntax highlighting before the shared Tree-sitter grammar exists
 - scene graph inspector
 - export controls

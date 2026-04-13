@@ -10,11 +10,11 @@ This plan is intentionally grounded in the runtime that exists today. It does no
 
 | Area | Status | Notes |
 |---|---|---|
-| Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Circle`, `Rect`, `Line`, `Ellipse` |
+| Core scene primitives | Implemented | `Text`, `Math`, `Svg`, `Image`, `Code`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path` |
 | Reactive evaluation | Implemented | Stateless `always` evaluation and compile-time `for` expansion are the shipped reactive model |
 | Plotting | Implemented | `Graph`, `CartesianPlot`, `PolarPlot`, `tolerance`, `max_depth`, discontinuity handling |
 | Containers | Implemented for Phase 1 layout foundation | `Row`, `Col`, `Grid`, `Stack`, and `Group` are usable; root layout defaults, scene-relative placement, and manual child overrides are implemented |
-| GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides GPUI-based file loading, multiline code editing, save/reload, timeline scrubbing/playback, and cross-platform offscreen live preview |
+| GUI authoring shell | Implemented as an MVP | `crates/animatix-gui` provides an egui-based desktop shell with file loading, multiline code editing, save/reload, timeline scrubbing/playback, and cross-platform offscreen live preview |
 | Actions | Partially implemented | Built-ins currently: `fade-in`, `wipe-in`, `fade-out` |
 | Components | Partially implemented | Imported `pub component` instantiation, parameter binding, nested-label isolation, dotted nested-label assignment targets, and sampled rhs property lookup are runtime-real; custom component actions and richer component scoping still are not |
 
@@ -189,17 +189,99 @@ The next implementation steps should follow these rules:
 ### Phase 3 — Component Runtime
 **Priority:** High, but after primitive/layout stabilization
 
-**Goal:** Turn `pub component ...` from parser-only syntax into a usable runtime feature.
+**Goal:** Turn the current imported-component MVP into a genuinely reusable composition system.
 
-**Must include:**
-- Component instantiation from imported files
-- Parameter binding
-- Local component scope rules
-- Clear behavior for nested labels and exported names
+**Phase intent:**
+- prioritize contract clarity, namespace predictability, and authoring ergonomics over new syntax
+- extend the already-shipped component subset in small vertical slices
+- keep docs, tests, examples, and runtime behavior synchronized for every slice
 
-**Should defer until later within this phase:**
-- Custom component actions
-- `@config` support
+**Non-goals for the near-term Phase 3 work:**
+- no broad architecture rewrite of module expansion or timeline build
+- no speculative object/query system beyond the existing dotted target/read behavior
+- no near-term commitment to custom component actions
+- no new configuration syntax unless the current param-driven model proves clearly insufficient
+
+**Shipped baseline to preserve:**
+- imported `pub component` definitions can already be instantiated from other files
+- instance props bind to declared params by name
+- nested labels are isolated per instance during expansion
+- dotted nested-label assignment targets and rhs property lookup already work against those expanded labels
+
+Phase 3 work should refine this contract, not replace it.
+
+**Recommended execution slices:**
+
+1. **Phase 3A — Lock the current contract**
+   - Document the shipped import, instantiation, parameter-binding, nested-label, and dotted-path behavior as the stable component MVP
+   - Add focused examples that show reusable composition rather than just parser acceptance
+   - Keep module/timeline tests as the baseline evidence for shipped behavior
+   - Explicitly name what remains unsupported so examples and docs do not overpromise
+
+2. **Phase 3B — Sharpen scope and namespace rules**
+    - Define what names remain local to a component instance versus what is intentionally targetable from the outside
+    - Clarify which nested labels are intentionally exposed as stable interaction points so reusable components do not leak every internal label by accident
+    - Make collision behavior and import/export errors predictable and well-tested
+    - Prefer deterministic, teachable rules over more flexible but ambiguous namespace magic
+
+3. **Phase 3C — Make components authoring-friendly**
+   - Improve the docs and demo set around reusable component patterns such as composition, configuration through params, and property forwarding through dotted paths
+   - Add a smaller set of explicit authoring rules that make component instances easier to reason about in the GUI/editor workflow
+   - Prefer a narrow, understandable contract over broader but fuzzy namespace magic
+   - Ensure the same authoring rules are visible in the roadmap, spec, and runnable demos
+
+4. **Phase 3D — Later parser/runtime expansion**
+   - custom component actions
+   - richer namespace/export controls if Phase 3B proves the need
+   - any future configuration syntax such as `@config`, but only if the simpler parameter-driven model proves insufficient
+
+**Execution workstreams:**
+
+**Workstream A — Contract Freeze**
+- align `docs/implementation_plan.md`, `docs/spec.md`, and current component demos around the same shipped subset
+- treat existing module and timeline tests as the baseline contract evidence
+- remove wording that still makes already-shipped component behavior sound parser-only
+
+**Workstream B — Namespace and Reachability Rules**
+- define which labels are instance-local by default
+- define which dotted paths are intentionally reachable from outside the component instance
+- define how duplicate exports, unresolved paths, and ambiguous targeting should fail
+- keep every rule simple enough to express in one test and one short doc example
+
+**Workstream C — Authoring Patterns**
+- document recommended patterns for reusable imported components
+- emphasize parameter-driven configuration over ad hoc hidden coupling
+- include at least one example of property forwarding through dotted rhs lookup and one example of external dotted assignment into nested component labels
+- keep the guidance compatible with the current text-editor-first GUI workflow
+
+**Workstream D — Deferred Expansion Gate**
+- record future-facing ideas without treating them as active commitments
+- require a concrete limitation in the Phase 3A–3C model before expanding syntax or export controls
+- keep deferred items clearly marked as later/parser/runtime work rather than current roadmap promises
+
+**Validation matrix:**
+
+| Area | Required evidence | Likely evidence source |
+|---|---|---|
+| import and visibility contract | only `pub` components cross file boundaries in the documented way | `crates/animatix/tests/module_tests.rs` |
+| per-instance expansion isolation | repeated component instances receive isolated nested labels | `crates/animatix/tests/timeline_tests.rs` |
+| dotted assignment targeting | nested external writes update the intended prefixed runtime tracks | `crates/animatix/tests/timeline_tests.rs` |
+| rhs dotted property lookup | sampled reads from nested component labels remain stable and documented | `crates/animatix/tests/timeline_tests.rs` |
+| namespace and collision behavior | duplicate, unresolved, or ambiguous cases fail predictably | module/timeline regression tests |
+| authoring examples | reusable-component demos stay runnable and documentation-backed | `examples/` + docs |
+
+**Required example and test coverage for this phase:**
+- at least one runnable imported-component demo that goes beyond toy instantiation
+- at least one example showing the same component instantiated multiple times with different parameter bindings
+- at least one example showing dotted property forwarding or copying through nested labels
+- regression tests for every newly clarified namespace or collision rule before the corresponding docs claim the behavior
+- spec and roadmap updates in the same slice as any test-backed contract clarification
+
+**Wording guardrails:**
+- prefer terms such as **shipped**, **current MVP contract**, **next likely slice**, **deferred**, and **future-facing**
+- avoid language that implies a formal “full component API” before the contract is genuinely stable
+- do not describe custom component actions as “next” unless parser/runtime work is actually underway
+- keep any mention of future config syntax conditional on concrete evidence that params are insufficient
 
 **Why this phase is later than primitives/layout:**
 - It is the largest semantic step in the language
@@ -207,14 +289,18 @@ The next implementation steps should follow these rules:
 - It benefits from having the base primitive/layout surface already stable
 
 **Exit criteria:**
-- A minimal imported component example renders successfully
-- The spec can describe component behavior without parser-only disclaimers
+- The repo has at least one clear reusable-component demo that goes beyond a toy instantiation
+- Component namespace and targetability rules are described precisely enough to support docs, tests, and tooling without ambiguity
+- The spec and roadmap describe the shipped component subset without parser-only wording for already-landed behavior
+- Success paths and boundary/error cases both have direct automated evidence in module or timeline tests
+- Phase 3 text remains narrower than any future syntax ambitions and does not leak deferred work into current guarantees
 
 **Current progress note:**
-- A minimal runtime slice is now shipped: imported `pub component` definitions can be instantiated, params bind from instance props/defaults, and nested labels are isolated per instance during expansion.
+- A minimal runtime slice is now shipped: imported `pub component` definitions can be instantiated, params bind from instance props by name, and nested labels are isolated per instance during expansion.
 - Dotted assignment targets now work against nested runtime labels, including those emitted by imported component expansion.
 - Rhs dotted property lookup now resolves sampled actor and scene values through the same runtime label space, enabling composition such as copying `node.at` or `node.radius` into other properties.
-- Custom component actions and richer component namespace rules still remain for later work inside this phase.
+- The next milestone should not be “more syntax.” It should be a tighter, more predictable component contract with better examples, namespace rules, and end-to-end authoring ergonomics.
+- Custom component actions and richer namespace/export controls still remain later work inside this phase.
 
 ---
 
@@ -251,8 +337,8 @@ The next implementation steps should follow these rules:
 - More formal examples/tutorial structure
 
 **Current progress note:**
-- A first GPUI-based GUI MVP now exists in `crates/animatix-gui`.
-- It is intentionally narrow: multiline code editing, save/reload, timeline scrubbing/playback, and offscreen live preview presented inside GPUI.
+- A first egui-based GUI MVP now exists in `crates/animatix-gui`.
+- It is intentionally narrow: multiline code editing, save/reload, timeline scrubbing/playback, and offscreen live preview presented inside the egui app shell.
 - Future work in this phase is about improving that shell, not starting from zero.
 
 ---
@@ -272,7 +358,7 @@ These items should be treated as shipped foundations, not future roadmap bullets
 - Runtime `Image` scene primitive and animated image properties
 - `Row` / `Col` auto-layout
 - Absolute positioning as a working placement mechanism
-- GPUI-based GUI MVP for preview/scrubbing/editing
+- egui-based GUI MVP for preview/scrubbing/editing
 
 ---
 
