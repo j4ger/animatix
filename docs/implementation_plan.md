@@ -268,6 +268,8 @@ Phase 3 work should refine this contract, not replace it.
 | dotted assignment targeting | nested external writes update the intended prefixed runtime tracks | `crates/animatix/tests/timeline_tests.rs` |
 | rhs dotted property lookup | sampled reads from nested component labels remain stable and documented | `crates/animatix/tests/timeline_tests.rs` |
 | namespace and collision behavior | duplicate, unresolved, or ambiguous cases fail predictably | module/timeline regression tests |
+| orphaned track behavior | non-existent nested assignment targets create empty tracks rather than failing | `crates/animatix/tests/timeline_tests.rs` |
+
 | authoring examples | reusable-component demos stay runnable and documentation-backed | `examples/` + docs |
 
 **Required example and test coverage for this phase:**
@@ -296,11 +298,10 @@ Phase 3 work should refine this contract, not replace it.
 - Phase 3 text remains narrower than any future syntax ambitions and does not leak deferred work into current guarantees
 
 **Current progress note:**
-- A minimal runtime slice is now shipped: imported `pub component` definitions can be instantiated, params bind from instance props by name, and nested labels are isolated per instance during expansion.
-- Dotted assignment targets now work against nested runtime labels, including those emitted by imported component expansion.
-- Rhs dotted property lookup now resolves sampled actor and scene values through the same runtime label space, enabling composition such as copying `node.at` or `node.radius` into other properties.
-- The next milestone should not be “more syntax.” It should be a tighter, more predictable component contract with better examples, namespace rules, and end-to-end authoring ergonomics.
-- Custom component actions and richer namespace/export controls still remain later work inside this phase.
+- **Phase 3A complete:** Component MVP contract is documented in `docs/spec.md` with a clear shipped/future-facing split. The misleading `let x = 1` example was replaced with a realistic actor-based component body.
+- **Phase 3B complete:** Namespace rules are documented and tested. Per-instance isolation is verified by `component_instances_have_completely_isolated_namespaces`. Orphaned track behavior for non-existent nested labels is documented and tested.
+- **Phase 3C complete:** Authoring patterns documented in `docs/spec.md` with recommended patterns for parameter-driven configuration, property forwarding via rhs lookup, external dotted assignment, and multiple instances with isolated namespaces.
+- **Phase 3D — Deferred:** Custom component actions (`action ...` syntax) and richer namespace/export controls remain future-facing syntax reserved for when the current param-driven model proves insufficient.
 
 ---
 

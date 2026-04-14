@@ -3,8 +3,8 @@ use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PlacementMode,
-    PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
+    Timeline, evaluate_expr, parse_color, time_to_ms,
 };
 use kurbo::Shape;
 use std::fs;
@@ -474,10 +474,12 @@ left.title_text.color = green
         timeline.tracks["left.badge"].color.evaluate(1000),
         [1.0, 0.0, 0.0, 1.0]
     );
-    assert!(!timeline.tracks["left.title_text"]
-        .text_paths
-        .evaluate(1000)
-        .is_empty());
+    assert!(
+        !timeline.tracks["left.title_text"]
+            .text_paths
+            .evaluate(1000)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -613,6 +615,128 @@ copy: Circle, radius: left.badge.radius, at: left.badge.at, color: left.badge.co
     assert_eq!(
         timeline.tracks["copy"].color.evaluate(0),
         [1.0, 0.0, 0.0, 1.0]
+    );
+}
+
+/// Verifies that assigning to a non-existent nested label creates an orphaned track.
+/// The runtime creates the track entry but it has no actor backing, so vector_paths
+/// and text_paths remain empty while scalar properties may still animate.
+#[test]
+fn orphaned_track_created_for_nonexistent_nested_assignment() {
+    let dir = temp_project_dir("orphaned_track");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+card: MetricCard, title: "Latency"
+
+#0s
+card.nonexistent.color = red
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    // The orphaned track is created (runtime creates track entries for all assignment targets)
+    assert!(
+        timeline.tracks.contains_key("card.nonexistent"),
+        "orphaned track should be created for non-existent nested label"
+    );
+    // But it has no backing actor, so vector paths remain empty
+    let track = timeline.tracks.get("card.nonexistent").unwrap();
+    assert!(
+        track.vector_paths.evaluate(0).is_empty(),
+        "orphaned track should have empty vector paths"
+    );
+}
+
+/// Verifies that two instances of the same component get completely isolated namespaces.
+/// Changes to one instance's nested labels do not affect the other instance.
+#[test]
+fn component_instances_have_completely_isolated_namespaces() {
+    let dir = temp_project_dir("isolated_namespaces");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 12, color: gold
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+first: MetricCard, title: "Latency"
+second: MetricCard, title: "Throughput"
+
+#0s
+first.badge.color = red
+second.badge.color = blue
+
+#1s
+first.badge.radius = 30
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    // Both instances have their own isolated nested labels
+    assert!(
+        timeline.tracks.contains_key("first.badge"),
+        "first.badge should exist"
+    );
+    assert!(
+        timeline.tracks.contains_key("second.badge"),
+        "second.badge should exist"
+    );
+
+    // Isolated color assignments
+    assert_eq!(
+        timeline.tracks["first.badge"].color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0],
+        "first.badge.color should be red"
+    );
+    assert_eq!(
+        timeline.tracks["second.badge"].color.evaluate(0),
+        [0.0, 0.0, 1.0, 1.0],
+        "second.badge.color should be blue"
+    );
+
+    // Isolated radius change (only first is affected at #1s)
+    assert_eq!(
+        timeline.tracks["first.badge"].size.evaluate(1000),
+        [30.0, 30.0],
+        "first.badge.radius should be 30 at #1s"
+    );
+    // second.badge.radius should remain unchanged (12)
+    assert_eq!(
+        timeline.tracks["second.badge"].size.evaluate(1000),
+        [12.0, 12.0],
+        "second.badge.radius should still be 12 at #1s"
     );
 }
 

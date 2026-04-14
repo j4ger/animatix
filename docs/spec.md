@@ -413,9 +413,13 @@ Repeated runtime behavior should be expressed with explicit time math inside `al
 ### Definition
 The parser accepts `pub component ...` definitions, and the runtime now expands imported public components into ordinary scene statements before timeline build.
 
+Component bodies may contain actor declarations, assignments, and control flow statements that get inlined into each instance at expansion time.
+
 ```animatix
-pub component Button(text: "Click") {
-  let x = 1
+pub component MetricCard(title: "Metric") {
+    frame: Rect, size: (240, 120), color: blue
+    title_text: Text { text: title, at: (0, -20) }
+    badge: Circle, radius: 12, color: gold
 }
 ```
 
@@ -428,17 +432,78 @@ import "button.actor.amx"
 btn: Button, text: "Submit"
 ```
 
-Current MVP behavior:
-- imported components must be declared with `pub`
-- instance props bind to component params by name
-- nested labels are instance-prefixed to avoid collisions across repeated uses
-- nested labels can be targeted with dotted assignment paths such as `card.badge.color = red`
-- nested labels can also be queried on the rhs through sampled property paths such as `copy.at = card.badge.at`
-- custom component actions remain future-facing and are not currently accepted by the parser
+**Shipped MVP behavior:**
+- Imported components must be declared `pub` to be visible across files
+- Instance props bind to component params by name
+- Nested labels within a component are instance-prefixed when expanded (e.g., `card.badge.color` inside a `MetricCard` definition becomes `card.badge.color` in the scene after expansion)
+- Repeated component instances each get isolated nested labels, preventing collisions
+- External dotted assignment targets work against nested labels: `left.badge.color = red` updates the prefixed `left.badge` track
+- Rhs dotted property lookup samples from nested labels: `echo.at = right.badge.at` reads from the expanded `right.badge.at`
 
-**Custom Actions**  
-Custom component actions also remain planned syntax. The current AST still reserves space for them, but `parser.rs` currently rejects `action ...` forms.
+**What remains future-facing:**
+- Custom component actions (the `action ...` syntax is not yet accepted by the parser)
+- Richer namespace/export controls beyond simple `pub` visibility
+- Parameterized component exports or component-level configuration syntax
+
+**Phase 3C — Authoring Patterns:**
+
+For reusable imported components, follow these recommended patterns:
+
+1. **Parameter-driven configuration** — Use component parameters to configure appearance rather than accessing internals:
 ```animatix
+// Preferred: configure via params
+card: MetricCard, title: "Latency"
+
+// Avoid: reaching into nested labels for basic config
+```
+
+2. **Property forwarding via rhs lookup** — Read nested properties using dotted paths on the right-hand side:
+```animatix
+// Copy a nested property from one component to another
+echo: Circle, radius: right.badge.radius, color: right.badge.color, at: right.badge.at
+```
+
+3. **External dotted assignment** — Update nested labels from outside using multi-segment paths:
+```animatix
+// Update a nested label's property in an existing instance
+left.badge.color = red
+left.frame.color = (0.12, 0.28, 0.58, 1.0)
+```
+
+4. **Multiple instances with isolated namespaces** — Each instance gets independent nested labels:
+```animatix
+first: MetricCard, title: "Latency"
+second: MetricCard, title: "Throughput"
+// first.badge and second.badge are completely independent
+```
+
+**Namespace and Reachability Rules:**
+
+The following rules define what is and is not accessible from outside a component instance:
+
+| Rule | Behavior |
+|------|----------|
+| Instance label | Always reachable: `card`, `left`, `right` |
+| Nested actor label | Always reachable when the nested actor exists in the component body: `card.badge`, `left.frame` |
+| Non-existent nested label | Creates an orphaned track entry with empty vector/text paths (no runtime error) |
+| Property on any track | Assignable without pre-declaration; creates the property track if it does not exist |
+
+**Reachability Example:**
+```animatix
+pub component MetricCard(title: "Metric") {
+    frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 12, color: gold
+}
+
+card: MetricCard, title: "Latency"
+
+#0s
+card.badge.color = red      # OK: badge exists in component
+card.nonexistent.color = blue  # Creates orphaned card.nonexistent track
+```
+
+```animatix
+# NOT YET SUPPORTED — custom component actions
 action collapse(param1: Number) { ... }
 collapse btn1
 ```
