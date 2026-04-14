@@ -345,6 +345,24 @@ Text and math content are rendered through text-path keyframes; shape actors are
 
 Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.
 
+## 4.1 Bracket Modifier Status
+
+Square brackets are parsed through one generic modifier shape, but the current runtime does **not** treat every declaration surface equally.
+
+**Runtime-real today:**
+- property assignments support duration shorthand plus named `ease`
+- `Text`, `Math`, and `Code` declarations support duration shorthand plus named `ease`
+- built-in actions (`fade-in`, `wipe-in`, `fade-out`) support duration shorthand plus named `ease`
+
+**Partial today:**
+- actor re-declarations use the same bracket syntax, but the runtime currently honors easing more reliably than duration on that path
+
+**Planned / not yet runtime-real:**
+- `delay`
+- morph-specific bracket keys such as `strategy`, `path_arc`, and `stretch`
+
+The intended long-term design is a typed declarative modifier bag with one universal duration shorthand, a small shared timing vocabulary, and host-specific keys only where a statement kind explicitly supports them.
+
 ---
 
 # 5. Morphing Status

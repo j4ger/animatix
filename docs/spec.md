@@ -66,7 +66,7 @@ For Tree-sitter work, this means the grammar should cover only parser-accepted `
   *Example:* `#0s`, `#2.5s`, `#+1s`
 - **Curly Brackets (`{ }`)**: Used for container children, arrays, and block scopes.  
   *Example:* `Row { Item1, Item2 }`
-- **Square Brackets (`[ ]`)**: Used for action modifiers (duration, easing).  
+- **Square Brackets (`[ ]`)**: Used for statement modifiers. The parser accepts a generic bracketed modifier list, while runtime support varies by statement kind.  
   *Example:* `[2s, ease: bounce]`
 - **Equals (`=`)**: Used for property assignment (instant change or animated) or variable binding.
   *Example:* `btn.color = red` or `morpher.size = (100, 100) [2s]`
@@ -97,6 +97,9 @@ let name = expression
 
 **Re-Declaration (Morph Trigger)**  
 If an existing label is declared again at a later keyframe, the engine morphs the existing actor to the new definition.
+
+> **Current runtime note:** Actor re-declaration is shipped, but bracket modifiers on actor re-declarations are only partially honored today. `ease: ...` is applied; bracketed duration on the actor declaration path is not yet handled consistently at runtime.
+
 ```animatix
 #0s
 btn: Button, text: "OK"
@@ -158,19 +161,48 @@ fade-in btn [1s]
 fade-out btn [1s]
 ```
 
-**Modifiers**  
-Modifiers are enclosed in square brackets immediately following the action.
+**Bracket Modifier Model**  
+Square brackets use one parser-level shape everywhere they appear: a comma-separated list of positional and/or named modifiers.
+
 ```animatix
-[duration]
-[ease: function]
-[delay: time]
+[2s]
+[2s, ease: ease-in-out]
+[ease: bounce]
 ```
 
-**Common Modifiers**
+The intended design is a **typed declarative modifier bag** with:
+
+1. **One universal shorthand** — the first bare time literal means duration.
+2. **A small shared timing vocabulary** — today that is effectively `duration` (via shorthand) and `ease`.
+3. **Host-specific extension keys** — only when a statement kind explicitly supports them.
+
+The parser accepts generic modifier syntax broadly, but the shipped runtime is narrower:
+
+| Surface | Current runtime support |
+|---|---|
+| Built-in actions | positional duration + named `ease` |
+| Property assignments | positional duration + named `ease` |
+| `Text`, `Math`, `Code` declarations | positional duration + named `ease` |
+| Actor re-declarations / morph-triggering declarations | named `ease`; duration support is still incomplete |
+| Morph control keys such as `strategy`, `path_arc`, `stretch` | planned only |
+| `delay` | planned only |
+
+**Current shipped modifier examples**
 ```animatix
-[2s]                      // Duration
-[ease: ease-in-out]       // Easing curve
+[2s]                      // Duration shorthand
+[2s, ease: ease-in-out]  // Duration + easing
+[ease: bounce]           // Easing without duration
 ```
+
+**Planned / deferred modifier examples**
+```animatix
+[delay: 120ms]
+[strategy: match]
+[path_arc: 1.57]
+[stretch: false]
+```
+
+These planned keys should not be treated as current runtime guarantees unless the status matrix and runnable examples say otherwise.
 
 **Built-in Actions Registry**  
 The runtime currently registers three built-in actions:
@@ -193,8 +225,11 @@ circle: Circle, at: (0, 0)
 circle: Circle, at: (100, 100) [2s]
 ```
 
-**Morph Strategies**  
-The runtime morphs vector path data when a supported actor is re-declared, but advanced strategy modifiers are not wired into the runtime yet. The following syntax is still planned rather than implemented:
+**Current Morph Modifier Status**  
+The runtime morphs vector path data when a supported actor is re-declared. Property assignments can already use bracketed timing modifiers such as duration shorthand and `ease`. Actor re-declarations, however, still have a narrower runtime path today: easing is honored, but duration handling on that declaration path is not yet fully aligned with the rest of the language.
+
+**Planned Morph Strategy Modifiers**  
+Advanced morph-specific keys are still planned rather than implemented:
 ```animatix
 [strategy: auto]          // Engine decides (default)
 [strategy: match]         // Force point alignment
@@ -209,6 +244,8 @@ Use zero duration or property assignment for instant updates.
 btn: Button, text: "New" [0s]
 btn.text = "New"
 ```
+
+For the current runtime, prefer property assignments when you need reliable bracketed timing behavior today.
 
 **Property-Level State Tracking**
 Assignments can now take modifiers, allowing individual properties to be animated independently of the entire actor morph.

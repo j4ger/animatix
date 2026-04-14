@@ -1,5 +1,9 @@
 # Vector Morphing Design for Animatix
 
+> **Status: planned / design-only document**
+>
+> This file describes future-facing morph APIs and strategy controls, not the shipped DSL contract. For current runtime behavior, use `docs/spec.md` and `docs/primitives.md` as the source of truth.
+
 ## 1. Syntax for Morphing
 
 In the Animatix language, morphing should be expressed as a high-level animation action rather than a simple property assignment. While property animations (e.g., `scene.item.paths = scene.item2.paths`) are intuitive for scalars and vectors, path morphing is structurally complex and often requires additional parameters (like mapping strategies or alignment hints).

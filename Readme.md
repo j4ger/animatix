@@ -65,6 +65,8 @@ If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphic
 
 For the exact implemented language surface, see [`docs/spec.md`](docs/spec.md) and [`docs/primitives.md`](docs/primitives.md).
 
+In particular, square-bracket modifiers use a generic parser surface, but the shipped runtime currently supports only a smaller statement-specific subset. The spec calls out which modifier behaviors are runtime-real, partial, or still planned.
+
 ## Examples
 
 Runnable demos live in [`examples/`](examples/):
