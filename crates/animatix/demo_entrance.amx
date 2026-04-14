@@ -1,8 +1,0 @@
-#0s
-c1: Circle, radius: 100, at: (400, 300), color: red, stroke_width: 10, stroke_color: white, stroke_progress: 0.0, fill_opacity: 0.0
-
-#+0s
-c1.stroke_progress = 1.0 [2s, ease: ease-in-out]
-
-#+2s
-c1.fill_opacity = 1.0 [2s, ease: ease-in]
