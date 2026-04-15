@@ -13,6 +13,7 @@ use actions::process_action;
 pub use env::{load_standard_library, Environment, EvalError, Value};
 pub use image::load_image;
 pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
+pub use morph::{MorphOptions, MorphStrategy};
 pub use svg::parse_svg;
 pub use track::{
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
@@ -27,7 +28,9 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ParsedTimingModifiers {
     pub duration_ms: f64,
+    pub delay_ms: f64,
     pub easing: Easing,
+    pub morph_options: MorphOptions,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +53,16 @@ impl ModifierHost {
             ModifierHost::Code => "code declaration",
             ModifierHost::ActorDeclaration => "actor declaration",
         }
+    }
+
+    fn supports_morph_modifiers(self) -> bool {
+        matches!(
+            self,
+            ModifierHost::Text
+                | ModifierHost::Math
+                | ModifierHost::Code
+                | ModifierHost::ActorDeclaration
+        )
     }
 }
 
@@ -74,6 +87,27 @@ fn parse_duration_literal(raw: &str) -> Option<f64> {
     }
 }
 
+fn push_conflicting_modifier_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    logical_name: &str,
+    host: ModifierHost,
+    subject: Option<&str>,
+) {
+    push_modifier_diagnostic(
+        diagnostics,
+        DiagnosticCode::ConflictingModifierKey,
+        format!(
+            "Conflicting '{logical_name}' modifiers on {}; using the last value provided.",
+            host.display_name()
+        ),
+        subject,
+    );
+}
+
+fn has_non_default_morph_options(options: MorphOptions) -> bool {
+    options != MorphOptions::default()
+}
+
 fn push_modifier_diagnostic(
     diagnostics: &mut Vec<Diagnostic>,
     code: DiagnosticCode,
@@ -95,15 +129,68 @@ pub(crate) fn parse_timing_modifiers(
 ) -> ParsedTimingModifiers {
     let mut parsed = ParsedTimingModifiers {
         duration_ms: 0.0,
+        delay_ms: 0.0,
         easing: Easing::Linear,
+        morph_options: MorphOptions::default(),
     };
+    let mut saw_duration = false;
+    let mut saw_delay = false;
+    let mut saw_ease = false;
+    let mut saw_strategy = false;
+    let mut saw_path_arc = false;
+    let mut saw_stretch = false;
 
     for modifier in modifiers {
         match modifier.name.as_deref() {
+            Some("delay") => match &modifier.value {
+                Expr::Ident(raw) => {
+                    if let Some(delay_ms) = parse_duration_literal(raw) {
+                        if saw_delay {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "delay",
+                                host,
+                                subject,
+                            );
+                        }
+                        parsed.delay_ms = delay_ms;
+                        saw_delay = true;
+                    } else {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported delay value '{raw}' on {}; expected a time literal such as 120ms or 1s.",
+                                host.display_name()
+                            ),
+                            subject,
+                        );
+                    }
+                }
+                other => push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported delay modifier value {:?} on {}; expected a time literal such as 120ms or 1s.",
+                        other,
+                        host.display_name()
+                    ),
+                    subject,
+                ),
+            },
             Some("ease") => match &modifier.value {
                 Expr::Ident(raw) => {
                     if let Some(easing) = parse_easing_name(raw) {
+                        if saw_ease {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "ease",
+                                host,
+                                subject,
+                            );
+                        }
                         parsed.easing = easing;
+                        saw_ease = true;
                     } else {
                         push_modifier_diagnostic(
                             diagnostics,
@@ -127,11 +214,165 @@ pub(crate) fn parse_timing_modifiers(
                     subject,
                 ),
             },
+            Some("strategy") => {
+                if !host.supports_morph_modifiers() {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::UnsupportedModifierKey,
+                        format!(
+                            "Unsupported modifier key 'strategy' on {}; morph-only keys are limited to path-morphing declarations.",
+                            host.display_name()
+                        ),
+                        subject,
+                    );
+                    continue;
+                }
+
+                match &modifier.value {
+                    Expr::Ident(raw) => {
+                        if saw_strategy {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "strategy",
+                                host,
+                                subject,
+                            );
+                        }
+                        match raw.as_str() {
+                            "auto" => parsed.morph_options.strategy = MorphStrategy::Auto,
+                            "match" => parsed.morph_options.strategy = MorphStrategy::Match,
+                            "fade" => push_modifier_diagnostic(
+                                diagnostics,
+                                DiagnosticCode::InvalidModifierValue,
+                                format!(
+                                    "Unsupported strategy value 'fade' on {}; cross-fade remains deferred until the runtime has a richer transition/compositing model.",
+                                    host.display_name()
+                                ),
+                                subject,
+                            ),
+                            other => push_modifier_diagnostic(
+                                diagnostics,
+                                DiagnosticCode::InvalidModifierValue,
+                                format!(
+                                    "Unsupported strategy value '{other}' on {}; supported values are auto and match.",
+                                    host.display_name()
+                                ),
+                                subject,
+                            ),
+                        }
+                        saw_strategy = true;
+                    }
+                    other => push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported strategy modifier value {:?} on {}; expected an identifier such as auto or match.",
+                            other,
+                            host.display_name()
+                        ),
+                        subject,
+                    ),
+                }
+            }
+            Some("path_arc") => {
+                if !host.supports_morph_modifiers() {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::UnsupportedModifierKey,
+                        format!(
+                            "Unsupported modifier key 'path_arc' on {}; morph-only keys are limited to path-morphing declarations.",
+                            host.display_name()
+                        ),
+                        subject,
+                    );
+                    continue;
+                }
+
+                let parsed_arc = match &modifier.value {
+                    Expr::Num(value) => Some(*value),
+                    Expr::Ident(raw) => raw.parse::<f64>().ok(),
+                    _ => None,
+                };
+
+                if let Some(path_arc) = parsed_arc {
+                    if saw_path_arc {
+                        push_conflicting_modifier_diagnostic(
+                            diagnostics,
+                            "path_arc",
+                            host,
+                            subject,
+                        );
+                    }
+                    parsed.morph_options.path_arc = path_arc;
+                    saw_path_arc = true;
+                } else {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported path_arc value on {}; expected a numeric radians hint.",
+                            host.display_name()
+                        ),
+                        subject,
+                    );
+                }
+            }
+            Some("stretch") => {
+                if !host.supports_morph_modifiers() {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::UnsupportedModifierKey,
+                        format!(
+                            "Unsupported modifier key 'stretch' on {}; morph-only keys are limited to path-morphing declarations.",
+                            host.display_name()
+                        ),
+                        subject,
+                    );
+                    continue;
+                }
+
+                match &modifier.value {
+                    Expr::Bool(value) => {
+                        if saw_stretch {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "stretch",
+                                host,
+                                subject,
+                            );
+                        }
+                        parsed.morph_options.stretch = *value;
+                        saw_stretch = true;
+                    }
+                    Expr::Ident(raw) if raw == "true" || raw == "false" => {
+                        if saw_stretch {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "stretch",
+                                host,
+                                subject,
+                            );
+                        }
+                        parsed.morph_options.stretch = raw == "true";
+                        saw_stretch = true;
+                    }
+                    other => push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported stretch modifier value {:?} on {}; expected true or false.",
+                            other,
+                            host.display_name()
+                        ),
+                        subject,
+                    ),
+                }
+            }
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
                 format!(
-                    "Unsupported modifier key '{name}' on {}; this host currently supports only positional duration shorthand and named ease.",
+                    "Unsupported modifier key '{name}' on {}; this host currently supports positional duration shorthand, named delay, and named ease.",
                     host.display_name()
                 ),
                 subject,
@@ -139,7 +380,16 @@ pub(crate) fn parse_timing_modifiers(
             None => match &modifier.value {
                 Expr::Ident(raw) => {
                     if let Some(duration_ms) = parse_duration_literal(raw) {
+                        if saw_duration {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "duration",
+                                host,
+                                subject,
+                            );
+                        }
                         parsed.duration_ms = duration_ms;
+                        saw_duration = true;
                     } else if parse_easing_name(raw).is_some() {
                         push_modifier_diagnostic(
                             diagnostics,
@@ -1419,6 +1669,32 @@ impl Timeline {
                         .tracks
                         .entry(label_str.clone())
                         .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        delay_ms,
+                        easing,
+                        morph_options,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Text,
+                        Some(&label_str),
+                        diagnostics,
+                    );
+                    let t_start_ms = (time_ms + delay_ms) as u64;
+                    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+                    let supports_morph_options =
+                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+
+                    if has_non_default_morph_options(morph_options) && !supports_morph_options {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Morph-specific modifiers on text declaration require a re-declaration with non-zero duration; ignoring them for now."
+                            ),
+                            Some(&label_str),
+                        );
+                    }
 
                     let mut text_content = String::new();
                     let mut font_size = 48.0;
@@ -1447,8 +1723,10 @@ impl Timeline {
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                let t_ms = time_ms as u64;
-                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                                if delay_ms > 0.0 && duration_ms == 0.0 {
+                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                                }
+                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
                             "at" => {
                                 at_expr = Some(prop.value.clone());
@@ -1465,31 +1743,29 @@ impl Timeline {
                         offset_expr.as_ref(),
                         &eval_env,
                     ) {
-                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_discrete_position_state_before(track, t_start_ms);
+                            preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                        }
+                        apply_explicit_position_binding(track, t_start_ms, binding, position);
                     }
 
                     let frame =
                         crate::renderer::text::compile_text(&text_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let ParsedTimingModifiers {
-                        duration_ms,
-                        easing,
-                    } = parse_timing_modifiers(
-                        modifiers,
-                        ModifierHost::Text,
-                        Some(&label_str),
-                        diagnostics,
-                    );
-
-                    let t_start_ms = time_ms as u64;
-                    let t_end_ms = (time_ms + duration_ms) as u64;
-
                     if duration_ms > 0.0 {
-                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    } else if delay_ms > 0.0 {
+                        preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                    }
+                    if supports_morph_options {
+                        track
+                            .morph_options
+                            .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
                 }
@@ -1505,6 +1781,32 @@ impl Timeline {
                         .tracks
                         .entry(label_str.clone())
                         .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        delay_ms,
+                        easing,
+                        morph_options,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Math,
+                        Some(&label_str),
+                        diagnostics,
+                    );
+                    let t_start_ms = (time_ms + delay_ms) as u64;
+                    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+                    let supports_morph_options =
+                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+
+                    if has_non_default_morph_options(morph_options) && !supports_morph_options {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Morph-specific modifiers on math declaration require a re-declaration with non-zero duration; ignoring them for now."
+                            ),
+                            Some(&label_str),
+                        );
+                    }
 
                     let mut latex_content = String::new();
                     let mut font_size = 48.0;
@@ -1533,8 +1835,10 @@ impl Timeline {
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                let t_ms = time_ms as u64;
-                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                                if delay_ms > 0.0 && duration_ms == 0.0 {
+                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                                }
+                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
                             "at" => {
                                 at_expr = Some(prop.value.clone());
@@ -1551,31 +1855,29 @@ impl Timeline {
                         offset_expr.as_ref(),
                         &eval_env,
                     ) {
-                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_discrete_position_state_before(track, t_start_ms);
+                            preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                        }
+                        apply_explicit_position_binding(track, t_start_ms, binding, position);
                     }
 
                     let frame =
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let ParsedTimingModifiers {
-                        duration_ms,
-                        easing,
-                    } = parse_timing_modifiers(
-                        modifiers,
-                        ModifierHost::Math,
-                        Some(&label_str),
-                        diagnostics,
-                    );
-
-                    let t_start_ms = time_ms as u64;
-                    let t_end_ms = (time_ms + duration_ms) as u64;
-
                     if duration_ms > 0.0 {
-                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    } else if delay_ms > 0.0 {
+                        preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                    }
+                    if supports_morph_options {
+                        track
+                            .morph_options
+                            .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
                 }
@@ -1591,6 +1893,32 @@ impl Timeline {
                         .tracks
                         .entry(label_str.clone())
                         .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        delay_ms,
+                        easing,
+                        morph_options,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Code,
+                        Some(&label_str),
+                        diagnostics,
+                    );
+                    let t_start_ms = (time_ms + delay_ms) as u64;
+                    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+                    let supports_morph_options =
+                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+
+                    if has_non_default_morph_options(morph_options) && !supports_morph_options {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Morph-specific modifiers on code declaration require a re-declaration with non-zero duration; ignoring them for now."
+                            ),
+                            Some(&label_str),
+                        );
+                    }
 
                     let mut code_content = String::new();
                     let mut font_size = 24.0;
@@ -1619,8 +1947,10 @@ impl Timeline {
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                let t_ms = time_ms as u64;
-                                track.color.add_keyframe(t_ms, c, Easing::Linear);
+                                if delay_ms > 0.0 && duration_ms == 0.0 {
+                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                                }
+                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
                             "at" => {
                                 at_expr = Some(prop.value.clone());
@@ -1637,31 +1967,29 @@ impl Timeline {
                         offset_expr.as_ref(),
                         &eval_env,
                     ) {
-                        apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_discrete_position_state_before(track, t_start_ms);
+                            preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                        }
+                        apply_explicit_position_binding(track, t_start_ms, binding, position);
                     }
 
                     let frame =
                         crate::renderer::text::compile_code(&code_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let ParsedTimingModifiers {
-                        duration_ms,
-                        easing,
-                    } = parse_timing_modifiers(
-                        modifiers,
-                        ModifierHost::Code,
-                        Some(&label_str),
-                        diagnostics,
-                    );
-
-                    let t_start_ms = time_ms as u64;
-                    let t_end_ms = (time_ms + duration_ms) as u64;
-
                     if duration_ms > 0.0 {
-                        let start_val = track.text_paths.evaluate(t_start_ms);
+                        let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    } else if delay_ms > 0.0 {
+                        preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                    }
+                    if supports_morph_options {
+                        track
+                            .morph_options
+                            .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
                 }
@@ -1853,15 +2181,28 @@ impl Timeline {
 
                     let ParsedTimingModifiers {
                         duration_ms,
+                        delay_ms,
                         easing,
+                        morph_options,
                     } = parse_timing_modifiers(
                         modifiers,
                         ModifierHost::ActorDeclaration,
                         Some(label),
                         diagnostics,
                     );
-                    let t_start_ms = time_ms as u64;
-                    let t_end_ms = (time_ms + duration_ms) as u64;
+                    let t_start_ms = (time_ms + delay_ms) as u64;
+                    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+                    let supports_morph_options =
+                        !track.vector_paths.keyframes.is_empty() && duration_ms > 0.0;
+
+                    if has_non_default_morph_options(morph_options) && !supports_morph_options {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            "Morph-specific modifiers on actor declarations require a path-morphing re-declaration with non-zero duration; ignoring them for now.".to_string(),
+                            Some(label),
+                        );
+                    }
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -1995,6 +2336,7 @@ impl Timeline {
                             mark_track_manual_position(track, t_start_ms);
                         }
                     } else if is_layout_container(ty) && parent_label.is_none() {
+                        preserve_discrete_position_state_before(track, t_start_ms);
                         set_track_position_binding(
                             track,
                             t_start_ms,
@@ -2207,7 +2549,7 @@ impl Timeline {
                     }
 
                     if duration_ms > 0.0 {
-                        let start_vector_paths = track.vector_paths.evaluate(t_start_ms);
+                        let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
                         let start_position = track.position.evaluate(t_start_ms);
                         let start_size = track.size.evaluate(t_start_ms);
                         let start_line_from = track.line_from.evaluate(t_start_ms);
@@ -2270,6 +2612,25 @@ impl Timeline {
                             start_fill_opacity,
                             Easing::Linear,
                         );
+                    } else if delay_ms > 0.0 {
+                        preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.shape_type, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.opacity, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.stroke_width, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.stroke_color, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.stroke_progress, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.fill_opacity, t_start_ms);
+                    }
+                    if supports_morph_options {
+                        track
+                            .morph_options
+                            .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
 
                     track
@@ -2300,7 +2661,7 @@ impl Timeline {
                         self.apply_container_layout(
                             label,
                             ty,
-                            time_ms,
+                            t_start_ms as f64,
                             gap,
                             align.as_deref(),
                             cols,
@@ -2317,7 +2678,9 @@ impl Timeline {
                     let assignment_subject = format!("{}.{}", target.join("."), property);
                     let ParsedTimingModifiers {
                         duration_ms,
+                        delay_ms,
                         easing,
+                        ..
                     } = parse_timing_modifiers(
                         modifiers,
                         ModifierHost::Assignment,
@@ -2325,8 +2688,9 @@ impl Timeline {
                         diagnostics,
                     );
 
-                    let t_start_ms = time_ms as u64;
-                    let t_end_ms = (time_ms + duration_ms) as u64;
+                    let t_start_ms = (time_ms + delay_ms) as u64;
+                    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+                    let instant_delayed = delay_ms > 0.0 && duration_ms == 0.0;
 
                     if target.len() == 1 && target[0] == "scene" {
                         if property == "background_color" {
@@ -2337,6 +2701,11 @@ impl Timeline {
                                     t_start_ms,
                                     start_val,
                                     Easing::Linear,
+                                );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(
+                                    &mut self.background_color,
+                                    t_start_ms,
                                 );
                             }
                             self.background_color
@@ -2360,6 +2729,8 @@ impl Timeline {
                                 track
                                     .color
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.color, t_start_ms);
                             }
                             track.color.add_keyframe(t_end_ms, target_color, easing);
                         }
@@ -2374,6 +2745,8 @@ impl Timeline {
                                     start_val,
                                     Easing::Linear,
                                 );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.stroke_width, t_start_ms);
                             }
                             track
                                 .stroke_width
@@ -2388,6 +2761,8 @@ impl Timeline {
                                     start_val,
                                     Easing::Linear,
                                 );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.stroke_color, t_start_ms);
                             }
                             track
                                 .stroke_color
@@ -2403,6 +2778,11 @@ impl Timeline {
                                     t_start_ms,
                                     start_val,
                                     Easing::Linear,
+                                );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(
+                                    &mut track.stroke_progress,
+                                    t_start_ms,
                                 );
                             }
                             track
@@ -2420,6 +2800,8 @@ impl Timeline {
                                     start_val,
                                     Easing::Linear,
                                 );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.fill_opacity, t_start_ms);
                             }
                             track
                                 .fill_opacity
@@ -2438,6 +2820,8 @@ impl Timeline {
                                 track
                                     .size
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
@@ -2456,6 +2840,11 @@ impl Timeline {
                                             start_val,
                                             Easing::Linear,
                                         );
+                                    } else if instant_delayed {
+                                        preserve_instant_delayed_value(
+                                            &mut track.image,
+                                            t_start_ms,
+                                        );
                                     }
                                     track
                                         .image
@@ -2470,6 +2859,9 @@ impl Timeline {
                                 resolve_position_binding(Some(value), None, None, &eval_env)
                             {
                                 preserve_discrete_position_state_before(track, t_start_ms);
+                                if instant_delayed {
+                                    preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                                }
                                 mark_track_manual_position(track, t_start_ms);
                                 set_track_position_binding(track, t_start_ms, binding);
                                 position.unwrap_or_else(|| track.position.last_value())
@@ -2481,6 +2873,8 @@ impl Timeline {
                                 track
                                     .position
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.position, t_start_ms);
                             }
                             track.position.add_keyframe(t_end_ms, target_pos, easing);
                         }
@@ -2494,6 +2888,8 @@ impl Timeline {
                                 track
                                     .size
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
@@ -2508,6 +2904,8 @@ impl Timeline {
                                 track
                                     .size
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
@@ -2522,6 +2920,8 @@ impl Timeline {
                                 track
                                     .size
                                     .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
@@ -2538,6 +2938,8 @@ impl Timeline {
                                     start_val,
                                     Easing::Linear,
                                 );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
                             }
                             track
                                 .arc_angles
@@ -2556,6 +2958,8 @@ impl Timeline {
                                     start_val,
                                     Easing::Linear,
                                 );
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
                             }
                             track
                                 .arc_angles
@@ -2570,6 +2974,11 @@ impl Timeline {
                                         start_val,
                                         Easing::Linear,
                                     );
+                                } else if instant_delayed {
+                                    preserve_instant_delayed_value(
+                                        &mut track.line_from,
+                                        t_start_ms,
+                                    );
                                 }
                                 track.line_from.add_keyframe(t_end_ms, target_from, easing);
                             }
@@ -2583,6 +2992,8 @@ impl Timeline {
                                         start_val,
                                         Easing::Linear,
                                     );
+                                } else if instant_delayed {
+                                    preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
                                 }
                                 track.line_to.add_keyframe(t_end_ms, target_to, easing);
                             }
@@ -2634,10 +3045,12 @@ impl Timeline {
                         };
 
                         if duration_ms > 0.0 {
-                            let start_val = track.vector_paths.evaluate(t_start_ms);
+                            let start_val = track.evaluate_vector_paths(t_start_ms);
                             track
                                 .vector_paths
                                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                        } else if instant_delayed {
+                            preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
                         }
                         track
                             .vector_paths
@@ -2699,9 +3112,9 @@ impl Timeline {
             let mut position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
             let mut opacity = track.opacity.evaluate(time_ms);
-            let text_paths = track.text_paths.evaluate(time_ms);
+            let text_paths = track.evaluate_text_paths(time_ms);
             let shape_type = track.shape_type.evaluate(time_ms);
-            let mut vector_paths = track.vector_paths.evaluate(time_ms);
+            let mut vector_paths = track.evaluate_vector_paths(time_ms);
             let mut half_size = track.size.evaluate(time_ms);
             let mut line_from = track.line_from.evaluate(time_ms);
             let mut line_to = track.line_to.evaluate(time_ms);
@@ -3000,6 +3413,19 @@ fn preserve_discrete_position_state_before(track: &mut AnimationTrack, time_ms: 
             .position_binding
             .add_keyframe(previous_time, previous_binding, Easing::Linear);
     }
+}
+
+fn preserve_instant_delayed_value<T: Interpolate + Clone>(
+    track: &mut PropertyTrack<T>,
+    t_start_ms: u64,
+) {
+    if t_start_ms == 0 || track.keyframes.contains_key(&t_start_ms.saturating_sub(1)) {
+        return;
+    }
+
+    let previous_time = t_start_ms.saturating_sub(1);
+    let previous_value = track.evaluate(previous_time);
+    track.add_keyframe(previous_time, previous_value, Easing::Linear);
 }
 
 fn set_track_position_binding(track: &mut AnimationTrack, time_ms: u64, binding: PositionBinding) {
