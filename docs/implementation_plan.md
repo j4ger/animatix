@@ -1,206 +1,267 @@
 # Animatix Implementation Plan
 
-This plan is grounded in the runtime that exists today. It removes already-shipped foundation work from the active roadmap and focuses on the gaps between the current implementation and the intended language/design surface.
+This plan starts from the runtime that exists today and reorders the roadmap around **user experience impact first**, then **architectural dependency order**. It is intentionally grounded in the shipped runtime and the current spec so the roadmap does not ask us to re-implement work that already landed.
 
 ---
 
-## 1. Current Shipped Baseline
+## 1. Shipped Baseline
 
-The following should be treated as already landed foundations, not future roadmap bullets:
+The following are already part of the current baseline and should not be treated as active roadmap items:
 
 - Core scene primitives: `Text`, `Math`, `Code`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`
-- Plotting: `Graph`, `CartesianPlot`, `PolarPlot`
+- Plotting: `Graph`, `CartesianPlot`, and `PolarPlot`
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
+- Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
+- Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
 
-The roadmap below starts from that baseline.
+The roadmap below begins after that baseline.
 
 ---
 
 ## 2. Planning Principles
 
-1. **Close parser/runtime mismatch before widening syntax.**
-2. **Prefer vertical slices.** A roadmap item is not done until runtime, docs, examples, and tests agree.
-3. **Keep current guarantees smaller than parser acceptance.** The spec should never imply that generic parser acceptance means runtime support.
-4. **Preserve random-access semantics.** New modifier and animation features must remain compatible with preview, scrubbing, image export, and video export.
-5. **Keep future-facing ideas visible but clearly deferred.** Planned syntax should not leak into the active contract until it is runnable.
+1. **Optimize for authoring UX, not surface-area parity.** We should not mirror Manim APIs mechanically when Animatix can express the same intent more cleanly.
+2. **Keep the shipped contract honest.** Runtime, docs, examples, and tests must agree before we widen the surface again.
+3. **Prefer vertical slices over horizontal ambition.** A phase is not done until runtime behavior, examples, docs, and tests all land together.
+4. **Preserve random-access semantics.** New animation features must remain compatible with preview, scrubbing, image export, and video export.
+5. **Exploit the vector-first architecture.** Features that map cleanly onto tracks, path rendering, diagnostics, and scene-graph traversal should come before architecture-heavy subsystems.
+6. **Defer new global models until they are necessary.** Camera systems, compositing-heavy transitions, and rich editor workflows should not outrun the current runtime contract.
 
 ---
 
-## 3. Primary Gap: Bracket Modifier System
+## 3. Current UX Assessment
 
-### Target Design
+From a user perspective, the most important remaining gaps are no longer the basic timing modifiers. The biggest friction is that common animation intent is still harder to express than it should be.
 
-Square brackets should converge on a **typed declarative modifier bag**:
+### Urgent UX gaps
 
-- one universal shorthand: bare time literal means duration
-- a small shared timing vocabulary: `duration` and `ease` first
-- host-specific keys only where explicitly supported
-- strict per-host validation after parsing
-- no silent acceptance of keys that do nothing
+1. **Richer reveal and exit actions**
+   - Users need stronger built-in verbs than only `fade-in`, `wipe-in`, and `fade-out`.
+   - Reveal-by-drawing, reveal-out, and other lightweight action variants are high-value because they fit explanatory animation directly.
 
-### Current Status
+2. **Action-target diagnostics that never pretend unsupported behavior works**
+   - As the action surface grows, action/target mismatches must fail honestly.
+   - This is part of Animatix's product quality, not just implementation hygiene.
 
-What is already real today:
+3. **Motion ergonomics**
+   - Users need easier authored motion such as move, shift, rotate, and scale.
+   - These belong soon, but they are broader than reveal actions because they touch transform semantics, layout interaction, and inheritance.
 
-- built-in actions support positional duration plus named `ease`
-- property assignments support positional duration plus named `ease`
-- `Text`, `Math`, and `Code` declarations support positional duration plus named `ease`
-- actor re-declarations and inline actor items now use the same shipped timing subset: positional duration plus named `ease`
-- unsupported modifier keys are reported explicitly during build/timeline construction rather than disappearing silently
+4. **Animation composition ergonomics**
+   - Users need simple sequencing, staggering, overlap, and grouped timing.
+   - This is important, but it should follow a stronger base action set.
 
-What is still mismatched:
+### Useful, but not first
 
-- `delay` is documented as a concept but is not implemented
-- morph-specific bracket keys such as `strategy`, `path_arc`, and `stretch` remain planned only
-- broader host-specific modifier validation is still intentionally narrow: the shipped contract remains duration shorthand plus named `ease`
+- Additional primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
+- Deeper plotting parity such as `ParametricPlot` and `ImplicitPlot`
+- Better GUI/editor affordances and discovery
 
-### Phase 1 — Modifier Contract Alignment
+### Explicitly later
 
-**Goal:** Make the modifier system honest, consistent, and teachable before adding new modifier features.
+- Camera framing / pan / zoom systems
+- `strategy: fade` and other compositing-heavy transition models
+- Hot reload and richer visual editor workflows
+- Voiceover/audio-style production tooling
+
+---
+
+## 4. Roadmap Overview
+
+The roadmap is divided into one sync milestone and six implementation phases.
+
+### Milestone 0 — Contract Sync and Plan Cleanup
+
+**Goal:** Ensure the roadmap reflects the actual shipped baseline.
+
+**Why this exists:**
+- `docs/spec.md` is ahead of the older roadmap in a few places.
+- Planning around stale assumptions causes us to spend time “landing” already-shipped features.
 
 **Includes:**
-- centralize modifier parsing/normalization logic for the shared timing vocabulary
-- align actor re-declaration handling with the rest of the runtime for duration + `ease`
-- make parser/runtime/docs/examples agree on what is currently supported
-- add explicit validation behavior for unsupported keys per host
+- align the roadmap with the current shipped timing contract
+- treat `delay` as shipped, not as upcoming work
+- describe morph modifier support accurately as scoped runtime-real behavior
+- keep deferred items visible without implying they are nearly done
 
 **Exit criteria:**
-- `duration` shorthand and named `ease` behave consistently across all currently-supported modifier hosts
-- the spec can describe one shipped timing subset without caveats between actions, assignments, and declarations
-- unsupported modifier keys fail or are reported deliberately rather than disappearing silently
-
-### Phase 2 — Shared Timing Vocabulary Expansion
-
-**Goal:** Add a small, explicit next layer of timing semantics without turning brackets into an open-ended mini-language.
-
-**Current status:**
-- shipped: `delay`
-- shipped: duplicate-key conflict warnings with deterministic last-wins behavior
-- shipped: explicit zero-duration / instant semantics across hosts
-- shipped: consistent defaulting rules when only `ease` is provided
-
-**Guardrails:**
-- do not add broad arbitrary named-key support just because the parser can carry it
-- keep new keys compatible with stateless evaluation and track building
-
-**Exit criteria:**
-- every shipped timing key has parser tests, runtime tests, one runnable example, and one concise spec explanation
-
-### Phase 3 — Host-Specific Modifier Extensions
-
-**Goal:** Introduce richer bracket keys only where the host actually needs them.
-
-**Current status:**
-- shipped on timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, `stretch`
-- deferred: `strategy: fade`
-- path/stroke effect controls such as trimming or dashing
-- future action-specific keys beyond the shared timing bag
-
-**Current scoping note:**
-- if morph strategy controls ship incrementally, prefer `strategy: auto|match`, `path_arc`, and `stretch` first
-- keep `strategy: fade` deferred until the runtime has a clearer transition/compositing representation; a true cross-fade likely wants architectural work beyond the current single-track path morph model
-
-**Guardrails:**
-- each host-specific key must name a real runtime hook
-- do not let morph-specific controls become implied global modifier keys
-- keep runtime support narrower than parser possibility unless validation is in place
+- the roadmap, spec, examples, and current runtime status no longer disagree about the baseline
 
 ---
 
-## 4. Secondary Gap: Component Runtime Refinement
+## 5. Phase 1 — Reveal Actions v1 + Honest Action Diagnostics
 
-### Current Status
+**Urgency:** Critical
 
-The component MVP is real and useful, but its user-facing contract still needs sharpening.
+**Goal:** Make common explanatory reveal/exit animation easier to author without adding a new runtime model.
 
-Already shipped:
-- cross-file `pub component` loading and instantiation
-- parameter binding
-- nested-label isolation per instance
-- dotted writes and sampled rhs reads through expanded labels
+**Why this is first:**
+- It provides immediate user-visible value.
+- It reuses the existing action registry, timing modifiers, track system, and diagnostics infrastructure.
+- It avoids the layout/transform ambiguity that broader motion ergonomics would introduce too early.
 
-Still remaining:
+**Includes:**
+- add a small set of new built-in reveal/exit actions that lower onto existing track behavior
+- keep the existing verb-first action model; do not introduce a new composition syntax yet
+- add explicit diagnostics for unsupported action/target combinations so new actions never silently no-op
+- ship one focused runnable demo that teaches the new action surface
+- update the spec and examples alongside the runtime
+
+**Guardrails:**
+- no new global transition/compositing layer
+- no camera model changes
+- no “mini-language” inside action args or modifiers
+- no large action catalog; only ship actions we can support honestly on current actor kinds
+
+**Exit criteria:**
+- the new actions are test-backed, documented, and demonstrated in one runnable example
+- unsupported action/target combinations report deliberate diagnostics
+- the feature feels like a vertical slice, not a collection of undocumented verbs
+
+---
+
+## 6. Phase 2 — Motion Ergonomics v1
+
+**Urgency:** High
+
+**Goal:** Add first-class authored motion ergonomics on top of the existing scene graph and track model.
+
+**Why second:**
+- This is a major UX need, but it is broader than reveal actions.
+- It touches local transforms, inherited transforms, and the relationship between layout placement and authored motion.
+
+**Includes:**
+- first-class support for common authored motion such as move / shift / rotate / scale
+- clear rules for how local motion composes with layout-managed placement
+- docs/examples that teach when to use layout containers versus manual motion
+
+**Guardrails:**
+- do not blur layout semantics and local transform semantics
+- do not widen into camera or viewport state in this phase
+
+**Exit criteria:**
+- authored motion can be expressed directly without awkward property-level workarounds
+- layout-managed nodes and manually placed nodes follow one teachable motion contract
+
+---
+
+## 7. Phase 3 — Animation Composition v1
+
+**Urgency:** High
+
+**Goal:** Make timing relationships between multiple animations easier to author.
+
+**Why third:**
+- Users need sequencing and staggering, but it is safer to design this after the action and motion surface is more complete.
+
+**Includes:**
+- grouped timing helpers such as sequencing, stagger, overlap, or equivalent declarative orchestration
+- examples that show multi-object choreography without imperative stateful execution
+
+**Guardrails:**
+- preserve the random-access “frame at `t` derives from `t`” model
+- do not introduce stateful playback-only constructs
+
+**Exit criteria:**
+- users can express common multi-object timing relationships directly and predictably
+
+---
+
+## 8. Phase 4 — Component and Diagnostic Contract Tightening
+
+**Urgency:** High
+
+**Goal:** Sharpen the reusable authoring surface and keep failure modes precise as the language grows.
+
+**Includes:**
 - clearer namespace/reachability rules for nested labels
-- stronger error behavior around ambiguous or unintended external access
+- stronger diagnostics around ambiguous or unintended component access
 - better runnable examples for reusable component authoring patterns
-- custom component actions remain future-facing only
+- continued tightening of action/property diagnostics where runtime support is intentionally narrow
 
-### Active Plan
-
-1. **Lock the current contract more explicitly** in docs/tests/examples.
-2. **Clarify reachability and naming rules** before expanding syntax.
-3. **Keep custom component actions deferred** until the current parameter-driven model proves insufficient.
+**Deferred inside this phase:**
+- custom component actions remain future-facing until the parameter-driven component model proves insufficient
 
 **Exit criteria:**
-- component rules are precise enough to support docs, tests, and tooling without ambiguity
-- the spec describes the shipped component subset without parser-only wording for already-landed behavior
+- reusable component authoring is documented and testable without ambiguity
+- diagnostics consistently tell the user what is unsupported and why
 
 ---
 
-## 5. Secondary Gap: Advanced Plotting and Morph Controls
+## 9. Phase 5 — Breadth Expansions: Primitives, Plots, and Host-Specific Effects
 
-These remain valuable, but they should come after the modifier contract is honest.
+**Urgency:** Medium
 
-### Candidate work
+**Goal:** Expand capability after the core animation authoring experience is stronger.
 
-- `ParametricPlot`
-- `ImplicitPlot`
-- morph strategy controls exposed through bracket modifiers
-- higher-level path/stroke effect controls
+**Includes:**
+- additional practical primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
+- plotting additions such as `ParametricPlot` and `ImplicitPlot`
+- host-specific effect controls that map cleanly onto real runtime hooks
 
-### Why this is later
-
-- the parser/runtime mismatch around current modifier semantics is more harmful than the absence of these features
-- these features will be easier to ship cleanly after the bracket modifier contract is stabilized
+**Guardrails:**
+- every new primitive or host-specific key must ship with one focused example, one focused spec section, and direct runtime validation
+- do not imply general support from parser acceptance alone
 
 **Exit criteria:**
-- each feature ships with one focused demo, one focused spec section, and host-specific validation rules
+- new breadth features improve authoring range without reintroducing contract ambiguity
 
 ---
 
-## 6. Tooling and Authoring UX
+## 10. Phase 6 — Tooling and Authoring Workflow Refinement
 
-The GUI and editor story are no longer “build from zero” work. The next work here should refine the existing shell, not outrun the language contract.
+**Urgency:** Medium
 
-### Candidate work
+**Goal:** Improve discovery, feedback, and day-to-day editing on top of the stabilized runtime contract.
 
+**Includes:**
 - continue improving the egui GUI shell
-- richer action/component discovery based on shipped registries
-- eventual hot reload / file watching
+- richer action/component discovery based on the real shipped registries
+- bridge `tree-sitter-animatix` into the GUI/editor workflow more completely
 - better example/tutorial structure
+- keyboard transport shortcuts and other workflow polish
 
-### Guardrail
-
-Do not build a richer visual/editor workflow on top of misleading or inconsistent language semantics.
-
----
-
-## 7. What We Should Not Do Next
-
-- Add more aspirational modifier keys to the spec before the current timing subset is consistent
-- Treat parser acceptance as proof of runtime support
-- Expand morph syntax aggressively before actor re-declaration timing semantics are fixed
-- Push toward a full visual editor while the user-facing contract is still shifting underneath it
+**Guardrail:**
+- do not build richer editor workflows on top of ambiguous language/runtime behavior
 
 ---
 
-## 8. Recommended Near-Term Execution Order
+## 11. Deferred Architectural Work
 
-1. **Finish modifier contract alignment**
-   - centralize timing-modifier handling
-   - fix actor re-declaration duration handling
-   - make unsupported keys explicit
+These remain valuable, but they should stay out of the near-term critical path because they imply broader model changes.
 
-2. **Tighten the component contract**
-   - clearer namespace/reachability rules
-   - better examples and failure semantics
+- camera framing, pan, zoom, and other viewport-state features
+- `strategy: fade` and other compositing-heavy transition models
+- hot reload / file watching driven authoring workflows
+- scene inspectors, property panels, visual timeline editors, and other larger GUI systems
+- native embedded rendering surfaces in the GUI
+- multi-file project management UX
 
-3. **Then expand the language again**
-   - `delay`
-   - morph-specific keys
-   - advanced plotting additions
+These should only move forward once the action/motion authoring surface is stable enough that we are not redesigning the foundation underneath them.
 
-This keeps the roadmap aligned with the current engine: stabilize the semantics users can already see, then widen the surface deliberately.
+---
+
+## 12. What We Should Not Do Next
+
+- treat parser acceptance as proof of runtime support
+- widen the action catalog before defining honest target coverage and diagnostics
+- start camera or viewport work before local motion semantics are settled
+- mix layout semantics, transform semantics, and composition semantics into one oversized phase
+- over-optimize for Manim parity when Animatix can provide a clearer declarative workflow
+- build richer GUI/editor workflows on top of shifting runtime behavior
+
+---
+
+## 13. Recommended Near-Term Execution Order
+
+1. **Complete Milestone 0: roadmap/spec contract sync**
+2. **Implement Phase 1: reveal actions v1 + honest action diagnostics**
+3. **Move to Phase 2: motion ergonomics v1**
+4. **Then Phase 3: animation composition v1**
+5. **Tighten reusable authoring and diagnostics contracts in Phase 4**
+6. **Expand breadth only after the authoring UX is materially better**
+
+This ordering keeps the roadmap aligned with the current engine and with what users feel most acutely: first make common animation intent easier, then broaden the surface deliberately.
