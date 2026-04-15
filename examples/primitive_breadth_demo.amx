@@ -1,0 +1,14 @@
+// Runnable example: newer primitive breadth (`Dot`, `Square`, `RegularPolygon`).
+#0s
+scene.background_color = (0.05, 0.06, 0.10, 1.0)
+
+title: Text { text: "Primitive Breadth Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Dot, Square, and RegularPolygon share the existing vector pipeline", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+dot_label: Text { text: "Dot", font_size: 22, color: WHITE, at: (260, 250) }
+square_label: Text { text: "Square", font_size: 22, color: WHITE, at: (640, 250) }
+poly_label: Text { text: "RegularPolygon", font_size: 22, color: WHITE, at: (1020, 250) }
+
+dot: Dot, color: (1.0, 0.55, 0.62, 1.0), stroke: WHITE, stroke_width: 3, at: (260, 430)
+square: Square, side: 120, color: (0.34, 0.68, 1.0, 1.0), stroke: WHITE, stroke_width: 4, at: (640, 430)
+hex: RegularPolygon, sides: 6, radius: 70, color: (0.26, 0.90, 0.64, 1.0), stroke: WHITE, stroke_width: 4, at: (1020, 430)
