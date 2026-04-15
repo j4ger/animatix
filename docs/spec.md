@@ -28,7 +28,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Plotting | `ParametricPlot`, `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing plotting types documented as not yet implemented. |
 | Morphing | re-declaration morphing and current path/text interpolation | Yes | Runtime-real | Yes | Yes | Current runtime supports the core morph path via re-declaration and interpolation. |
 | Morphing | DSL modifiers `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing re-declarations | Yes | Yes | Shipped only for timed path-morphing re-declarations; `strategy:fade` remains deferred. |
-| Actions | built-ins `fade-in`, `move`, `shift`, `rotate`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
+| Actions | built-ins `fade-in`, `move`, `shift`, `rotate`, `scale`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
 | Composition | `sequence { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1a lowers sequence blocks at build time; nested sequence and declarations inside sequence are deliberately unsupported. |
 
@@ -162,6 +162,7 @@ fade-in btn [1s]
 move badge [to: (120, -30), 1s]
 shift badge [by: (40, -24), 1s]
 rotate badge [by: 1.5708, 1s]
+scale badge [by: 1.5, 1s]
 draw-in badge [1s]
 fade-out btn [1s]
 wipe-out badge [1s]
@@ -221,8 +222,8 @@ Duplicate shipped modifier keys are reported deliberately and the runtime uses t
 Unsupported modifier keys are not part of the shipped contract today. The runtime reports them explicitly during build/timeline construction so CLI and GUI tooling can surface the mismatch without pretending the key had an effect.
 
 **Built-in Actions Registry**  
-The runtime currently registers eight built-in actions:
-- **Motion**: `move`, `shift`, `rotate`
+The runtime currently registers nine built-in actions:
+- **Motion**: `move`, `shift`, `rotate`, `scale`
 - **Entrance / Reveal**: `fade-in`, `draw-in`, `wipe-in`
 - **Exit**: `fade-out`, `wipe-out`
 
@@ -233,6 +234,8 @@ The runtime currently registers eight built-in actions:
 `shift` is a local motion action. Its required `by` modifier applies a relative translation on top of the target's existing placement rather than changing layout ownership or rebinding `at` directly.
 
 `rotate` is a local motion action. Its required `by` modifier applies a relative rotation in radians around the target's current local origin after placement and local motion offset are resolved.
+
+`scale` is a local motion action. Its required `by` modifier applies a positive uniform scale factor on top of the target's current local transform. In the current runtime this is visual-only: it changes rendering, not layout extents.
 
 The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work. Higher-level editor workflows remain future work.
 

@@ -21,6 +21,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `reveal_actions_demo.amx`
 - `motion_shift_demo.amx`
 - `motion_rotate_demo.amx`
+- `motion_scale_demo.amx`
 - `composition_sequence_demo.amx`
 - `modifier_timing_demo.amx`
 - `code_demo.amx`
@@ -38,6 +39,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `motion_shift_demo.amx` is the focused example for the current motion-ergonomics slice: `move` sets a local offset target while `shift` adds relative local motion on top of existing placement for both manual and layout-managed nodes.
 
 `motion_rotate_demo.amx` is the focused example for the current rotation slice: `rotate` applies relative local turns in radians for both manual and layout-managed nodes.
+
+`motion_scale_demo.amx` is the focused example for the current scale slice: `scale` applies uniform visual growth without rebinding placement or reflowing layout.
 
 `composition_sequence_demo.amx` is the focused example for composition v1a: `sequence { ... }` lowers actions and assignments into ordered timing without introducing playback-state semantics.
 
