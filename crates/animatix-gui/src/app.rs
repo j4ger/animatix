@@ -1,6 +1,7 @@
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
+use animatix::diagnostics::{Diagnostic, diagnostics_summary, format_diagnostic};
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Align, Color32, RichText, Stroke, Vec2};
@@ -634,6 +635,13 @@ impl GuiShell {
             ));
             ui.separator();
             ui.label(&self.preview.status);
+            if !self.document.diagnostics.is_empty() {
+                ui.separator();
+                ui.colored_label(
+                    Color32::from_rgb(255, 214, 102),
+                    diagnostics_summary(&self.document.diagnostics),
+                );
+            }
             if let Some(error) = &self.preview.error {
                 ui.separator();
                 ui.colored_label(Color32::from_rgb(255, 136, 136), error);
@@ -659,6 +667,7 @@ impl GuiShell {
                 .unwrap_or_default(),
             editor: &mut self.editor,
             preview: &mut self.preview,
+            diagnostics: &self.document.diagnostics,
             preview_texture_id,
             actions,
             source_dirty: &mut self.document.source_text,
@@ -714,7 +723,15 @@ impl GuiShell {
                 self.preview.current_time_s = 0.0;
                 self.preview.is_playing = false;
                 self.preview.dimensions = document.scene_dimensions;
-                self.preview.status = format!("Opened {}", document.file_path.display());
+                self.preview.status = if document.diagnostics.is_empty() {
+                    format!("Opened {}", document.file_path.display())
+                } else {
+                    format!(
+                        "Opened {} • {}",
+                        document.file_path.display(),
+                        diagnostics_summary(&document.diagnostics)
+                    )
+                };
                 self.preview.error = None;
                 self.document = document;
                 self.preview_dirty = true;
@@ -739,7 +756,15 @@ impl GuiShell {
         self.preview.duration_s = self.document.duration_s.max(0.1);
         self.preview.dimensions = self.document.scene_dimensions;
         self.preview.clamp_time();
-        self.preview.status = format!("Reloaded {}", self.document.file_path.display());
+        self.preview.status = if self.document.diagnostics.is_empty() {
+            format!("Reloaded {}", self.document.file_path.display())
+        } else {
+            format!(
+                "Reloaded {} • {}",
+                self.document.file_path.display(),
+                diagnostics_summary(&self.document.diagnostics)
+            )
+        };
         self.preview.error = None;
         self.preview_dirty = true;
         self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path);
@@ -751,10 +776,15 @@ impl GuiShell {
         self.preview.duration_s = self.document.duration_s.max(0.1);
         self.preview.dimensions = self.document.scene_dimensions;
         self.preview.clamp_time();
-        self.preview.status = format!(
-            "Built timeline • {:.2}s total duration",
-            self.preview.duration_s
-        );
+        self.preview.status = if self.document.diagnostics.is_empty() {
+            format!("Built timeline • {:.2}s total duration", self.preview.duration_s)
+        } else {
+            format!(
+                "Built timeline • {:.2}s total duration • {}",
+                self.preview.duration_s,
+                diagnostics_summary(&self.document.diagnostics)
+            )
+        };
         self.preview.error = None;
         self.preview_dirty = true;
         Ok(())
@@ -799,6 +829,7 @@ struct WorkspaceViewer<'a> {
     timeline_markers: Vec<f64>,
     editor: &'a mut EditorBuffer,
     preview: &'a mut PreviewPaneState,
+    diagnostics: &'a [Diagnostic],
     preview_texture_id: Option<egui::TextureId>,
     actions: &'a mut UiActions,
     source_dirty: &'a mut String,
@@ -916,6 +947,26 @@ impl WorkspaceViewer<'_> {
                 });
             });
             ui.label(RichText::new(&self.preview.status).small().weak());
+            if !self.diagnostics.is_empty() {
+                ui.add_space(4.0);
+                ui.colored_label(
+                    Color32::from_rgb(255, 214, 102),
+                    RichText::new(diagnostics_summary(self.diagnostics)).small(),
+                );
+                for diagnostic in self.diagnostics.iter().take(6) {
+                    ui.label(RichText::new(format_diagnostic(diagnostic)).small());
+                }
+                if self.diagnostics.len() > 6 {
+                    ui.label(
+                        RichText::new(format!(
+                            "… and {} more diagnostics",
+                            self.diagnostics.len() - 6
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
+            }
             ui.separator();
 
             let available = ui.available_size_before_wrap();

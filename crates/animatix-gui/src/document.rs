@@ -1,4 +1,5 @@
 use animatix::ast::{Expr, Stmt};
+use animatix::diagnostics::Diagnostic;
 use animatix::module::ModuleGraph;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline};
 use std::fs;
@@ -9,6 +10,7 @@ pub struct DocumentSession {
     pub source_text: String,
     pub ast: Option<Vec<Stmt>>,
     pub timeline: Option<Timeline>,
+    pub diagnostics: Vec<Diagnostic>,
     pub is_dirty: bool,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
@@ -24,6 +26,7 @@ impl DocumentSession {
             source_text,
             ast: None,
             timeline: None,
+            diagnostics: Vec::new(),
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
@@ -39,6 +42,7 @@ impl DocumentSession {
             source_text: String::new(),
             ast: None,
             timeline: None,
+            diagnostics: Vec::new(),
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
@@ -71,16 +75,18 @@ impl DocumentSession {
             Err(err) => {
                 self.ast = None;
                 self.timeline = None;
+                self.diagnostics.clear();
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
                 return Err(err.to_string());
             }
         };
-        let timeline = Timeline::build(&ast);
-        self.duration_s = timeline_duration_seconds(&timeline).max(0.1);
+        let report = Timeline::build_with_diagnostics(&ast);
+        self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
         self.scene_dimensions = document_scene_dimensions(&ast);
         self.ast = Some(ast);
-        self.timeline = Some(timeline);
+        self.diagnostics = report.diagnostics;
+        self.timeline = Some(report.output);
         Ok(())
     }
 }
