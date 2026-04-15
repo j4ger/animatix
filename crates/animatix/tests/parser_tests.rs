@@ -195,6 +195,61 @@ fn test_sequence_parse() {
 }
 
 #[test]
+fn test_stagger_parse() {
+    assert_eq!(
+        parse_single_stmt("stagger [150ms] { fade-in first [200ms] second.color = red [100ms] }"),
+        Stmt::Stagger {
+            modifiers: vec![Modifier {
+                name: None,
+                value: Expr::Ident("150ms".to_string()),
+            }],
+            body: vec![
+                Stmt::Action(Action {
+                    verb: "fade-in".to_string(),
+                    targets: vec!["first".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("200ms".to_string()),
+                    }],
+                }),
+                Stmt::Assignment {
+                    target: vec!["second".to_string()],
+                    property: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("100ms".to_string()),
+                    }],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn test_stagger_each_parse() {
+    assert_eq!(
+        parse_single_stmt("stagger [each: 150ms] { fade-in first [200ms] }"),
+        Stmt::Stagger {
+            modifiers: vec![Modifier {
+                name: Some("each".to_string()),
+                value: Expr::Ident("150ms".to_string()),
+            }],
+            body: vec![Stmt::Action(Action {
+                verb: "fade-in".to_string(),
+                targets: vec!["first".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("200ms".to_string()),
+                }],
+            })],
+        }
+    );
+}
+
+#[test]
 fn test_actor_decl_full() {
     assert_eq!(
         parse_single_stmt("circle: Circle, radius: 50, color: blue [2s, ease: bounce]"),

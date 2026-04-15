@@ -248,6 +248,12 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
 
+    /// Composition helper: stagger [150ms] { ... }
+    Stagger {
+        modifiers: Vec<Modifier>,
+        body: Vec<Stmt>,
+    },
+
     // === Reactive Blocks ===
     /// Always: always { ... }
     Always {
