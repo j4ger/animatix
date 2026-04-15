@@ -1,8 +1,9 @@
 use super::registry::{ActionParam, ActionSignature, BuiltinAction};
-use crate::ast::{Action, Expr};
+use crate::ast::Action;
+use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::track::AnimationTrack;
-use crate::timeline::Timeline;
+use crate::timeline::{parse_timing_modifiers, ModifierHost, Timeline};
 
 pub struct FadeOut;
 
@@ -20,44 +21,31 @@ impl BuiltinAction for FadeOut {
                     type_info: "string".to_string(),
                 },
                 ActionParam {
-                    name: "duration".to_string(),
-                    description: "Duration of the animation (e.g. 1s, 500ms)".to_string(),
-                    type_info: "string".to_string(),
+                    name: "duration-shorthand".to_string(),
+                    description:
+                        "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
+                            .to_string(),
+                    type_info: "positional time literal".to_string(),
                 },
             ],
         }
     }
 
-    fn execute(&self, action: &Action, time_ms: f64, timeline: &mut Timeline) {
-        let mut duration_ms = 0.0;
-        let mut easing = Easing::Linear;
-
-        for modifier in &action.modifiers {
-            if modifier.name.as_deref() == Some("ease") {
-                if let Expr::Ident(val) = &modifier.value {
-                    match val.as_str() {
-                        "ease-in" => easing = Easing::EaseIn,
-                        "ease-out" => easing = Easing::EaseOut,
-                        "ease-in-out" => easing = Easing::EaseInOut,
-                        "bounce" => easing = Easing::Bounce,
-                        "linear" => easing = Easing::Linear,
-                        _ => {}
-                    }
-                }
-            } else if modifier.name.is_none() {
-                if let Expr::Ident(val) = &modifier.value {
-                    if val.ends_with("ms") {
-                        if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
-                            duration_ms = ms;
-                        }
-                    } else if val.ends_with('s') {
-                        if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
-                            duration_ms = s * 1000.0;
-                        }
-                    }
-                }
-            }
-        }
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let parsed = parse_timing_modifiers(
+            &action.modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let easing = parsed.easing;
 
         let t_start_ms = time_ms as u64;
         let t_end_ms = (time_ms + duration_ms) as u64;

@@ -1,4 +1,5 @@
 use crate::ast::Action;
+use crate::diagnostics::Diagnostic;
 use crate::timeline::Timeline;
 
 #[derive(Debug, Clone)]
@@ -19,5 +20,11 @@ pub struct ActionSignature {
 
 pub trait BuiltinAction: Send + Sync {
     fn signature(&self) -> ActionSignature;
-    fn execute(&self, action: &Action, time_ms: f64, timeline: &mut Timeline);
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    );
 }

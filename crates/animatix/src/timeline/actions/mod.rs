@@ -3,6 +3,7 @@ pub mod exit;
 pub mod registry;
 
 use crate::ast::Action;
+use crate::diagnostics::Diagnostic;
 use crate::timeline::Timeline;
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
@@ -14,11 +15,16 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
 }
 
 /// Looks up the action by verb and executes it if found.
-pub fn process_action(action: &Action, time_ms: f64, timeline: &mut Timeline) {
+pub fn process_action(
+    action: &Action,
+    time_ms: f64,
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let actions = get_builtin_actions();
     for builtin in actions {
         if builtin.signature().name == action.verb {
-            builtin.execute(action, time_ms, timeline);
+            builtin.execute(action, time_ms, timeline, diagnostics);
             return;
         }
     }

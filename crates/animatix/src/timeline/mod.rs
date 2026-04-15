@@ -8,6 +8,7 @@ pub mod track;
 pub mod utils;
 pub mod vello_path;
 
+use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use actions::process_action;
 pub use env::{load_standard_library, Environment, EvalError, Value};
 pub use image::load_image;
@@ -19,9 +20,164 @@ pub use track::{
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 
-use crate::ast::{Expr, Stmt};
+use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ParsedTimingModifiers {
+    pub duration_ms: f64,
+    pub easing: Easing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ModifierHost {
+    Action,
+    Assignment,
+    Text,
+    Math,
+    Code,
+    ActorDeclaration,
+}
+
+impl ModifierHost {
+    fn display_name(self) -> &'static str {
+        match self {
+            ModifierHost::Action => "action",
+            ModifierHost::Assignment => "assignment",
+            ModifierHost::Text => "text declaration",
+            ModifierHost::Math => "math declaration",
+            ModifierHost::Code => "code declaration",
+            ModifierHost::ActorDeclaration => "actor declaration",
+        }
+    }
+}
+
+fn parse_easing_name(raw: &str) -> Option<Easing> {
+    match raw {
+        "ease-in" => Some(Easing::EaseIn),
+        "ease-out" => Some(Easing::EaseOut),
+        "ease-in-out" => Some(Easing::EaseInOut),
+        "bounce" => Some(Easing::Bounce),
+        "linear" => Some(Easing::Linear),
+        _ => None,
+    }
+}
+
+fn parse_duration_literal(raw: &str) -> Option<f64> {
+    if let Some(ms) = raw.strip_suffix("ms") {
+        ms.parse::<f64>().ok()
+    } else if let Some(seconds) = raw.strip_suffix('s') {
+        seconds.parse::<f64>().ok().map(|seconds| seconds * 1000.0)
+    } else {
+        None
+    }
+}
+
+fn push_modifier_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    code: DiagnosticCode,
+    message: String,
+    subject: Option<&str>,
+) {
+    let diagnostic = Diagnostic::warning(code, DiagnosticPhase::Build, message);
+    diagnostics.push(match subject {
+        Some(subject) => diagnostic.with_subject(subject),
+        None => diagnostic,
+    });
+}
+
+pub(crate) fn parse_timing_modifiers(
+    modifiers: &[Modifier],
+    host: ModifierHost,
+    subject: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ParsedTimingModifiers {
+    let mut parsed = ParsedTimingModifiers {
+        duration_ms: 0.0,
+        easing: Easing::Linear,
+    };
+
+    for modifier in modifiers {
+        match modifier.name.as_deref() {
+            Some("ease") => match &modifier.value {
+                Expr::Ident(raw) => {
+                    if let Some(easing) = parse_easing_name(raw) {
+                        parsed.easing = easing;
+                    } else {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported ease value '{raw}' on {}; supported values are linear, ease-in, ease-out, ease-in-out, and bounce.",
+                                host.display_name()
+                            ),
+                            subject,
+                        );
+                    }
+                }
+                other => push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported ease modifier value {:?} on {}; expected an easing identifier.",
+                        other,
+                        host.display_name()
+                    ),
+                    subject,
+                ),
+            },
+            Some(name) => push_modifier_diagnostic(
+                diagnostics,
+                DiagnosticCode::UnsupportedModifierKey,
+                format!(
+                    "Unsupported modifier key '{name}' on {}; this host currently supports only positional duration shorthand and named ease.",
+                    host.display_name()
+                ),
+                subject,
+            ),
+            None => match &modifier.value {
+                Expr::Ident(raw) => {
+                    if let Some(duration_ms) = parse_duration_literal(raw) {
+                        parsed.duration_ms = duration_ms;
+                    } else if parse_easing_name(raw).is_some() {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Use named syntax like [ease: {raw}] on {}; bare modifiers are reserved for duration values such as 2s or 500ms.",
+                                host.display_name()
+                            ),
+                            subject,
+                        );
+                    } else {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported duration shorthand '{raw}' on {}; expected a bare time literal such as 2s or 500ms.",
+                                host.display_name()
+                            ),
+                            subject,
+                        );
+                    }
+                }
+                other => push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported positional modifier value {:?} on {}; expected a bare duration like 2s or 500ms.",
+                        other,
+                        host.display_name()
+                    ),
+                    subject,
+                ),
+            },
+        }
+    }
+
+    parsed
+}
 
 fn sample_recursive_cartesian(
     min_t: f64,
@@ -638,27 +794,32 @@ impl Timeline {
     }
 
     pub fn build(ast: &[Stmt]) -> Self {
+        Self::build_with_diagnostics(ast).output
+    }
+
+    pub fn build_with_diagnostics(ast: &[Stmt]) -> BuildReport<Self> {
         let mut timeline = Self::new();
         load_standard_library(&mut timeline.env);
         let mut current_time_ms = 0.0;
+        let mut diagnostics = Vec::new();
 
         for stmt in ast {
             match stmt {
                 Stmt::Keyframe { time, body } => {
                     current_time_ms = time_to_ms(time);
-                    timeline.process_body(current_time_ms, body, None);
+                    timeline.process_body(current_time_ms, body, None, &mut diagnostics);
                 }
                 Stmt::RelativeKeyframe { offset, body } => {
                     current_time_ms += time_to_ms(offset);
-                    timeline.process_body(current_time_ms, body, None);
+                    timeline.process_body(current_time_ms, body, None, &mut diagnostics);
                 }
                 Stmt::ActorDecl { .. } | Stmt::Assignment { .. } => {
-                    timeline.process_body(current_time_ms, &[stmt.clone()], None);
+                    timeline.process_body(current_time_ms, &[stmt.clone()], None, &mut diagnostics);
                 }
                 _ => {}
             }
         }
-        timeline
+        BuildReport::new(timeline, diagnostics)
     }
 
     fn build_eval_env(&self, time_ms: u64) -> Environment {
@@ -1194,6 +1355,7 @@ impl Timeline {
         time_ms: f64,
         items: &[crate::ast::InlineItem],
         parent_label: &str,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         for item in items {
             match item {
@@ -1213,7 +1375,7 @@ impl Timeline {
                         modifiers: modifiers.clone(),
                         children: children.clone(),
                     };
-                    self.process_body(time_ms, &[stmt], Some(parent_label));
+                    self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
                 crate::ast::InlineItem::Labeled {
                     label,
@@ -1230,13 +1392,19 @@ impl Timeline {
                         modifiers: modifiers.clone(),
                         children: children.clone(),
                     };
-                    self.process_body(time_ms, &[stmt], Some(parent_label));
+                    self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
             }
         }
     }
 
-    fn process_body(&mut self, time_ms: f64, body: &[Stmt], parent_label: Option<&str>) {
+    fn process_body(
+        &mut self,
+        time_ms: f64,
+        body: &[Stmt],
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         for stmt in body {
             match stmt {
                 Stmt::Text {
@@ -1250,7 +1418,7 @@ impl Timeline {
                     let track = self
                         .tracks
                         .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str));
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
                     let mut text_content = String::new();
                     let mut font_size = 48.0;
@@ -1304,35 +1472,15 @@ impl Timeline {
                         crate::renderer::text::compile_text(&text_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let mut duration_ms = 0.0;
-                    let mut easing = Easing::Linear;
-
-                    for modifier in modifiers {
-                        if modifier.name.as_deref() == Some("ease") {
-                            if let Expr::Ident(val) = &modifier.value {
-                                match val.as_str() {
-                                    "ease-in" => easing = Easing::EaseIn,
-                                    "ease-out" => easing = Easing::EaseOut,
-                                    "ease-in-out" => easing = Easing::EaseInOut,
-                                    "bounce" => easing = Easing::Bounce,
-                                    "linear" => easing = Easing::Linear,
-                                    _ => {}
-                                }
-                            }
-                        } else if modifier.name.is_none() {
-                            if let Expr::Ident(val) = &modifier.value {
-                                if val.ends_with("ms") {
-                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
-                                        duration_ms = ms;
-                                    }
-                                } else if val.ends_with('s') {
-                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
-                                        duration_ms = s * 1000.0;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        easing,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Text,
+                        Some(&label_str),
+                        diagnostics,
+                    );
 
                     let t_start_ms = time_ms as u64;
                     let t_end_ms = (time_ms + duration_ms) as u64;
@@ -1356,7 +1504,7 @@ impl Timeline {
                     let track = self
                         .tracks
                         .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str));
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
                     let mut latex_content = String::new();
                     let mut font_size = 48.0;
@@ -1410,35 +1558,15 @@ impl Timeline {
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let mut duration_ms = 0.0;
-                    let mut easing = Easing::Linear;
-
-                    for modifier in modifiers {
-                        if modifier.name.as_deref() == Some("ease") {
-                            if let Expr::Ident(val) = &modifier.value {
-                                match val.as_str() {
-                                    "ease-in" => easing = Easing::EaseIn,
-                                    "ease-out" => easing = Easing::EaseOut,
-                                    "ease-in-out" => easing = Easing::EaseInOut,
-                                    "bounce" => easing = Easing::Bounce,
-                                    "linear" => easing = Easing::Linear,
-                                    _ => {}
-                                }
-                            }
-                        } else if modifier.name.is_none() {
-                            if let Expr::Ident(val) = &modifier.value {
-                                if val.ends_with("ms") {
-                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
-                                        duration_ms = ms;
-                                    }
-                                } else if val.ends_with('s') {
-                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
-                                        duration_ms = s * 1000.0;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        easing,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Math,
+                        Some(&label_str),
+                        diagnostics,
+                    );
 
                     let t_start_ms = time_ms as u64;
                     let t_end_ms = (time_ms + duration_ms) as u64;
@@ -1462,7 +1590,7 @@ impl Timeline {
                     let track = self
                         .tracks
                         .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str));
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
                     let mut code_content = String::new();
                     let mut font_size = 24.0;
@@ -1516,35 +1644,15 @@ impl Timeline {
                         crate::renderer::text::compile_code(&code_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
 
-                    let mut duration_ms = 0.0;
-                    let mut easing = Easing::Linear;
-
-                    for modifier in modifiers {
-                        if modifier.name.as_deref() == Some("ease") {
-                            if let Expr::Ident(val) = &modifier.value {
-                                match val.as_str() {
-                                    "ease-in" => easing = Easing::EaseIn,
-                                    "ease-out" => easing = Easing::EaseOut,
-                                    "ease-in-out" => easing = Easing::EaseInOut,
-                                    "bounce" => easing = Easing::Bounce,
-                                    "linear" => easing = Easing::Linear,
-                                    _ => {}
-                                }
-                            }
-                        } else if modifier.name.is_none() {
-                            if let Expr::Ident(val) = &modifier.value {
-                                if val.ends_with("ms") {
-                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
-                                        duration_ms = ms;
-                                    }
-                                } else if val.ends_with('s') {
-                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
-                                        duration_ms = s * 1000.0;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        easing,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Code,
+                        Some(&label_str),
+                        diagnostics,
+                    );
 
                     let t_start_ms = time_ms as u64;
                     let t_end_ms = (time_ms + duration_ms) as u64;
@@ -1719,7 +1827,7 @@ impl Timeline {
                         );
                     }
 
-                    self.process_inline_items(time_ms, children, label);
+                    self.process_inline_items(time_ms, children, label, diagnostics);
                     let eval_env = self.build_eval_env(time_ms as u64);
                     let track = self
                         .tracks
@@ -1743,21 +1851,17 @@ impl Timeline {
                     let mut cols: Option<usize> = None;
                     let mut custom_path: Option<kurbo::BezPath> = None;
 
-                    let mut easing = Easing::Linear;
-                    for modifier in modifiers {
-                        if modifier.name.as_deref() == Some("ease") || modifier.name.is_none() {
-                            if let Expr::Ident(val) = &modifier.value {
-                                match val.as_str() {
-                                    "ease-in" => easing = Easing::EaseIn,
-                                    "ease-out" => easing = Easing::EaseOut,
-                                    "ease-in-out" => easing = Easing::EaseInOut,
-                                    "bounce" => easing = Easing::Bounce,
-                                    "linear" => easing = Easing::Linear,
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        easing,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::ActorDeclaration,
+                        Some(label),
+                        diagnostics,
+                    );
+                    let t_start_ms = time_ms as u64;
+                    let t_end_ms = (time_ms + duration_ms) as u64;
 
                     for prop in props {
                         match prop.name.as_str() {
@@ -1882,17 +1986,18 @@ impl Timeline {
                         offset_expr.as_ref(),
                         &eval_env,
                     ) {
-                        set_track_position_binding(track, time_ms as u64, binding);
+                        preserve_discrete_position_state_before(track, t_start_ms);
+                        set_track_position_binding(track, t_start_ms, binding);
                         if let Some(bound_position) = bound_position {
                             position = bound_position;
-                            mark_track_manual_position(track, time_ms as u64);
+                            mark_track_manual_position(track, t_start_ms);
                         } else {
-                            mark_track_manual_position(track, time_ms as u64);
+                            mark_track_manual_position(track, t_start_ms);
                         }
                     } else if is_layout_container(ty) && parent_label.is_none() {
                         set_track_position_binding(
                             track,
-                            time_ms as u64,
+                            t_start_ms,
                             PositionBinding::ContainerDefault {
                                 anchor: SceneAnchor::Center,
                             },
@@ -2101,22 +2206,95 @@ impl Timeline {
                         vello_paths.push(vello_path);
                     }
 
-                    let t_ms = time_ms as u64;
-                    track.vector_paths.add_keyframe(t_ms, vello_paths, easing);
-                    track.position.add_keyframe(t_ms, position, easing);
-                    track.size.add_keyframe(t_ms, size, easing);
-                    track.line_from.add_keyframe(t_ms, line_from, easing);
-                    track.line_to.add_keyframe(t_ms, line_to, easing);
-                    track.arc_angles.add_keyframe(t_ms, arc_angles, easing);
-                    track.color.add_keyframe(t_ms, color, easing);
-                    track.shape_type.add_keyframe(t_ms, shape_type, easing);
-                    track.opacity.add_keyframe(t_ms, opacity, easing);
-                    track.stroke_width.add_keyframe(t_ms, stroke_width, easing);
-                    track.stroke_color.add_keyframe(t_ms, stroke_color, easing);
+                    if duration_ms > 0.0 {
+                        let start_vector_paths = track.vector_paths.evaluate(t_start_ms);
+                        let start_position = track.position.evaluate(t_start_ms);
+                        let start_size = track.size.evaluate(t_start_ms);
+                        let start_line_from = track.line_from.evaluate(t_start_ms);
+                        let start_line_to = track.line_to.evaluate(t_start_ms);
+                        let start_arc_angles = track.arc_angles.evaluate(t_start_ms);
+                        let start_color = track.color.evaluate(t_start_ms);
+                        let start_shape_type = track.shape_type.evaluate(t_start_ms);
+                        let start_opacity = track.opacity.evaluate(t_start_ms);
+                        let start_stroke_width = track.stroke_width.evaluate(t_start_ms);
+                        let start_stroke_color = track.stroke_color.evaluate(t_start_ms);
+                        let start_stroke_progress = track.stroke_progress.evaluate(t_start_ms);
+                        let start_fill_opacity = track.fill_opacity.evaluate(t_start_ms);
+
+                        track.vector_paths.add_keyframe(
+                            t_start_ms,
+                            start_vector_paths,
+                            Easing::Linear,
+                        );
+                        track
+                            .position
+                            .add_keyframe(t_start_ms, start_position, Easing::Linear);
+                        track
+                            .size
+                            .add_keyframe(t_start_ms, start_size, Easing::Linear);
+                        track
+                            .line_from
+                            .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
+                        track
+                            .line_to
+                            .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
+                        track
+                            .arc_angles
+                            .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
+                        track
+                            .color
+                            .add_keyframe(t_start_ms, start_color, Easing::Linear);
+                        track
+                            .shape_type
+                            .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
+                        track
+                            .opacity
+                            .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+                        track.stroke_width.add_keyframe(
+                            t_start_ms,
+                            start_stroke_width,
+                            Easing::Linear,
+                        );
+                        track.stroke_color.add_keyframe(
+                            t_start_ms,
+                            start_stroke_color,
+                            Easing::Linear,
+                        );
+                        track.stroke_progress.add_keyframe(
+                            t_start_ms,
+                            start_stroke_progress,
+                            Easing::Linear,
+                        );
+                        track.fill_opacity.add_keyframe(
+                            t_start_ms,
+                            start_fill_opacity,
+                            Easing::Linear,
+                        );
+                    }
+
+                    track
+                        .vector_paths
+                        .add_keyframe(t_end_ms, vello_paths, easing);
+                    track.position.add_keyframe(t_end_ms, position, easing);
+                    track.size.add_keyframe(t_end_ms, size, easing);
+                    track.line_from.add_keyframe(t_end_ms, line_from, easing);
+                    track.line_to.add_keyframe(t_end_ms, line_to, easing);
+                    track.arc_angles.add_keyframe(t_end_ms, arc_angles, easing);
+                    track.color.add_keyframe(t_end_ms, color, easing);
+                    track.shape_type.add_keyframe(t_end_ms, shape_type, easing);
+                    track.opacity.add_keyframe(t_end_ms, opacity, easing);
+                    track
+                        .stroke_width
+                        .add_keyframe(t_end_ms, stroke_width, easing);
+                    track
+                        .stroke_color
+                        .add_keyframe(t_end_ms, stroke_color, easing);
                     track
                         .stroke_progress
-                        .add_keyframe(t_ms, stroke_progress, easing);
-                    track.fill_opacity.add_keyframe(t_ms, fill_opacity, easing);
+                        .add_keyframe(t_end_ms, stroke_progress, easing);
+                    track
+                        .fill_opacity
+                        .add_keyframe(t_end_ms, fill_opacity, easing);
 
                     if is_layout_container(ty) {
                         self.apply_container_layout(
@@ -2136,36 +2314,16 @@ impl Timeline {
                     modifiers,
                 } => {
                     let eval_env = self.build_eval_env(time_ms as u64);
-                    let mut duration_ms = 0.0;
-                    let mut easing = Easing::Linear;
-
-                    for modifier in modifiers {
-                        if modifier.name.as_deref() == Some("ease") {
-                            if let Expr::Ident(val) = &modifier.value {
-                                match val.as_str() {
-                                    "ease-in" => easing = Easing::EaseIn,
-                                    "ease-out" => easing = Easing::EaseOut,
-                                    "ease-in-out" => easing = Easing::EaseInOut,
-                                    "bounce" => easing = Easing::Bounce,
-                                    "linear" => easing = Easing::Linear,
-                                    _ => {}
-                                }
-                            }
-                        } else if modifier.name.is_none() {
-                            // Try to parse duration (e.g., 2s, 500ms)
-                            if let Expr::Ident(val) = &modifier.value {
-                                if val.ends_with("ms") {
-                                    if let Ok(ms) = val.trim_end_matches("ms").parse::<f64>() {
-                                        duration_ms = ms;
-                                    }
-                                } else if val.ends_with('s') {
-                                    if let Ok(s) = val.trim_end_matches('s').parse::<f64>() {
-                                        duration_ms = s * 1000.0;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let assignment_subject = format!("{}.{}", target.join("."), property);
+                    let ParsedTimingModifiers {
+                        duration_ms,
+                        easing,
+                    } = parse_timing_modifiers(
+                        modifiers,
+                        ModifierHost::Assignment,
+                        Some(&assignment_subject),
+                        diagnostics,
+                    );
 
                     let t_start_ms = time_ms as u64;
                     let t_end_ms = (time_ms + duration_ms) as u64;
@@ -2311,6 +2469,7 @@ impl Timeline {
                             let target_pos = if let Some((binding, position)) =
                                 resolve_position_binding(Some(value), None, None, &eval_env)
                             {
+                                preserve_discrete_position_state_before(track, t_start_ms);
                                 mark_track_manual_position(track, t_start_ms);
                                 set_track_position_binding(track, t_start_ms, binding);
                                 position.unwrap_or_else(|| track.position.last_value())
@@ -2498,11 +2657,11 @@ impl Timeline {
                 } => {
                     for value in for_iter_values(iterable, &self.env) {
                         self.env.set(var, value);
-                        self.process_body(time_ms, body, parent_label);
+                        self.process_body(time_ms, body, parent_label, diagnostics);
                     }
                 }
                 Stmt::Action(action) => {
-                    process_action(action, time_ms, self);
+                    process_action(action, time_ms, self, diagnostics);
                 }
                 _ => {}
             }
@@ -2815,6 +2974,32 @@ fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
     track
         .placement_mode
         .add_keyframe(time_ms, PlacementMode::Manual, Easing::Linear);
+}
+
+fn preserve_discrete_position_state_before(track: &mut AnimationTrack, time_ms: u64) {
+    if time_ms == 0 {
+        return;
+    }
+
+    let previous_time = time_ms - 1;
+
+    if !track.placement_mode.keyframes.contains_key(&previous_time) {
+        let previous_mode = track.placement_mode.evaluate(previous_time);
+        track
+            .placement_mode
+            .add_keyframe(previous_time, previous_mode, Easing::Linear);
+    }
+
+    if !track
+        .position_binding
+        .keyframes
+        .contains_key(&previous_time)
+    {
+        let previous_binding = track.position_binding.evaluate(previous_time);
+        track
+            .position_binding
+            .add_keyframe(previous_time, previous_binding, Easing::Linear);
+    }
 }
 
 fn set_track_position_binding(track: &mut AnimationTrack, time_ms: u64, binding: PositionBinding) {
