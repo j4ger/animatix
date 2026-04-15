@@ -2,6 +2,7 @@ use crate::document::{DocumentSession, default_file_path, timeline_keyframe_time
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, diagnostics_summary, format_diagnostic};
+use animatix::timeline::actions::get_action_signatures;
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Align, Color32, RichText, Stroke, Vec2};
@@ -16,8 +17,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalSize};
-use winit::event::WindowEvent;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
@@ -162,6 +164,44 @@ impl WindowRuntime {
         self.shell.is_playing() || self.shell.preview_dirty || self.shell.has_pending_rebuild()
     }
 
+    fn handle_keyboard_shortcut(&mut self, event: &winit::event::KeyEvent) -> bool {
+        if event.state != ElementState::Pressed || event.repeat {
+            return false;
+        }
+
+        let scrub_step_s = 0.1;
+        match &event.logical_key {
+            Key::Named(NamedKey::Space) => {
+                self.shell.preview.toggle_playback();
+                self.shell.preview_dirty = true;
+                true
+            }
+            Key::Named(NamedKey::ArrowLeft) => {
+                self.shell.preview.current_time_s -= scrub_step_s;
+                self.shell.preview.clamp_time();
+                self.shell.preview.is_playing = false;
+                self.shell.preview_dirty = true;
+                self.shell.preview.status = format!(
+                    "Preview scrubbed • t = {:.2}s / {:.2}s",
+                    self.shell.preview.current_time_s, self.shell.preview.duration_s
+                );
+                true
+            }
+            Key::Named(NamedKey::ArrowRight) => {
+                self.shell.preview.current_time_s += scrub_step_s;
+                self.shell.preview.clamp_time();
+                self.shell.preview.is_playing = false;
+                self.shell.preview_dirty = true;
+                self.shell.preview.status = format!(
+                    "Preview scrubbed • t = {:.2}s / {:.2}s",
+                    self.shell.preview.current_time_s, self.shell.preview.duration_s
+                );
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn on_window_event(&mut self, event_loop: &ActiveEventLoop, event: &WindowEvent) -> bool {
         let response = self.egui_winit.on_window_event(self.window.as_ref(), event);
         if response.repaint {
@@ -169,6 +209,12 @@ impl WindowRuntime {
         }
 
         match event {
+            WindowEvent::KeyboardInput { event, .. } if !response.consumed => {
+                if self.handle_keyboard_shortcut(event) {
+                    self.window.request_redraw();
+                    return false;
+                }
+            }
             WindowEvent::CloseRequested => {
                 self.shell.save_persistence();
                 return true;
@@ -891,6 +937,42 @@ impl WorkspaceViewer<'_> {
                         }
                     });
                 }
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(4.0);
+                ui.collapsing("Action Registry", |ui| {
+                    ui.label(
+                        RichText::new("Shipped built-in actions from the runtime registry.")
+                            .small()
+                            .weak(),
+                    );
+                    for signature in get_action_signatures() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new(format!(
+                                "{} · {}",
+                                signature.category, signature.name
+                            ))
+                            .strong()
+                            .small(),
+                        );
+                        ui.label(RichText::new(signature.description).small());
+                        if !signature.modifiers.is_empty() {
+                            let modifier_list = signature
+                                .modifiers
+                                .iter()
+                                .map(|modifier| modifier.name.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            ui.label(
+                                RichText::new(format!("Modifiers: {modifier_list}"))
+                                    .small()
+                                    .weak(),
+                            );
+                        }
+                    }
+                });
             });
         });
     }

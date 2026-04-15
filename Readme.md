@@ -4,6 +4,8 @@ Animatix is a declarative animation language and Rust rendering engine for build
 
 It currently ships a runnable CLI renderer, a growing `.amx` language surface, an egui-based desktop GUI shell, and a Tree-sitter grammar for editor tooling.
 
+The GUI shell now includes basic transport shortcuts (`Space` to play/pause, `←` / `→` to scrub) and an Explorer-side action registry panel sourced from the runtime's built-in action signatures.
+
 ## Quick Example
 
 ```animatix
