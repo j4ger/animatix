@@ -48,15 +48,14 @@ What is already real today:
 - built-in actions support positional duration plus named `ease`
 - property assignments support positional duration plus named `ease`
 - `Text`, `Math`, and `Code` declarations support positional duration plus named `ease`
+- actor re-declarations and inline actor items now use the same shipped timing subset: positional duration plus named `ease`
+- unsupported modifier keys are reported explicitly during build/timeline construction rather than disappearing silently
 
 What is still mismatched:
 
-- actor re-declarations parse bracket modifiers but do not handle duration consistently
-- inline actor items inherit the same actor-declaration mismatch
 - `delay` is documented as a concept but is not implemented
 - morph-specific bracket keys such as `strategy`, `path_arc`, and `stretch` remain planned only
-- modifier parsing/normalization logic is duplicated across multiple runtime sites
-- unknown modifier keys are generally ignored instead of validated
+- broader host-specific modifier validation is still intentionally narrow: the shipped contract remains duration shorthand plus named `ease`
 
 ### Phase 1 — Modifier Contract Alignment
 

@@ -98,7 +98,7 @@ let name = expression
 **Re-Declaration (Morph Trigger)**  
 If an existing label is declared again at a later keyframe, the engine morphs the existing actor to the new definition.
 
-> **Current runtime note:** Actor re-declaration is shipped, but bracket modifiers on actor re-declarations are only partially honored today. `ease: ...` is applied; bracketed duration on the actor declaration path is not yet handled consistently at runtime.
+> **Current runtime note:** Actor re-declaration is shipped and now follows the same timing subset as the other shipped modifier hosts: positional duration shorthand plus named `ease`. Unsupported modifier keys are reported explicitly rather than being treated as runtime-real.
 
 ```animatix
 #0s
@@ -183,7 +183,7 @@ The parser accepts generic modifier syntax broadly, but the shipped runtime is n
 | Built-in actions | positional duration + named `ease` |
 | Property assignments | positional duration + named `ease` |
 | `Text`, `Math`, `Code` declarations | positional duration + named `ease` |
-| Actor re-declarations / morph-triggering declarations | named `ease`; duration support is still incomplete |
+| Actor re-declarations / morph-triggering declarations | positional duration + named `ease` |
 | Morph control keys such as `strategy`, `path_arc`, `stretch` | planned only |
 | `delay` | planned only |
 
@@ -203,6 +203,8 @@ The parser accepts generic modifier syntax broadly, but the shipped runtime is n
 ```
 
 These planned keys should not be treated as current runtime guarantees unless the status matrix and runnable examples say otherwise.
+
+Unsupported modifier keys are not part of the shipped contract today. The runtime reports them explicitly during build/timeline construction so CLI and GUI tooling can surface the mismatch without pretending the key had an effect.
 
 **Built-in Actions Registry**  
 The runtime currently registers three built-in actions:
@@ -226,7 +228,7 @@ circle: Circle, at: (100, 100) [2s]
 ```
 
 **Current Morph Modifier Status**  
-The runtime morphs vector path data when a supported actor is re-declared. Property assignments can already use bracketed timing modifiers such as duration shorthand and `ease`. Actor re-declarations, however, still have a narrower runtime path today: easing is honored, but duration handling on that declaration path is not yet fully aligned with the rest of the language.
+The runtime morphs vector path data when a supported actor is re-declared. Property assignments and actor re-declarations now share the same shipped timing subset: positional duration shorthand plus named `ease`. Unsupported modifier keys are reported explicitly during build/timeline construction instead of being treated as silently supported morph controls.
 
 **Planned Morph Strategy Modifiers**  
 Advanced morph-specific keys are still planned rather than implemented:
@@ -245,7 +247,7 @@ btn: Button, text: "New" [0s]
 btn.text = "New"
 ```
 
-For the current runtime, prefer property assignments when you need reliable bracketed timing behavior today.
+For the current runtime, choose between actor re-declarations and property assignments based on the kind of change you want to author, not because one path has a more complete timing contract than the other.
 
 **Property-Level State Tracking**
 Assignments can now take modifiers, allowing individual properties to be animated independently of the entire actor morph.

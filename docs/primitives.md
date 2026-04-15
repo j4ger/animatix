@@ -354,12 +354,14 @@ Square brackets are parsed through one generic modifier shape, but the current r
 - `Text`, `Math`, and `Code` declarations support duration shorthand plus named `ease`
 - built-in actions (`fade-in`, `wipe-in`, `fade-out`) support duration shorthand plus named `ease`
 
-**Partial today:**
-- actor re-declarations use the same bracket syntax, but the runtime currently honors easing more reliably than duration on that path
+**Runtime-real today:**
+- actor re-declarations use the same shipped timing subset as the other declaration/action hosts: duration shorthand plus named `ease`
 
 **Planned / not yet runtime-real:**
 - `delay`
 - morph-specific bracket keys such as `strategy`, `path_arc`, and `stretch`
+
+Unsupported modifier keys are reported explicitly during build/timeline construction rather than being treated as silently supported behavior.
 
 The intended long-term design is a typed declarative modifier bag with one universal duration shorthand, a small shared timing vocabulary, and host-specific keys only where a statement kind explicitly supports them.
 
