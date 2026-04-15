@@ -31,6 +31,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Actions | built-ins `fade-in`, `move`, `shift`, `rotate`, `scale`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
 | Composition | `sequence { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1a lowers sequence blocks at build time; nested sequence and declarations inside sequence are deliberately unsupported. |
+| Composition | `stagger [150ms] { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1b offsets each child statement by a shared interval; declarations inside stagger are deliberately unsupported. |
 
 ### Matrix Conventions
 
@@ -172,6 +173,12 @@ sequence {
   move btn [to: (120, -30), 600ms]
   btn.color = red [200ms]
 }
+
+stagger [150ms] {
+  fade-in a [300ms]
+  fade-in b [300ms]
+  fade-in c [300ms]
+}
 ```
 
 **Bracket Modifier Model**  
@@ -251,6 +258,19 @@ sequence {
 ```
 
 Nested `sequence` blocks and declarations inside `sequence` are intentionally rejected with diagnostics in this first slice.
+
+**Composition v1b: Stagger Blocks**  
+`stagger [150ms] { ... }` is the current stagger helper. Like `sequence`, it is intentionally narrow: the body may contain only actions and property assignments. Instead of chaining total spans, stagger offsets each item by a shared interval from the parent keyframe time.
+
+```animatix
+stagger [150ms] {
+  fade-in first [300ms]
+  fade-in second [300ms]
+  fade-in third [300ms]
+}
+```
+
+`stagger [each: 150ms] { ... }` is also accepted. Nested `stagger` blocks and declarations inside `stagger` are intentionally rejected with diagnostics in this slice.
 
 ---
 

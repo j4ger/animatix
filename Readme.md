@@ -83,6 +83,7 @@ Runnable demos live in [`examples/`](examples/):
 - `motion_rotate_demo.amx` — current local rotation action surface (`rotate`)
 - `motion_scale_demo.amx` — current local visual scale action surface (`scale`)
 - `composition_sequence_demo.amx` — current ordered composition surface (`sequence`)
+- `composition_stagger_demo.amx` — current staggered composition surface (`stagger`)
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access
