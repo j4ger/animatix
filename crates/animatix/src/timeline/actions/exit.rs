@@ -27,6 +27,11 @@ impl BuiltinAction for FadeOut {
                             .to_string(),
                     type_info: "positional time literal".to_string(),
                 },
+                ActionParam {
+                    name: "delay".to_string(),
+                    description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+                    type_info: "time literal".to_string(),
+                },
             ],
         }
     }
@@ -45,10 +50,11 @@ impl BuiltinAction for FadeOut {
             diagnostics,
         );
         let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
         let easing = parsed.easing;
 
-        let t_start_ms = time_ms as u64;
-        let t_end_ms = (time_ms + duration_ms) as u64;
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
             let track = timeline
@@ -61,6 +67,14 @@ impl BuiltinAction for FadeOut {
                 track
                     .opacity
                     .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_opacity = track.opacity.evaluate(guard_time);
+                if !track.opacity.keyframes.contains_key(&guard_time) {
+                    track
+                        .opacity
+                        .add_keyframe(guard_time, prior_opacity, Easing::Linear);
+                }
             }
             track.opacity.add_keyframe(t_end_ms, 0.0, easing);
         }

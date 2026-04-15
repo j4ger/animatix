@@ -27,6 +27,11 @@ impl BuiltinAction for WipeIn {
                             .to_string(),
                     type_info: "positional time literal".to_string(),
                 },
+                ActionParam {
+                    name: "delay".to_string(),
+                    description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+                    type_info: "time literal".to_string(),
+                },
             ],
         }
     }
@@ -45,16 +50,33 @@ impl BuiltinAction for WipeIn {
             diagnostics,
         );
         let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
         let easing = parsed.easing;
 
-        let t_start_ms = time_ms as u64;
-        let t_end_ms = (time_ms + duration_ms) as u64;
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
             let track = timeline
                 .tracks
                 .entry(target.clone())
                 .or_insert_with(|| crate::timeline::track::AnimationTrack::new(target.clone()));
+
+            if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_stroke = track.stroke_progress.evaluate(guard_time);
+                let prior_fill = track.fill_opacity.evaluate(guard_time);
+                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                    track
+                        .stroke_progress
+                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
+                }
+                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                    track
+                        .fill_opacity
+                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
+                }
+            }
 
             track
                 .stroke_progress
@@ -91,6 +113,11 @@ impl BuiltinAction for FadeIn {
                             .to_string(),
                     type_info: "positional time literal".to_string(),
                 },
+                ActionParam {
+                    name: "delay".to_string(),
+                    description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+                    type_info: "time literal".to_string(),
+                },
             ],
         }
     }
@@ -109,16 +136,27 @@ impl BuiltinAction for FadeIn {
             diagnostics,
         );
         let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
         let easing = parsed.easing;
 
-        let t_start_ms = time_ms as u64;
-        let t_end_ms = (time_ms + duration_ms) as u64;
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
             let track = timeline
                 .tracks
                 .entry(target.clone())
                 .or_insert_with(|| crate::timeline::track::AnimationTrack::new(target.clone()));
+
+            if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_fill = track.fill_opacity.evaluate(guard_time);
+                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                    track
+                        .fill_opacity
+                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
+                }
+            }
 
             track
                 .fill_opacity
