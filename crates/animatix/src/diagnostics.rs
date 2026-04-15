@@ -42,6 +42,7 @@ pub enum DiagnosticCode {
     UnsupportedActionTarget,
     UnsupportedSequenceStatement,
     UnknownTargetPath,
+    UnsupportedStaggerStatement,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -56,6 +57,9 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "unsupported-sequence-statement")
             }
             DiagnosticCode::UnknownTargetPath => write!(f, "unknown-target-path"),
+            DiagnosticCode::UnsupportedStaggerStatement => {
+                write!(f, "unsupported-stagger-statement")
+            }
         }
     }
 }

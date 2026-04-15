@@ -568,6 +568,7 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
         | Stmt::Sequence { body }
+        | Stmt::Stagger { body, .. }
         | Stmt::Always { body }
         | Stmt::ComponentAction { body, .. }
         | Stmt::ForLoop { body, .. } => {
@@ -687,6 +688,13 @@ fn rewrite_stmt(
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
         },
         Stmt::Sequence { body } => Stmt::Sequence {
+            body: body
+                .iter()
+                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                .collect(),
+        },
+        Stmt::Stagger { modifiers, body } => Stmt::Stagger {
+            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
@@ -1146,6 +1154,17 @@ fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 Some(Stmt::Sequence { body })
             }
         }
+        Stmt::Stagger { modifiers, body } => {
+            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            if body.is_empty() {
+                None
+            } else {
+                Some(Stmt::Stagger {
+                    modifiers: modifiers.clone(),
+                    body,
+                })
+            }
+        }
         _ => Some(stmt.clone()),
     }
 }
@@ -1163,7 +1182,8 @@ fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<Component
         Stmt::ComponentDef(definition) => definitions.push(definition.clone()),
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body } => {
+        | Stmt::Sequence { body }
+        | Stmt::Stagger { body, .. } => {
             for stmt in body {
                 collect_component_defs_from_stmt(stmt, definitions);
             }
