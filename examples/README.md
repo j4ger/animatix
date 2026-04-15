@@ -33,7 +33,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 
 `reveal_actions_demo.amx` is the focused example for the current reveal-action surface: opacity-based `fade-in` plus vector-first `draw-in`, `wipe-in`, and `wipe-out`.
 
-`motion_shift_demo.amx` is the focused example for the current motion-ergonomics slice: `shift` adds local motion on top of existing placement for both manual and layout-managed nodes.
+`motion_shift_demo.amx` is the focused example for the current motion-ergonomics slice: `move` sets a local offset target while `shift` adds relative local motion on top of existing placement for both manual and layout-managed nodes.
 
 `modifier_timing_demo.amx` is the focused example for the shipped shared timing vocabulary: duration shorthand, named `delay`, named `ease`, explicit instant changes, and delayed-first-declaration behavior.
 
