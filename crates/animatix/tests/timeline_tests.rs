@@ -571,6 +571,7 @@ fn test_parametric_plot_builds_runtime_path() {
         .get("curve")
         .expect("parametric track should exist");
 
+    assert_ne!(track.shape_type.evaluate(0), 0);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -645,6 +646,7 @@ fn test_implicit_plot_builds_runtime_path() {
         .get("contour")
         .expect("implicit plot track should exist");
 
+    assert_ne!(track.shape_type.evaluate(0), 0);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -2929,6 +2931,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
         .tracks
         .get("plot")
         .expect("plot track should exist");
+    assert_ne!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
     assert_eq!(
         track.position_binding.evaluate(0),

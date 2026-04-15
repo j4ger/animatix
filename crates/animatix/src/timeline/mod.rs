@@ -1256,6 +1256,8 @@ const SHAPE_ARC: u32 = 4;
 const SHAPE_POLYGON: u32 = 5;
 const SHAPE_PATH: u32 = 6;
 const SHAPE_ARROW: u32 = 7;
+const SHAPE_GRAPH: u32 = 8;
+const SHAPE_PLOT: u32 = 9;
 
 fn shape_type_for_actor(ty: &str) -> u32 {
     match ty {
@@ -1266,6 +1268,8 @@ fn shape_type_for_actor(ty: &str) -> u32 {
         "Arc" => SHAPE_ARC,
         "Polygon" | "RegularPolygon" => SHAPE_POLYGON,
         "Path" => SHAPE_PATH,
+        "Graph" => SHAPE_GRAPH,
+        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => SHAPE_PLOT,
         _ => SHAPE_RECT,
     }
 }
@@ -4012,6 +4016,8 @@ impl Timeline {
                         stroke_color,
                         fill_opacity,
                     )]
+                } else if matches!(shape_type, SHAPE_GRAPH | SHAPE_PLOT) {
+                    vector_paths
                 } else {
                     vec![build_shape_vello_path(
                         shape_type,
