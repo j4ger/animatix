@@ -26,7 +26,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | Shipped as a small v1 primitive rendered through the text-path pipeline; see `examples/code_demo.amx`. |
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | Shipped plotting surface; see `examples/plotting_demo.amx`. |
 | Plotting | `ParametricPlot` | Yes | Runtime-real | Yes | Yes | Shipped parametric plot surface using a tuple-return closure over `t_domain`. |
-| Plotting | `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing implicit plotting remains unimplemented. |
+| Plotting | `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Shipped implicit contour plotting using a closure `(x, y) => scalar` over the parent graph domain and a grid `resolution`. |
 | Morphing | re-declaration morphing and current path/text interpolation | Yes | Runtime-real | Yes | Yes | Current runtime supports the core morph path via re-declaration and interpolation. |
 | Morphing | DSL modifiers `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing re-declarations | Yes | Yes | Shipped only for timed path-morphing re-declarations; `strategy:fade` remains deferred. |
 | Actions | built-ins `fade-in`, `move`, `shift`, `rotate`, `scale`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |

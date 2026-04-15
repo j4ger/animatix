@@ -359,9 +359,28 @@ graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 
 ```
 
 ## ImplicitPlot
-**Status:** Planned, not yet implemented.
+**Status:** Implemented in runtime.
 
-The docs still reserve `ImplicitPlot` as future work. The current runtime does not sample or render implicit equations yet.
+`ImplicitPlot` samples a scalar field closure `(x, y) => expr` across the parent `Graph` domain and extracts the zero contour using a grid-based marching-squares pass.
+
+**Properties used by the runtime:**
+- `func`: Closure `(x, y) => scalar_expr`
+- `resolution`: Number of sampling cells along the longer graph axis
+- `color` or `stroke`: Color
+- `width` / `stroke_width`: Number
+
+**Current v1 constraints:**
+- stroke-only output
+- zero contour only (`func(x, y) = 0`)
+- quality is controlled by `resolution`
+- topology and very thin features depend on the sampled grid
+
+**Example:**
+```animatix
+graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
+  circle: ImplicitPlot, func: (x, y) => x * x + y * y - 1, resolution: 96, stroke: cyan, width: 3
+}
+```
 
 ---
 
