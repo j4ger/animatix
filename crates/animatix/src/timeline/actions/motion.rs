@@ -20,6 +20,12 @@ fn timing_modifier_params() -> Vec<ActionParam> {
             type_info: "number (radians)".to_string(),
         },
         ActionParam {
+            name: "factor".to_string(),
+            description: "Target scale factor for the scale action (e.g. [factor: 1.5])."
+                .to_string(),
+            type_info: "positive number".to_string(),
+        },
+        ActionParam {
             name: "by".to_string(),
             description: "Relative translation delta for the shift action (e.g. [by: (40, -24)])."
                 .to_string(),
@@ -157,6 +163,26 @@ fn parse_num_modifier(
     }
 
     value
+}
+
+fn parse_positive_num_modifier(
+    modifiers: &[Modifier],
+    timeline: &Timeline,
+    key: &str,
+    message: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<f32> {
+    let value = parse_num_modifier(modifiers, timeline, key, message, diagnostics)?;
+    if value <= 0.0 {
+        push_shift_diagnostic(
+            diagnostics,
+            DiagnosticCode::InvalidModifierValue,
+            message,
+            key,
+        );
+        return None;
+    }
+    Some(value)
 }
 
 fn timing_modifiers_without_keys(modifiers: &[Modifier], excluded_keys: &[&str]) -> Vec<Modifier> {
@@ -406,6 +432,83 @@ impl BuiltinAction for Rotate {
     }
 }
 
+pub struct Scale;
+
+impl BuiltinAction for Scale {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "scale".to_string(),
+            category: "Motion".to_string(),
+            description:
+                "Applies a relative uniform local scale on top of the target's existing placement."
+                    .to_string(),
+            params: vec![],
+            modifiers: timing_modifier_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(scale_by) = parse_positive_num_modifier(
+            &action.modifiers,
+            timeline,
+            "by",
+            "Scale action requires a positive numeric 'by' modifier such as [by: 1.5].",
+            diagnostics,
+        ) else {
+            return;
+        };
+
+        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["by"]);
+        let parsed = parse_timing_modifiers(
+            &timing_modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+            let start_scale = track.scale.evaluate(t_start_ms);
+            let end_scale = start_scale * scale_by;
+
+            if duration_ms > 0.0 {
+                track
+                    .scale
+                    .add_keyframe(t_start_ms, start_scale, Easing::Linear);
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_scale = track.scale.evaluate(guard_time);
+                if !track.scale.keyframes.contains_key(&guard_time) {
+                    track
+                        .scale
+                        .add_keyframe(guard_time, prior_scale, Easing::Linear);
+                }
+            }
+
+            track.scale.add_keyframe(t_end_ms, end_scale, easing);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,6 +568,24 @@ mod tests {
     fn rotate_action(target: &str, by: Expr) -> Stmt {
         Stmt::Action(Action {
             verb: "rotate".to_string(),
+            targets: vec![target.to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("by".to_string()),
+                    value: by,
+                },
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                },
+            ],
+        })
+    }
+
+    fn scale_action(target: &str, by: Expr) -> Stmt {
+        Stmt::Action(Action {
+            verb: "scale".to_string(),
             targets: vec![target.to_string()],
             args: vec![],
             modifiers: vec![
@@ -542,6 +663,36 @@ mod tests {
                 circle_decl("badge"),
                 rotate_action("badge", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
             ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+    }
+
+    #[test]
+    fn scale_animates_scale_track_over_duration() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(1.5))],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("badge").expect("badge track");
+
+        assert!((track.scale.evaluate(0) - 1.0).abs() < f32::EPSILON);
+        assert!((track.scale.evaluate(1000) - 1.5).abs() < 0.0001);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn scale_requires_positive_numeric_by_modifier() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(0.0))],
         }];
 
         let report = Timeline::build_with_diagnostics(&ast);
