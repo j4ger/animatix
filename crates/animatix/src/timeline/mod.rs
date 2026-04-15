@@ -981,11 +981,13 @@ const SHAPE_ELLIPSE: u32 = 3;
 const SHAPE_ARC: u32 = 4;
 const SHAPE_POLYGON: u32 = 5;
 const SHAPE_PATH: u32 = 6;
+const SHAPE_ARROW: u32 = 7;
 
 fn shape_type_for_actor(ty: &str) -> u32 {
     match ty {
         "Circle" | "Dot" => SHAPE_CIRCLE,
         "Line" => SHAPE_LINE,
+        "Arrow" => SHAPE_ARROW,
         "Ellipse" => SHAPE_ELLIPSE,
         "Arc" => SHAPE_ARC,
         "Polygon" | "RegularPolygon" => SHAPE_POLYGON,
@@ -1004,6 +1006,50 @@ fn regular_polygon_points(sides: usize, radius: f32) -> Vec<kurbo::Point> {
             kurbo::Point::new(radius * angle.cos(), radius * angle.sin())
         })
         .collect()
+}
+
+fn build_arrow_path(
+    line_from: [f32; 2],
+    line_to: [f32; 2],
+    tip_length: f32,
+    tip_width: f32,
+) -> kurbo::BezPath {
+    let start = kurbo::Point::new(line_from[0] as f64, line_from[1] as f64);
+    let tip = kurbo::Point::new(line_to[0] as f64, line_to[1] as f64);
+    let dx = tip.x - start.x;
+    let dy = tip.y - start.y;
+    let length = (dx * dx + dy * dy).sqrt();
+
+    let mut path = kurbo::BezPath::new();
+    if length <= f64::EPSILON {
+        path.move_to(tip);
+        path.close_path();
+        return path;
+    }
+
+    let dir_x = dx / length;
+    let dir_y = dy / length;
+    let perp_x = -dir_y;
+    let perp_y = dir_x;
+    let tip_length = tip_length.max(1.0) as f64;
+    let half_tip_width = (tip_width.max(1.0) as f64) / 2.0;
+    let base = kurbo::Point::new(tip.x - dir_x * tip_length, tip.y - dir_y * tip_length);
+    let left = kurbo::Point::new(
+        base.x + perp_x * half_tip_width,
+        base.y + perp_y * half_tip_width,
+    );
+    let right = kurbo::Point::new(
+        base.x - perp_x * half_tip_width,
+        base.y - perp_y * half_tip_width,
+    );
+
+    path.move_to(start);
+    path.line_to(base);
+    path.move_to(tip);
+    path.line_to(left);
+    path.line_to(right);
+    path.close_path();
+    path
 }
 
 fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
@@ -1111,6 +1157,9 @@ fn build_shape(
             start_angle: arc_angles[0] as f64,
             sweep_angle: arc_angles[1] as f64,
             rotation: 0.0,
+        },
+        SHAPE_ARROW => KurboShape_::Path {
+            path: build_arrow_path(line_from, line_to, size[0], size[1]),
         },
         _ => KurboShape_::Rect {
             x0: -(size[0] as f64),
@@ -1450,6 +1499,10 @@ impl Timeline {
             set_lookup_vec2(env, &format!("{}.size", label), size);
             set_lookup_scalar(env, &format!("{}.width", label), size[0]);
             set_lookup_scalar(env, &format!("{}.height", label), size[1]);
+            if track.shape_type.evaluate(time_ms) == SHAPE_ARROW {
+                set_lookup_scalar(env, &format!("{}.tip_length", label), size[0] / 2.0);
+                set_lookup_scalar(env, &format!("{}.tip_width", label), size[1] / 2.0);
+            }
 
             let radius_x = node_overrides
                 .and_then(|props| props.get("radius_x"))
@@ -2442,6 +2495,8 @@ impl Timeline {
                     let mut size = track.size.last_value();
                     if ty == "Dot" && size == [50.0, 50.0] {
                         size = [6.0, 6.0];
+                    } else if ty == "Arrow" && size == [50.0, 50.0] {
+                        size = [24.0, 18.0];
                     }
                     let mut line_from = track.line_from.last_value();
                     let mut line_to = track.line_to.last_value();
@@ -2508,6 +2563,16 @@ impl Timeline {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
                                 }
+                            }
+                            "tip_length" if ty == "Arrow" => {
+                                let v = evaluate_expr(&prop.value, &eval_env)
+                                    .unwrap_or(Value::Num(size[0] as f64));
+                                size[0] = v.as_num() as f32;
+                            }
+                            "tip_width" if ty == "Arrow" => {
+                                let v = evaluate_expr(&prop.value, &eval_env)
+                                    .unwrap_or(Value::Num(size[1] as f64));
+                                size[1] = v.as_num() as f32;
                             }
                             "sides" if ty == "RegularPolygon" => {
                                 let v = evaluate_expr(&prop.value, &eval_env)
@@ -3139,6 +3204,39 @@ impl Timeline {
                             }
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
+                        "tip_length" => {
+                            let target_tip_length = evaluate_expr(value, &eval_env)
+                                .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
+                                .as_num()
+                                as f32;
+                            if duration_ms > 0.0 {
+                                let start_val = track.size.evaluate(t_start_ms);
+                                track
+                                    .size
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                            }
+                            let mut target_size = track.size.evaluate(t_end_ms);
+                            target_size[0] = target_tip_length;
+                            track.size.add_keyframe(t_end_ms, target_size, easing);
+                        }
+                        "tip_width" => {
+                            let target_tip_width = evaluate_expr(value, &eval_env)
+                                .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
+                                .as_num() as f32;
+                            if duration_ms > 0.0 {
+                                let start_val = track.size.evaluate(t_start_ms);
+                                track
+                                    .size
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                            }
+                            let mut target_size = track.size.evaluate(t_end_ms);
+                            target_size[1] = target_tip_width;
+                            track.size.add_keyframe(t_end_ms, target_size, easing);
+                        }
                         "url" => {
                             let target_url = evaluate_expr(value, &eval_env)
                                 .unwrap_or(Value::Str(String::new()))
@@ -3486,6 +3584,12 @@ impl Timeline {
                 }
                 if let Some(Value::Vec2(size)) = node_overrides.get("size") {
                     half_size = [size[0] as f32 / 2.0, size[1] as f32 / 2.0];
+                }
+                if let Some(Value::Num(tip_length)) = node_overrides.get("tip_length") {
+                    half_size[0] = *tip_length as f32;
+                }
+                if let Some(Value::Num(tip_width)) = node_overrides.get("tip_width") {
+                    half_size[1] = *tip_width as f32;
                 }
                 if let Some(Value::Num(radius)) = node_overrides.get("radius") {
                     half_size = [*radius as f32, *radius as f32];

@@ -449,6 +449,71 @@ fn test_regular_polygon_builds_runtime_path() {
 }
 
 #[test]
+fn test_arrow_primitive_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "arrow".to_string(),
+            ty: "Arrow".to_string(),
+            props: vec![
+                Property {
+                    name: "from".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(0.0)]),
+                },
+                Property {
+                    name: "to".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(0.0)]),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("arrow")
+        .expect("arrow track should exist");
+
+    assert_eq!(track.shape_type.evaluate(0), 7);
+    assert!(!track.vector_paths.evaluate(0).is_empty());
+}
+
+#[test]
+fn test_arrow_tip_properties_update_size_track() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "arrow".to_string(),
+            ty: "Arrow".to_string(),
+            props: vec![
+                Property {
+                    name: "tip_length".to_string(),
+                    value: Expr::Num(30.0),
+                },
+                Property {
+                    name: "tip_width".to_string(),
+                    value: Expr::Num(20.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("arrow")
+        .expect("arrow track should exist");
+
+    assert_eq!(track.size.evaluate(0), [30.0, 20.0]);
+}
+
+#[test]
 fn imported_component_instances_expand_with_isolated_labels_and_props() {
     let dir = temp_project_dir("component_instances");
     let entry = dir.join("scene.amx");
