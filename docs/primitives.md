@@ -174,6 +174,27 @@ sq: Square, side: 120, color: blue, at: (400, 300)
 axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (640, 360)
 ```
 
+## Arrow
+**Status:** Implemented in parser and runtime.
+
+`Arrow` is the straight-arrow companion to `Line`. It uses the same local `from` / `to` coordinates for the shaft, then generates a filled arrowhead at the `to` end through the existing vector path pipeline.
+
+**Properties used by the runtime:**
+- `from`: Tuple `(x, y)` in local actor coordinates
+- `to`: Tuple `(x, y)` in local actor coordinates
+- `tip_length`: Number
+- `tip_width`: Number
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `at`: Tuple `(x, y)`
+
+**Example:**
+```animatix
+flow: Arrow, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, stroke: white, color: gold, at: (640, 360)
+```
+
 ## Ellipse
 **Status:** Implemented in parser and runtime.
 
