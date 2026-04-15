@@ -25,6 +25,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `composition_sequence_demo.amx`
 - `composition_stagger_demo.amx`
 - `primitive_breadth_demo.amx`
+- `arrow_demo.amx`
 - `modifier_timing_demo.amx`
 - `code_demo.amx`
 - `component_modules_demo.amx`
@@ -49,6 +50,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `composition_stagger_demo.amx` is the focused example for composition v1b: `stagger [150ms] { ... }` offsets each child statement by a shared interval from the parent keyframe.
 
 `primitive_breadth_demo.amx` is the focused example for the current breadth slice: `Dot`, `Square`, and `RegularPolygon` all ride on the existing vector primitive pipeline.
+
+`arrow_demo.amx` is the focused example for the current arrow slice: `Arrow` reuses line-style local coordinates with a generated vector arrowhead.
 
 `modifier_timing_demo.amx` is the focused example for the shipped shared timing vocabulary: duration shorthand, named `delay`, named `ease`, explicit instant changes, and delayed-first-declaration behavior.
 
