@@ -191,6 +191,93 @@ fn test_actor_decl_full() {
 }
 
 #[test]
+fn test_modifier_delay_and_duplicates_parse() {
+    assert_eq!(
+        parse_single_stmt("badge: Circle, radius: 20 [delay: 250ms, ease: ease-in, ease: bounce]"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Circle".to_string(),
+            props: vec![Property {
+                name: "radius".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![
+                Modifier {
+                    name: Some("delay".to_string()),
+                    value: Expr::Ident("250ms".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("ease-in".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("bounce".to_string()),
+                },
+            ],
+            children: vec![],
+        }
+    );
+
+    assert_eq!(
+        parse_single_stmt("badge.radius = 40 [delay: 1s, 500ms]"),
+        Stmt::Assignment {
+            target: vec!["badge".to_string()],
+            property: "radius".to_string(),
+            value: Expr::Num(40.0),
+            modifiers: vec![
+                Modifier {
+                    name: Some("delay".to_string()),
+                    value: Expr::Ident("1s".to_string()),
+                },
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("500ms".to_string()),
+                },
+            ],
+        }
+    );
+}
+
+#[test]
+fn test_morph_modifier_keys_parse() {
+    assert_eq!(
+        parse_single_stmt(
+            "badge: Circle, radius: 20 [1s, strategy: match, path_arc: 1.57, stretch: false]"
+        ),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Circle".to_string(),
+            props: vec![Property {
+                name: "radius".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                },
+                Modifier {
+                    name: Some("strategy".to_string()),
+                    value: Expr::Ident("match".to_string()),
+                },
+                Modifier {
+                    name: Some("path_arc".to_string()),
+                    value: Expr::Num(1.57),
+                },
+                Modifier {
+                    name: Some("stretch".to_string()),
+                    value: Expr::Bool(false),
+                },
+            ],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
 fn test_component_definition_and_instantiation_parse() {
     assert_eq!(
         parse_single_stmt(

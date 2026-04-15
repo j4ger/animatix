@@ -279,7 +279,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         ident
             .clone()
             .then_ignore(just(':').padded())
-            .then(expr.clone())
+            .then(choice((
+                time.clone().map(|t| match t {
+                    Time::Seconds(s) => Expr::Ident(format!("{}s", s)),
+                    Time::Milliseconds(ms) => Expr::Ident(format!("{}ms", ms)),
+                }),
+                expr.clone(),
+            )))
             .map(|(name, value)| Modifier {
                 name: Some(name),
                 value,

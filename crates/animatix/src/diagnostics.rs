@@ -37,6 +37,7 @@ impl fmt::Display for DiagnosticPhase {
 pub enum DiagnosticCode {
     UnsupportedModifierKey,
     InvalidModifierValue,
+    ConflictingModifierKey,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -44,6 +45,7 @@ impl fmt::Display for DiagnosticCode {
         match self {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
+            DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
         }
     }
 }
