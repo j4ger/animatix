@@ -4,8 +4,8 @@ use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PlacementMode,
-    PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, MorphStrategy,
+    PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use kurbo::Shape;
 use std::fs;
@@ -1417,7 +1417,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
 }
 
 #[test]
-fn test_actor_redeclaration_reports_unsupported_modifier_keys() {
+fn test_actor_morph_modifiers_require_timed_redeclaration() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -1456,13 +1456,15 @@ fn test_actor_redeclaration_reports_unsupported_modifier_keys() {
 
     assert!(report.output.tracks.contains_key("badge"));
     assert!(report.diagnostics.iter().any(|diagnostic| {
-        diagnostic.code == DiagnosticCode::UnsupportedModifierKey
-            && diagnostic.message.contains("strategy")
+        diagnostic.code == DiagnosticCode::InvalidModifierValue
+            && diagnostic
+                .message
+                .contains("require a path-morphing re-declaration")
     }));
 }
 
 #[test]
-fn test_action_reports_unsupported_modifier_keys() {
+fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -1481,12 +1483,12 @@ fn test_action_reports_unsupported_modifier_keys() {
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Action(animatix::ast::Action {
-                verb: "fade-in".to_string(),
+                verb: "fade-out".to_string(),
                 targets: vec!["badge".to_string()],
                 args: vec![],
                 modifiers: vec![Modifier {
-                    name: Some("delay".to_string()),
-                    value: Expr::Ident("1s".to_string()),
+                    name: Some("strategy".to_string()),
+                    value: Expr::Ident("match".to_string()),
                 }],
             })],
         },
@@ -1497,8 +1499,222 @@ fn test_action_reports_unsupported_modifier_keys() {
     assert!(report.output.tracks.contains_key("badge"));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedModifierKey
-            && diagnostic.message.contains("delay")
+            && diagnostic.message.contains("strategy")
     }));
+}
+
+#[test]
+fn test_action_delay_starts_later() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Action(animatix::ast::Action {
+                verb: "fade-out".to_string(),
+                targets: vec!["badge".to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("delay".to_string()),
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                ],
+            })],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    assert_eq!(track.opacity.evaluate(1500), 1.0);
+    assert!(track.opacity.evaluate(2500) < 0.75);
+    assert_eq!(track.opacity.evaluate(3000), 0.0);
+}
+
+#[test]
+fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Circle".to_string(),
+            props: vec![Property {
+                name: "radius".to_string(),
+                value: Expr::Num(24.0),
+            }],
+            modifiers: vec![Modifier {
+                name: Some("delay".to_string()),
+                value: Expr::Ident("1s".to_string()),
+            }],
+            children: vec![],
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    assert!(track.vector_paths.evaluate(999).is_empty());
+    assert!(!track.vector_paths.evaluate(1000).is_empty());
+}
+
+#[test]
+fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Circle".to_string(),
+            props: vec![Property {
+                name: "radius".to_string(),
+                value: Expr::Num(24.0),
+            }],
+            modifiers: vec![
+                Modifier {
+                    name: Some("delay".to_string()),
+                    value: Expr::Ident("250ms".to_string()),
+                },
+                Modifier {
+                    name: Some("delay".to_string()),
+                    value: Expr::Ident("1s".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("ease-in".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("bounce".to_string()),
+                },
+            ],
+            children: vec![],
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+
+    assert!(track.vector_paths.evaluate(999).is_empty());
+    assert!(!track.vector_paths.evaluate(1000).is_empty());
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagnosticCode::ConflictingModifierKey)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn test_timed_redeclaration_stores_and_uses_morph_options() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "shape".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(50.0),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(300.0)]),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "shape".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(640.0), Expr::Num(360.0)]),
+                    },
+                ],
+                modifiers: vec![
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                    Modifier {
+                        name: Some("strategy".to_string()),
+                        value: Expr::Ident("match".to_string()),
+                    },
+                    Modifier {
+                        name: Some("path_arc".to_string()),
+                        value: Expr::Num(1.2),
+                    },
+                    Modifier {
+                        name: Some("stretch".to_string()),
+                        value: Expr::Bool(true),
+                    },
+                ],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("shape")
+        .expect("shape track should exist");
+    let morph_options = track.morph_options.evaluate(2000);
+    let mid_bounds = vector_path_bounds(&report.output, "shape", 1500);
+
+    assert!(report.diagnostics.is_empty());
+    assert_eq!(morph_options.strategy, MorphStrategy::Match);
+    assert!((morph_options.path_arc - 1.2).abs() < f64::EPSILON);
+    assert!(morph_options.stretch);
+    assert!(mid_bounds.x0.is_finite());
+    assert!(mid_bounds.y0.is_finite());
 }
 
 #[test]
