@@ -27,7 +27,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | Shipped plotting surface; see `examples/plotting_demo.amx`. |
 | Plotting | `ParametricPlot`, `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing plotting types documented as not yet implemented. |
 | Morphing | re-declaration morphing and current path/text interpolation | Yes | Runtime-real | Yes | Yes | Current runtime supports the core morph path via re-declaration and interpolation. |
-| Morphing | DSL modifiers `strategy`, `path_arc`, `stretch` | Planned surface only | Planned | No | Yes | Documented as future-facing controls, not wired into the runtime today. |
+| Morphing | DSL modifiers `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing re-declarations | Yes | Yes | Shipped only for timed path-morphing re-declarations; `strategy:fade` remains deferred. |
 | Actions | built-ins `fade-in`, `wipe-in`, `fade-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
 
@@ -173,36 +173,38 @@ Square brackets use one parser-level shape everywhere they appear: a comma-separ
 The intended design is a **typed declarative modifier bag** with:
 
 1. **One universal shorthand** — the first bare time literal means duration.
-2. **A small shared timing vocabulary** — today that is effectively `duration` (via shorthand) and `ease`.
+2. **A small shared timing vocabulary** — today that is `duration` (via shorthand), `delay`, and `ease`.
 3. **Host-specific extension keys** — only when a statement kind explicitly supports them.
 
 The parser accepts generic modifier syntax broadly, but the shipped runtime is narrower:
 
 | Surface | Current runtime support |
 |---|---|
-| Built-in actions | positional duration + named `ease` |
-| Property assignments | positional duration + named `ease` |
-| `Text`, `Math`, `Code` declarations | positional duration + named `ease` |
-| Actor re-declarations / morph-triggering declarations | positional duration + named `ease` |
-| Morph control keys such as `strategy`, `path_arc`, `stretch` | planned only |
-| `delay` | planned only |
+| Built-in actions | positional duration + named `delay` + named `ease` |
+| Property assignments | positional duration + named `delay` + named `ease` |
+| `Text`, `Math`, `Code` declarations | positional duration + named `delay` + named `ease` |
+| Actor re-declarations / morph-triggering declarations | positional duration + named `delay` + named `ease` |
+| Morph control keys `strategy: auto|match`, `path_arc`, `stretch` | shipped only on timed path-morphing re-declarations |
+| `strategy: fade` | deferred |
 
 **Current shipped modifier examples**
 ```animatix
 [2s]                      // Duration shorthand
+[delay: 120ms]            // Delay without changing duration
 [2s, ease: ease-in-out]  // Duration + easing
 [ease: bounce]           // Easing without duration
+[delay: 250ms, 0s]       // Delayed instant change
+[strategy: match]        // Morph-only modifier on timed path-morphing re-declarations
+[path_arc: 1.57]         // Curved interpolation hint for morphing paths
+[stretch: true]          // Bounds-normalized morph interpolation
 ```
 
 **Planned / deferred modifier examples**
 ```animatix
-[delay: 120ms]
-[strategy: match]
-[path_arc: 1.57]
-[stretch: false]
+[strategy: fade]
 ```
 
-These planned keys should not be treated as current runtime guarantees unless the status matrix and runnable examples say otherwise.
+Duplicate shipped modifier keys are reported deliberately and the runtime uses the last provided value. `ease` without an explicit duration remains an instant change. Morph-only keys are rejected or ignored with diagnostics outside timed path-morphing re-declarations.
 
 Unsupported modifier keys are not part of the shipped contract today. The runtime reports them explicitly during build/timeline construction so CLI and GUI tooling can surface the mismatch without pretending the key had an effect.
 
@@ -228,17 +230,18 @@ circle: Circle, at: (100, 100) [2s]
 ```
 
 **Current Morph Modifier Status**  
-The runtime morphs vector path data when a supported actor is re-declared. Property assignments and actor re-declarations now share the same shipped timing subset: positional duration shorthand plus named `ease`. Unsupported modifier keys are reported explicitly during build/timeline construction instead of being treated as silently supported morph controls.
+The runtime morphs vector path data when a supported actor is re-declared. Property assignments and actor re-declarations now share the same shipped timing subset: positional duration shorthand plus named `delay` plus named `ease`. Timed path-morphing re-declarations can also use `strategy: auto|match`, `path_arc`, and `stretch`. Unsupported or out-of-context modifier keys are reported explicitly during build/timeline construction instead of being treated as silently supported morph controls.
 
-**Planned Morph Strategy Modifiers**  
-Advanced morph-specific keys are still planned rather than implemented:
+**Shipped Morph Strategy Modifiers**  
+The currently shipped scoped morph modifiers are:
 ```animatix
 [strategy: auto]          // Engine decides (default)
 [strategy: match]         // Force point alignment
-[strategy: fade]          // Cross-fade (ReplacementTransform)
-[path_arc: 1.57]          // Planned curved interpolation hint
-[stretch: false]          // Planned bounds-fitting control
+[path_arc: 1.57]          // Curved interpolation hint during path morphing
+[stretch: true]           // Bounds-normalized morph interpolation
 ```
+
+These keys are intentionally narrower than parser acceptance: they are runtime-real only for timed path-morphing re-declarations. `strategy: fade` is intentionally deferred for now because it implies overlapping source/target visual states rather than a single path interpolation contract.
 
 **Instant Change**
 Use zero duration or property assignment for instant updates.

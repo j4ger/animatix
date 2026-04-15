@@ -350,16 +350,20 @@ Absolute positioning is intentionally preserved in the language. The design chan
 Square brackets are parsed through one generic modifier shape, but the current runtime does **not** treat every declaration surface equally.
 
 **Runtime-real today:**
-- property assignments support duration shorthand plus named `ease`
-- `Text`, `Math`, and `Code` declarations support duration shorthand plus named `ease`
-- built-in actions (`fade-in`, `wipe-in`, `fade-out`) support duration shorthand plus named `ease`
+- property assignments support duration shorthand plus named `delay` plus named `ease`
+- `Text`, `Math`, and `Code` declarations support duration shorthand plus named `delay` plus named `ease`
+- built-in actions (`fade-in`, `wipe-in`, `fade-out`) support duration shorthand plus named `delay` plus named `ease`
 
 **Runtime-real today:**
-- actor re-declarations use the same shipped timing subset as the other declaration/action hosts: duration shorthand plus named `ease`
+- actor re-declarations use the same shipped timing subset as the other declaration/action hosts: duration shorthand plus named `delay` plus named `ease`
+- timed path-morphing re-declarations can additionally use `strategy: auto|match`, `path_arc`, and `stretch`
 
 **Planned / not yet runtime-real:**
-- `delay`
-- morph-specific bracket keys such as `strategy`, `path_arc`, and `stretch`
+- `strategy: fade`
+
+Duplicate shipped modifier keys are reported deliberately and the runtime uses the last provided value. `ease` without an explicit duration remains an instant change; `delay` can shift that instant application later in time.
+
+Near-term note: the shipped scoped morph controls are `strategy: auto|match`, `path_arc`, and `stretch` on timed path-morphing re-declarations. A true `fade` strategy is deferred for now because it likely needs a different transition/compositing representation than the existing single-track morph path model.
 
 Unsupported modifier keys are reported explicitly during build/timeline construction rather than being treated as silently supported behavior.
 
@@ -375,7 +379,7 @@ The intended long-term design is a typed declarative modifier bag with one unive
 - Shape-to-path morph helpers in `timeline/kurbo_shapes.rs`
 
 **Not implemented in the DSL/runtime yet:**
-- `strategy`, `path_arc`, and `stretch` modifiers
+- `strategy: fade`
 - High-level multi-strategy morph selection described in older drafts
 
 ---

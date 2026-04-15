@@ -3,6 +3,8 @@
 > **Status: planned / design-only document**
 >
 > This file describes future-facing morph APIs and strategy controls, not the shipped DSL contract. For current runtime behavior, use `docs/spec.md` and `docs/primitives.md` as the source of truth.
+>
+> Additional scoping note: `strategy: fade` is intentionally deferred for now. Unlike interpolation-oriented controls such as `auto`, `match`, `path_arc`, or `stretch`, a true cross-fade likely wants a different transition/compositing representation or a broader architecture change.
 
 ## 1. Syntax for Morphing
 

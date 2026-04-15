@@ -1,0 +1,19 @@
+// Runnable example: shared timing modifiers (`delay`, duration shorthand, and `ease`).
+#0s
+scene.background_color = (0.05, 0.06, 0.09, 1.0)
+
+title: Text { text: "Modifier Timing Demo", font_size: 30, color: WHITE, at: (640, 72) }
+label_a: Text { text: "Delayed fade-out", font_size: 24, color: WHITE, at: (250, 170) }
+label_b: Text { text: "Delayed appearance", font_size: 24, color: WHITE, at: (640, 170) }
+label_c: Text { text: "Ease-only instant move", font_size: 24, color: WHITE, at: (1030, 170) }
+
+left: Circle, radius: 70, color: (1.0, 0.35, 0.55, 1.0), at: (250, 380)
+middle: Rect, size: (150, 150), color: (0.35, 0.95, 0.65, 1.0) [delay: 1s]
+right: Circle, radius: 60, color: (0.35, 0.65, 1.0, 1.0), at: (930, 380)
+
+#1s
+fade-out left [delay: 1s, 1s]
+right.at = (1130, 380) [delay: 1s, ease: bounce]
+
+#4s
+middle.color = (0.95, 0.85, 0.30, 1.0) [delay: 500ms, 0s]

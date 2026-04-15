@@ -76,11 +76,11 @@ What is still mismatched:
 
 **Goal:** Add a small, explicit next layer of timing semantics without turning brackets into an open-ended mini-language.
 
-**Candidate work:**
-- `delay`
-- duplicate-key conflict rules
-- explicit zero-duration / instant semantics across hosts
-- consistent defaulting rules when only `ease` is provided
+**Current status:**
+- shipped: `delay`
+- shipped: duplicate-key conflict warnings with deterministic last-wins behavior
+- shipped: explicit zero-duration / instant semantics across hosts
+- shipped: consistent defaulting rules when only `ease` is provided
 
 **Guardrails:**
 - do not add broad arbitrary named-key support just because the parser can carry it
@@ -93,10 +93,15 @@ What is still mismatched:
 
 **Goal:** Introduce richer bracket keys only where the host actually needs them.
 
-**Deferred candidates:**
-- morph controls: `strategy`, `path_arc`, `stretch`
+**Current status:**
+- shipped on timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, `stretch`
+- deferred: `strategy: fade`
 - path/stroke effect controls such as trimming or dashing
 - future action-specific keys beyond the shared timing bag
+
+**Current scoping note:**
+- if morph strategy controls ship incrementally, prefer `strategy: auto|match`, `path_arc`, and `stretch` first
+- keep `strategy: fade` deferred until the runtime has a clearer transition/compositing representation; a true cross-fade likely wants architectural work beyond the current single-track path morph model
 
 **Guardrails:**
 - each host-specific key must name a real runtime hook
