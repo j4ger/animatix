@@ -136,6 +136,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Use { .. }
         | Stmt::Keyframe { .. }
         | Stmt::RelativeKeyframe { .. }
+        | Stmt::Sequence { .. }
         | Stmt::Always { .. }
         | Stmt::LabeledAlways { .. }
         | Stmt::ComponentDef(_)

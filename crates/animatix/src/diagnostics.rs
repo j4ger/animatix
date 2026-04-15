@@ -40,6 +40,7 @@ pub enum DiagnosticCode {
     ConflictingModifierKey,
     UnknownAction,
     UnsupportedActionTarget,
+    UnsupportedSequenceStatement,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -50,6 +51,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
             DiagnosticCode::UnknownAction => write!(f, "unknown-action"),
             DiagnosticCode::UnsupportedActionTarget => write!(f, "unsupported-action-target"),
+            DiagnosticCode::UnsupportedSequenceStatement => {
+                write!(f, "unsupported-sequence-statement")
+            }
         }
     }
 }

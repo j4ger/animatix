@@ -567,6 +567,7 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         }
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body }
         | Stmt::Always { body }
         | Stmt::ComponentAction { body, .. }
         | Stmt::ForLoop { body, .. } => {
@@ -684,6 +685,12 @@ fn rewrite_stmt(
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+        },
+        Stmt::Sequence { body } => Stmt::Sequence {
+            body: body
+                .iter()
+                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                .collect(),
         },
         Stmt::Action(action) => Stmt::Action(Action {
             verb: action.verb.clone(),
@@ -1095,7 +1102,9 @@ fn collect_imports(statements: &[Stmt]) -> Vec<Import> {
 fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<Import>) {
     match stmt {
         Stmt::Import { path } => imports.push(Import { path: path.clone() }),
-        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body } => {
             for stmt in body {
                 collect_imports_from_stmt(stmt, imports);
             }
@@ -1129,6 +1138,14 @@ fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 })
             }
         }
+        Stmt::Sequence { body } => {
+            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            if body.is_empty() {
+                None
+            } else {
+                Some(Stmt::Sequence { body })
+            }
+        }
         _ => Some(stmt.clone()),
     }
 }
@@ -1144,7 +1161,9 @@ fn collect_component_defs(statements: &[Stmt]) -> Vec<ComponentDef> {
 fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<ComponentDef>) {
     match stmt {
         Stmt::ComponentDef(definition) => definitions.push(definition.clone()),
-        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body } => {
             for stmt in body {
                 collect_component_defs_from_stmt(stmt, definitions);
             }
