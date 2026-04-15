@@ -334,9 +334,34 @@ guide: Path, commands: {
 ```animatix
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300) {
   parabola: CartesianPlot, func: (x) => x^2 + 3, color: red, width: 2,
-  rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
+rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
 }
 ```
+
+## ParametricPlot
+**Status:** Implemented in runtime.
+
+`ParametricPlot` samples a closure that returns a 2D point `(x, y)` over `t_domain`, then maps those math-space coordinates into the parent `Graph` domain.
+
+**Properties used by the runtime:**
+- `func`: Closure `(t) => (x_expr, y_expr)`
+- `t_domain`: Tuple `(min, max)`
+- `color` or `stroke`: Color
+- `width` / `stroke_width`: Number
+- `tolerance`: Number
+- `max_depth`: Number
+
+**Example:**
+```animatix
+graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
+  lissajous: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
+}
+```
+
+## ImplicitPlot
+**Status:** Planned, not yet implemented.
+
+The docs still reserve `ImplicitPlot` as future work. The current runtime does not sample or render implicit equations yet.
 
 ---
 
