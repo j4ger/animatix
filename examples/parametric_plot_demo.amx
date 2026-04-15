@@ -1,0 +1,10 @@
+// Runnable example: parametric plotting inside the current Graph runtime.
+#0s
+scene.background_color = (0.05, 0.06, 0.10, 1.0)
+
+title: Text { text: "Parametric Plot Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Tuple-return closures now drive parametric curves over t_domain", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 400) {
+  curve: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
+}
