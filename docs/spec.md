@@ -22,7 +22,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Expressions | `Expr::Method` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects method expressions instead of inventing semantics. |
 | Expressions | `Expr::Index` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects index expressions instead of inventing semantics. |
 | Expressions | `Expr::Construct` | AST-defined | Explicit error | Yes | Partial | Present in `ast.rs`, but current runtime evaluation rejects inline construct expressions instead of inventing semantics. |
-| Primitives | `Text`, `Math`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, `Path` | Yes | Runtime-real | Yes | Yes | Covered by current docs and runnable examples such as `showcase.amx`, `arc_polygon_path_demo.amx`, and `image_demo.amx`. |
+| Primitives | `Text`, `Math`, `Svg`, `Image`, `Circle`, `Dot`, `Rect`, `Square`, `Line`, `Ellipse`, `Arc`, `Polygon`, `RegularPolygon`, `Path` | Yes | Runtime-real | Yes | Yes | Covered by current docs and runnable examples such as `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, and `image_demo.amx`. |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | Shipped as a small v1 primitive rendered through the text-path pipeline; see `examples/code_demo.amx`. |
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | Shipped plotting surface; see `examples/plotting_demo.amx`. |
 | Plotting | `ParametricPlot`, `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing plotting types documented as not yet implemented. |

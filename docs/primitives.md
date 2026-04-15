@@ -99,6 +99,25 @@ photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
 c: Circle, radius: 50, color: red, at: (200, 200)
 ```
 
+## Dot
+**Status:** Implemented in parser and runtime.
+
+`Dot` is the small-radius alias of the current circle pipeline. It accepts the same style properties as `Circle`, but its default radius is intentionally much smaller so it behaves like a point marker out of the box.
+
+**Properties used by the runtime:**
+- `radius`: Number
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `stroke_progress`: Number
+- `at`: Tuple `(x, y)`
+
+**Example:**
+```animatix
+dot: Dot, color: gold, at: (320, 240)
+```
+
 ## Rect
 **Status:** Implemented in parser and runtime.
 
@@ -116,6 +135,26 @@ The runtime uses the generic actor path with `size` rather than dedicated `width
 **Example:**
 ```animatix
 r: Rect, size: (160, 80), color: blue, at: (400, 300)
+```
+
+## Square
+**Status:** Implemented in parser and runtime.
+
+`Square` is the equal-side alias of the current rectangle pipeline. You can still use `size`, but the dedicated `side` property is the clearer shorthand for the common case.
+
+**Properties used by the runtime:**
+- `side`: Number
+- `size`: Tuple `(width, height)`
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `stroke_progress`: Number
+- `at`: Tuple `(x, y)`
+
+**Example:**
+```animatix
+sq: Square, side: 120, color: blue, at: (400, 300)
 ```
 
 ## Line
@@ -189,6 +228,26 @@ The current runtime uses explicit points rather than higher-level helpers such a
 **Example:**
 ```animatix
 badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan, at: (640, 360)
+```
+
+## RegularPolygon
+**Status:** Implemented in parser and runtime.
+
+`RegularPolygon` is the generated-points companion to `Polygon`. The runtime derives evenly spaced points from `sides` and `radius`, then routes the result through the same polygon/vector path pipeline.
+
+**Intended v1 properties:**
+- `sides`: Number (minimum 3)
+- `radius`: Number
+- `points`: Optional explicit point override
+- `color`: Color
+- `stroke` / `stroke_color`: Color
+- `stroke_width` or `width`: Number
+- `fill_opacity`: Number
+- `at`: Tuple `(x, y)`
+
+**Example:**
+```animatix
+hex: RegularPolygon, sides: 6, radius: 70, color: cyan, at: (640, 360)
 ```
 
 ## Path
