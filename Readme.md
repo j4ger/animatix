@@ -78,6 +78,7 @@ Runnable demos live in [`examples/`](examples/):
 - `line_and_ellipse_demo.amx` — line and ellipse primitives
 - `arc_polygon_path_demo.amx` — newer vector primitives
 - `image_demo.amx` / `image_animation_demo.amx` — image rendering and animation
+- `reveal_actions_demo.amx` — current reveal and exit action surface
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access

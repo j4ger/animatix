@@ -28,7 +28,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Plotting | `ParametricPlot`, `ImplicitPlot` | No current runtime surface | Planned | No | Yes | Future-facing plotting types documented as not yet implemented. |
 | Morphing | re-declaration morphing and current path/text interpolation | Yes | Runtime-real | Yes | Yes | Current runtime supports the core morph path via re-declaration and interpolation. |
 | Morphing | DSL modifiers `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing re-declarations | Yes | Yes | Shipped only for timed path-morphing re-declarations; `strategy:fade` remains deferred. |
-| Actions | built-ins `fade-in`, `wipe-in`, `fade-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
+| Actions | built-ins `fade-in`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
 
 ### Matrix Conventions
@@ -158,7 +158,9 @@ color B to red [2s]
 Actions use verb-first syntax with space-separated arguments.
 ```animatix
 fade-in btn [1s]
+draw-in badge [1s]
 fade-out btn [1s]
+wipe-out badge [1s]
 ```
 
 **Bracket Modifier Model**  
@@ -210,8 +212,11 @@ Unsupported modifier keys are not part of the shipped contract today. The runtim
 
 **Built-in Actions Registry**  
 The runtime currently registers three built-in actions:
-- **Entrance**: `fade-in`, `wipe-in`
-- **Exit**: `fade-out`
+The runtime currently registers five built-in actions:
+- **Entrance / Reveal**: `fade-in`, `draw-in`, `wipe-in`
+- **Exit**: `fade-out`, `wipe-out`
+
+`fade-in` is opacity-based and applies broadly across current renderable targets. `draw-in`, `wipe-in`, and `wipe-out` are intentionally narrower vector-first actions; unsupported targets such as images or text-like actors report diagnostics instead of silently pretending the action had an effect.
 
 The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work. Higher-level editor workflows remain future work.
 

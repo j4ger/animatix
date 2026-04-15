@@ -1,0 +1,19 @@
+// Runnable example: reveal and exit actions (`fade-in`, `draw-in`, `wipe-in`, and `wipe-out`).
+#0s
+scene.background_color = (0.06, 0.07, 0.10, 1.0)
+
+title: Text { text: "Reveal Actions Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Fade text, draw shapes, and wipe vector exits", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+headline: Text { text: "Declarative reveal verbs", font_size: 28, color: (1.0, 0.96, 0.85, 1.0), at: (640, 220) }
+orbit: Circle, radius: 84, color: (0.31, 0.78, 1.0, 1.0), stroke: WHITE, stroke_width: 5, at: (320, 500)
+panel: Rect, size: (210, 130), color: (0.27, 0.94, 0.63, 1.0), stroke: WHITE, stroke_width: 4, at: (640, 500)
+badge: Polygon, points: {(-80, 0), (0, -78), (86, 0), (0, 92)}, color: (1.0, 0.48, 0.62, 1.0), stroke: WHITE, stroke_width: 4, at: (960, 500)
+
+#0s
+fade-in headline [800ms]
+draw-in orbit [1200ms, ease: ease-in-out]
+wipe-in panel [1200ms, delay: 250ms]
+
+#2.3s
+wipe-out badge [900ms, ease: ease-in]

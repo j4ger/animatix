@@ -18,6 +18,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `image_animation_demo.amx`
 - `text_morph_demo.amx`
 - `shape_morph_demo.amx`
+- `reveal_actions_demo.amx`
 - `modifier_timing_demo.amx`
 - `code_demo.amx`
 - `component_modules_demo.amx`
@@ -28,6 +29,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
 
 `code_demo.amx` is the focused example for the shipped v1 `Code` primitive: code content rendered through the existing text-path pipeline with animated position, color, and re-declaration updates.
+
+`reveal_actions_demo.amx` is the focused example for the current reveal-action surface: opacity-based `fade-in` plus vector-first `draw-in`, `wipe-in`, and `wipe-out`.
 
 `modifier_timing_demo.amx` is the focused example for the shipped shared timing vocabulary: duration shorthand, named `delay`, named `ease`, explicit instant changes, and delayed-first-declaration behavior.
 
