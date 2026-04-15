@@ -217,6 +217,7 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
 pub struct AnimationTrack {
     pub label: String,
     pub position: PropertyTrack<[f32; 2]>,
+    pub motion_offset: PropertyTrack<[f32; 2]>,
     pub placement_mode: PropertyTrack<PlacementMode>,
     pub position_binding: PropertyTrack<PositionBinding>,
     pub size: PropertyTrack<[f32; 2]>,
@@ -242,6 +243,7 @@ impl AnimationTrack {
         Self {
             label,
             position: PropertyTrack::new([0.0, 0.0]),
+            motion_offset: PropertyTrack::new([0.0, 0.0]),
             placement_mode: PropertyTrack::new(PlacementMode::LayoutManaged),
             position_binding: PropertyTrack::new(PositionBinding::Absolute),
             size: PropertyTrack::new([50.0, 50.0]),

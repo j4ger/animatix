@@ -1148,7 +1148,8 @@ impl Timeline {
 
         for (label, track) in &self.tracks {
             let node_overrides = overrides.and_then(|map| map.get(label));
-            let position = node_overrides
+            let motion_offset = track.motion_offset.evaluate(time_ms);
+            let base_position = node_overrides
                 .and_then(|props| props.get("at").or_else(|| props.get("position")))
                 .and_then(|value| match value {
                     Value::Vec2(v) => Some(*v),
@@ -1158,8 +1159,17 @@ impl Timeline {
                     let [x, y] = track.position.evaluate(time_ms);
                     [x as f64, y as f64]
                 });
+            let position = [
+                base_position[0] + motion_offset[0] as f64,
+                base_position[1] + motion_offset[1] as f64,
+            ];
             set_lookup_vec2(env, &format!("{}.at", label), position);
             env.set(&format!("{}.position", label), Value::Vec2(position));
+            set_lookup_vec2(
+                env,
+                &format!("{}.shift", label),
+                [motion_offset[0] as f64, motion_offset[1] as f64],
+            );
 
             let size = node_overrides
                 .and_then(|props| props.get("size"))
@@ -3111,6 +3121,7 @@ impl Timeline {
             let binding = track.position_binding.evaluate(time_ms);
             let mut position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
+            let motion_offset = track.motion_offset.evaluate(time_ms);
             let mut opacity = track.opacity.evaluate(time_ms);
             let text_paths = track.evaluate_text_paths(time_ms);
             let shape_type = track.shape_type.evaluate(time_ms);
@@ -3206,7 +3217,10 @@ impl Timeline {
 
             let local_opacity = opacity * parent_opacity;
             let local_transform = parent_transform
-                * kurbo::Affine::translate((position[0] as f64, position[1] as f64));
+                * kurbo::Affine::translate((
+                    position[0] as f64 + motion_offset[0] as f64,
+                    position[1] as f64 + motion_offset[1] as f64,
+                ));
             let image = track.image.evaluate(time_ms);
 
             for vector_path in &vector_paths {
