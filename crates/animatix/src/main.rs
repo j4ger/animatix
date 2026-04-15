@@ -1,5 +1,7 @@
+use animatix::diagnostics::format_diagnostic;
 use animatix::module::ModuleGraph;
 use animatix::renderer;
+use animatix::timeline::Timeline;
 use clap::{Parser as ClapParser, Subcommand};
 use std::path::PathBuf;
 
@@ -117,7 +119,9 @@ fn main() {
                 }
             };
 
-            renderer::run(&ast);
+            let report = Timeline::build_with_diagnostics(&ast);
+            print_build_diagnostics(&report.diagnostics);
+            renderer::run_timeline(report.output);
         }
         Commands::Image {
             input,
@@ -145,7 +149,9 @@ fn main() {
                 time,
                 output_file.display()
             );
-            renderer::render_image(&ast, width, height, time, &output_file);
+            let report = Timeline::build_with_diagnostics(&ast);
+            print_build_diagnostics(&report.diagnostics);
+            renderer::render_image_timeline(report.output, width, height, time, &output_file);
         }
         Commands::Video {
             input,
@@ -177,7 +183,22 @@ fn main() {
                 duration,
                 output_file.display()
             );
-            renderer::render_video(&ast, width, height, fps, duration, &output_file);
+            let report = Timeline::build_with_diagnostics(&ast);
+            print_build_diagnostics(&report.diagnostics);
+            renderer::render_video_timeline(
+                report.output,
+                width,
+                height,
+                fps,
+                duration,
+                &output_file,
+            );
         }
+    }
+}
+
+fn print_build_diagnostics(diagnostics: &[animatix::diagnostics::Diagnostic]) {
+    for diagnostic in diagnostics {
+        eprintln!("{}", format_diagnostic(diagnostic));
     }
 }

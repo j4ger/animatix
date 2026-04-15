@@ -18,7 +18,7 @@ pub fn render_video(
     output_file: &std::path::Path,
 ) {
     pollster::block_on(render_video_async(
-        ast,
+        Timeline::build(ast),
         width,
         height,
         fps,
@@ -28,7 +28,7 @@ pub fn render_video(
 }
 
 async fn render_video_async(
-    ast: &[Stmt],
+    timeline: Timeline,
     width: u32,
     height: u32,
     fps: u32,
@@ -91,8 +91,6 @@ async fn render_video_async(
     });
 
     let mut core = RendererCore::new(&device, &queue);
-
-    let timeline = Timeline::build(ast);
 
     let filename = CString::new(output_file.to_str().unwrap()).unwrap();
     let mut format_context = AVFormatContextOutput::create(&filename).unwrap();
@@ -270,17 +268,22 @@ pub fn render_image(
     time: f32,
     output_file: &std::path::Path,
 ) {
-    pollster::block_on(render_image_async(ast, width, height, time, output_file));
+    pollster::block_on(render_image_async(
+        Timeline::build(ast),
+        width,
+        height,
+        time,
+        output_file,
+    ));
 }
 
 async fn render_image_async(
-    ast: &[Stmt],
+    timeline: Timeline,
     width: u32,
     height: u32,
     time: f32,
     output_file: &std::path::Path,
 ) {
-    let timeline = Timeline::build(ast);
     let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
     let frame = renderer
         .render_timeline(&timeline, time as f64, SceneDimensions { width, height })
@@ -288,4 +291,38 @@ async fn render_image_async(
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
         .expect("Failed to create image buffer from offscreen frame");
     img.save(output_file).unwrap();
+}
+
+pub fn render_video_timeline(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+) {
+    pollster::block_on(render_video_async(
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+    ));
+}
+
+pub fn render_image_timeline(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    time: f32,
+    output_file: &std::path::Path,
+) {
+    pollster::block_on(render_image_async(
+        timeline,
+        width,
+        height,
+        time,
+        output_file,
+    ));
 }

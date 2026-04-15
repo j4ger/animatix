@@ -6,5 +6,5 @@ pub mod video;
 pub mod window;
 
 pub use offscreen::{OffscreenRenderer, RenderedFrame};
-pub use video::{render_image, render_video};
-pub use window::run;
+pub use video::{render_image, render_image_timeline, render_video, render_video_timeline};
+pub use window::{run, run_timeline};

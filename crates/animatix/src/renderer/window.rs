@@ -225,6 +225,10 @@ impl ApplicationHandler for App {
 
 pub fn run(ast: &[Stmt]) {
     let timeline = Timeline::build(ast);
+    run_timeline(timeline);
+}
+
+pub fn run_timeline(timeline: Timeline) {
 
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
