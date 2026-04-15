@@ -1,10 +1,11 @@
 use animatix::ast::{Expr, Modifier, Property, Stmt, Time};
+use animatix::diagnostics::DiagnosticCode;
 use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
-    Timeline, evaluate_expr, parse_color, time_to_ms,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, PlacementMode,
+    PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use kurbo::Shape;
 use std::fs;
@@ -474,12 +475,10 @@ left.title_text.color = green
         timeline.tracks["left.badge"].color.evaluate(1000),
         [1.0, 0.0, 0.0, 1.0]
     );
-    assert!(
-        !timeline.tracks["left.title_text"]
-            .text_paths
-            .evaluate(1000)
-            .is_empty()
-    );
+    assert!(!timeline.tracks["left.title_text"]
+        .text_paths
+        .evaluate(1000)
+        .is_empty());
 }
 
 #[test]
@@ -1324,13 +1323,17 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
         },
     ];
 
-    let timeline = Timeline::build(&ast);
-    let start_bounds = vector_path_bounds(&timeline, "badge", 0);
-    let end_bounds = vector_path_bounds(&timeline, "badge", 1000);
+    let report = Timeline::build_with_diagnostics(&ast);
+    let timeline = report.output;
+    let start_bounds = vector_path_bounds(&timeline, "badge", 1000);
+    let mid_bounds = vector_path_bounds(&timeline, "badge", 1500);
+    let end_bounds = vector_path_bounds(&timeline, "badge", 2000);
 
-    assert!(end_bounds.x0 < start_bounds.x0);
-    assert!(end_bounds.y0 < start_bounds.y0);
-    assert!(end_bounds.y1 > start_bounds.y1);
+    assert!(report.diagnostics.is_empty());
+    assert!((mid_bounds.x0 - start_bounds.x0).abs() > 0.1);
+    assert!(mid_bounds.x0 > end_bounds.x0);
+    assert!(mid_bounds.y0 > end_bounds.y0);
+    assert!(mid_bounds.y1 < end_bounds.y1);
 }
 
 #[test]
@@ -1400,13 +1403,102 @@ fn test_path_redeclaration_rebuilds_geometry() {
         },
     ];
 
-    let timeline = Timeline::build(&ast);
-    let start_bounds = vector_path_bounds(&timeline, "guide", 0);
-    let end_bounds = vector_path_bounds(&timeline, "guide", 1000);
+    let report = Timeline::build_with_diagnostics(&ast);
+    let timeline = report.output;
+    let start_bounds = vector_path_bounds(&timeline, "guide", 1000);
+    let mid_bounds = vector_path_bounds(&timeline, "guide", 1500);
+    let end_bounds = vector_path_bounds(&timeline, "guide", 2000);
 
-    assert!(end_bounds.x0 < start_bounds.x0);
-    assert!(end_bounds.y0 < start_bounds.y0);
-    assert!(end_bounds.x1 > start_bounds.x1);
+    assert!(report.diagnostics.is_empty());
+    assert!((mid_bounds.x0 - start_bounds.x0).abs() > 0.1);
+    assert!(mid_bounds.x0 > end_bounds.x0);
+    assert!(mid_bounds.y0 > end_bounds.y0);
+    assert!(mid_bounds.x1 < end_bounds.x1);
+}
+
+#[test]
+fn test_actor_redeclaration_reports_unsupported_modifier_keys() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(48.0),
+                }],
+                modifiers: vec![Modifier {
+                    name: Some("strategy".to_string()),
+                    value: Expr::Ident("match".to_string()),
+                }],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+
+    assert!(report.output.tracks.contains_key("badge"));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedModifierKey
+            && diagnostic.message.contains("strategy")
+    }));
+}
+
+#[test]
+fn test_action_reports_unsupported_modifier_keys() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Action(animatix::ast::Action {
+                verb: "fade-in".to_string(),
+                targets: vec!["badge".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: Some("delay".to_string()),
+                    value: Expr::Ident("1s".to_string()),
+                }],
+            })],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+
+    assert!(report.output.tracks.contains_key("badge"));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedModifierKey
+            && diagnostic.message.contains("delay")
+    }));
 }
 
 #[test]
@@ -1695,8 +1787,72 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
         .get("child")
         .expect("child track should exist");
 
+    assert_eq!(
+        track.placement_mode.evaluate(999),
+        PlacementMode::LayoutManaged
+    );
     assert_eq!(track.placement_mode.evaluate(1000), PlacementMode::Manual);
     assert_eq!(track.placement_mode.evaluate(1500), PlacementMode::Manual);
+    assert_eq!(track.position.evaluate(1500), [50.0, 25.0]);
+}
+
+#[test]
+fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(20.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "child".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(20.0),
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(50.0)]),
+                    },
+                ],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("child")
+        .expect("child track should exist");
+
+    assert_eq!(
+        track.placement_mode.evaluate(999),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(
+        track.position_binding.evaluate(999),
+        PositionBinding::Absolute
+    );
+    assert_eq!(track.placement_mode.evaluate(1000), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(1500), [50.0, 25.0]);
 }
 
