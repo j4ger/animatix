@@ -1,0 +1,288 @@
+use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use crate::ast::{Action, Modifier};
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::easing::Easing;
+use crate::timeline::{evaluate_expr, parse_timing_modifiers, ModifierHost, Timeline, Value};
+
+fn timing_modifier_params() -> Vec<ActionParam> {
+    vec![
+        ActionParam {
+            name: "by".to_string(),
+            description: "Relative translation delta for the shift action (e.g. [by: (40, -24)])."
+                .to_string(),
+            type_info: "vec2".to_string(),
+        },
+        ActionParam {
+            name: "ease".to_string(),
+            description: "Easing function for the animation".to_string(),
+            type_info: "string".to_string(),
+        },
+        ActionParam {
+            name: "duration-shorthand".to_string(),
+            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
+                .to_string(),
+            type_info: "positional time literal".to_string(),
+        },
+        ActionParam {
+            name: "delay".to_string(),
+            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+            type_info: "time literal".to_string(),
+        },
+    ]
+}
+
+fn push_shift_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    code: DiagnosticCode,
+    message: impl Into<String>,
+    subject: &str,
+) {
+    diagnostics.push(
+        Diagnostic::warning(code, DiagnosticPhase::Build, message.into()).with_subject(subject),
+    );
+}
+
+fn parse_shift_delta(
+    modifiers: &[Modifier],
+    timeline: &Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<[f32; 2]> {
+    let mut shift_by = None;
+    let mut saw_by = false;
+
+    for modifier in modifiers {
+        if modifier.name.as_deref() != Some("by") {
+            continue;
+        }
+
+        if saw_by {
+            push_shift_diagnostic(
+                diagnostics,
+                DiagnosticCode::ConflictingModifierKey,
+                "Conflicting 'by' modifiers on action; using the last value provided.",
+                "shift",
+            );
+        }
+
+        match evaluate_expr(&modifier.value, &timeline.env) {
+            Ok(Value::Vec2([x, y])) => {
+                shift_by = Some([x as f32, y as f32]);
+                saw_by = true;
+            }
+            Ok(_) | Err(_) => {
+                push_shift_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    "Shift action requires a 'by' vec2 modifier such as [by: (40, -24)].",
+                    "shift",
+                );
+            }
+        }
+    }
+
+    if shift_by.is_none() {
+        push_shift_diagnostic(
+            diagnostics,
+            DiagnosticCode::InvalidModifierValue,
+            "Shift action requires a 'by' vec2 modifier such as [by: (40, -24)].",
+            "shift",
+        );
+    }
+
+    shift_by
+}
+
+fn timing_modifiers_without_by(modifiers: &[Modifier]) -> Vec<Modifier> {
+    modifiers
+        .iter()
+        .filter(|modifier| modifier.name.as_deref() != Some("by"))
+        .cloned()
+        .collect()
+}
+
+pub struct Shift;
+
+impl BuiltinAction for Shift {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "shift".to_string(),
+            category: "Motion".to_string(),
+            description:
+                "Applies a relative local translation on top of the target's existing placement."
+                    .to_string(),
+            params: vec![],
+            modifiers: timing_modifier_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(shift_by) = parse_shift_delta(&action.modifiers, timeline, diagnostics) else {
+            return;
+        };
+
+        let timing_modifiers = timing_modifiers_without_by(&action.modifiers);
+        let parsed = parse_timing_modifiers(
+            &timing_modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+            let start_offset = track.motion_offset.evaluate(t_start_ms);
+            let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
+
+            if duration_ms > 0.0 {
+                track
+                    .motion_offset
+                    .add_keyframe(t_start_ms, start_offset, Easing::Linear);
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_offset = track.motion_offset.evaluate(guard_time);
+                if !track.motion_offset.keyframes.contains_key(&guard_time) {
+                    track
+                        .motion_offset
+                        .add_keyframe(guard_time, prior_offset, Easing::Linear);
+                }
+            }
+
+            track
+                .motion_offset
+                .add_keyframe(t_end_ms, end_offset, easing);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Expr, Property, Stmt, Time};
+    use crate::timeline::PlacementMode;
+
+    fn circle_decl(label: &str) -> Stmt {
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: label.to_string(),
+            ty: "Circle".to_string(),
+            props: vec![Property {
+                name: "radius".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }
+    }
+
+    fn shift_action(target: &str, by: Expr) -> Stmt {
+        Stmt::Action(Action {
+            verb: "shift".to_string(),
+            targets: vec![target.to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("by".to_string()),
+                    value: by,
+                },
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                },
+            ],
+        })
+    }
+
+    #[test]
+    fn shift_animates_motion_offset_over_duration() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                circle_decl("badge"),
+                shift_action(
+                    "badge",
+                    Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(-24.0)]),
+                ),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("badge").expect("badge track");
+
+        assert_eq!(track.motion_offset.evaluate(0), [0.0, 0.0]);
+        assert_eq!(track.motion_offset.evaluate(1000), [40.0, -24.0]);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn shift_requires_by_vec2_modifier() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("badge"), shift_action("badge", Expr::Num(10.0))],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+    }
+
+    #[test]
+    fn shift_preserves_layout_managed_targets() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "row".to_string(),
+                    ty: "Row".to_string(),
+                    props: vec![Property {
+                        name: "gap".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![crate::ast::InlineItem::Labeled {
+                        label: "child".to_string(),
+                        ty: "Circle".to_string(),
+                        props: vec![Property {
+                            name: "radius".to_string(),
+                            value: Expr::Num(20.0),
+                        }],
+                        modifiers: vec![],
+                        children: vec![],
+                    }],
+                },
+                shift_action("child", Expr::Tuple(vec![Expr::Num(25.0), Expr::Num(0.0)])),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("child").expect("child track");
+
+        assert_eq!(
+            track.placement_mode.evaluate(0),
+            PlacementMode::LayoutManaged
+        );
+        assert_eq!(track.motion_offset.evaluate(1000), [25.0, 0.0]);
+    }
+}
