@@ -38,6 +38,8 @@ pub enum DiagnosticCode {
     UnsupportedModifierKey,
     InvalidModifierValue,
     ConflictingModifierKey,
+    UnknownAction,
+    UnsupportedActionTarget,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -46,6 +48,8 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
+            DiagnosticCode::UnknownAction => write!(f, "unknown-action"),
+            DiagnosticCode::UnsupportedActionTarget => write!(f, "unsupported-action-target"),
         }
     }
 }
