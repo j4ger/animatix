@@ -158,6 +158,43 @@ fn test_assignments_and_paths() {
 }
 
 #[test]
+fn test_sequence_parse() {
+    assert_eq!(
+        parse_single_stmt(
+            "sequence { fade-in badge [500ms] badge.color = red [250ms, delay: 100ms] }"
+        ),
+        Stmt::Sequence {
+            body: vec![
+                Stmt::Action(Action {
+                    verb: "fade-in".to_string(),
+                    targets: vec!["badge".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("500ms".to_string()),
+                    }],
+                }),
+                Stmt::Assignment {
+                    target: vec!["badge".to_string()],
+                    property: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    modifiers: vec![
+                        Modifier {
+                            name: None,
+                            value: Expr::Ident("250ms".to_string()),
+                        },
+                        Modifier {
+                            name: Some("delay".to_string()),
+                            value: Expr::Ident("100ms".to_string()),
+                        },
+                    ],
+                },
+            ],
+        }
+    );
+}
+
+#[test]
 fn test_actor_decl_full() {
     assert_eq!(
         parse_single_stmt("circle: Circle, radius: 50, color: blue [2s, ease: bounce]"),

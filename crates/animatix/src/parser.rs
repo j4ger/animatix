@@ -625,6 +625,17 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        let sequence_stmt = text::keyword("sequence")
+            .ignore_then(
+                _stmt
+                    .clone()
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|body| Stmt::Sequence { body })
+            .padded();
+
         let comment = just("//")
             .ignore_then(none_of("\r\n").repeated().to_slice().map(String::from))
             .map(Stmt::Comment)
@@ -746,6 +757,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             always_stmt,
             conditional_stmt,
             for_stmt,
+            sequence_stmt,
             component_def,
             actor_decl,
             action,

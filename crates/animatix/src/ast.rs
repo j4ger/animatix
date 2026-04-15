@@ -243,6 +243,11 @@ pub enum Stmt {
         modifiers: Vec<Modifier>,
     },
 
+    /// Composition helper: sequence { ... }
+    Sequence {
+        body: Vec<Stmt>,
+    },
+
     // === Reactive Blocks ===
     /// Always: always { ... }
     Always {
