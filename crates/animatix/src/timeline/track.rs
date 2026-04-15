@@ -1,4 +1,7 @@
 use crate::easing::{apply_easing, Easing};
+use crate::timeline::morph::{
+    align_path_lists_with_strategy, morph_paths_with_options, MorphOptions,
+};
 use std::collections::BTreeMap;
 
 pub trait Interpolate {
@@ -109,42 +112,19 @@ impl Interpolate for PositionBinding {
     }
 }
 
+impl Interpolate for MorphOptions {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 {
+            *self
+        } else {
+            *other
+        }
+    }
+}
+
 impl Interpolate for Vec<crate::renderer::text::TextPath> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        use crate::timeline::morph::{align_path_lists, align_subpaths, morph_paths};
-
-        let source_paths: Vec<_> = self.iter().map(|p| p.path.clone()).collect();
-        let target_paths: Vec<_> = other.iter().map(|p| p.path.clone()).collect();
-
-        let aligned_lists = align_path_lists(&source_paths, &target_paths);
-
-        let mut result = Vec::with_capacity(aligned_lists.len());
-
-        for (i, (s_path, t_path)) in aligned_lists.into_iter().enumerate() {
-            let (aligned_s, aligned_t) = align_subpaths(&s_path, &t_path);
-            let morphed_path = morph_paths(&aligned_s, &aligned_t, t as f64);
-
-            let color = if t < 0.5 {
-                self.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
-                    other.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
-                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                    })
-                })
-            } else {
-                other.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
-                    self.get(i).map(|p| p.color.clone()).unwrap_or_else(|| {
-                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                    })
-                })
-            };
-
-            result.push(crate::renderer::text::TextPath {
-                path: morphed_path,
-                color,
-            });
-        }
-
-        result
+        interpolate_text_paths(self, other, t, MorphOptions::default())
     }
 }
 
@@ -162,68 +142,7 @@ fn lerp_color(c1: vello::peniko::Color, c2: vello::peniko::Color, t: f32) -> vel
 
 impl Interpolate for Vec<crate::timeline::vello_path::VelloPath> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        use crate::timeline::morph::{align_path_lists, align_subpaths, morph_paths};
-
-        let source_paths: Vec<_> = self.iter().map(|p| p.path.clone()).collect();
-        let target_paths: Vec<_> = other.iter().map(|p| p.path.clone()).collect();
-
-        let aligned_lists = align_path_lists(&source_paths, &target_paths);
-
-        let mut result = Vec::with_capacity(aligned_lists.len());
-
-        for (i, (s_path, t_path)) in aligned_lists.into_iter().enumerate() {
-            let (aligned_s, aligned_t) = align_subpaths(&s_path, &t_path);
-            let morphed_path = morph_paths(&aligned_s, &aligned_t, t as f64);
-
-            let s_elem = self.get(i);
-            let t_elem = other.get(i);
-
-            let fill = match (s_elem.and_then(|e| e.fill), t_elem.and_then(|e| e.fill)) {
-                (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
-                (Some(c), None) => Some(if t < 0.5 {
-                    c
-                } else {
-                    vello::peniko::Color::TRANSPARENT
-                }),
-                (None, Some(c)) => Some(if t >= 0.5 {
-                    c
-                } else {
-                    vello::peniko::Color::TRANSPARENT
-                }),
-                (None, None) => None,
-            };
-
-            let stroke = match (s_elem.and_then(|e| e.stroke), t_elem.and_then(|e| e.stroke)) {
-                (Some((c1, w1)), Some((c2, w2))) => {
-                    Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
-                }
-                (Some((c, w)), None) => Some((
-                    if t < 0.5 {
-                        c
-                    } else {
-                        vello::peniko::Color::TRANSPARENT
-                    },
-                    if t < 0.5 { w } else { 0.0 },
-                )),
-                (None, Some((c, w))) => Some((
-                    if t >= 0.5 {
-                        c
-                    } else {
-                        vello::peniko::Color::TRANSPARENT
-                    },
-                    if t >= 0.5 { w } else { 0.0 },
-                )),
-                (None, None) => None,
-            };
-
-            result.push(crate::timeline::vello_path::VelloPath {
-                path: morphed_path,
-                fill,
-                stroke,
-            });
-        }
-
-        result
+        interpolate_vello_paths(self, other, t, MorphOptions::default())
     }
 }
 
@@ -311,6 +230,7 @@ pub struct AnimationTrack {
     pub stroke_color: PropertyTrack<[f32; 4]>,
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
+    pub morph_options: PropertyTrack<MorphOptions>,
     pub text_paths: PropertyTrack<Vec<crate::renderer::text::TextPath>>,
     pub vector_paths: PropertyTrack<Vec<crate::timeline::vello_path::VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
@@ -335,10 +255,185 @@ impl AnimationTrack {
             stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
+            morph_options: PropertyTrack::new(MorphOptions::default()),
             text_paths: PropertyTrack::new(Vec::new()),
             vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
             image: PropertyTrack::new(None),
         }
     }
+
+    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<crate::renderer::text::TextPath> {
+        evaluate_paths_with_options(
+            &self.text_paths,
+            &self.morph_options,
+            time_ms,
+            interpolate_text_paths,
+        )
+    }
+
+    pub fn evaluate_vector_paths(
+        &self,
+        time_ms: u64,
+    ) -> Vec<crate::timeline::vello_path::VelloPath> {
+        evaluate_paths_with_options(
+            &self.vector_paths,
+            &self.morph_options,
+            time_ms,
+            interpolate_vello_paths,
+        )
+    }
+}
+
+fn evaluate_paths_with_options<T: Clone>(
+    paths: &PropertyTrack<T>,
+    morph_options: &PropertyTrack<MorphOptions>,
+    time_ms: u64,
+    interpolate: fn(&T, &T, f32, MorphOptions) -> T,
+) -> T {
+    if paths.keyframes.is_empty() {
+        return paths.default_value.clone();
+    }
+
+    if let Some((&first_time, (first_value, _))) = paths.keyframes.iter().next() {
+        if time_ms <= first_time {
+            return first_value.clone();
+        }
+    }
+
+    let mut prev_time = 0;
+    let mut prev_val = paths.default_value.clone();
+
+    for (&next_time, (next_val, easing)) in &paths.keyframes {
+        if next_time > time_ms {
+            let duration = (next_time - prev_time) as f32;
+            let elapsed = (time_ms - prev_time) as f32;
+            let progress = elapsed / duration;
+            let eased_progress = apply_easing(progress, *easing);
+            let options = morph_options
+                .keyframes
+                .get(&next_time)
+                .map(|(value, _)| *value)
+                .unwrap_or_default();
+            return interpolate(&prev_val, next_val, eased_progress, options);
+        }
+        prev_time = next_time;
+        prev_val = next_val.clone();
+    }
+
+    prev_val
+}
+
+fn interpolate_text_paths(
+    source: &Vec<crate::renderer::text::TextPath>,
+    target: &Vec<crate::renderer::text::TextPath>,
+    t: f32,
+    options: MorphOptions,
+) -> Vec<crate::renderer::text::TextPath> {
+    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
+    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
+    let aligned_lists =
+        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+
+    aligned_lists
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, (source_path, target_path))| crate::renderer::text::TextPath {
+                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                color: if t < 0.5 {
+                    source
+                        .get(index)
+                        .map(|path| path.color.clone())
+                        .unwrap_or_else(|| {
+                            target
+                                .get(index)
+                                .map(|path| path.color.clone())
+                                .unwrap_or_else(|| {
+                                    typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                                })
+                        })
+                } else {
+                    target
+                        .get(index)
+                        .map(|path| path.color.clone())
+                        .unwrap_or_else(|| {
+                            source
+                                .get(index)
+                                .map(|path| path.color.clone())
+                                .unwrap_or_else(|| {
+                                    typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                                })
+                        })
+                },
+            },
+        )
+        .collect()
+}
+
+fn interpolate_vello_paths(
+    source: &Vec<crate::timeline::vello_path::VelloPath>,
+    target: &Vec<crate::timeline::vello_path::VelloPath>,
+    t: f32,
+    options: MorphOptions,
+) -> Vec<crate::timeline::vello_path::VelloPath> {
+    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
+    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
+    let aligned_lists =
+        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+
+    aligned_lists
+        .into_iter()
+        .enumerate()
+        .map(|(index, (source_path, target_path))| {
+            let source_element = source.get(index);
+            let target_element = target.get(index);
+
+            crate::timeline::vello_path::VelloPath {
+                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                fill: match (
+                    source_element.and_then(|element| element.fill),
+                    target_element.and_then(|element| element.fill),
+                ) {
+                    (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
+                    (Some(color), None) => Some(if t < 0.5 {
+                        color
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    }),
+                    (None, Some(color)) => Some(if t >= 0.5 {
+                        color
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    }),
+                    (None, None) => None,
+                },
+                stroke: match (
+                    source_element.and_then(|element| element.stroke),
+                    target_element.and_then(|element| element.stroke),
+                ) {
+                    (Some((c1, w1)), Some((c2, w2))) => {
+                        Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
+                    }
+                    (Some((color, width)), None) => Some((
+                        if t < 0.5 {
+                            color
+                        } else {
+                            vello::peniko::Color::TRANSPARENT
+                        },
+                        if t < 0.5 { width } else { 0.0 },
+                    )),
+                    (None, Some((color, width))) => Some((
+                        if t >= 0.5 {
+                            color
+                        } else {
+                            vello::peniko::Color::TRANSPARENT
+                        },
+                        if t >= 0.5 { width } else { 0.0 },
+                    )),
+                    (None, None) => None,
+                },
+            }
+        })
+        .collect()
 }
