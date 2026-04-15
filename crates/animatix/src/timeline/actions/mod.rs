@@ -9,7 +9,7 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
-use motion::{Move, Shift};
+use motion::{Move, Rotate, Shift};
 use registry::{ActionSignature, BuiltinAction};
 use reveal::{DrawIn, WipeOut};
 
@@ -125,6 +125,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(WipeIn),
         Box::new(Move),
         Box::new(Shift),
+        Box::new(Rotate),
         Box::new(DrawIn),
         Box::new(FadeOut),
         Box::new(WipeOut),
