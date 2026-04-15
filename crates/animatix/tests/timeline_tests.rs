@@ -617,11 +617,10 @@ copy: Circle, radius: left.badge.radius, at: left.badge.at, color: left.badge.co
     );
 }
 
-/// Verifies that assigning to a non-existent nested label creates an orphaned track.
-/// The runtime creates the track entry but it has no actor backing, so vector_paths
-/// and text_paths remain empty while scalar properties may still animate.
+/// Verifies that assigning to a non-existent nested label reports a diagnostic
+/// instead of creating an orphaned track.
 #[test]
-fn orphaned_track_created_for_nonexistent_nested_assignment() {
+fn nonexistent_nested_assignment_reports_diagnostic() {
     let dir = temp_project_dir("orphaned_track");
     let entry = dir.join("scene.amx");
     let library = dir.join("components.amx");
@@ -649,18 +648,15 @@ card.nonexistent.color = red
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let timeline = Timeline::build(&expanded);
+    let report = Timeline::build_with_diagnostics(&expanded);
 
-    // The orphaned track is created (runtime creates track entries for all assignment targets)
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownTargetPath
+            && diagnostic.message.contains("card.nonexistent")
+    }));
     assert!(
-        timeline.tracks.contains_key("card.nonexistent"),
-        "orphaned track should be created for non-existent nested label"
-    );
-    // But it has no backing actor, so vector paths remain empty
-    let track = timeline.tracks.get("card.nonexistent").unwrap();
-    assert!(
-        track.vector_paths.evaluate(0).is_empty(),
-        "orphaned track should have empty vector paths"
+        !report.output.tracks.contains_key("card.nonexistent"),
+        "non-existent nested label should no longer create an orphaned track"
     );
 }
 

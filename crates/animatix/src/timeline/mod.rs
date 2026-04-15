@@ -52,6 +52,23 @@ fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
     }
 }
 
+fn push_unknown_target_path_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+    target_key: &str,
+) {
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::UnknownTargetPath,
+            DiagnosticPhase::Build,
+            format!(
+                "Assignment target '{target_key}' does not resolve to a declared actor or nested label; ignoring this assignment."
+            ),
+        )
+        .with_subject(subject),
+    );
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ParsedTimingModifiers {
     pub duration_ms: f64,
@@ -2817,6 +2834,15 @@ impl Timeline {
                     }
 
                     let target_key = assignment_target_key(target);
+
+                    if target.len() > 1 && !self.nodes.contains_key(&target_key) {
+                        push_unknown_target_path_diagnostic(
+                            diagnostics,
+                            &assignment_subject,
+                            &target_key,
+                        );
+                        continue;
+                    }
 
                     let track = self
                         .tracks
