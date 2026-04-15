@@ -1,14 +1,24 @@
 // Runnable example: newer primitive breadth (`Dot`, `Square`, `RegularPolygon`).
+
 #0s
-scene.background_color = (0.05, 0.06, 0.10, 1.0)
+let ink = (0.04, 0.05, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let green = (0.35, 0.86, 0.63, 1.0)
+let coral = (1.0, 0.46, 0.54, 1.0)
 
-title: Text { text: "Primitive Breadth Demo", font_size: 34, color: WHITE, at: (640, 84) }
-subtitle: Text { text: "Dot, Square, and RegularPolygon share the existing vector pipeline", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+scene.background_color = ink
 
-dot_label: Text { text: "Dot", font_size: 22, color: WHITE, at: (260, 250) }
-square_label: Text { text: "Square", font_size: 22, color: WHITE, at: (640, 250) }
-poly_label: Text { text: "RegularPolygon", font_size: 22, color: WHITE, at: (1020, 250) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Primitive breadth demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Dot, Square, and RegularPolygon all ride on the same current vector primitive pipeline", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The family framing is standardized, but each primitive keeps its own dedicated label and footprint.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
 
-dot: Dot, color: (1.0, 0.55, 0.62, 1.0), stroke: WHITE, stroke_width: 3, at: (260, 430)
-square: Square, side: 120, color: (0.34, 0.68, 1.0, 1.0), stroke: WHITE, stroke_width: 4, at: (640, 430)
-hex: RegularPolygon, sides: 6, radius: 70, color: (0.26, 0.90, 0.64, 1.0), stroke: WHITE, stroke_width: 4, at: (1020, 430)
+dot_label: Text { text: "Dot", font_size: 22, color: coral, at: (260, 254) }
+square_label: Text { text: "Square", font_size: 22, color: accent, at: (640, 254) }
+poly_label: Text { text: "RegularPolygon", font_size: 22, color: green, at: (1020, 254) }
+
+dot: Dot, color: coral, stroke: title_ink, stroke_width: 3, at: (260, 430)
+square: Square, side: 120, color: accent, stroke: title_ink, stroke_width: 4, at: (640, 430)
+hex: RegularPolygon, sides: 6, radius: 70, color: green, stroke: title_ink, stroke_width: 4, at: (1020, 430)

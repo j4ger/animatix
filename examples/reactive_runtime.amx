@@ -1,15 +1,27 @@
 // Runnable example: stateless reactive evaluation with `always` and time-derived behavior.
 
 #0s
-scene.background_color = (0.05, 0.07, 0.11, 1.0)
+let ink = (0.04, 0.06, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
+let magenta = (0.88, 0.42, 0.84, 1.0)
 
-center: Circle, radius: 8, color: WHITE, at: (640, 360)
-orbiter: Circle, radius: 36, color: (0.25, 0.80, 1.0, 1.0), at: (820, 360)
-pulse: Rect, size: (120, 120), color: (0.80, 0.35, 0.90, 1.0), at: (280, 360)
-echo: Circle, radius: 22, color: (1.0, 0.75, 0.30, 1.0), at: pulse.at
+scene.background_color = ink
+
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Reactive runtime demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "always re-evaluates from the requested time; repeated behavior comes from explicit time math", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The static framing explains the model while the reactive actors keep moving and resizing under stateless evaluation.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+
+center: Circle, radius: 8, color: title_ink, at: (640, 390)
+orbiter: Circle, radius: 36, color: accent, at: (820, 390)
+pulse: Rect, size: (120, 120), color: magenta, at: (280, 390)
+echo: Circle, radius: 22, color: gold, at: pulse.at
 
 always {
-  orbiter.at = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
+  orbiter.at = (640 + 180 * cos(t), 390 + 120 * sin(t * 2))
   pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
   echo.radius = pulse.size.x / 6
   echo.at = orbiter.at

@@ -1,14 +1,24 @@
 // Runnable example: animated image placement and scaling through property tracks.
+
 #0s
-scene.background_color = (0.08, 0.10, 0.14, 1.0)
+let ink = (0.05, 0.07, 0.10, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
 
-title: Text { text: "Animated Image Properties", font_size: 34, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.top, offset: (0, 60) }
-caption: Text { text: "This image animates with at and size assignments like the other primitives.", font_size: 18, color: (0.80, 0.86, 0.96, 1.0), anchor: scene.top, offset: (0, 96) }
+scene.background_color = ink
 
-photo: Image { url: "examples/checker.ppm", at: (260, 250), size: (64, 64) }
-status: Text { text: "t = 0s", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (260, 330) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Animated image properties", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Image actors animate with at and size assignments just like the vector primitives", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The status text makes the before/after beat obvious in the first second of playback.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+
+photo: Image { url: "examples/checker.ppm", at: (260, 330), size: (64, 64) }
+status: Text { text: "t = 0s", font_size: 18, color: gold, at: (260, 412) }
+end_label: Text { text: "target placement + target size", font_size: 18, color: accent, at: (856, 248) }
 
 #1s
-photo.at = (760, 230) [1s, ease: ease-in-out]
+photo.at = (760, 310) [1s, ease: ease-in-out]
 photo.size = (220, 220) [1s, ease: ease-in-out]
-status: Text { text: "t = 1s", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (760, 370) }
+status: Text { text: "t = 1s", font_size: 18, color: gold, at: (760, 450) }

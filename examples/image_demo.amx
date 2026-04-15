@@ -1,12 +1,21 @@
 // Runnable example: raster image primitive with natural-size and explicit-size rendering.
+
 #0s
-scene.background_color = (0.08, 0.10, 0.14, 1.0)
+let ink = (0.05, 0.07, 0.10, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
 
-title: Text { text: "Image Primitive", font_size: 34, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.top, offset: (0, 60) }
-caption: Text { text: "The left image uses its natural size. The right image uses explicit size scaling.", font_size: 18, color: (0.80, 0.86, 0.96, 1.0), anchor: scene.top, offset: (0, 96) }
+scene.background_color = ink
 
-natural: Image { url: "examples/checker.ppm", at: (280, 250) }
-scaled: Image { url: "examples/checker.ppm", at: (760, 230), size: (240, 240) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Image primitive demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "The same raster source can render at natural size or with explicit width and height", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The framing is standardized, but the point stays technical: left is natural sizing, right is explicit size scaling.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
 
-left_label: Text { text: "natural size", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (320, 470) }
-right_label: Text { text: "size: (240, 240)", font_size: 18, color: (0.98, 0.93, 0.64, 1.0), at: (840, 470) }
+left_label: Text { text: "natural size", font_size: 18, color: gold, at: (320, 246) }
+right_label: Text { text: "size: (240, 240)", font_size: 18, color: gold, at: (840, 246) }
+
+natural: Image { url: "examples/checker.ppm", at: (280, 370) }
+scaled: Image { url: "examples/checker.ppm", at: (760, 350), size: (240, 240) }

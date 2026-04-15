@@ -2,7 +2,7 @@
 
 Runnable demos live in `examples/`.
 
-Each runnable file should explain itself through its filename, header comment, and on-screen copy.
+The suite is intentionally curated as a cohesive dark-stage technical showcase: consistent title/subtitle/caption framing, restrained editorial composition, and one focused runtime capability per file.
 
 The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for editing, preview, visual timeline scrubbing, and transport-bar-driven playback checks.
 
@@ -33,7 +33,18 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `component_modules_demo.amx`
 - `reactive_runtime.amx`
 
-`component_modules_demo.amx` is the focused example for imported `pub component` instantiation, rhs property querying, and multi-segment dotted assignment targets against nested labels such as `left.badge.color = red` and `echo.radius = right.badge.radius`.
+## Family Notes
+
+- `showcase.amx` is the canonical hero example for the current shipped surface: text, math, SVG, and core vector primitives on one polished stage.
+- `layout_demo.amx` stays didactic and is the focused example for layout ownership: default placement, anchors, offsets, percentages, and manual child override inside layout flow.
+- `motion_shift_demo.amx`, `motion_rotate_demo.amx`, and `motion_scale_demo.amx` remain the focused motion ergonomics family for move vs shift, rotate, and visual-only scale.
+- `composition_sequence_demo.amx` and `composition_stagger_demo.amx` remain the focused composition family for ordered lowering and shared-interval offsets.
+- `plotting_demo.amx`, `parametric_plot_demo.amx`, and `implicit_plot_demo.amx` remain the plotting family for graph composition, tuple-return parametric closures, and implicit contour extraction.
+- `image_demo.amx`, `image_animation_demo.amx`, `code_demo.amx`, and `text_morph_demo.amx` remain the media/text family for image sizing, animated image properties, code rendering, and text-path morphing.
+
+## Focused Runtime Proofs
+
+`component_modules_demo.amx` is the focused example for imported `pub component` instantiation, rhs property querying, and multi-segment dotted assignment targets against nested labels such as `left.badge.color = red`, `right.badge.radius = 20`, and `echo.radius = right.badge.radius`.
 
 `reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
 

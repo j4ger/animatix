@@ -1,19 +1,31 @@
 // Runnable example: shared timing modifiers (`delay`, duration shorthand, and `ease`).
+
 #0s
-scene.background_color = (0.05, 0.06, 0.09, 1.0)
+let ink = (0.04, 0.05, 0.08, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let green = (0.35, 0.86, 0.63, 1.0)
+let coral = (1.0, 0.46, 0.54, 1.0)
 
-title: Text { text: "Modifier Timing Demo", font_size: 30, color: WHITE, at: (640, 72) }
-label_a: Text { text: "Delayed fade-out", font_size: 24, color: WHITE, at: (250, 170) }
-label_b: Text { text: "Delayed appearance", font_size: 24, color: WHITE, at: (640, 170) }
-label_c: Text { text: "Ease-only instant move", font_size: 24, color: WHITE, at: (1030, 170) }
+scene.background_color = ink
 
-left: Circle, radius: 70, color: (1.0, 0.35, 0.55, 1.0), at: (250, 380)
-middle: Rect, size: (150, 150), color: (0.35, 0.95, 0.65, 1.0) [delay: 1s]
-right: Circle, radius: 60, color: (0.35, 0.65, 1.0, 1.0), at: (930, 380)
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Modifier timing demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Duration shorthand, named delay, named ease, and delayed instant updates share one modifier vocabulary", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The three columns isolate the shipped timing cases so playback makes the modifier semantics easy to compare.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+
+label_a: Text { text: "Delayed fade-out", font_size: 24, color: coral, at: (250, 190) }
+label_b: Text { text: "Delayed appearance", font_size: 24, color: green, at: (640, 190) }
+label_c: Text { text: "Ease-only instant move", font_size: 24, color: accent, at: (1030, 190) }
+
+left: Circle, radius: 70, color: coral, at: (250, 400)
+middle: Rect, size: (150, 150), color: green [delay: 1s]
+right: Circle, radius: 60, color: accent, at: (930, 400)
 
 #1s
 fade-out left [delay: 1s, 1s]
-right.at = (1130, 380) [delay: 1s, ease: bounce]
+right.at = (1130, 400) [delay: 1s, ease: bounce]
 
 #4s
-middle.color = (0.95, 0.85, 0.30, 1.0) [delay: 500ms, 0s]
+middle.color = (0.98, 0.82, 0.42, 1.0) [delay: 500ms, 0s]

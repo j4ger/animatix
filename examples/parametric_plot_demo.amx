@@ -1,10 +1,19 @@
 // Runnable example: parametric plotting inside the current Graph runtime.
+
 #0s
-scene.background_color = (0.05, 0.06, 0.10, 1.0)
+let ink = (0.04, 0.05, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
 
-title: Text { text: "Parametric Plot Demo", font_size: 34, color: WHITE, at: (640, 84) }
-subtitle: Text { text: "Tuple-return closures now drive parametric curves over t_domain", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+scene.background_color = ink
 
-graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 400) {
-  curve: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Parametric plot demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Tuple-return closures drive parametric curves over t_domain inside the shipped Graph runtime", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "A single centered plot keeps the runtime behavior obvious and readable during scrubbing.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+
+formula: Text { text: "(sin(2t), cos(3t))", font_size: 18, color: accent, at: (640, 210) }
+graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 420) {
+  curve: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: accent, width: 3
 }

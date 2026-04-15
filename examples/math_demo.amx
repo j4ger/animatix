@@ -1,32 +1,42 @@
 // Runnable example: expressions driving positions, colors, random values, and animated targets.
-#0s
-scene.background_color = (0.05, 0.05, 0.10, 1.0)
 
-let base = (220, 220)
+#0s
+let ink = (0.04, 0.05, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
+
+scene.background_color = ink
+
+let base = (220, 240)
 let offset = (140, 80)
 
-title: Text { text: "Math Demo", font_size: 32, color: WHITE, at: (640, 60) }
-subtitle: Text { text: "Expressions drive positions, colors, and animation targets", font_size: 18, color: (0.80, 0.85, 0.95, 1.0), at: (640, 105) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Math demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Expressions drive positions, colors, and animation targets across the same scene graph", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Tuple math, trigonometry, lerp, modulo, and rand() each get a labeled stage pocket.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
 
-sum_circle: Circle, radius: 42, color: RED, at: base + offset
-orbit_circle: Circle, radius: 34, color: GREEN + BLUE, at: (760 + 110 * cos(PI / 4), 250 + 110 * sin(PI / 4))
-lerp_circle: Circle, radius: 38, color: (lerp(0.2, 0.9, 0.5), 0.45, 0.9, 1.0), at: (920, 240)
-mod_circle: Circle, radius: 28, color: (1.0, 0.85, 0.20, 1.0), at: (140 + 17 % 5 * 70, 470)
-rand_circle_1: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (220 + rand() * 180, 520 + rand() * 90)
-rand_circle_2: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (520 + rand() * 180, 520 + rand() * 90)
-rand_circle_3: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (820 + rand() * 180, 520 + rand() * 90)
+sum_circle: Circle, radius: 42, color: (0.96, 0.46, 0.52, 1.0), at: base + offset
+orbit_circle: Circle, radius: 34, color: (0.0, 1.0, 1.0, 1.0), at: (760 + 110 * cos(PI / 4), 270 + 110 * sin(PI / 4))
+lerp_circle: Circle, radius: 38, color: (lerp(0.2, 0.9, 0.5), 0.45, 0.9, 1.0), at: (948, 250)
+mod_circle: Circle, radius: 28, color: gold, at: (140 + 17 % 5 * 70, 500)
+rand_circle_1: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (220 + rand() * 180, 548 + rand() * 80)
+rand_circle_2: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (520 + rand() * 180, 548 + rand() * 80)
+rand_circle_3: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (820 + rand() * 180, 548 + rand() * 80)
 
-label_sum: Text { text: "tuple addition", font_size: 18, color: WHITE, at: (360, 170) }
-label_orbit: Text { text: "sin / cos", font_size: 18, color: WHITE, at: (860, 170) }
-label_mod: Text { text: "modulo", font_size: 18, color: WHITE, at: (280, 420) }
-label_rand: Text { text: "rand()", font_size: 18, color: WHITE, at: (640, 470) }
+label_sum: Text { text: "tuple addition", font_size: 18, color: gold, at: (360, 178) }
+label_orbit: Text { text: "sin / cos", font_size: 18, color: gold, at: (860, 182) }
+label_lerp: Text { text: "lerp", font_size: 18, color: gold, at: (948, 182) }
+label_mod: Text { text: "modulo", font_size: 18, color: gold, at: (280, 448) }
+label_rand: Text { text: "rand()", font_size: 18, color: gold, at: (640, 496) }
 
 #3s
 sum_circle.at = base + offset + (120, 60) [1.5s, ease: ease-in-out]
-orbit_circle.color = (0.25, 0.90, 1.0, 1.0) [1.5s]
+orbit_circle.color = accent [1.5s]
 lerp_circle.radius = 54 [1.5s]
 
 #5s
-rand_circle_1.at = (220 + rand() * 180, 520 + rand() * 90) [1.5s]
-rand_circle_2.at = (520 + rand() * 180, 520 + rand() * 90) [1.5s]
-rand_circle_3.at = (820 + rand() * 180, 520 + rand() * 90) [1.5s]
+rand_circle_1.at = (220 + rand() * 180, 548 + rand() * 80) [1.5s]
+rand_circle_2.at = (520 + rand() * 180, 548 + rand() * 80) [1.5s]
+rand_circle_3.at = (820 + rand() * 180, 548 + rand() * 80) [1.5s]

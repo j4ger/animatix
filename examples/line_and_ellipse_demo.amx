@@ -1,10 +1,22 @@
 // Runnable example: the Line and Ellipse primitives with animated endpoint and radius updates.
-#0s
-scene.background_color = (0.07, 0.08, 0.12, 1.0)
 
-title: Text { text: "Line + Ellipse Demo", font_size: 32, color: WHITE, at: (640, 80) }
-ring: Ellipse, radius_x: 180, radius_y: 90, color: (0.20, 0.80, 1.0, 0.30), stroke: (0.20, 0.80, 1.0, 1.0), stroke_width: 4, at: (640, 360)
-axis: Line, from: (-220, 0), to: (220, 0), stroke: (1.0, 0.85, 0.25, 1.0), stroke_width: 6, at: (640, 360)
+#0s
+let ink = (0.04, 0.06, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
+
+scene.background_color = ink
+
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Line + ellipse demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Line endpoints and ellipse radii animate independently on the same technical stage", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The axis line pivots while the ellipse changes proportion and fill, keeping the geometry easy to inspect while scrubbing.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+
+ring: Ellipse, radius_x: 180, radius_y: 90, color: (0.20, 0.80, 1.0, 0.22), stroke: accent, stroke_width: 4, at: (640, 390)
+axis: Line, from: (-220, 0), to: (220, 0), stroke: gold, stroke_width: 6, at: (640, 390)
+axis_caption: Text { text: "Animated line endpoints", font_size: 18, color: gold, anchor: scene.bottom, offset: (0, -74) }
 
 #2s
 ring.radius_x = 120 [1s, ease: ease-in-out]
@@ -13,4 +25,4 @@ axis.to = (220, 120) [1s, ease: ease-in-out]
 
 #4s
 axis.from = (-220, -120) [1s, ease: ease-in-out]
-ring.color = (0.40, 1.0, 0.55, 0.35) [1s, ease: ease-in-out]
+ring.color = (0.36, 0.88, 0.63, 0.26) [1s, ease: ease-in-out]

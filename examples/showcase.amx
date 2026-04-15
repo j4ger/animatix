@@ -1,21 +1,42 @@
 // Runnable example: broad current-runtime overview with text, math, SVG, and basic shape animation.
+
 #0s
-scene.background_color = (0.07, 0.08, 0.12, 1.0)
+let ink = (0.04, 0.06, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.72, 0.79, 0.88, 1.0)
+let caption_ink = (0.60, 0.69, 0.80, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.82, 0.42, 1.0)
+let green = (0.36, 0.87, 0.63, 1.0)
+let coral = (1.0, 0.46, 0.56, 1.0)
 
-title: Text { text: "Animatix", font_size: 92, color: (1.0, 1.0, 1.0, 1.0), at: (640, 150) }
-formula: Math { math: "E = mc^2", font_size: 80, color: (0.50, 0.80, 1.0, 1.0), at: (340, 370) }
-logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (940, 360) }
-orb: Circle, radius: 82, color: (1.0, 0.25, 0.55, 1.0), at: (250, 560)
-panel: Rect, size: (240, 120), color: (0.22, 0.85, 0.55, 1.0), at: (980, 580)
+scene.background_color = ink
 
-#1.5s
-title.at = (640, 190) [1s, ease: ease-in-out]
-title.color = (1.0, 0.75, 0.25, 1.0) [1s, ease: ease-in-out]
-orb.radius = 120 [1s, ease: ease-in-out]
-orb.color = (0.25, 1.0, 0.65, 1.0) [1s, ease: ease-in-out]
-panel.size = (320, 160) [1s, ease: ease-in-out]
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 42) }
+title: Text { text: "Animatix", font_size: 94, color: title_ink, anchor: scene.top, offset: (0, 98) }
+subtitle: Text { text: "Current shipped text, math, SVG, and vector primitives in one editorial hero scene", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 148) }
+caption: Text { text: "The opening beat reveals the core rendering surface before timing and transforms take over.", font_size: 16, color: caption_ink, anchor: scene.top, offset: (0, 178) }
 
-#3s
-scene.background_color = (0.10, 0.10, 0.16, 1.0) [1s, ease: ease-in-out]
-logo.at = (900, 330) [1s, ease: ease-in-out]
-panel.at = (980, 540) [1s, ease: ease-in-out]
+math_label: Text { text: "Math", font_size: 18, color: gold, at: (316, 248) }
+formula: Math { math: "E = mc^2", font_size: 82, color: accent, at: (330, 350) }
+
+svg_label: Text { text: "SVG", font_size: 18, color: gold, at: (964, 248) }
+logo: Svg { url: "examples/vector.svg", scale: 2.15, at: (944, 362) }
+
+shape_label: Text { text: "Vector primitives", font_size: 18, color: gold, anchor: scene.bottom, offset: (0, -162) }
+orb: Circle, radius: 74, color: coral, at: (288, 560)
+signal: Line, from: (-80, 0), to: (80, 0), stroke: accent, stroke_width: 6, at: (640, 560)
+panel: Rect, size: (252, 132), color: green, at: (988, 560)
+
+#1.2s
+title.color = gold [900ms, ease: ease-in-out]
+formula.at = (360, 360) [900ms, ease: ease-in-out]
+orb.radius = 114 [900ms, ease: ease-in-out]
+orb.color = green [900ms, ease: ease-in-out]
+panel.size = (324, 154) [900ms, ease: ease-in-out]
+
+#2.8s
+scene.background_color = (0.06, 0.08, 0.12, 1.0) [1s, ease: ease-in-out]
+logo.at = (910, 338) [1s, ease: ease-in-out]
+panel.at = (976, 536) [1s, ease: ease-in-out]
+signal.to = (132, -24) [1s, ease: ease-in-out]
