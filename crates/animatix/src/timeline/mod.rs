@@ -1237,6 +1237,7 @@ impl Timeline {
         for (label, track) in &self.tracks {
             let node_overrides = overrides.and_then(|map| map.get(label));
             let motion_offset = track.motion_offset.evaluate(time_ms);
+            let rotation = track.rotation.evaluate(time_ms) as f64;
             let base_position = node_overrides
                 .and_then(|props| props.get("at").or_else(|| props.get("position")))
                 .and_then(|value| match value {
@@ -1258,6 +1259,7 @@ impl Timeline {
                 &format!("{}.shift", label),
                 [motion_offset[0] as f64, motion_offset[1] as f64],
             );
+            set_lookup_scalar(env, &format!("{}.rotation", label), rotation);
 
             let size = node_overrides
                 .and_then(|props| props.get("size"))
@@ -2976,6 +2978,22 @@ impl Timeline {
                             }
                             track.position.add_keyframe(t_end_ms, target_pos, easing);
                         }
+                        "rotation" => {
+                            let target_rotation = evaluate_expr(value, &eval_env)
+                                .unwrap_or(Value::Num(track.rotation.last_value() as f64))
+                                .as_num() as f32;
+                            if duration_ms > 0.0 {
+                                let start_val = track.rotation.evaluate(t_start_ms);
+                                track
+                                    .rotation
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.rotation, t_start_ms);
+                            }
+                            track
+                                .rotation
+                                .add_keyframe(t_end_ms, target_rotation, easing);
+                        }
                         "radius" => {
                             let r = evaluate_expr(value, &eval_env)
                                 .unwrap_or(Value::Num(0.0))
@@ -3213,6 +3231,7 @@ impl Timeline {
             let mut position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
             let motion_offset = track.motion_offset.evaluate(time_ms);
+            let mut rotation = track.rotation.evaluate(time_ms) as f64;
             let mut opacity = track.opacity.evaluate(time_ms);
             let text_paths = track.evaluate_text_paths(time_ms);
             let shape_type = track.shape_type.evaluate(time_ms);
@@ -3275,6 +3294,9 @@ impl Timeline {
                 if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
                     fill_opacity = *opacity as f32;
                 }
+                if let Some(Value::Num(angle)) = node_overrides.get("rotation") {
+                    rotation = *angle;
+                }
             }
 
             if !vector_paths.is_empty() {
@@ -3311,7 +3333,8 @@ impl Timeline {
                 * kurbo::Affine::translate((
                     position[0] as f64 + motion_offset[0] as f64,
                     position[1] as f64 + motion_offset[1] as f64,
-                ));
+                ))
+                * kurbo::Affine::rotate(rotation);
             let image = track.image.evaluate(time_ms);
 
             for vector_path in &vector_paths {

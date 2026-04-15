@@ -1643,6 +1643,49 @@ fn test_sequence_reports_unsupported_statements() {
 }
 
 #[test]
+fn test_rotation_assignment_animates_track() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "panel".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(60.0)]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(0.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["panel".to_string()],
+                property: "rotation".to_string(),
+                value: Expr::Num(std::f64::consts::PI / 2.0),
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("panel")
+        .expect("panel track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    assert!((track.rotation.evaluate(0) - 0.0).abs() < f32::EPSILON);
+    assert!((track.rotation.evaluate(1000) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+}
+
+#[test]
 fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
