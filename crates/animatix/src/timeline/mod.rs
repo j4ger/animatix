@@ -984,14 +984,26 @@ const SHAPE_PATH: u32 = 6;
 
 fn shape_type_for_actor(ty: &str) -> u32 {
     match ty {
-        "Circle" => SHAPE_CIRCLE,
+        "Circle" | "Dot" => SHAPE_CIRCLE,
         "Line" => SHAPE_LINE,
         "Ellipse" => SHAPE_ELLIPSE,
         "Arc" => SHAPE_ARC,
-        "Polygon" => SHAPE_POLYGON,
+        "Polygon" | "RegularPolygon" => SHAPE_POLYGON,
         "Path" => SHAPE_PATH,
         _ => SHAPE_RECT,
     }
+}
+
+fn regular_polygon_points(sides: usize, radius: f32) -> Vec<kurbo::Point> {
+    let sides = sides.max(3);
+    let radius = radius as f64;
+    let angle_step = std::f64::consts::TAU / sides as f64;
+    (0..sides)
+        .map(|index| {
+            let angle = -std::f64::consts::FRAC_PI_2 + angle_step * index as f64;
+            kurbo::Point::new(radius * angle.cos(), radius * angle.sin())
+        })
+        .collect()
 }
 
 fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
@@ -2428,6 +2440,9 @@ impl Timeline {
 
                     let mut position = track.position.last_value();
                     let mut size = track.size.last_value();
+                    if ty == "Dot" && size == [50.0, 50.0] {
+                        size = [6.0, 6.0];
+                    }
                     let mut line_from = track.line_from.last_value();
                     let mut line_to = track.line_to.last_value();
                     let mut arc_angles = track.arc_angles.last_value();
@@ -2442,6 +2457,8 @@ impl Timeline {
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
                     let mut custom_path: Option<kurbo::BezPath> = None;
+                    let mut regular_polygon_sides: usize = 5;
+                    let mut regular_polygon_radius = size[0];
 
                     let ParsedTimingModifiers {
                         duration_ms,
@@ -2476,6 +2493,13 @@ impl Timeline {
                                     .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
+                                regular_polygon_radius = r;
+                            }
+                            "side" if ty == "Square" => {
+                                let v = evaluate_expr(&prop.value, &eval_env)
+                                    .unwrap_or(Value::Num(size[0] as f64 * 2.0));
+                                let side = v.as_num() as f32;
+                                size = [side / 2.0, side / 2.0];
                             }
                             "size" => {
                                 let size_val = evaluate_expr(&prop.value, &eval_env)
@@ -2484,6 +2508,11 @@ impl Timeline {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
                                 }
+                            }
+                            "sides" if ty == "RegularPolygon" => {
+                                let v = evaluate_expr(&prop.value, &eval_env)
+                                    .unwrap_or(Value::Num(regular_polygon_sides as f64));
+                                regular_polygon_sides = v.as_num().round().max(3.0) as usize;
                             }
                             "from" if ty == "Line" => {
                                 if let Some(parsed) = parse_numeric_vec2(&prop.value, &eval_env) {
@@ -2515,7 +2544,7 @@ impl Timeline {
                                     .unwrap_or(Value::Num(arc_angles[1] as f64));
                                 arc_angles[1] = v.as_num() as f32;
                             }
-                            "points" if ty == "Polygon" => {
+                            "points" if ty == "Polygon" || ty == "RegularPolygon" => {
                                 if let Some(points) = parse_point_list_expr(&prop.value, &eval_env)
                                 {
                                     custom_path =
@@ -2577,6 +2606,18 @@ impl Timeline {
                             }
                             _ => {}
                         }
+                    }
+
+                    if ty == "RegularPolygon" && custom_path.is_none() {
+                        custom_path = Some(
+                            KurboShape_::Polygon {
+                                points: regular_polygon_points(
+                                    regular_polygon_sides,
+                                    regular_polygon_radius,
+                                ),
+                            }
+                            .to_path_default(),
+                        );
                     }
 
                     // For Graph types, make them invisible (container only)

@@ -371,6 +371,84 @@ fn test_missing_properties() {
 }
 
 #[test]
+fn test_square_primitive_builds_rect_shape() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "sq".to_string(),
+            ty: "Square".to_string(),
+            props: vec![Property {
+                name: "side".to_string(),
+                value: Expr::Num(80.0),
+            }],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("sq")
+        .expect("square track should exist");
+
+    assert_eq!(track.size.evaluate(0), [40.0, 40.0]);
+    assert!(!track.vector_paths.evaluate(0).is_empty());
+}
+
+#[test]
+fn test_dot_primitive_uses_small_default_radius() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "dot".to_string(),
+            ty: "Dot".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("dot").expect("dot track should exist");
+
+    assert_eq!(track.size.evaluate(0), [6.0, 6.0]);
+    assert!(!track.vector_paths.evaluate(0).is_empty());
+}
+
+#[test]
+fn test_regular_polygon_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "hex".to_string(),
+            ty: "RegularPolygon".to_string(),
+            props: vec![
+                Property {
+                    name: "sides".to_string(),
+                    value: Expr::Num(6.0),
+                },
+                Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(40.0),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("hex").expect("hex track should exist");
+
+    assert_eq!(track.shape_type.evaluate(0), 5);
+    assert!(!track.vector_paths.evaluate(0).is_empty());
+}
+
+#[test]
 fn imported_component_instances_expand_with_isolated_labels_and_props() {
     let dir = temp_project_dir("component_instances");
     let entry = dir.join("scene.amx");
