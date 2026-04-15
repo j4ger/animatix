@@ -1,0 +1,20 @@
+// Runnable example: local rotation ergonomics with `rotate`.
+#0s
+scene.background_color = (0.05, 0.06, 0.10, 1.0)
+
+title: Text { text: "Rotate Motion Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Rotate applies a local turn in radians around the current origin", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+manual_label: Text { text: "Manual node", font_size: 22, color: WHITE, at: (280, 220) }
+layout_label: Text { text: "Layout-managed node", font_size: 22, color: WHITE, at: (930, 220) }
+
+manual: Rect, size: (170, 80), color: (1.0, 0.52, 0.62, 1.0), stroke: WHITE, stroke_width: 4, at: (280, 430)
+
+row: Row, gap: 40, at: (930, 430) {
+  anchor: Rect, size: (110, 70), color: (0.26, 0.90, 0.64, 1.0), stroke: WHITE, stroke_width: 4,
+  spinning: Rect, size: (170, 80), color: (0.34, 0.68, 1.0, 1.0), stroke: WHITE, stroke_width: 4,
+}
+
+#0s
+rotate manual [by: 1.5708, 1200ms, ease: ease-in-out]
+rotate spinning [by: -0.7854, 1200ms, delay: 200ms, ease: ease-in-out]
