@@ -31,6 +31,10 @@ enum Commands {
     Render {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
+
+        /// Loop the authored timeline in the preview window instead of holding on the last frame
+        #[arg(long)]
+        r#loop: bool,
     },
     /// Render a scene to a video file
     /// Render a specific frame to an image file (PNG)
@@ -108,7 +112,7 @@ fn main() {
                 }
             }
         }
-        Commands::Render { input } => {
+        Commands::Render { input, r#loop } => {
             println!("Rendering Animatix file: {}", input.display());
 
             let ast = match ModuleGraph::new().load_program(&input) {
@@ -121,7 +125,7 @@ fn main() {
 
             let report = Timeline::build_with_diagnostics(&ast);
             print_build_diagnostics(&report.diagnostics);
-            renderer::run_timeline(report.output);
+            renderer::run_timeline_with_options(report.output, r#loop);
         }
         Commands::Image {
             input,

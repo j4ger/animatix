@@ -1570,6 +1570,17 @@ impl Timeline {
         BuildReport::new(timeline, diagnostics)
     }
 
+    pub fn duration_seconds(&self) -> f64 {
+        let max_track_ms = self
+            .tracks
+            .values()
+            .filter_map(|track| track.max_keyframe_time())
+            .max()
+            .unwrap_or(0);
+        let max_bg_ms = self.background_color.last_keyframe_time().unwrap_or(0);
+        (max_track_ms.max(max_bg_ms) as f64) / 1000.0
+    }
+
     fn sequence_statement_span_ms(&self, stmt: &Stmt) -> Option<f64> {
         let mut ignored_diagnostics = Vec::new();
         match stmt {

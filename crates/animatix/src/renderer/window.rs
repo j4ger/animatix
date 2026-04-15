@@ -158,6 +158,8 @@ struct App {
     state: Option<State>,
     timeline: Timeline,
     start_time: Option<Instant>,
+    loop_playback: bool,
+    loop_duration_s: Option<f64>,
 }
 
 impl ApplicationHandler for App {
@@ -206,6 +208,14 @@ impl ApplicationHandler for App {
                     self.start_time = Some(now);
                     0.0
                 };
+                let current_time = if self.loop_playback {
+                    self.loop_duration_s
+                        .filter(|duration| *duration > 0.0)
+                        .map(|duration| current_time % duration)
+                        .unwrap_or(current_time)
+                } else {
+                    current_time
+                };
 
                 match state.render(current_time) {
                     Ok(_) => {}
@@ -229,15 +239,21 @@ pub fn run(ast: &[Stmt]) {
 }
 
 pub fn run_timeline(timeline: Timeline) {
+    run_timeline_with_options(timeline, false);
+}
 
+pub fn run_timeline_with_options(timeline: Timeline, loop_playback: bool) {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
+    let loop_duration_s = loop_playback.then(|| timeline.duration_seconds());
 
     let mut app = App {
         window: None,
         state: None,
         timeline,
         start_time: None,
+        loop_playback,
+        loop_duration_s,
     };
 
     event_loop.run_app(&mut app).unwrap();

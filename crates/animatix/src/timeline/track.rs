@@ -211,6 +211,10 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
             .map(|(_, (val, _))| val.clone())
             .unwrap_or_else(|| self.default_value.clone())
     }
+
+    pub fn last_keyframe_time(&self) -> Option<u64> {
+        self.keyframes.keys().next_back().copied()
+    }
 }
 
 #[derive(Clone)]
@@ -288,6 +292,35 @@ impl AnimationTrack {
             time_ms,
             interpolate_vello_paths,
         )
+    }
+
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        [
+            self.position.last_keyframe_time(),
+            self.motion_offset.last_keyframe_time(),
+            self.rotation.last_keyframe_time(),
+            self.scale.last_keyframe_time(),
+            self.placement_mode.last_keyframe_time(),
+            self.position_binding.last_keyframe_time(),
+            self.size.last_keyframe_time(),
+            self.line_from.last_keyframe_time(),
+            self.line_to.last_keyframe_time(),
+            self.arc_angles.last_keyframe_time(),
+            self.color.last_keyframe_time(),
+            self.shape_type.last_keyframe_time(),
+            self.opacity.last_keyframe_time(),
+            self.stroke_width.last_keyframe_time(),
+            self.stroke_color.last_keyframe_time(),
+            self.stroke_progress.last_keyframe_time(),
+            self.fill_opacity.last_keyframe_time(),
+            self.morph_options.last_keyframe_time(),
+            self.text_paths.last_keyframe_time(),
+            self.vector_paths.last_keyframe_time(),
+            self.image.last_keyframe_time(),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
     }
 }
 

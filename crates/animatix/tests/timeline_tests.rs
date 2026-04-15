@@ -649,6 +649,39 @@ fn test_implicit_plot_builds_runtime_path() {
 }
 
 #[test]
+fn test_timeline_duration_seconds_uses_latest_keyframe() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "box".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(2.5),
+            body: vec![Stmt::Assignment {
+                target: vec!["box".to_string()],
+                property: "rotation".to_string(),
+                value: Expr::Num(1.0),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+
+    assert!((timeline.duration_seconds() - 2.5).abs() < f64::EPSILON);
+}
+
+#[test]
 fn imported_component_instances_expand_with_isolated_labels_and_props() {
     let dir = temp_project_dir("component_instances");
     let entry = dir.join("scene.amx");

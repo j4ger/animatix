@@ -31,12 +31,13 @@ From the repo root:
 ```bash
 cargo build
 cargo run --bin animatix -- render examples/showcase.amx
+cargo run --bin animatix -- render examples/showcase.amx --loop
 cargo run --bin animatix -- image examples/showcase.amx --time 1.0 --output showcase.png
 cargo run --bin animatix -- video examples/showcase.amx --fps 30 --duration 5 --output showcase.mp4
 cargo run --bin animatix-gui -- examples/showcase.amx
 ```
 
-`render` opens a live preview window. `image` writes a PNG for one timestamp, and `video` exports an MP4.
+`render` opens a live preview window. Use `render --loop` to replay the authored timeline instead of holding on the last frame. `image` writes a PNG for one timestamp, and `video` exports an MP4.
 
 Useful CLI commands:
 
