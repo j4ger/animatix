@@ -89,6 +89,7 @@ Runnable demos live in [`examples/`](examples/):
 - `primitive_breadth_demo.amx` — current primitive breadth slice (`Dot`, `Square`, `RegularPolygon`)
 - `arrow_demo.amx` — current arrow primitive slice (`Arrow`)
 - `parametric_plot_demo.amx` — current parametric plotting slice (`ParametricPlot`)
+- `implicit_plot_demo.amx` — current implicit plotting slice (`ImplicitPlot`)
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access

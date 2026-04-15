@@ -1,0 +1,10 @@
+// Runnable example: implicit contour plotting over the current Graph domain.
+#0s
+scene.background_color = (0.05, 0.06, 0.10, 1.0)
+
+title: Text { text: "Implicit Plot Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Marching-squares contour extraction for f(x, y) = 0", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 400) {
+  lemniscate: ImplicitPlot, func: (x, y) => (x * x + y * y) * (x * x + y * y) - 2 * (x * x - y * y), resolution: 120, stroke: cyan, width: 3
+}
