@@ -1639,6 +1639,93 @@ fn test_sequence_reports_unsupported_statements() {
 }
 
 #[test]
+fn test_stagger_offsets_statement_start_times() {
+    let actor = |label: &str| Stmt::ActorDecl {
+        is_pub: false,
+        label: label.to_string(),
+        ty: "Circle".to_string(),
+        props: vec![Property {
+            name: "radius".to_string(),
+            value: Expr::Num(24.0),
+        }],
+        modifiers: vec![],
+        children: vec![],
+    };
+
+    let fade_out = |label: &str| {
+        Stmt::Action(animatix::ast::Action {
+            verb: "fade-out".to_string(),
+            targets: vec![label.to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: Expr::Ident("200ms".to_string()),
+            }],
+        })
+    };
+
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            actor("a"),
+            actor("b"),
+            actor("c"),
+            Stmt::Stagger {
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("150ms".to_string()),
+                }],
+                body: vec![fade_out("a"), fade_out("b"), fade_out("c")],
+            },
+        ],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track_a = report.output.tracks.get("a").expect("a track");
+    let track_b = report.output.tracks.get("b").expect("b track");
+    let track_c = report.output.tracks.get("c").expect("c track");
+
+    assert!(report.diagnostics.is_empty());
+    assert!(track_a.opacity.evaluate(100) < 1.0);
+    assert_eq!(track_b.opacity.evaluate(100), 1.0);
+    assert!(track_b.opacity.evaluate(250) < 1.0);
+    assert_eq!(track_c.opacity.evaluate(250), 1.0);
+    assert!(track_c.opacity.evaluate(450) < 1.0);
+}
+
+#[test]
+fn test_stagger_reports_unsupported_statements() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Stagger {
+            modifiers: vec![Modifier {
+                name: None,
+                value: Expr::Ident("150ms".to_string()),
+            }],
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "late_badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedStaggerStatement
+            && diagnostic.message.contains("actor declaration")
+    }));
+    assert!(!report.output.tracks.contains_key("late_badge"));
+}
+
+#[test]
 fn test_rotation_assignment_animates_track() {
     let ast = vec![
         Stmt::Keyframe {

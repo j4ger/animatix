@@ -30,6 +30,7 @@ fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Action(_) => "action",
         Stmt::Assignment { .. } => "assignment",
         Stmt::Sequence { .. } => "sequence",
+        Stmt::Stagger { .. } => "stagger",
         Stmt::LetDecl { .. } => "let declaration",
         Stmt::Text { .. } => "text declaration",
         Stmt::Math { .. } => "math declaration",
@@ -50,6 +51,121 @@ fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Config { .. } => "config block",
         Stmt::Comment(_) => "comment",
     }
+}
+
+fn push_unsupported_stagger_statement_diagnostic(diagnostics: &mut Vec<Diagnostic>, kind: &str) {
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::UnsupportedStaggerStatement,
+            DiagnosticPhase::Build,
+            format!(
+                "Stagger blocks currently support only actions and assignments; '{kind}' is not supported in stagger v1b."
+            ),
+        )
+        .with_subject("stagger"),
+    );
+}
+
+fn parse_stagger_interval_ms(
+    modifiers: &[Modifier],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<f64> {
+    let mut interval_ms = None;
+    let mut saw_interval = false;
+
+    for modifier in modifiers {
+        match modifier.name.as_deref() {
+            None => {
+                if let Expr::Ident(raw) = &modifier.value {
+                    if let Some(parsed_ms) = parse_duration_literal(raw) {
+                        if saw_interval {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "duration-shorthand",
+                                ModifierHost::Action,
+                                Some("stagger"),
+                            );
+                        }
+                        interval_ms = Some(parsed_ms);
+                        saw_interval = true;
+                    } else {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported stagger interval '{raw}'; expected a time literal such as 120ms or 1s."
+                            ),
+                            Some("stagger"),
+                        );
+                    }
+                } else {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported stagger interval modifier {:?}; expected a time literal such as 120ms or 1s.",
+                            modifier.value
+                        ),
+                        Some("stagger"),
+                    );
+                }
+            }
+            Some("each") => {
+                if let Expr::Ident(raw) = &modifier.value {
+                    if let Some(parsed_ms) = parse_duration_literal(raw) {
+                        if saw_interval {
+                            push_conflicting_modifier_diagnostic(
+                                diagnostics,
+                                "each",
+                                ModifierHost::Action,
+                                Some("stagger"),
+                            );
+                        }
+                        interval_ms = Some(parsed_ms);
+                        saw_interval = true;
+                    } else {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported stagger each value '{raw}'; expected a time literal such as 120ms or 1s."
+                            ),
+                            Some("stagger"),
+                        );
+                    }
+                } else {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported stagger each modifier {:?}; expected a time literal such as 120ms or 1s.",
+                            modifier.value
+                        ),
+                        Some("stagger"),
+                    );
+                }
+            }
+            Some(other) => push_modifier_diagnostic(
+                diagnostics,
+                DiagnosticCode::UnsupportedModifierKey,
+                format!(
+                    "Unsupported modifier key '{other}' on stagger; only duration shorthand or 'each' are supported in stagger v1b."
+                ),
+                Some("stagger"),
+            ),
+        }
+    }
+
+    if interval_ms.is_none() {
+        push_modifier_diagnostic(
+            diagnostics,
+            DiagnosticCode::InvalidModifierValue,
+            "Stagger blocks require an interval such as [150ms] or [each: 150ms].".to_string(),
+            Some("stagger"),
+        );
+    }
+
+    interval_ms
 }
 
 fn push_unknown_target_path_diagnostic(
@@ -1107,7 +1223,10 @@ impl Timeline {
                     current_time_ms += time_to_ms(offset);
                     timeline.process_body(current_time_ms, body, None, &mut diagnostics);
                 }
-                Stmt::ActorDecl { .. } | Stmt::Assignment { .. } | Stmt::Sequence { .. } => {
+                Stmt::ActorDecl { .. }
+                | Stmt::Assignment { .. }
+                | Stmt::Sequence { .. }
+                | Stmt::Stagger { .. } => {
                     timeline.process_body(current_time_ms, &[stmt.clone()], None, &mut diagnostics);
                 }
                 _ => {}
@@ -1174,6 +1293,32 @@ impl Timeline {
 
             self.process_body(cursor_time_ms, &[stmt.clone()], parent_label, diagnostics);
             cursor_time_ms += span_ms;
+        }
+    }
+
+    fn process_stagger(
+        &mut self,
+        time_ms: f64,
+        modifiers: &[Modifier],
+        body: &[Stmt],
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(interval_ms) = parse_stagger_interval_ms(modifiers, diagnostics) else {
+            return;
+        };
+
+        for (index, stmt) in body.iter().enumerate() {
+            let Some(_) = self.sequence_statement_span_ms(stmt) else {
+                push_unsupported_stagger_statement_diagnostic(
+                    diagnostics,
+                    sequence_stmt_kind(stmt),
+                );
+                continue;
+            };
+
+            let stagger_time_ms = time_ms + interval_ms * index as f64;
+            self.process_body(stagger_time_ms, &[stmt.clone()], parent_label, diagnostics);
         }
     }
 
@@ -3233,6 +3378,9 @@ impl Timeline {
                 }
                 Stmt::Sequence { body } => {
                     self.process_sequence(time_ms, body, parent_label, diagnostics);
+                }
+                Stmt::Stagger { modifiers, body } => {
+                    self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 }
                 Stmt::Action(action) => {
                     process_action(action, time_ms, self, diagnostics);
