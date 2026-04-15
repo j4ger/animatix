@@ -30,6 +30,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Morphing | DSL modifiers `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing re-declarations | Yes | Yes | Shipped only for timed path-morphing re-declarations; `strategy:fade` remains deferred. |
 | Actions | built-ins `fade-in`, `move`, `shift`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | These are the currently registered built-in actions. |
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
+| Composition | `sequence { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1a lowers sequence blocks at build time; nested sequence and declarations inside sequence are deliberately unsupported. |
 
 ### Matrix Conventions
 
@@ -163,6 +164,12 @@ shift badge [by: (40, -24), 1s]
 draw-in badge [1s]
 fade-out btn [1s]
 wipe-out badge [1s]
+
+sequence {
+  fade-in btn [400ms]
+  move btn [to: (120, -30), 600ms]
+  btn.color = red [200ms]
+}
 ```
 
 **Bracket Modifier Model**  
@@ -225,6 +232,19 @@ The runtime currently registers seven built-in actions:
 `shift` is a local motion action. Its required `by` modifier applies a relative translation on top of the target's existing placement rather than changing layout ownership or rebinding `at` directly.
 
 The action system exposes action signatures through the Rust registry API, which is enough for editor/LSP integration work. Higher-level editor workflows remain future work.
+
+**Composition v1a: Sequence Blocks**  
+`sequence { ... }` is the currently shipped composition helper. It is intentionally narrow in v1a: the body may contain only actions and property assignments, and it lowers at build time by advancing each statement's start time by the previous statement's full span (`delay + duration`).
+
+```animatix
+sequence {
+  fade-in badge [400ms]
+  shift badge [by: (80, 0), 600ms, ease: ease-in-out]
+  badge.color = blue [250ms, delay: 100ms]
+}
+```
+
+Nested `sequence` blocks and declarations inside `sequence` are intentionally rejected with diagnostics in this first slice.
 
 ---
 

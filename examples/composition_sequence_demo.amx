@@ -1,0 +1,18 @@
+// Runnable example: composition v1a with build-time `sequence` blocks.
+#0s
+scene.background_color = (0.05, 0.06, 0.10, 1.0)
+
+title: Text { text: "Sequence Composition Demo", font_size: 34, color: WHITE, at: (640, 84) }
+subtitle: Text { text: "Each statement starts after the previous one ends", font_size: 22, color: (0.78, 0.83, 0.92, 1.0), at: (640, 132) }
+
+badge: Circle, radius: 54, color: (1.0, 0.55, 0.62, 1.0), stroke: WHITE, stroke_width: 4, at: (320, 420)
+panel: Rect, size: (170, 110), color: (0.28, 0.90, 0.66, 1.0), stroke: WHITE, stroke_width: 4, at: (640, 420)
+caption: Text { text: "Sequenced reveal, motion, and style", font_size: 24, color: WHITE, at: (640, 610) }
+
+#0s
+sequence {
+  fade-in caption [350ms]
+  draw-in badge [700ms]
+  move badge [to: (170, -30), 700ms, ease: ease-in-out]
+  panel.color = (0.34, 0.68, 1.0, 1.0) [250ms, delay: 100ms]
+}

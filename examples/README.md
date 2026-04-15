@@ -20,6 +20,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `shape_morph_demo.amx`
 - `reveal_actions_demo.amx`
 - `motion_shift_demo.amx`
+- `composition_sequence_demo.amx`
 - `modifier_timing_demo.amx`
 - `code_demo.amx`
 - `component_modules_demo.amx`
@@ -34,6 +35,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `reveal_actions_demo.amx` is the focused example for the current reveal-action surface: opacity-based `fade-in` plus vector-first `draw-in`, `wipe-in`, and `wipe-out`.
 
 `motion_shift_demo.amx` is the focused example for the current motion-ergonomics slice: `move` sets a local offset target while `shift` adds relative local motion on top of existing placement for both manual and layout-managed nodes.
+
+`composition_sequence_demo.amx` is the focused example for composition v1a: `sequence { ... }` lowers actions and assignments into ordered timing without introducing playback-state semantics.
 
 `modifier_timing_demo.amx` is the focused example for the shipped shared timing vocabulary: duration shorthand, named `delay`, named `ease`, explicit instant changes, and delayed-first-declaration behavior.
 

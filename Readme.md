@@ -80,6 +80,7 @@ Runnable demos live in [`examples/`](examples/):
 - `image_demo.amx` / `image_animation_demo.amx` — image rendering and animation
 - `reveal_actions_demo.amx` — current reveal and exit action surface
 - `motion_shift_demo.amx` — current local motion action surface (`move` + `shift`)
+- `composition_sequence_demo.amx` — current ordered composition surface (`sequence`)
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access
