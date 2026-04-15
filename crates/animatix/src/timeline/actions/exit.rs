@@ -2,8 +2,28 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::timeline::track::AnimationTrack;
 use crate::timeline::{parse_timing_modifiers, ModifierHost, Timeline};
+
+fn timing_modifier_params() -> Vec<ActionParam> {
+    vec![
+        ActionParam {
+            name: "ease".to_string(),
+            description: "Easing function for the animation".to_string(),
+            type_info: "string".to_string(),
+        },
+        ActionParam {
+            name: "duration-shorthand".to_string(),
+            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
+                .to_string(),
+            type_info: "positional time literal".to_string(),
+        },
+        ActionParam {
+            name: "delay".to_string(),
+            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+            type_info: "time literal".to_string(),
+        },
+    ]
+}
 
 pub struct FadeOut;
 
@@ -14,25 +34,7 @@ impl BuiltinAction for FadeOut {
             category: "Exit".to_string(),
             description: "Fades out the target by animating its overall opacity to 0.".to_string(),
             params: vec![],
-            modifiers: vec![
-                ActionParam {
-                    name: "ease".to_string(),
-                    description: "Easing function for the animation".to_string(),
-                    type_info: "string".to_string(),
-                },
-                ActionParam {
-                    name: "duration-shorthand".to_string(),
-                    description:
-                        "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                            .to_string(),
-                    type_info: "positional time literal".to_string(),
-                },
-                ActionParam {
-                    name: "delay".to_string(),
-                    description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-                    type_info: "time literal".to_string(),
-                },
-            ],
+            modifiers: timing_modifier_params(),
         }
     }
 
@@ -57,10 +59,14 @@ impl BuiltinAction for FadeOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
             let track = timeline
                 .tracks
-                .entry(target.clone())
-                .or_insert_with(|| AnimationTrack::new(target.clone()));
+                .get_mut(target)
+                .expect("validated target track");
 
             let start_opacity = track.opacity.evaluate(t_start_ms);
             if duration_ms > 0.0 {
