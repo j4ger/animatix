@@ -796,6 +796,109 @@ fn sample_recursive_polar(
     }
 }
 
+fn sample_recursive_parametric(
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    depth: usize,
+    max_depth: usize,
+    tolerance: f64,
+    env: &mut Environment,
+    arg_name: &str,
+    body: &Expr,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    pts: &mut Vec<kurbo::Point>,
+) {
+    let margin_y = p_size[1] * 2.0;
+    let min_screen_y = -(p_size[1] / 2.0) - margin_y;
+    let max_screen_y = (p_size[1] / 2.0) + margin_y;
+
+    let margin_x = p_size[0] * 2.0;
+    let min_screen_x = -(p_size[0] / 2.0) - margin_x;
+    let max_screen_x = (p_size[0] / 2.0) + margin_x;
+
+    if ((p0.y < min_screen_y && p1.y < min_screen_y)
+        || (p0.y > max_screen_y && p1.y > max_screen_y))
+        && ((p0.x < min_screen_x && p1.x < min_screen_x)
+            || (p0.x > max_screen_x && p1.x > max_screen_x))
+    {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        return;
+    }
+
+    let dist_sq_jump = (p1.x - p0.x).powi(2) + (p1.y - p0.y).powi(2);
+    if dist_sq_jump > (p_size[0].max(p_size[1])).powi(2) * 4.0 {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    }
+
+    if depth >= max_depth {
+        pts.push(p1);
+        return;
+    }
+
+    let mid_t = (min_t + max_t) / 2.0;
+    env.set(arg_name, Value::Num(mid_t));
+    let val = evaluate_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0]));
+    let Value::Vec2([math_x, math_y]) = val else {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    };
+
+    let screen_x = -(p_size[0] / 2.0)
+        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
+    let screen_y = (p_size[1] / 2.0)
+        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+
+    let p_mid = kurbo::Point::new(screen_x, screen_y);
+
+    let expected_mid_x = (p0.x + p1.x) / 2.0;
+    let expected_mid_y = (p0.y + p1.y) / 2.0;
+    let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
+
+    if dist_sq > tolerance || depth < 3 {
+        sample_recursive_parametric(
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            pts,
+        );
+        sample_recursive_parametric(
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            body,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            pts,
+        );
+    } else {
+        pts.push(p1);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SceneNode {
     pub label: String,
@@ -2622,7 +2725,10 @@ impl Timeline {
                             "color" => {
                                 color = parse_color_in_env(&prop.value, &eval_env);
                                 // For plot types, also set stroke_color
-                                if ty == "CartesianPlot" || ty == "PolarPlot" {
+                                if ty == "CartesianPlot"
+                                    || ty == "PolarPlot"
+                                    || ty == "ParametricPlot"
+                                {
                                     stroke_color = parse_color_in_env(&prop.value, &eval_env);
                                 }
                             }
@@ -2748,7 +2854,7 @@ impl Timeline {
                                 2.0,
                             )),
                         });
-                    } else if ty == "CartesianPlot" || ty == "PolarPlot" {
+                    } else if ty == "CartesianPlot" || ty == "PolarPlot" || ty == "ParametricPlot" {
                         let p_label = parent_label.unwrap_or("").to_string();
                         let mut p_x_domain = [-10.0, 10.0];
                         let mut p_y_domain = [-10.0, 10.0];
@@ -2785,12 +2891,17 @@ impl Timeline {
                             };
 
                             env_copy.set(&arg_name, Value::Num(min_t));
-                            let start_val = evaluate_expr(&body, &env_copy)
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num();
+                            let start_eval =
+                                evaluate_expr(&body, &env_copy).unwrap_or(Value::Num(0.0));
                             let (start_math_x, start_math_y) = if ty == "CartesianPlot" {
-                                (min_t, start_val)
+                                (min_t, start_eval.as_num())
+                            } else if ty == "ParametricPlot" {
+                                match start_eval {
+                                    Value::Vec2([x, y]) => (x, y),
+                                    _ => (0.0, 0.0),
+                                }
                             } else {
+                                let start_val = start_eval.as_num();
                                 (start_val * min_t.cos(), start_val * min_t.sin())
                             };
                             let start_screen_x = -(p_size[0] / 2.0)
@@ -2803,12 +2914,17 @@ impl Timeline {
                                         / (p_y_domain[1] - p_y_domain[0]));
 
                             env_copy.set(&arg_name, Value::Num(max_t));
-                            let end_val = evaluate_expr(&body, &env_copy)
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num();
+                            let end_eval =
+                                evaluate_expr(&body, &env_copy).unwrap_or(Value::Num(0.0));
                             let (end_math_x, end_math_y) = if ty == "CartesianPlot" {
-                                (max_t, end_val)
+                                (max_t, end_eval.as_num())
+                            } else if ty == "ParametricPlot" {
+                                match end_eval {
+                                    Value::Vec2([x, y]) => (x, y),
+                                    _ => (0.0, 0.0),
+                                }
                             } else {
+                                let end_val = end_eval.as_num();
                                 (end_val * max_t.cos(), end_val * max_t.sin())
                             };
                             let end_screen_x = -(p_size[0] / 2.0)
@@ -2842,8 +2958,25 @@ impl Timeline {
                                     &p_size,
                                     &mut pts,
                                 );
-                            } else {
+                            } else if ty == "PolarPlot" {
                                 sample_recursive_polar(
+                                    min_t,
+                                    max_t,
+                                    p0,
+                                    p1,
+                                    0,
+                                    max_depth as usize,
+                                    tolerance,
+                                    &mut env_copy,
+                                    &arg_name,
+                                    &body,
+                                    &p_x_domain,
+                                    &p_y_domain,
+                                    &p_size,
+                                    &mut pts,
+                                );
+                            } else {
+                                sample_recursive_parametric(
                                     min_t,
                                     max_t,
                                     p0,
@@ -2891,7 +3024,11 @@ impl Timeline {
                                 },
                             });
                         }
-                    } else if ty != "Graph" && ty != "CartesianPlot" && ty != "PolarPlot" {
+                    } else if ty != "Graph"
+                        && ty != "CartesianPlot"
+                        && ty != "PolarPlot"
+                        && ty != "ParametricPlot"
+                    {
                         let vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
                             let path = custom_path.unwrap_or_else(kurbo::BezPath::new);
                             styled_vello_path(

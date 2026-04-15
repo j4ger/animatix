@@ -1,4 +1,4 @@
-use animatix::ast::{Expr, Modifier, Property, Stmt, Time};
+use animatix::ast::{Expr, InlineItem, Modifier, Property, Stmt, Time};
 use animatix::diagnostics::DiagnosticCode;
 use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
@@ -511,6 +511,67 @@ fn test_arrow_tip_properties_update_size_track() {
         .expect("arrow track should exist");
 
     assert_eq!(track.size.evaluate(0), [30.0, 20.0]);
+}
+
+#[test]
+fn test_parametric_plot_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "graph".to_string(),
+            ty: "Graph".to_string(),
+            props: vec![
+                Property {
+                    name: "x_domain".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                },
+                Property {
+                    name: "y_domain".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                },
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(300.0)]),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![InlineItem::Labeled {
+                label: "curve".to_string(),
+                ty: "ParametricPlot".to_string(),
+                props: vec![
+                    Property {
+                        name: "func".to_string(),
+                        value: Expr::Closure(
+                            vec!["t".to_string()],
+                            Box::new(Expr::Tuple(vec![
+                                Expr::Ident("t".to_string()),
+                                Expr::Call("sin".to_string(), vec![Expr::Ident("t".to_string())]),
+                            ])),
+                        ),
+                    },
+                    Property {
+                        name: "t_domain".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("cyan".to_string()),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("curve")
+        .expect("parametric track should exist");
+
+    assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
 #[test]
