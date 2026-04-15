@@ -1,4 +1,4 @@
-use animatix::ast::{Expr, InlineItem, Modifier, Property, Stmt, Time};
+use animatix::ast::{BinaryOp, Expr, InlineItem, Modifier, Property, Stmt, Time};
 use animatix::diagnostics::DiagnosticCode;
 use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
@@ -570,6 +570,80 @@ fn test_parametric_plot_builds_runtime_path() {
         .tracks
         .get("curve")
         .expect("parametric track should exist");
+
+    assert!(!track.vector_paths.evaluate(0).is_empty());
+}
+
+#[test]
+fn test_implicit_plot_builds_runtime_path() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "graph".to_string(),
+            ty: "Graph".to_string(),
+            props: vec![
+                Property {
+                    name: "x_domain".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                },
+                Property {
+                    name: "y_domain".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                },
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(300.0)]),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![InlineItem::Labeled {
+                label: "contour".to_string(),
+                ty: "ImplicitPlot".to_string(),
+                props: vec![
+                    Property {
+                        name: "func".to_string(),
+                        value: Expr::Closure(
+                            vec!["x".to_string(), "y".to_string()],
+                            Box::new(Expr::Binary(
+                                Box::new(Expr::Binary(
+                                    Box::new(Expr::Binary(
+                                        Box::new(Expr::Ident("x".to_string())),
+                                        BinaryOp::Mul,
+                                        Box::new(Expr::Ident("x".to_string())),
+                                    )),
+                                    BinaryOp::Add,
+                                    Box::new(Expr::Binary(
+                                        Box::new(Expr::Ident("y".to_string())),
+                                        BinaryOp::Mul,
+                                        Box::new(Expr::Ident("y".to_string())),
+                                    )),
+                                )),
+                                BinaryOp::Sub,
+                                Box::new(Expr::Num(1.0)),
+                            )),
+                        ),
+                    },
+                    Property {
+                        name: "resolution".to_string(),
+                        value: Expr::Num(48.0),
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("cyan".to_string()),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("contour")
+        .expect("implicit plot track should exist");
 
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
