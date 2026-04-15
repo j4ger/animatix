@@ -1554,6 +1554,95 @@ fn test_action_delay_starts_later() {
 }
 
 #[test]
+fn test_sequence_advances_statement_timing() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::Sequence {
+                body: vec![
+                    Stmt::Action(animatix::ast::Action {
+                        verb: "fade-out".to_string(),
+                        targets: vec!["badge".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("500ms".to_string()),
+                        }],
+                    }),
+                    Stmt::Assignment {
+                        target: vec!["badge".to_string()],
+                        property: "radius".to_string(),
+                        value: Expr::Num(50.0),
+                        modifiers: vec![
+                            Modifier {
+                                name: Some("delay".to_string()),
+                                value: Expr::Ident("100ms".to_string()),
+                            },
+                            Modifier {
+                                name: None,
+                                value: Expr::Ident("200ms".to_string()),
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    assert_eq!(track.opacity.evaluate(250), 0.5);
+    assert_eq!(track.size.evaluate(550), [24.0, 24.0]);
+    assert!(track.size.evaluate(700)[0] > 24.0);
+    assert_eq!(track.size.evaluate(800), [50.0, 50.0]);
+}
+
+#[test]
+fn test_sequence_reports_unsupported_statements() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Sequence {
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "late_badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedSequenceStatement
+            && diagnostic.message.contains("actor declaration")
+    }));
+    assert!(!report.output.tracks.contains_key("late_badge"));
+}
+
+#[test]
 fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),

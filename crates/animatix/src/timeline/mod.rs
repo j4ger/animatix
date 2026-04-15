@@ -25,6 +25,33 @@ use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
 
+fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
+    match stmt {
+        Stmt::Action(_) => "action",
+        Stmt::Assignment { .. } => "assignment",
+        Stmt::Sequence { .. } => "sequence",
+        Stmt::LetDecl { .. } => "let declaration",
+        Stmt::Text { .. } => "text declaration",
+        Stmt::Math { .. } => "math declaration",
+        Stmt::Code { .. } => "code declaration",
+        Stmt::Svg { .. } => "svg declaration",
+        Stmt::Image { .. } => "image declaration",
+        Stmt::ActorDecl { .. } => "actor declaration",
+        Stmt::Import { .. } => "import",
+        Stmt::Use { .. } => "use",
+        Stmt::Keyframe { .. } => "keyframe",
+        Stmt::RelativeKeyframe { .. } => "relative keyframe",
+        Stmt::Always { .. } => "always block",
+        Stmt::LabeledAlways { .. } => "labeled always block",
+        Stmt::Conditional { .. } => "conditional",
+        Stmt::ForLoop { .. } => "for loop",
+        Stmt::ComponentDef(_) => "component definition",
+        Stmt::ComponentAction { .. } => "component action",
+        Stmt::Config { .. } => "config block",
+        Stmt::Comment(_) => "comment",
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ParsedTimingModifiers {
     pub duration_ms: f64,
@@ -1063,13 +1090,74 @@ impl Timeline {
                     current_time_ms += time_to_ms(offset);
                     timeline.process_body(current_time_ms, body, None, &mut diagnostics);
                 }
-                Stmt::ActorDecl { .. } | Stmt::Assignment { .. } => {
+                Stmt::ActorDecl { .. } | Stmt::Assignment { .. } | Stmt::Sequence { .. } => {
                     timeline.process_body(current_time_ms, &[stmt.clone()], None, &mut diagnostics);
                 }
                 _ => {}
             }
         }
         BuildReport::new(timeline, diagnostics)
+    }
+
+    fn sequence_statement_span_ms(&self, stmt: &Stmt) -> Option<f64> {
+        let mut ignored_diagnostics = Vec::new();
+        match stmt {
+            Stmt::Action(action) => {
+                let parsed = parse_timing_modifiers(
+                    &action.modifiers,
+                    ModifierHost::Action,
+                    Some(&action.verb),
+                    &mut ignored_diagnostics,
+                );
+                Some(parsed.delay_ms + parsed.duration_ms)
+            }
+            Stmt::Assignment {
+                target,
+                property,
+                modifiers,
+                ..
+            } => {
+                let subject = format!("{}.{}", target.join("."), property);
+                let parsed = parse_timing_modifiers(
+                    modifiers,
+                    ModifierHost::Assignment,
+                    Some(&subject),
+                    &mut ignored_diagnostics,
+                );
+                Some(parsed.delay_ms + parsed.duration_ms)
+            }
+            _ => None,
+        }
+    }
+
+    fn process_sequence(
+        &mut self,
+        time_ms: f64,
+        body: &[Stmt],
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let mut cursor_time_ms = time_ms;
+
+        for stmt in body {
+            let Some(span_ms) = self.sequence_statement_span_ms(stmt) else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnsupportedSequenceStatement,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Sequence blocks currently support only actions and assignments; '{}' is not supported in sequence v1a.",
+                            sequence_stmt_kind(stmt)
+                        ),
+                    )
+                    .with_subject("sequence"),
+                );
+                continue;
+            };
+
+            self.process_body(cursor_time_ms, &[stmt.clone()], parent_label, diagnostics);
+            cursor_time_ms += span_ms;
+        }
     }
 
     fn build_eval_env(&self, time_ms: u64) -> Environment {
@@ -3082,6 +3170,9 @@ impl Timeline {
                         self.env.set(var, value);
                         self.process_body(time_ms, body, parent_label, diagnostics);
                     }
+                }
+                Stmt::Sequence { body } => {
+                    self.process_sequence(time_ms, body, parent_label, diagnostics);
                 }
                 Stmt::Action(action) => {
                     process_action(action, time_ms, self, diagnostics);
