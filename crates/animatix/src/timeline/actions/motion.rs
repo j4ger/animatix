@@ -7,6 +7,13 @@ use crate::timeline::{evaluate_expr, parse_timing_modifiers, ModifierHost, Timel
 fn timing_modifier_params() -> Vec<ActionParam> {
     vec![
         ActionParam {
+            name: "to".to_string(),
+            description:
+                "Target local translation offset for the move action (e.g. [to: (140, -40)])."
+                    .to_string(),
+            type_info: "vec2".to_string(),
+        },
+        ActionParam {
             name: "by".to_string(),
             description: "Relative translation delta for the shift action (e.g. [by: (40, -24)])."
                 .to_string(),
@@ -42,62 +49,147 @@ fn push_shift_diagnostic(
     );
 }
 
-fn parse_shift_delta(
+fn parse_vec2_modifier(
     modifiers: &[Modifier],
     timeline: &Timeline,
+    key: &str,
+    message: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<[f32; 2]> {
-    let mut shift_by = None;
-    let mut saw_by = false;
+    let mut value = None;
+    let mut saw_key = false;
 
     for modifier in modifiers {
-        if modifier.name.as_deref() != Some("by") {
+        if modifier.name.as_deref() != Some(key) {
             continue;
         }
 
-        if saw_by {
+        if saw_key {
             push_shift_diagnostic(
                 diagnostics,
                 DiagnosticCode::ConflictingModifierKey,
-                "Conflicting 'by' modifiers on action; using the last value provided.",
-                "shift",
+                format!("Conflicting '{key}' modifiers on action; using the last value provided."),
+                key,
             );
         }
 
         match evaluate_expr(&modifier.value, &timeline.env) {
             Ok(Value::Vec2([x, y])) => {
-                shift_by = Some([x as f32, y as f32]);
-                saw_by = true;
+                value = Some([x as f32, y as f32]);
+                saw_key = true;
             }
             Ok(_) | Err(_) => {
                 push_shift_diagnostic(
                     diagnostics,
                     DiagnosticCode::InvalidModifierValue,
-                    "Shift action requires a 'by' vec2 modifier such as [by: (40, -24)].",
-                    "shift",
+                    message,
+                    key,
                 );
             }
         }
     }
 
-    if shift_by.is_none() {
+    if value.is_none() {
         push_shift_diagnostic(
             diagnostics,
             DiagnosticCode::InvalidModifierValue,
-            "Shift action requires a 'by' vec2 modifier such as [by: (40, -24)].",
-            "shift",
+            message,
+            key,
         );
     }
 
-    shift_by
+    value
 }
 
-fn timing_modifiers_without_by(modifiers: &[Modifier]) -> Vec<Modifier> {
+fn timing_modifiers_without_keys(modifiers: &[Modifier], excluded_keys: &[&str]) -> Vec<Modifier> {
     modifiers
         .iter()
-        .filter(|modifier| modifier.name.as_deref() != Some("by"))
+        .filter(|modifier| {
+            modifier
+                .name
+                .as_deref()
+                .is_none_or(|name| !excluded_keys.contains(&name))
+        })
         .cloned()
         .collect()
+}
+
+pub struct Move;
+
+impl BuiltinAction for Move {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "move".to_string(),
+            category: "Motion".to_string(),
+            description:
+                "Moves the target to a local translation offset on top of its existing placement."
+                    .to_string(),
+            params: vec![],
+            modifiers: timing_modifier_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(target_offset) = parse_vec2_modifier(
+            &action.modifiers,
+            timeline,
+            "to",
+            "Move action requires a 'to' vec2 modifier such as [to: (140, -40)].",
+            diagnostics,
+        ) else {
+            return;
+        };
+
+        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["to"]);
+        let parsed = parse_timing_modifiers(
+            &timing_modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+            let start_offset = track.motion_offset.evaluate(t_start_ms);
+
+            if duration_ms > 0.0 {
+                track
+                    .motion_offset
+                    .add_keyframe(t_start_ms, start_offset, Easing::Linear);
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_offset = track.motion_offset.evaluate(guard_time);
+                if !track.motion_offset.keyframes.contains_key(&guard_time) {
+                    track
+                        .motion_offset
+                        .add_keyframe(guard_time, prior_offset, Easing::Linear);
+                }
+            }
+
+            track
+                .motion_offset
+                .add_keyframe(t_end_ms, target_offset, easing);
+        }
+    }
 }
 
 pub struct Shift;
@@ -122,11 +214,17 @@ impl BuiltinAction for Shift {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(shift_by) = parse_shift_delta(&action.modifiers, timeline, diagnostics) else {
+        let Some(shift_by) = parse_vec2_modifier(
+            &action.modifiers,
+            timeline,
+            "by",
+            "Shift action requires a 'by' vec2 modifier such as [by: (40, -24)].",
+            diagnostics,
+        ) else {
             return;
         };
 
-        let timing_modifiers = timing_modifiers_without_by(&action.modifiers);
+        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["by"]);
         let parsed = parse_timing_modifiers(
             &timing_modifiers,
             ModifierHost::Action,
@@ -209,6 +307,60 @@ mod tests {
                 },
             ],
         })
+    }
+
+    fn move_action(target: &str, to: Expr) -> Stmt {
+        Stmt::Action(Action {
+            verb: "move".to_string(),
+            targets: vec![target.to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("to".to_string()),
+                    value: to,
+                },
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                },
+            ],
+        })
+    }
+
+    #[test]
+    fn move_animates_motion_offset_to_target_value() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                circle_decl("badge"),
+                move_action(
+                    "badge",
+                    Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(-30.0)]),
+                ),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("badge").expect("badge track");
+
+        assert_eq!(track.motion_offset.evaluate(0), [0.0, 0.0]);
+        assert_eq!(track.motion_offset.evaluate(1000), [120.0, -30.0]);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn move_requires_to_vec2_modifier() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("badge"), move_action("badge", Expr::Num(10.0))],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
     }
 
     #[test]
