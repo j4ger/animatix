@@ -5,16 +5,19 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-heading: Text { text: "Colorschemes", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Built-in scheme selection, semantic color roles, and actor-cycle defaults without hand-rolled palette boilerplate.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+title: Text { text: "Colorschemes", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Built-in scheme selection, semantic color roles, and actor-cycle defaults replace hand-rolled palette boilerplate.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The center panel demonstrates surface and stroke roles, the three circles prove deterministic actor cycling, and the bottom badge shows that explicit overrides still win.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-panel: Rect, size: (360, 180), color_role: surface.primary, stroke_role: stroke.default, stroke_width: 2, at: (640, 360)
+panel: Rect, size: (420, 200), color_role: surface.primary, stroke_role: stroke.default, stroke_width: 2, at: (640, 378)
+panel_label: Text { text: "surface.primary + stroke.default", font_size: 18, color_role: text.secondary, at: (640, 316) }
+cycle_label: Text { text: "actor cycle", font_size: 18, color_role: accent.warning, at: (640, 356) }
 alice: Circle, radius: 28, color_role: actor, at: (520, 360)
 bob: Circle, radius: 28, color_role: actor, at: (640, 360)
 carol: Circle, radius: 28, color_role: actor, at: (760, 360)
 
-warning: Text { text: "Manual overrides still win", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -120) }
-override_badge: Circle, radius: 18, color_role: actor, color: (1.0, 0.9, 0.2, 1.0), at: (640, 470)
+warning: Text { text: "Manual overrides still win", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -126) }
+override_badge: Circle, radius: 18, color_role: actor, color: (1.0, 0.9, 0.2, 1.0), at: (640, 494)
 
 #1.4s
 alice.radius = 42 [700ms, ease: ease-in-out]
