@@ -1212,14 +1212,17 @@ copy: Circle, radius: left.missing.radius, at: left.missing.at, color: left.miss
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
             && diagnostic.message.contains("left.missing.radius")
+            && diagnostic.message.contains("left.badge.radius")
     }));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
             && diagnostic.message.contains("left.missing.at")
+            && diagnostic.message.contains("left.badge.at")
     }));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
             && diagnostic.message.contains("left.missing.color")
+            && diagnostic.message.contains("left.badge.color")
     }));
 
     assert_eq!(report.output.tracks["copy"].size.evaluate(0), [0.0, 0.0]);
@@ -1291,6 +1294,7 @@ fn nonexistent_nested_assignment_reports_diagnostic() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 14, color: red
 }
 "#,
     );
@@ -1314,6 +1318,7 @@ card.nonexistent.color = red
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownTargetPath
             && diagnostic.message.contains("card.nonexistent")
+            && diagnostic.message.contains("card.badge")
     }));
     assert!(
         !report.output.tracks.contains_key("card.nonexistent"),

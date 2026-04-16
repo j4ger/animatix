@@ -172,6 +172,16 @@ impl Environment {
     pub fn set_parent(&mut self, parent: Rc<RefCell<Environment>>) {
         self.parent = Some(parent);
     }
+
+    pub fn all_keys(&self) -> Vec<String> {
+        let mut keys: Vec<String> = self.values.keys().cloned().collect();
+        if let Some(parent) = &self.parent {
+            keys.extend(parent.borrow().all_keys());
+        }
+        keys.sort();
+        keys.dedup();
+        keys
+    }
 }
 
 pub fn load_standard_library(env: &mut Environment) {

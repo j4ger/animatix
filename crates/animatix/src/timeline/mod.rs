@@ -189,13 +189,17 @@ fn push_unknown_target_path_diagnostic(
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
     target_key: &str,
+    suggestion: Option<&str>,
 ) {
+    let hint = suggestion
+        .map(|candidate| format!(" Did you mean '{candidate}'?"))
+        .unwrap_or_default();
     diagnostics.push(
         Diagnostic::warning(
             DiagnosticCode::UnknownTargetPath,
             DiagnosticPhase::Build,
             format!(
-                "Assignment target '{target_key}' does not resolve to a declared actor or nested label; ignoring this assignment."
+                "Assignment target '{target_key}' does not resolve to a declared actor or nested label; ignoring this assignment.{hint}"
             ),
         )
         .with_subject(subject),
@@ -1194,17 +1198,62 @@ fn push_unknown_lookup_path_diagnostic(
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
     lookup_key: &str,
+    suggestion: Option<&str>,
 ) {
+    let hint = suggestion
+        .map(|candidate| format!(" Did you mean '{candidate}'?"))
+        .unwrap_or_default();
     diagnostics.push(
         Diagnostic::warning(
             DiagnosticCode::UnknownLookupPath,
             DiagnosticPhase::Build,
             format!(
-                "Lookup path '{lookup_key}' does not resolve to a sampled actor/scene property; keeping the current fallback/default value instead."
+                "Lookup path '{lookup_key}' does not resolve to a sampled actor/scene property; keeping the current fallback/default value instead.{hint}"
             ),
         )
         .with_subject(subject),
     );
+}
+
+fn path_similarity_score(query: &str, candidate: &str) -> isize {
+    let query_segments: Vec<&str> = query.split('.').collect();
+    let candidate_segments: Vec<&str> = candidate.split('.').collect();
+
+    let shared_prefix = query_segments
+        .iter()
+        .zip(candidate_segments.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+
+    let same_last_segment = query_segments
+        .last()
+        .zip(candidate_segments.last())
+        .is_some_and(|(left, right)| left == right);
+
+    let length_penalty = query.len().abs_diff(candidate.len()) as isize;
+    let segment_penalty = (query_segments.len().abs_diff(candidate_segments.len()) * 3) as isize;
+    let prefix_bonus = (shared_prefix * 10) as isize;
+    let suffix_bonus = if same_last_segment { 12 } else { 0 };
+
+    prefix_bonus + suffix_bonus - length_penalty.min(8) - segment_penalty.min(12)
+}
+
+fn best_path_suggestion<'a>(query: &str, candidates: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    let mut best: Option<(&'a str, isize)> = None;
+
+    for candidate in candidates {
+        let score = path_similarity_score(query, candidate);
+        if score < 4 {
+            continue;
+        }
+
+        match best {
+            Some((_, best_score)) if score <= best_score => {}
+            _ => best = Some((candidate, score)),
+        }
+    }
+
+    best.map(|(candidate, _)| candidate)
 }
 
 fn evaluate_expr_with_lookup_diagnostic(
@@ -1216,7 +1265,10 @@ fn evaluate_expr_with_lookup_diagnostic(
     match evaluate_expr(expr, env) {
         Ok(value) => Some(value),
         Err(EvalError::UndefinedVariable(lookup_key)) if lookup_key.contains('.') => {
-            push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key);
+            let candidate_keys = env.all_keys();
+            let suggestion =
+                best_path_suggestion(&lookup_key, candidate_keys.iter().map(String::as_str));
+            push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key, suggestion);
             None
         }
         Err(_) => None,
@@ -4012,10 +4064,13 @@ impl Timeline {
                     let target_key = assignment_target_key(target);
 
                     if target.len() > 1 && !self.nodes.contains_key(&target_key) {
+                        let suggestion =
+                            best_path_suggestion(&target_key, self.nodes.keys().map(String::as_str));
                         push_unknown_target_path_diagnostic(
                             diagnostics,
                             &assignment_subject,
                             &target_key,
+                            suggestion,
                         );
                         continue;
                     }
