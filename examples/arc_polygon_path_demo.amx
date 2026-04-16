@@ -1,25 +1,18 @@
 // Runnable example: Arc, Polygon, and Path primitives with arc property animation and path-based re-declarations.
 
+config { colorscheme: "editorial-dark" }
+
 #0s
-let ink = (0.04, 0.05, 0.09, 1.0)
-let title_ink = (0.97, 0.98, 1.0, 1.0)
-let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
-let accent = (0.38, 0.78, 1.0, 1.0)
-let green = (0.35, 0.86, 0.63, 1.0)
-let gold = (0.98, 0.82, 0.42, 1.0)
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Arc + polygon + path demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-scene.background_color = ink
+arc_label: Text { text: "Arc", font_size: 20, color_role: accent.warning, at: (260, 190) }
+poly_label: Text { text: "Polygon", font_size: 20, color_role: accent.success, at: (640, 190) }
+path_label: Text { text: "Path", font_size: 20, color_role: accent.primary, at: (1020, 190) }
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Arc + polygon + path demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
-
-arc_label: Text { text: "Arc", font_size: 20, color: gold, at: (260, 190) }
-poly_label: Text { text: "Polygon", font_size: 20, color: green, at: (640, 190) }
-path_label: Text { text: "Path", font_size: 20, color: accent, at: (1020, 190) }
-
-ring: Arc, radius_x: 120, radius_y: 90, start_angle: -0.7, sweep_angle: 3.8, stroke: gold, width: 6, at: (260, 400)
+ring: Arc, radius_x: 120, radius_y: 90, start_angle: -0.7, sweep_angle: 3.8, stroke: accent.warning, width: 6, at: (260, 400)
 
 badge: Polygon, points: {(-90, 0), (-20, -100), (90, -30), (60, 90), (-50, 110)}, color: (0.21, 0.80, 0.58, 0.84), stroke: (0.90, 0.98, 0.95, 1.0), width: 3, at: (640, 400)
 
@@ -29,13 +22,13 @@ guide: Path, commands: {
   curve_to(-10, -130, 70, 10, 130, -40),
   line_to(80, 100),
   close()
-}, color: (0.28, 0.62, 1.0, 0.18), stroke: accent, width: 4, at: (1020, 400)
+}, color: (0.28, 0.62, 1.0, 0.18), stroke: accent.primary, width: 4, at: (1020, 400)
 
 #2s
 ring.sweep_angle = 5.2 [1.5s, ease: ease-in-out]
 ring.start_angle = -1.4 [1.5s, ease: ease-in-out]
 
-badge: Polygon, points: {(-110, -20), (0, -120), (100, -10), (40, 120), (-80, 90)}, color: (0.26, 0.95, 0.70, 0.86), stroke: title_ink, width: 3, at: (640, 400) [1.5s, ease: ease-in-out]
+badge: Polygon, points: {(-110, -20), (0, -120), (100, -10), (40, 120), (-80, 90)}, color: (0.26, 0.95, 0.70, 0.86), stroke: (0.97, 0.98, 1.0, 1.0), width: 3, at: (640, 400) [1.5s, ease: ease-in-out]
 
 guide: Path, commands: {
   move_to(-130, 20),
