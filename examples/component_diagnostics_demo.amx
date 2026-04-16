@@ -1,0 +1,43 @@
+// Runnable example: valid and invalid dotted component access patterns.
+// This file is meant to render successfully while intentionally producing
+// build diagnostics for the invalid paths documented in the captions below.
+
+import "./modules/metric_card.amx"
+
+#0s
+let ink = (0.04, 0.06, 0.09, 1.0)
+let title_ink = (0.97, 0.98, 1.0, 1.0)
+let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
+let accent = (0.38, 0.78, 1.0, 1.0)
+let gold = (0.98, 0.83, 0.44, 1.0)
+let coral = (1.0, 0.46, 0.54, 1.0)
+let green = (0.35, 0.86, 0.63, 1.0)
+let soft = (0.60, 0.69, 0.80, 1.0)
+
+scene.background_color = ink
+
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
+heading: Text { text: "Component diagnostics", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Valid dotted access stays live. Invalid nested targets and rhs lookups now emit build diagnostics without crashing the stage.", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption_ok: Text { text: "Valid: left.badge.color, echo.radius = right.badge.radius, connector.from = left.badge.at", font_size: 15, color: green, anchor: scene.top, offset: (0, 144) }
+caption_bad: Text { text: "Invalid on purpose: left.nonexistent.color, ghost.radius = left.missing.radius, ghost.color = left.missing.color", font_size: 15, color: coral, anchor: scene.top, offset: (0, 168) }
+
+left: MetricCard, title: "Latency"
+right: MetricCard, title: "Throughput"
+left.at = (420, 392)
+right.at = (860, 392)
+
+echo: Circle, radius: right.badge.radius, color: right.badge.color, at: (1110, 480)
+ghost: Circle, radius: left.missing.radius, color: left.missing.color, at: (1110, 560)
+connector: Line, from: left.badge.at, to: right.badge.at, stroke: title_ink, stroke_width: 3, at: (640, 392)
+
+#0s
+left.badge.color = coral
+right.badge.radius = 20
+left.nonexistent.color = gold
+
+#1.4s
+left.color = accent [0.8s, ease: ease-in-out]
+right.color = green [0.8s, ease: ease-in-out]
+echo.radius = right.badge.radius [0.8s, ease: ease-in-out]
+echo.color = right.badge.color [0.8s, ease: ease-in-out]

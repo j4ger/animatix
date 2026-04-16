@@ -31,6 +31,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `modifier_timing_demo.amx`
 - `code_demo.amx`
 - `component_modules_demo.amx`
+- `component_diagnostics_demo.amx`
 - `reactive_runtime.amx`
 
 ## Family Notes
@@ -45,6 +46,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 ## Focused Runtime Proofs
 
 `component_modules_demo.amx` is the focused example for imported `pub component` instantiation, rhs property querying, and multi-segment dotted assignment targets against nested labels such as `left.badge.color = red`, `right.badge.radius = 20`, and `echo.radius = right.badge.radius`.
+
+`component_diagnostics_demo.amx` is the focused example for the current component-diagnostics contract: valid dotted access remains live, while invalid nested targets and invalid rhs dotted lookups emit build diagnostics without crashing the stage.
 
 `reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
 
