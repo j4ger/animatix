@@ -1,19 +1,13 @@
 // Runnable example: minimal Code primitive rendered through the text pipeline.
 
+config { colorscheme: "editorial-dark" }
+
 #0s
-let ink = (0.04, 0.06, 0.09, 1.0)
-let title_ink = (0.97, 0.98, 1.0, 1.0)
-let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
-let accent = (0.38, 0.78, 1.0, 1.0)
-let gold = (0.98, 0.82, 0.42, 1.0)
-let green = (0.35, 0.86, 0.63, 1.0)
 
-scene.background_color = ink
-
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Code primitive demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Code content renders through the existing text-path pipeline and supports animated updates", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The scene uses a restrained editor-like composition so the primitive feels native to the technical suite.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Code primitive demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Code content renders through the existing text-path pipeline and supports animated updates.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The stage stays editor-like and restrained so color, position, and re-declaration updates remain easy to inspect.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 snippet: Code {
   code: "let velocity = x + 1",
@@ -21,18 +15,18 @@ snippet: Code {
   color: (0.85, 0.90, 1.0, 1.0),
   at: (640, 340)
 }
-status: Text { text: "initial render", font_size: 18, color: gold, anchor: scene.bottom, offset: (0, -64) }
+status: Text { text: "initial render", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -64) }
 
 #1s
-snippet.color = gold [0.6s, ease: ease-in-out]
+snippet.color = accent.warning [0.6s, ease: ease-in-out]
 snippet.at = (640, 390) [0.6s, ease: ease-in-out]
-status: Text { text: "animated color + position", font_size: 18, color: gold, anchor: scene.bottom, offset: (0, -64) }
+status: Text { text: "animated color + position", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
 snippet: Code {
   code: "let velocity = x + 2",
   font_size: 28,
-  color: green,
+  color: accent.success,
   at: (640, 390)
 } [0.6s, ease: ease-in-out]
-status: Text { text: "re-declared code content", font_size: 18, color: gold, anchor: scene.bottom, offset: (0, -64) }
+status: Text { text: "re-declared code content", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -64) }

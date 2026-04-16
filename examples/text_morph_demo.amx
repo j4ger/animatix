@@ -1,21 +1,16 @@
 // Runnable example: text-path morphing between short words.
 
+config { colorscheme: "editorial-dark" }
+
 #0s
-let ink = (0.04, 0.05, 0.09, 1.0)
-let title_ink = (0.97, 0.98, 1.0, 1.0)
-let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
-let accent = (0.38, 0.78, 1.0, 1.0)
-let green = (0.35, 0.86, 0.63, 1.0)
 
-scene.background_color = ink
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Text morph demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "A single text label morphs between short words through the shipped text-path interpolation.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The scene stays intentionally quiet so the letterform transformation remains the whole story.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Text morph demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "A single text label morphs between short words through the shipped text-path interpolation", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The scene stays intentionally quiet so the letterform transformation is the whole story.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
-
-word: Text { text: "hi", font_size: 152, color: title_ink, at: (640, 390) }
-beat: Text { text: "0s → 2s", font_size: 18, color: accent, anchor: scene.bottom, offset: (0, -70) }
+word: Text { text: "hi", font_size: 152, color_role: text.primary, at: (640, 390) }
+beat: Text { text: "0s → 2s", font_size: 18, color_role: accent.primary, anchor: scene.bottom, offset: (0, -70) }
 
 #2s
-word: Text { text: "hello", font_size: 152, color: green, at: (640, 390) } [2s, ease: ease-in-out]
+word: Text { text: "hello", font_size: 152, color: accent.success, at: (640, 390) } [2s, ease: ease-in-out]
