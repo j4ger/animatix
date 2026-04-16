@@ -5,12 +5,12 @@ config { colorscheme: "editorial-dark" }
 #0s
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Modifier timing demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Duration shorthand, named delay, named ease, and delayed instant updates share one modifier vocabulary.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The three columns isolate the shipped timing cases so playback makes the modifier semantics easy to compare.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+subtitle: Text { text: "Delay, duration shorthand, and ease on one stage.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 120) }
+caption: Text { text: "Three columns keep timing cases comparable.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 148) }
 
-label_a: Text { text: "Delayed fade-out", font_size: 24, color_role: accent.danger, at: (250, 190) }
-label_b: Text { text: "Delayed appearance", font_size: 24, color_role: accent.success, at: (640, 190) }
-label_c: Text { text: "Ease-only instant move", font_size: 24, color_role: accent.primary, at: (1030, 190) }
+label_a: Text { text: "Delayed fade-out", font_size: 22, color_role: accent.danger, at: (250, 206) }
+label_b: Text { text: "Delayed appearance", font_size: 22, color_role: accent.success, at: (640, 206) }
+label_c: Text { text: "Ease-only move", font_size: 22, color_role: accent.primary, at: (980, 206) }
 
 left: Circle, radius: 70, color_role: accent.danger, at: (250, 400)
 middle: Rect, size: (150, 150), color_role: accent.success [delay: 1s]
