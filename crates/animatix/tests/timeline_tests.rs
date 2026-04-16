@@ -1179,6 +1179,105 @@ copy: Circle, radius: left.badge.radius, at: left.badge.at, color: left.badge.co
     );
 }
 
+#[test]
+fn missing_nested_rhs_lookup_reports_diagnostic_in_declaration() {
+    let dir = temp_project_dir("component_rhs_lookup_missing_decl");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 14, color: red, at: (-80, 20)
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+left: MetricCard, title: "Latency"
+copy: Circle, radius: left.missing.radius, at: left.missing.at, color: left.missing.color
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded);
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownLookupPath
+            && diagnostic.message.contains("left.missing.radius")
+    }));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownLookupPath
+            && diagnostic.message.contains("left.missing.at")
+    }));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownLookupPath
+            && diagnostic.message.contains("left.missing.color")
+    }));
+
+    assert_eq!(report.output.tracks["copy"].size.evaluate(0), [0.0, 0.0]);
+    assert_eq!(
+        report.output.tracks["copy"].color.evaluate(0),
+        [0.8, 0.8, 0.8, 1.0]
+    );
+}
+
+#[test]
+fn missing_nested_rhs_lookup_reports_diagnostic_in_assignment() {
+    let dir = temp_project_dir("component_rhs_lookup_missing_assignment");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    badge: Circle, radius: 14, color: red, at: (-80, 20)
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+left: MetricCard, title: "Latency"
+echo: Circle, radius: 9, color: blue
+
+#0s
+echo.radius = left.missing.radius
+echo.color = left.missing.color
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded);
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownLookupPath
+            && diagnostic.message.contains("left.missing.radius")
+    }));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnknownLookupPath
+            && diagnostic.message.contains("left.missing.color")
+    }));
+
+    assert_eq!(report.output.tracks["echo"].size.evaluate(0), [0.0, 0.0]);
+    assert_eq!(
+        report.output.tracks["echo"].color.evaluate(0),
+        [0.8, 0.8, 0.8, 1.0]
+    );
+}
+
 /// Verifies that assigning to a non-existent nested label reports a diagnostic
 /// instead of creating an orphaned track.
 #[test]

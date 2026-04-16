@@ -1149,14 +1149,16 @@ fn parse_percent_vec2(expr: &Expr) -> Option<[f32; 2]> {
     }
 }
 
-fn resolve_position_binding(
+fn resolve_position_binding_with_lookup_diagnostic(
     at_expr: Option<&Expr>,
     anchor_expr: Option<&Expr>,
     offset_expr: Option<&Expr>,
     env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
 ) -> Option<(PositionBinding, Option<[f32; 2]>)> {
     let offset = offset_expr
-        .and_then(|expr| parse_numeric_vec2(expr, env))
+        .and_then(|expr| parse_numeric_vec2_with_lookup_diagnostic(expr, env, diagnostics, subject))
         .unwrap_or([0.0, 0.0]);
 
     if let Some(anchor_expr) = anchor_expr {
@@ -1174,7 +1176,9 @@ fn resolve_position_binding(
             return Some((PositionBinding::ScenePercent { x, y, offset }, None));
         }
 
-        if let Some(position) = parse_numeric_vec2(at_expr, env) {
+        if let Some(position) =
+            parse_numeric_vec2_with_lookup_diagnostic(at_expr, env, diagnostics, subject)
+        {
             return Some((PositionBinding::Absolute, Some(position)));
         }
     }
@@ -1184,6 +1188,73 @@ fn resolve_position_binding(
 
 fn assignment_target_key(target: &[String]) -> String {
     target.join(".")
+}
+
+fn push_unknown_lookup_path_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+    lookup_key: &str,
+) {
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::UnknownLookupPath,
+            DiagnosticPhase::Build,
+            format!(
+                "Lookup path '{lookup_key}' does not resolve to a sampled actor/scene property; keeping the current fallback/default value instead."
+            ),
+        )
+        .with_subject(subject),
+    );
+}
+
+fn evaluate_expr_with_lookup_diagnostic(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<Value> {
+    match evaluate_expr(expr, env) {
+        Ok(value) => Some(value),
+        Err(EvalError::UndefinedVariable(lookup_key)) if lookup_key.contains('.') => {
+            push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key);
+            None
+        }
+        Err(_) => None,
+    }
+}
+
+fn parse_color_in_env_with_lookup_diagnostic(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> [f32; 4] {
+    if matches!(expr, Expr::Ident(_)) {
+        return parse_color_in_env(expr, env);
+    }
+
+    if let Some(value) = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
+        return match value {
+            Value::Color([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
+            Value::Vec4([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
+            Value::Vec3([r, g, b]) => [r as f32, g as f32, b as f32, 1.0],
+            _ => [0.8, 0.8, 0.8, 1.0],
+        };
+    }
+
+    [0.8, 0.8, 0.8, 1.0]
+}
+
+fn parse_numeric_vec2_with_lookup_diagnostic(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<[f32; 2]> {
+    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)? {
+        Value::Vec2([x, y]) => Some([x as f32, y as f32]),
+        _ => None,
+    }
 }
 
 fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> {
@@ -2468,20 +2539,36 @@ impl Timeline {
                     let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
+                        let prop_subject = format!("{}.{}", label_str, prop.name);
                         match prop.name.as_str() {
                             "text" => {
-                                text_content = evaluate_expr(&prop.value, &eval_env)
+                                text_content = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .map(|v| v.as_str())
                                     .unwrap_or_default();
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
                                 explicit_color = true;
-                                let c = parse_color_in_env(&prop.value, &eval_env);
+                                let c = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                                 initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
@@ -2526,11 +2613,13 @@ impl Timeline {
                         track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding(
+                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
                         at_expr.as_ref(),
                         anchor_expr.as_ref(),
                         offset_expr.as_ref(),
                         &eval_env,
+                        diagnostics,
+                        &label_str,
                     ) {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
@@ -2608,20 +2697,36 @@ impl Timeline {
                     let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
+                        let prop_subject = format!("{}.{}", label_str, prop.name);
                         match prop.name.as_str() {
                             "latex" | "math" => {
-                                latex_content = evaluate_expr(&prop.value, &eval_env)
+                                latex_content = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .map(|v| v.as_str())
                                     .unwrap_or_default();
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
                                 explicit_color = true;
-                                let c = parse_color_in_env(&prop.value, &eval_env);
+                                let c = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                                 initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
@@ -2666,11 +2771,13 @@ impl Timeline {
                         track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding(
+                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
                         at_expr.as_ref(),
                         anchor_expr.as_ref(),
                         offset_expr.as_ref(),
                         &eval_env,
+                        diagnostics,
+                        &label_str,
                     ) {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
@@ -2748,20 +2855,36 @@ impl Timeline {
                     let mut offset_expr: Option<Expr> = None;
 
                     for prop in props {
+                        let prop_subject = format!("{}.{}", label_str, prop.name);
                         match prop.name.as_str() {
                             "code" => {
-                                code_content = evaluate_expr(&prop.value, &eval_env)
+                                code_content = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .map(|v| v.as_str())
                                     .unwrap_or_default();
                             }
                             "font_size" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
                                 explicit_color = true;
-                                let c = parse_color_in_env(&prop.value, &eval_env);
+                                let c = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                                 initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
@@ -2806,11 +2929,13 @@ impl Timeline {
                         track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding(
+                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
                         at_expr.as_ref(),
                         anchor_expr.as_ref(),
                         offset_expr.as_ref(),
                         &eval_env,
+                        diagnostics,
+                        &label_str,
                     ) {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
@@ -2927,9 +3052,15 @@ impl Timeline {
                     let initial_eval_env = self.build_eval_env(time_ms as u64);
 
                     for prop in props {
+                        let prop_subject = format!("{}.{}", label, prop.name);
                         match prop.name.as_str() {
                             "size" => {
-                                let size_val = evaluate_expr(&prop.value, &initial_eval_env)
+                                let size_val = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     initial_size[0] = w as f32 / 2.0;
@@ -2937,51 +3068,91 @@ impl Timeline {
                                 }
                             }
                             "radius" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 initial_size = [r, r];
                             }
                             "x_domain" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     x_domain = [min, max];
                                 }
                             }
                             "y_domain" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     y_domain = [min, max];
                                 }
                             }
                             "t_domain" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     t_domain = [min, max];
                                 }
                             }
                             "func" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Closure(args, body) = v {
                                     func = Some((args, body));
                                 }
                             }
                             "tolerance" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 tolerance = v.as_num();
                             }
                             "max_depth" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 max_depth = v.as_num();
                             }
                             "resolution" => {
-                                let v = evaluate_expr(&prop.value, &initial_eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &initial_eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(96.0));
                                 resolution = v.as_num();
                             }
@@ -3068,23 +3239,39 @@ impl Timeline {
                     }
 
                     for prop in props {
+                        let prop_subject = format!("{}.{}", label, prop.name);
                         match prop.name.as_str() {
                             "at" | "anchor" | "offset" => {}
                             "radius" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
                                 regular_polygon_radius = r;
                             }
                             "side" if ty == "Square" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(size[0] as f64 * 2.0));
                                 let side = v.as_num() as f32;
                                 size = [side / 2.0, side / 2.0];
                             }
                             "size" => {
-                                let size_val = evaluate_expr(&prop.value, &eval_env)
+                                let size_val = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
@@ -3092,47 +3279,92 @@ impl Timeline {
                                 }
                             }
                             "tip_length" if ty == "Arrow" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(size[0] as f64));
                                 size[0] = v.as_num() as f32;
                             }
                             "tip_width" if ty == "Arrow" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(size[1] as f64));
                                 size[1] = v.as_num() as f32;
                             }
                             "sides" if ty == "RegularPolygon" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(regular_polygon_sides as f64));
                                 regular_polygon_sides = v.as_num().round().max(3.0) as usize;
                             }
                             "from" if ty == "Line" => {
-                                if let Some(parsed) = parse_numeric_vec2(&prop.value, &eval_env) {
+                                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                ) {
                                     line_from = parsed;
                                 }
                             }
                             "to" if ty == "Line" => {
-                                if let Some(parsed) = parse_numeric_vec2(&prop.value, &eval_env) {
+                                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                ) {
                                     line_to = parsed;
                                 }
                             }
                             "radius_x" if ty == "Ellipse" || ty == "Arc" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(size[0] as f64));
                                 size[0] = v.as_num() as f32;
                             }
                             "radius_y" if ty == "Ellipse" || ty == "Arc" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(size[1] as f64));
                                 size[1] = v.as_num() as f32;
                             }
                             "start_angle" if ty == "Arc" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(arc_angles[0] as f64));
                                 arc_angles[0] = v.as_num() as f32;
                             }
                             "sweep_angle" if ty == "Arc" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(arc_angles[1] as f64));
                                 arc_angles[1] = v.as_num() as f32;
                             }
@@ -3151,50 +3383,95 @@ impl Timeline {
                             }
                             "color" => {
                                 explicit_color = true;
-                                color = parse_color_in_env(&prop.value, &eval_env);
+                                color = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                                 // For plot types, also set stroke_color
                                 if ty == "CartesianPlot"
                                     || ty == "PolarPlot"
                                     || ty == "ParametricPlot"
                                         || ty == "ImplicitPlot"
                                 {
-                                    stroke_color = parse_color_in_env(&prop.value, &eval_env);
+                                    stroke_color = parse_color_in_env_with_lookup_diagnostic(
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    );
                                     explicit_stroke_color = true;
                                 }
                             }
                             "stroke_width" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "width" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
                                 explicit_stroke_color = true;
-                                stroke_color = parse_color_in_env(&prop.value, &eval_env);
+                                stroke_color = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                             }
                             "stroke" => {
                                 explicit_stroke_color = true;
-                                stroke_color = parse_color_in_env(&prop.value, &eval_env);
+                                stroke_color = parse_color_in_env_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                );
                             }
                             "stroke_role" => {
                                 stroke_role_expr = Some(prop.value.clone());
                             }
                             "stroke_progress" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 stroke_progress = v.as_num() as f32;
                             }
                             "fill_opacity" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
                             "gap" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(0.0));
                                 gap = v.as_num() as f32;
                             }
@@ -3206,7 +3483,12 @@ impl Timeline {
                                 }
                             }
                             "cols" => {
-                                let v = evaluate_expr(&prop.value, &eval_env)
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                )
                                     .unwrap_or(Value::Num(1.0));
                                 cols = Some(v.as_num().max(1.0) as usize);
                             }
@@ -3261,11 +3543,14 @@ impl Timeline {
                         .entry(label.clone())
                         .or_insert_with(|| AnimationTrack::new(label.clone()));
 
-                    if let Some((binding, bound_position)) = resolve_position_binding(
+                    if let Some((binding, bound_position)) =
+                        resolve_position_binding_with_lookup_diagnostic(
                         at_expr.as_ref(),
                         anchor_expr.as_ref(),
                         offset_expr.as_ref(),
                         &eval_env,
+                        diagnostics,
+                        label,
                     ) {
                         preserve_discrete_position_state_before(track, t_start_ms);
                         set_track_position_binding(track, t_start_ms, binding);
@@ -3699,7 +3984,12 @@ impl Timeline {
 
                     if target.len() == 1 && target[0] == "scene" {
                         if property == "background_color" {
-                            let target_color = parse_color_in_env(value, &eval_env);
+                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            );
                             if duration_ms > 0.0 {
                                 let start_val = self.background_color.evaluate(t_start_ms);
                                 self.background_color.add_keyframe(
@@ -3737,7 +4027,12 @@ impl Timeline {
 
                     match property.as_str() {
                         "color" => {
-                            let target_color = parse_color_in_env(value, &eval_env);
+                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            );
                             if duration_ms > 0.0 {
                                 let start_val = track.color.evaluate(t_start_ms);
                                 track
@@ -3749,7 +4044,12 @@ impl Timeline {
                             track.color.add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_width" => {
-                            let target_width = evaluate_expr(value, &eval_env)
+                            let target_width = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(0.0))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3767,7 +4067,12 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_width, easing);
                         }
                         "stroke_color" => {
-                            let target_color = parse_color_in_env(value, &eval_env);
+                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            );
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_color.evaluate(t_start_ms);
                                 track.stroke_color.add_keyframe(
@@ -3783,7 +4088,12 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_color, easing);
                         }
                         "stroke_progress" => {
-                            let target_val = evaluate_expr(value, &eval_env)
+                            let target_val = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(0.0))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3804,7 +4114,12 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "fill_opacity" => {
-                            let target_val = evaluate_expr(value, &eval_env)
+                            let target_val = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(0.0))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3822,8 +4137,13 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_val, easing);
                         }
                         "size" => {
-                            let size_val =
-                                evaluate_expr(value, &eval_env).unwrap_or(Value::Num(0.0));
+                            let size_val = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
+                            .unwrap_or(Value::Num(0.0));
                             let target_size = if let Value::Vec2([w, h]) = size_val {
                                 [w as f32 / 2.0, h as f32 / 2.0]
                             } else {
@@ -3840,7 +4160,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "tip_length" => {
-                            let target_tip_length = evaluate_expr(value, &eval_env)
+                            let target_tip_length = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
                                 .as_num()
                                 as f32;
@@ -3857,7 +4182,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "tip_width" => {
-                            let target_tip_width = evaluate_expr(value, &eval_env)
+                            let target_tip_width = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3873,7 +4203,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "url" => {
-                            let target_url = evaluate_expr(value, &eval_env)
+                            let target_url = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Str(String::new()))
                                 .as_str();
                             if !target_url.is_empty() {
@@ -3903,7 +4238,14 @@ impl Timeline {
                         }
                         "position" | "at" => {
                             let target_pos = if let Some((binding, position)) =
-                                resolve_position_binding(Some(value), None, None, &eval_env)
+                                resolve_position_binding_with_lookup_diagnostic(
+                                    Some(value),
+                                    None,
+                                    None,
+                                    &eval_env,
+                                    diagnostics,
+                                    &assignment_subject,
+                                )
                             {
                                 preserve_discrete_position_state_before(track, t_start_ms);
                                 if instant_delayed {
@@ -3926,7 +4268,12 @@ impl Timeline {
                             track.position.add_keyframe(t_end_ms, target_pos, easing);
                         }
                         "rotation" => {
-                            let target_rotation = evaluate_expr(value, &eval_env)
+                            let target_rotation = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.rotation.last_value() as f64))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3942,7 +4289,12 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_rotation, easing);
                         }
                         "scale" => {
-                            let target_scale = evaluate_expr(value, &eval_env)
+                            let target_scale = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.scale.last_value() as f64))
                                 .as_num() as f32;
                             if duration_ms > 0.0 {
@@ -3956,7 +4308,12 @@ impl Timeline {
                             track.scale.add_keyframe(t_end_ms, target_scale, easing);
                         }
                         "radius" => {
-                            let r = evaluate_expr(value, &eval_env)
+                            let r = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(0.0))
                                 .as_num() as f32;
                             let target_size = [r, r];
@@ -3971,7 +4328,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "radius_x" => {
-                            let target_radius = evaluate_expr(value, &eval_env)
+                            let target_radius = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
                                 .as_num() as f32;
                             let mut target_size = track.size.last_value();
@@ -3987,7 +4349,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "radius_y" => {
-                            let target_radius = evaluate_expr(value, &eval_env)
+                            let target_radius = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
                                 .as_num() as f32;
                             let mut target_size = track.size.last_value();
@@ -4003,7 +4370,12 @@ impl Timeline {
                             track.size.add_keyframe(t_end_ms, target_size, easing);
                         }
                         "start_angle" => {
-                            let target_angle = evaluate_expr(value, &eval_env)
+                            let target_angle = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.arc_angles.last_value()[0] as f64))
                                 .as_num() as f32;
                             let mut target_angles = track.arc_angles.last_value();
@@ -4023,7 +4395,12 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_angles, easing);
                         }
                         "sweep_angle" => {
-                            let target_angle = evaluate_expr(value, &eval_env)
+                            let target_angle = evaluate_expr_with_lookup_diagnostic(
+                                value,
+                                &eval_env,
+                                diagnostics,
+                                &assignment_subject,
+                            )
                                 .unwrap_or(Value::Num(track.arc_angles.last_value()[1] as f64))
                                 .as_num() as f32;
                             let mut target_angles = track.arc_angles.last_value();
