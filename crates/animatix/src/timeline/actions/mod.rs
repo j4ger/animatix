@@ -109,7 +109,7 @@ pub(crate) fn ensure_vector_reveal_target(
         push_unsupported_action_target_diagnostic(
             verb,
             target,
-            "group and layout containers do not support vector reveal actions directly",
+            "the target resolves to a container/group node rather than a renderable leaf; vector reveal actions must target leaf actors with vector paths",
             diagnostics,
         );
         return false;
@@ -166,6 +166,7 @@ mod tests {
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
+    use crate::timeline::{AnimationTrack, SceneNode};
 
     #[test]
     fn unknown_actions_emit_diagnostics() {
@@ -200,5 +201,30 @@ mod tests {
         assert!(get_action_signatures()
             .iter()
             .any(|signature| signature.name == "draw-out"));
+    }
+
+    #[test]
+    fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
+        let mut timeline = Timeline::new();
+        timeline
+            .tracks
+            .insert("row".to_string(), AnimationTrack::new("row".to_string()));
+        timeline.nodes.insert(
+            "row".to_string(),
+            SceneNode {
+                label: "row".to_string(),
+                children: vec!["row.child".to_string()],
+            },
+        );
+
+        let mut diagnostics = Vec::new();
+        let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics);
+
+        assert!(!ok);
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::UnsupportedActionTarget
+                && diagnostic.message.contains("container/group node")
+                && diagnostic.message.contains("leaf actors with vector paths")
+        }));
     }
 }

@@ -258,7 +258,9 @@ The runtime currently registers eleven built-in actions:
 - **Entrance / Reveal**: `fade-in`, `draw-in`, `wipe-in`
 - **Exit**: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 
-`fade-in` is opacity-based and applies broadly across current renderable targets. `draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, and `draw-out` are intentionally narrower vector-first actions; unsupported targets such as images or text-like actors report diagnostics instead of silently pretending the action had an effect.
+`fade-in` is opacity-based and applies broadly across current renderable targets. `draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, and `draw-out` are intentionally narrower vector-first actions; unsupported targets such as images, text-like actors, and container/group nodes report diagnostics instead of silently pretending the action had an effect.
+
+In the current parser/runtime contract, vector reveal actions are **leaf-only**. They must target renderable leaf actors with vector paths, not layout/group containers. The runtime reports those cases with explicit build diagnostics rather than pretending the action had an effect.
 
 `reveal-out` is the exit-side counterpart to `draw-in`: it hides fill at action start, then animates `stroke_progress` down to zero over the authored duration.
 
