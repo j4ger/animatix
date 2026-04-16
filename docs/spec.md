@@ -126,9 +126,26 @@ scene.background_color = white [2s]
 
 **Current color-system note**
 
-The shipped runtime does **not** yet have a dedicated colorscheme or role-based color system. Today, colors come from explicit color literals, variables, built-in named colors, and direct property assignments such as `btn.color = red` or `scene.background_color = black`.
+The shipped runtime now supports a **colorschemes v1** surface built on top of the existing explicit color model:
 
-Future-facing colorscheme ideas such as scene-level scheme selection, reusable scheme files, and role-based defaults belong to planned design work rather than the current runtime contract. See [`colorscheme_design.md`](colorscheme_design.md).
+- `config { colorscheme: "default-dark" | "default-light" | "editorial-dark" }`
+- `color_role` on text/code/math and actor declarations
+- `stroke_role` on actor declarations
+- `color_role: actor` for deterministic actor-cycle assignment
+
+Explicit `color`, `stroke`, `stroke_color`, timed assignments, and `always` overrides still remain stronger than role-based defaults.
+
+The current actor-cycle contract is deterministic for a given compiled document and follows actor declaration order after component expansion.
+
+File-backed/loadable colorschemes remain future work. See [`colorscheme_design.md`](colorscheme_design.md).
+
+```animatix
+config { colorscheme: "editorial-dark" }
+
+title: Text { text: "Animatix", color_role: text.primary }
+badge: Circle, radius: 20, color_role: actor
+axis: Line, from: (-120, 0), to: (120, 0), stroke_role: stroke.default
+```
 
 ---
 

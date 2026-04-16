@@ -123,6 +123,7 @@ Useful docs:
 - [`docs/implementation_plan.md`](docs/implementation_plan.md) — shipped vs planned work
 - [`docs/colorscheme_design.md`](docs/colorscheme_design.md) — future reusable colorscheme design
 - [`docs/colorscheme_implementation_plan.md`](docs/colorscheme_implementation_plan.md) — phased colorscheme rollout plan
+- [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme and role-based color example
 - [`tree-sitter-animatix/README.md`](tree-sitter-animatix/README.md) — editor grammar scope and sync rules
 
 ## Roadmap

@@ -13,6 +13,7 @@ The following are already part of the current baseline and should not be treated
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
+- Colorschemes v1: built-in scene selection, semantic color roles, `stroke_role`, and deterministic actor-cycle defaults layered on top of explicit color authoring
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
 - Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
@@ -58,10 +59,9 @@ From a user perspective, the most important remaining gaps are no longer the bas
 
 - Additional primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
 - Deeper plotting parity such as `ParametricPlot` and `ImplicitPlot`
-- Reusable colorschemes and actor auto-color ergonomics on top of the existing explicit color model
 - Better GUI/editor affordances and discovery
 
-Colorscheme work now has its own dedicated design and implementation docs: [`colorscheme_design.md`](colorscheme_design.md) and [`colorscheme_implementation_plan.md`](colorscheme_implementation_plan.md). It should be treated as an authoring-UX enhancement layered on top of the existing property/track system rather than as a replacement for explicit `color:` authoring.
+Colorscheme follow-up work now means **broadening** the shipped v1 surface rather than inventing it from scratch. The design and rollout docs remain the place for future loadable schemes, inheritance, and broader authoring integration: [`colorscheme_design.md`](colorscheme_design.md) and [`colorscheme_implementation_plan.md`](colorscheme_implementation_plan.md).
 
 ### Explicitly later
 
