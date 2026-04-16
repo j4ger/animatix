@@ -612,7 +612,7 @@ The following rules define what is and is not accessible from outside a componen
 |------|----------|
 | Instance label | Always reachable: `card`, `left`, `right` |
 | Nested actor label | Always reachable when the nested actor exists in the component body: `card.badge`, `left.frame` |
-| Non-existent nested label | Creates an orphaned track entry with empty vector/text paths (no runtime error) |
+| Non-existent nested label | Reports a build diagnostic and ignores the assignment target instead of creating an orphaned track |
 | Property on any track | Assignable without pre-declaration; creates the property track if it does not exist |
 
 **Reachability Example:**
@@ -626,7 +626,7 @@ card: MetricCard, title: "Latency"
 
 #0s
 card.badge.color = red      # OK: badge exists in component
-card.nonexistent.color = blue  # Creates orphaned card.nonexistent track
+card.nonexistent.color = blue  # Reports build diagnostic and is ignored
 ```
 
 ```animatix
@@ -736,6 +736,7 @@ This is intentionally narrower than a full object/query system:
 - the final segment is the property name
 - the earlier segments resolve to the runtime actor label
 - rhs dotted paths are resolved as flat dotted lookup keys in the runtime environment rather than recursive object traversal
+- unresolved rhs dotted paths now report build diagnostics while preserving the current fallback/default behavior of the host property path
 - the runtime seeds sampled actor/scene properties under those dotted keys, such as `node.at`, `node.radius`, `node.color`, `scene.background_color`, and vector/color component keys like `node.at.x`, `node.at.y`, `node.color.r`, `node.color.g`, `node.color.b`, `node.color.a`
 - rich object-style traversal, index-based access, and method-style query composition remain future-facing
 
