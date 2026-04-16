@@ -10,7 +10,7 @@ subtitle: Text { text: "A single text label morphs between short words through t
 caption: Text { text: "The scene stays intentionally quiet so the letterform transformation remains the whole story.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 word: Text { text: "hi", font_size: 152, color_role: text.primary, at: (640, 390) }
-beat: Text { text: "0s → 2s", font_size: 18, color_role: accent.primary, anchor: scene.bottom, offset: (0, -70) }
+beat: Text { text: "0s → 2s", font_size: 18, color_role: accent.primary, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
 word: Text { text: "hello", font_size: 152, color: accent.success, at: (640, 390) } [2s, ease: ease-in-out]

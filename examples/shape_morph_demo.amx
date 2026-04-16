@@ -10,7 +10,7 @@ subtitle: Text { text: "Timed re-declarations demonstrate strategy:auto, strateg
 caption: Text { text: "The guide names the exact shipped modifier vocabulary without inventing any extra semantics.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 shape: Circle, radius: 100, color: accent.danger, at: (640, 390)
-guide: Text { text: "2s: strategy:auto   ·   5s: strategy:match + path_arc   ·   8s: strategy:match + stretch", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -58) }
+guide: Text { text: "2s: strategy:auto   ·   5s: strategy:match + path_arc   ·   8s: strategy:match + stretch", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
 shape: Rect, size: (220, 220), color: accent.success, at: (640, 390) [2s, ease: ease-in-out, strategy: auto]
