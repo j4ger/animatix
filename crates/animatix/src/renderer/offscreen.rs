@@ -1,5 +1,5 @@
 use super::core::RendererCore;
-use crate::timeline::{SceneDimensions, Timeline};
+use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 #[derive(Debug, Clone)]
 pub struct RenderedFrame {
@@ -70,13 +70,23 @@ impl OffscreenRenderer {
         time_s: f64,
         dimensions: SceneDimensions,
     ) -> Result<RenderedFrame, String> {
+        self.render_timeline_with_debug(timeline, time_s, dimensions, DebugRenderOptions::default())
+    }
+
+    pub fn render_timeline_with_debug(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<RenderedFrame, String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
 
         self.ensure_targets(dimensions);
 
-        let scene = timeline.evaluate(time_s, dimensions);
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
         let texture = self
             .texture
             .as_ref()

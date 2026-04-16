@@ -1,6 +1,6 @@
 use super::core::RendererCore;
 use crate::ast::Stmt;
-use crate::timeline::{SceneDimensions, Timeline};
+use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -12,6 +12,7 @@ use winit::{
 
 struct State {
     timeline: Timeline,
+    debug_options: DebugRenderOptions,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
@@ -21,7 +22,7 @@ struct State {
 }
 
 impl State {
-    async fn new(window: Arc<Window>, timeline: &Timeline) -> Self {
+    async fn new(window: Arc<Window>, timeline: &Timeline, debug_options: DebugRenderOptions) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -78,6 +79,7 @@ impl State {
 
         Self {
             timeline: timeline.clone(),
+            debug_options,
             surface,
             config,
             size,
@@ -102,12 +104,13 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let scene = self.timeline.evaluate(
+        let scene = self.timeline.evaluate_with_debug(
             current_time,
             SceneDimensions {
                 width: self.config.width,
                 height: self.config.height,
             },
+            self.debug_options,
         );
 
         let render_texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -160,6 +163,7 @@ struct App {
     start_time: Option<Instant>,
     loop_playback: bool,
     loop_duration_s: Option<f64>,
+    debug_options: DebugRenderOptions,
 }
 
 impl ApplicationHandler for App {
@@ -172,7 +176,7 @@ impl ApplicationHandler for App {
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
             self.window = Some(window.clone());
 
-            let state = pollster::block_on(State::new(window.clone(), &self.timeline));
+            let state = pollster::block_on(State::new(window.clone(), &self.timeline, self.debug_options));
             self.state = Some(state);
 
             window.request_redraw();
@@ -239,10 +243,14 @@ pub fn run(ast: &[Stmt]) {
 }
 
 pub fn run_timeline(timeline: Timeline) {
-    run_timeline_with_options(timeline, false);
+    run_timeline_with_options(timeline, false, DebugRenderOptions::default());
 }
 
-pub fn run_timeline_with_options(timeline: Timeline, loop_playback: bool) {
+pub fn run_timeline_with_options(
+    timeline: Timeline,
+    loop_playback: bool,
+    debug_options: DebugRenderOptions,
+) {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
     let loop_duration_s = loop_playback.then(|| timeline.duration_seconds());
@@ -254,6 +262,7 @@ pub fn run_timeline_with_options(timeline: Timeline, loop_playback: bool) {
         start_time: None,
         loop_playback,
         loop_duration_s,
+        debug_options,
     };
 
     event_loop.run_app(&mut app).unwrap();

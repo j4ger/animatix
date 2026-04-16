@@ -1,7 +1,7 @@
 use super::core::RendererCore;
 use super::offscreen::OffscreenRenderer;
 use crate::ast::Stmt;
-use crate::timeline::{SceneDimensions, Timeline};
+use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVFrame, AVRational};
@@ -24,6 +24,7 @@ pub fn render_video(
         fps,
         duration,
         output_file,
+        DebugRenderOptions::default(),
     ));
 }
 
@@ -34,6 +35,7 @@ async fn render_video_async(
     fps: u32,
     duration: f32,
     output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
 ) {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
@@ -152,9 +154,10 @@ async fn render_video_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
 
     for frame in 0..total_frames {
-        let scene = timeline.evaluate(
+        let scene = timeline.evaluate_with_debug(
             (frame as f64) / (fps as f64),
             SceneDimensions { width, height },
+            debug_options,
         );
 
         core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
@@ -274,6 +277,7 @@ pub fn render_image(
         height,
         time,
         output_file,
+        DebugRenderOptions::default(),
     ));
 }
 
@@ -283,10 +287,16 @@ async fn render_image_async(
     height: u32,
     time: f32,
     output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
 ) {
     let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
     let frame = renderer
-        .render_timeline(&timeline, time as f64, SceneDimensions { width, height })
+        .render_timeline_with_debug(
+            &timeline,
+            time as f64,
+            SceneDimensions { width, height },
+            debug_options,
+        )
         .expect("Failed to render offscreen frame");
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
         .expect("Failed to create image buffer from offscreen frame");
@@ -301,6 +311,26 @@ pub fn render_video_timeline(
     duration: f32,
     output_file: &std::path::Path,
 ) {
+    render_video_timeline_with_debug(
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        DebugRenderOptions::default(),
+    );
+}
+
+pub fn render_video_timeline_with_debug(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+) {
     pollster::block_on(render_video_async(
         timeline,
         width,
@@ -308,6 +338,7 @@ pub fn render_video_timeline(
         fps,
         duration,
         output_file,
+        debug_options,
     ));
 }
 
@@ -318,11 +349,30 @@ pub fn render_image_timeline(
     time: f32,
     output_file: &std::path::Path,
 ) {
+    render_image_timeline_with_debug(
+        timeline,
+        width,
+        height,
+        time,
+        output_file,
+        DebugRenderOptions::default(),
+    );
+}
+
+pub fn render_image_timeline_with_debug(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    time: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+) {
     pollster::block_on(render_image_async(
         timeline,
         width,
         height,
         time,
         output_file,
+        debug_options,
     ));
 }
