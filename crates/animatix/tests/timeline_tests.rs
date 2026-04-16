@@ -2768,6 +2768,45 @@ fn test_code_primitive_reports_measured_size() {
 }
 
 #[test]
+fn test_svg_primitive_reports_measured_size() {
+    let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Svg {
+            label: Some("logo".to_string()),
+            url: svg_path,
+            at: (0.0, 0.0),
+            scale: 1.0,
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let size = timeline.tracks["logo"].size.evaluate(0);
+
+    assert_ne!(size, [50.0, 50.0]);
+    assert_eq!(size, [40.0, 40.0]);
+}
+
+#[test]
+fn test_scaled_svg_primitive_reports_scaled_size() {
+    let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Svg {
+            label: Some("logo".to_string()),
+            url: svg_path,
+            at: (0.0, 0.0),
+            scale: 2.0,
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let size = timeline.tracks["logo"].size.evaluate(0);
+
+    assert_eq!(size, [80.0, 80.0]);
+}
+
+#[test]
 fn test_row_child_without_at_is_layout_managed() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),

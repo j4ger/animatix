@@ -1,7 +1,31 @@
 use super::VelloPath;
-use kurbo::BezPath;
+use kurbo::{BezPath, Shape};
 use usvg::{Node, Options, Tree};
 use vello::peniko::Color;
+
+pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for path in paths {
+        let bounds = path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    if min_x.is_finite() && max_x.is_finite() && min_y.is_finite() && max_y.is_finite() {
+        [
+            ((max_x - min_x) as f32) / 2.0,
+            ((max_y - min_y) as f32) / 2.0,
+        ]
+    } else {
+        [0.0, 0.0]
+    }
+}
 
 pub fn parse_svg(svg_data: &str) -> Vec<VelloPath> {
     let opt = Options::default();

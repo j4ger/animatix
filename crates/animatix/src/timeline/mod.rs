@@ -3066,6 +3066,13 @@ impl Timeline {
                                 vp.path.apply_affine(affine);
                             }
                         }
+                        let measured_half_size =
+                            crate::timeline::svg::measure_svg_paths(&parsed_paths);
+                        track.size.add_keyframe(
+                            time_ms as u64,
+                            measured_half_size,
+                            Easing::Linear,
+                        );
                         track.svg_paths = parsed_paths;
                     }
                 }
