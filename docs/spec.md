@@ -253,14 +253,16 @@ Duplicate shipped modifier keys are reported deliberately and the runtime uses t
 Unsupported modifier keys are not part of the shipped contract today. The runtime reports them explicitly during build/timeline construction so CLI and GUI tooling can surface the mismatch without pretending the key had an effect.
 
 **Built-in Actions Registry**  
-The runtime currently registers ten built-in actions:
+The runtime currently registers eleven built-in actions:
 - **Motion**: `move`, `shift`, `rotate`, `scale`
 - **Entrance / Reveal**: `fade-in`, `draw-in`, `wipe-in`
-- **Exit**: `fade-out`, `wipe-out`, `reveal-out`
+- **Exit**: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 
-`fade-in` is opacity-based and applies broadly across current renderable targets. `draw-in`, `wipe-in`, `wipe-out`, and `reveal-out` are intentionally narrower vector-first actions; unsupported targets such as images or text-like actors report diagnostics instead of silently pretending the action had an effect.
+`fade-in` is opacity-based and applies broadly across current renderable targets. `draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, and `draw-out` are intentionally narrower vector-first actions; unsupported targets such as images or text-like actors report diagnostics instead of silently pretending the action had an effect.
 
 `reveal-out` is the exit-side counterpart to `draw-in`: it hides fill at action start, then animates `stroke_progress` down to zero over the authored duration.
+
+`draw-out` is the exit-side counterpart to `wipe-in`: it erases `stroke_progress` over time while preserving fill until the action completes.
 
 `move` is a target-based local motion action. Its required `to` modifier sets the target's local translation offset on top of existing placement.
 

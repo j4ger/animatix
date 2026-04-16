@@ -17,6 +17,7 @@ The following are already part of the current baseline and should not be treated
 - Colorschemes v1: built-in scene selection, semantic color roles, `stroke_role`, and deterministic actor-cycle defaults layered on top of explicit color authoring
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
 - Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
+- Reveal actions v1 now shipped in the runtime contract: `fade-in`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, plus honest unsupported-target diagnostics for vector-only reveal verbs
 - Motion ergonomics already shipped in the current runtime contract: `move`, `shift`, `rotate`, and `scale`
 - Composition ergonomics already shipped in scoped form: `sequence` and `stagger` blocks for actions/property assignments with deliberate diagnostics for unsupported contents
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
@@ -96,6 +97,8 @@ The roadmap is divided into one sync milestone and six implementation phases.
 ## 5. Phase 1 — Reveal Actions v1 + Honest Action Diagnostics
 
 **Urgency:** Critical
+
+**Status:** effectively shipped. The reveal-actions family now includes `fade-in`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out`, `reveal-out`, and `draw-out`, with focused demo/spec coverage and explicit unsupported-target diagnostics for vector-only reveal verbs.
 
 **Goal:** Make common explanatory reveal/exit animation easier to author without adding a new runtime model.
 
