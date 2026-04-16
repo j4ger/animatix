@@ -1,28 +1,22 @@
 // Runnable example: local rotation ergonomics with `rotate`.
 
+config { colorscheme: "editorial-dark" }
+
 #0s
-let ink = (0.04, 0.05, 0.09, 1.0)
-let title_ink = (0.97, 0.98, 1.0, 1.0)
-let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
-let accent = (0.38, 0.78, 1.0, 1.0)
-let green = (0.35, 0.86, 0.63, 1.0)
-let coral = (1.0, 0.46, 0.54, 1.0)
 
-scene.background_color = ink
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Rotate motion demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "rotate applies a relative local turn in radians around the current origin.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Manual and layout-managed nodes still share the same verb, but the framing now keeps the comparison cleaner.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Rotate motion demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "rotate applies a relative local turn in radians around the current origin", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Manual and layout-managed nodes still share the same rotation verb, but the comparison now uses scene-relative framing instead of raw x/y stage coordinates.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
+manual_label: Text { text: "manual node", font_size: 22, color_role: accent.danger, anchor: scene.left, offset: (240, -128) }
+layout_label: Text { text: "layout-managed node", font_size: 22, color_role: accent.success, anchor: scene.right, offset: (-246, -128) }
 
-manual_label: Text { text: "manual node", font_size: 22, color: coral, anchor: scene.left, offset: (240, -128) }
-layout_label: Text { text: "layout-managed node", font_size: 22, color: green, anchor: scene.right, offset: (-246, -128) }
-
-manual: Rect, size: (170, 80), color: coral, stroke: title_ink, stroke_width: 4, anchor: scene.left, offset: (240, 78)
+manual: Rect, size: (170, 80), color_role: accent.danger, stroke_role: stroke.default, stroke_width: 4, anchor: scene.left, offset: (240, 78)
 
 row: Row, gap: 40, anchor: scene.right, offset: (-210, 78) {
-  anchor: Rect, size: (110, 70), color: (0.18, 0.24, 0.34, 1.0), stroke: title_ink, stroke_width: 4,
-  spinning: Rect, size: (170, 80), color: accent, stroke: title_ink, stroke_width: 4,
+  anchor: Rect, size: (110, 70), color_role: surface.primary, stroke_role: stroke.default, stroke_width: 4,
+  spinning: Rect, size: (170, 80), color_role: accent.primary, stroke_role: stroke.default, stroke_width: 4,
 }
 
 #0s
