@@ -259,6 +259,90 @@ impl BuiltinAction for RevealOut {
     }
 }
 
+pub struct DrawOut;
+
+impl BuiltinAction for DrawOut {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "draw-out".to_string(),
+            category: "Exit".to_string(),
+            description:
+                "Exits vector targets by erasing stroke progress over time while keeping fill until the end."
+                    .to_string(),
+            params: vec![],
+            modifiers: timing_modifier_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let parsed = parse_timing_modifiers(
+            &action.modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+
+            let start_stroke = track.stroke_progress.evaluate(t_start_ms);
+            let start_fill = track.fill_opacity.evaluate(t_start_ms);
+
+            if duration_ms > 0.0 {
+                track
+                    .stroke_progress
+                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
+                track
+                    .fill_opacity
+                    .add_keyframe(t_start_ms, start_fill, Easing::Linear);
+                track.fill_opacity.add_keyframe(
+                    t_end_ms.saturating_sub(1),
+                    start_fill,
+                    Easing::Linear,
+                );
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_stroke = track.stroke_progress.evaluate(guard_time);
+                let prior_fill = track.fill_opacity.evaluate(guard_time);
+                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                    track
+                        .stroke_progress
+                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
+                }
+                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                    track
+                        .fill_opacity
+                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
+                }
+            }
+
+            track.stroke_progress.add_keyframe(t_end_ms, 0.0, easing);
+            track
+                .fill_opacity
+                .add_keyframe(t_end_ms, 0.0, Easing::Linear);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,6 +508,44 @@ mod tests {
             body: vec![
                 text_decl("headline"),
                 action_stmt("reveal-out", "headline", 1.0),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget));
+    }
+
+    #[test]
+    fn draw_out_keeps_fill_until_the_end() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("shape"), action_stmt("draw-out", "shape", 1.0)],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.stroke_progress.evaluate(0), 1.0);
+        assert_eq!(track.fill_opacity.evaluate(0), 1.0);
+        assert!(track.stroke_progress.evaluate(500) > 0.0);
+        assert!(track.stroke_progress.evaluate(500) < 1.0);
+        assert_eq!(track.fill_opacity.evaluate(500), 1.0);
+        assert_eq!(track.stroke_progress.evaluate(1000), 0.0);
+        assert_eq!(track.fill_opacity.evaluate(1000), 0.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_out_reports_unsupported_text_targets() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                text_decl("headline"),
+                action_stmt("draw-out", "headline", 1.0),
             ],
         }];
 
