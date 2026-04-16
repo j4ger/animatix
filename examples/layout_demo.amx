@@ -1,4 +1,4 @@
-// Runnable example: layout-focused scene showing Grid, Col, Stack, anchors, percentages, and manual overrides.
+// Runnable example: layout-focused scene showing Grid, Col, Stack, anchors, percentages, and a narrow manual override.
 
 #0s
 let ink = (0.04, 0.06, 0.10, 1.0)
@@ -12,8 +12,8 @@ scene.background_color = ink
 
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Layout demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Anchors, offsets, percentages, and layout containers share one clean didactic stage", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Each caption names a currently shipped placement rule; the visuals stay tidy so the behavior reads instantly.", font_size: 16, color: caption_ink, anchor: scene.top, offset: (0, 136) }
+subtitle: Text { text: "Root defaults, anchors, percentages, and container-owned placement share one didactic stage", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Most of the scene now stays layout-managed; the only explicit child override is isolated in the bottom comparison row.", font_size: 16, color: caption_ink, anchor: scene.top, offset: (0, 136) }
 
 root_label: Text { text: "Root container default placement", font_size: 24, color: gold, anchor: scene.top, offset: (0, 184) }
 root_caption: Text { text: "This Grid has no anchor or at, so the runtime places it at the default root position.", font_size: 16, color: subtitle_ink, anchor: scene.top, offset: (0, 212) }
@@ -24,10 +24,10 @@ left_label: Text { text: "Scene anchor + offset", font_size: 24, color: gold, an
 left_caption: Text { text: "This Col is anchored to scene.left, then shifted inward with offset.", font_size: 16, color: subtitle_ink, anchor: scene.left, offset: (228, -136) }
 
 stack_label: Text { text: "Stack with percent placement", font_size: 24, color: gold, at: (79%, 56%) }
-stack_caption: Text { text: "The whole Stack uses percent-based at for screen-relative placement.", font_size: 16, color: subtitle_ink, at: (79%, 60%) }
+stack_caption: Text { text: "The whole Stack uses percent-based placement while layered children share one origin.", font_size: 16, color: subtitle_ink, at: (79%, 60%) }
 
 manual_label: Text { text: "Manual child override inside layout container", font_size: 24, color: gold, anchor: scene.bottom, offset: (0, -210) }
-manual_caption: Text { text: "One Row child keeps its own at while neighboring children still follow layout flow.", font_size: 16, color: subtitle_ink, anchor: scene.bottom, offset: (0, -182) }
+manual_caption: Text { text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color: subtitle_ink, anchor: scene.bottom, offset: (0, -182) }
 
 dashboard: Grid, cols: 2, gap: 28 {
   p1: Rect, size: (214, 104), color: (0.14, 0.22, 0.36, 1.0),
@@ -47,10 +47,9 @@ legend: Col, anchor: scene.left, offset: (170, 12), gap: 22, align: "center" {
 callout: Stack, at: (82%, 76%) {
   plate: Rect, size: (296, 112), color: (0.10, 0.14, 0.22, 1.0),
   glow: Circle, radius: 40, color: (0.22, 0.46, 0.84, 0.22),
-  ring: Circle, radius: 28, color: gold, at: (-90, 0),
-  core: Circle, radius: 16, color: title_ink, at: (-90, 0),
-  badge: Rect, size: (98, 24), color: (0.27, 0.72, 0.56, 1.0), at: (74, -24),
-  dot: Circle, radius: 10, color: (0.94, 0.46, 0.42, 1.0), at: (88, 26)
+  halo: Circle, radius: 54, color: (0.13, 0.20, 0.32, 0.55),
+  ring: Circle, radius: 28, color: gold,
+  core: Circle, radius: 16, color: title_ink
 }
 
 manual_row: Row, anchor: scene.bottom, offset: (0, -116), gap: 24, align: "center" {
