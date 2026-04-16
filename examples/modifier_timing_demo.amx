@@ -5,8 +5,8 @@ config { colorscheme: "editorial-dark" }
 #0s
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Modifier timing demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Delay, duration shorthand, and ease on one stage.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 120) }
-caption: Text { text: "Three columns keep timing cases comparable.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 148) }
+subtitle: Text { text: "Delay, duration shorthand, and ease on one stage.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Three columns keep timing cases comparable.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 label_a: Text { text: "Delayed fade-out", font_size: 22, color_role: accent.danger, at: (250, 206) }
 label_b: Text { text: "Delayed appearance", font_size: 22, color_role: accent.success, at: (640, 206) }

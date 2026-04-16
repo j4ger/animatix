@@ -9,10 +9,10 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Component diagnostics", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Valid dotted access stays live; invalid nested targets and rhs lookups still emit diagnostics without crashing the stage.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption_ok: Text { text: "Valid: left.badge.color, echo.radius = right.badge.radius, connector.from = left.badge.at", font_size: 15, color_role: accent.success, anchor: scene.top, offset: (0, 144) }
-caption_bad: Text { text: "Invalid on purpose: left.nonexistent.color, ghost.radius = left.missing.radius, ghost.color = left.missing.color", font_size: 15, color_role: accent.danger, anchor: scene.top, offset: (0, 168) }
+title: Text { text: "Component diagnostics", font_size: 36, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Valid dotted access stays live; invalid paths still emit warnings.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 152) }
+caption_ok: Text { text: "Valid dotted writes + rhs lookup", font_size: 16, color_role: accent.success, at: (420, 224) }
+caption_bad: Text { text: "Invalid targets still warn", font_size: 16, color_role: accent.danger, at: (860, 224) }
 
 left: MetricCard, title: "Latency"
 right: MetricCard, title: "Throughput"

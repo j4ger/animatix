@@ -6,8 +6,8 @@ config { colorscheme: "editorial-dark" }
 
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Reveal actions demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Each reveal verb gets its own readable target.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 120) }
-caption: Text { text: "The narrow stage keeps the verbs easy to compare.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 148) }
+subtitle: Text { text: "Each reveal verb gets its own readable target.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The narrow stage keeps the verbs easy to compare.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 headline: Text { text: "fade-in", font_size: 26, color_role: text.primary, at: (320, 266) }
 orbit: Circle, radius: 84, color_role: accent.primary, stroke_role: stroke.default, stroke_width: 5, at: (320, 470)
