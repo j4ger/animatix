@@ -59,6 +59,7 @@ From a user perspective, the most important remaining gaps are no longer the bas
 
 - Colorscheme follow-up work: file-backed schemes, inheritance, and broader reusable scheme sharing
 - Better GUI/editor affordances and discovery
+- Size-aware layout for measured children, but only as a narrow measure/place slice rather than a broad flexbox expansion
 
 Colorscheme follow-up work now means **broadening** the shipped v1 surface rather than inventing it from scratch. The design and rollout docs remain the place for future loadable schemes, inheritance, and broader authoring integration: [`colorscheme_design.md`](colorscheme_design.md) and [`colorscheme_implementation_plan.md`](colorscheme_implementation_plan.md).
 
@@ -153,7 +154,38 @@ The roadmap is divided into one sync milestone and six implementation phases.
 
 ---
 
-## 7. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+## 7. Phase 3 — Size-Aware Layout for Measured Children
+
+**Urgency:** High
+
+**Goal:** Make the existing layout containers more truthful by teaching supported children to report real layout size, starting with a narrow `Row` / `Col` measure/place slice.
+
+**Why third:**
+- The current layout model already improves authoring, but container placement still depends on incomplete child size reporting.
+- This is the smallest honest step toward flex-like ergonomics without committing the runtime to full CSS-style semantics.
+- It directly improves both human-authored and AI-authored composition because it reduces reliance on fixed offsets for mixed media/text scenes.
+
+**Includes:**
+- define a runtime contract for layout-participating child size
+- make `Text`, `Math`, and `Code` report measured local bounds into the size track used by layout
+- preserve and clarify the existing intrinsic-size path for `Image`
+- keep `Row` / `Col` deterministic with mixed measured-size and authored-size children
+- add focused tests and one focused runnable demo for measured-child layout participation
+
+**Guardrails:**
+- do not claim full flexbox parity
+- do not add `flex-grow`, `flex-shrink`, wrapping, or min/max sizing yet
+- do not promise per-frame relayout from animated content or visual-only transforms in this slice
+- do not pull in a solver-heavy constraint system
+
+**Exit criteria:**
+- supported measured children participate truthfully in `Row` / `Col`
+- docs and examples clearly state the supported subset and the remaining gaps
+- layout behavior remains compatible with random-access evaluation and current export workflows
+
+---
+
+## 8. Phase 4 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
 
 **Urgency:** High
 
@@ -178,7 +210,7 @@ The roadmap is divided into one sync milestone and six implementation phases.
 
 ---
 
-## 8. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+## 9. Phase 5 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
 
 **Urgency:** High
 
@@ -194,7 +226,7 @@ The roadmap is divided into one sync milestone and six implementation phases.
 
 ---
 
-## 9. Phase 5 — Tooling and Authoring Workflow Refinement
+## 10. Phase 6 — Tooling and Authoring Workflow Refinement
 
 **Urgency:** Medium
 
@@ -243,8 +275,9 @@ These should only move forward once the action/motion authoring surface is stabl
 1. **Complete Milestone 0: roadmap/spec contract sync**
 2. **Implement Phase 1: reveal actions v1 + honest action diagnostics**
 3. **Move immediately to Phase 2: component and diagnostic contract tightening**
-4. **Then Phase 3: colorscheme follow-up with loadable schemes and inheritance**
-5. **Expand host-specific breadth only after those contracts are stable**
-6. **Keep tooling/editor refinement after the runtime surface stops shifting underneath it**
+4. **Then Phase 3: size-aware layout for measured children**
+5. **After that, Phase 4: colorscheme follow-up with loadable schemes and inheritance**
+6. **Expand host-specific breadth only after those contracts are stable**
+7. **Keep tooling/editor refinement after the runtime surface stops shifting underneath it**
 
-This ordering keeps the roadmap aligned with the current engine and with what users feel most acutely: first make common animation intent and diagnostics more honest, then broaden reusable authoring only after the current contract is sharp enough to support it.
+This ordering keeps the roadmap aligned with the current engine and with what users feel most acutely: first make common animation intent and diagnostics more honest, then make layout measurement truthful before broadening reusable theming and later breadth work.

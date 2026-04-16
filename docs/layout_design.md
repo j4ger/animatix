@@ -281,3 +281,129 @@ Phase 1 should be considered successful when:
 3. `Stack` and `Grid` are runtime-real
 4. docs and demos teach layout-first composition as the default
 5. the runtime has explicit, testable semantics for auto vs manual placement
+
+---
+
+## 10. Phase 2 Direction — Size-Aware Measure/Place Layout
+
+Phase 1 established deterministic container ownership and scene-relative placement. The next truthful layout step is **not** full CSS flexbox parity. It is a narrower **size-aware measure/place slice** that makes `Row` and `Col` rely on real child layout bounds instead of placeholder sizes.
+
+### 10.1 Why this phase exists
+
+Today the runtime already positions `Row`, `Col`, and `Grid` children from tracked child size, but the size-reporting contract is incomplete:
+
+- some primitives already have meaningful authored or intrinsic size
+- some primitives still fall back to placeholder track values
+- layout is still applied mainly during timeline construction rather than from sampled child state
+
+That means Animatix has the basic placement machinery for a flex-like system, but not yet the measurement truth needed to claim one honestly.
+
+### 10.2 Goals for the first size-aware slice
+
+This phase should accomplish four things:
+
+1. make layout size an explicit runtime contract for layout-participating children
+2. keep the contract deterministic and cheap enough for random-access evaluation
+3. improve `Row` / `Col` authoring before introducing any broader flex vocabulary
+4. document exactly which primitives report truthful layout size and which do not yet
+
+### 10.3 Measurement contract
+
+For the first slice, every layout-participating child should publish a **local layout size** into its existing size track.
+
+Recommended contract:
+
+- layout size is reported in the child’s local, unrotated coordinate space
+- layout size should represent the bounds used for parent container placement
+- the first implementation may continue using the existing half-extents storage convention already consumed by container layout
+- transforms such as rotation and visual-only scale should not redefine the base layout box in this slice
+
+### 10.4 Initial primitive support
+
+The first truthful slice should focus on primitives that already fit the current runtime architecture well.
+
+#### Should participate first
+
+- `Image` — already has natural-size information and is the clearest proof of the intrinsic-size path
+- `Text`, `Math`, and `Code` — should report measured bounds from the existing Typst/text-path compilation pipeline
+- authored-shape primitives that already carry explicit size/radius semantics
+
+#### Should stay out of scope initially
+
+- `Svg` layout participation until intrinsic bounds are tracked explicitly
+- any primitive whose runtime rendering path does not yet expose stable local bounds back to layout
+
+### 10.5 Container scope
+
+The first size-aware layout slice should stay intentionally narrow.
+
+#### In scope
+
+- `Row` and `Col` continuing to own child placement
+- existing `gap` semantics
+- existing cross-axis `align` semantics
+- truthful sizing for layout-managed children
+
+#### Explicitly out of scope for this slice
+
+- `flex-grow`
+- `flex-shrink`
+- `flex-basis`
+- wrapping
+- baseline alignment
+- `justify-content: space-*`
+- min/max sizing rules
+- full parity with CSS Flexbox, Flutter Flex, Yoga, or Taffy
+
+The target is to establish truthful measurement first, not to import a large flex vocabulary before the runtime can support it honestly.
+
+### 10.6 Runtime model for the first slice
+
+This phase should remain a **declaration-time measure/place** model:
+
+- child bounds are computed when declarations or timed re-declarations establish the child state used for layout
+- container placement continues to use deterministic parent-driven rules
+- the runtime does **not** promise per-frame reflow from animated content, scale, or visibility changes yet
+
+Later work may move layout toward sampled-state recomputation where needed, but that should be a separate architectural step rather than an accidental side effect of adding measured bounds.
+
+### 10.7 Rollout plan
+
+#### Slice 1 — Measurement contract and diagnostics
+- define what “layout size” means in runtime/docs/tests
+- identify placeholder-size fallbacks and make them explicit in diagnostics or docs
+- add focused tests for layout size publication
+
+#### Slice 2 — Text/Math/Code measured bounds
+- extract local bounds from the existing compilation pipeline
+- write those bounds into the size track used by container layout
+- add one focused demo showing text participating truthfully in `Row` / `Col`
+
+#### Slice 3 — Row/Col size-aware polish
+- verify `Row` / `Col` behavior with mixed authored-size and measured-size children
+- preserve manual child opt-out semantics
+- keep layout deterministic under random-access evaluation
+
+#### Slice 4 — Future architectural follow-up
+- evaluate when sampled child-state relayout becomes necessary
+- only after that consider whether any broader flex vocabulary is warranted
+
+### 10.8 Non-goals for the size-aware slice
+
+This phase should still avoid:
+
+- full general-purpose constraints
+- a Cassowary-style solver
+- responsive breakpoint systems
+- collision avoidance
+- solver-heavy dynamic layout dependencies
+- claiming that animated text or animated visual scale automatically reflows neighboring layout in the current runtime
+
+### 10.9 Success criteria for this phase
+
+This phase should be considered successful when:
+
+1. `Row` / `Col` produce truthful placement for supported measured children
+2. docs clearly separate supported measured layout from unsupported future flex semantics
+3. examples show measured text/media participating in layout without brittle coordinate math
+4. tests prove the measurement contract rather than relying only on visual inspection

@@ -174,6 +174,8 @@ The architectural consequence is that layout must become a real runtime concern 
 - coexist with manually positioned children when needed
 - preserve deterministic results for AI-authored scenes
 
+The next meaningful step after the current Phase 1 surface is **truthful child measurement**, not immediate full flexbox support. The runtime already has container placement machinery, but it can only be as good as the child size data it receives.
+
 ### Current Layout Model
 
 The shipped layout model has four layers, in order of preference:
@@ -224,6 +226,28 @@ During `timeline.evaluate(time_ms)`:
 Today, some container layout behavior is applied during timeline construction. The target architecture should evolve toward a model where layout-relevant placement can be recomputed from sampled child state when necessary. This matters for scenes where child size, visibility, or spacing-related properties animate over time.
 
 That does **not** mean every scene needs an expensive global layout solve every frame. It means layout containers should own a well-defined placement step whose semantics are compatible with timeline evaluation.
+
+### Near-Term Size-Aware Layout Direction
+
+The current runtime is best understood as having **placement before full measurement truth**:
+
+- container layout already consumes child size data
+- authored-shape primitives and images can provide meaningful size today
+- text/math/code compilation already computes enough information to derive bounds, but those measured bounds are not yet part of the layout contract
+- SVG paths are available for rendering, but intrinsic bounds are not yet part of the tracked layout surface
+
+That makes a narrow size-aware layout slice practical without replacing the current architecture.
+
+Recommended near-term direction:
+
+1. keep the existing parent-driven container model
+2. formalize a local layout-size contract for layout-participating children
+3. feed measured bounds from text/math/code into the same size track already used by `Row`, `Col`, and `Grid`
+4. keep the first slice declaration-time and deterministic rather than promising sampled per-frame reflow
+
+This is intentionally smaller than CSS Flexbox or Flutter’s broader flex ecosystem. It is closer to a **measure/place refinement** on top of the current scene graph than to a new global layout engine.
+
+The larger architectural milestone remains the same: if later scenes genuinely require relayout from sampled child state, layout should evolve into an explicit runtime phase that can recompute placement from measured child outputs without breaking random-access evaluation.
 
 ### Phase C: Vello Scene Compilation (GPU, Per-Frame)
 1.  The timeline yields a final, flattened list of paths and their colors/gradients for the current frame.
