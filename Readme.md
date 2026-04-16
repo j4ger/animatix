@@ -13,13 +13,16 @@ The GUI shell now includes basic transport shortcuts (`Space` to play/pause, `â†
 #0s
 scene.background_color = (0.07, 0.08, 0.12, 1.0)
 
-title: Text { text: "Animatix", font_size: 92, color: (1.0, 1.0, 1.0, 1.0), at: (640, 150) }
-formula: Math { math: "E = mc^2", font_size: 80, color: (0.50, 0.80, 1.0, 1.0), at: (340, 370) }
-logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (940, 360) }
-orb: Circle, radius: 82, color: (1.0, 0.25, 0.55, 1.0), at: (250, 560)
+title: Text { text: "Animatix", font_size: 92, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.top, offset: (0, 92) }
+formula: Math { math: "E = mc^2", font_size: 80, color: (0.50, 0.80, 1.0, 1.0), at: (30%, 34%) }
+logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (72%, 34%) }
+stage: Row, anchor: scene.bottom, offset: (0, -120), gap: 180, align: "center" {
+  orb: Circle, radius: 82, color: (1.0, 0.25, 0.55, 1.0),
+  signal: Line, from: (-80, 0), to: (80, 0), stroke: (0.50, 0.80, 1.0, 1.0), stroke_width: 6,
+  panel: Rect, size: (250, 130), color: (0.25, 1.0, 0.65, 1.0)
+}
 
 #1.5s
-title.at = (640, 190) [1s, ease: ease-in-out]
 orb.radius = 120 [1s, ease: ease-in-out]
 orb.color = (0.25, 1.0, 0.65, 1.0) [1s, ease: ease-in-out]
 ```

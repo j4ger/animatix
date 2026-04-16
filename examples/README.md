@@ -36,8 +36,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 
 ## Family Notes
 
-- `showcase.amx` is the canonical hero example for the current shipped surface: text, math, SVG, and core vector primitives on one polished stage.
-- `layout_demo.amx` stays didactic and is the focused example for layout ownership: default placement, anchors, offsets, percentages, and manual child override inside layout flow.
+- `showcase.amx` is the canonical hero example for the current shipped surface: scene-relative text/media framing plus a layout-managed primitive row on one polished stage.
+- `layout_demo.amx` stays didactic and is the focused example for layout ownership: default placement, anchors, offsets, percentages, and one narrow manual child override inside otherwise layout-managed composition.
 - `motion_shift_demo.amx`, `motion_rotate_demo.amx`, and `motion_scale_demo.amx` remain the focused motion ergonomics family for move vs shift, rotate, and visual-only scale.
 - `composition_sequence_demo.amx` and `composition_stagger_demo.amx` remain the focused composition family for ordered lowering and shared-interval offsets.
 - `plotting_demo.amx`, `parametric_plot_demo.amx`, and `implicit_plot_demo.amx` remain the plotting family for graph composition, tuple-return parametric closures, and implicit contour extraction.
