@@ -1,4 +1,4 @@
-// Runnable example: reveal and exit actions (`fade-in`, `draw-in`, `wipe-in`, and `wipe-out`).
+// Runnable example: reveal and exit actions (`fade-in`, `draw-in`, `wipe-in`, `wipe-out`, and `reveal-out`).
 
 #0s
 let ink = (0.04, 0.05, 0.09, 1.0)
@@ -12,15 +12,16 @@ scene.background_color = ink
 
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Reveal actions demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "fade-in, draw-in, wipe-in, and wipe-out each keep a dedicated readable target", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
+subtitle: Text { text: "fade-in, draw-in, wipe-in, wipe-out, and reveal-out each keep a dedicated readable target", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
 caption: Text { text: "The layout is more polished, but the current reveal-action surface stays explicit and narrow.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
 
 headline: Text { text: "fade-in", font_size: 28, color: (1.0, 0.96, 0.86, 1.0), at: (320, 250) }
 orbit: Circle, radius: 84, color: accent, stroke: title_ink, stroke_width: 5, at: (320, 470)
 panel_label: Text { text: "draw-in + wipe-in", font_size: 28, color: gold, at: (640, 250) }
 panel: Rect, size: (210, 130), color: green, stroke: title_ink, stroke_width: 4, at: (640, 470)
-badge_label: Text { text: "wipe-out", font_size: 28, color: (0.98, 0.63, 0.72, 1.0), at: (960, 250) }
-badge: Polygon, points: {(-80, 0), (0, -78), (86, 0), (0, 92)}, color: (1.0, 0.48, 0.62, 1.0), stroke: title_ink, stroke_width: 4, at: (960, 470)
+badge_label: Text { text: "wipe-out + reveal-out", font_size: 28, color: (0.98, 0.63, 0.72, 1.0), at: (960, 250) }
+badge: Polygon, points: {(-80, 0), (0, -78), (86, 0), (0, 92)}, color: (1.0, 0.48, 0.62, 1.0), stroke: title_ink, stroke_width: 4, at: (900, 470)
+crest: Circle, radius: 56, color: gold, stroke: title_ink, stroke_width: 5, at: (1060, 470)
 
 #0s
 fade-in headline [800ms]
@@ -29,3 +30,4 @@ wipe-in panel [1200ms, delay: 250ms]
 
 #2.3s
 wipe-out badge [900ms, ease: ease-in]
+reveal-out crest [900ms, ease: ease-in-out]

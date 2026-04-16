@@ -50,7 +50,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 
 `code_demo.amx` is the focused example for the shipped v1 `Code` primitive: code content rendered through the existing text-path pipeline with animated position, color, and re-declaration updates.
 
-`reveal_actions_demo.amx` is the focused example for the current reveal-action surface: opacity-based `fade-in` plus vector-first `draw-in`, `wipe-in`, and `wipe-out`.
+`reveal_actions_demo.amx` is the focused example for the current reveal-action surface: opacity-based `fade-in` plus vector-first `draw-in`, `wipe-in`, `wipe-out`, and `reveal-out`.
 
 `motion_shift_demo.amx` is the focused example for the current motion-ergonomics slice: `move` sets a local offset target while `shift` adds relative local motion on top of existing placement for both manual and layout-managed nodes.
 
