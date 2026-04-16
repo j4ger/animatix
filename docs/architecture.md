@@ -62,6 +62,14 @@ Build-time work currently includes:
 
 The output of this phase is a compiled timeline package in memory: scene graph structure, typed tracks, prebuilt assets/paths, and retained modifier statements.
 
+### Future Colorscheme Direction
+
+Today, color values are still authored explicitly through declarations, variables, assignments, and `scene.background_color`.
+
+A future colorscheme system should remain a **load-time / build-time defaulting layer** rather than a separate frame-time styling engine. Built-in or file-backed colorschemes should resolve before timeline evaluation and seed the same property-track structures that explicit colors already use. That keeps preview, scrubbing, image export, and video export deterministic while preserving the existing rule that frame-local overrides sit on top of sampled track values.
+
+For the future-facing design details, see [`colorscheme_design.md`](colorscheme_design.md).
+
 ### The Timeline Data Structure
 
 The `Timeline` stores animation state using two complementary structures:

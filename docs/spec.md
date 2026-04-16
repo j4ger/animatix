@@ -124,6 +124,12 @@ scene.background_color = black // Default
 scene.background_color = white [2s]
 ```
 
+**Current color-system note**
+
+The shipped runtime does **not** yet have a dedicated colorscheme or role-based color system. Today, colors come from explicit color literals, variables, built-in named colors, and direct property assignments such as `btn.color = red` or `scene.background_color = black`.
+
+Future-facing colorscheme ideas such as scene-level scheme selection, reusable scheme files, and role-based defaults belong to planned design work rather than the current runtime contract. See [`colorscheme_design.md`](colorscheme_design.md).
+
 ---
 
 ## 4. Timeline & Keyframes

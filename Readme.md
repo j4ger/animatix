@@ -121,6 +121,8 @@ Useful docs:
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution flow and validation expectations
 - [`docs/spec.md`](docs/spec.md) — current language status matrix
 - [`docs/implementation_plan.md`](docs/implementation_plan.md) — shipped vs planned work
+- [`docs/colorscheme_design.md`](docs/colorscheme_design.md) — future reusable colorscheme design
+- [`docs/colorscheme_implementation_plan.md`](docs/colorscheme_implementation_plan.md) — phased colorscheme rollout plan
 - [`tree-sitter-animatix/README.md`](tree-sitter-animatix/README.md) — editor grammar scope and sync rules
 
 ## Roadmap

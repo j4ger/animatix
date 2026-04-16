@@ -2,6 +2,8 @@
 
 This document tracks what the current runtime actually supports. Where the parser or low-level Rust modules expose additional surface area, that is called out explicitly as parser-only or planned.
 
+Current color note: the shipped runtime still uses explicit per-actor color properties and direct assignments. It does **not** yet ship a dedicated colorscheme, palette-selection, or role-based color-default system. Future-facing colorscheme work is tracked in [`colorscheme_design.md`](colorscheme_design.md).
+
 ---
 
 # 1. Runtime-Supported Scene Primitives

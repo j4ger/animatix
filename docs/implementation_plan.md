@@ -58,7 +58,10 @@ From a user perspective, the most important remaining gaps are no longer the bas
 
 - Additional primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
 - Deeper plotting parity such as `ParametricPlot` and `ImplicitPlot`
+- Reusable colorschemes and actor auto-color ergonomics on top of the existing explicit color model
 - Better GUI/editor affordances and discovery
+
+Colorscheme work now has its own dedicated design and implementation docs: [`colorscheme_design.md`](colorscheme_design.md) and [`colorscheme_implementation_plan.md`](colorscheme_implementation_plan.md). It should be treated as an authoring-UX enhancement layered on top of the existing property/track system rather than as a replacement for explicit `color:` authoring.
 
 ### Explicitly later
 
