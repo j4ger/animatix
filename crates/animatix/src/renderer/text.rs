@@ -1,4 +1,4 @@
-use kurbo::{Affine, BezPath, Point};
+use kurbo::{Affine, BezPath, Point, Shape};
 use mitex::convert_math;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
@@ -182,6 +182,30 @@ pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
     glyphs
+}
+
+pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for text_path in paths {
+        let bounds = text_path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    if min_x.is_finite() && max_x.is_finite() && min_y.is_finite() && max_y.is_finite() {
+        [
+            ((max_x - min_x) as f32) / 2.0,
+            ((max_y - min_y) as f32) / 2.0,
+        ]
+    } else {
+        [0.0, 0.0]
+    }
 }
 
 fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &mut Vec<TextPath>) {

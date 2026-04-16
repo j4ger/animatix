@@ -25,6 +25,7 @@ pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
+use kurbo::Shape;
 use std::collections::BTreeMap;
 
 fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
@@ -1101,6 +1102,11 @@ pub struct SceneNode {
 pub struct SceneDimensions {
     pub width: u32,
     pub height: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct DebugRenderOptions {
+    pub draw_bounds: bool,
 }
 
 impl Default for SceneDimensions {
@@ -2683,14 +2689,18 @@ impl Timeline {
                     let frame =
                         crate::renderer::text::compile_text(&text_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
+                    let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
                     if duration_ms > 0.0 {
                         let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                        let start_size = track.size.evaluate(t_start_ms);
+                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.size, t_start_ms);
                     }
                     if supports_morph_options {
                         track
@@ -2698,6 +2708,7 @@ impl Timeline {
                             .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
+                    track.size.add_keyframe(t_end_ms, new_half_size, easing);
                 }
                 Stmt::Math {
                     label,
@@ -2841,14 +2852,18 @@ impl Timeline {
                     let frame =
                         crate::renderer::text::compile_math(&latex_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
+                    let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
                     if duration_ms > 0.0 {
                         let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                        let start_size = track.size.evaluate(t_start_ms);
+                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.size, t_start_ms);
                     }
                     if supports_morph_options {
                         track
@@ -2856,6 +2871,7 @@ impl Timeline {
                             .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
+                    track.size.add_keyframe(t_end_ms, new_half_size, easing);
                 }
                 Stmt::Code {
                     label,
@@ -2999,14 +3015,18 @@ impl Timeline {
                     let frame =
                         crate::renderer::text::compile_code(&code_content, font_size, color);
                     let new_paths = crate::renderer::text::extract_glyphs(&frame);
+                    let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
                     if duration_ms > 0.0 {
                         let start_val = track.evaluate_text_paths(t_start_ms);
                         track
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                        let start_size = track.size.evaluate(t_start_ms);
+                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+                        preserve_instant_delayed_value(&mut track.size, t_start_ms);
                     }
                     if supports_morph_options {
                         track
@@ -3014,6 +3034,7 @@ impl Timeline {
                             .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
                     track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
+                    track.size.add_keyframe(t_end_ms, new_half_size, easing);
                 }
                 Stmt::Svg {
                     label,
@@ -4618,6 +4639,7 @@ impl Timeline {
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
         scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) {
@@ -4745,6 +4767,7 @@ impl Timeline {
                 * kurbo::Affine::rotate(rotation)
                 * kurbo::Affine::scale(scale);
             let image = track.image.evaluate(time_ms);
+            let has_image = image.is_some();
 
             for vector_path in &vector_paths {
                 let transform = local_transform;
@@ -4839,6 +4862,19 @@ impl Timeline {
                 scene.draw_image(&brush, image_transform);
             }
 
+            if debug_options.draw_bounds
+                && let Some(local_bounds) = node_local_bounds(
+                    &vector_paths,
+                    &text_paths,
+                    &track.svg_paths,
+                    has_image.then_some(half_size),
+                )
+            {
+                let stroke = vello::kurbo::Stroke::new(1.25);
+                let debug_color = vello::peniko::Color::from_rgba8(255, 214, 102, 220);
+                scene.stroke(&stroke, local_transform, debug_color, None, &local_bounds);
+            }
+
             (local_transform, local_opacity)
         } else {
             (parent_transform, parent_opacity)
@@ -4852,6 +4888,7 @@ impl Timeline {
                     global_transform,
                     global_opacity,
                     scene_dimensions,
+                    debug_options,
                     scene,
                     overrides,
                 );
@@ -4860,6 +4897,15 @@ impl Timeline {
     }
 
     pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
+        self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default())
+    }
+
+    pub fn evaluate_with_debug(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
         let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
@@ -4906,6 +4952,7 @@ impl Timeline {
                 kurbo::Affine::IDENTITY,
                 1.0,
                 scene_dimensions,
+                debug_options,
                 &mut scene,
                 &overrides,
             );
@@ -4914,6 +4961,44 @@ impl Timeline {
         scene
     }
 }
+
+fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
+    Some(match acc {
+        Some(existing) => existing.union(rect),
+        None => rect,
+    })
+}
+
+fn node_local_bounds(
+    vector_paths: &[VelloPath],
+    text_paths: &[crate::renderer::text::TextPath],
+    svg_paths: &[VelloPath],
+    image_half_size: Option<[f32; 2]>,
+) -> Option<kurbo::Rect> {
+    let mut bounds = None;
+
+    for vector_path in vector_paths {
+        bounds = union_rect(bounds, vector_path.path.bounding_box());
+    }
+
+    for text_path in text_paths {
+        bounds = union_rect(bounds, text_path.path.bounding_box());
+    }
+
+    for svg_path in svg_paths {
+        bounds = union_rect(bounds, svg_path.path.bounding_box());
+    }
+
+    if let Some([half_width, half_height]) = image_half_size {
+        bounds = union_rect(
+            bounds,
+            kurbo::Rect::new(0.0, 0.0, (half_width * 2.0) as f64, (half_height * 2.0) as f64),
+        );
+    }
+
+    bounds
+}
+
 impl Default for Timeline {
     fn default() -> Self {
         Self::new()

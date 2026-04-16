@@ -2684,6 +2684,90 @@ fn test_row_child_with_explicit_origin_stays_manual() {
 }
 
 #[test]
+fn test_text_primitive_reports_measured_size() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Text {
+            label: Some("title".to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("Animatix layout".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(36.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let size = timeline.tracks["title"].size.evaluate(0);
+
+    assert_ne!(size, [50.0, 50.0]);
+    assert!(size[0] > 0.0);
+    assert!(size[1] > 0.0);
+}
+
+#[test]
+fn test_math_primitive_reports_measured_size() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Math {
+            label: Some("formula".to_string()),
+            props: vec![
+                Property {
+                    name: "math".to_string(),
+                    value: Expr::Str("E = mc^2".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(42.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let size = timeline.tracks["formula"].size.evaluate(0);
+
+    assert_ne!(size, [50.0, 50.0]);
+    assert!(size[0] > 0.0);
+    assert!(size[1] > 0.0);
+}
+
+#[test]
+fn test_code_primitive_reports_measured_size() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Code {
+            label: Some("snippet".to_string()),
+            props: vec![
+                Property {
+                    name: "code".to_string(),
+                    value: Expr::Str("fn main() {}".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(22.0),
+                },
+            ],
+            modifiers: vec![],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let size = timeline.tracks["snippet"].size.evaluate(0);
+
+    assert_ne!(size, [50.0, 50.0]);
+    assert!(size[0] > 0.0);
+    assert!(size[1] > 0.0);
+}
+
+#[test]
 fn test_row_child_without_at_is_layout_managed() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
