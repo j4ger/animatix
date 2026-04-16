@@ -14,6 +14,10 @@ fn parse_single_stmt(src: &str) -> Stmt {
     }
 }
 
+fn parse_program(src: &str) -> Vec<Stmt> {
+    parser().parse(src).into_result().unwrap()
+}
+
 fn parse_error(src: &str) -> bool {
     parser().parse(src).into_result().is_err()
 }
@@ -278,6 +282,64 @@ fn test_actor_decl_full() {
                 }
             ],
             children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_config_parse() {
+    assert_eq!(
+        parse_program("config { colorscheme: \"editorial-dark\" }")[0],
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        }
+    );
+}
+
+#[test]
+fn test_actor_decl_color_roles_parse() {
+    assert_eq!(
+        parse_single_stmt("badge: Circle, color_role: actor, stroke_role: stroke.default"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "badge".to_string(),
+            ty: "Circle".to_string(),
+            props: vec![
+                Property {
+                    name: "color_role".to_string(),
+                    value: Expr::Ident("actor".to_string()),
+                },
+                Property {
+                    name: "stroke_role".to_string(),
+                    value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        }
+    );
+}
+
+#[test]
+fn test_text_color_role_parse() {
+    assert_eq!(
+        parse_single_stmt("title: Text { text: \"Animatix\", color_role: text.primary }"),
+        Stmt::Text {
+            label: Some("title".to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("Animatix".to_string()),
+                },
+                Property {
+                    name: "color_role".to_string(),
+                    value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
+                },
+            ],
+            modifiers: vec![],
         }
     );
 }

@@ -16,6 +16,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "in",
                 "pub",
                 "component",
+                "config",
                 "true",
                 "false",
                 "null",
@@ -384,6 +385,18 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 result
             })
     });
+
+    let config_props = property
+        .clone()
+        .separated_by(just(',').padded())
+        .allow_trailing()
+        .collect::<Vec<_>>()
+        .delimited_by(just('{').padded(), just('}').padded());
+
+    let config_stmt = text::keyword("config")
+        .ignore_then(config_props)
+        .map(|settings| Stmt::Config { settings })
+        .padded();
 
     let stmt = recursive(|_stmt| {
         let let_decl = text::keyword("let")
@@ -795,6 +808,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     // Top-level can be keyframes or standalone statements
     choice((
         keyframe,
+        config_stmt,
         stmt.map(|s| Stmt::Keyframe {
             time: Time::Seconds(0.0), // default timeline wrapper
             body: vec![s],
