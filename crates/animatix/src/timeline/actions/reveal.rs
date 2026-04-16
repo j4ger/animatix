@@ -184,10 +184,85 @@ impl BuiltinAction for WipeOut {
     }
 }
 
+pub struct RevealOut;
+
+impl BuiltinAction for RevealOut {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "reveal-out".to_string(),
+            category: "Exit".to_string(),
+            description:
+                "Exits vector targets by hiding fill at the start, then erasing stroke progress over time."
+                    .to_string(),
+            params: vec![],
+            modifiers: timing_modifier_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let parsed = parse_timing_modifiers(
+            &action.modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+
+            let start_stroke = track.stroke_progress.evaluate(t_start_ms);
+
+            if duration_ms > 0.0 {
+                track
+                    .stroke_progress
+                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_stroke = track.stroke_progress.evaluate(guard_time);
+                let prior_fill = track.fill_opacity.evaluate(guard_time);
+                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                    track
+                        .stroke_progress
+                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
+                }
+                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                    track
+                        .fill_opacity
+                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
+                }
+            }
+
+            track
+                .fill_opacity
+                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            track.stroke_progress.add_keyframe(t_end_ms, 0.0, easing);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Modifier, Property, Stmt, Time};
+    use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
 
     fn circle_decl(label: &str) -> Stmt {
@@ -219,6 +294,27 @@ mod tests {
             url: "../../examples/checker.ppm".to_string(),
             at: (320.0, 240.0),
             size: Some((120.0, 120.0)),
+        }
+    }
+
+    fn text_decl(label: &str) -> Stmt {
+        Stmt::Text {
+            label: Some(label.to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("Hello".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(32.0),
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
+                },
+            ],
+            modifiers: vec![],
         }
     }
 
@@ -256,6 +352,79 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![image_decl("photo"), action_stmt("wipe-out", "photo", 1.0)],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget));
+    }
+
+    #[test]
+    fn reveal_out_hides_fill_then_erases_stroke() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                circle_decl("shape"),
+                action_stmt("reveal-out", "shape", 1.0),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.fill_opacity.evaluate(0), 0.0);
+        assert_eq!(track.stroke_progress.evaluate(0), 1.0);
+        assert!(track.stroke_progress.evaluate(500) > 0.0);
+        assert!(track.stroke_progress.evaluate(500) < 1.0);
+        assert_eq!(track.stroke_progress.evaluate(1000), 0.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                circle_decl("shape"),
+                Stmt::Action(Action {
+                    verb: "reveal-out".to_string(),
+                    targets: vec!["shape".to_string()],
+                    args: vec![],
+                    modifiers: vec![
+                        Modifier {
+                            name: Some("delay".to_string()),
+                            value: Expr::Ident("250ms".to_string()),
+                        },
+                        Modifier {
+                            name: None,
+                            value: Expr::Ident("0s".to_string()),
+                        },
+                    ],
+                }),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.fill_opacity.evaluate(249), 1.0);
+        assert_eq!(track.stroke_progress.evaluate(249), 1.0);
+        assert_eq!(track.fill_opacity.evaluate(250), 0.0);
+        assert_eq!(track.stroke_progress.evaluate(250), 0.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn reveal_out_reports_unsupported_text_targets() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                text_decl("headline"),
+                action_stmt("reveal-out", "headline", 1.0),
+            ],
         }];
 
         let report = Timeline::build_with_diagnostics(&ast);

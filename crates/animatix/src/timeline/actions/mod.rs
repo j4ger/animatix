@@ -11,7 +11,7 @@ use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use motion::{Move, Rotate, Scale, Shift};
 use registry::{ActionSignature, BuiltinAction};
-use reveal::{DrawIn, WipeOut};
+use reveal::{DrawIn, RevealOut, WipeOut};
 
 fn push_unknown_action_diagnostic(action: &Action, diagnostics: &mut Vec<Diagnostic>) {
     diagnostics.push(
@@ -130,6 +130,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(DrawIn),
         Box::new(FadeOut),
         Box::new(WipeOut),
+        Box::new(RevealOut),
     ]
 }
 
@@ -184,5 +185,12 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction));
+    }
+
+    #[test]
+    fn action_signatures_include_reveal_out() {
+        assert!(get_action_signatures()
+            .iter()
+            .any(|signature| signature.name == "reveal-out"));
     }
 }
