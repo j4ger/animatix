@@ -1,28 +1,22 @@
 // Runnable example: reveal and exit actions (`fade-in`, `draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, and `draw-out`).
 
+config { colorscheme: "editorial-dark" }
+
 #0s
-let ink = (0.04, 0.05, 0.09, 1.0)
-let title_ink = (0.97, 0.98, 1.0, 1.0)
-let subtitle_ink = (0.73, 0.80, 0.89, 1.0)
-let accent = (0.38, 0.78, 1.0, 1.0)
-let green = (0.35, 0.86, 0.63, 1.0)
-let gold = (0.98, 0.82, 0.42, 1.0)
 
-scene.background_color = ink
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Reveal actions demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "fade-in, draw-in, wipe-in, wipe-out, reveal-out, and draw-out each keep a dedicated readable target.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The layout is cleaner, but the reveal-action surface stays explicit, narrow, and easy to compare at a glance.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Reveal actions demo", font_size: 42, color: title_ink, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "fade-in, draw-in, wipe-in, wipe-out, reveal-out, and draw-out each keep a dedicated readable target", font_size: 20, color: subtitle_ink, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The layout is more polished, but the current reveal-action surface stays explicit and narrow.", font_size: 16, color: (0.60, 0.69, 0.80, 1.0), anchor: scene.top, offset: (0, 136) }
-
-headline: Text { text: "fade-in", font_size: 28, color: (1.0, 0.96, 0.86, 1.0), at: (320, 250) }
-orbit: Circle, radius: 84, color: accent, stroke: title_ink, stroke_width: 5, at: (320, 470)
-panel_label: Text { text: "draw-in + wipe-in", font_size: 28, color: gold, at: (640, 250) }
-panel: Rect, size: (210, 130), color: green, stroke: title_ink, stroke_width: 4, at: (640, 470)
-badge_label: Text { text: "wipe-out + reveal-out + draw-out", font_size: 24, color: (0.98, 0.63, 0.72, 1.0), at: (960, 250) }
-badge: Polygon, points: {(-80, 0), (0, -78), (86, 0), (0, 92)}, color: (1.0, 0.48, 0.62, 1.0), stroke: title_ink, stroke_width: 4, at: (860, 470)
-crest: Circle, radius: 56, color: gold, stroke: title_ink, stroke_width: 5, at: (1000, 470)
-spark: Rect, size: (110, 110), color: accent, stroke: title_ink, stroke_width: 5, at: (1140, 470)
+headline: Text { text: "fade-in", font_size: 28, color_role: text.primary, at: (320, 250) }
+orbit: Circle, radius: 84, color_role: accent.primary, stroke_role: stroke.default, stroke_width: 5, at: (320, 470)
+panel_label: Text { text: "draw-in + wipe-in", font_size: 28, color_role: accent.warning, at: (640, 250) }
+panel: Rect, size: (210, 130), color_role: accent.success, stroke_role: stroke.default, stroke_width: 4, at: (640, 470)
+badge_label: Text { text: "wipe-out + reveal-out + draw-out", font_size: 24, color_role: accent.danger, at: (960, 250) }
+badge: Polygon, points: {(-80, 0), (0, -78), (86, 0), (0, 92)}, color: accent.danger, stroke_role: stroke.default, stroke_width: 4, at: (860, 470)
+crest: Circle, radius: 56, color_role: accent.warning, stroke_role: stroke.default, stroke_width: 5, at: (1000, 470)
+spark: Rect, size: (110, 110), color_role: accent.primary, stroke_role: stroke.default, stroke_width: 5, at: (1140, 470)
 
 #0s
 fade-in headline [800ms]
