@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod colorscheme;
 pub mod env;
 pub mod image;
 pub mod kurbo_shapes;
@@ -10,6 +11,7 @@ pub mod vello_path;
 
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use actions::process_action;
+use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{load_standard_library, Environment, EvalError, Value};
 pub use image::load_image;
 pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
@@ -166,6 +168,21 @@ fn parse_stagger_interval_ms(
     }
 
     interval_ms
+}
+
+fn config_string_value(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Str(value) | Expr::Ident(value) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn colorscheme_role_key(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ident(value) | Expr::Str(value) => Some(value.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
+        _ => None,
+    }
 }
 
 fn push_unknown_target_path_diagnostic(
@@ -1525,6 +1542,9 @@ pub struct Timeline {
     pub anon_counter: usize,
     pub env: Environment,
     pub modifiers: Vec<Stmt>,
+    colorscheme: ResolvedColorscheme,
+    actor_role_assignments: BTreeMap<String, usize>,
+    next_actor_role_index: usize,
 }
 
 impl Timeline {
@@ -1539,6 +1559,9 @@ impl Timeline {
             anon_counter: 0,
             env: Environment::raw_new(),
             modifiers: Vec::new(),
+            colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
+            actor_role_assignments: BTreeMap::new(),
+            next_actor_role_index: 0,
         }
     }
 
@@ -1549,11 +1572,19 @@ impl Timeline {
     pub fn build_with_diagnostics(ast: &[Stmt]) -> BuildReport<Self> {
         let mut timeline = Self::new();
         load_standard_library(&mut timeline.env);
+        timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         let mut current_time_ms = 0.0;
         let mut diagnostics = Vec::new();
 
         for stmt in ast {
+            if let Stmt::Config { settings } = stmt {
+                timeline.apply_config_settings(settings, &mut diagnostics);
+            }
+        }
+
+        for stmt in ast {
             match stmt {
+                Stmt::Config { .. } => {}
                 Stmt::Keyframe { time, body } => {
                     current_time_ms = time_to_ms(time);
                     timeline.process_body(current_time_ms, body, None, &mut diagnostics);
@@ -1572,6 +1603,118 @@ impl Timeline {
             }
         }
         BuildReport::new(timeline, diagnostics)
+    }
+
+    fn apply_colorscheme(&mut self, colorscheme: ResolvedColorscheme) {
+        colorscheme.seed_environment(&mut self.env);
+        let background = colorscheme
+            .color("scene.background")
+            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+        let mut bg_track = PropertyTrack::new(background);
+        bg_track.add_keyframe(0, background, Easing::Linear);
+        self.background_color = bg_track;
+        self.colorscheme = colorscheme;
+    }
+
+    fn apply_config_settings(
+        &mut self,
+        settings: &[crate::ast::Property],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for setting in settings {
+            if setting.name != "colorscheme" {
+                continue;
+            }
+
+            let Some(raw_name) = config_string_value(&setting.value) else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidConfigValue,
+                        DiagnosticPhase::Build,
+                        "Config key 'colorscheme' expects a built-in scheme name string such as \"editorial-dark\".".to_string(),
+                    )
+                    .with_subject("colorscheme"),
+                );
+                continue;
+            };
+
+            let Some(built_in) = BuiltInColorscheme::from_name(&raw_name) else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownColorscheme,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Unknown colorscheme '{raw_name}'; using the default-dark built-in scheme instead."
+                        ),
+                    )
+                    .with_subject("colorscheme"),
+                );
+                continue;
+            };
+
+            self.apply_colorscheme(built_in.resolved());
+        }
+    }
+
+    fn actor_cycle_color(&mut self, label: &str) -> Option<[f32; 4]> {
+        if self.colorscheme.actor_cycle.is_empty() {
+            return None;
+        }
+
+        let slot = if let Some(slot) = self.actor_role_assignments.get(label) {
+            *slot
+        } else {
+            let slot = self.next_actor_role_index;
+            self.actor_role_assignments.insert(label.to_string(), slot);
+            self.next_actor_role_index += 1;
+            slot
+        };
+
+        Some(self.colorscheme.actor_cycle[slot % self.colorscheme.actor_cycle.len()])
+    }
+
+    fn resolve_role_color(
+        &mut self,
+        label: &str,
+        property_name: &str,
+        expr: &Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Option<[f32; 4]> {
+        let Some(role_key) = colorscheme_role_key(expr) else {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::UnknownColorRole,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Color role on '{}.{}' must be a role token such as text.primary, accent.warning, or actor.",
+                        label, property_name
+                    ),
+                )
+                .with_subject(format!("{}.{}", label, property_name)),
+            );
+            return None;
+        };
+
+        if role_key == "actor" {
+            return self.actor_cycle_color(label);
+        }
+
+        if let Some(color) = self.colorscheme.color(&role_key) {
+            return Some(color);
+        }
+
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::UnknownColorRole,
+                DiagnosticPhase::Build,
+                format!(
+                    "Unknown color role '{role_key}' on '{}.{}'; keeping the existing/default color instead.",
+                    label, property_name
+                ),
+            )
+            .with_subject(format!("{}.{}", label, property_name)),
+        );
+        None
     }
 
     pub fn duration_seconds(&self) -> f64 {
@@ -2283,10 +2426,11 @@ impl Timeline {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_text".to_string());
                     let eval_env = self.build_eval_env(time_ms as u64);
                     self.add_node(label_str.clone(), parent_label);
-                    let track = self
+                    let had_text_paths = self
                         .tracks
-                        .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                        .get(&label_str)
+                        .map(|track| !track.text_paths.keyframes.is_empty())
+                        .unwrap_or(false);
                     let ParsedTimingModifiers {
                         duration_ms,
                         delay_ms,
@@ -2300,8 +2444,7 @@ impl Timeline {
                     );
                     let t_start_ms = (time_ms + delay_ms) as u64;
                     let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-                    let supports_morph_options =
-                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+                    let supports_morph_options = had_text_paths && duration_ms > 0.0;
 
                     if has_non_default_morph_options(morph_options) && !supports_morph_options {
                         push_modifier_diagnostic(
@@ -2317,6 +2460,9 @@ impl Timeline {
                     let mut text_content = String::new();
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut initial_track_color: Option<[f32; 4]> = None;
+                    let mut explicit_color = false;
+                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2334,18 +2480,17 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
+                                explicit_color = true;
                                 let c = parse_color_in_env(&prop.value, &eval_env);
+                                initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
                                     (c[1] * 255.0) as u8,
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                if delay_ms > 0.0 && duration_ms == 0.0 {
-                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
-                                }
-                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
+                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2353,6 +2498,32 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
+                    }
+
+                    if !explicit_color
+                        && let Some(role_expr) = color_role_expr.as_ref()
+                        && let Some(role_color) =
+                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
+                    {
+                        initial_track_color = Some(role_color);
+                        color = typst::visualize::Color::from_u8(
+                            (role_color[0] * 255.0) as u8,
+                            (role_color[1] * 255.0) as u8,
+                            (role_color[2] * 255.0) as u8,
+                            (role_color[3] * 255.0) as u8,
+                        );
+                    }
+
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+                    if let Some(track_color) = initial_track_color {
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                        }
+                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
                     if let Some((binding, position)) = resolve_position_binding(
@@ -2395,10 +2566,11 @@ impl Timeline {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_math".to_string());
                     let eval_env = self.build_eval_env(time_ms as u64);
                     self.add_node(label_str.clone(), parent_label);
-                    let track = self
+                    let had_text_paths = self
                         .tracks
-                        .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                        .get(&label_str)
+                        .map(|track| !track.text_paths.keyframes.is_empty())
+                        .unwrap_or(false);
                     let ParsedTimingModifiers {
                         duration_ms,
                         delay_ms,
@@ -2412,8 +2584,7 @@ impl Timeline {
                     );
                     let t_start_ms = (time_ms + delay_ms) as u64;
                     let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-                    let supports_morph_options =
-                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+                    let supports_morph_options = had_text_paths && duration_ms > 0.0;
 
                     if has_non_default_morph_options(morph_options) && !supports_morph_options {
                         push_modifier_diagnostic(
@@ -2429,6 +2600,9 @@ impl Timeline {
                     let mut latex_content = String::new();
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut initial_track_color: Option<[f32; 4]> = None;
+                    let mut explicit_color = false;
+                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2446,18 +2620,17 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
+                                explicit_color = true;
                                 let c = parse_color_in_env(&prop.value, &eval_env);
+                                initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
                                     (c[1] * 255.0) as u8,
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                if delay_ms > 0.0 && duration_ms == 0.0 {
-                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
-                                }
-                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
+                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2465,6 +2638,32 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
+                    }
+
+                    if !explicit_color
+                        && let Some(role_expr) = color_role_expr.as_ref()
+                        && let Some(role_color) =
+                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
+                    {
+                        initial_track_color = Some(role_color);
+                        color = typst::visualize::Color::from_u8(
+                            (role_color[0] * 255.0) as u8,
+                            (role_color[1] * 255.0) as u8,
+                            (role_color[2] * 255.0) as u8,
+                            (role_color[3] * 255.0) as u8,
+                        );
+                    }
+
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+                    if let Some(track_color) = initial_track_color {
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                        }
+                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
                     if let Some((binding, position)) = resolve_position_binding(
@@ -2507,10 +2706,11 @@ impl Timeline {
                     let label_str = label.clone().unwrap_or_else(|| "unnamed_code".to_string());
                     let eval_env = self.build_eval_env(time_ms as u64);
                     self.add_node(label_str.clone(), parent_label);
-                    let track = self
+                    let had_text_paths = self
                         .tracks
-                        .entry(label_str.clone())
-                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                        .get(&label_str)
+                        .map(|track| !track.text_paths.keyframes.is_empty())
+                        .unwrap_or(false);
                     let ParsedTimingModifiers {
                         duration_ms,
                         delay_ms,
@@ -2524,8 +2724,7 @@ impl Timeline {
                     );
                     let t_start_ms = (time_ms + delay_ms) as u64;
                     let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-                    let supports_morph_options =
-                        !track.text_paths.keyframes.is_empty() && duration_ms > 0.0;
+                    let supports_morph_options = had_text_paths && duration_ms > 0.0;
 
                     if has_non_default_morph_options(morph_options) && !supports_morph_options {
                         push_modifier_diagnostic(
@@ -2541,6 +2740,9 @@ impl Timeline {
                     let mut code_content = String::new();
                     let mut font_size = 24.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+                    let mut initial_track_color: Option<[f32; 4]> = None;
+                    let mut explicit_color = false;
+                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2558,18 +2760,17 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
+                                explicit_color = true;
                                 let c = parse_color_in_env(&prop.value, &eval_env);
+                                initial_track_color = Some(c);
                                 color = typst::visualize::Color::from_u8(
                                     (c[0] * 255.0) as u8,
                                     (c[1] * 255.0) as u8,
                                     (c[2] * 255.0) as u8,
                                     (c[3] * 255.0) as u8,
                                 );
-                                if delay_ms > 0.0 && duration_ms == 0.0 {
-                                    preserve_instant_delayed_value(&mut track.color, t_start_ms);
-                                }
-                                track.color.add_keyframe(t_start_ms, c, Easing::Linear);
                             }
+                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2577,6 +2778,32 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
+                    }
+
+                    if !explicit_color
+                        && let Some(role_expr) = color_role_expr.as_ref()
+                        && let Some(role_color) =
+                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
+                    {
+                        initial_track_color = Some(role_color);
+                        color = typst::visualize::Color::from_u8(
+                            (role_color[0] * 255.0) as u8,
+                            (role_color[1] * 255.0) as u8,
+                            (role_color[2] * 255.0) as u8,
+                            (role_color[3] * 255.0) as u8,
+                        );
+                    }
+
+                    let track = self
+                        .tracks
+                        .entry(label_str.clone())
+                        .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+                    if let Some(track_color) = initial_track_color {
+                        if delay_ms > 0.0 && duration_ms == 0.0 {
+                            preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                        }
+                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
                     if let Some((binding, position)) = resolve_position_binding(
@@ -2781,28 +3008,33 @@ impl Timeline {
 
                     self.process_inline_items(time_ms, children, label, diagnostics);
                     let eval_env = self.build_eval_env(time_ms as u64);
-                    let track = self
+                    let existing_track = self
                         .tracks
-                        .entry(label.clone())
-                        .or_insert_with(|| AnimationTrack::new(label.clone()));
+                        .get(label)
+                        .cloned()
+                        .unwrap_or_else(|| AnimationTrack::new(label.clone()));
 
-                    let mut position = track.position.last_value();
-                    let mut size = track.size.last_value();
+                    let mut position = existing_track.position.last_value();
+                    let mut size = existing_track.size.last_value();
                     if ty == "Dot" && size == [50.0, 50.0] {
                         size = [6.0, 6.0];
                     } else if ty == "Arrow" && size == [50.0, 50.0] {
                         size = [24.0, 18.0];
                     }
-                    let mut line_from = track.line_from.last_value();
-                    let mut line_to = track.line_to.last_value();
-                    let mut arc_angles = track.arc_angles.last_value();
-                    let mut color = track.color.last_value();
+                    let mut line_from = existing_track.line_from.last_value();
+                    let mut line_to = existing_track.line_to.last_value();
+                    let mut arc_angles = existing_track.arc_angles.last_value();
+                    let mut color = existing_track.color.last_value();
+                    let mut explicit_color = false;
+                    let mut color_role_expr: Option<Expr> = None;
                     let shape_type = shape_type_for_actor(ty);
-                    let opacity = track.opacity.last_value();
-                    let mut stroke_width = track.stroke_width.last_value();
-                    let mut stroke_color = track.stroke_color.last_value();
-                    let mut stroke_progress = track.stroke_progress.last_value();
-                    let mut fill_opacity = track.fill_opacity.last_value();
+                    let opacity = existing_track.opacity.last_value();
+                    let mut stroke_width = existing_track.stroke_width.last_value();
+                    let mut stroke_color = existing_track.stroke_color.last_value();
+                    let mut explicit_stroke_color = false;
+                    let mut stroke_role_expr: Option<Expr> = None;
+                    let mut stroke_progress = existing_track.stroke_progress.last_value();
+                    let mut fill_opacity = existing_track.fill_opacity.last_value();
                     let mut gap = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
@@ -2824,7 +3056,7 @@ impl Timeline {
                     let t_start_ms = (time_ms + delay_ms) as u64;
                     let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
                     let supports_morph_options =
-                        !track.vector_paths.keyframes.is_empty() && duration_ms > 0.0;
+                        !existing_track.vector_paths.keyframes.is_empty() && duration_ms > 0.0;
 
                     if has_non_default_morph_options(morph_options) && !supports_morph_options {
                         push_modifier_diagnostic(
@@ -2914,15 +3146,20 @@ impl Timeline {
                             "commands" if ty == "Path" => {
                                 custom_path = parse_path_commands_expr(&prop.value, &eval_env);
                             }
+                            "color_role" => {
+                                color_role_expr = Some(prop.value.clone());
+                            }
                             "color" => {
+                                explicit_color = true;
                                 color = parse_color_in_env(&prop.value, &eval_env);
                                 // For plot types, also set stroke_color
                                 if ty == "CartesianPlot"
                                     || ty == "PolarPlot"
                                     || ty == "ParametricPlot"
-                                    || ty == "ImplicitPlot"
+                                        || ty == "ImplicitPlot"
                                 {
                                     stroke_color = parse_color_in_env(&prop.value, &eval_env);
+                                    explicit_stroke_color = true;
                                 }
                             }
                             "stroke_width" => {
@@ -2936,10 +3173,15 @@ impl Timeline {
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
+                                explicit_stroke_color = true;
                                 stroke_color = parse_color_in_env(&prop.value, &eval_env);
                             }
                             "stroke" => {
+                                explicit_stroke_color = true;
                                 stroke_color = parse_color_in_env(&prop.value, &eval_env);
+                            }
+                            "stroke_role" => {
+                                stroke_role_expr = Some(prop.value.clone());
                             }
                             "stroke_progress" => {
                                 let v = evaluate_expr(&prop.value, &eval_env)
@@ -2972,6 +3214,30 @@ impl Timeline {
                         }
                     }
 
+                    if !explicit_color
+                        && let Some(role_expr) = color_role_expr.as_ref()
+                        && let Some(role_color) =
+                            self.resolve_role_color(label, "color_role", role_expr, diagnostics)
+                    {
+                        color = role_color;
+                        if ty == "CartesianPlot"
+                            || ty == "PolarPlot"
+                            || ty == "ParametricPlot"
+                            || ty == "ImplicitPlot"
+                        {
+                            stroke_color = role_color;
+                            explicit_stroke_color = true;
+                        }
+                    }
+
+                    if !explicit_stroke_color
+                        && let Some(role_expr) = stroke_role_expr.as_ref()
+                        && let Some(role_color) =
+                            self.resolve_role_color(label, "stroke_role", role_expr, diagnostics)
+                    {
+                        stroke_color = role_color;
+                    }
+
                     if ty == "RegularPolygon" && custom_path.is_none() {
                         custom_path = Some(
                             KurboShape_::Polygon {
@@ -2989,6 +3255,11 @@ impl Timeline {
                         fill_opacity = 0.0;
                         stroke_width = 0.0;
                     }
+
+                    let track = self
+                        .tracks
+                        .entry(label.clone())
+                        .or_insert_with(|| AnimationTrack::new(label.clone()));
 
                     if let Some((binding, bound_position)) = resolve_position_binding(
                         at_expr.as_ref(),

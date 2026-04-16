@@ -37,8 +37,11 @@ impl fmt::Display for DiagnosticPhase {
 pub enum DiagnosticCode {
     UnsupportedModifierKey,
     InvalidModifierValue,
+    InvalidConfigValue,
     ConflictingModifierKey,
     UnknownAction,
+    UnknownColorscheme,
+    UnknownColorRole,
     UnsupportedActionTarget,
     UnsupportedSequenceStatement,
     UnknownTargetPath,
@@ -50,8 +53,11 @@ impl fmt::Display for DiagnosticCode {
         match self {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
+            DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
             DiagnosticCode::UnknownAction => write!(f, "unknown-action"),
+            DiagnosticCode::UnknownColorscheme => write!(f, "unknown-colorscheme"),
+            DiagnosticCode::UnknownColorRole => write!(f, "unknown-color-role"),
             DiagnosticCode::UnsupportedActionTarget => write!(f, "unsupported-action-target"),
             DiagnosticCode::UnsupportedSequenceStatement => {
                 write!(f, "unsupported-sequence-statement")

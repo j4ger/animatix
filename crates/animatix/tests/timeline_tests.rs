@@ -183,6 +183,255 @@ fn test_timeline_build_and_evaluate() {
 }
 
 #[test]
+fn config_colorscheme_seeds_scene_background_and_text_role() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::Text {
+                label: Some("title".to_string()),
+                props: vec![
+                    Property {
+                        name: "text".to_string(),
+                        value: Expr::Str("Animatix".to_string()),
+                    },
+                    Property {
+                        name: "color_role".to_string(),
+                        value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
+                    },
+                ],
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+
+    assert_eq!(
+        timeline.background_color.evaluate(0),
+        [0.04, 0.06, 0.09, 1.0]
+    );
+    assert_eq!(
+        timeline.tracks["title"].color.evaluate(0),
+        [0.97, 0.98, 1.0, 1.0]
+    );
+}
+
+#[test]
+fn explicit_color_beats_color_role() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![
+                    Property {
+                        name: "color_role".to_string(),
+                        value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("red".to_string()),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline.tracks["badge"].color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+}
+
+#[test]
+fn explicit_stroke_beats_stroke_role() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "axis".to_string(),
+                ty: "Line".to_string(),
+                props: vec![
+                    Property {
+                        name: "stroke_role".to_string(),
+                        value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
+                    },
+                    Property {
+                        name: "stroke".to_string(),
+                        value: Expr::Ident("red".to_string()),
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    assert_eq!(
+        timeline.tracks["axis"].stroke_color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+}
+
+#[test]
+fn actor_role_assigns_distinct_colors_and_keeps_identity() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "alice".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "color_role".to_string(),
+                        value: Expr::Ident("actor".to_string()),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "bob".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "color_role".to_string(),
+                        value: Expr::Ident("actor".to_string()),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "alice".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "color_role".to_string(),
+                    value: Expr::Ident("actor".to_string()),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+    let alice = timeline.tracks["alice"].color.evaluate(0);
+    let bob = timeline.tracks["bob"].color.evaluate(0);
+
+    assert_ne!(alice, bob);
+    assert_eq!(timeline.tracks["alice"].color.evaluate(1000), alice);
+}
+
+#[test]
+fn unknown_colorscheme_and_role_report_diagnostics() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("missing-scheme".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "color_role".to_string(),
+                    value: Expr::Path(vec!["accent".to_string(), "missing".to_string()]),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorscheme));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorRole));
+}
+
+#[test]
+fn component_instances_get_distinct_actor_role_colors() {
+    let dir = temp_project_dir("colorscheme_component_roles");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color_role: surface.primary
+    badge: Circle, radius: 12, color_role: actor
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+config { colorscheme: "editorial-dark" }
+import "./components.amx"
+
+left: MetricCard, title: "Latency"
+right: MetricCard, title: "Throughput"
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+
+    assert_ne!(
+        timeline.tracks["left.badge"].color.evaluate(0),
+        timeline.tracks["right.badge"].color.evaluate(0)
+    );
+}
+
+#[test]
 fn test_text_spacing_preserves_space_width() {
     let text_with_space = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
