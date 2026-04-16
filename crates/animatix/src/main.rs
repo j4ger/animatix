@@ -1,7 +1,7 @@
 use animatix::diagnostics::format_diagnostic;
 use animatix::module::ModuleGraph;
 use animatix::renderer;
-use animatix::timeline::Timeline;
+use animatix::timeline::{DebugRenderOptions, Timeline};
 use clap::{Parser as ClapParser, Subcommand};
 use std::path::PathBuf;
 
@@ -35,6 +35,10 @@ enum Commands {
         /// Loop the authored timeline in the preview window instead of holding on the last frame
         #[arg(long)]
         r#loop: bool,
+
+        /// Draw per-node content bounding boxes for debugging
+        #[arg(long)]
+        debug_bounds: bool,
     },
     /// Render a scene to a video file
     /// Render a specific frame to an image file (PNG)
@@ -57,6 +61,10 @@ enum Commands {
         /// Output filename
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Draw per-node content bounding boxes for debugging
+        #[arg(long)]
+        debug_bounds: bool,
     },
     Video {
         /// The input Animatix scene file (.amx)
@@ -81,6 +89,10 @@ enum Commands {
         /// Output filename
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Draw per-node content bounding boxes for debugging
+        #[arg(long)]
+        debug_bounds: bool,
     },
 }
 
@@ -112,7 +124,11 @@ fn main() {
                 }
             }
         }
-        Commands::Render { input, r#loop } => {
+        Commands::Render {
+            input,
+            r#loop,
+            debug_bounds,
+        } => {
             println!("Rendering Animatix file: {}", input.display());
 
             let ast = match ModuleGraph::new().load_program(&input) {
@@ -125,7 +141,13 @@ fn main() {
 
             let report = Timeline::build_with_diagnostics(&ast);
             print_build_diagnostics(&report.diagnostics);
-            renderer::run_timeline_with_options(report.output, r#loop);
+            renderer::run_timeline_with_options(
+                report.output,
+                r#loop,
+                DebugRenderOptions {
+                    draw_bounds: debug_bounds,
+                },
+            );
         }
         Commands::Image {
             input,
@@ -133,6 +155,7 @@ fn main() {
             height,
             time,
             output,
+            debug_bounds,
         } => {
             println!("Rendering Animatix image: {}", input.display());
 
@@ -155,7 +178,16 @@ fn main() {
             );
             let report = Timeline::build_with_diagnostics(&ast);
             print_build_diagnostics(&report.diagnostics);
-            renderer::render_image_timeline(report.output, width, height, time, &output_file);
+            renderer::render_image_timeline_with_debug(
+                report.output,
+                width,
+                height,
+                time,
+                &output_file,
+                DebugRenderOptions {
+                    draw_bounds: debug_bounds,
+                },
+            );
         }
         Commands::Video {
             input,
@@ -164,6 +196,7 @@ fn main() {
             fps,
             duration,
             output,
+            debug_bounds,
         } => {
             println!("Rendering Animatix video: {}", input.display());
 
@@ -189,13 +222,16 @@ fn main() {
             );
             let report = Timeline::build_with_diagnostics(&ast);
             print_build_diagnostics(&report.diagnostics);
-            renderer::render_video_timeline(
+            renderer::render_video_timeline_with_debug(
                 report.output,
                 width,
                 height,
                 fps,
                 duration,
                 &output_file,
+                DebugRenderOptions {
+                    draw_bounds: debug_bounds,
+                },
             );
         }
     }
