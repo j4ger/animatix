@@ -1,12 +1,12 @@
 # Animatix Colorscheme Implementation Plan
 
-This file turns the future-facing colorscheme design into an implementation-ready rollout plan.
+This file now tracks the shipped colorschemes v1 baseline and the remaining rollout work for broader colorscheme support.
 
 The guiding decision is simple:
 
-- **ship a useful built-in baseline first**
+- **keep the shipped v1 contract honest**
 - **preserve explicit actor color semantics throughout**
-- **treat external colorschemes as declarative data, not code**
+- **treat future external colorschemes as declarative data, not code**
 
 This plan assumes the current runtime baseline from `docs/spec.md`, `docs/primitives.md`, and `docs/architecture.md`.
 
@@ -14,13 +14,15 @@ This plan assumes the current runtime baseline from `docs/spec.md`, `docs/primit
 
 ## 1. Current Baseline
 
-The following are already true today and should remain stable through the colorscheme rollout:
+The following are already true today and should remain stable through colorscheme follow-up work:
 
 - scene background color is controlled through `scene.background_color`
 - actor colors are controlled through `color`, `stroke`, and `stroke_color`
 - explicit color values can be declared directly or assigned later through timeline statements
 - frame-local stateless overrides already sit on top of sampled track values
-- examples commonly define local palette variables near the top of a file and reuse them manually
+- built-in colorscheme selection now ships through `config { colorscheme: ... }`
+- `color_role`, `stroke_role`, and deterministic `color_role: actor` now ship in the runtime contract
+- a runnable built-in colorscheme example now exists in `examples/colorscheme_demo.amx`
 
 The colorscheme feature should extend that surface rather than replacing it.
 
@@ -32,166 +34,39 @@ The colorscheme feature should extend that surface rather than replacing it.
 2. **Prefer vertical slices.** Each phase should land with tests, docs, and one focused example where appropriate.
 3. **Keep shipped-vs-planned boundaries honest.** Do not widen `docs/spec.md` until runtime behavior and tests exist.
 4. **Resolve schemes before frame evaluation.** Colorscheme loading belongs to load/build time, not an ad hoc frame-time side channel.
-5. **Start with the smallest useful product.** Built-in schemes and role defaults come before file-backed sharing.
+5. **Broaden the smallest useful thing next.** File-backed sharing comes before optional expression/environment sugar.
 6. **Avoid plugin complexity.** External schemes should stay declarative until a proven future need justifies anything stronger.
 
 ---
 
-## 3. Proposed Delivery Order
+## 3. Remaining Delivery Order
 
 The recommended delivery order is:
 
-1. contract and terminology sync
-2. internal colorscheme data model + one built-in scheme
-3. scene-level scheme selection
-4. role-based declaration defaults
-5. actor-cycle auto assignment
-6. external loadable scheme files + inheritance
-7. examples, docs, and optional environment exposure follow-up
+1. keep the shipped v1 contract honest
+2. external loadable scheme files + inheritance
+3. broader examples/docs follow-up
+4. optional environment exposure only if it still earns its complexity later
 
-This order gives immediate user value while containing risk.
+This order gives additional user value without destabilizing the current precedence model.
 
 ---
 
-## 4. Phase 0 — Contract Sync and Terminology
+## 4. Shipped Foundation
 
-**Goal:** Define one canonical vocabulary before code changes begin.
+The following slices are now shipped and should be treated as completed baseline work:
 
-**Includes:**
+- Phase 0 — contract sync and terminology
+- Phase 1 — internal colorscheme model and built-in baseline
+- Phase 2 — scene-level scheme selection
+- Phase 3 — role-based declaration defaults
+- Phase 4 — actor-cycle auto assignment
 
-- document the difference between explicit color values, role-based defaults, timed assignments, and frame-local overrides
-- confirm that colorscheme selection is a load-time concern, not a new animated property
-- settle the initial naming surface (`colorscheme`, `color_role`, `stroke_role`, `actor` role)
-
-**Tests first:**
-
-- no runtime tests required yet
-- design and implementation docs land first
-
-**Exit criteria:**
-
-- the docs use one clear precedence vocabulary
-- no part of the plan depends on ambiguous override rules
+That shipped baseline means the remaining roadmap is about broadening the model, not inventing it.
 
 ---
 
-## 5. Phase 1 — Internal Colorscheme Model and Built-In Baseline
-
-**Goal:** Introduce internal colorscheme structures without changing the DSL surface yet.
-
-**Includes:**
-
-- add internal `Colorscheme` / `ResolvedColorscheme` data structures
-- define semantic token storage and actor-cycle storage
-- add one built-in baseline such as `default-dark`
-- define the in-memory representation shared by built-in and future external schemes
-
-**Tests first:**
-
-- unit tests for scheme resolution and fallback defaults
-- table-driven tests for token lookup and actor-cycle presence
-
-**Guardrails:**
-
-- no file loading yet
-- no GUI work
-- no parser changes beyond what the next phase requires
-
-**Exit criteria:**
-
-- built-in schemes can be resolved in memory deterministically
-- unresolved token lookups have defined fallback behavior
-
----
-
-## 6. Phase 2 — Scene-Level Scheme Selection
-
-**Goal:** Let a document select a built-in colorscheme through `config`.
-
-**Includes:**
-
-- add `colorscheme` as a planned/implemented `config` setting at the parser/runtime level when ready
-- resolve built-in scheme names during load/build
-- seed `scene.background_color` from `scene.background` only when the scene omits an explicit background
-
-**Tests first:**
-
-- parser tests for `config { colorscheme: ... }`
-- build/timeline tests proving selected scheme background is applied only when explicit background is absent
-- diagnostics tests for unknown built-in scheme names
-
-**Guardrails:**
-
-- do not treat `colorscheme` as a timed property
-- do not override explicit `scene.background_color`
-
-**Exit criteria:**
-
-- a document can select a built-in scheme by name
-- explicit authored background still wins
-
----
-
-## 7. Phase 3 — Role-Based Declaration Defaults
-
-**Goal:** Let declarations opt into scheme-driven defaults without changing explicit color semantics.
-
-**Includes:**
-
-- add `color_role`
-- add `stroke_role`
-- resolve semantic tokens such as `text.primary`, `surface.primary`, and `accent.warning`
-- seed declaration-time track defaults from those roles when explicit color values are omitted
-
-**Tests first:**
-
-- parser tests for role properties
-- timeline tests proving `color_role` seeds a declaration default
-- precedence tests proving explicit `color` / `stroke` win over role-based defaults
-- diagnostics tests for unknown role tokens
-
-**Guardrails:**
-
-- explicit `color`, `stroke`, and `stroke_color` remain stronger than role properties
-- do not widen this phase into actor auto-assignment yet
-
-**Exit criteria:**
-
-- authors can use semantic roles for common scene text/surface/accent usage
-- precedence between role and explicit value is test-backed and documented
-
----
-
-## 8. Phase 4 — Actor-Cycle Auto Assignment
-
-**Goal:** Support deterministic distinct colors for actor-like nodes through explicit opt-in.
-
-**Includes:**
-
-- add `color_role: actor`
-- assign actor-cycle colors deterministically by final actor identity/path
-- keep cycle-wrap behavior deterministic and documented
-
-**Tests first:**
-
-- timeline tests for stable assignment by labeled actor path
-- component-expansion tests for prefixed nested-label stability
-- tests covering anonymous-node deterministic behavior where supported
-- precedence tests proving explicit `color` and later assignments still win
-
-**Guardrails:**
-
-- do not introduce primitive-type auto-coloring
-- do not make unlabeled reorder-sensitive behavior look more stable than it is
-
-**Exit criteria:**
-
-- actor-role declarations receive distinct deterministic colors
-- explicit overrides still behave exactly as users expect
-
----
-
-## 9. Phase 5 — External Loadable Schemes and Inheritance
+## 5. Phase 5 — External Loadable Schemes and Inheritance
 
 **Goal:** Make schemes shareable across projects through declarative external files.
 
@@ -223,17 +98,15 @@ This order gives immediate user value while containing risk.
 
 ---
 
-## 10. Phase 6 — Docs, Examples, and Optional Environment Exposure
+## 6. Phase 6 — Docs, Examples, and Optional Environment Exposure
 
-**Goal:** Make the feature teachable and decide whether additional expression-surface access is worth exposing.
+**Goal:** Make the broadened feature teachable and decide whether additional expression-surface access is worth exposing.
 
 **Includes:**
 
-- add one focused example for built-in scheme usage
-- add one focused example for actor-cycle usage
 - add one focused example for external file-backed scheme usage
 - update `docs/spec.md`, `docs/primitives.md`, and `docs/architecture.md` only when the corresponding runtime slices are truly shipped
-- optionally expose resolved scheme values into the expression environment under `scheme.*` names if that remains worth the complexity after the core feature lands
+- optionally expose resolved scheme values into the expression environment under `scheme.*` names if that remains worth the complexity after the file-backed model lands
 
 **Tests first:**
 
@@ -252,9 +125,9 @@ This order gives immediate user value while containing risk.
 
 ---
 
-## 11. Diagnostics Matrix
+## 7. Diagnostics Matrix
 
-The implementation should explicitly cover these failure modes:
+The remaining colorscheme implementation should explicitly cover these failure modes:
 
 1. unknown built-in colorscheme name
 2. missing file-backed colorscheme path
@@ -268,9 +141,9 @@ Each should produce a build-facing diagnostic and a deterministic fallback path.
 
 ---
 
-## 12. Verification Checklist
+## 8. Verification Checklist
 
-Before the colorscheme work is considered landed:
+Before colorscheme follow-up work is considered landed:
 
 - parser tests pass for new config/properties
 - precedence tests cover scheme default vs explicit declaration vs assignment vs frame-local override
@@ -281,7 +154,7 @@ Before the colorscheme work is considered landed:
 
 ---
 
-## 13. What We Should Not Do First
+## 9. What We Should Not Do Next
 
 - ship plugin/executable themes before declarative file-backed schemes
 - make primitive type the main identity for automatic distinct colors
@@ -291,14 +164,12 @@ Before the colorscheme work is considered landed:
 
 ---
 
-## 14. Recommended Initial Commit Shape
+## 10. Recommended Next Commit Shape
 
-1. `docs: add colorscheme design and implementation plan`
-2. `test: add failing colorscheme config and precedence coverage`
-3. `feat: add built-in colorscheme model and scene selection`
-4. `feat: add color_role and stroke_role resolution`
-5. `feat: add actor-cycle automatic assignment`
-6. `feat: add file-backed colorscheme loading and inheritance`
-7. `docs: sync shipped colorscheme contract and examples`
+1. `test: add failing file-backed colorscheme loading coverage`
+2. `feat: add local colorscheme file loading`
+3. `feat: add colorscheme inheritance and diagnostics`
+4. `examples: add loadable colorscheme demo`
+5. `docs: sync broadened colorscheme contract and examples`
 
 This preserves small, reviewable vertical slices.

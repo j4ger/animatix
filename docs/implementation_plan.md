@@ -9,13 +9,16 @@ This plan starts from the runtime that exists today and reorders the roadmap aro
 The following are already part of the current baseline and should not be treated as active roadmap items:
 
 - Core scene primitives: `Text`, `Math`, `Code`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`
-- Plotting: `Graph`, `CartesianPlot`, and `PolarPlot`
+- Primitive breadth already shipped on top of that baseline: `Dot`, `Square`, `Arrow`, and `RegularPolygon`
+- Plotting: `Graph`, `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot`
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
 - Colorschemes v1: built-in scene selection, semantic color roles, `stroke_role`, and deterministic actor-cycle defaults layered on top of explicit color authoring
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
 - Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
+- Motion ergonomics already shipped in the current runtime contract: `move`, `shift`, `rotate`, and `scale`
+- Composition ergonomics already shipped in scoped form: `sequence` and `stagger` blocks for actions/property assignments with deliberate diagnostics for unsupported contents
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
 
 The roadmap below begins after that baseline.
@@ -40,25 +43,20 @@ From a user perspective, the most important remaining gaps are no longer the bas
 ### Urgent UX gaps
 
 1. **Richer reveal and exit actions**
-   - Users need stronger built-in verbs than only `fade-in`, `wipe-in`, and `fade-out`.
+   - Users need stronger built-in verbs than the current shipped set of `fade-in`, `draw-in`, `wipe-in`, `fade-out`, and `wipe-out`.
    - Reveal-by-drawing, reveal-out, and other lightweight action variants are high-value because they fit explanatory animation directly.
 
 2. **Action-target diagnostics that never pretend unsupported behavior works**
    - As the action surface grows, action/target mismatches must fail honestly.
    - This is part of Animatix's product quality, not just implementation hygiene.
 
-3. **Motion ergonomics**
-   - Users need easier authored motion such as move, shift, rotate, and scale.
-   - These belong soon, but they are broader than reveal actions because they touch transform semantics, layout interaction, and inheritance.
-
-4. **Animation composition ergonomics**
-   - Users need simple sequencing, staggering, overlap, and grouped timing.
-   - This is important, but it should follow a stronger base action set.
+3. **Component and diagnostic contract tightening**
+   - Nested-label targeting, reusable authoring patterns, and runtime diagnostics should stay sharper than the growing surface area around them.
+   - This now matters more than another broad convenience feature because the shipped runtime already spans components, composition helpers, plots, and colorschemes.
 
 ### Useful, but not first
 
-- Additional primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
-- Deeper plotting parity such as `ParametricPlot` and `ImplicitPlot`
+- Colorscheme follow-up work: file-backed schemes, inheritance, and broader reusable scheme sharing
 - Better GUI/editor affordances and discovery
 
 Colorscheme follow-up work now means **broadening** the shipped v1 surface rather than inventing it from scratch. The design and rollout docs remain the place for future loadable schemes, inheritance, and broader authoring integration: [`colorscheme_design.md`](colorscheme_design.md) and [`colorscheme_implementation_plan.md`](colorscheme_implementation_plan.md).
@@ -126,67 +124,25 @@ The roadmap is divided into one sync milestone and six implementation phases.
 
 ---
 
-## 6. Phase 2 — Motion Ergonomics v1
+## 6. Phase 2 — Component and Diagnostic Contract Tightening
 
 **Urgency:** High
 
-**Goal:** Add first-class authored motion ergonomics on top of the existing scene graph and track model.
+**Goal:** Sharpen reusable authoring rules and keep failure modes precise as the language/runtime surface grows.
 
 **Why second:**
-- This is a major UX need, but it is broader than reveal actions.
-- It touches local transforms, inherited transforms, and the relationship between layout placement and authored motion.
-
-**Includes:**
-- first-class support for common authored motion such as move / shift / rotate / scale
-- clear rules for how local motion composes with layout-managed placement
-- docs/examples that teach when to use layout containers versus manual motion
-
-**Guardrails:**
-- do not blur layout semantics and local transform semantics
-- do not widen into camera or viewport state in this phase
-
-**Exit criteria:**
-- authored motion can be expressed directly without awkward property-level workarounds
-- layout-managed nodes and manually placed nodes follow one teachable motion contract
-
----
-
-## 7. Phase 3 — Animation Composition v1
-
-**Urgency:** High
-
-**Goal:** Make timing relationships between multiple animations easier to author.
-
-**Why third:**
-- Users need sequencing and staggering, but it is safer to design this after the action and motion surface is more complete.
-
-**Includes:**
-- grouped timing helpers such as sequencing, stagger, overlap, or equivalent declarative orchestration
-- examples that show multi-object choreography without imperative stateful execution
-
-**Guardrails:**
-- preserve the random-access “frame at `t` derives from `t`” model
-- do not introduce stateful playback-only constructs
-
-**Exit criteria:**
-- users can express common multi-object timing relationships directly and predictably
-
----
-
-## 8. Phase 4 — Component and Diagnostic Contract Tightening
-
-**Urgency:** High
-
-**Goal:** Sharpen the reusable authoring surface and keep failure modes precise as the language grows.
+- The runtime now spans nested label targeting, scoped composition helpers, and colorscheme defaults, so contract sharpness matters more than adding another broad feature family immediately.
+- This work compounds the value of the already-shipped surface instead of expanding ambiguity.
 
 **Includes:**
 - clearer namespace/reachability rules for nested labels
 - stronger diagnostics around ambiguous or unintended component access
+- action/property diagnostics that stay honest as the supported surface grows
 - better runnable examples for reusable component authoring patterns
-- continued tightening of action/property diagnostics where runtime support is intentionally narrow
 
-**Deferred inside this phase:**
-- custom component actions remain future-facing until the parameter-driven component model proves insufficient
+**Guardrails:**
+- do not widen into custom component actions or a richer runtime object model yet
+- do not build editor workflows on top of ambiguous contract edges
 
 **Exit criteria:**
 - reusable component authoring is documented and testable without ambiguity
@@ -194,27 +150,48 @@ The roadmap is divided into one sync milestone and six implementation phases.
 
 ---
 
-## 9. Phase 5 — Breadth Expansions: Primitives, Plots, and Host-Specific Effects
+## 7. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
 
-**Urgency:** Medium
+**Urgency:** High
 
-**Goal:** Expand capability after the core animation authoring experience is stronger.
+**Goal:** Broaden the shipped colorschemes v1 surface into a reusable project-level theming workflow without changing the explicit-color precedence model.
+
+**Why third:**
+- Colorschemes v1 already landed and removed a large amount of palette boilerplate.
+- The next meaningful colorscheme value is shareability across projects, but it is safer after the current runtime contract and diagnostics stay honest.
 
 **Includes:**
-- additional practical primitives such as `Arrow`, `Dot`, `Square`, and `RegularPolygon`
-- plotting additions such as `ParametricPlot` and `ImplicitPlot`
-- host-specific effect controls that map cleanly onto real runtime hooks
+- file-backed/loadable colorschemes
+- scheme inheritance / extension
+- diagnostics for missing schemes, invalid files, and missing roles
+- docs/examples that distinguish built-in-only v1 from the broader reusable scheme story
 
 **Guardrails:**
-- every new primitive or host-specific key must ship with one focused example, one focused spec section, and direct runtime validation
-- do not imply general support from parser acceptance alone
+- preserve the current precedence stack where explicit `color`, `stroke`, timed assignments, and `always` overrides beat scheme defaults
+- do not jump to executable/plugin theming
+
+**Exit criteria:**
+- users can reuse colorschemes across projects without copy-pasting palette blocks into every `.amx` file
+
+---
+
+## 8. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+
+**Urgency:** High
+
+**Goal:** Expand capability after the current authoring contract and colorscheme follow-up work are both stable.
+
+**Includes:**
+- host-specific effect controls that map cleanly onto real runtime hooks
+- any remaining practical primitives/plot helpers that still have clear value after the current shipped breadth
+- one focused example and one focused spec section per newly widened surface
 
 **Exit criteria:**
 - new breadth features improve authoring range without reintroducing contract ambiguity
 
 ---
 
-## 10. Phase 6 — Tooling and Authoring Workflow Refinement
+## 9. Phase 5 — Tooling and Authoring Workflow Refinement
 
 **Urgency:** Medium
 
@@ -262,9 +239,9 @@ These should only move forward once the action/motion authoring surface is stabl
 
 1. **Complete Milestone 0: roadmap/spec contract sync**
 2. **Implement Phase 1: reveal actions v1 + honest action diagnostics**
-3. **Move to Phase 2: motion ergonomics v1**
-4. **Then Phase 3: animation composition v1**
-5. **Tighten reusable authoring and diagnostics contracts in Phase 4**
-6. **Expand breadth only after the authoring UX is materially better**
+3. **Move immediately to Phase 2: component and diagnostic contract tightening**
+4. **Then Phase 3: colorscheme follow-up with loadable schemes and inheritance**
+5. **Expand host-specific breadth only after those contracts are stable**
+6. **Keep tooling/editor refinement after the runtime surface stops shifting underneath it**
 
-This ordering keeps the roadmap aligned with the current engine and with what users feel most acutely: first make common animation intent easier, then broaden the surface deliberately.
+This ordering keeps the roadmap aligned with the current engine and with what users feel most acutely: first make common animation intent and diagnostics more honest, then broaden reusable authoring only after the current contract is sharp enough to support it.
