@@ -86,3 +86,62 @@ impl BuiltinAction for FadeOut {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
+
+    fn text_decl(label: &str) -> Stmt {
+        Stmt::Text {
+            label: Some(label.to_string()),
+            props: vec![
+                Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("Bye".to_string()),
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(32.0),
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
+                },
+            ],
+            modifiers: vec![],
+        }
+    }
+
+    #[test]
+    fn fade_out_animates_opacity_to_zero() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                text_decl("headline"),
+                Stmt::Action(Action {
+                    verb: "fade-out".to_string(),
+                    targets: vec!["headline".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    }],
+                }),
+            ],
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let track = report
+            .output
+            .tracks
+            .get("headline")
+            .expect("headline track");
+
+        assert_eq!(track.opacity.evaluate(0), 1.0);
+        assert!(track.opacity.evaluate(500) < 1.0);
+        assert!(track.opacity.evaluate(500) > 0.0);
+        assert_eq!(track.opacity.evaluate(1000), 0.0);
+        assert!(report.diagnostics.is_empty());
+    }
+}
