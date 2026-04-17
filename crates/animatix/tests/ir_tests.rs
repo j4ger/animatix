@@ -1,12 +1,12 @@
 use animatix::ast::{BinaryOp, Expr, Stmt, Time};
 use animatix::ir::{
-    compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir, IrLowerError, ModifierExpr,
+    IrLowerError, ModifierExpr, compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir,
 };
 use animatix::module::ModuleGraph;
 use animatix::timeline::{
-    evaluate_expr, load_standard_library, Environment, SceneDimensions, Timeline, Value,
+    Environment, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
-use animatix::vm::{compile_modifier_bytecode, VmCompileError};
+use animatix::vm::{VmCompileError, compile_modifier_bytecode};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
