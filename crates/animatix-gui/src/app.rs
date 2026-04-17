@@ -1,3 +1,6 @@
+mod file_tree;
+mod preview;
+
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
@@ -9,8 +12,9 @@ use egui::{Align, Color32, RichText, Stroke, Vec2};
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
+use file_tree::{build_file_tree, workspace_root_for};
+use preview::{fit_preview, paint_timeline_scrubber};
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1185,245 +1189,6 @@ fn load_workspace_persistence(path: &Path) -> Option<DockState<WorkspaceTab>> {
     Some(persistence.dock_state)
 }
 
-fn workspace_root_for(file_path: &Path) -> PathBuf {
-    for ancestor in file_path.ancestors() {
-        if ancestor.join(".git").exists() || ancestor.join("Cargo.toml").exists() {
-            return ancestor.to_path_buf();
-        }
-    }
-    file_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf()
-}
-
-fn build_file_tree(workspace_root: &Path, current_file: &Path) -> Vec<FileTreeEntry> {
-    let mut entries = Vec::new();
-    let mut remaining = MAX_TREE_ENTRIES;
-    collect_tree_entries(
-        workspace_root,
-        current_file,
-        0,
-        &mut remaining,
-        &mut entries,
-    );
-    entries
-}
-
-fn collect_tree_entries(
-    dir: &Path,
-    current_file: &Path,
-    depth: usize,
-    remaining: &mut usize,
-    entries: &mut Vec<FileTreeEntry>,
-) {
-    if depth > MAX_TREE_DEPTH || *remaining == 0 {
-        return;
-    }
-
-    let read_dir = match fs::read_dir(dir) {
-        Ok(read_dir) => read_dir,
-        Err(_) => return,
-    };
-
-    let mut children: Vec<_> = read_dir.filter_map(Result::ok).collect();
-    children.sort_by(|a, b| match (a.path().is_dir(), b.path().is_dir()) {
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        _ => a.file_name().cmp(&b.file_name()),
-    });
-
-    for child in children {
-        if *remaining == 0 {
-            return;
-        }
-
-        let path = child.path();
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        if name.starts_with('.') && !current_file.starts_with(&path) {
-            continue;
-        }
-
-        let is_dir = path.is_dir();
-        entries.push(FileTreeEntry {
-            path: path.clone(),
-            name: name.to_string(),
-            depth,
-            is_dir,
-        });
-        *remaining = remaining.saturating_sub(1);
-
-        if is_dir {
-            collect_tree_entries(&path, current_file, depth + 1, remaining, entries);
-        }
-    }
-}
-
-fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 {
-    let aspect = if dimensions.width == 0 || dimensions.height == 0 {
-        DEFAULT_PREVIEW_SIZE.width as f32 / DEFAULT_PREVIEW_SIZE.height as f32
-    } else {
-        dimensions.width as f32 / dimensions.height as f32
-    };
-    let width_limited_height = available.x / aspect;
-    if width_limited_height <= available.y {
-        Vec2::new(available.x, width_limited_height)
-    } else {
-        Vec2::new(available.y * aspect, available.y)
-    }
-}
-
-fn paint_timeline_scrubber(
-    ui: &mut egui::Ui,
-    current_time_s: &mut f64,
-    duration_s: f64,
-    markers_s: &[f64],
-    is_playing: bool,
-) -> bool {
-    let desired_size = Vec2::new(ui.available_width().max(120.0), TIMELINE_HEIGHT);
-    let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
-    let duration_s = duration_s.max(0.1);
-    let painter = ui.painter_at(rect);
-    let visuals = ui.visuals();
-    let track_rect = rect.shrink2(Vec2::new(6.0, 11.0));
-    let fraction = timeline_fraction(*current_time_s, duration_s);
-    let playhead_x = egui::lerp(track_rect.left()..=track_rect.right(), fraction);
-    let played_rect = egui::Rect::from_min_max(
-        track_rect.min,
-        egui::pos2(playhead_x.max(track_rect.left()), track_rect.bottom()),
-    );
-
-    painter.rect_filled(track_rect, 7.0, Color32::from_rgb(28, 31, 38));
-    painter.rect_stroke(
-        track_rect,
-        7.0,
-        Stroke::new(1.0, Color32::from_rgb(56, 60, 73)),
-        egui::StrokeKind::Outside,
-    );
-    painter.rect_filled(
-        played_rect,
-        7.0,
-        if is_playing {
-            Color32::from_rgb(84, 110, 255)
-        } else {
-            Color32::from_rgb(76, 92, 148)
-        },
-    );
-
-    for tick in timeline_tick_times(duration_s) {
-        let x = egui::lerp(
-            track_rect.left()..=track_rect.right(),
-            timeline_fraction(tick, duration_s),
-        );
-        painter.line_segment(
-            [
-                egui::pos2(x, track_rect.top() + 4.0),
-                egui::pos2(x, track_rect.bottom() - 4.0),
-            ],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 24)),
-        );
-    }
-
-    for marker in markers_s {
-        let x = egui::lerp(
-            track_rect.left()..=track_rect.right(),
-            timeline_fraction(*marker, duration_s),
-        );
-        painter.line_segment(
-            [
-                egui::pos2(x, track_rect.top() + 2.0),
-                egui::pos2(x, track_rect.bottom() - 2.0),
-            ],
-            Stroke::new(1.5, Color32::from_rgb(255, 196, 92)),
-        );
-    }
-
-    painter.line_segment(
-        [
-            egui::pos2(playhead_x, track_rect.top() - 3.0),
-            egui::pos2(playhead_x, track_rect.bottom() + 3.0),
-        ],
-        Stroke::new(2.0, Color32::WHITE),
-    );
-    painter.circle_filled(
-        egui::pos2(playhead_x, track_rect.center().y),
-        5.0,
-        Color32::WHITE,
-    );
-
-    painter.text(
-        rect.left_bottom() + Vec2::new(0.0, -1.0),
-        egui::Align2::LEFT_BOTTOM,
-        format_time_label(0.0),
-        egui::TextStyle::Small.resolve(ui.style()),
-        visuals.text_color(),
-    );
-    painter.text(
-        rect.right_bottom() + Vec2::new(0.0, -1.0),
-        egui::Align2::RIGHT_BOTTOM,
-        format_time_label(duration_s),
-        egui::TextStyle::Small.resolve(ui.style()),
-        visuals.text_color(),
-    );
-
-    if (response.clicked() || response.dragged()) && response.interact_pointer_pos().is_some() {
-        *current_time_s = time_from_pointer_x(
-            track_rect,
-            response.interact_pointer_pos().unwrap().x,
-            duration_s,
-        );
-        return true;
-    }
-
-    false
-}
-
-fn timeline_fraction(current_time_s: f64, duration_s: f64) -> f32 {
-    (current_time_s / duration_s.max(0.1)).clamp(0.0, 1.0) as f32
-}
-
-fn time_from_pointer_x(rect: egui::Rect, pointer_x: f32, duration_s: f64) -> f64 {
-    let width = rect.width().max(1.0);
-    let normalized = ((pointer_x - rect.left()) / width).clamp(0.0, 1.0) as f64;
-    normalized * duration_s.max(0.1)
-}
-
-fn timeline_tick_times(duration_s: f64) -> Vec<f64> {
-    let duration_s = duration_s.max(0.1);
-    let step = if duration_s <= 2.0 {
-        0.25
-    } else if duration_s <= 5.0 {
-        0.5
-    } else if duration_s <= 15.0 {
-        1.0
-    } else if duration_s <= 45.0 {
-        5.0
-    } else {
-        10.0
-    };
-
-    let mut ticks = Vec::new();
-    let mut tick = 0.0;
-    while tick < duration_s {
-        ticks.push(tick);
-        tick += step;
-    }
-    ticks.push(duration_s);
-    ticks
-}
-
-fn format_time_label(time_s: f64) -> String {
-    if time_s >= 60.0 {
-        let minutes = (time_s / 60.0).floor() as u32;
-        let seconds = time_s % 60.0;
-        format!("{minutes}:{seconds:04.1}")
-    } else {
-        format!("{time_s:.1}s")
-    }
-}
-
 fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
     let button = if primary {
         egui::Button::new(label).fill(Color32::from_rgb(84, 110, 255))
@@ -1448,9 +1213,7 @@ fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        WorkspaceTab, default_dock_state, fit_preview, time_from_pointer_x, timeline_fraction,
-    };
+    use super::{WorkspaceTab, default_dock_state, fit_preview, preview};
     use animatix::timeline::SceneDimensions;
     use egui::Vec2;
 
@@ -1490,16 +1253,16 @@ mod tests {
 
     #[test]
     fn timeline_fraction_clamps_to_bounds() {
-        assert_eq!(timeline_fraction(-1.0, 10.0), 0.0);
-        assert_eq!(timeline_fraction(5.0, 10.0), 0.5);
-        assert_eq!(timeline_fraction(20.0, 10.0), 1.0);
+        assert_eq!(preview::timeline_fraction(-1.0, 10.0), 0.0);
+        assert_eq!(preview::timeline_fraction(5.0, 10.0), 0.5);
+        assert_eq!(preview::timeline_fraction(20.0, 10.0), 1.0);
     }
 
     #[test]
     fn pointer_position_maps_to_scrub_time() {
         let rect = egui::Rect::from_min_max(egui::pos2(10.0, 0.0), egui::pos2(210.0, 20.0));
-        assert_eq!(time_from_pointer_x(rect, 10.0, 8.0), 0.0);
-        assert!((time_from_pointer_x(rect, 110.0, 8.0) - 4.0).abs() < 0.001);
-        assert_eq!(time_from_pointer_x(rect, 210.0, 8.0), 8.0);
+        assert_eq!(preview::time_from_pointer_x(rect, 10.0, 8.0), 0.0);
+        assert!((preview::time_from_pointer_x(rect, 110.0, 8.0) - 4.0).abs() < 0.001);
+        assert_eq!(preview::time_from_pointer_x(rect, 210.0, 8.0), 8.0);
     }
 }
