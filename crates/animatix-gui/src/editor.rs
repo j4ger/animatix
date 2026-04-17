@@ -2,6 +2,27 @@ use egui::TextBuffer;
 use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
 use std::path::Path;
 
+// Keep this fallback aligned with tree-sitter-animatix/queries/highlights.scm.
+// egui_code_editor cannot consume Tree-sitter highlights directly, so the GUI
+// currently mirrors the shared keyword/type surface through these static lists.
+const ANIMATIX_KEYWORDS: [&str; 11] = [
+    "always",
+    "component",
+    "else",
+    "false",
+    "for",
+    "if",
+    "import",
+    "in",
+    "let",
+    "pub",
+    "true",
+];
+
+const ANIMATIX_TYPES: [&str; 11] = [
+    "Arc", "Circle", "Code", "Ellipse", "Image", "Line", "Math", "Path", "Rect", "Svg", "Text",
+];
+
 pub struct EditorBuffer {
     text: String,
     syntax: Syntax,
@@ -55,29 +76,8 @@ pub fn syntax_for_path(path: &Path) -> Syntax {
         Some("asm") => Syntax::asm(),
         Some("amx") => Syntax::new("animatix")
             .with_comment("//")
-            .with_keywords([
-                "animate",
-                "at",
-                "cartesian",
-                "from",
-                "group",
-                "image",
-                "in",
-                "let",
-                "line",
-                "math",
-                "over",
-                "path",
-                "polar",
-                "pub",
-                "rect",
-                "svg",
-                "text",
-                "to",
-            ])
-            .with_types([
-                "Actor", "Arc", "Circle", "Ellipse", "Image", "Line", "Path", "Rect", "Text",
-            ]),
+            .with_keywords(ANIMATIX_KEYWORDS)
+            .with_types(ANIMATIX_TYPES),
         _ => Syntax::new("plain").with_comment("//"),
     }
 }
@@ -91,6 +91,14 @@ mod tests {
     fn animatix_files_use_animatix_syntax() {
         let syntax = syntax_for_path(Path::new("scene.amx"));
         assert_eq!(syntax.language, "animatix");
+        assert!(syntax.keywords.contains("import"));
+        assert!(syntax.keywords.contains("always"));
+        assert!(syntax.keywords.contains("component"));
+        assert!(!syntax.keywords.contains("animate"));
+        assert!(!syntax.keywords.contains("over"));
+        assert!(syntax.types.contains("Code"));
+        assert!(syntax.types.contains("Math"));
+        assert!(syntax.types.contains("Svg"));
     }
 
     #[test]
