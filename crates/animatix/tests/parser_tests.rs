@@ -662,7 +662,10 @@ fn test_path_actor_decl() {
                     value: Expr::Tuple(vec![
                         Expr::Call(
                             "move_to".to_string(),
-                            vec![Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))), Expr::Num(0.0)],
+                            vec![
+                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))),
+                                Expr::Num(0.0)
+                            ],
                         ),
                         Expr::Call(
                             "line_to".to_string(),
