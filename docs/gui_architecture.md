@@ -8,6 +8,8 @@
 
 The first GUI MVP is now shipped in `crates/animatix-gui`.
 
+This document is the current authoritative GUI reference. Older phase-by-phase rollout tracking has been consolidated away so the repo only keeps one GUI architecture/status doc.
+
 What exists today:
 
 - an egui desktop app built on `egui`, `egui-winit`, `egui_dock`, `egui_wgpu_backend`, `winit`, and `wgpu`

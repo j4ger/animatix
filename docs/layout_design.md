@@ -1,6 +1,11 @@
-# Animatix Layout Design and Phase 1 Plan
+# Animatix Layout Design and Phase 2 Direction
 
-This document turns the layout direction into an implementation-ready plan.
+This document now serves two purposes:
+
+1. preserve the rationale behind the shipped Phase 1 layout model, and
+2. describe the next truthful layout direction beyond that shipped baseline.
+
+For the current shipped surface, treat `docs/spec.md`, `docs/primitives.md`, and the roadmap in `docs/implementation_plan.md` as the source of truth.
 
 The guiding decision is simple:
 

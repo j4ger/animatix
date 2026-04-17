@@ -1,12 +1,12 @@
 # Extensible Colorscheme Design for Animatix
 
-> **Status: planned / design-only document**
+> **Status: future-extension / design-only document**
 >
-> This file describes a future-facing colorscheme system for Animatix. It is not part of the shipped DSL contract today. For current runtime behavior, treat `docs/spec.md` and `docs/primitives.md` as the source of truth.
+> Built-in colorschemes v1 are already shipped: `config { colorscheme: ... }`, semantic color aliases through `color` / `stroke`, and `color: auto` are part of the current runtime contract. This document now owns only the broader future design for external/loadable schemes, inheritance, and related extension work. For current runtime behavior, treat `docs/spec.md` and `docs/primitives.md` as the source of truth.
 >
 > Scoping note: this design is intentionally **data-first and runtime/DSL-first**. It does not assume a property inspector, a theme marketplace, remote loading, or executable plugins.
 
-This document turns the earlier colorscheme discussion into a concrete product and architecture proposal.
+This document turns the remaining colorscheme follow-up discussion into a concrete product and architecture proposal.
 
 The guiding decision is simple:
 
@@ -238,7 +238,7 @@ Illustrative direction:
     "accent.danger": (1.0, 0.46, 0.54, 1.0),
     "stroke.default": (0.97, 0.98, 1.0, 1.0),
   },
-  actor_cycle: [
+  auto_color_pool: [
     (0.38, 0.78, 1.0, 1.0),
     (0.35, 0.86, 0.63, 1.0),
     (1.0, 0.46, 0.54, 1.0),
@@ -495,32 +495,32 @@ panel: Rect, size: (300, 160), color: surface.primary, at: (640, 360)
 
 The safest rollout is:
 
-### Slice 1 — Built-in scheme model
+### Slice 1 — Built-in scheme model *(shipped)*
 
 - define internal colorscheme data structures
 - add one built-in default scheme
 - support `config.colorscheme`
 - seed scene background from scheme when omitted
 
-### Slice 2 — Role-based declaration defaults
+### Slice 2 — Alias-backed declaration defaults *(shipped)*
 
 - add colorscheme alias support through `color` / `stroke`
 - support semantic token resolution
 - preserve explicit `color` / `stroke` precedence
 
-### Slice 3 — Actor cycle
+### Slice 3 — Automatic color assignment *(shipped)*
 
 - add `color: auto`
 - define deterministic actor-path assignment
 - add precedence and wrap tests
 
-### Slice 4 — External loadable schemes
+### Slice 4 — External loadable schemes *(active future work)*
 
 - add file-backed scheme loading
 - add `extends`
 - add diagnostics for load failures and cycles
 
-### Slice 5 — Broader expression exposure and GUI follow-up
+### Slice 5 — Broader expression exposure and GUI follow-up *(future follow-up)*
 
 - optionally expose resolved scheme tokens in the evaluation environment
 - later decide whether the GUI should surface scheme switching or role discovery

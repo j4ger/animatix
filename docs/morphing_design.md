@@ -1,10 +1,20 @@
 # Vector Morphing Design for Animatix
 
-> **Status: planned / design-only document**
+> **Status: future-extension / design-only document**
 >
-> This file describes future-facing morph APIs and strategy controls, not the shipped DSL contract. For current runtime behavior, use `docs/spec.md` and `docs/primitives.md` as the source of truth.
+> Current morphing is already shipped in a narrower form: re-declaration morphing plus scoped timed path-morphing modifiers such as `strategy: auto|match`, `path_arc`, and `stretch`. This file describes broader future-facing morph APIs and strategy controls beyond that shipped contract. For current runtime behavior, use `docs/spec.md` and `docs/primitives.md` as the source of truth.
 >
 > Additional scoping note: `strategy: fade` is intentionally deferred for now. Unlike interpolation-oriented controls such as `auto`, `match`, `path_arc`, or `stretch`, a true cross-fade likely wants a different transition/compositing representation or a broader architecture change.
+
+## Shipped Today
+
+The current runtime already supports:
+
+- actor/text/path re-declaration morphing through the timeline/property-track system
+- scoped timed path-morphing modifiers on supported re-declarations
+- low-level path alignment and interpolation helpers in `docs/kurbo_shapes.md`
+
+This document is only about what may come next beyond that shipped baseline.
 
 ## 1. Syntax for Morphing
 

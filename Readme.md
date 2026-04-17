@@ -123,9 +123,8 @@ Useful docs:
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution flow and validation expectations
 - [`docs/spec.md`](docs/spec.md) — current language status matrix
-- [`docs/implementation_plan.md`](docs/implementation_plan.md) — shipped vs planned work
-- [`docs/colorscheme_design.md`](docs/colorscheme_design.md) — future reusable colorscheme design
-- [`docs/colorscheme_implementation_plan.md`](docs/colorscheme_implementation_plan.md) — phased colorscheme rollout plan
+- [`docs/implementation_plan.md`](docs/implementation_plan.md) — current master roadmap after the shipped baseline
+- [`docs/colorscheme_design.md`](docs/colorscheme_design.md) — future external/loadable colorscheme design notes
 - [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme and alias-based color example
 - [`tree-sitter-animatix/README.md`](tree-sitter-animatix/README.md) — editor grammar scope and sync rules
 
@@ -133,4 +132,4 @@ Useful docs:
 
 Current work is focused on keeping the documented language surface honest, expanding the runtime where it already has a clear contract, and improving the GUI/editor experience without overpromising unfinished syntax.
 
-For the detailed phased plan, see [`docs/implementation_plan.md`](docs/implementation_plan.md).
+For the current roadmap and what is still active versus already shipped, see [`docs/implementation_plan.md`](docs/implementation_plan.md).
