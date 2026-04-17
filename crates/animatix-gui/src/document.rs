@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 pub struct DocumentSession {
     pub file_path: PathBuf,
     pub source_text: String,
-    pub ast: Option<Vec<Stmt>>,
+    pub expanded_statements: Option<Vec<Stmt>>,
     pub timeline: Option<Timeline>,
     pub diagnostics: Vec<Diagnostic>,
     pub is_dirty: bool,
@@ -24,7 +24,7 @@ impl DocumentSession {
         let mut document = Self {
             file_path,
             source_text,
-            ast: None,
+            expanded_statements: None,
             timeline: None,
             diagnostics: Vec::new(),
             is_dirty: false,
@@ -40,7 +40,7 @@ impl DocumentSession {
         Self {
             file_path,
             source_text: String::new(),
-            ast: None,
+            expanded_statements: None,
             timeline: None,
             diagnostics: Vec::new(),
             is_dirty: false,
@@ -69,11 +69,10 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), String> {
-        let mut graph = ModuleGraph::new();
-        let ast = match graph.load_entry_with_source(&self.file_path, Some(&self.source_text)) {
-            Ok(ast) => ast,
+        let expanded_statements = match self.load_expanded_statements() {
+            Ok(expanded_statements) => expanded_statements,
             Err(err) => {
-                self.ast = None;
+                self.expanded_statements = None;
                 self.timeline = None;
                 self.diagnostics.clear();
                 self.duration_s = 0.1;
@@ -81,13 +80,21 @@ impl DocumentSession {
                 return Err(err.to_string());
             }
         };
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&expanded_statements);
         self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
-        self.scene_dimensions = document_scene_dimensions(&ast);
-        self.ast = Some(ast);
+        self.scene_dimensions = document_scene_dimensions(&expanded_statements);
+        self.expanded_statements = Some(expanded_statements);
         self.diagnostics = report.diagnostics;
         self.timeline = Some(report.output);
         Ok(())
+    }
+
+    fn load_expanded_statements(&self) -> Result<Vec<Stmt>, String> {
+        let mut graph = ModuleGraph::new();
+        let program = graph
+            .load_program_with_source(&self.file_path, Some(&self.source_text))
+            .map_err(|err| err.to_string())?;
+        Ok(program.expand_components())
     }
 }
 
@@ -213,6 +220,29 @@ pub fn default_file_path() -> PathBuf {
 mod tests {
     use super::*;
     use animatix::ast::{Property, Time};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_project_dir(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_gui_{}_{}_{}",
+            name,
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, contents).unwrap();
+    }
 
     #[test]
     fn duration_scans_latest_track_keyframe() {
@@ -325,5 +355,107 @@ mod tests {
             timeline_keyframe_times_s(&timeline),
             vec![0.0, 1.0, 2.0, 3.5]
         );
+    }
+
+    #[test]
+    fn rebuild_uses_expanded_program_pipeline_for_imported_components() {
+        let dir = temp_project_dir("document_rebuild_components");
+        let entry = dir.join("scene.amx");
+        let library = dir.join("components.amx");
+
+        write_file(
+            &library,
+            r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    title_text: Text { text: title, at: (0, -20) }
+    badge: Circle, radius: 12, color: gold
+    badge.color = red
+}
+"#,
+        );
+
+        write_file(
+            &entry,
+            r#"
+config { resolution: (1280, 720) }
+import "./components.amx"
+
+card: MetricCard, title: "Latency"
+"#,
+        );
+
+        let document = DocumentSession::load(entry).expect("document should rebuild");
+        let timeline = document.timeline.as_ref().expect("timeline should exist");
+
+        assert!(timeline.tracks.contains_key("card"));
+        assert!(timeline.tracks.contains_key("card.title_text"));
+        assert!(timeline.tracks.contains_key("card.badge"));
+        assert_eq!(
+            document.scene_dimensions,
+            SceneDimensions {
+                width: 1280,
+                height: 720,
+            }
+        );
+
+        let expanded = document
+            .expanded_statements
+            .as_ref()
+            .expect("expanded statements should be stored");
+        let expanded_debug = format!("{expanded:#?}");
+        assert!(expanded_debug.contains("card.title_text"));
+        assert!(!expanded_debug.contains("MetricCard"));
+    }
+
+    #[test]
+    fn rebuild_surfaces_duplicate_component_exports_and_clears_compiled_state() {
+        let dir = temp_project_dir("document_rebuild_duplicate_components");
+        let entry = dir.join("scene.amx");
+        let first = dir.join("first.amx");
+        let second = dir.join("second.amx");
+
+        write_file(
+            &first,
+            r#"
+pub component MetricCard(title: "One") {
+    title_text: Text { text: title }
+}
+"#,
+        );
+
+        write_file(
+            &second,
+            r#"
+pub component MetricCard(title: "Two") {
+    title_text: Text { text: title }
+}
+"#,
+        );
+
+        write_file(
+            &entry,
+            r#"
+import "./first.amx"
+import "./second.amx"
+
+card: MetricCard
+"#,
+        );
+
+        let mut document = DocumentSession::from_error(entry.clone());
+        document.source_text = fs::read_to_string(&entry).unwrap();
+
+        let error = document
+            .rebuild()
+            .expect_err("duplicate exports should fail");
+
+        assert!(error.contains("Duplicate component export 'MetricCard'"));
+        assert!(document.expanded_statements.is_none());
+        assert!(document.timeline.is_none());
+        assert!(document.diagnostics.is_empty());
+        assert_eq!(document.duration_s, 0.1);
+        assert_eq!(document.scene_dimensions, SceneDimensions::default());
+        assert_eq!(document.file_path, entry);
     }
 }

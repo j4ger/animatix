@@ -2,8 +2,8 @@ use crate::document::{DocumentSession, default_file_path, timeline_keyframe_time
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, diagnostics_summary, format_diagnostic};
-use animatix::timeline::actions::get_action_signatures;
 use animatix::timeline::SceneDimensions;
+use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
 use egui::{Align, Color32, RichText, Stroke, Vec2};
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
@@ -763,24 +763,12 @@ impl GuiShell {
             Ok(document) => {
                 self.workspace_root = workspace_root_for(&path);
                 self.file_tree = build_file_tree(&self.workspace_root, &path);
-                self.editor
-                    .set_document(&document.file_path, document.source_text.clone());
-                self.preview.duration_s = document.duration_s.max(0.1);
-                self.preview.current_time_s = 0.0;
-                self.preview.is_playing = false;
-                self.preview.dimensions = document.scene_dimensions;
-                self.preview.status = if document.diagnostics.is_empty() {
-                    format!("Opened {}", document.file_path.display())
-                } else {
-                    format!(
-                        "Opened {} • {}",
-                        document.file_path.display(),
-                        diagnostics_summary(&document.diagnostics)
-                    )
-                };
-                self.preview.error = None;
                 self.document = document;
-                self.preview_dirty = true;
+                self.editor
+                    .set_document(&self.document.file_path, self.document.source_text.clone());
+                let status =
+                    self.document_status(format!("Opened {}", self.document.file_path.display()));
+                self.sync_preview_from_document(status, true, true);
             }
             Err(error) => {
                 self.preview.error = Some(error.clone());
@@ -799,41 +787,61 @@ impl GuiShell {
         self.document.reload_from_disk()?;
         self.editor
             .set_document(&self.document.file_path, self.document.source_text.clone());
-        self.preview.duration_s = self.document.duration_s.max(0.1);
-        self.preview.dimensions = self.document.scene_dimensions;
-        self.preview.clamp_time();
-        self.preview.status = if self.document.diagnostics.is_empty() {
-            format!("Reloaded {}", self.document.file_path.display())
-        } else {
-            format!(
-                "Reloaded {} • {}",
-                self.document.file_path.display(),
-                diagnostics_summary(&self.document.diagnostics)
-            )
-        };
-        self.preview.error = None;
-        self.preview_dirty = true;
+        let status =
+            self.document_status(format!("Reloaded {}", self.document.file_path.display()));
+        self.sync_preview_from_document(status, false, false);
         self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path);
         Ok(())
     }
 
     fn rebuild(&mut self) -> Result<(), String> {
         self.document.rebuild()?;
-        self.preview.duration_s = self.document.duration_s.max(0.1);
-        self.preview.dimensions = self.document.scene_dimensions;
-        self.preview.clamp_time();
-        self.preview.status = if self.document.diagnostics.is_empty() {
-            format!("Built timeline • {:.2}s total duration", self.preview.duration_s)
+        let status = if self.document.diagnostics.is_empty() {
+            format!(
+                "Built timeline • {:.2}s total duration",
+                self.document.duration_s.max(0.1)
+            )
         } else {
             format!(
                 "Built timeline • {:.2}s total duration • {}",
-                self.preview.duration_s,
+                self.document.duration_s.max(0.1),
                 diagnostics_summary(&self.document.diagnostics)
             )
         };
+        self.sync_preview_from_document(status, false, false);
+        Ok(())
+    }
+
+    fn document_status(&self, base_status: String) -> String {
+        if self.document.diagnostics.is_empty() {
+            base_status
+        } else {
+            format!(
+                "{base_status} • {}",
+                diagnostics_summary(&self.document.diagnostics)
+            )
+        }
+    }
+
+    fn sync_preview_from_document(
+        &mut self,
+        status: String,
+        reset_time: bool,
+        stop_playback: bool,
+    ) {
+        self.preview.duration_s = self.document.duration_s.max(0.1);
+        self.preview.dimensions = self.document.scene_dimensions;
+        if reset_time {
+            self.preview.current_time_s = 0.0;
+        } else {
+            self.preview.clamp_time();
+        }
+        if stop_playback {
+            self.preview.is_playing = false;
+        }
+        self.preview.status = status;
         self.preview.error = None;
         self.preview_dirty = true;
-        Ok(())
     }
 
     fn set_status(&mut self, status: String, error: Option<String>) {
@@ -950,12 +958,9 @@ impl WorkspaceViewer<'_> {
                     for signature in get_action_signatures() {
                         ui.add_space(4.0);
                         ui.label(
-                            RichText::new(format!(
-                                "{} · {}",
-                                signature.category, signature.name
-                            ))
-                            .strong()
-                            .small(),
+                            RichText::new(format!("{} · {}", signature.category, signature.name))
+                                .strong()
+                                .small(),
                         );
                         ui.label(RichText::new(signature.description).small());
                         if !signature.modifiers.is_empty() {
@@ -1110,7 +1115,8 @@ impl WorkspaceViewer<'_> {
                                 ui.label(
                                     RichText::new(format!(
                                         "{} × {}",
-                                        self.preview.dimensions.width, self.preview.dimensions.height
+                                        self.preview.dimensions.width,
+                                        self.preview.dimensions.height
                                     ))
                                     .small()
                                     .weak(),
@@ -1307,7 +1313,10 @@ fn paint_timeline_scrubber(
     );
 
     for tick in timeline_tick_times(duration_s) {
-        let x = egui::lerp(track_rect.left()..=track_rect.right(), timeline_fraction(tick, duration_s));
+        let x = egui::lerp(
+            track_rect.left()..=track_rect.right(),
+            timeline_fraction(tick, duration_s),
+        );
         painter.line_segment(
             [
                 egui::pos2(x, track_rect.top() + 4.0),
