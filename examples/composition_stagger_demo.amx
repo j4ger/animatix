@@ -4,14 +4,14 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Stagger composition demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Each child statement starts with the same shared interval offset from the parent keyframe.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The three siblings are evenly staged so the stagger rhythm is the first thing you notice in playback.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Stagger composition demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Each child statement starts with the same shared interval offset from the parent keyframe.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The three siblings are evenly staged so the stagger rhythm is the first thing you notice in playback.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-a: Circle, radius: 42, color_role: accent.danger, stroke_role: stroke.default, stroke_width: 4, at: (340, 430)
-b: Circle, radius: 42, color_role: accent.primary, stroke_role: stroke.default, stroke_width: 4, at: (640, 430)
-c: Circle, radius: 42, color_role: accent.success, stroke_role: stroke.default, stroke_width: 4, at: (940, 430)
+a: Circle, radius: 42, color: accent.danger, stroke: stroke.default, stroke_width: 4, at: (340, 430)
+b: Circle, radius: 42, color: accent.primary, stroke: stroke.default, stroke_width: 4, at: (640, 430)
+c: Circle, radius: 42, color: accent.success, stroke: stroke.default, stroke_width: 4, at: (940, 430)
 
 #0s
 stagger [180ms] {

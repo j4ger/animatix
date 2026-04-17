@@ -3,15 +3,15 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Reactive runtime demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "always re-evaluates from the requested time; repeated behavior comes from explicit time math.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The static framing explains the model while the reactive actors keep moving and resizing under stateless evaluation.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Reactive runtime demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "always re-evaluates from the requested time; repeated behavior comes from explicit time math.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The static framing explains the model while the reactive actors keep moving and resizing under stateless evaluation.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-center: Circle, radius: 8, color_role: text.primary, at: (640, 390)
-orbiter: Circle, radius: 36, color_role: accent.primary, at: (820, 390)
+center: Circle, radius: 8, color: text.primary, at: (640, 390)
+orbiter: Circle, radius: 36, color: accent.primary, at: (820, 390)
 pulse: Rect, size: (120, 120), color: (0.88, 0.42, 0.84, 1.0), at: (280, 390)
-echo: Circle, radius: 22, color_role: accent.warning, at: pulse.at
+echo: Circle, radius: 22, color: accent.warning, at: pulse.at
 
 always {
   orbiter.at = (640 + 180 * cos(t), 390 + 120 * sin(t * 2))

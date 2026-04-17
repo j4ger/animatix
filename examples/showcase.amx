@@ -4,22 +4,22 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Animatix", font_size: 72, color_role: text.primary, anchor: scene.top, offset: (0, 82) }
-subtitle: Text { text: "Text, math, SVG, and vector primitives on one hero stage.", font_size: 18, color_role: text.secondary, anchor: scene.top, offset: (0, 152) }
-caption: Text { text: "Anchored pockets and a bottom Row keep the scene legible.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 180) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Animatix", font_size: 72, color: text.primary, anchor: scene.top, offset: (0, 82) }
+subtitle: Text { text: "Text, math, SVG, and vector primitives on one hero stage.", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 152) }
+caption: Text { text: "Anchored pockets and a bottom Row keep the scene legible.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 180) }
 
-math_label: Text { text: "Math", font_size: 18, color_role: accent.warning, at: (28%, 28%) }
+math_label: Text { text: "Math", font_size: 18, color: accent.warning, at: (28%, 28%) }
 formula: Math { math: "E = mc^2", font_size: 82, color: accent.primary, at: (30%, 38%) }
 
-svg_label: Text { text: "SVG", font_size: 18, color_role: accent.warning, at: (72%, 28%) }
+svg_label: Text { text: "SVG", font_size: 18, color: accent.warning, at: (72%, 28%) }
 logo: Svg { url: "examples/vector.svg", scale: 2.15, at: (72%, 38%) }
 
-shape_label: Text { text: "Vector primitives in Row layout", font_size: 18, color_role: accent.warning, anchor: scene.bottom, offset: (0, -220) }
+shape_label: Text { text: "Vector primitives in Row layout", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -220) }
 primitive_row: Row, anchor: scene.bottom, offset: (0, -116), gap: 144, align: "center" {
-  orb: Circle, radius: 74, color_role: accent.danger,
+  orb: Circle, radius: 74, color: accent.danger,
   signal: Line, from: (-80, 0), to: (80, 0), stroke: accent.primary, stroke_width: 6,
-  panel: Rect, size: (252, 132), color_role: accent.success
+  panel: Rect, size: (252, 132), color: accent.success
 }
 
 #1.2s

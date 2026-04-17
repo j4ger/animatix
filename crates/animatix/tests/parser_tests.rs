@@ -300,20 +300,20 @@ fn test_config_parse() {
 }
 
 #[test]
-fn test_actor_decl_color_roles_parse() {
+fn test_actor_decl_colorscheme_alias_parse() {
     assert_eq!(
-        parse_single_stmt("badge: Circle, color_role: actor, stroke_role: stroke.default"),
+        parse_single_stmt("badge: Circle, color: auto, stroke: stroke.default"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
             ty: "Circle".to_string(),
             props: vec![
                 Property {
-                    name: "color_role".to_string(),
-                    value: Expr::Ident("actor".to_string()),
+                    name: "color".to_string(),
+                    value: Expr::Ident("auto".to_string()),
                 },
                 Property {
-                    name: "stroke_role".to_string(),
+                    name: "stroke".to_string(),
                     value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
                 },
             ],
@@ -324,9 +324,9 @@ fn test_actor_decl_color_roles_parse() {
 }
 
 #[test]
-fn test_text_color_role_parse() {
+fn test_text_colorscheme_alias_parse() {
     assert_eq!(
-        parse_single_stmt("title: Text { text: \"Animatix\", color_role: text.primary }"),
+        parse_single_stmt("title: Text { text: \"Animatix\", color: text.primary }"),
         Stmt::Text {
             label: Some("title".to_string()),
             props: vec![
@@ -335,7 +335,7 @@ fn test_text_color_role_parse() {
                     value: Expr::Str("Animatix".to_string()),
                 },
                 Property {
-                    name: "color_role".to_string(),
+                    name: "color".to_string(),
                     value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
                 },
             ],

@@ -183,7 +183,7 @@ fn test_timeline_build_and_evaluate() {
 }
 
 #[test]
-fn config_colorscheme_seeds_scene_background_and_text_role() {
+fn config_colorscheme_seeds_scene_background_and_text_alias() {
     let ast = vec![
         Stmt::Config {
             settings: vec![Property {
@@ -201,7 +201,7 @@ fn config_colorscheme_seeds_scene_background_and_text_role() {
                         value: Expr::Str("Animatix".to_string()),
                     },
                     Property {
-                        name: "color_role".to_string(),
+                        name: "color".to_string(),
                         value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
                     },
                 ],
@@ -223,7 +223,7 @@ fn config_colorscheme_seeds_scene_background_and_text_role() {
 }
 
 #[test]
-fn explicit_color_beats_color_role() {
+fn explicit_color_beats_colorscheme_alias() {
     let ast = vec![
         Stmt::Config {
             settings: vec![Property {
@@ -239,7 +239,7 @@ fn explicit_color_beats_color_role() {
                 ty: "Circle".to_string(),
                 props: vec![
                     Property {
-                        name: "color_role".to_string(),
+                        name: "color".to_string(),
                         value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
                     },
                     Property {
@@ -261,7 +261,7 @@ fn explicit_color_beats_color_role() {
 }
 
 #[test]
-fn explicit_stroke_beats_stroke_role() {
+fn explicit_stroke_beats_stroke_alias() {
     let ast = vec![
         Stmt::Config {
             settings: vec![Property {
@@ -277,7 +277,7 @@ fn explicit_stroke_beats_stroke_role() {
                 ty: "Line".to_string(),
                 props: vec![
                     Property {
-                        name: "stroke_role".to_string(),
+                        name: "stroke".to_string(),
                         value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
                     },
                     Property {
@@ -299,7 +299,7 @@ fn explicit_stroke_beats_stroke_role() {
 }
 
 #[test]
-fn actor_role_assigns_distinct_colors_and_keeps_identity() {
+fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
     let ast = vec![
         Stmt::Config {
             settings: vec![Property {
@@ -315,8 +315,8 @@ fn actor_role_assigns_distinct_colors_and_keeps_identity() {
                     label: "alice".to_string(),
                     ty: "Circle".to_string(),
                     props: vec![Property {
-                        name: "color_role".to_string(),
-                        value: Expr::Ident("actor".to_string()),
+                        name: "color".to_string(),
+                        value: Expr::Ident("auto".to_string()),
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -326,8 +326,8 @@ fn actor_role_assigns_distinct_colors_and_keeps_identity() {
                     label: "bob".to_string(),
                     ty: "Circle".to_string(),
                     props: vec![Property {
-                        name: "color_role".to_string(),
-                        value: Expr::Ident("actor".to_string()),
+                        name: "color".to_string(),
+                        value: Expr::Ident("auto".to_string()),
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -341,8 +341,8 @@ fn actor_role_assigns_distinct_colors_and_keeps_identity() {
                 label: "alice".to_string(),
                 ty: "Circle".to_string(),
                 props: vec![Property {
-                    name: "color_role".to_string(),
-                    value: Expr::Ident("actor".to_string()),
+                    name: "color".to_string(),
+                    value: Expr::Ident("auto".to_string()),
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -359,7 +359,81 @@ fn actor_role_assigns_distinct_colors_and_keeps_identity() {
 }
 
 #[test]
-fn unknown_colorscheme_and_role_report_diagnostics() {
+fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                Stmt::Text {
+                    label: Some("title".to_string()),
+                    props: vec![
+                        Property {
+                            name: "text".to_string(),
+                            value: Expr::Str("Animatix".to_string()),
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("auto".to_string()),
+                        },
+                    ],
+                    modifiers: vec![],
+                },
+                Stmt::Math {
+                    label: Some("formula".to_string()),
+                    props: vec![
+                        Property {
+                            name: "math".to_string(),
+                            value: Expr::Str("E = mc^2".to_string()),
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("auto".to_string()),
+                        },
+                    ],
+                    modifiers: vec![],
+                },
+                Stmt::Code {
+                    label: Some("snippet".to_string()),
+                    props: vec![
+                        Property {
+                            name: "code".to_string(),
+                            value: Expr::Str("fn main() {}".to_string()),
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("auto".to_string()),
+                        },
+                    ],
+                    modifiers: vec![],
+                },
+            ],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+
+    assert_eq!(
+        timeline.tracks["title"].color.evaluate(0),
+        [0.38, 0.78, 1.0, 1.0]
+    );
+    assert_eq!(
+        timeline.tracks["formula"].color.evaluate(0),
+        [0.35, 0.86, 0.63, 1.0]
+    );
+    assert_eq!(
+        timeline.tracks["snippet"].color.evaluate(0),
+        [1.0, 0.46, 0.54, 1.0]
+    );
+}
+
+#[test]
+fn unknown_colorscheme_and_color_reference_report_diagnostics() {
     let ast = vec![
         Stmt::Config {
             settings: vec![Property {
@@ -374,7 +448,7 @@ fn unknown_colorscheme_and_role_report_diagnostics() {
                 label: "badge".to_string(),
                 ty: "Circle".to_string(),
                 props: vec![Property {
-                    name: "color_role".to_string(),
+                    name: "color".to_string(),
                     value: Expr::Path(vec!["accent".to_string(), "missing".to_string()]),
                 }],
                 modifiers: vec![],
@@ -391,11 +465,11 @@ fn unknown_colorscheme_and_role_report_diagnostics() {
     assert!(report
         .diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorRole));
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorReference));
 }
 
 #[test]
-fn component_instances_get_distinct_actor_role_colors() {
+fn component_instances_get_distinct_auto_colors() {
     let dir = temp_project_dir("colorscheme_component_roles");
     let entry = dir.join("scene.amx");
     let library = dir.join("components.amx");
@@ -404,8 +478,8 @@ fn component_instances_get_distinct_actor_role_colors() {
         &library,
         r#"
 pub component MetricCard(title: "Default") {
-    frame: Rect, size: (240, 120), color_role: surface.primary
-    badge: Circle, radius: 12, color_role: actor
+    frame: Rect, size: (240, 120), color: surface.primary
+    badge: Circle, radius: 12, color: auto
 }
 "#,
     );

@@ -21,7 +21,7 @@ The following are already true today and should remain stable through colorschem
 - explicit color values can be declared directly or assigned later through timeline statements
 - frame-local stateless overrides already sit on top of sampled track values
 - built-in colorscheme selection now ships through `config { colorscheme: ... }`
-- `color_role`, `stroke_role`, and deterministic `color_role: actor` now ship in the runtime contract
+- `color`, `stroke`, and deterministic `color: auto` now ship in the runtime contract
 - a runnable built-in colorscheme example now exists in `examples/colorscheme_demo.amx`
 
 The colorscheme feature should extend that surface rather than replacing it.
@@ -59,8 +59,8 @@ The following slices are now shipped and should be treated as completed baseline
 - Phase 0 — contract sync and terminology
 - Phase 1 — internal colorscheme model and built-in baseline
 - Phase 2 — scene-level scheme selection
-- Phase 3 — role-based declaration defaults
-- Phase 4 — actor-cycle auto assignment
+- Phase 3 — alias-backed declaration defaults
+- Phase 4 — automatic color assignment
 
 That shipped baseline means the remaining roadmap is about broadening the model, not inventing it.
 
@@ -134,7 +134,7 @@ The remaining colorscheme implementation should explicitly cover these failure m
 3. malformed scheme file
 4. invalid color tuple/value
 5. missing role token in resolved scheme
-6. empty actor cycle when `color_role: actor` is used
+6. empty auto-assignment pool when `color: auto` is used
 7. colorscheme inheritance cycle
 
 Each should produce a build-facing diagnostic and a deterministic fallback path.
@@ -147,7 +147,7 @@ Before colorscheme follow-up work is considered landed:
 
 - parser tests pass for new config/properties
 - precedence tests cover scheme default vs explicit declaration vs assignment vs frame-local override
-- component/nested-label tests cover actor-cycle stability where relevant
+- component/nested-label tests cover automatic color stability where relevant
 - docs reflect shipped behavior only
 - at least one runnable example demonstrates the new surface honestly
 - no GUI feature is required to access the runtime behavior
@@ -158,7 +158,7 @@ Before colorscheme follow-up work is considered landed:
 
 - ship plugin/executable themes before declarative file-backed schemes
 - make primitive type the main identity for automatic distinct colors
-- blur `color_role` and explicit `color` precedence
+- blur colorscheme alias lookup and explicit `color` precedence
 - depend on a property inspector or scene editor before the DSL/runtime slice exists
 - broaden into a general style system covering typography, spacing, and motion in the same phase
 

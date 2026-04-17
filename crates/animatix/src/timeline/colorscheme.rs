@@ -20,7 +20,7 @@ impl BuiltInColorscheme {
 
     pub fn resolved(self) -> ResolvedColorscheme {
         let mut colors = BTreeMap::new();
-        let actor_cycle = match self {
+        let auto_cycle = match self {
             Self::DefaultDark => {
                 colors.insert("scene.background".to_string(), [0.0, 0.0, 0.0, 1.0]);
                 colors.insert("text.primary".to_string(), [1.0, 1.0, 1.0, 1.0]);
@@ -86,7 +86,7 @@ impl BuiltInColorscheme {
         ResolvedColorscheme {
             name: name.to_string(),
             colors,
-            actor_cycle,
+            auto_cycle,
         }
     }
 }
@@ -95,7 +95,7 @@ impl BuiltInColorscheme {
 pub struct ResolvedColorscheme {
     pub name: String,
     pub colors: BTreeMap<String, [f32; 4]>,
-    pub actor_cycle: Vec<[f32; 4]>,
+    pub auto_cycle: Vec<[f32; 4]>,
 }
 
 impl ResolvedColorscheme {

@@ -2,7 +2,7 @@
 
 This document tracks what the current runtime actually supports. Where the parser or low-level Rust modules expose additional surface area, that is called out explicitly as parser-only or planned.
 
-Current color note: the shipped runtime now supports built-in colorscheme selection via `config { colorscheme: ... }`, semantic `color_role` defaults, `stroke_role` defaults, and deterministic `color_role: actor` cycling. Explicit `color`, `stroke`, `stroke_color`, timed assignments, and frame-local overrides still take precedence over those defaults. File-backed colorscheme loading remains future work and is tracked in [`colorscheme_design.md`](colorscheme_design.md).
+Current color note: the shipped runtime now supports built-in colorscheme selection via `config { colorscheme: ... }`, semantic colorscheme aliases through `color` / `stroke`, and deterministic `color: auto` assignment. Explicit `color`, `stroke`, `stroke_color`, timed assignments, and frame-local overrides still take precedence over those defaults. File-backed colorscheme loading remains future work and is tracked in [`colorscheme_design.md`](colorscheme_design.md).
 
 ---
 

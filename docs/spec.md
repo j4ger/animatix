@@ -129,22 +129,22 @@ scene.background_color = white [2s]
 The shipped runtime now supports a **colorschemes v1** surface built on top of the existing explicit color model:
 
 - `config { colorscheme: "default-dark" | "default-light" | "editorial-dark" }`
-- `color_role` on text/code/math and actor declarations
-- `stroke_role` on actor declarations
-- `color_role: actor` for deterministic actor-cycle assignment
+- colorscheme aliases through `color` on text/code/math and actor declarations
+- colorscheme aliases through `stroke` on actor declarations
+- `color: auto` for deterministic automatic colorscheme assignment
 
-Explicit `color`, `stroke`, `stroke_color`, timed assignments, and `always` overrides still remain stronger than role-based defaults.
+Explicit `color`, `stroke`, `stroke_color`, timed assignments, and `always` overrides still remain stronger than alias-backed declaration defaults.
 
-The current actor-cycle contract is deterministic for a given compiled document and follows actor declaration order after component expansion.
+The current `color: auto` contract is deterministic for a given compiled document and follows actor declaration order after component expansion.
 
 File-backed/loadable colorschemes remain future work. See [`colorscheme_design.md`](colorscheme_design.md).
 
 ```animatix
 config { colorscheme: "editorial-dark" }
 
-title: Text { text: "Animatix", color_role: text.primary }
-badge: Circle, radius: 20, color_role: actor
-axis: Line, from: (-120, 0), to: (120, 0), stroke_role: stroke.default
+title: Text { text: "Animatix", color: text.primary }
+badge: Circle, radius: 20, color: auto
+axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
 ```
 
 ---

@@ -6,10 +6,10 @@ config { colorscheme: "editorial-dark" }
 let base = (220, 240)
 let offset = (140, 80)
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Math demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Expressions drive positions, colors, and animation targets across the same scene graph.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Tuple math, trigonometry, lerp, modulo, and rand() each keep a labeled stage pocket; the randomness stays intentionally intact.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Math demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Expressions drive positions, colors, and animation targets across the same scene graph.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Tuple math, trigonometry, lerp, modulo, and rand() each keep a labeled stage pocket; the randomness stays intentionally intact.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
 sum_circle: Circle, radius: 42, color: (0.96, 0.46, 0.52, 1.0), at: base + offset
 orbit_circle: Circle, radius: 34, color: (0.0, 1.0, 1.0, 1.0), at: (760 + 110 * cos(PI / 4), 270 + 110 * sin(PI / 4))
@@ -19,11 +19,11 @@ rand_circle_1: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (22
 rand_circle_2: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (520 + rand() * 180, 548 + rand() * 80)
 rand_circle_3: Circle, radius: 24, color: (rand(), rand(), rand(), 1.0), at: (820 + rand() * 180, 548 + rand() * 80)
 
-label_sum: Text { text: "tuple addition", font_size: 18, color_role: accent.warning, at: (360, 178) }
-label_orbit: Text { text: "sin / cos", font_size: 18, color_role: accent.warning, at: (860, 182) }
-label_lerp: Text { text: "lerp", font_size: 18, color_role: accent.warning, at: (948, 182) }
-label_mod: Text { text: "modulo", font_size: 18, color_role: accent.warning, at: (280, 448) }
-label_rand: Text { text: "rand()", font_size: 18, color_role: accent.warning, at: (640, 496) }
+label_sum: Text { text: "tuple addition", font_size: 18, color: accent.warning, at: (360, 178) }
+label_orbit: Text { text: "sin / cos", font_size: 18, color: accent.warning, at: (860, 182) }
+label_lerp: Text { text: "lerp", font_size: 18, color: accent.warning, at: (948, 182) }
+label_mod: Text { text: "modulo", font_size: 18, color: accent.warning, at: (280, 448) }
+label_rand: Text { text: "rand()", font_size: 18, color: accent.warning, at: (640, 496) }
 
 #3s
 sum_circle.at = base + offset + (120, 60) [1.5s, ease: ease-in-out]

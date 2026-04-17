@@ -4,19 +4,19 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Scale motion demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "scale is visual-only: placement stays fixed while rendering grows.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The pair layout mirrors the other motion demos so the visual-only nature of scale stays obvious.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Scale motion demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "scale is visual-only: placement stays fixed while rendering grows.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The pair layout mirrors the other motion demos so the visual-only nature of scale stays obvious.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-manual_label: Text { text: "manual node", font_size: 22, color_role: accent.danger, anchor: scene.left, offset: (240, -128) }
-layout_label: Text { text: "layout-managed node", font_size: 22, color_role: accent.success, anchor: scene.right, offset: (-246, -128) }
+manual_label: Text { text: "manual node", font_size: 22, color: accent.danger, anchor: scene.left, offset: (240, -128) }
+layout_label: Text { text: "layout-managed node", font_size: 22, color: accent.success, anchor: scene.right, offset: (-246, -128) }
 
-manual: Rect, size: (150, 70), color_role: accent.danger, stroke_role: stroke.default, stroke_width: 4, anchor: scene.left, offset: (240, 78)
+manual: Rect, size: (150, 70), color: accent.danger, stroke: stroke.default, stroke_width: 4, anchor: scene.left, offset: (240, 78)
 
 row: Row, gap: 40, anchor: scene.right, offset: (-210, 78) {
-  anchor: Rect, size: (110, 70), color_role: surface.primary, stroke_role: stroke.default, stroke_width: 4,
-  growing: Rect, size: (150, 70), color_role: accent.primary, stroke_role: stroke.default, stroke_width: 4,
+  anchor: Rect, size: (110, 70), color: surface.primary, stroke: stroke.default, stroke_width: 4,
+  growing: Rect, size: (150, 70), color: accent.primary, stroke: stroke.default, stroke_width: 4,
 }
 
 #0s

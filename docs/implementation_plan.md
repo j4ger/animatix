@@ -14,7 +14,7 @@ The following are already part of the current baseline and should not be treated
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
-- Colorschemes v1: built-in scene selection, semantic color roles, `stroke_role`, and deterministic actor-cycle defaults layered on top of explicit color authoring
+- Colorschemes v1: built-in scene selection, semantic color/stroke aliases, and deterministic automatic colorscheme defaults layered on top of explicit color authoring
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
 - Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
 - Reveal actions v1 now shipped in the runtime contract: `fade-in`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, plus honest unsupported-target diagnostics for vector-only reveal verbs

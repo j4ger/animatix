@@ -4,24 +4,24 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Layout demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Layout demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-root_label: Text { text: "Root container default placement", font_size: 24, color_role: accent.warning, anchor: scene.top, offset: (0, 184) }
-root_caption: Text { text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 212) }
-grid_label: Text { text: "Grid with cols + gap", font_size: 20, color_role: accent.primary, anchor: scene.top, offset: (0, 238) }
-grid_caption: Text { text: "cols: 2 and gap: 28 keep the centered panel legible without hiding the layout contract.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 262) }
+root_label: Text { text: "Root container default placement", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 184) }
+root_caption: Text { text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 212) }
+grid_label: Text { text: "Grid with cols + gap", font_size: 20, color: accent.primary, anchor: scene.top, offset: (0, 238) }
+grid_caption: Text { text: "cols: 2 and gap: 28 keep the centered panel legible without hiding the layout contract.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 262) }
 
-left_label: Text { text: "Scene anchor + offset", font_size: 24, color_role: accent.warning, anchor: scene.left, offset: (210, -164) }
-left_caption: Text { text: "This Col is anchored to scene.left, then nudged inward with offset.", font_size: 16, color_role: text.secondary, anchor: scene.left, offset: (228, -136) }
+left_label: Text { text: "Scene anchor + offset", font_size: 24, color: accent.warning, anchor: scene.left, offset: (210, -164) }
+left_caption: Text { text: "This Col is anchored to scene.left, then nudged inward with offset.", font_size: 16, color: text.secondary, anchor: scene.left, offset: (228, -136) }
 
-stack_label: Text { text: "Stack with percent placement", font_size: 24, color_role: accent.warning, at: (80%, 50%) }
-stack_caption: Text { text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color_role: text.secondary, at: (80%, 54%) }
+stack_label: Text { text: "Stack with percent placement", font_size: 24, color: accent.warning, at: (80%, 50%) }
+stack_caption: Text { text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color: text.secondary, at: (80%, 54%) }
 
-manual_label: Text { text: "Manual child override inside layout container", font_size: 24, color_role: accent.warning, anchor: scene.bottom, offset: (0, -220) }
-manual_caption: Text { text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color_role: text.secondary, anchor: scene.bottom, offset: (0, -192) }
+manual_label: Text { text: "Manual child override inside layout container", font_size: 24, color: accent.warning, anchor: scene.bottom, offset: (0, -220) }
+manual_caption: Text { text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -192) }
 
 dashboard: Grid, cols: 2, gap: 28 {
   p1: Rect, size: (214, 104), color: (0.14, 0.22, 0.36, 1.0),
@@ -43,11 +43,11 @@ callout: Stack, at: (82%, 76%) {
   glow: Circle, radius: 40, color: (0.22, 0.46, 0.84, 0.22),
   halo: Circle, radius: 54, color: (0.13, 0.20, 0.32, 0.55),
   ring: Circle, radius: 28, color: accent.warning,
-  core: Circle, radius: 16, color_role: text.primary
+  core: Circle, radius: 16, color: text.primary
 }
 
 manual_row: Row, anchor: scene.bottom, offset: (0, -116), gap: 24, align: "center" {
-  focus: Circle, radius: 18, color_role: text.primary, at: (-118, -18),
+  focus: Circle, radius: 18, color: text.primary, at: (-118, -18),
   a: Circle, radius: 28, color: (0.96, 0.47, 0.52, 1.0),
   b: Circle, radius: 22, color: (0.33, 0.84, 0.60, 1.0),
   c: Circle, radius: 36, color: accent.primary,

@@ -8,11 +8,11 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Component diagnostics", font_size: 36, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Valid dotted access stays live; invalid paths still emit warnings.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 152) }
-caption_ok: Text { text: "Valid dotted writes + rhs lookup", font_size: 16, color_role: accent.success, at: (420, 224) }
-caption_bad: Text { text: "Invalid targets still warn", font_size: 16, color_role: accent.danger, at: (860, 224) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Component diagnostics", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Valid dotted access stays live; invalid paths still emit warnings.", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 152) }
+caption_ok: Text { text: "Valid dotted writes + rhs lookup", font_size: 16, color: accent.success, at: (420, 224) }
+caption_bad: Text { text: "Invalid targets still warn", font_size: 16, color: accent.danger, at: (860, 224) }
 
 left: MetricCard, title: "Latency"
 right: MetricCard, title: "Throughput"
@@ -21,7 +21,7 @@ right.at = (860, 392)
 
 echo: Circle, radius: right.badge.radius, color: right.badge.color, at: (1110, 480)
 ghost: Circle, radius: left.missing.radius, color: left.missing.color, at: (1110, 560)
-connector: Line, from: left.badge.at, to: right.badge.at, stroke_role: stroke.default, stroke_width: 3, at: (640, 392)
+connector: Line, from: left.badge.at, to: right.badge.at, stroke: stroke.default, stroke_width: 3, at: (640, 392)
 
 #0s
 left.badge.color = accent.danger

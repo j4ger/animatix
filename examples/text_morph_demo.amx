@@ -4,13 +4,13 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Text morph demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "A single text label morphs between short words through the shipped text-path interpolation.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The scene stays intentionally quiet so the letterform transformation remains the whole story.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Text morph demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "A single text label morphs between short words through the shipped text-path interpolation.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "The scene stays intentionally quiet so the letterform transformation remains the whole story.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-word: Text { text: "hi", font_size: 152, color_role: text.primary, at: (640, 390) }
-beat: Text { text: "0s → 2s", font_size: 18, color_role: accent.primary, anchor: scene.bottom, offset: (0, -64) }
+word: Text { text: "hi", font_size: 152, color: text.primary, at: (640, 390) }
+beat: Text { text: "0s → 2s", font_size: 18, color: accent.primary, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
 word: Text { text: "hello", font_size: 152, color: accent.success, at: (640, 390) } [2s, ease: ease-in-out]

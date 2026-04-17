@@ -20,7 +20,7 @@ pub use svg::parse_svg;
 pub use track::{
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
 };
-pub use utils::{evaluate_expr, parse_color, parse_color_in_env, time_to_ms};
+pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Modifier, Stmt};
@@ -174,14 +174,6 @@ fn parse_stagger_interval_ms(
 fn config_string_value(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Str(value) | Expr::Ident(value) => Some(value.clone()),
-        _ => None,
-    }
-}
-
-fn colorscheme_role_key(expr: &Expr) -> Option<String> {
-    match expr {
-        Expr::Ident(value) | Expr::Str(value) => Some(value.clone()),
-        Expr::Path(parts) => Some(parts.join(".")),
         _ => None,
     }
 }
@@ -1282,25 +1274,43 @@ fn evaluate_expr_with_lookup_diagnostic(
 }
 
 fn parse_color_in_env_with_lookup_diagnostic(
+    label: &str,
+    property_name: &str,
     expr: &Expr,
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
-) -> [f32; 4] {
-    if matches!(expr, Expr::Ident(_)) {
-        return parse_color_in_env(expr, env);
+) -> Option<[f32; 4]> {
+    let fallback = [0.8, 0.8, 0.8, 1.0];
+    match resolve_color_in_env(expr, env) {
+        Ok(Some(color)) => Some(color),
+        Ok(None) => Some(fallback),
+        Err(EvalError::UndefinedVariable(lookup_key)) => {
+            let candidate_keys = env.all_keys();
+            let suggestion =
+                best_path_suggestion(&lookup_key, candidate_keys.iter().map(String::as_str));
+            if matches!(expr, Expr::Path(parts) if parts.len() > 2) {
+                push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key, suggestion);
+                return Some(fallback);
+            }
+            let hint = suggestion
+                .map(|candidate| format!(" Did you mean '{candidate}'?"))
+                .unwrap_or_default();
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::UnknownColorReference,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Color value '{lookup_key}' on '{}.{}' does not resolve to a named color, colorscheme alias, or runtime color value; keeping the existing/default color instead.{hint}",
+                        label, property_name
+                    ),
+                )
+                .with_subject(subject),
+            );
+            Some(fallback)
+        }
+        Err(_) => Some(fallback),
     }
-
-    if let Some(value) = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
-        return match value {
-            Value::Color([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
-            Value::Vec4([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
-            Value::Vec3([r, g, b]) => [r as f32, g as f32, b as f32, 1.0],
-            _ => [0.8, 0.8, 0.8, 1.0],
-        };
-    }
-
-    [0.8, 0.8, 0.8, 1.0]
 }
 
 fn parse_numeric_vec2_with_lookup_diagnostic(
@@ -1672,8 +1682,8 @@ pub struct Timeline {
     pub env: Environment,
     pub modifiers: Vec<Stmt>,
     colorscheme: ResolvedColorscheme,
-    actor_role_assignments: BTreeMap<String, usize>,
-    next_actor_role_index: usize,
+    auto_color_assignments: BTreeMap<String, usize>,
+    next_auto_color_index: usize,
 }
 
 impl Timeline {
@@ -1689,8 +1699,8 @@ impl Timeline {
             env: Environment::raw_new(),
             modifiers: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
-            actor_role_assignments: BTreeMap::new(),
-            next_actor_role_index: 0,
+            auto_color_assignments: BTreeMap::new(),
+            next_auto_color_index: 0,
         }
     }
 
@@ -1785,65 +1795,21 @@ impl Timeline {
         }
     }
 
-    fn actor_cycle_color(&mut self, label: &str) -> Option<[f32; 4]> {
-        if self.colorscheme.actor_cycle.is_empty() {
+    fn auto_color_for_label(&mut self, label: &str) -> Option<[f32; 4]> {
+        if self.colorscheme.auto_cycle.is_empty() {
             return None;
         }
 
-        let slot = if let Some(slot) = self.actor_role_assignments.get(label) {
+        let slot = if let Some(slot) = self.auto_color_assignments.get(label) {
             *slot
         } else {
-            let slot = self.next_actor_role_index;
-            self.actor_role_assignments.insert(label.to_string(), slot);
-            self.next_actor_role_index += 1;
+            let slot = self.next_auto_color_index;
+            self.auto_color_assignments.insert(label.to_string(), slot);
+            self.next_auto_color_index += 1;
             slot
         };
 
-        Some(self.colorscheme.actor_cycle[slot % self.colorscheme.actor_cycle.len()])
-    }
-
-    fn resolve_role_color(
-        &mut self,
-        label: &str,
-        property_name: &str,
-        expr: &Expr,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) -> Option<[f32; 4]> {
-        let Some(role_key) = colorscheme_role_key(expr) else {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::UnknownColorRole,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Color role on '{}.{}' must be a role token such as text.primary, accent.warning, or actor.",
-                        label, property_name
-                    ),
-                )
-                .with_subject(format!("{}.{}", label, property_name)),
-            );
-            return None;
-        };
-
-        if role_key == "actor" {
-            return self.actor_cycle_color(label);
-        }
-
-        if let Some(color) = self.colorscheme.color(&role_key) {
-            return Some(color);
-        }
-
-        diagnostics.push(
-            Diagnostic::warning(
-                DiagnosticCode::UnknownColorRole,
-                DiagnosticPhase::Build,
-                format!(
-                    "Unknown color role '{role_key}' on '{}.{}'; keeping the existing/default color instead.",
-                    label, property_name
-                ),
-            )
-            .with_subject(format!("{}.{}", label, property_name)),
-        );
-        None
+        Some(self.colorscheme.auto_cycle[slot % self.colorscheme.auto_cycle.len()])
     }
 
     pub fn duration_seconds(&self) -> f64 {
@@ -2590,8 +2556,6 @@ impl Timeline {
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
                     let mut initial_track_color: Option<[f32; 4]> = None;
-                    let mut explicit_color = false;
-                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2620,22 +2584,42 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                explicit_color = true;
-                                let c = parse_color_in_env_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                );
-                                initial_track_color = Some(c);
-                                color = typst::visualize::Color::from_u8(
-                                    (c[0] * 255.0) as u8,
-                                    (c[1] * 255.0) as u8,
-                                    (c[2] * 255.0) as u8,
-                                    (c[3] * 255.0) as u8,
-                                );
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                    self.auto_color_for_label(&label_str).or_else(|| {
+                                        diagnostics.push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::UnknownColorReference,
+                                                DiagnosticPhase::Build,
+                                                format!(
+                                                    "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
+                                                    label_str
+                                                ),
+                                            )
+                                            .with_subject(&prop_subject),
+                                        );
+                                        None
+                                    })
+                                } else {
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        &label_str,
+                                        "color",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                };
+
+                                if let Some(c) = resolved_color {
+                                    initial_track_color = Some(c);
+                                    color = typst::visualize::Color::from_u8(
+                                        (c[0] * 255.0) as u8,
+                                        (c[1] * 255.0) as u8,
+                                        (c[2] * 255.0) as u8,
+                                        (c[3] * 255.0) as u8,
+                                    );
+                                }
                             }
-                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2643,20 +2627,6 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
-                    }
-
-                    if !explicit_color
-                        && let Some(role_expr) = color_role_expr.as_ref()
-                        && let Some(role_color) =
-                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
-                    {
-                        initial_track_color = Some(role_color);
-                        color = typst::visualize::Color::from_u8(
-                            (role_color[0] * 255.0) as u8,
-                            (role_color[1] * 255.0) as u8,
-                            (role_color[2] * 255.0) as u8,
-                            (role_color[3] * 255.0) as u8,
-                        );
                     }
 
                     let track = self
@@ -2753,8 +2723,6 @@ impl Timeline {
                     let mut font_size = 48.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
                     let mut initial_track_color: Option<[f32; 4]> = None;
-                    let mut explicit_color = false;
-                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2783,22 +2751,42 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                explicit_color = true;
-                                let c = parse_color_in_env_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                );
-                                initial_track_color = Some(c);
-                                color = typst::visualize::Color::from_u8(
-                                    (c[0] * 255.0) as u8,
-                                    (c[1] * 255.0) as u8,
-                                    (c[2] * 255.0) as u8,
-                                    (c[3] * 255.0) as u8,
-                                );
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                    self.auto_color_for_label(&label_str).or_else(|| {
+                                        diagnostics.push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::UnknownColorReference,
+                                                DiagnosticPhase::Build,
+                                                format!(
+                                                    "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
+                                                    label_str
+                                                ),
+                                            )
+                                            .with_subject(&prop_subject),
+                                        );
+                                        None
+                                    })
+                                } else {
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        &label_str,
+                                        "color",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                };
+
+                                if let Some(c) = resolved_color {
+                                    initial_track_color = Some(c);
+                                    color = typst::visualize::Color::from_u8(
+                                        (c[0] * 255.0) as u8,
+                                        (c[1] * 255.0) as u8,
+                                        (c[2] * 255.0) as u8,
+                                        (c[3] * 255.0) as u8,
+                                    );
+                                }
                             }
-                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2806,20 +2794,6 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
-                    }
-
-                    if !explicit_color
-                        && let Some(role_expr) = color_role_expr.as_ref()
-                        && let Some(role_color) =
-                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
-                    {
-                        initial_track_color = Some(role_color);
-                        color = typst::visualize::Color::from_u8(
-                            (role_color[0] * 255.0) as u8,
-                            (role_color[1] * 255.0) as u8,
-                            (role_color[2] * 255.0) as u8,
-                            (role_color[3] * 255.0) as u8,
-                        );
                     }
 
                     let track = self
@@ -2916,8 +2890,6 @@ impl Timeline {
                     let mut font_size = 24.0;
                     let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
                     let mut initial_track_color: Option<[f32; 4]> = None;
-                    let mut explicit_color = false;
-                    let mut color_role_expr: Option<Expr> = None;
                     let mut at_expr: Option<Expr> = None;
                     let mut anchor_expr: Option<Expr> = None;
                     let mut offset_expr: Option<Expr> = None;
@@ -2946,22 +2918,42 @@ impl Timeline {
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                explicit_color = true;
-                                let c = parse_color_in_env_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                );
-                                initial_track_color = Some(c);
-                                color = typst::visualize::Color::from_u8(
-                                    (c[0] * 255.0) as u8,
-                                    (c[1] * 255.0) as u8,
-                                    (c[2] * 255.0) as u8,
-                                    (c[3] * 255.0) as u8,
-                                );
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                    self.auto_color_for_label(&label_str).or_else(|| {
+                                        diagnostics.push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::UnknownColorReference,
+                                                DiagnosticPhase::Build,
+                                                format!(
+                                                    "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
+                                                    label_str
+                                                ),
+                                            )
+                                            .with_subject(&prop_subject),
+                                        );
+                                        None
+                                    })
+                                } else {
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        &label_str,
+                                        "color",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                };
+
+                                if let Some(c) = resolved_color {
+                                    initial_track_color = Some(c);
+                                    color = typst::visualize::Color::from_u8(
+                                        (c[0] * 255.0) as u8,
+                                        (c[1] * 255.0) as u8,
+                                        (c[2] * 255.0) as u8,
+                                        (c[3] * 255.0) as u8,
+                                    );
+                                }
                             }
-                            "color_role" => color_role_expr = Some(prop.value.clone()),
                             "at" => {
                                 at_expr = Some(prop.value.clone());
                             }
@@ -2969,20 +2961,6 @@ impl Timeline {
                             "offset" => offset_expr = Some(prop.value.clone()),
                             _ => {}
                         }
-                    }
-
-                    if !explicit_color
-                        && let Some(role_expr) = color_role_expr.as_ref()
-                        && let Some(role_color) =
-                            self.resolve_role_color(&label_str, "color_role", role_expr, diagnostics)
-                    {
-                        initial_track_color = Some(role_color);
-                        color = typst::visualize::Color::from_u8(
-                            (role_color[0] * 255.0) as u8,
-                            (role_color[1] * 255.0) as u8,
-                            (role_color[2] * 255.0) as u8,
-                            (role_color[3] * 255.0) as u8,
-                        );
                     }
 
                     let track = self
@@ -3276,14 +3254,10 @@ impl Timeline {
                     let mut line_to = existing_track.line_to.last_value();
                     let mut arc_angles = existing_track.arc_angles.last_value();
                     let mut color = existing_track.color.last_value();
-                    let mut explicit_color = false;
-                    let mut color_role_expr: Option<Expr> = None;
                     let shape_type = shape_type_for_actor(ty);
                     let opacity = existing_track.opacity.last_value();
                     let mut stroke_width = existing_track.stroke_width.last_value();
                     let mut stroke_color = existing_track.stroke_color.last_value();
-                    let mut explicit_stroke_color = false;
-                    let mut stroke_role_expr: Option<Expr> = None;
                     let mut stroke_progress = existing_track.stroke_progress.last_value();
                     let mut fill_opacity = existing_track.fill_opacity.last_value();
                     let mut gap = 0.0f32;
@@ -3458,30 +3432,46 @@ impl Timeline {
                             "commands" if ty == "Path" => {
                                 custom_path = parse_path_commands_expr(&prop.value, &eval_env);
                             }
-                            "color_role" => {
-                                color_role_expr = Some(prop.value.clone());
-                            }
                             "color" => {
-                                explicit_color = true;
-                                color = parse_color_in_env_with_lookup_diagnostic(
+                                if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                    if let Some(actor_color) = self.auto_color_for_label(label) {
+                                        color = actor_color;
+                                        if ty == "CartesianPlot"
+                                            || ty == "PolarPlot"
+                                            || ty == "ParametricPlot"
+                                            || ty == "ImplicitPlot"
+                                        {
+                                            stroke_color = actor_color;
+                                        }
+                                    } else {
+                                        diagnostics.push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::UnknownColorReference,
+                                                DiagnosticPhase::Build,
+                                                format!(
+                                                    "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
+                                                    label
+                                                ),
+                                            )
+                                            .with_subject(&prop_subject),
+                                        );
+                                    }
+                                } else if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
+                                    label,
+                                    "color",
                                     &prop.value,
                                     &eval_env,
                                     diagnostics,
                                     &prop_subject,
-                                );
-                                // For plot types, also set stroke_color
-                                if ty == "CartesianPlot"
-                                    || ty == "PolarPlot"
-                                    || ty == "ParametricPlot"
+                                ) {
+                                    color = resolved_color;
+                                    if ty == "CartesianPlot"
+                                        || ty == "PolarPlot"
+                                        || ty == "ParametricPlot"
                                         || ty == "ImplicitPlot"
-                                {
-                                    stroke_color = parse_color_in_env_with_lookup_diagnostic(
-                                        &prop.value,
-                                        &eval_env,
-                                        diagnostics,
-                                        &prop_subject,
-                                    );
-                                    explicit_stroke_color = true;
+                                    {
+                                        stroke_color = resolved_color;
+                                    }
                                 }
                             }
                             "stroke_width" => {
@@ -3505,25 +3495,28 @@ impl Timeline {
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
-                                explicit_stroke_color = true;
-                                stroke_color = parse_color_in_env_with_lookup_diagnostic(
+                                if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
+                                    label,
+                                    "stroke_color",
                                     &prop.value,
                                     &eval_env,
                                     diagnostics,
                                     &prop_subject,
-                                );
+                                ) {
+                                    stroke_color = resolved_color;
+                                }
                             }
                             "stroke" => {
-                                explicit_stroke_color = true;
-                                stroke_color = parse_color_in_env_with_lookup_diagnostic(
+                                if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
+                                    label,
+                                    "stroke",
                                     &prop.value,
                                     &eval_env,
                                     diagnostics,
                                     &prop_subject,
-                                );
-                            }
-                            "stroke_role" => {
-                                stroke_role_expr = Some(prop.value.clone());
+                                ) {
+                                    stroke_color = resolved_color;
+                                }
                             }
                             "stroke_progress" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
@@ -3574,30 +3567,6 @@ impl Timeline {
                             }
                             _ => {}
                         }
-                    }
-
-                    if !explicit_color
-                        && let Some(role_expr) = color_role_expr.as_ref()
-                        && let Some(role_color) =
-                            self.resolve_role_color(label, "color_role", role_expr, diagnostics)
-                    {
-                        color = role_color;
-                        if ty == "CartesianPlot"
-                            || ty == "PolarPlot"
-                            || ty == "ParametricPlot"
-                            || ty == "ImplicitPlot"
-                        {
-                            stroke_color = role_color;
-                            explicit_stroke_color = true;
-                        }
-                    }
-
-                    if !explicit_stroke_color
-                        && let Some(role_expr) = stroke_role_expr.as_ref()
-                        && let Some(role_color) =
-                            self.resolve_role_color(label, "stroke_role", role_expr, diagnostics)
-                    {
-                        stroke_color = role_color;
                     }
 
                     if ty == "RegularPolygon" && custom_path.is_none() {
@@ -4064,12 +4033,16 @@ impl Timeline {
 
                     if target.len() == 1 && target[0] == "scene" {
                         if property == "background_color" {
-                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                            let Some(target_color) = parse_color_in_env_with_lookup_diagnostic(
+                                "scene",
+                                "background_color",
                                 value,
                                 &eval_env,
                                 diagnostics,
                                 &assignment_subject,
-                            );
+                            ) else {
+                                continue;
+                            };
                             if duration_ms > 0.0 {
                                 let start_val = self.background_color.evaluate(t_start_ms);
                                 self.background_color.add_keyframe(
@@ -4110,12 +4083,16 @@ impl Timeline {
 
                     match property.as_str() {
                         "color" => {
-                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                            let Some(target_color) = parse_color_in_env_with_lookup_diagnostic(
+                                &target_key,
+                                "color",
                                 value,
                                 &eval_env,
                                 diagnostics,
                                 &assignment_subject,
-                            );
+                            ) else {
+                                continue;
+                            };
                             if duration_ms > 0.0 {
                                 let start_val = track.color.evaluate(t_start_ms);
                                 track
@@ -4150,12 +4127,16 @@ impl Timeline {
                                 .add_keyframe(t_end_ms, target_width, easing);
                         }
                         "stroke_color" => {
-                            let target_color = parse_color_in_env_with_lookup_diagnostic(
+                            let Some(target_color) = parse_color_in_env_with_lookup_diagnostic(
+                                &target_key,
+                                "stroke_color",
                                 value,
                                 &eval_env,
                                 diagnostics,
                                 &assignment_subject,
-                            );
+                            ) else {
+                                continue;
+                            };
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_color.evaluate(t_start_ms);
                                 track.stroke_color.add_keyframe(

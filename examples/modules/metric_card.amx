@@ -1,9 +1,9 @@
 // Reusable imported component used by component_modules_demo.amx.
 
 pub component MetricCard(title: "Metric") {
-    frame: Rect, size: (280, 156), color_role: surface.primary, stroke_role: stroke.default, stroke_width: 2
-    accent_bar: Rect, size: (220, 10), color_role: accent.primary, at: (0, -52)
-    title_text: Text { text: title, font_size: 34, color_role: text.primary, at: (0, -12) }
-    caption_text: Text { text: "nested labels stay isolated", font_size: 16, color_role: text.secondary, at: (0, 26) }
-    badge: Circle, radius: 12, color_role: accent.warning, at: (-102, 42)
+    frame: Rect, size: (280, 156), color: surface.primary, stroke: stroke.default, stroke_width: 2
+    accent_bar: Rect, size: (220, 10), color: accent.primary, at: (0, -52)
+    title_text: Text { text: title, font_size: 34, color: text.primary, at: (0, -12) }
+    caption_text: Text { text: "nested labels stay isolated", font_size: 16, color: text.secondary, at: (0, 26) }
+    badge: Circle, radius: 12, color: accent.warning, at: (-102, 42)
 }

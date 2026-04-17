@@ -75,7 +75,7 @@ That means a colorscheme system should be built as a **defaulting layer beneath 
 Animatix should treat a colorscheme as a **declarative color contract** with two complementary pieces:
 
 1. **semantic tokens** for fixed scene/UI-like roles
-2. **an actor cycle** for deterministic distinct-color assignment
+2. **an auto color pool** for deterministic distinct-color assignment
 
 ### 4.1 Semantic Tokens
 
@@ -94,9 +94,9 @@ Semantic tokens provide stable named roles such as:
 
 These are for places where the author wants a specific semantic meaning rather than “give me the next distinct color.”
 
-### 4.2 Actor Cycle
+### 4.2 Auto Color Pool
 
-The actor cycle is an ordered list of colors intended for distinct actor-like nodes.
+The auto color pool is an ordered list of colors intended for distinct actor-like nodes.
 
 Example use cases:
 
@@ -105,7 +105,7 @@ Example use cases:
 - named characters/speakers in an explanatory animation
 - component instances that should be visually distinguishable without hand-assigning every color
 
-The actor cycle is **not** a primitive-type default table. It is a deterministic pool used when the author opts into automatic distinct assignment.
+The auto color pool is **not** a primitive-type default table. It is a deterministic pool used when the author opts into automatic distinct assignment.
 
 ### 4.3 Opt-In, Not Magic-By-Primitive
 
@@ -177,39 +177,39 @@ Why `config`:
 - it fits the current use of `config` for document-wide concerns such as resolution
 - it keeps the feature load-time oriented instead of frame-time magical
 
-### 6.2 Role-Based Color Properties
+### 6.2 Alias-Based Color Properties
 
 Preferred syntax direction:
 
 ```animatix
-title: Text { text: "Animatix", color_role: text.primary, anchor: scene.top, offset: (0, 80) }
-subtitle: Text { text: "Palette-driven stage", color_role: text.secondary, anchor: scene.top, offset: (0, 118) }
+title: Text { text: "Animatix", color: text.primary, anchor: scene.top, offset: (0, 80) }
+subtitle: Text { text: "Palette-driven stage", color: text.secondary, anchor: scene.top, offset: (0, 118) }
 
-alice: Circle, radius: 20, color_role: actor
-bob: Circle, radius: 20, color_role: actor
-carol: Circle, radius: 20, color_role: actor
+alice: Circle, radius: 20, color: auto
+bob: Circle, radius: 20, color: auto
+carol: Circle, radius: 20, color: auto
 
-warning: Rect, size: (280, 120), color_role: accent.warning
+warning: Rect, size: (280, 120), color: accent.warning
 ```
 
-This keeps colorscheme use explicit without overloading `color:` itself.
+This keeps colorscheme use explicit through the existing `color:` surface instead of introducing a second declaration property.
 
-### 6.3 Stroke Roles
+### 6.3 Stroke Aliases
 
 The same model should apply to stroke-style surfaces:
 
 ```animatix
-axis: Line, from: (-120, 0), to: (120, 0), stroke_role: stroke.default
+axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
 ```
 
 ### 6.4 Explicit Color Still Works
 
 ```animatix
-alice: Circle, radius: 20, color_role: actor
+alice: Circle, radius: 20, color: auto
 bob: Circle, radius: 20, color: (1.0, 0.4, 0.5, 1.0)
 ```
 
-In this example, `alice` receives a scheme-provided actor color while `bob` uses the explicit authored color.
+In this example, `alice` receives an automatically assigned scheme color while `bob` uses the explicit authored color.
 
 ---
 
@@ -281,13 +281,13 @@ badge.color = red [250ms]
 
 that assignment wins over any colorscheme-derived declaration default.
 
-### Rule 3: Explicit declaration colors beat role-based defaults
+### Rule 3: Explicit declaration colors beat alias-backed defaults
 
-If a node has explicit `color`, `stroke`, or `stroke_color`, those values win over `color_role` or `stroke_role`.
+If a node has explicit `color`, `stroke`, or `stroke_color`, those values win over colorscheme-alias defaults from `color` / `stroke` declarations.
 
-### Rule 4: Role-based defaults beat scheme fallback defaults
+### Rule 4: Alias-backed defaults beat scheme fallback defaults
 
-If a node uses `color_role: text.primary` or `color_role: actor`, that resolved scheme value wins over generic runtime default white.
+If a node uses `color: text.primary` or `color: auto`, that resolved scheme value wins over generic runtime default white.
 
 ### Rule 5: Scene background follows the same pattern
 
@@ -301,7 +301,7 @@ From lowest to highest priority:
 
 1. runtime hardcoded property default
 2. selected colorscheme defaults
-3. role-based declaration defaults such as `color_role` / `stroke_role`
+3. alias-based declaration defaults through `color` / `stroke`
 4. explicit declaration values such as `color`, `stroke`, `stroke_color`, `scene.background_color`
 5. later timed assignments
 6. frame-local reactive overrides
@@ -310,9 +310,9 @@ This order should be documented in one place and mirrored in tests.
 
 ---
 
-## 9. Actor Cycle Assignment Contract
+## 9. Auto Assignment Contract
 
-`color_role: actor` should assign a deterministic color from the selected scheme’s actor cycle.
+`color: auto` should assign a deterministic color from the selected scheme’s auto color pool.
 
 ### 9.1 Stable Identity Source
 
@@ -329,7 +329,7 @@ The cycle assignment must be deterministic for a given compiled document.
 Acceptable first rule:
 
 - walk actor declarations in timeline-build order
-- assign the next actor-cycle color to each unique actor-path that requests `color_role: actor`
+- assign the next auto-assignment color to each unique actor-path that requests `color: auto`
 - reuse the same color for later references to the same actor-path
 
 ### 9.3 Anonymous Actor Caveat
@@ -338,7 +338,7 @@ Anonymous nodes should still work if they receive deterministic auto-generated I
 
 ### 9.4 Cycle Wrap Behavior
 
-If the number of actor-role consumers exceeds the actor-cycle length, the cycle may wrap.
+If the number of auto-assignment consumers exceeds the auto color pool length, the pool may wrap.
 
 This is acceptable for v1 as long as:
 
@@ -398,10 +398,10 @@ This system should fail honestly and softly.
    - malformed file or invalid RGBA tuple
 4. **Colorscheme inheritance cycle**
    - `extends` graph loops
-5. **Unknown role token**
-   - `color_role: accent.branding` when the resolved scheme has no such token
-6. **Empty actor cycle**
-   - `color_role: actor` used but no actor-cycle colors exist after resolution
+5. **Unknown alias token**
+- `color: accent.branding` when the resolved scheme has no such token
+6. **Empty auto-assignment pool**
+- `color: auto` used but no auto-assignment colors exist after resolution
 
 ### Failure strategy
 
@@ -441,7 +441,7 @@ scheme.accent.warning
 
 But this should be treated as an additional convenience, not the core dependency of the first implementation slice.
 
-The first slice should land clean role-based defaults before broadening expression lookup surface.
+The first slice should land clean alias-backed defaults before broadening expression lookup surface.
 
 ### 12.3 Scene Background Seeding
 
@@ -460,11 +460,11 @@ config {
   colorscheme: "editorial-dark"
 }
 
-title: Text { text: "Animatix", color_role: text.primary, anchor: scene.top, offset: (0, 80) }
-subtitle: Text { text: "One selected scheme, minimal color boilerplate", color_role: text.secondary, anchor: scene.top, offset: (0, 116) }
+title: Text { text: "Animatix", color: text.primary, anchor: scene.top, offset: (0, 80) }
+subtitle: Text { text: "One selected scheme, minimal color boilerplate", color: text.secondary, anchor: scene.top, offset: (0, 116) }
 
-left: Circle, radius: 22, color_role: actor, at: (520, 360)
-right: Circle, radius: 22, color_role: actor, at: (760, 360)
+left: Circle, radius: 22, color: auto, at: (520, 360)
+right: Circle, radius: 22, color: auto, at: (760, 360)
 ```
 
 ### 13.2 Explicit Override
@@ -474,7 +474,7 @@ config {
   colorscheme: "editorial-dark"
 }
 
-left: Circle, radius: 22, color_role: actor, at: (520, 360)
+left: Circle, radius: 22, color: auto, at: (520, 360)
 right: Circle, radius: 22, color: (1.0, 0.9, 0.2, 1.0), at: (760, 360)
 ```
 
@@ -485,8 +485,8 @@ config {
   colorscheme: "./themes/brand_ocean.ron"
 }
 
-headline: Text { text: "Branded stage", color_role: text.primary, anchor: scene.top, offset: (0, 88) }
-panel: Rect, size: (300, 160), color_role: surface.primary, at: (640, 360)
+headline: Text { text: "Branded stage", color: text.primary, anchor: scene.top, offset: (0, 88) }
+panel: Rect, size: (300, 160), color: surface.primary, at: (640, 360)
 ```
 
 ---
@@ -504,13 +504,13 @@ The safest rollout is:
 
 ### Slice 2 — Role-based declaration defaults
 
-- add `color_role` / `stroke_role`
+- add colorscheme alias support through `color` / `stroke`
 - support semantic token resolution
 - preserve explicit `color` / `stroke` precedence
 
 ### Slice 3 — Actor cycle
 
-- add `color_role: actor`
+- add `color: auto`
 - define deterministic actor-path assignment
 - add precedence and wrap tests
 
@@ -539,7 +539,7 @@ Each slice should land with:
 - making primitive type the primary color identity model
 - creating a plugin/executable colorscheme system before the data-only model proves insufficient
 - inventing a GUI dependency before the DSL/runtime contract is stable
-- allowing unclear precedence between `color_role`, explicit `color`, assignments, and `always`
+- allowing unclear precedence between alias-backed `color`, explicit `color`, assignments, and `always`
 - broadening into a full styling language before this smaller palette model lands honestly
 
 ---

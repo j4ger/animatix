@@ -376,51 +376,43 @@ pub fn parse_color(expr: &Expr) -> [f32; 4] {
     parse_color_in_env(expr, &Environment::raw_new())
 }
 
-pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
-    if let Expr::Ident(name) = expr {
-        match name.as_str() {
-            "red" | "RED" => [1.0, 0.0, 0.0, 1.0],
-            "green" | "GREEN" => [0.0, 1.0, 0.0, 1.0],
-            "blue" | "BLUE" => [0.0, 0.0, 1.0, 1.0],
-            "black" | "BLACK" => [0.0, 0.0, 0.0, 1.0],
-            "white" | "WHITE" => [1.0, 1.0, 1.0, 1.0],
-            "yellow" | "YELLOW" => [1.0, 1.0, 0.0, 1.0],
-            "orange" | "ORANGE" => [1.0, 0.65, 0.0, 1.0],
-            _ => [0.8, 0.8, 0.8, 1.0],
-        }
-    } else if let Ok(value) = evaluate_expr(expr, env) {
-        match value {
-            Value::Color([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
-            Value::Vec4([r, g, b, a]) => [r as f32, g as f32, b as f32, a as f32],
-            Value::Vec3([r, g, b]) => [r as f32, g as f32, b as f32, 1.0],
-            _ => [0.8, 0.8, 0.8, 1.0],
-        }
-    } else if let Expr::Tuple(items) = expr {
-        // Parse color tuple: (r, g, b) or (r, g, b, a)
-        if items.len() >= 3 {
-            let r = evaluate_expr(&items[0], env)
-                .map(|v| v.as_num() as f32)
-                .unwrap_or(0.8);
-            let g = evaluate_expr(&items[1], env)
-                .map(|v| v.as_num() as f32)
-                .unwrap_or(0.8);
-            let b = evaluate_expr(&items[2], env)
-                .map(|v| v.as_num() as f32)
-                .unwrap_or(0.8);
-            let a = if items.len() >= 4 {
-                evaluate_expr(&items[3], env)
-                    .map(|v| v.as_num() as f32)
-                    .unwrap_or(1.0)
-            } else {
-                1.0
-            };
-            [r, g, b, a]
-        } else {
-            [0.8, 0.8, 0.8, 1.0]
-        }
-    } else {
-        [0.8, 0.8, 0.8, 1.0]
+fn named_color(name: &str) -> Option<[f32; 4]> {
+    match name {
+        "red" | "RED" => Some([1.0, 0.0, 0.0, 1.0]),
+        "green" | "GREEN" => Some([0.0, 1.0, 0.0, 1.0]),
+        "blue" | "BLUE" => Some([0.0, 0.0, 1.0, 1.0]),
+        "black" | "BLACK" => Some([0.0, 0.0, 0.0, 1.0]),
+        "white" | "WHITE" => Some([1.0, 1.0, 1.0, 1.0]),
+        "yellow" | "YELLOW" => Some([1.0, 1.0, 0.0, 1.0]),
+        "orange" | "ORANGE" => Some([1.0, 0.65, 0.0, 1.0]),
+        _ => None,
     }
+}
+
+fn color_from_value(value: Value) -> Option<[f32; 4]> {
+    match value {
+        Value::Color([r, g, b, a]) => Some([r as f32, g as f32, b as f32, a as f32]),
+        Value::Vec4([r, g, b, a]) => Some([r as f32, g as f32, b as f32, a as f32]),
+        Value::Vec3([r, g, b]) => Some([r as f32, g as f32, b as f32, 1.0]),
+        _ => None,
+    }
+}
+
+pub fn resolve_color_in_env(expr: &Expr, env: &Environment) -> Result<Option<[f32; 4]>, EvalError> {
+    if let Expr::Ident(name) = expr
+        && let Some(color) = named_color(name)
+    {
+        return Ok(Some(color));
+    }
+
+    evaluate_expr(expr, env).map(color_from_value)
+}
+
+pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
+    resolve_color_in_env(expr, env)
+        .ok()
+        .flatten()
+        .unwrap_or([0.8, 0.8, 0.8, 1.0])
 }
 
 pub fn time_to_ms(time: &Time) -> f64 {

@@ -3,12 +3,12 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Parametric plot demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Tuple-return closures drive parametric curves over t_domain inside the shipped Graph runtime.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "A single centered plot keeps the runtime behavior obvious and readable during scrubbing.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Parametric plot demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Tuple-return closures drive parametric curves over t_domain inside the shipped Graph runtime.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "A single centered plot keeps the runtime behavior obvious and readable during scrubbing.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-formula: Text { text: "(sin(2t), cos(3t))", font_size: 18, color_role: accent.primary, at: (640, 236) }
+formula: Text { text: "(sin(2t), cos(3t))", font_size: 18, color: accent.primary, at: (640, 236) }
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 410) {
   curve: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: accent.primary, width: 3
 }

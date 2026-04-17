@@ -41,7 +41,7 @@ pub enum DiagnosticCode {
     ConflictingModifierKey,
     UnknownAction,
     UnknownColorscheme,
-    UnknownColorRole,
+    UnknownColorReference,
     UnsupportedActionTarget,
     UnsupportedSequenceStatement,
     UnknownTargetPath,
@@ -58,7 +58,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
             DiagnosticCode::UnknownAction => write!(f, "unknown-action"),
             DiagnosticCode::UnknownColorscheme => write!(f, "unknown-colorscheme"),
-            DiagnosticCode::UnknownColorRole => write!(f, "unknown-color-role"),
+            DiagnosticCode::UnknownColorReference => write!(f, "unknown-color-reference"),
             DiagnosticCode::UnsupportedActionTarget => write!(f, "unsupported-action-target"),
             DiagnosticCode::UnsupportedSequenceStatement => {
                 write!(f, "unsupported-sequence-statement")

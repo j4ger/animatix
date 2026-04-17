@@ -3,16 +3,16 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Arrow primitive demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Line-style coordinates with a generated arrowhead.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "A simple stage keeps direction obvious.", font_size: 14, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Arrow primitive demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Line-style coordinates with a generated arrowhead.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "A simple stage keeps direction obvious.", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-source: Rect, size: (150, 80), color_role: accent.success, stroke_role: stroke.default, stroke_width: 4, at: (300, 430)
-target: Rect, size: (150, 80), color_role: accent.primary, stroke_role: stroke.default, stroke_width: 4, at: (980, 430)
-label: Text { text: "Throughput", font_size: 24, color_role: text.primary, at: (640, 334) }
+source: Rect, size: (150, 80), color: accent.success, stroke: stroke.default, stroke_width: 4, at: (300, 430)
+target: Rect, size: (150, 80), color: accent.primary, stroke: stroke.default, stroke_width: 4, at: (980, 430)
+label: Text { text: "Throughput", font_size: 24, color: text.primary, at: (640, 334) }
 
-flow: Arrow, from: (-220, 0), to: (220, 0), tip_length: 34, tip_width: 24, color: accent.danger, stroke_role: stroke.default, stroke_width: 4, at: (640, 430)
+flow: Arrow, from: (-220, 0), to: (220, 0), tip_length: 34, tip_width: 24, color: accent.danger, stroke: stroke.default, stroke_width: 4, at: (640, 430)
 
 #0s
 draw-in flow [900ms]

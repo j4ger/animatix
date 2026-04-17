@@ -3,14 +3,14 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color_role: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Arc + polygon + path demo", font_size: 42, color_role: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration.", font_size: 20, color_role: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color_role: text.secondary, anchor: scene.top, offset: (0, 136) }
+eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
+title: Text { text: "Arc + polygon + path demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
+subtitle: Text { text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
+caption: Text { text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-arc_label: Text { text: "Arc", font_size: 20, color_role: accent.warning, at: (260, 190) }
-poly_label: Text { text: "Polygon", font_size: 20, color_role: accent.success, at: (640, 190) }
-path_label: Text { text: "Path", font_size: 20, color_role: accent.primary, at: (1020, 190) }
+arc_label: Text { text: "Arc", font_size: 20, color: accent.warning, at: (260, 190) }
+poly_label: Text { text: "Polygon", font_size: 20, color: accent.success, at: (640, 190) }
+path_label: Text { text: "Path", font_size: 20, color: accent.primary, at: (1020, 190) }
 
 ring: Arc, radius_x: 120, radius_y: 90, start_angle: -0.7, sweep_angle: 3.8, stroke: accent.warning, width: 6, at: (260, 400)
 
