@@ -2,7 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::{Action, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::timeline::{evaluate_expr, parse_timing_modifiers, ModifierHost, Timeline, Value};
+use crate::timeline::{ModifierHost, Timeline, Value, evaluate_expr, parse_timing_modifiers};
 
 fn timing_modifier_params() -> Vec<ActionParam> {
     vec![
@@ -631,10 +631,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast);
 
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
+        );
     }
 
     #[test]
@@ -667,10 +669,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast);
 
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
+        );
     }
 
     #[test]
@@ -697,10 +701,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast);
 
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
+        );
     }
 
     #[test]
@@ -733,10 +739,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast);
 
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::InvalidModifierValue)
+        );
     }
 
     #[test]

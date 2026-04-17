@@ -184,23 +184,29 @@ mod tests {
 
         process_action(&action, 0.0, &mut timeline, &mut diagnostics);
 
-        assert!(diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction)
+        );
     }
 
     #[test]
     fn action_signatures_include_reveal_out() {
-        assert!(get_action_signatures()
-            .iter()
-            .any(|signature| signature.name == "reveal-out"));
+        assert!(
+            get_action_signatures()
+                .iter()
+                .any(|signature| signature.name == "reveal-out")
+        );
     }
 
     #[test]
     fn action_signatures_include_draw_out() {
-        assert!(get_action_signatures()
-            .iter()
-            .any(|signature| signature.name == "draw-out"));
+        assert!(
+            get_action_signatures()
+                .iter()
+                .any(|signature| signature.name == "draw-out")
+        );
     }
 
     #[test]
