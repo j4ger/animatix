@@ -4345,7 +4345,21 @@ impl Timeline {
                                     preserve_instant_delayed_value(&mut track.position, t_start_ms);
                                 }
                                 mark_track_manual_position(track, t_start_ms);
-                                set_track_position_binding(track, t_start_ms, binding);
+
+                                if duration_ms > 0.0 {
+                                    let start_binding = track.position_binding.evaluate(t_start_ms);
+                                    track.position_binding.add_keyframe(
+                                        t_start_ms,
+                                        start_binding,
+                                        Easing::Linear,
+                                    );
+                                    track
+                                        .position_binding
+                                        .add_keyframe(t_end_ms, binding, easing);
+                                } else {
+                                    set_track_position_binding(track, t_start_ms, binding);
+                                }
+
                                 position.unwrap_or_else(|| track.position.last_value())
                             } else {
                                 track.position.last_value()

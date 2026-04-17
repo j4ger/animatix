@@ -92,7 +92,51 @@ pub enum PositionBinding {
 
 impl Interpolate for PositionBinding {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 { *self } else { *other }
+        match (*self, *other) {
+            (Self::Absolute, Self::Absolute) => Self::Absolute,
+            (
+                Self::SceneAnchor {
+                    anchor,
+                    offset: start_offset,
+                },
+                Self::SceneAnchor {
+                    anchor: other_anchor,
+                    offset: end_offset,
+                },
+            ) if anchor == other_anchor => Self::SceneAnchor {
+                anchor,
+                offset: start_offset.interpolate(&end_offset, t),
+            },
+            (
+                Self::ScenePercent {
+                    x: start_x,
+                    y: start_y,
+                    offset: start_offset,
+                },
+                Self::ScenePercent {
+                    x: end_x,
+                    y: end_y,
+                    offset: end_offset,
+                },
+            ) => Self::ScenePercent {
+                x: start_x.interpolate(&end_x, t),
+                y: start_y.interpolate(&end_y, t),
+                offset: start_offset.interpolate(&end_offset, t),
+            },
+            (
+                Self::ContainerDefault { anchor },
+                Self::ContainerDefault {
+                    anchor: other_anchor,
+                },
+            ) if anchor == other_anchor => Self::ContainerDefault { anchor },
+            _ => {
+                if t < 0.5 {
+                    *self
+                } else {
+                    *other
+                }
+            }
+        }
     }
 }
 

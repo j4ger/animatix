@@ -2,11 +2,13 @@ use animatix::ast::{BinaryOp, Expr, InlineItem, Modifier, Property, Stmt, Time};
 use animatix::diagnostics::DiagnosticCode;
 use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
+use animatix::parser::parser;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     AnimationTrack, Interpolate, MorphStrategy, PlacementMode, PositionBinding, PropertyTrack,
     SceneAnchor, Timeline, evaluate_expr, parse_color, time_to_ms,
 };
+use chumsky::Parser;
 use kurbo::Shape;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -64,6 +66,10 @@ fn write_file(path: &Path, contents: &str) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, contents).unwrap();
+}
+
+fn parse_program(src: &str) -> Vec<Stmt> {
+    parser().parse(src).into_result().unwrap()
 }
 
 #[test]
@@ -632,6 +638,49 @@ fn test_code_primitive_respects_position_binding() {
         PositionBinding::SceneAnchor {
             anchor: SceneAnchor::Center,
             offset: [0.0, 24.0],
+        }
+    );
+}
+
+#[test]
+fn test_math_scene_percent_position_assignment_interpolates_binding() {
+    let ast = parse_program(
+        r#"
+math_title: Math { math: "E = mc^2", at: (30%, 38%) }
+
+#1s
+math_title.at = (32%, 36%) [1s]
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline
+        .tracks
+        .get("math_title")
+        .expect("math_title track should exist");
+
+    assert_eq!(
+        track.position_binding.evaluate(1000),
+        PositionBinding::ScenePercent {
+            x: 0.30,
+            y: 0.38,
+            offset: [0.0, 0.0],
+        }
+    );
+    assert_eq!(
+        track.position_binding.evaluate(1500),
+        PositionBinding::ScenePercent {
+            x: 0.31,
+            y: 0.37,
+            offset: [0.0, 0.0],
+        }
+    );
+    assert_eq!(
+        track.position_binding.evaluate(2000),
+        PositionBinding::ScenePercent {
+            x: 0.32,
+            y: 0.36,
+            offset: [0.0, 0.0],
         }
     );
 }
