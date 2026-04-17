@@ -1,0 +1,80 @@
+use super::{FileTreeEntry, MAX_TREE_DEPTH, MAX_TREE_ENTRIES};
+use std::cmp::Ordering;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+pub(super) fn workspace_root_for(file_path: &Path) -> PathBuf {
+    for ancestor in file_path.ancestors() {
+        if ancestor.join(".git").exists() || ancestor.join("Cargo.toml").exists() {
+            return ancestor.to_path_buf();
+        }
+    }
+    file_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf()
+}
+
+pub(super) fn build_file_tree(workspace_root: &Path, current_file: &Path) -> Vec<FileTreeEntry> {
+    let mut entries = Vec::new();
+    let mut remaining = MAX_TREE_ENTRIES;
+    collect_tree_entries(
+        workspace_root,
+        current_file,
+        0,
+        &mut remaining,
+        &mut entries,
+    );
+    entries
+}
+
+fn collect_tree_entries(
+    dir: &Path,
+    current_file: &Path,
+    depth: usize,
+    remaining: &mut usize,
+    entries: &mut Vec<FileTreeEntry>,
+) {
+    if depth > MAX_TREE_DEPTH || *remaining == 0 {
+        return;
+    }
+
+    let read_dir = match fs::read_dir(dir) {
+        Ok(read_dir) => read_dir,
+        Err(_) => return,
+    };
+
+    let mut children: Vec<_> = read_dir.filter_map(Result::ok).collect();
+    children.sort_by(|a, b| match (a.path().is_dir(), b.path().is_dir()) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        _ => a.file_name().cmp(&b.file_name()),
+    });
+
+    for child in children {
+        if *remaining == 0 {
+            return;
+        }
+
+        let path = child.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name.starts_with('.') && !current_file.starts_with(&path) {
+            continue;
+        }
+
+        let is_dir = path.is_dir();
+        entries.push(FileTreeEntry {
+            path: path.clone(),
+            name: name.to_string(),
+            depth,
+            is_dir,
+        });
+        *remaining = remaining.saturating_sub(1);
+
+        if is_dir {
+            collect_tree_entries(&path, current_file, depth + 1, remaining, entries);
+        }
+    }
+}
