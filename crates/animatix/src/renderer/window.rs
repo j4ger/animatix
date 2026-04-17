@@ -22,7 +22,11 @@ struct State {
 }
 
 impl State {
-    async fn new(window: Arc<Window>, timeline: &Timeline, debug_options: DebugRenderOptions) -> Self {
+    async fn new(
+        window: Arc<Window>,
+        timeline: &Timeline,
+        debug_options: DebugRenderOptions,
+    ) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -176,7 +180,11 @@ impl ApplicationHandler for App {
             let window = Arc::new(event_loop.create_window(attributes).unwrap());
             self.window = Some(window.clone());
 
-            let state = pollster::block_on(State::new(window.clone(), &self.timeline, self.debug_options));
+            let state = pollster::block_on(State::new(
+                window.clone(),
+                &self.timeline,
+                self.debug_options,
+            ));
             self.state = Some(state);
 
             window.request_redraw();

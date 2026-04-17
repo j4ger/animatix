@@ -59,7 +59,10 @@ impl OffscreenRenderer {
             core,
             texture: None,
             buffer: None,
-            dimensions: SceneDimensions { width: 0, height: 0 },
+            dimensions: SceneDimensions {
+                width: 0,
+                height: 0,
+            },
             bytes_per_row: 0,
         })
     }
@@ -156,8 +159,8 @@ impl OffscreenRenderer {
         for y in 0..dimensions.height as usize {
             let src_row = &data[y * self.bytes_per_row as usize
                 ..y * self.bytes_per_row as usize + dimensions.width as usize * 4];
-            let dst_row = &mut rgba[y * dimensions.width as usize * 4
-                ..(y + 1) * dimensions.width as usize * 4];
+            let dst_row = &mut rgba
+                [y * dimensions.width as usize * 4..(y + 1) * dimensions.width as usize * 4];
             dst_row.copy_from_slice(src_row);
         }
         drop(data);
