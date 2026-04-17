@@ -4,8 +4,8 @@ use animatix::easing::Easing;
 use animatix::module::ModuleGraph;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, MorphStrategy,
-    PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    AnimationTrack, Interpolate, MorphStrategy, PlacementMode, PositionBinding, PropertyTrack,
+    SceneAnchor, Timeline, evaluate_expr, parse_color, time_to_ms,
 };
 use kurbo::Shape;
 use std::fs;
@@ -458,14 +458,18 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast);
-    assert!(report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorscheme));
-    assert!(report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorReference));
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorscheme)
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorReference)
+    );
 }
 
 #[test]
@@ -1111,10 +1115,12 @@ left.title_text.color = green
         timeline.tracks["left.badge"].color.evaluate(1000),
         [1.0, 0.0, 0.0, 1.0]
     );
-    assert!(!timeline.tracks["left.title_text"]
-        .text_paths
-        .evaluate(1000)
-        .is_empty());
+    assert!(
+        !timeline.tracks["left.title_text"]
+            .text_paths
+            .evaluate(1000)
+            .is_empty()
+    );
 }
 
 #[test]

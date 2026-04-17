@@ -1,6 +1,6 @@
-use crate::easing::{apply_easing, Easing};
+use crate::easing::{Easing, apply_easing};
 use crate::timeline::morph::{
-    align_path_lists_with_strategy, morph_paths_with_options, MorphOptions,
+    MorphOptions, align_path_lists_with_strategy, morph_paths_with_options,
 };
 use std::collections::BTreeMap;
 
@@ -38,11 +38,7 @@ impl Interpolate for [f32; 4] {
 
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 
@@ -54,11 +50,7 @@ pub enum PlacementMode {
 
 impl Interpolate for PlacementMode {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 
@@ -77,11 +69,7 @@ pub enum SceneAnchor {
 
 impl Interpolate for SceneAnchor {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 
@@ -104,21 +92,13 @@ pub enum PositionBinding {
 
 impl Interpolate for PositionBinding {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 
 impl Interpolate for MorphOptions {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            *self
-        } else {
-            *other
-        }
+        if t < 0.5 { *self } else { *other }
     }
 }
 
@@ -148,11 +128,7 @@ impl Interpolate for Vec<crate::timeline::vello_path::VelloPath> {
 
 impl Interpolate for Option<crate::timeline::image::SceneImage> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
-        if t < 0.5 {
-            self.clone()
-        } else {
-            other.clone()
-        }
+        if t < 0.5 { self.clone() } else { other.clone() }
     }
 }
 

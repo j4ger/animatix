@@ -12,9 +12,9 @@ pub mod vello_path;
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use actions::process_action;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
-pub use env::{load_standard_library, Environment, EvalError, Value};
+pub use env::{Environment, EvalError, Value, load_standard_library};
 pub use image::load_image;
-pub use kurbo_shapes::{morph_kurbo_shapes, morph_kurbo_shapes_default, KurboShape_};
+pub use kurbo_shapes::{KurboShape_, morph_kurbo_shapes, morph_kurbo_shapes_default};
 pub use morph::{MorphOptions, MorphStrategy};
 pub use svg::parse_svg;
 pub use track::{
@@ -1236,7 +1236,10 @@ fn path_similarity_score(query: &str, candidate: &str) -> isize {
     prefix_bonus + suffix_bonus - length_penalty.min(8) - segment_penalty.min(12)
 }
 
-fn best_path_suggestion<'a>(query: &str, candidates: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+fn best_path_suggestion<'a>(
+    query: &str,
+    candidates: impl Iterator<Item = &'a str>,
+) -> Option<&'a str> {
     let mut best: Option<(&'a str, isize)> = None;
 
     for candidate in candidates {
@@ -2570,8 +2573,8 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .map(|v| v.as_str())
-                                    .unwrap_or_default();
+                                .map(|v| v.as_str())
+                                .unwrap_or_default();
                             }
                             "font_size" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
@@ -2580,11 +2583,12 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
+                                {
                                     self.auto_color_for_label(&label_str).or_else(|| {
                                         diagnostics.push(
                                             Diagnostic::warning(
@@ -2638,17 +2642,21 @@ impl Timeline {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_instant_delayed_value(&mut track.color, t_start_ms);
                         }
-                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
+                        track
+                            .color
+                            .add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
-                        at_expr.as_ref(),
-                        anchor_expr.as_ref(),
-                        offset_expr.as_ref(),
-                        &eval_env,
-                        diagnostics,
-                        &label_str,
-                    ) {
+                    if let Some((binding, position)) =
+                        resolve_position_binding_with_lookup_diagnostic(
+                            at_expr.as_ref(),
+                            anchor_expr.as_ref(),
+                            offset_expr.as_ref(),
+                            &eval_env,
+                            diagnostics,
+                            &label_str,
+                        )
+                    {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
                             preserve_instant_delayed_value(&mut track.position, t_start_ms);
@@ -2667,7 +2675,9 @@ impl Timeline {
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
                         let start_size = track.size.evaluate(t_start_ms);
-                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
+                        track
+                            .size
+                            .add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
                         preserve_instant_delayed_value(&mut track.size, t_start_ms);
@@ -2737,8 +2747,8 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .map(|v| v.as_str())
-                                    .unwrap_or_default();
+                                .map(|v| v.as_str())
+                                .unwrap_or_default();
                             }
                             "font_size" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
@@ -2747,11 +2757,12 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
+                                {
                                     self.auto_color_for_label(&label_str).or_else(|| {
                                         diagnostics.push(
                                             Diagnostic::warning(
@@ -2805,17 +2816,21 @@ impl Timeline {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_instant_delayed_value(&mut track.color, t_start_ms);
                         }
-                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
+                        track
+                            .color
+                            .add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
-                        at_expr.as_ref(),
-                        anchor_expr.as_ref(),
-                        offset_expr.as_ref(),
-                        &eval_env,
-                        diagnostics,
-                        &label_str,
-                    ) {
+                    if let Some((binding, position)) =
+                        resolve_position_binding_with_lookup_diagnostic(
+                            at_expr.as_ref(),
+                            anchor_expr.as_ref(),
+                            offset_expr.as_ref(),
+                            &eval_env,
+                            diagnostics,
+                            &label_str,
+                        )
+                    {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
                             preserve_instant_delayed_value(&mut track.position, t_start_ms);
@@ -2834,7 +2849,9 @@ impl Timeline {
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
                         let start_size = track.size.evaluate(t_start_ms);
-                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
+                        track
+                            .size
+                            .add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
                         preserve_instant_delayed_value(&mut track.size, t_start_ms);
@@ -2904,8 +2921,8 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .map(|v| v.as_str())
-                                    .unwrap_or_default();
+                                .map(|v| v.as_str())
+                                .unwrap_or_default();
                             }
                             "font_size" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
@@ -2914,11 +2931,12 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 font_size = v.as_num() as f32;
                             }
                             "color" => {
-                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                                let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
+                                {
                                     self.auto_color_for_label(&label_str).or_else(|| {
                                         diagnostics.push(
                                             Diagnostic::warning(
@@ -2972,17 +2990,21 @@ impl Timeline {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_instant_delayed_value(&mut track.color, t_start_ms);
                         }
-                        track.color.add_keyframe(t_start_ms, track_color, Easing::Linear);
+                        track
+                            .color
+                            .add_keyframe(t_start_ms, track_color, Easing::Linear);
                     }
 
-                    if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
-                        at_expr.as_ref(),
-                        anchor_expr.as_ref(),
-                        offset_expr.as_ref(),
-                        &eval_env,
-                        diagnostics,
-                        &label_str,
-                    ) {
+                    if let Some((binding, position)) =
+                        resolve_position_binding_with_lookup_diagnostic(
+                            at_expr.as_ref(),
+                            anchor_expr.as_ref(),
+                            offset_expr.as_ref(),
+                            &eval_env,
+                            diagnostics,
+                            &label_str,
+                        )
+                    {
                         if delay_ms > 0.0 && duration_ms == 0.0 {
                             preserve_discrete_position_state_before(track, t_start_ms);
                             preserve_instant_delayed_value(&mut track.position, t_start_ms);
@@ -3001,7 +3023,9 @@ impl Timeline {
                             .text_paths
                             .add_keyframe(t_start_ms, start_val, Easing::Linear);
                         let start_size = track.size.evaluate(t_start_ms);
-                        track.size.add_keyframe(t_start_ms, start_size, Easing::Linear);
+                        track
+                            .size
+                            .add_keyframe(t_start_ms, start_size, Easing::Linear);
                     } else if delay_ms > 0.0 {
                         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
                         preserve_instant_delayed_value(&mut track.size, t_start_ms);
@@ -3046,11 +3070,9 @@ impl Timeline {
                         }
                         let measured_half_size =
                             crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                        track.size.add_keyframe(
-                            time_ms as u64,
-                            measured_half_size,
-                            Easing::Linear,
-                        );
+                        track
+                            .size
+                            .add_keyframe(time_ms as u64, measured_half_size, Easing::Linear);
                         track.svg_paths = parsed_paths;
                     }
                 }
@@ -3119,7 +3141,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     initial_size[0] = w as f32 / 2.0;
                                     initial_size[1] = h as f32 / 2.0;
@@ -3132,7 +3154,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 initial_size = [r, r];
                             }
@@ -3143,7 +3165,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     x_domain = [min, max];
                                 }
@@ -3155,7 +3177,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     y_domain = [min, max];
                                 }
@@ -3167,7 +3189,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([min, max]) = v {
                                     t_domain = [min, max];
                                 }
@@ -3179,7 +3201,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Closure(args, body) = v {
                                     func = Some((args, body));
                                 }
@@ -3191,7 +3213,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 tolerance = v.as_num();
                             }
                             "max_depth" => {
@@ -3201,7 +3223,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 max_depth = v.as_num();
                             }
                             "resolution" => {
@@ -3211,7 +3233,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(96.0));
+                                .unwrap_or(Value::Num(96.0));
                                 resolution = v.as_num();
                             }
                             "at" => at_expr = Some(prop.value.clone()),
@@ -3303,7 +3325,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
                                 regular_polygon_radius = r;
@@ -3315,7 +3337,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(size[0] as f64 * 2.0));
+                                .unwrap_or(Value::Num(size[0] as f64 * 2.0));
                                 let side = v.as_num() as f32;
                                 size = [side / 2.0, side / 2.0];
                             }
@@ -3326,7 +3348,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
@@ -3339,7 +3361,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(size[0] as f64));
+                                .unwrap_or(Value::Num(size[0] as f64));
                                 size[0] = v.as_num() as f32;
                             }
                             "tip_width" if ty == "Arrow" => {
@@ -3349,7 +3371,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(size[1] as f64));
+                                .unwrap_or(Value::Num(size[1] as f64));
                                 size[1] = v.as_num() as f32;
                             }
                             "sides" if ty == "RegularPolygon" => {
@@ -3359,7 +3381,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(regular_polygon_sides as f64));
+                                .unwrap_or(Value::Num(regular_polygon_sides as f64));
                                 regular_polygon_sides = v.as_num().round().max(3.0) as usize;
                             }
                             "from" if ty == "Line" => {
@@ -3389,7 +3411,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(size[0] as f64));
+                                .unwrap_or(Value::Num(size[0] as f64));
                                 size[0] = v.as_num() as f32;
                             }
                             "radius_y" if ty == "Ellipse" || ty == "Arc" => {
@@ -3399,7 +3421,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(size[1] as f64));
+                                .unwrap_or(Value::Num(size[1] as f64));
                                 size[1] = v.as_num() as f32;
                             }
                             "start_angle" if ty == "Arc" => {
@@ -3409,7 +3431,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(arc_angles[0] as f64));
+                                .unwrap_or(Value::Num(arc_angles[0] as f64));
                                 arc_angles[0] = v.as_num() as f32;
                             }
                             "sweep_angle" if ty == "Arc" => {
@@ -3419,7 +3441,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(arc_angles[1] as f64));
+                                .unwrap_or(Value::Num(arc_angles[1] as f64));
                                 arc_angles[1] = v.as_num() as f32;
                             }
                             "points" if ty == "Polygon" || ty == "RegularPolygon" => {
@@ -3456,14 +3478,16 @@ impl Timeline {
                                             .with_subject(&prop_subject),
                                         );
                                     }
-                                } else if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
-                                    label,
-                                    "color",
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                ) {
+                                } else if let Some(resolved_color) =
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        label,
+                                        "color",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                {
                                     color = resolved_color;
                                     if ty == "CartesianPlot"
                                         || ty == "PolarPlot"
@@ -3481,7 +3505,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "width" => {
@@ -3491,30 +3515,34 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
                             "stroke_color" => {
-                                if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
-                                    label,
-                                    "stroke_color",
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                ) {
+                                if let Some(resolved_color) =
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        label,
+                                        "stroke_color",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                {
                                     stroke_color = resolved_color;
                                 }
                             }
                             "stroke" => {
-                                if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
-                                    label,
-                                    "stroke",
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                ) {
+                                if let Some(resolved_color) =
+                                    parse_color_in_env_with_lookup_diagnostic(
+                                        label,
+                                        "stroke",
+                                        &prop.value,
+                                        &eval_env,
+                                        diagnostics,
+                                        &prop_subject,
+                                    )
+                                {
                                     stroke_color = resolved_color;
                                 }
                             }
@@ -3525,7 +3553,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 stroke_progress = v.as_num() as f32;
                             }
                             "fill_opacity" => {
@@ -3535,7 +3563,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
                             "gap" => {
@@ -3545,7 +3573,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(0.0));
+                                .unwrap_or(Value::Num(0.0));
                                 gap = v.as_num() as f32;
                             }
                             "align" => {
@@ -3562,7 +3590,7 @@ impl Timeline {
                                     diagnostics,
                                     &prop_subject,
                                 )
-                                    .unwrap_or(Value::Num(1.0));
+                                .unwrap_or(Value::Num(1.0));
                                 cols = Some(v.as_num().max(1.0) as usize);
                             }
                             _ => {}
@@ -3594,13 +3622,14 @@ impl Timeline {
 
                     if let Some((binding, bound_position)) =
                         resolve_position_binding_with_lookup_diagnostic(
-                        at_expr.as_ref(),
-                        anchor_expr.as_ref(),
-                        offset_expr.as_ref(),
-                        &eval_env,
-                        diagnostics,
-                        label,
-                    ) {
+                            at_expr.as_ref(),
+                            anchor_expr.as_ref(),
+                            offset_expr.as_ref(),
+                            &eval_env,
+                            diagnostics,
+                            label,
+                        )
+                    {
                         preserve_discrete_position_state_before(track, t_start_ms);
                         set_track_position_binding(track, t_start_ms, binding);
                         if let Some(bound_position) = bound_position {
@@ -4065,8 +4094,10 @@ impl Timeline {
                     let target_key = assignment_target_key(target);
 
                     if target.len() > 1 && !self.nodes.contains_key(&target_key) {
-                        let suggestion =
-                            best_path_suggestion(&target_key, self.nodes.keys().map(String::as_str));
+                        let suggestion = best_path_suggestion(
+                            &target_key,
+                            self.nodes.keys().map(String::as_str),
+                        );
                         push_unknown_target_path_diagnostic(
                             diagnostics,
                             &assignment_subject,
@@ -4110,8 +4141,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(0.0))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_width.evaluate(t_start_ms);
                                 track.stroke_width.add_keyframe(
@@ -4158,8 +4189,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(0.0))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.stroke_progress.evaluate(t_start_ms);
                                 track.stroke_progress.add_keyframe(
@@ -4184,8 +4215,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(0.0))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.fill_opacity.evaluate(t_start_ms);
                                 track.fill_opacity.add_keyframe(
@@ -4230,9 +4261,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
-                                .as_num()
-                                as f32;
+                            .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.size.evaluate(t_start_ms);
                                 track
@@ -4252,8 +4282,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.size.evaluate(t_start_ms);
                                 track
@@ -4273,8 +4303,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Str(String::new()))
-                                .as_str();
+                            .unwrap_or(Value::Str(String::new()))
+                            .as_str();
                             if !target_url.is_empty() {
                                 if let Some(target_image) =
                                     crate::timeline::image::load_image(&target_url)
@@ -4309,8 +4339,7 @@ impl Timeline {
                                     &eval_env,
                                     diagnostics,
                                     &assignment_subject,
-                                )
-                            {
+                                ) {
                                 preserve_discrete_position_state_before(track, t_start_ms);
                                 if instant_delayed {
                                     preserve_instant_delayed_value(&mut track.position, t_start_ms);
@@ -4338,8 +4367,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.rotation.last_value() as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.rotation.last_value() as f64))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.rotation.evaluate(t_start_ms);
                                 track
@@ -4359,8 +4388,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.scale.last_value() as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.scale.last_value() as f64))
+                            .as_num() as f32;
                             if duration_ms > 0.0 {
                                 let start_val = track.scale.evaluate(t_start_ms);
                                 track
@@ -4378,8 +4407,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(0.0))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(0.0))
+                            .as_num() as f32;
                             let target_size = [r, r];
                             if duration_ms > 0.0 {
                                 let start_val = track.size.evaluate(t_start_ms);
@@ -4398,8 +4427,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.size.last_value()[0] as f64))
+                            .as_num() as f32;
                             let mut target_size = track.size.last_value();
                             target_size[0] = target_radius;
                             if duration_ms > 0.0 {
@@ -4419,8 +4448,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.size.last_value()[1] as f64))
+                            .as_num() as f32;
                             let mut target_size = track.size.last_value();
                             target_size[1] = target_radius;
                             if duration_ms > 0.0 {
@@ -4440,8 +4469,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.arc_angles.last_value()[0] as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.arc_angles.last_value()[0] as f64))
+                            .as_num() as f32;
                             let mut target_angles = track.arc_angles.last_value();
                             target_angles[0] = target_angle;
                             if duration_ms > 0.0 {
@@ -4465,8 +4494,8 @@ impl Timeline {
                                 diagnostics,
                                 &assignment_subject,
                             )
-                                .unwrap_or(Value::Num(track.arc_angles.last_value()[1] as f64))
-                                .as_num() as f32;
+                            .unwrap_or(Value::Num(track.arc_angles.last_value()[1] as f64))
+                            .as_num() as f32;
                             let mut target_angles = track.arc_angles.last_value();
                             target_angles[1] = target_angle;
                             if duration_ms > 0.0 {
@@ -4980,7 +5009,12 @@ fn node_local_bounds(
     if let Some([half_width, half_height]) = image_half_size {
         bounds = union_rect(
             bounds,
-            kurbo::Rect::new(0.0, 0.0, (half_width * 2.0) as f64, (half_height * 2.0) as f64),
+            kurbo::Rect::new(
+                0.0,
+                0.0,
+                (half_width * 2.0) as f64,
+                (half_height * 2.0) as f64,
+            ),
         );
     }
 
