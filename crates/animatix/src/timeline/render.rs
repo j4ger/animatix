@@ -1,6 +1,6 @@
 use super::{
-    build_shape_vello_path, resolve_bound_position, styled_vello_path, DebugRenderOptions,
-    SceneDimensions, Timeline, Value, VelloPath,
+    DebugRenderOptions, SceneDimensions, Timeline, Value, VelloPath, build_shape_vello_path,
+    resolve_bound_position, styled_vello_path,
 };
 use kurbo::Shape;
 
@@ -201,7 +201,8 @@ impl Timeline {
                 let transform = local_transform;
                 if let Some(mut fill_color) = vector_path.fill {
                     if local_opacity < 1.0 {
-                        fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                        fill_color =
+                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
                     }
                     scene.fill(
                         vello::peniko::Fill::NonZero,
@@ -214,7 +215,8 @@ impl Timeline {
 
                 if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
                     if local_opacity < 1.0 {
-                        stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                        stroke_color =
+                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
                     }
                     let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
                     scene.stroke(&stroke, transform, stroke_color, None, &vector_path.path);
@@ -248,7 +250,8 @@ impl Timeline {
                 let transform = local_transform;
                 if let Some(mut fill_color) = svg_path.fill {
                     if local_opacity < 1.0 {
-                        fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                        fill_color =
+                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
                     }
                     scene.fill(
                         vello::peniko::Fill::NonZero,
@@ -261,7 +264,8 @@ impl Timeline {
 
                 if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
                     if local_opacity < 1.0 {
-                        stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                        stroke_color =
+                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
                     }
                     let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
                     scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);

@@ -1,7 +1,7 @@
 use super::{
+    Diagnostic, DiagnosticCode, DiagnosticPhase, Modifier, ModifierHost, Stmt, Timeline,
     parse_stagger_interval_ms, parse_timing_modifiers,
-    push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind, Diagnostic, DiagnosticCode,
-    DiagnosticPhase, Modifier, ModifierHost, Stmt, Timeline,
+    push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 
 impl Timeline {

@@ -1,6 +1,7 @@
 use super::{
+    Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
     assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color, set_lookup_scalar,
-    set_lookup_vec2, Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
+    set_lookup_vec2,
 };
 
 impl Timeline {
