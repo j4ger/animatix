@@ -1836,7 +1836,7 @@ impl Timeline {
                         .fill_opacity
                         .add_keyframe(t_end_ms, fill_opacity, easing);
 
-                        if Timeline::is_layout_container_type(ty) {
+                    if Timeline::is_layout_container_type(ty) {
                         self.apply_container_layout(
                             label,
                             ty,
@@ -2458,7 +2458,6 @@ impl Timeline {
             }
         }
     }
-
 }
 
 impl Default for Timeline {
