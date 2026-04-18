@@ -13,16 +13,16 @@ A perfect circle defined by center point and radius.
 use animatix::timeline::kurbo_shapes::*;
 use kurbo::Point;
 
-let circle = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
+let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
 // or with coordinates directly:
-let circle = KurboShape_::circle_xy(50.0, 50.0, 30.0);
+let circle = KurboShape::circle_xy(50.0, 50.0, 30.0);
 ```
 
 ### Rectangle
 Axis-aligned rectangle defined by min and max coordinates.
 
 ```rust
-let rect = KurboShape_::rect(0.0, 0.0, 100.0, 100.0);
+let rect = KurboShape::rect(0.0, 0.0, 100.0, 100.0);
 // Creates rectangle from (0,0) to (100,100)
 ```
 
@@ -31,17 +31,17 @@ Rectangle with rounded corners. Supports both uniform and per-corner radii.
 
 ```rust
 // Uniform corner radius
-let rounded = KurboShape_::rounded_rect(0.0, 0.0, 100.0, 100.0, 20.0);
+let rounded = KurboShape::rounded_rect(0.0, 0.0, 100.0, 100.0, 20.0);
 
 // Per-corner radii (top-left, top-right, bottom-right, bottom-left)
-let custom = KurboShape_::rounded_rect_radii(0.0, 0.0, 100.0, 100.0, (10.0, 15.0, 20.0, 25.0));
+let custom = KurboShape::rounded_rect_radii(0.0, 0.0, 100.0, 100.0, (10.0, 15.0, 20.0, 25.0));
 ```
 
 ### Line
 Simple line segment between two points.
 
 ```rust
-let line = KurboShape_::line_xy(0.0, 0.0, 100.0, 100.0);
+let line = KurboShape::line_xy(0.0, 0.0, 100.0, 100.0);
 // Creates line from (0,0) to (100,100)
 ```
 
@@ -51,7 +51,7 @@ Parametric ellipse with center, radii, and rotation angle.
 ```rust
 use kurbo::Vec2;
 
-let ellipse = KurboShape_::ellipse_xy(50.0, 50.0, 40.0, 20.0, 0.0);
+let ellipse = KurboShape::ellipse_xy(50.0, 50.0, 40.0, 20.0, 0.0);
 // Center at (50,50), X-radius 40, Y-radius 20, no rotation
 ```
 
@@ -61,7 +61,7 @@ Elliptical arc with sweep angle and rotation.
 ```rust
 use std::f64::consts::PI;
 
-let arc = KurboShape_::arc_xy(
+let arc = KurboShape::arc_xy(
     50.0,           // center x
     50.0,           // center y
     30.0,           // x-radius
@@ -82,8 +82,8 @@ Morph from one shape to another using the `morph_kurbo_shapes` function:
 use animatix::timeline::kurbo_shapes::*;
 use kurbo::Point;
 
-let from_shape = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
-let to_shape = KurboShape_::rect(20.0, 20.0, 80.0, 80.0);
+let from_shape = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+let to_shape = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
 // Morph at 50% (midpoint)
 let morphed = morph_kurbo_shapes_default(&from_shape, &to_shape, 0.5);
@@ -112,8 +112,8 @@ let path_default = from_shape.to_path_default();
 ### Animation Sequence
 
 ```rust
-let circle = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
-let rect = KurboShape_::rect(20.0, 20.0, 80.0, 80.0);
+let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+let rect = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
 // Create animation frames
 for t in (0..=100).map(|i| i as f64 / 100.0) {
@@ -133,8 +133,8 @@ use animatix::timeline::kurbo_shapes::*;
 use kurbo::Point;
 
 fn create_shape_animation() {
-    let circle = KurboShape_::circle(Point::new(960.0, 540.0), 50.0);
-    let square = KurboShape_::rect(910.0, 490.0, 1010.0, 590.0);
+    let circle = KurboShape::circle(Point::new(960.0, 540.0), 50.0);
+    let square = KurboShape::rect(910.0, 490.0, 1010.0, 590.0);
     
     // Use morph_kurbo_shapes to create morphing animations
     for frame in 0..=60 {
@@ -161,8 +161,8 @@ fn create_shape_animation() {
 use animatix::timeline::kurbo_shapes::*;
 use kurbo::Point;
 
-let start = KurboShape_::circle(Point::new(100.0, 100.0), 50.0);
-let end = KurboShape_::rect(50.0, 50.0, 150.0, 150.0);
+let start = KurboShape::circle(Point::new(100.0, 100.0), 50.0);
+let end = KurboShape::rect(50.0, 50.0, 150.0, 150.0);
 
 // t=0.0 → pure circle
 // t=0.5 → halfway morph
@@ -192,10 +192,10 @@ cargo run --example kurbo_shape_morphing
 
 ## API Reference
 
-### KurboShape_ Enum
+### KurboShape Enum
 
 ```rust
-pub enum KurboShape_ {
+pub enum KurboShape {
     Circle { center: Point, radius: f64 },
     Rect { x0: f64, y0: f64, x1: f64, y1: f64 },
     RectUniform { x0: f64, y0: f64, x1: f64, y1: f64, radius: f64 },

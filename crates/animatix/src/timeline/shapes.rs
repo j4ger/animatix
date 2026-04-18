@@ -1,5 +1,5 @@
-use super::lookup::parse_numeric_vec2;
-use super::{Environment, KurboShape_, VelloPath, evaluate_expr};
+use super::property_lookup::parse_numeric_vec2;
+use super::{Environment, KurboShape, VelloPath, evaluate_expr};
 use crate::ast::Expr;
 
 pub(crate) const SHAPE_RECT: u32 = 0;
@@ -168,32 +168,32 @@ pub(crate) fn build_shape(
     line_from: [f32; 2],
     line_to: [f32; 2],
     arc_angles: [f32; 2],
-) -> KurboShape_ {
+) -> KurboShape {
     match shape_type {
-        SHAPE_CIRCLE => KurboShape_::Circle {
+        SHAPE_CIRCLE => KurboShape::Circle {
             center: kurbo::Point::new(0.0, 0.0),
             radius: size[0] as f64,
         },
-        SHAPE_LINE => KurboShape_::Line {
+        SHAPE_LINE => KurboShape::Line {
             p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
             p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
         },
-        SHAPE_ELLIPSE => KurboShape_::Ellipse {
+        SHAPE_ELLIPSE => KurboShape::Ellipse {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
             rotation: 0.0,
         },
-        SHAPE_ARC => KurboShape_::Arc {
+        SHAPE_ARC => KurboShape::Arc {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
             start_angle: arc_angles[0] as f64,
             sweep_angle: arc_angles[1] as f64,
             rotation: 0.0,
         },
-        SHAPE_ARROW => KurboShape_::Path {
+        SHAPE_ARROW => KurboShape::Path {
             path: build_arrow_path(line_from, line_to, size[0], size[1]),
         },
-        _ => KurboShape_::Rect {
+        _ => KurboShape::Rect {
             x0: -(size[0] as f64),
             y0: -(size[1] as f64),
             x1: size[0] as f64,

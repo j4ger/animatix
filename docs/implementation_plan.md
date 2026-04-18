@@ -52,6 +52,12 @@ These slices matter as context, but they are no longer active roadmap items:
 
 The active roadmap begins with contract tightening, then moves outward into truthful layout measurement, reusable theming, broader runtime breadth, and tooling refinement.
 
+### Internal architecture note
+
+The repository's internal structural cleanup and primitive-system refactor are tracked separately in `.sisyphus/plans/refactor_roadmap.md`.
+
+That plan is intentionally scoped to internal architecture and refactoring discipline. It should not be treated as a language-surface or shipped-feature roadmap item unless and until it materially changes roadmap sequencing.
+
 ### Current priority order
 
 1. component and diagnostic contract tightening

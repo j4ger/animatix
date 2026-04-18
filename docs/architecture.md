@@ -46,6 +46,8 @@ This is the boundary future IR work should target first. A future compiler shoul
 
 Today, `Timeline::build(...)` is the one-time lowering pass between the expanded program and frame evaluation.
 
+In source layout, the build-time orchestration now lives in `crates/animatix/src/timeline/build.rs`, with `timeline/mod.rs` keeping the core `Timeline` state shape and public timeline exports. This keeps the documented compile boundary the same while making the internal ownership boundary more explicit.
+
 Build-time work currently includes:
 
 - standard-library seeding for expression evaluation
@@ -132,6 +134,8 @@ The current CLI does not expose the expanded post-`module.rs` program directly, 
 ### Current IR Foothold
 
 The first IR layer in the repository is intentionally narrow: a **modifier IR** for `always` / labeled-`always` bodies whose payloads are compiled expressions.
+
+The modifier IR and bytecode VM are now housed under `timeline/modifier_runtime/`. Crate-root `ir` and `vm` modules remain compatibility facades for existing tests and callers, but the implementation ownership follows the timeline/runtime boundary.
 
 This IR does not replace `Timeline::build(...)` or `Timeline::evaluate(...)` yet. Its purpose is to stabilize the expression subset that already crosses the build-time / frame-time boundary:
 

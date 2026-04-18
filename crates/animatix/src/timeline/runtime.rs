@@ -3,6 +3,7 @@ use super::{
     assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color, set_lookup_scalar,
     set_lookup_vec2,
 };
+use super::modifier_runtime::{ir, vm};
 
 impl Timeline {
     pub(super) fn build_eval_env(&self, time_ms: u64) -> Environment {
@@ -304,26 +305,26 @@ impl Timeline {
 
     pub fn apply_modifier_ir_program(
         &self,
-        program: &crate::ir::ModifierIrProgram,
+        program: &ir::ModifierIrProgram,
         time_ms: u64,
         scene_dimensions: SceneDimensions,
         frame_env: &mut Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
-        crate::ir::execute_modifier_ir(program, frame_env, overrides, |frame_env, overrides| {
+        ir::execute_modifier_ir(program, frame_env, overrides, |frame_env, overrides| {
             *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
         })
     }
 
     pub fn apply_modifier_bytecode_program(
         &self,
-        program: &crate::vm::ModifierBytecodeProgram,
+        program: &vm::ModifierBytecodeProgram,
         time_ms: u64,
         scene_dimensions: SceneDimensions,
         frame_env: &mut Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
-        crate::vm::execute_modifier_bytecode(
+        vm::execute_modifier_bytecode(
             program,
             frame_env,
             overrides,

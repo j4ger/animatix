@@ -1,14 +1,6 @@
 use super::{Easing, PlacementMode, Timeline};
 
-fn is_layout_container(container_ty: &str) -> bool {
-    matches!(container_ty, "Row" | "Col" | "Stack" | "Grid")
-}
-
 impl Timeline {
-    pub(super) fn is_layout_container_type(container_ty: &str) -> bool {
-        is_layout_container(container_ty)
-    }
-
     pub(super) fn apply_container_layout(
         &mut self,
         container_label: &str,

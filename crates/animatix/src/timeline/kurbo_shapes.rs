@@ -11,9 +11,7 @@
 //! - Ellipse: parametric ellipse with rotation
 //! - Arc: elliptical arc with sweep angle
 
-use kurbo::{
-    Arc, BezPath, Circle, Ellipse, Line, Point, Rect, RoundedRect, Shape as KurboShape, Vec2,
-};
+use kurbo::{Arc, BezPath, Circle, Ellipse, Line, Point, Rect, RoundedRect, Shape, Vec2};
 
 /// Default tolerance for curve approximation
 /// Controls accuracy when converting curves to bezier segments
@@ -21,7 +19,7 @@ pub const DEFAULT_TOLERANCE: f64 = 0.1;
 
 /// Enum representing all supported kurbo shapes
 #[derive(Clone, Debug)]
-pub enum KurboShape_ {
+pub enum KurboShape {
     /// Circle defined by center point and radius
     Circle { center: Point, radius: f64 },
 
@@ -72,15 +70,15 @@ pub enum KurboShape_ {
     Path { path: BezPath },
 }
 
-impl KurboShape_ {
+impl KurboShape {
     /// Create a circle from center and radius
     pub fn circle(center: Point, radius: f64) -> Self {
-        KurboShape_::Circle { center, radius }
+        KurboShape::Circle { center, radius }
     }
 
     /// Create a circle from center coordinates and radius
     pub fn circle_xy(cx: f64, cy: f64, radius: f64) -> Self {
-        KurboShape_::Circle {
+        KurboShape::Circle {
             center: Point::new(cx, cy),
             radius,
         }
@@ -88,12 +86,12 @@ impl KurboShape_ {
 
     /// Create a rectangle from min and max coordinates
     pub fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
-        KurboShape_::Rect { x0, y0, x1, y1 }
+        KurboShape::Rect { x0, y0, x1, y1 }
     }
 
     /// Create a rectangle with uniform corner radius
     pub fn rounded_rect(x0: f64, y0: f64, x1: f64, y1: f64, radius: f64) -> Self {
-        KurboShape_::RectUniform {
+        KurboShape::RectUniform {
             x0,
             y0,
             x1,
@@ -110,7 +108,7 @@ impl KurboShape_ {
         y1: f64,
         radii: (f64, f64, f64, f64),
     ) -> Self {
-        KurboShape_::RectRadii {
+        KurboShape::RectRadii {
             x0,
             y0,
             x1,
@@ -121,12 +119,12 @@ impl KurboShape_ {
 
     /// Create a line segment
     pub fn line(p0: Point, p1: Point) -> Self {
-        KurboShape_::Line { p0, p1 }
+        KurboShape::Line { p0, p1 }
     }
 
     /// Create a line segment from coordinates
     pub fn line_xy(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
-        KurboShape_::Line {
+        KurboShape::Line {
             p0: Point::new(x0, y0),
             p1: Point::new(x1, y1),
         }
@@ -134,7 +132,7 @@ impl KurboShape_ {
 
     /// Create an ellipse
     pub fn ellipse(center: Point, radii: Vec2, rotation: f64) -> Self {
-        KurboShape_::Ellipse {
+        KurboShape::Ellipse {
             center,
             radii,
             rotation,
@@ -143,7 +141,7 @@ impl KurboShape_ {
 
     /// Create an ellipse from coordinates
     pub fn ellipse_xy(cx: f64, cy: f64, rx: f64, ry: f64, rotation: f64) -> Self {
-        KurboShape_::Ellipse {
+        KurboShape::Ellipse {
             center: Point::new(cx, cy),
             radii: Vec2::new(rx, ry),
             rotation,
@@ -158,7 +156,7 @@ impl KurboShape_ {
         sweep_angle: f64,
         rotation: f64,
     ) -> Self {
-        KurboShape_::Arc {
+        KurboShape::Arc {
             center,
             radii,
             start_angle,
@@ -177,7 +175,7 @@ impl KurboShape_ {
         sweep_angle: f64,
         rotation: f64,
     ) -> Self {
-        KurboShape_::Arc {
+        KurboShape::Arc {
             center: Point::new(cx, cy),
             radii: Vec2::new(rx, ry),
             start_angle,
@@ -188,44 +186,44 @@ impl KurboShape_ {
 
     /// Create a polygon from explicit points
     pub fn polygon(points: Vec<Point>) -> Self {
-        KurboShape_::Polygon { points }
+        KurboShape::Polygon { points }
     }
 
     /// Create a raw path wrapper
     pub fn path(path: BezPath) -> Self {
-        KurboShape_::Path { path }
+        KurboShape::Path { path }
     }
 
     /// Convert this shape to a BezPath with specified tolerance
     pub fn to_path(&self, tolerance: f64) -> BezPath {
         match self {
-            KurboShape_::Circle { center, radius } => {
+            KurboShape::Circle { center, radius } => {
                 Circle::new(*center, *radius).into_path(tolerance)
             }
-            KurboShape_::Rect { x0, y0, x1, y1 } => {
+            KurboShape::Rect { x0, y0, x1, y1 } => {
                 Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
             }
-            KurboShape_::RectUniform {
+            KurboShape::RectUniform {
                 x0,
                 y0,
                 x1,
                 y1,
                 radius,
             } => RoundedRect::new(*x0, *y0, *x1, *y1, *radius).into_path(tolerance),
-            KurboShape_::RectRadii {
+            KurboShape::RectRadii {
                 x0,
                 y0,
                 x1,
                 y1,
                 radii,
             } => RoundedRect::new(*x0, *y0, *x1, *y1, *radii).into_path(tolerance),
-            KurboShape_::Line { p0, p1 } => Line::new(*p0, *p1).into_path(tolerance),
-            KurboShape_::Ellipse {
+            KurboShape::Line { p0, p1 } => Line::new(*p0, *p1).into_path(tolerance),
+            KurboShape::Ellipse {
                 center,
                 radii,
                 rotation,
             } => Ellipse::new(*center, *radii, *rotation).into_path(tolerance),
-            KurboShape_::Arc {
+            KurboShape::Arc {
                 center,
                 radii,
                 start_angle,
@@ -233,7 +231,7 @@ impl KurboShape_ {
                 rotation,
             } => Arc::new(*center, *radii, *start_angle, *sweep_angle, *rotation)
                 .into_path(tolerance),
-            KurboShape_::Polygon { points } => {
+            KurboShape::Polygon { points } => {
                 let mut path = BezPath::new();
                 if let Some(first) = points.first() {
                     path.move_to(*first);
@@ -244,7 +242,7 @@ impl KurboShape_ {
                 }
                 path
             }
-            KurboShape_::Path { path } => path.clone(),
+            KurboShape::Path { path } => path.clone(),
         }
     }
 
@@ -264,7 +262,7 @@ impl KurboShape_ {
 ///
 /// # Returns
 /// Morphed BezPath at the given time parameter
-pub fn morph_kurbo_shapes(from: &KurboShape_, to: &KurboShape_, t: f64, tolerance: f64) -> BezPath {
+pub fn morph_kurbo_shapes(from: &KurboShape, to: &KurboShape, t: f64, tolerance: f64) -> BezPath {
     let from_path = from.to_path(tolerance);
     let to_path = to.to_path(tolerance);
 
@@ -273,7 +271,7 @@ pub fn morph_kurbo_shapes(from: &KurboShape_, to: &KurboShape_, t: f64, toleranc
 }
 
 /// Morph from one kurbo shape to another using default tolerance
-pub fn morph_kurbo_shapes_default(from: &KurboShape_, to: &KurboShape_, t: f64) -> BezPath {
+pub fn morph_kurbo_shapes_default(from: &KurboShape, to: &KurboShape, t: f64) -> BezPath {
     morph_kurbo_shapes(from, to, t, DEFAULT_TOLERANCE)
 }
 
@@ -283,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_circle_conversion() {
-        let circle = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
+        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
         let path = circle.to_path_default();
 
         // Circle should convert to a valid BezPath
@@ -292,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_rect_conversion() {
-        let rect = KurboShape_::rect(0.0, 0.0, 100.0, 100.0);
+        let rect = KurboShape::rect(0.0, 0.0, 100.0, 100.0);
         let path = rect.to_path_default();
 
         // Rect should convert to a valid BezPath with lines
@@ -301,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_rounded_rect_uniform() {
-        let rect = KurboShape_::rounded_rect(0.0, 0.0, 100.0, 100.0, 10.0);
+        let rect = KurboShape::rounded_rect(0.0, 0.0, 100.0, 100.0, 10.0);
         let path = rect.to_path_default();
 
         // RoundedRect should convert to path with curves
@@ -311,7 +309,7 @@ mod tests {
     #[test]
     fn test_rounded_rect_radii() {
         let radii = (10.0, 15.0, 20.0, 25.0);
-        let rect = KurboShape_::rounded_rect_radii(0.0, 0.0, 100.0, 100.0, radii);
+        let rect = KurboShape::rounded_rect_radii(0.0, 0.0, 100.0, 100.0, radii);
         let path = rect.to_path_default();
 
         // RoundedRect with per-corner radii should convert to valid path
@@ -320,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_line_conversion() {
-        let line = KurboShape_::line(Point::new(0.0, 0.0), Point::new(100.0, 100.0));
+        let line = KurboShape::line(Point::new(0.0, 0.0), Point::new(100.0, 100.0));
         let path = line.to_path_default();
 
         // Line should convert to valid path
@@ -329,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_ellipse_conversion() {
-        let ellipse = KurboShape_::ellipse(Point::new(50.0, 50.0), Vec2::new(40.0, 30.0), 0.0);
+        let ellipse = KurboShape::ellipse(Point::new(50.0, 50.0), Vec2::new(40.0, 30.0), 0.0);
         let path = ellipse.to_path_default();
 
         // Ellipse should convert to path with curves
@@ -338,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_arc_conversion() {
-        let arc = KurboShape_::arc(
+        let arc = KurboShape::arc(
             Point::new(50.0, 50.0),
             Vec2::new(40.0, 40.0),
             0.0,
@@ -353,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_polygon_conversion() {
-        let polygon = KurboShape_::polygon(vec![
+        let polygon = KurboShape::polygon(vec![
             Point::new(-40.0, 0.0),
             Point::new(0.0, -60.0),
             Point::new(50.0, 10.0),
@@ -372,15 +370,15 @@ mod tests {
         raw.line_to((100.0, 50.0));
         raw.close_path();
 
-        let path = KurboShape_::path(raw.clone()).to_path_default();
+        let path = KurboShape::path(raw.clone()).to_path_default();
 
         assert_eq!(path.elements(), raw.elements());
     }
 
     #[test]
     fn test_circle_to_rect_morph() {
-        let circle = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
-        let rect = KurboShape_::rect(20.0, 20.0, 80.0, 80.0);
+        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+        let rect = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
         // Mid-morph should produce valid path
         let morphed = morph_kurbo_shapes_default(&circle, &rect, 0.5);
@@ -389,8 +387,8 @@ mod tests {
 
     #[test]
     fn test_rect_to_rounded_rect_morph() {
-        let rect = KurboShape_::rect(0.0, 0.0, 100.0, 100.0);
-        let rounded_rect = KurboShape_::rounded_rect(0.0, 0.0, 100.0, 100.0, 20.0);
+        let rect = KurboShape::rect(0.0, 0.0, 100.0, 100.0);
+        let rounded_rect = KurboShape::rounded_rect(0.0, 0.0, 100.0, 100.0, 20.0);
 
         // Morphing square to rounded square should work
         let morphed_start = morph_kurbo_shapes_default(&rect, &rounded_rect, 0.0);
@@ -405,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_tolerance_parameter() {
-        let circle = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
+        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
 
         // Looser tolerance should produce fewer segments
         let path_loose = circle.to_path(0.5);
@@ -424,8 +422,8 @@ mod tests {
 
     #[test]
     fn test_morph_continuity() {
-        let shape1 = KurboShape_::circle(Point::new(50.0, 50.0), 30.0);
-        let shape2 = KurboShape_::rect(20.0, 20.0, 80.0, 80.0);
+        let shape1 = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+        let shape2 = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
         // Morphs at different time values
         let t0 = morph_kurbo_shapes_default(&shape1, &shape2, 0.0);

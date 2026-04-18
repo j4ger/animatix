@@ -109,8 +109,10 @@ For demo work:
 - `crates/animatix/src/parser.rs` — parser
 - `crates/animatix/src/ast.rs` — AST types
 - `crates/animatix/src/module.rs` — import/module loading
-- `crates/animatix/src/timeline/` — keyframed runtime evaluation, actions, morphing, plotting
+- `crates/animatix/src/timeline/` — keyframed runtime evaluation, actions, morphing, plotting, primitive descriptors, and timeline build orchestration
+- `crates/animatix/src/timeline/modifier_runtime/` — modifier IR and bytecode VM implementation
 - `crates/animatix/src/renderer/` — rendering backend integration
+- `crates/animatix-gui/src/app/` — GUI runtime, workspace, persistence, file tree, and preview UI helpers
 - `tree-sitter-animatix/` — parser-derived editor/tooling grammar package for `.amx`
 
 These are the main places to inspect when debugging a mismatch between language syntax, timeline behavior, and rendered output.

@@ -1,4 +1,5 @@
 use crate::easing::{Easing, apply_easing};
+use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::{
     MorphOptions, align_path_lists_with_strategy, morph_paths_with_options,
 };
@@ -146,7 +147,7 @@ impl Interpolate for MorphOptions {
     }
 }
 
-impl Interpolate for Vec<crate::renderer::text::TextPath> {
+impl Interpolate for Vec<TextPath> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         interpolate_text_paths(self, other, t, MorphOptions::default())
     }
@@ -164,7 +165,7 @@ fn lerp_color(c1: vello::peniko::Color, c2: vello::peniko::Color, t: f32) -> vel
     )
 }
 
-impl Interpolate for Vec<crate::timeline::vello_path::VelloPath> {
+impl Interpolate for Vec<VelloPath> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         interpolate_vello_paths(self, other, t, MorphOptions::default())
     }
@@ -258,8 +259,8 @@ pub struct AnimationTrack {
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
     pub morph_options: PropertyTrack<MorphOptions>,
-    pub text_paths: PropertyTrack<Vec<crate::renderer::text::TextPath>>,
-    pub vector_paths: PropertyTrack<Vec<crate::timeline::vello_path::VelloPath>>,
+    pub text_paths: PropertyTrack<Vec<TextPath>>,
+    pub vector_paths: PropertyTrack<Vec<VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     pub image: PropertyTrack<Option<crate::timeline::image::SceneImage>>,
 }
@@ -293,7 +294,7 @@ impl AnimationTrack {
         }
     }
 
-    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<crate::renderer::text::TextPath> {
+    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
         evaluate_paths_with_options(
             &self.text_paths,
             &self.morph_options,
@@ -305,7 +306,7 @@ impl AnimationTrack {
     pub fn evaluate_vector_paths(
         &self,
         time_ms: u64,
-    ) -> Vec<crate::timeline::vello_path::VelloPath> {
+    ) -> Vec<VelloPath> {
         evaluate_paths_with_options(
             &self.vector_paths,
             &self.morph_options,
@@ -384,11 +385,11 @@ fn evaluate_paths_with_options<T: Clone>(
 }
 
 fn interpolate_text_paths(
-    source: &Vec<crate::renderer::text::TextPath>,
-    target: &Vec<crate::renderer::text::TextPath>,
+    source: &Vec<TextPath>,
+    target: &Vec<TextPath>,
     t: f32,
     options: MorphOptions,
-) -> Vec<crate::renderer::text::TextPath> {
+) -> Vec<TextPath> {
     let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
     let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
     let aligned_lists =
@@ -398,7 +399,7 @@ fn interpolate_text_paths(
         .into_iter()
         .enumerate()
         .map(
-            |(index, (source_path, target_path))| crate::renderer::text::TextPath {
+            |(index, (source_path, target_path))| TextPath {
                 path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
                 color: if t < 0.5 {
                     source
@@ -431,11 +432,11 @@ fn interpolate_text_paths(
 }
 
 fn interpolate_vello_paths(
-    source: &Vec<crate::timeline::vello_path::VelloPath>,
-    target: &Vec<crate::timeline::vello_path::VelloPath>,
+    source: &Vec<VelloPath>,
+    target: &Vec<VelloPath>,
     t: f32,
     options: MorphOptions,
-) -> Vec<crate::timeline::vello_path::VelloPath> {
+) -> Vec<VelloPath> {
     let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
     let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
     let aligned_lists =
@@ -448,7 +449,7 @@ fn interpolate_vello_paths(
             let source_element = source.get(index);
             let target_element = target.get(index);
 
-            crate::timeline::vello_path::VelloPath {
+                VelloPath {
                 path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
                 fill: match (
                     source_element.and_then(|element| element.fill),

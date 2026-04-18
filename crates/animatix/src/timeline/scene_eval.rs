@@ -2,6 +2,7 @@ use super::{
     DebugRenderOptions, SceneDimensions, Timeline, Value, VelloPath, build_shape_vello_path,
     resolve_bound_position, styled_vello_path,
 };
+use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
 fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
@@ -13,7 +14,7 @@ fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect
 
 fn node_local_bounds(
     vector_paths: &[VelloPath],
-    text_paths: &[crate::renderer::text::TextPath],
+    text_paths: &[TextPath],
     svg_paths: &[VelloPath],
     image_half_size: Option<[f32; 2]>,
 ) -> Option<kurbo::Rect> {
@@ -45,7 +46,7 @@ fn node_local_bounds(
 }
 
 impl Timeline {
-    pub fn extract_all_glyphs(&self) -> Vec<crate::renderer::text::TextPath> {
+    pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
             for (_, (paths, _)) in &track.text_paths.keyframes {

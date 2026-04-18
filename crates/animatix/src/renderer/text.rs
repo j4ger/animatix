@@ -1,5 +1,6 @@
 use kurbo::{Affine, BezPath, Point, Shape};
 use mitex::convert_math;
+pub use super::types::TextPath;
 use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
@@ -7,12 +8,6 @@ use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt};
-
-#[derive(Clone)]
-pub struct TextPath {
-    pub path: BezPath,
-    pub color: typst::visualize::Paint,
-}
 
 struct PathBuilder(BezPath);
 
