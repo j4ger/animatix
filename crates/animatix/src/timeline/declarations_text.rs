@@ -298,4 +298,32 @@ impl Timeline {
         track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
         track.size.add_keyframe(t_end_ms, new_half_size, easing);
     }
+
+    pub(super) fn process_text_actor_decl(
+        &mut self,
+        actor_type: &str,
+        label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let kind = match actor_type {
+            "Text" => TextDeclarationKind::Text,
+            "Math" => TextDeclarationKind::Math,
+            "Code" => TextDeclarationKind::Code,
+            _ => return,
+        };
+
+        self.process_text_declaration(
+            kind,
+            Some(label),
+            props,
+            modifiers,
+            time_ms,
+            parent_label,
+            diagnostics,
+        );
+    }
 }

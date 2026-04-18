@@ -47,6 +47,8 @@ pub enum DiagnosticCode {
     UnknownTargetPath,
     UnknownLookupPath,
     UnsupportedStaggerStatement,
+    MediaLoadFailure,
+    UnsupportedMediaAssignment,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -68,6 +70,8 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnsupportedStaggerStatement => {
                 write!(f, "unsupported-stagger-statement")
             }
+            DiagnosticCode::MediaLoadFailure => write!(f, "media-load-failure"),
+            DiagnosticCode::UnsupportedMediaAssignment => write!(f, "unsupported-media-assignment"),
         }
     }
 }

@@ -227,6 +227,32 @@ impl Timeline {
                     self.add_node(label.clone(), parent_label);
                     let primitive = PrimitiveDescriptor::for_actor_type(ty);
 
+                    if matches!(ty.as_str(), "Text" | "Math" | "Code") {
+                        self.process_text_actor_decl(
+                            ty,
+                            label,
+                            props,
+                            modifiers,
+                            time_ms,
+                            parent_label,
+                            diagnostics,
+                        );
+                        continue;
+                    }
+
+                    if matches!(ty.as_str(), "Svg" | "Image") {
+                        self.process_media_actor_decl(
+                            ty,
+                            label,
+                            props,
+                            modifiers,
+                            time_ms,
+                            parent_label,
+                            diagnostics,
+                        );
+                        continue;
+                    }
+
                     let mut x_domain = [-10.0, 10.0];
                     let mut y_domain = [-10.0, 10.0];
                     let mut t_domain = [0.0, std::f64::consts::TAU];

@@ -1582,6 +1582,153 @@ fn test_image_properties_are_animatable() {
 }
 
 #[test]
+fn test_missing_image_statement_reports_media_load_failure() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Image {
+            label: Some("photo".to_string()),
+            url: "/definitely/missing/animatix-image.png".to_string(),
+            at: (0.0, 0.0),
+            size: None,
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::MediaLoadFailure
+            && diagnostic.location.subject.as_deref() == Some("photo.url")
+    }));
+}
+
+#[test]
+fn test_invalid_svg_statement_reports_media_load_failure() {
+    let dir = temp_project_dir("invalid_svg_diagnostic");
+    let invalid_svg = dir.join("broken.svg");
+    write_file(&invalid_svg, "<svg><broken></svg>");
+
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Svg {
+            label: Some("icon".to_string()),
+            url: invalid_svg.display().to_string(),
+            at: (0.0, 0.0),
+            scale: 1.0,
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::MediaLoadFailure
+            && diagnostic.location.subject.as_deref() == Some("icon.url")
+    }));
+}
+
+#[test]
+fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "photo".to_string(),
+            ty: "Image".to_string(),
+            props: vec![Property {
+                name: "url".to_string(),
+                value: Expr::Str(example_path("checker.ppm")),
+            }],
+            modifiers: vec![
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("bounce".to_string()),
+                },
+            ],
+            children: vec![],
+        }],
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    let track = report
+        .output
+        .tracks
+        .get("photo")
+        .expect("photo track should exist");
+
+    assert_eq!(track.image.evaluate(0).is_some(), true);
+    assert_eq!(track.image.evaluate(500).is_some(), true);
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedModifierKey)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn test_missing_image_url_assignment_reports_media_load_failure() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::Image {
+                label: Some("photo".to_string()),
+                url: example_path("checker.ppm"),
+                at: (0.0, 0.0),
+                size: Some((32.0, 32.0)),
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["photo".to_string()],
+                property: "url".to_string(),
+                value: Expr::Str("/definitely/missing/animatix-image.png".to_string()),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::MediaLoadFailure
+            && diagnostic.location.subject.as_deref() == Some("photo.url")
+    }));
+}
+
+#[test]
+fn test_svg_url_assignment_reports_unsupported_media_assignment() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::Svg {
+                label: Some("icon".to_string()),
+                url: example_path("vector.svg"),
+                at: (0.0, 0.0),
+                scale: 1.0,
+            }],
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["icon".to_string()],
+                property: "url".to_string(),
+                value: Expr::Str(example_path("vector.svg")),
+                modifiers: vec![],
+            }],
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedMediaAssignment
+            && diagnostic.location.subject.as_deref() == Some("icon.url")
+    }));
+}
+
+#[test]
 fn test_line_actor_builds_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -3433,6 +3580,338 @@ fn test_stack_layout_overlaps_children_by_default() {
             .evaluate(0),
         [0.0, 0.0]
     );
+}
+
+#[test]
+fn test_row_with_text_children_uses_measured_bounds() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(20.0),
+            }],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "short".to_string(),
+                    ty: "Text".to_string(),
+                    props: vec![
+                        Property {
+                            name: "text".to_string(),
+                            value: Expr::Str("A".to_string()),
+                        },
+                        Property {
+                            name: "font_size".to_string(),
+                            value: Expr::Num(36.0),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "long".to_string(),
+                    ty: "Text".to_string(),
+                    props: vec![
+                        Property {
+                            name: "text".to_string(),
+                            value: Expr::Str("Measured layout".to_string()),
+                        },
+                        Property {
+                            name: "font_size".to_string(),
+                            value: Expr::Num(36.0),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let short = timeline.tracks.get("short").expect("short track");
+    let long = timeline.tracks.get("long").expect("long track");
+    let short_size = short.size.evaluate(0);
+    let long_size = long.size.evaluate(0);
+
+    assert!(short_size[0] > 0.0);
+    assert!(long_size[0] > short_size[0]);
+    assert_eq!(short.position.evaluate(0), [-(long_size[0] + 10.0), 0.0]);
+    assert_eq!(long.position.evaluate(0), [short_size[0] + 10.0, 0.0]);
+}
+
+#[test]
+fn test_col_with_code_child_uses_measured_bounds() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "col".to_string(),
+            ty: "Col".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(12.0),
+            }],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "panel".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(40.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "snippet".to_string(),
+                    ty: "Code".to_string(),
+                    props: vec![
+                        Property {
+                            name: "code".to_string(),
+                            value: Expr::Str("let x = 1".to_string()),
+                        },
+                        Property {
+                            name: "font_size".to_string(),
+                            value: Expr::Num(22.0),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let panel = timeline.tracks.get("panel").expect("panel track");
+    let snippet = timeline.tracks.get("snippet").expect("snippet track");
+    let panel_size = panel.size.evaluate(0);
+    let snippet_size = snippet.size.evaluate(0);
+
+    assert_eq!(panel_size, [60.0, 20.0]);
+    assert!(snippet_size[1] > 0.0);
+    assert_eq!(panel.position.evaluate(0), [0.0, -(snippet_size[1] + 6.0)]);
+    assert_eq!(snippet.position.evaluate(0), [0.0, panel_size[1] + 6.0]);
+}
+
+#[test]
+fn test_row_with_mixed_authored_and_measured_children() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "gap".to_string(),
+                value: Expr::Num(16.0),
+            }],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "dot".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(10.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "label".to_string(),
+                    ty: "Text".to_string(),
+                    props: vec![
+                        Property {
+                            name: "text".to_string(),
+                            value: Expr::Str("Measured".to_string()),
+                        },
+                        Property {
+                            name: "font_size".to_string(),
+                            value: Expr::Num(28.0),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "image".to_string(),
+                    ty: "Image".to_string(),
+                    props: vec![
+                        Property {
+                            name: "url".to_string(),
+                            value: Expr::Str(example_path("checker.ppm")),
+                        },
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(32.0), Expr::Num(24.0)]),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let dot = timeline.tracks.get("dot").expect("dot track");
+    let label = timeline.tracks.get("label").expect("label track");
+    let image = timeline.tracks.get("image").expect("image track");
+    let dot_size = dot.size.evaluate(0);
+    let label_size = label.size.evaluate(0);
+    let image_size = image.size.evaluate(0);
+    let gap = 16.0;
+    let total_width = dot_size[0] * 2.0 + label_size[0] * 2.0 + image_size[0] * 2.0 + gap * 2.0;
+    let start = -total_width / 2.0;
+
+    assert_eq!(dot_size, [10.0, 10.0]);
+    assert!(label_size[0] > 0.0);
+    assert_eq!(image_size, [16.0, 12.0]);
+    assert_eq!(dot.position.evaluate(0), [start + dot_size[0], 0.0]);
+    assert_eq!(
+        label.position.evaluate(0),
+        [start + dot_size[0] * 2.0 + gap + label_size[0], 0.0]
+    );
+    assert_eq!(
+        image.position.evaluate(0),
+        [
+            start + dot_size[0] * 2.0 + gap + label_size[0] * 2.0 + gap + image_size[0],
+            0.0,
+        ]
+    );
+}
+
+#[test]
+fn test_row_align_start_uses_measured_child_height() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "row".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "align".to_string(),
+                value: Expr::Str("start".to_string()),
+            }],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "small".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(20.0)]),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "tall".to_string(),
+                    ty: "Code".to_string(),
+                    props: vec![
+                        Property {
+                            name: "code".to_string(),
+                            value: Expr::Str("fn main() {\n    println!(\"hi\");\n}".to_string()),
+                        },
+                        Property {
+                            name: "font_size".to_string(),
+                            value: Expr::Num(26.0),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        }],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let small = timeline.tracks.get("small").expect("small track");
+    let tall = timeline.tracks.get("tall").expect("tall track");
+    let small_size = small.size.evaluate(0);
+    let tall_size = tall.size.evaluate(0);
+
+    assert!(tall_size[1] > small_size[1]);
+    assert_eq!(small.position.evaluate(0)[1], -tall_size[1] + small_size[1]);
+    assert_eq!(tall.position.evaluate(0)[1], 0.0);
+}
+
+#[test]
+fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "grid".to_string(),
+                ty: "Grid".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "stack".to_string(),
+                ty: "Stack".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ],
+    }];
+
+    let timeline = Timeline::build(&ast);
+    for label in ["grid", "stack"] {
+        assert_eq!(
+            timeline
+                .tracks
+                .get(label)
+                .expect("container track")
+                .position_binding
+                .evaluate(0),
+            PositionBinding::ContainerDefault {
+                anchor: SceneAnchor::Center,
+            }
+        );
+    }
+}
+
+#[test]
+fn test_parser_built_row_with_inline_text_and_image_uses_measured_layout() {
+    let src = format!(
+        r#"
+        #0s
+        row: Row, gap: 20 {{
+          label: Text, text: "Measured", font_size: 28
+          photo: Image, url: "{}", size: (32, 24)
+        }}
+    "#,
+        example_path("checker.ppm")
+    );
+
+    let ast = parser()
+        .parse(src.as_str())
+        .into_result()
+        .expect("inline measured layout source should parse");
+    let timeline = Timeline::build(&ast);
+    let label = timeline.tracks.get("label").expect("label track");
+    let photo = timeline.tracks.get("photo").expect("photo track");
+    let label_size = label.size.evaluate(0);
+    let photo_size = photo.size.evaluate(0);
+
+    assert_eq!(label.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
+    assert_eq!(photo.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
+    assert!(label_size[0] > 0.0);
+    assert_eq!(photo_size, [16.0, 12.0]);
+    assert_eq!(label.position.evaluate(0), [-(photo_size[0] + 10.0), 0.0]);
+    assert_eq!(photo.position.evaluate(0), [label_size[0] + 10.0, 0.0]);
 }
 
 #[test]

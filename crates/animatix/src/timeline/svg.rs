@@ -27,15 +27,9 @@ pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
     }
 }
 
-pub fn parse_svg(svg_data: &str) -> Vec<VelloPath> {
+pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
     let opt = Options::default();
-    let tree = match Tree::from_str(svg_data, &opt) {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("Failed to parse SVG: {:?}", e);
-            return Vec::new();
-        }
-    };
+    let tree = Tree::from_str(svg_data, &opt).map_err(|error| format!("{error:?}"))?;
 
     let mut paths = Vec::new();
     let root = tree.root();
@@ -124,5 +118,5 @@ pub fn parse_svg(svg_data: &str) -> Vec<VelloPath> {
 
     visit(root, &mut paths);
 
-    paths
+    Ok(paths)
 }

@@ -7,6 +7,7 @@ use super::{
     push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
     set_track_position_binding, vector_shape_uses_custom_path, build_shape_vello_path,
 };
+use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 
 impl Timeline {
     pub(super) fn process_assignment_statement(
@@ -263,20 +264,44 @@ impl Timeline {
                 .unwrap_or(Value::Str(String::new()))
                 .as_str();
                 if !target_url.is_empty() {
-                    if let Some(target_image) = crate::timeline::image::load_image(&target_url) {
-                        if duration_ms > 0.0 {
-                            let start_val = track.image.evaluate(t_start_ms);
+                    if !track.svg_paths.is_empty() && track.image.evaluate(t_start_ms).is_none() {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::UnsupportedMediaAssignment,
+                                DiagnosticPhase::Build,
+                                "Svg url assignments are not supported yet; redeclare the Svg actor at a keyframe instead.".to_string(),
+                            )
+                            .with_subject(&assignment_subject)
+                            .with_path(&target_url),
+                        );
+                        return;
+                    }
+
+                    match crate::timeline::image::load_image(&target_url) {
+                        Ok(target_image) => {
+                            if duration_ms > 0.0 {
+                                let start_val = track.image.evaluate(t_start_ms);
+                                track
+                                    .image
+                                    .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.image, t_start_ms);
+                            }
                             track
                                 .image
-                                .add_keyframe(t_start_ms, start_val, Easing::Linear);
-                        } else if instant_delayed {
-                            preserve_instant_delayed_value(&mut track.image, t_start_ms);
+                                .add_keyframe(t_end_ms, Some(target_image), easing);
                         }
-                        track
-                            .image
-                            .add_keyframe(t_end_ms, Some(target_image), easing);
-                    } else {
-                        eprintln!("Failed to load image file {}", target_url);
+                        Err(error) => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::MediaLoadFailure,
+                                    DiagnosticPhase::Build,
+                                    format!("Failed to load image file '{target_url}': {error}"),
+                                )
+                                .with_subject(&assignment_subject)
+                                .with_path(&target_url),
+                            );
+                        }
                     }
                 }
             }

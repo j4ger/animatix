@@ -5,6 +5,8 @@ use crate::timeline::morph::{
 };
 use std::collections::BTreeMap;
 
+pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
+
 pub trait Interpolate {
     fn interpolate(&self, other: &Self, t: f32) -> Self;
 }
@@ -247,6 +249,11 @@ pub struct AnimationTrack {
     pub scale: PropertyTrack<f32>,
     pub placement_mode: PropertyTrack<PlacementMode>,
     pub position_binding: PropertyTrack<PositionBinding>,
+    /// Local, unrotated layout half-extents consumed by layout containers.
+    ///
+    /// Shape primitives usually write authored geometry here, while text-like
+    /// and media primitives write measured or intrinsic bounds. Containers
+    /// double this value when computing placement extents.
     pub size: PropertyTrack<[f32; 2]>,
     pub line_from: PropertyTrack<[f32; 2]>,
     pub line_to: PropertyTrack<[f32; 2]>,
@@ -275,7 +282,7 @@ impl AnimationTrack {
             scale: PropertyTrack::new(1.0),
             placement_mode: PropertyTrack::new(PlacementMode::LayoutManaged),
             position_binding: PropertyTrack::new(PositionBinding::Absolute),
-            size: PropertyTrack::new([50.0, 50.0]),
+            size: PropertyTrack::new(DEFAULT_LAYOUT_HALF_SIZE),
             line_from: PropertyTrack::new([-50.0, 0.0]),
             line_to: PropertyTrack::new([50.0, 0.0]),
             arc_angles: PropertyTrack::new([0.0, std::f32::consts::PI]),

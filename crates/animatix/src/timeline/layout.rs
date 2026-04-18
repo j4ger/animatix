@@ -1,4 +1,10 @@
-use super::{Easing, PlacementMode, Timeline};
+use super::{AnimationTrack, Easing, PlacementMode, Timeline};
+
+fn layout_full_extents(track: &AnimationTrack) -> (f32, f32) {
+    let half_extents = track.size.last_value();
+
+    (half_extents[0] * 2.0, half_extents[1] * 2.0)
+}
 
 impl Timeline {
     pub(super) fn apply_container_layout(
@@ -25,13 +31,17 @@ impl Timeline {
             return;
         }
 
+        // Layout containers consume child-local half-extents from the shared
+        // size track. Authored shapes seed this track from declared geometry;
+        // text, math, code, image, and SVG paths seed it from measured or
+        // intrinsic bounds. Placement is declaration-time and does not promise
+        // sampled per-frame relayout when those tracks animate later.
         let child_extents: Vec<(f32, f32)> = children
             .iter()
             .filter_map(|cl| {
-                self.tracks.get(cl).map(|t| {
-                    let s = t.size.last_value();
-                    (s[0] * 2.0, s[1] * 2.0)
-                })
+                self.tracks
+                    .get(cl)
+                    .map(layout_full_extents)
             })
             .collect();
 
