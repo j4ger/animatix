@@ -8,6 +8,8 @@ eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.pri
 title: Text { text: "Layout demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
 subtitle: Text { text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
 caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+measure_label: Text { text: "Measured-child row", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 302) }
+measure_caption: Text { text: "Text, code, and intrinsic media now participate in the same declaration-time layout contract as authored shapes.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 330) }
 
 root_label: Text { text: "Root container default placement", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 184) }
 root_caption: Text { text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 212) }
@@ -30,6 +32,13 @@ dashboard: Grid, cols: 2, gap: 28 {
   p4: Rect, size: (214, 104), color: (0.29, 0.18, 0.18, 1.0),
   orb1: Circle, radius: 24, color: accent.warning,
   orb2: Circle, radius: 24, color: accent.primary
+}
+
+measure_row: Row, anchor: scene.top, offset: (0, 396), gap: 28, align: "center" {
+  badge: Circle, radius: 22, color: accent.warning,
+  headline: Text, text: "Measured text", font_size: 28, color: text.primary,
+  snippet: Code, code: "let layout = true", font_size: 22, color: accent.primary,
+  photo: Image, url: "examples/checker.ppm", size: (56, 42)
 }
 
 legend: Col, anchor: scene.left, offset: (170, 12), gap: 22, align: "center" {
