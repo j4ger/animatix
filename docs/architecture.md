@@ -241,8 +241,8 @@ The current runtime is best understood as having **placement before full measure
 
 - container layout already consumes child size data
 - authored-shape primitives and images can provide meaningful size today
-- text/math/code compilation already computes enough information to derive bounds, but those measured bounds are not yet part of the layout contract
-- SVG paths are available for rendering, but intrinsic bounds are not yet part of the tracked layout surface
+- text/math/code declarations now feed measured bounds into the same layout size track used by container placement
+- SVG paths are available for rendering and currently feed local path bounds into the shared layout size track, though that path remains less mature than authored geometry, text-like measurement, or intrinsic image size
 
 That makes a narrow size-aware layout slice practical without replacing the current architecture.
 
@@ -250,7 +250,7 @@ Recommended near-term direction:
 
 1. keep the existing parent-driven container model
 2. formalize a local layout-size contract for layout-participating children
-3. feed measured bounds from text/math/code into the same size track already used by `Row`, `Col`, and `Grid`
+3. keep using the same shared size track for authored geometry, intrinsic media size, and measured text/math/code bounds
 4. keep the first slice declaration-time and deterministic rather than promising sampled per-frame reflow
 
 This is intentionally smaller than CSS Flexbox or Flutter’s broader flex ecosystem. It is closer to a **measure/place refinement** on top of the current scene graph than to a new global layout engine.
