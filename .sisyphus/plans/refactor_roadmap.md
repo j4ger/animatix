@@ -78,13 +78,13 @@ The current codebase does not primarily suffer from “missing traits.” It suf
 
 Keep this section current during execution.
 
-- **Current phase:** Phase 2 preparation
-- **Active slice:** P2-S1 planning — vector-shape trait surface
-- **Last completed checkpoint:** P1-C7 — primitive family/capability seam landed
+- **Current phase:** Phase 2 complete
+- **Active slice:** None
+- **Last completed checkpoint:** P2-C3 — vector-shape pilot review completed
 - **Open questions:**
-  - Keep the initial vector-shape trait seam in `timeline::primitive.rs`, or split that file into a deeper subtree only after the pilot proves worthwhile?
+  - The vector-shape pilot worked without forcing a deeper subtree. Revisit a `timeline/primitive/` split only if a future family migration creates real pressure for it.
 - **Blocked items:** None
-- **Next safe midpoint commit:** `refactor: record phase 2 vector-shape pilot plan`
+- **Next safe midpoint commit:** `refactor: record phase 2 pilot review`
 
 When work starts, update this ledger before and after each slice.
 
@@ -590,9 +590,9 @@ QA scenario:
 
 ### 8.6 Phase 2 checkpoints
 
-- **P2-C1:** minimal trait-object surface defined
-- **P2-C2:** vector-shape pilot migrated with parity
-- **P2-C3:** pilot review completed and go/no-go decided
+- **P2-C1:** minimal trait-object surface defined — **done** via the vector-shape registry, trait, state, and style seam in `timeline/shapes.rs`
+- **P2-C2:** vector-shape pilot migrated with parity — **done** via build/eval/assignment/runtime routing through the new vector-shape dispatch helpers
+- **P2-C3:** pilot review completed and go/no-go decided — **done**; the pilot is worth keeping and Phase 2 can close on the vector-shape family
 - **P2-C4+:** each additional primitive family migrated one at a time
 
 ### 8.6.1 Current slice records
@@ -619,6 +619,24 @@ QA scenario:
 - **Docs expected to change:** roadmap ledger only unless the internal architecture description changes materially
 - **Safe midpoint commit target:** `refactor: add vector-shape primitive trait seam`
 
+### Completion record
+
+- **Files changed:** `.sisyphus/plans/refactor_roadmap.md`
+- **Tests/commands run:** document review only
+- **Docs updated:** this roadmap
+- **Checkpoint reached:** Phase 2 prep recorded
+- **Commit SHA:** `b292ddf`
+- **Open follow-up risks:** none blocking
+
+### Completion record
+
+- **Files changed:** `timeline/shapes.rs`, `timeline/build.rs`, `timeline/scene_eval.rs`, `timeline/assignments.rs`, `timeline/runtime.rs`, `timeline/mod.rs`, roadmap/docs updates
+- **Tests/commands run:** `cargo test`, `cargo check`, `cargo run --bin animatix -- ast examples/primitive_breadth_demo.amx`, `cargo run --bin animatix -- image examples/primitive_breadth_demo.amx --time 0.0 --output /tmp/phase2_primitive_breadth.png`, `cargo run --bin animatix -- image examples/arrow_demo.amx --time 0.0 --output /tmp/phase2_arrow.png`, `cargo run --bin animatix -- image examples/line_and_ellipse_demo.amx --time 0.0 --output /tmp/phase2_line_ellipse.png`, `cargo run --bin animatix -- image examples/arc_polygon_path_demo.amx --time 0.0 --output /tmp/phase2_arc_polygon_path.png`, `cargo run --bin animatix -- image examples/shape_morph_demo.amx --time 1.5 --output /tmp/phase2_shape_morph.png`, `cargo run --bin animatix -- video examples/shape_morph_demo.amx --output /tmp/phase2_shape_morph.mp4 --fps 30`
+- **Docs updated:** roadmap, architecture
+- **Checkpoint reached:** P2-C3
+- **Commit SHA:** pending
+- **Open follow-up risks:** future family migrations should keep the seam narrow unless new evidence justifies widening it
+
 ### 8.7 Phase 2 exit criteria
 
 Phase 2 is done only when:
@@ -627,6 +645,20 @@ Phase 2 is done only when:
 - migrated families preserve runtime parity
 - the abstraction is not forcing unrelated families into leaky common behavior
 - public grammar/features remain unchanged
+
+Completion note:
+
+- Phase 2 is complete for the intended vector-shape pilot scope.
+- The trait/object seam remains internal and vector-shape-specific instead of pretending to be a universal primitive API.
+- `AnimationTrack.shape_type` was intentionally retained as an internal bridge while central vector-shape behavior moved behind the new dispatch layer.
+- Public grammar and shipped feature behavior were preserved.
+
+### 8.7.1 Pilot review answers
+
+- **Did central branching shrink meaningfully?** Yes. Vector-shape-specific `ty == "..."` handling was removed from the main build-time property loop, and the scene-eval / assignment redraw paths now route through vector-shape dispatch helpers instead of open-coded special cases.
+- **Did ownership get clearer?** Yes. `timeline/shapes.rs` now owns vector-shape defaults, property application, path building, and restyling behind one internal seam instead of scattering those decisions across build/eval/runtime blocks.
+- **Did testing/debugging stay tractable?** Yes. The pilot added focused vector-shape seam tests and still passed the broader runtime/test and render parity ladder.
+- **Did the trait surface remain honest?** Yes. The seam is still narrowly vector-shape-oriented and did not expand into plots, text/media, layout, or plugin semantics.
 
 ---
 

@@ -62,6 +62,8 @@ Build-time work currently includes:
 - current plotting geometry sampling for `CartesianPlot` and `PolarPlot`
 - collecting `always` / labeled-`always` bodies into the retained modifier list for later frame-time execution
 
+For the migrated vector-shape family, build-time lowering now routes shape defaults, shape-specific property application, and path generation through a shared internal vector-shape dispatch layer in `timeline/shapes.rs`. The runtime still keeps `shape_type` on `AnimationTrack` as a bridge, but the main actor-declaration logic no longer carries the same open-coded shape branching it used before Phase 2.
+
 The output of this phase is a compiled timeline package in memory: scene graph structure, typed tracks, prebuilt assets/paths, and retained modifier statements.
 
 ### Current Colorscheme Integration
@@ -124,6 +126,8 @@ Frame-time work currently includes:
 - traversing the scene graph and sampling property tracks at the requested time
 - interpolating morphable path/text track data through `PropertyTrack::evaluate(...)`
 - emitting the final `vello::Scene` for rasterization
+
+For that same vector-shape family, redraw and restyling now reuse the same internal vector-shape dispatch helpers during scene evaluation and assignment handling instead of re-encoding family-specific path rebuilding rules in each phase.
 
 The renderer backends are host-side consumers of that evaluated scene. They do not own language semantics.
 
