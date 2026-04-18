@@ -1,6 +1,7 @@
 use super::{
-    DebugRenderOptions, SceneDimensions, Timeline, Value, VelloPath, build_shape_vello_path,
-    resolve_bound_position, styled_vello_path,
+    DebugRenderOptions, SceneDimensions, Timeline, Value, VelloPath, VectorShapeState,
+    VectorShapeStyle, build_vector_shape_vello_path, resolve_bound_position,
+    vector_shape_uses_custom_path,
 };
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
@@ -157,33 +158,26 @@ impl Timeline {
             }
 
             if !vector_paths.is_empty() {
-                vector_paths = if matches!(shape_type, super::SHAPE_POLYGON | super::SHAPE_PATH) {
-                    let existing_path = vector_paths
-                        .first()
-                        .map(|vp| vp.path.clone())
-                        .unwrap_or_else(kurbo::BezPath::new);
-                    vec![styled_vello_path(
-                        existing_path,
-                        shape_type,
-                        color,
-                        stroke_width,
-                        stroke_color,
-                        fill_opacity,
-                    )]
-                } else if matches!(shape_type, super::SHAPE_GRAPH | super::SHAPE_PLOT) {
+                vector_paths = if matches!(shape_type, super::SHAPE_GRAPH | super::SHAPE_PLOT) {
                     vector_paths
                 } else {
-                    vec![build_shape_vello_path(
+                    let mut vector_shape_state =
+                        VectorShapeState::new(half_size, line_from, line_to, arc_angles);
+                    if vector_shape_uses_custom_path(shape_type) {
+                        vector_shape_state.custom_path = vector_paths.first().map(|vp| vp.path.clone());
+                    }
+                    build_vector_shape_vello_path(
                         shape_type,
-                        half_size,
-                        line_from,
-                        line_to,
-                        arc_angles,
-                        color,
-                        stroke_width,
-                        stroke_color,
-                        fill_opacity,
-                    )]
+                        &vector_shape_state,
+                        VectorShapeStyle {
+                            color,
+                            stroke_width,
+                            stroke_color,
+                            fill_opacity,
+                        },
+                    )
+                    .map(|path| vec![path])
+                    .unwrap_or(vector_paths)
                 };
             }
 

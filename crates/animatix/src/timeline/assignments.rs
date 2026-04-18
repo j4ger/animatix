@@ -1,11 +1,11 @@
 use super::{
-    AnimationTrack, Diagnostic, Easing, ModifierHost, ParsedTimingModifiers, SHAPE_PATH,
-    SHAPE_POLYGON, Timeline, Value, assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
+    AnimationTrack, Diagnostic, Easing, ModifierHost, ParsedTimingModifiers, Timeline, Value,
+    VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
+    build_vector_shape_vello_path, evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
     parse_color_in_env_with_lookup_diagnostic, parse_numeric_vec2, parse_timing_modifiers,
     preserve_discrete_position_state_before, preserve_instant_delayed_value,
     push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
-    set_track_position_binding, styled_vello_path,
+    set_track_position_binding, vector_shape_uses_custom_path, build_shape_vello_path,
 };
 
 impl Timeline {
@@ -513,22 +513,25 @@ impl Timeline {
             let stroke_color = track.stroke_color.last_value();
             let fill_opacity = track.fill_opacity.last_value();
 
-            let target_vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
-                let existing_path = track
+            let mut vector_shape_state = VectorShapeState::new(size, line_from, line_to, arc_angles);
+            if vector_shape_uses_custom_path(shape_type) {
+                vector_shape_state.custom_path = track
                     .vector_paths
                     .last_value()
                     .first()
-                    .map(|vp| vp.path.clone())
-                    .unwrap_or_else(kurbo::BezPath::new);
-                styled_vello_path(
-                    existing_path,
-                    shape_type,
+                    .map(|vp| vp.path.clone());
+            }
+            let target_vello_path = build_vector_shape_vello_path(
+                shape_type,
+                &vector_shape_state,
+                VectorShapeStyle {
                     color,
                     stroke_width,
                     stroke_color,
                     fill_opacity,
-                )
-            } else {
+                },
+            )
+            .unwrap_or_else(|| {
                 build_shape_vello_path(
                     shape_type,
                     size,
@@ -540,7 +543,7 @@ impl Timeline {
                     stroke_color,
                     fill_opacity,
                 )
-            };
+            });
 
             if duration_ms > 0.0 {
                 let start_val = track.evaluate_vector_paths(t_start_ms);

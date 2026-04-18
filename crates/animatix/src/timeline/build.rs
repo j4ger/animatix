@@ -376,15 +376,11 @@ impl Timeline {
 
                     let mut position = existing_track.position.last_value();
                     let mut size = existing_track.size.last_value();
-                    if ty == "Dot" && size == [50.0, 50.0] {
-                        size = [6.0, 6.0];
-                    } else if ty == "Arrow" && size == [50.0, 50.0] {
-                        size = [24.0, 18.0];
-                    }
                     let mut line_from = existing_track.line_from.last_value();
                     let mut line_to = existing_track.line_to.last_value();
                     let mut arc_angles = existing_track.arc_angles.last_value();
                     let mut color = existing_track.color.last_value();
+                    let vector_shape = vector_shape_primitive_for_actor_type(ty);
                     let shape_type = shape_type_for_actor(ty);
                     let opacity = existing_track.opacity.last_value();
                     let mut stroke_width = existing_track.stroke_width.last_value();
@@ -394,9 +390,14 @@ impl Timeline {
                     let mut gap = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
-                    let mut custom_path: Option<kurbo::BezPath> = None;
-                    let mut regular_polygon_sides: usize = 5;
-                    let mut regular_polygon_radius = size[0];
+                    let mut vector_shape_state = VectorShapeState::new(
+                        size,
+                        line_from,
+                        line_to,
+                        arc_angles,
+                    );
+                    apply_vector_shape_defaults(ty, &mut vector_shape_state);
+                    size = vector_shape_state.size;
 
                     let ParsedTimingModifiers {
                         duration_ms,
@@ -437,18 +438,8 @@ impl Timeline {
                                 .unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
-                                regular_polygon_radius = r;
-                            }
-                            "side" if ty == "Square" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(size[0] as f64 * 2.0));
-                                let side = v.as_num() as f32;
-                                size = [side / 2.0, side / 2.0];
+                                vector_shape_state.size = size;
+                                vector_shape_state.regular_polygon_radius = r;
                             }
                             "size" => {
                                 let size_val = evaluate_expr_with_lookup_diagnostic(
@@ -461,107 +452,8 @@ impl Timeline {
                                 if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
+                                    vector_shape_state.size = size;
                                 }
-                            }
-                            "tip_length" if ty == "Arrow" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(size[0] as f64));
-                                size[0] = v.as_num() as f32;
-                            }
-                            "tip_width" if ty == "Arrow" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(size[1] as f64));
-                                size[1] = v.as_num() as f32;
-                            }
-                            "sides" if ty == "RegularPolygon" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(regular_polygon_sides as f64));
-                                regular_polygon_sides = v.as_num().round().max(3.0) as usize;
-                            }
-                            "from" if ty == "Line" => {
-                                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                ) {
-                                    line_from = parsed;
-                                }
-                            }
-                            "to" if ty == "Line" => {
-                                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                ) {
-                                    line_to = parsed;
-                                }
-                            }
-                            "radius_x" if ty == "Ellipse" || ty == "Arc" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(size[0] as f64));
-                                size[0] = v.as_num() as f32;
-                            }
-                            "radius_y" if ty == "Ellipse" || ty == "Arc" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(size[1] as f64));
-                                size[1] = v.as_num() as f32;
-                            }
-                            "start_angle" if ty == "Arc" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(arc_angles[0] as f64));
-                                arc_angles[0] = v.as_num() as f32;
-                            }
-                            "sweep_angle" if ty == "Arc" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(arc_angles[1] as f64));
-                                arc_angles[1] = v.as_num() as f32;
-                            }
-                            "points" if ty == "Polygon" || ty == "RegularPolygon" => {
-                                if let Some(points) = parse_point_list_expr(&prop.value, &eval_env)
-                                {
-                                    custom_path =
-                                        Some(KurboShape::Polygon { points }.to_path_default());
-                                }
-                            }
-                            "commands" if ty == "Path" => {
-                                custom_path = parse_path_commands_expr(&prop.value, &eval_env);
                             }
                             "color" => {
                                 if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
@@ -694,20 +586,32 @@ impl Timeline {
                                 .unwrap_or(Value::Num(1.0));
                                 cols = Some(v.as_num().max(1.0) as usize);
                             }
+                            _ if vector_shape.is_some() => {
+                                if apply_vector_shape_property(
+                                    ty,
+                                    &prop.name,
+                                    &prop.value,
+                                    &eval_env,
+                                    diagnostics,
+                                    &prop_subject,
+                                    &mut vector_shape_state,
+                                ) {
+                                    size = vector_shape_state.size;
+                                    line_from = vector_shape_state.line_from;
+                                    line_to = vector_shape_state.line_to;
+                                    arc_angles = vector_shape_state.arc_angles;
+                                }
+                            }
                             _ => {}
                         }
                     }
 
-                    if ty == "RegularPolygon" && custom_path.is_none() {
-                        custom_path = Some(
-                            KurboShape::Polygon {
-                                points: regular_polygon_points(
-                                    regular_polygon_sides,
-                                    regular_polygon_radius,
-                                ),
-                            }
-                            .to_path_default(),
-                        );
+                    if vector_shape.is_some() {
+                        finalize_vector_shape_state(ty, &mut vector_shape_state);
+                        size = vector_shape_state.size;
+                        line_from = vector_shape_state.line_from;
+                        line_to = vector_shape_state.line_to;
+                        arc_angles = vector_shape_state.arc_angles;
                     }
 
                     // For Graph types, make them invisible (container only)
@@ -982,17 +886,21 @@ impl Timeline {
                             }
                         }
                     } else if !primitive.is_plot() {
-                        let vello_path = if matches!(shape_type, SHAPE_POLYGON | SHAPE_PATH) {
-                            let path = custom_path.unwrap_or_else(kurbo::BezPath::new);
-                            styled_vello_path(
-                                path,
-                                shape_type,
+                        vector_shape_state.size = size;
+                        vector_shape_state.line_from = line_from;
+                        vector_shape_state.line_to = line_to;
+                        vector_shape_state.arc_angles = arc_angles;
+                        let vello_path = build_vector_shape_vello_path(
+                            shape_type,
+                            &vector_shape_state,
+                            VectorShapeStyle {
                                 color,
                                 stroke_width,
                                 stroke_color,
                                 fill_opacity,
-                            )
-                        } else {
+                            },
+                        )
+                        .unwrap_or_else(|| {
                             build_shape_vello_path(
                                 shape_type,
                                 size,
@@ -1004,7 +912,7 @@ impl Timeline {
                                 stroke_color,
                                 fill_opacity,
                             )
-                        };
+                        });
                         vello_paths.push(vello_path);
                     }
 

@@ -122,7 +122,7 @@ impl Timeline {
             set_lookup_vec2(env, &format!("{}.size", label), size);
             set_lookup_scalar(env, &format!("{}.width", label), size[0]);
             set_lookup_scalar(env, &format!("{}.height", label), size[1]);
-            if track.shape_type.evaluate(time_ms) == super::SHAPE_ARROW {
+            if super::vector_shape_exposes_tip_size(track.shape_type.evaluate(time_ms)) {
                 set_lookup_scalar(env, &format!("{}.tip_length", label), size[0] / 2.0);
                 set_lookup_scalar(env, &format!("{}.tip_width", label), size[1] / 2.0);
             }

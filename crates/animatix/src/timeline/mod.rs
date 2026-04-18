@@ -49,9 +49,11 @@ use position::{
     set_track_position_binding,
 };
 use shapes::{
-    SHAPE_ARROW, SHAPE_GRAPH, SHAPE_PATH, SHAPE_PLOT, SHAPE_POLYGON, build_shape_vello_path,
-    parse_path_commands_expr, parse_point_list_expr, regular_polygon_points, shape_type_for_actor,
-    styled_vello_path,
+    SHAPE_GRAPH, SHAPE_PLOT, VectorShapeState,
+    VectorShapeStyle, build_shape_vello_path, build_vector_shape_vello_path, shape_type_for_actor,
+    vector_shape_exposes_tip_size, vector_shape_primitive_for_actor_type,
+    vector_shape_uses_custom_path, apply_vector_shape_defaults, apply_vector_shape_property,
+    finalize_vector_shape_state,
 };
 pub use svg::parse_svg;
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
