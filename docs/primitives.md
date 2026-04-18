@@ -67,6 +67,12 @@ snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
 icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 ```
 
+Layout note: `Svg` currently publishes local path bounds into the shared declaration-time layout size track, so it can participate in container placement. This is supported, but it is still a narrower and less battle-tested measurement path than authored geometry or intrinsic image sizing.
+
+Diagnostics note: missing files or invalid SVG contents report build diagnostics instead of silently producing an empty renderable.
+
+Timing note: `Svg` source changes remain declaration-only today. Assigning `icon.url = ...` reports an unsupported media-assignment diagnostic; redeclare the `Svg` actor at a keyframe instead.
+
 ## Image
 **Status:** Implemented in parser and runtime.
 
@@ -77,6 +83,12 @@ icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 
 If `size` is omitted, the runtime uses the image's natural pixel size. The initial implementation keeps the surface intentionally small and file-based.
 
+Layout note: `Image` participates in the current declaration-time layout contract. Its local layout size comes from authored `size` when present, otherwise from the image's intrinsic pixel dimensions.
+
+Timing note: `Image` source changes remain an instant/discrete contract today. Duration/ease modifiers are not yet part of the guaranteed `Image` declaration surface.
+
+Diagnostics note: missing image files report build diagnostics instead of silently preserving placeholder state.
+
 **Transition note:** Animating `url` currently produces a discrete source swap, not a crossfade between two raster images. If you need a fade today, layer images manually and animate opacity instead.
 
 **Example:**
@@ -86,6 +98,8 @@ photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
 
 ## Circle
 **Status:** Implemented in parser and runtime.
+
+Layout note: shape primitives that already carry explicit authored geometry (`radius`, `size`, equivalent path-driving properties) participate in container layout through that authored size rather than a second measured-bounds pass.
 
 **Properties used by the runtime:**
 - `radius`: Number

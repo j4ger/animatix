@@ -92,6 +92,8 @@ label: Type, property: value
 
 Absolute positioning via `at: (x, y)` remains fully supported, but it should be understood as one placement mode rather than the only composition model.
 
+For layout containers, the current runtime uses a declaration-time measure/place contract: layout-managed children publish local, unrotated layout size into the shared `size` track, and `Row` / `Col` / `Grid` / `Stack` place those children deterministically from that stored size. Explicit child positioning via `at`, `anchor`, or `offset` opts that child out of container placement instead of mixing the two modes.
+
 **Variable Declaration**  
 Variables are computed values. They are not rendered directly.
 ```animatix
@@ -113,6 +115,8 @@ btn: Button, text: "Submit" [2s]
 #10s
 btn: another_button // morph into another pre-defined object
 ```
+
+Media note: `Image` and `Svg` still keep a narrower declaration-time contract than the vector/text paths. Their source changes are currently instant rather than part of the broader timed re-declaration surface, and missing or invalid media assets report build diagnostics instead of silently falling back.
 
 **Implicit Objects**  
 The engine provides an implicit `scene` object representing the global environment. Its properties, such as `background_color` (defaulting to `black`), can be assigned and animated like any other property.
