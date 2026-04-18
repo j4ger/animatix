@@ -51,7 +51,7 @@ pub(super) fn rewrite_stmt(
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             url: url.clone(),
-            at: *at,
+            at: at.clone(),
             scale: *scale,
         },
         Stmt::Image {
@@ -64,7 +64,7 @@ pub(super) fn rewrite_stmt(
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             url: url.clone(),
-            at: *at,
+            at: at.clone(),
             size: *size,
         },
         Stmt::ActorDecl {

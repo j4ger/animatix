@@ -497,7 +497,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(block_props.clone())
             .map(|(label, props)| {
                 let mut url = String::new();
-                let mut at = (0.0, 0.0);
+                let mut at = None;
                 let mut scale = 1.0;
                 for p in props {
                     match p.name.as_str() {
@@ -507,15 +507,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                             }
                         }
                         "at" => {
-                            if let Expr::Tuple(t) = p.value {
-                                if t.len() == 2 {
-                                    if let Expr::Num(x) = t[0] {
-                                        if let Expr::Num(y) = t[1] {
-                                            at = (x as f32, y as f32);
-                                        }
-                                    }
-                                }
-                            }
+                            at = Some(p.value);
                         }
                         "scale" => {
                             if let Expr::Num(n) = p.value {
@@ -542,7 +534,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(block_props.clone())
             .map(|(label, props)| {
                 let mut url = String::new();
-                let mut at = (0.0, 0.0);
+                let mut at = None;
                 let mut size = None;
                 for p in props {
                     match p.name.as_str() {
@@ -552,15 +544,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                             }
                         }
                         "at" => {
-                            if let Expr::Tuple(t) = p.value {
-                                if t.len() == 2 {
-                                    if let Expr::Num(x) = t[0] {
-                                        if let Expr::Num(y) = t[1] {
-                                            at = (x as f32, y as f32);
-                                        }
-                                    }
-                                }
-                            }
+                            at = Some(p.value);
                         }
                         "size" => {
                             if let Expr::Tuple(t) = p.value {

@@ -187,14 +187,14 @@ pub enum Stmt {
     Svg {
         label: Option<String>,
         url: String,
-        at: (f32, f32),
+        at: Option<Expr>,
         scale: f32,
     },
 
     Image {
         label: Option<String>,
         url: String,
-        at: (f32, f32),
+        at: Option<Expr>,
         size: Option<(f32, f32)>,
     },
 

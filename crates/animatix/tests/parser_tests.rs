@@ -502,7 +502,7 @@ fn test_image_stmt() {
         Stmt::Image {
             label: Some("photo".to_string()),
             url: "examples/checker.ppm".to_string(),
-            at: (100.0, 120.0),
+            at: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)])),
             size: Some((240.0, 180.0)),
         }
     );

@@ -199,15 +199,26 @@ impl Timeline {
                 scale,
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
+                let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
-                track
-                    .position
-                    .add_keyframe(time_ms as u64, [at.0, at.1], Easing::Linear);
+                let binding_subject = format!("{}.at", label_str);
+                if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
+                    at.as_ref(),
+                    None,
+                    None,
+                    &eval_env,
+                    diagnostics,
+                    &binding_subject,
+                ) {
+                    apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                } else {
+                    track.position.add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
+                }
 
                 match std::fs::read_to_string(url) {
                     Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
@@ -246,15 +257,26 @@ impl Timeline {
                 size,
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
+                let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
-                track
-                    .position
-                    .add_keyframe(time_ms as u64, [at.0, at.1], Easing::Linear);
+                let binding_subject = format!("{}.at", label_str);
+                if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
+                    at.as_ref(),
+                    None,
+                    None,
+                    &eval_env,
+                    diagnostics,
+                    &binding_subject,
+                ) {
+                    apply_explicit_position_binding(track, time_ms as u64, binding, position);
+                } else {
+                    track.position.add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
+                }
 
                 match crate::timeline::image::load_image(url) {
                     Ok(image) => {
