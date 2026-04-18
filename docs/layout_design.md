@@ -293,6 +293,8 @@ Phase 1 should be considered successful when:
 
 Phase 1 established deterministic container ownership and scene-relative placement. The next truthful layout step is **not** full CSS flexbox parity. It is a narrower **size-aware measure/place slice** that makes `Row` and `Col` rely on real child layout bounds instead of placeholder sizes.
 
+The current runtime now proves that narrow slice for the primary first-wave participants: authored vector shapes, `Image`, and text-like declarations (`Text`, `Math`, `Code`) all publish layout size through the shared `size` track that container layout already consumes. What remains is to keep that contract explicit, well-tested, and clearly documented about where it stops.
+
 ### 10.1 Why this phase exists
 
 Today the runtime already positions `Row`, `Col`, and `Grid` children from tracked child size, but the size-reporting contract is incomplete:
@@ -320,22 +322,27 @@ Recommended contract:
 
 - layout size is reported in the child’s local, unrotated coordinate space
 - layout size should represent the bounds used for parent container placement
-- the first implementation may continue using the existing half-extents storage convention already consumed by container layout
+- the first implementation continues using the existing half-extents storage convention already consumed by container layout
 - transforms such as rotation and visual-only scale should not redefine the base layout box in this slice
+
+In concrete runtime terms, the shared `size` track stores `[half_width, half_height]` for layout. Containers double those half-extents when computing `Row`, `Col`, `Grid`, or `Stack` placement.
 
 ### 10.4 Initial primitive support
 
 The first truthful slice should focus on primitives that already fit the current runtime architecture well.
 
-#### Should participate first
+#### Participates in the current tightened contract
 
-- `Image` — already has natural-size information and is the clearest proof of the intrinsic-size path
-- `Text`, `Math`, and `Code` — should report measured bounds from the existing Typst/text-path compilation pipeline
+- `Image` — reports explicit `size` when authored, otherwise its natural pixel size
+- `Text`, `Math`, and `Code` — report measured bounds from the existing Typst/text-path compilation pipeline
 - authored-shape primitives that already carry explicit size/radius semantics
 
-#### Should stay out of scope initially
+#### Additional currently supported participant
 
-- `Svg` layout participation until intrinsic bounds are tracked explicitly
+- `Svg` currently computes local path bounds into the shared layout size track and can participate in declaration-time container placement, but it is still a less mature measurement path than authored shapes, text-like declarations, or `Image`
+
+#### Still outside the guaranteed contract
+
 - any primitive whose runtime rendering path does not yet expose stable local bounds back to layout
 
 ### 10.5 Container scope
@@ -388,6 +395,8 @@ Later work may move layout toward sampled-state recomputation where needed, but 
 - verify `Row` / `Col` behavior with mixed authored-size and measured-size children
 - preserve manual child opt-out semantics
 - keep layout deterministic under random-access evaluation
+
+Status note: these three slices now exist in the runtime in a bounded form. The remaining work in this phase is mainly contract honesty: keeping docs, examples, and tests aligned with the shipped subset while avoiding broader flex claims.
 
 #### Slice 4 — Future architectural follow-up
 - evaluate when sampled child-state relayout becomes necessary
