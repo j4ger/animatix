@@ -172,8 +172,22 @@ impl WorkspaceViewer<'_> {
             ui.label(RichText::new(&self.preview.status).small().weak());
             if !self.diagnostics.is_empty() {
                 ui.add_space(4.0);
+                if self.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.phase == animatix::diagnostics::DiagnosticPhase::Parse
+                        && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
+                        && diagnostic.code
+                            == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
+                }) {
+                    ui.colored_label(
+                        Color32::from_rgb(255, 136, 136),
+                        RichText::new("Parse/load blocked timeline rebuild")
+                            .small()
+                            .strong(),
+                    );
+                    ui.add_space(2.0);
+                }
                 ui.colored_label(
-                    Color32::from_rgb(255, 214, 102),
+                    diagnostics_summary_color(self.diagnostics),
                     RichText::new(diagnostics_summary(self.diagnostics)).small(),
                 );
                 for diagnostic in self.diagnostics.iter().take(6) {

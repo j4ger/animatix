@@ -1,5 +1,5 @@
 use animatix::ast::{Expr, Stmt};
-use animatix::diagnostics::Diagnostic;
+use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::module::ModuleGraph;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline};
 use std::fs;
@@ -11,6 +11,7 @@ pub struct DocumentSession {
     pub expanded_statements: Option<Vec<Stmt>>,
     pub timeline: Option<Timeline>,
     pub diagnostics: Vec<Diagnostic>,
+    pub last_rebuild_error: Option<String>,
     pub is_dirty: bool,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
@@ -27,12 +28,13 @@ impl DocumentSession {
             expanded_statements: None,
             timeline: None,
             diagnostics: Vec::new(),
+            last_rebuild_error: None,
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
         };
 
-        document.rebuild()?;
+        let _ = document.rebuild();
         Ok(document)
     }
 
@@ -43,6 +45,7 @@ impl DocumentSession {
             expanded_statements: None,
             timeline: None,
             diagnostics: Vec::new(),
+            last_rebuild_error: None,
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
@@ -58,7 +61,8 @@ impl DocumentSession {
         self.source_text = fs::read_to_string(&self.file_path)
             .map_err(|err| format!("Failed to reload {}: {err}", self.file_path.display()))?;
         self.is_dirty = false;
-        self.rebuild()
+        let _ = self.rebuild();
+        Ok(())
     }
 
     pub fn save_to_disk(&mut self) -> Result<(), String> {
@@ -72,15 +76,24 @@ impl DocumentSession {
         let expanded_statements = match self.load_expanded_statements() {
             Ok(expanded_statements) => expanded_statements,
             Err(err) => {
+                self.last_rebuild_error = Some(err.clone());
                 self.expanded_statements = None;
                 self.timeline = None;
-                self.diagnostics.clear();
+                self.diagnostics = vec![
+                    Diagnostic::error(
+                        DiagnosticCode::SourceLoadFailure,
+                        DiagnosticPhase::Parse,
+                        format!("Failed to load or parse source: {err}"),
+                    )
+                    .with_path(self.file_path.clone()),
+                ];
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
                 return Err(err.to_string());
             }
         };
         let report = Timeline::build_with_diagnostics(&expanded_statements);
+        self.last_rebuild_error = None;
         self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);
         self.expanded_statements = Some(expanded_statements);
@@ -391,6 +404,7 @@ card: MetricCard, title: "Latency"
         assert!(timeline.tracks.contains_key("card"));
         assert!(timeline.tracks.contains_key("card.title_text"));
         assert!(timeline.tracks.contains_key("card.badge"));
+        assert!(document.last_rebuild_error.is_none());
         assert_eq!(
             document.scene_dimensions,
             SceneDimensions {
@@ -453,9 +467,93 @@ card: MetricCard
         assert!(error.contains("Duplicate component export 'MetricCard'"));
         assert!(document.expanded_statements.is_none());
         assert!(document.timeline.is_none());
-        assert!(document.diagnostics.is_empty());
+        assert_eq!(document.diagnostics.len(), 1);
+        let diagnostic = &document.diagnostics[0];
+        assert_eq!(
+            diagnostic.severity,
+            animatix::diagnostics::DiagnosticSeverity::Error
+        );
+        assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
+        assert_eq!(diagnostic.code, DiagnosticCode::SourceLoadFailure);
+        assert!(
+            diagnostic
+                .message
+                .contains("Duplicate component export 'MetricCard'")
+        );
+        assert_eq!(diagnostic.location.path.as_ref(), Some(&entry));
+        assert!(
+            document
+                .last_rebuild_error
+                .as_ref()
+                .is_some_and(|message| message.contains("Duplicate component export 'MetricCard'"))
+        );
         assert_eq!(document.duration_s, 0.1);
         assert_eq!(document.scene_dimensions, SceneDimensions::default());
         assert_eq!(document.file_path, entry);
+    }
+
+    #[test]
+    fn rebuild_records_parse_failure_diagnostic_for_invalid_source() {
+        let dir = temp_project_dir("document_rebuild_parse_failure");
+        let entry = dir.join("scene.amx");
+
+        write_file(
+            &entry,
+            r#"
+scene: Rect, size: (100, 100)
+"#,
+        );
+
+        let mut document =
+            DocumentSession::load(entry.clone()).expect("valid document should load");
+        document.set_source_text("scene: Rect {".to_string());
+
+        let error = document
+            .rebuild()
+            .expect_err("invalid source should fail rebuild");
+
+        assert!(!error.is_empty());
+        assert!(document.expanded_statements.is_none());
+        assert!(document.timeline.is_none());
+        assert_eq!(document.diagnostics.len(), 1);
+        let diagnostic = &document.diagnostics[0];
+        assert_eq!(
+            diagnostic.severity,
+            animatix::diagnostics::DiagnosticSeverity::Error
+        );
+        assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
+        assert_eq!(diagnostic.code, DiagnosticCode::SourceLoadFailure);
+        assert!(
+            diagnostic
+                .message
+                .contains("Failed to load or parse source:")
+        );
+        assert_eq!(diagnostic.location.path.as_ref(), Some(&entry));
+        assert!(document.last_rebuild_error.is_some());
+        assert_eq!(document.duration_s, 0.1);
+        assert_eq!(document.scene_dimensions, SceneDimensions::default());
+    }
+
+    #[test]
+    fn load_keeps_invalid_document_editable_with_parse_diagnostic() {
+        let dir = temp_project_dir("document_load_parse_failure");
+        let entry = dir.join("scene.amx");
+
+        write_file(&entry, "scene: Rect {");
+
+        let document =
+            DocumentSession::load(entry.clone()).expect("source should still load into session");
+
+        assert_eq!(document.file_path, entry);
+        assert_eq!(document.source_text, "scene: Rect {");
+        assert!(document.expanded_statements.is_none());
+        assert!(document.timeline.is_none());
+        assert_eq!(document.diagnostics.len(), 1);
+        assert_eq!(document.diagnostics[0].phase, DiagnosticPhase::Parse);
+        assert_eq!(
+            document.diagnostics[0].code,
+            DiagnosticCode::SourceLoadFailure
+        );
+        assert!(document.last_rebuild_error.is_some());
     }
 }

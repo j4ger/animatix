@@ -130,7 +130,10 @@ struct GuiShell {
 impl GuiShell {
     fn load(initial_path: PathBuf) -> Self {
         let (document, status, error) = match DocumentSession::load(initial_path.clone()) {
-            Ok(document) => (document, None, None),
+            Ok(document) => {
+                let error = document.last_rebuild_error.clone();
+                (document, None, error)
+            }
             Err(error) => (
                 DocumentSession::from_error(initial_path.clone()),
                 Some("Failed to initialize session".to_string()),
@@ -147,6 +150,12 @@ impl GuiShell {
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
         if let Some(status) = status {
             preview.status = status;
+        } else if has_source_load_failure(&document.diagnostics) {
+            preview.status = format!(
+                "Opened {} • parse/load error • {}",
+                document.file_path.display(),
+                diagnostics_summary(&document.diagnostics)
+            );
         }
         preview.error = error;
 
@@ -282,7 +291,7 @@ impl GuiShell {
             if !self.document.diagnostics.is_empty() {
                 ui.separator();
                 ui.colored_label(
-                    Color32::from_rgb(255, 214, 102),
+                    diagnostics_summary_color(&self.document.diagnostics),
                     diagnostics_summary(&self.document.diagnostics),
                 );
             }
@@ -364,9 +373,18 @@ impl GuiShell {
                 self.document = document;
                 self.editor
                     .set_document(&self.document.file_path, self.document.source_text.clone());
-                let status =
-                    self.document_status(format!("Opened {}", self.document.file_path.display()));
+                let status = if has_source_load_failure(&self.document.diagnostics) {
+                    format!(
+                        "Opened {} • parse/load error • {}",
+                        self.document.file_path.display(),
+                        diagnostics_summary(&self.document.diagnostics)
+                    )
+                } else {
+                    self.document_status(format!("Opened {}", self.document.file_path.display()))
+                };
+                let error = self.document.last_rebuild_error.clone();
                 self.sync_preview_from_document(status, true, true);
+                self.preview.error = error;
             }
             Err(error) => {
                 self.preview.error = Some(error.clone());
@@ -385,29 +403,58 @@ impl GuiShell {
         self.document.reload_from_disk()?;
         self.editor
             .set_document(&self.document.file_path, self.document.source_text.clone());
-        let status =
-            self.document_status(format!("Reloaded {}", self.document.file_path.display()));
+        let status = if has_source_load_failure(&self.document.diagnostics) {
+            format!(
+                "Reloaded {} • parse/load error • {}",
+                self.document.file_path.display(),
+                diagnostics_summary(&self.document.diagnostics)
+            )
+        } else {
+            self.document_status(format!("Reloaded {}", self.document.file_path.display()))
+        };
+        let error = self.document.last_rebuild_error.clone();
         self.sync_preview_from_document(status, false, false);
+        self.preview.error = error;
         self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path);
         Ok(())
     }
 
     fn rebuild(&mut self) -> Result<(), String> {
-        self.document.rebuild()?;
-        let status = if self.document.diagnostics.is_empty() {
-            format!(
-                "Built timeline • {:.2}s total duration",
-                self.document.duration_s.max(0.1)
-            )
-        } else {
-            format!(
-                "Built timeline • {:.2}s total duration • {}",
-                self.document.duration_s.max(0.1),
-                diagnostics_summary(&self.document.diagnostics)
-            )
-        };
-        self.sync_preview_from_document(status, false, false);
-        Ok(())
+        match self.document.rebuild() {
+            Ok(()) => {
+                let status = if self.document.diagnostics.is_empty() {
+                    format!(
+                        "Built timeline • {:.2}s total duration",
+                        self.document.duration_s.max(0.1)
+                    )
+                } else {
+                    format!(
+                        "Built timeline • {:.2}s total duration • {}",
+                        self.document.duration_s.max(0.1),
+                        diagnostics_summary(&self.document.diagnostics)
+                    )
+                };
+                self.sync_preview_from_document(status, false, false);
+                Ok(())
+            }
+            Err(error) => {
+                let status = if has_source_load_failure(&self.document.diagnostics) {
+                    format!(
+                        "Rebuild blocked • parse/load error • {}",
+                        diagnostics_summary(&self.document.diagnostics)
+                    )
+                } else {
+                    "Rebuild blocked".to_string()
+                };
+                self.preview.duration_s = self.document.duration_s.max(0.1);
+                self.preview.dimensions = self.document.scene_dimensions;
+                self.preview.clamp_time();
+                self.preview.status = status;
+                self.preview.error = Some(error.clone());
+                self.preview_dirty = true;
+                Err(error)
+            }
+        }
     }
 
     fn document_status(&self, base_status: String) -> String {
@@ -484,10 +531,34 @@ fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
         });
 }
 
+fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error)
+    {
+        Color32::from_rgb(255, 136, 136)
+    } else {
+        Color32::from_rgb(255, 214, 102)
+    }
+}
+
+fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
+    diagnostics.iter().any(|diagnostic| {
+        diagnostic.phase == animatix::diagnostics::DiagnosticPhase::Parse
+            && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
+            && diagnostic.code == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{WorkspaceTab, default_dock_state, fit_preview, preview};
+    use super::{
+        WorkspaceTab, default_dock_state, diagnostics_summary_color, fit_preview,
+        has_source_load_failure, preview,
+    };
+    use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
+    use egui::Color32;
     use egui::Vec2;
 
     #[test]
@@ -537,5 +608,30 @@ mod tests {
         assert_eq!(preview::time_from_pointer_x(rect, 10.0, 8.0), 0.0);
         assert!((preview::time_from_pointer_x(rect, 110.0, 8.0) - 4.0).abs() < 0.001);
         assert_eq!(preview::time_from_pointer_x(rect, 210.0, 8.0), 8.0);
+    }
+
+    #[test]
+    fn diagnostics_summary_color_turns_red_when_errors_exist() {
+        let diagnostics = vec![Diagnostic::error(
+            DiagnosticCode::SourceLoadFailure,
+            DiagnosticPhase::Parse,
+            "parse failed",
+        )];
+
+        assert_eq!(
+            diagnostics_summary_color(&diagnostics),
+            Color32::from_rgb(255, 136, 136)
+        );
+    }
+
+    #[test]
+    fn has_source_load_failure_detects_blocking_parse_entries() {
+        let diagnostics = vec![Diagnostic::error(
+            DiagnosticCode::SourceLoadFailure,
+            DiagnosticPhase::Parse,
+            "parse failed",
+        )];
+
+        assert!(has_source_load_failure(&diagnostics));
     }
 }

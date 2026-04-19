@@ -35,6 +35,7 @@ impl fmt::Display for DiagnosticPhase {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticCode {
+    SourceLoadFailure,
     UnsupportedModifierKey,
     UnsupportedAssignmentProperty,
     InvalidModifierValue,
@@ -55,6 +56,7 @@ pub enum DiagnosticCode {
 impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DiagnosticCode::SourceLoadFailure => write!(f, "source-load-failure"),
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
                 write!(f, "unsupported-assignment-property")
@@ -182,5 +184,35 @@ pub fn diagnostics_summary(diagnostics: &[Diagnostic]) -> String {
             if warnings == 1 { "" } else { "s" },
             if errors == 1 { "" } else { "s" }
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_load_failure_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::SourceLoadFailure.to_string(),
+            "source-load-failure"
+        );
+    }
+
+    #[test]
+    fn format_diagnostic_includes_parse_source_load_failure() {
+        let diagnostic = Diagnostic::error(
+            DiagnosticCode::SourceLoadFailure,
+            DiagnosticPhase::Parse,
+            "Failed to load or parse source",
+        )
+        .with_path("examples/showcase.amx");
+
+        let formatted = format_diagnostic(&diagnostic);
+
+        assert!(
+            formatted.contains("error[parse:source-load-failure] Failed to load or parse source")
+        );
+        assert!(formatted.contains("path: examples/showcase.amx"));
     }
 }
