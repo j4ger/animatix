@@ -268,7 +268,7 @@ mod tests {
                 offset: Time::Seconds(2.0),
                 body: vec![Stmt::Assignment {
                     target: vec!["box".to_string()],
-                    property: "opacity".to_string(),
+                    property: "scale".to_string(),
                     value: animatix::ast::Expr::Num(0.5),
                     modifiers: vec![],
                 }],
@@ -325,7 +325,7 @@ mod tests {
                 offset: Time::Seconds(1.0),
                 body: vec![Stmt::Assignment {
                     target: vec!["box".to_string()],
-                    property: "opacity".to_string(),
+                    property: "scale".to_string(),
                     value: Expr::Num(0.5),
                     modifiers: vec![],
                 }],
@@ -343,7 +343,7 @@ mod tests {
                 offset: Time::Seconds(1.5),
                 body: vec![Stmt::Assignment {
                     target: vec!["box".to_string()],
-                    property: "opacity".to_string(),
+                    property: "scale".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
                 }],
