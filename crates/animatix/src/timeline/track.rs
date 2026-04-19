@@ -310,10 +310,7 @@ impl AnimationTrack {
         )
     }
 
-    pub fn evaluate_vector_paths(
-        &self,
-        time_ms: u64,
-    ) -> Vec<VelloPath> {
+    pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
         evaluate_paths_with_options(
             &self.vector_paths,
             &self.morph_options,
@@ -405,36 +402,34 @@ fn interpolate_text_paths(
     aligned_lists
         .into_iter()
         .enumerate()
-        .map(
-            |(index, (source_path, target_path))| TextPath {
-                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
-                color: if t < 0.5 {
-                    source
-                        .get(index)
-                        .map(|path| path.color.clone())
-                        .unwrap_or_else(|| {
-                            target
-                                .get(index)
-                                .map(|path| path.color.clone())
-                                .unwrap_or_else(|| {
-                                    typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                                })
-                        })
-                } else {
-                    target
-                        .get(index)
-                        .map(|path| path.color.clone())
-                        .unwrap_or_else(|| {
-                            source
-                                .get(index)
-                                .map(|path| path.color.clone())
-                                .unwrap_or_else(|| {
-                                    typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                                })
-                        })
-                },
+        .map(|(index, (source_path, target_path))| TextPath {
+            path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+            color: if t < 0.5 {
+                source
+                    .get(index)
+                    .map(|path| path.color.clone())
+                    .unwrap_or_else(|| {
+                        target
+                            .get(index)
+                            .map(|path| path.color.clone())
+                            .unwrap_or_else(|| {
+                                typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                            })
+                    })
+            } else {
+                target
+                    .get(index)
+                    .map(|path| path.color.clone())
+                    .unwrap_or_else(|| {
+                        source
+                            .get(index)
+                            .map(|path| path.color.clone())
+                            .unwrap_or_else(|| {
+                                typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                            })
+                    })
             },
-        )
+        })
         .collect()
 }
 
@@ -456,7 +451,7 @@ fn interpolate_vello_paths(
             let source_element = source.get(index);
             let target_element = target.get(index);
 
-                VelloPath {
+            VelloPath {
                 path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
                 fill: match (
                     source_element.and_then(|element| element.fill),

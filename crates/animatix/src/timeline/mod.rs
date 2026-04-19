@@ -30,14 +30,7 @@ use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{Environment, EvalError, Value, load_standard_library};
 pub use image::load_image;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
-use property_lookup::{
-    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
-    for_iter_values, parse_color_in_env_with_lookup_diagnostic, parse_numeric_vec2,
-    parse_numeric_vec2_with_lookup_diagnostic, set_lookup_color, set_lookup_scalar,
-    set_lookup_vec2,
-};
 pub use morph::{MorphOptions, MorphStrategy};
-pub(crate) use primitive::PrimitiveDescriptor;
 use plot::{
     build_implicit_plot_path, sample_recursive_cartesian, sample_recursive_parametric,
     sample_recursive_polar,
@@ -48,12 +41,18 @@ use position::{
     resolve_bound_position, resolve_position_binding_with_lookup_diagnostic, scene_anchor_point,
     set_track_position_binding,
 };
+pub(crate) use primitive::PrimitiveDescriptor;
+use property_lookup::{
+    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
+    for_iter_values, parse_color_in_env_with_lookup_diagnostic, parse_numeric_vec2,
+    parse_numeric_vec2_with_lookup_diagnostic, set_lookup_color, set_lookup_scalar,
+    set_lookup_vec2,
+};
 use shapes::{
-    SHAPE_GRAPH, SHAPE_PLOT, VectorShapeState,
-    VectorShapeStyle, build_shape_vello_path, build_vector_shape_vello_path, shape_type_for_actor,
-    vector_shape_exposes_tip_size, vector_shape_primitive_for_actor_type,
-    vector_shape_uses_custom_path, apply_vector_shape_defaults, apply_vector_shape_property,
-    finalize_vector_shape_state,
+    SHAPE_GRAPH, SHAPE_PLOT, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
+    apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
+    finalize_vector_shape_state, shape_type_for_actor, vector_shape_exposes_tip_size,
+    vector_shape_primitive_for_actor_type, vector_shape_uses_custom_path,
 };
 pub use svg::parse_svg;
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
@@ -140,7 +139,6 @@ impl Timeline {
         let max_bg_ms = self.background_color.last_keyframe_time().unwrap_or(0);
         (max_track_ms.max(max_bg_ms) as f64) / 1000.0
     }
-
 }
 
 impl Default for Timeline {

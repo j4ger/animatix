@@ -22,4 +22,3 @@ pub(super) fn load_workspace_persistence(path: &Path) -> Option<DockState<Worksp
     let persistence = ron::from_str::<WorkspacePersistence>(&content).ok()?;
     Some(persistence.dock_state)
 }
-

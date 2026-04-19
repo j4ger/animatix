@@ -536,7 +536,10 @@ mod tests {
             url: "examples/vector.svg".to_string(),
             at: Some(Expr::Ident("badge".to_string())),
             anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
-            offset: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Ident("delta".to_string())])),
+            offset: Some(Expr::Tuple(vec![
+                Expr::Num(0.0),
+                Expr::Ident("delta".to_string()),
+            ])),
             scale: 1.0,
         };
         let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);

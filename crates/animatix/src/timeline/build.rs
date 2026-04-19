@@ -416,12 +416,8 @@ impl Timeline {
                     let mut gap = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
-                    let mut vector_shape_state = VectorShapeState::new(
-                        size,
-                        line_from,
-                        line_to,
-                        arc_angles,
-                    );
+                    let mut vector_shape_state =
+                        VectorShapeState::new(size, line_from, line_to, arc_angles);
                     apply_vector_shape_defaults(ty, &mut vector_shape_state);
                     size = vector_shape_state.size;
 

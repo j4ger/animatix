@@ -34,6 +34,7 @@ The roadmap below begins after that baseline.
 4. **Preserve random-access semantics.** New animation features must remain compatible with preview, scrubbing, image export, and video export.
 5. **Exploit the vector-first architecture.** Features that map cleanly onto tracks, path rendering, diagnostics, and scene-graph traversal should come before architecture-heavy subsystems.
 6. **Defer new global models until they are necessary.** Camera systems, compositing-heavy transitions, and rich editor workflows should not outrun the current runtime contract.
+7. **Improve feedback loops before richer editor infrastructure.** Diagnostic UX, unsupported-surface explanations, and contract clarity should improve before the GUI depends on another syntax integration layer.
 
 ---
 
@@ -50,7 +51,7 @@ These slices matter as context, but they are no longer active roadmap items:
 
 ## 4. Active Roadmap Overview
 
-The active roadmap begins with contract tightening, then moves outward into truthful layout measurement, reusable theming, broader runtime breadth, and tooling refinement.
+The active roadmap begins with diagnostic UX and contract-surface feedback, then moves outward into truthful layout measurement, reusable theming, broader runtime breadth, and only then higher-maintenance tooling/editor integration.
 
 ### Internal architecture note
 
@@ -60,37 +61,42 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ### Current priority order
 
-1. component and diagnostic contract tightening
+1. diagnostic UX and contract-surface feedback
 2. size-aware layout for measured children
 3. colorscheme follow-up with loadable schemes and inheritance
 4. breadth expansions only after those contracts are stable
-5. tooling/editor refinement after the runtime surface stops shifting underneath it
+5. lower-maintenance tooling/editor refinement that improves feedback without creating a second syntax authority
+6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
 
-## 5. Phase 1 — Component and Diagnostic Contract Tightening
+## 5. Phase 1 — Diagnostic UX and Contract-Surface Feedback
 
 **Urgency:** High
 
-**Goal:** Sharpen reusable authoring rules and keep failure modes precise as the language/runtime surface grows.
+**Goal:** Sharpen reusable authoring rules and make failure modes clearer, more actionable, and more visible as the language/runtime surface grows.
 
 **Why first:**
 - The runtime now spans nested label targeting, scoped composition helpers, and colorscheme defaults, so contract sharpness matters more than adding another broad feature family immediately.
 - This work compounds the value of the already-shipped surface instead of expanding ambiguity.
+- Better user-facing feedback is the shortest path to a more trustworthy GUI/editor experience; it should land before heavier syntax-integration work.
 
 **Includes:**
 - clearer namespace/reachability rules for nested labels
 - stronger diagnostics around ambiguous or unintended component access
 - action/property diagnostics that stay honest as the supported surface grows
+- documentation that distinguishes parser acceptance, runtime support, and explicitly deferred surface area
 - better runnable examples for reusable component authoring patterns
 
 **Guardrails:**
 - do not widen into custom component actions or a richer runtime object model yet
 - do not build editor workflows on top of ambiguous contract edges
+- do not make Tree-sitter GUI integration a prerequisite for better diagnostics or clearer feedback
 
 **Exit criteria:**
 - reusable component authoring is documented and testable without ambiguity
-- diagnostics consistently tell the user what is unsupported and why
+- diagnostics consistently tell the user what is unsupported, why it is unsupported, and which contract boundary was crossed
+- examples cover both a valid path and an intentionally unsupported path for the revised contract surface
 
 ---
 
@@ -179,13 +185,15 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 **Includes:**
 - continue improving the egui GUI shell
+- better diagnostic UX in the GUI: clearer summary surfaces, more actionable contract feedback, and stronger visibility for parse/build/runtime mismatches
 - richer action/component discovery based on the real shipped registries
-- bridge `tree-sitter-animatix` into the GUI/editor workflow more completely
 - better example/tutorial structure
 - keyboard transport shortcuts and other workflow polish
+- use the lowest-maintenance editor feedback path that still reflects the real parser/runtime contract
 
-**Guardrail:**
+**Guardrails:**
 - do not build richer editor workflows on top of ambiguous language/runtime behavior
+- do not introduce a second syntax-maintenance loop unless it clearly improves authoring feedback beyond simpler diagnostic/UI work
 
 ---
 
@@ -199,8 +207,11 @@ These remain valuable, but they should stay out of the near-term critical path b
 - scene inspectors, property panels, visual timeline editors, and other larger GUI systems
 - native embedded rendering surfaces in the GUI
 - multi-file project management UX
+- Tree-sitter-backed GUI integration beyond the standalone grammar package
 
 These should only move forward once the action/motion authoring surface is stable enough that we are not redesigning the foundation underneath them.
+
+For Tree-sitter specifically, the standalone grammar package remains valuable and shipped, but GUI consumption should stay out of the near-term critical path until a concrete authoring-feedback gap cannot be solved well through parser/runtime diagnostics, examples, or lighter editor feedback.
 
 ---
 
@@ -212,3 +223,4 @@ These should only move forward once the action/motion authoring surface is stabl
 - mix layout semantics, transform semantics, and composition semantics into one oversized phase
 - over-optimize for Manim parity when Animatix can provide a clearer declarative workflow
 - build richer GUI/editor workflows on top of shifting runtime behavior
+- treat Tree-sitter GUI integration as the default next tooling step before diagnostic UX and contract-surface feedback are measurably better

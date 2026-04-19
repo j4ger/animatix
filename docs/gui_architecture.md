@@ -30,6 +30,7 @@ What exists today:
 What is intentionally not shipped yet:
 
 - embedded live native GPU surface composition inside the current egui shell
+- richer diagnostic UX inside the editor shell, such as stronger parse/build feedback surfaces
 - Tree-sitter-backed syntax highlighting / autocomplete / code intelligence
 - visual timeline lanes or scene inspectors
 
@@ -60,7 +61,7 @@ The GUI crate should not fork parsing or evaluation logic. It should call into t
 The current GUI uses egui for both shell-level and domain-specific composition:
 
 - `egui_dock` manages the docked workspace regions
-- `egui_code_editor` provides the multiline editor widget
+- `egui::TextEdit` provides the multiline editor surface, with custom layout/highlighting glue from `crates/animatix-gui/src/editor.rs`
 - custom app/session code coordinates document rebuilds, preview playback, file navigation, and preview rendering
 
 This keeps the implementation close to the runtime while still leaving room for future UI refinement.
@@ -147,9 +148,9 @@ The shipped scrubber is still a navigation control rather than an editable keyfr
 
 ## Editor Architecture
 
-The editor pane is text-based and uses `egui_code_editor` for the multiline editing surface.
+The editor pane is text-based and currently uses `egui::TextEdit` for the multiline editing surface.
 
-Today the shipped editor still uses a local fallback syntax configuration from `crates/animatix-gui/src/editor.rs`. That fallback is intentionally small and keyword-driven; it is not a reusable language package and should not be treated as the long-term source of syntax truth.
+Today the shipped editor uses a local highlighting path from `crates/animatix-gui/src/editor.rs`: `egui::TextEdit` plus a Syntect-backed layouter that includes a repo-local `animatix.sublime-syntax`. That path is intentionally pragmatic; it is not the long-term source of syntax truth.
 
 Desired properties:
 
@@ -167,15 +168,16 @@ Architectural rules for that integration:
 
 - `crates/animatix/src/parser.rs` remains the executable source of truth for accepted syntax
 - Tree-sitter grammar/query assets are derived editor-facing metadata that must stay synchronized with the parser and `docs/spec.md`
-- the GUI should migrate away from its ad hoc keyword list toward those shared syntax assets rather than maintaining a separate grammar definition
-- initial GUI adoption should focus on highlighting first; richer code intelligence can follow later
+- GUI syntax integration should not outrun diagnostic UX or the current runtime contract surface
+- Tree-sitter-backed highlighting remains a possible later integration, not the default next GUI milestone
+- before consuming Tree-sitter in the GUI, identify a concrete authoring-feedback gap that simpler diagnostics, examples, or lighter editor feedback cannot solve at lower maintenance cost
 - the initial grammar corpus should come from curated runnable examples plus parser tests, not from deprecated or removed syntax sketches
 
 Current status:
 
 - the grammar package exists and passes its local generate/test workflow
-- the GUI still uses the local fallback syntax in `crates/animatix-gui/src/editor.rs`
-- GUI integration remains follow-up work; shipping the grammar package does not yet mean the GUI is consuming it
+- the GUI still uses the local Syntect-based highlighting path in `crates/animatix-gui/src/editor.rs`
+- GUI integration remains deferred work; shipping the grammar package does not yet mean the GUI should consume it before the diagnostic UX justifies the extra maintenance cost
 
 ## Preview Delivery Strategy
 
@@ -196,13 +198,15 @@ The app should distinguish between:
 
 The UI should show these clearly without crashing or destroying the last good state.
 
+Near-term GUI work should make these existing error classes clearer and more actionable before adding a richer syntax integration layer.
+
 ## Deferred Features
 
 These are deliberately out of scope for the first GUI crate:
 
 - native embedded surface composition inside the egui shell
 - a more direct preview-surface integration strategy if the render stack warrants it later
-- a full migration away from the current small fallback syntax definition once Tree-sitter-backed highlighting lands
+- Tree-sitter-backed GUI highlighting or code intelligence until its authoring value justifies the extra parser/query synchronization cost
 - visual scene inspector
 - property editor
 - editable keyframe lane editor

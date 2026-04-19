@@ -127,7 +127,6 @@ impl PrimitiveDescriptor {
     pub fn is_layout_container(self) -> bool {
         self.capabilities.layout_container
     }
-
 }
 
 #[cfg(test)]

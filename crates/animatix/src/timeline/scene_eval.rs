@@ -1,6 +1,6 @@
 use super::{
-    DebugRenderOptions, SceneDimensions, Timeline, Value, VelloPath, VectorShapeState,
-    VectorShapeStyle, build_vector_shape_vello_path, resolve_bound_position,
+    DebugRenderOptions, SceneDimensions, Timeline, Value, VectorShapeState, VectorShapeStyle,
+    VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path,
 };
 use crate::renderer::types::TextPath;
@@ -164,7 +164,8 @@ impl Timeline {
                     let mut vector_shape_state =
                         VectorShapeState::new(half_size, line_from, line_to, arc_angles);
                     if vector_shape_uses_custom_path(shape_type) {
-                        vector_shape_state.custom_path = vector_paths.first().map(|vp| vp.path.clone());
+                        vector_shape_state.custom_path =
+                            vector_paths.first().map(|vp| vp.path.clone());
                     }
                     build_vector_shape_vello_path(
                         shape_type,

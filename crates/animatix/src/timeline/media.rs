@@ -1,7 +1,6 @@
 use super::{
-    AnimationTrack, Diagnostic, Easing, Expr, Timeline,
-    apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
-    resolve_position_binding_with_lookup_diagnostic,
+    AnimationTrack, Diagnostic, Easing, Expr, Timeline, apply_explicit_position_binding,
+    evaluate_expr_with_lookup_diagnostic, resolve_position_binding_with_lookup_diagnostic,
 };
 use crate::ast::{Property, Stmt};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
@@ -14,9 +13,13 @@ fn push_media_load_failure_diagnostic(
     message: String,
 ) {
     diagnostics.push(
-        Diagnostic::warning(DiagnosticCode::MediaLoadFailure, DiagnosticPhase::Build, message)
-            .with_subject(subject)
-            .with_path(url),
+        Diagnostic::warning(
+            DiagnosticCode::MediaLoadFailure,
+            DiagnosticPhase::Build,
+            message,
+        )
+        .with_subject(subject)
+        .with_path(url),
     );
 }
 
@@ -136,10 +139,13 @@ impl Timeline {
                                     path.path.apply_affine(affine);
                                 }
                             }
-                            let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                            track
-                                .size
-                                .add_keyframe(time_ms as u64, measured_half_size, Easing::Linear);
+                            let measured_half_size =
+                                crate::timeline::svg::measure_svg_paths(&parsed_paths);
+                            track.size.add_keyframe(
+                                time_ms as u64,
+                                measured_half_size,
+                                Easing::Linear,
+                            );
                             track.svg_paths = parsed_paths;
                         }
                         Err(error) => push_media_load_failure_diagnostic(
@@ -219,7 +225,9 @@ impl Timeline {
                 ) {
                     apply_explicit_position_binding(track, time_ms as u64, binding, position);
                 } else {
-                    track.position.add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
+                    track
+                        .position
+                        .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
                 match std::fs::read_to_string(url) {
@@ -231,10 +239,13 @@ impl Timeline {
                                     path.path.apply_affine(affine);
                                 }
                             }
-                            let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                            track
-                                .size
-                                .add_keyframe(time_ms as u64, measured_half_size, Easing::Linear);
+                            let measured_half_size =
+                                crate::timeline::svg::measure_svg_paths(&parsed_paths);
+                            track.size.add_keyframe(
+                                time_ms as u64,
+                                measured_half_size,
+                                Easing::Linear,
+                            );
                             track.svg_paths = parsed_paths;
                         }
                         Err(error) => push_media_load_failure_diagnostic(
@@ -279,7 +290,9 @@ impl Timeline {
                 ) {
                     apply_explicit_position_binding(track, time_ms as u64, binding, position);
                 } else {
-                    track.position.add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
+                    track
+                        .position
+                        .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
                 match crate::timeline::image::load_image(url) {

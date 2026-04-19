@@ -38,11 +38,7 @@ impl Timeline {
         // sampled per-frame relayout when those tracks animate later.
         let child_extents: Vec<(f32, f32)> = children
             .iter()
-            .filter_map(|cl| {
-                self.tracks
-                    .get(cl)
-                    .map(layout_full_extents)
-            })
+            .filter_map(|cl| self.tracks.get(cl).map(layout_full_extents))
             .collect();
 
         let t_ms = time_ms as u64;

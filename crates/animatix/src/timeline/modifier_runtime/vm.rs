@@ -1,8 +1,8 @@
-use crate::ast::BinaryOp;
 use super::ir::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
     apply_binary_op, eval_cos, eval_format, eval_lerp, eval_sin, make_vec_value,
 };
+use crate::ast::BinaryOp;
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
 

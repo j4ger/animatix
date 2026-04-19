@@ -225,23 +225,17 @@ impl VectorShapePrimitive for LinePrimitive {
     ) -> bool {
         match name {
             "from" => {
-                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
-                    value,
-                    env,
-                    diagnostics,
-                    subject,
-                ) {
+                if let Some(parsed) =
+                    parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                {
                     state.line_from = parsed;
                 }
                 true
             }
             "to" => {
-                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(
-                    value,
-                    env,
-                    diagnostics,
-                    subject,
-                ) {
+                if let Some(parsed) =
+                    parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                {
                     state.line_to = parsed;
                 }
                 true
@@ -475,7 +469,9 @@ impl VectorShapePrimitive for RegularPolygonPrimitive {
             ),
             "sides" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(crate::timeline::Value::Num(state.regular_polygon_sides as f64));
+                    .unwrap_or(crate::timeline::Value::Num(
+                        state.regular_polygon_sides as f64,
+                    ));
                 state.regular_polygon_sides = v.as_num().round().max(3.0) as usize;
                 true
             }
