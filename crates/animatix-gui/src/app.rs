@@ -22,6 +22,7 @@ use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_dock_state, load_workspace_persistence, persistence_path};
 use preview::{fit_preview, paint_timeline_scrubber};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -122,6 +123,7 @@ struct GuiShell {
     render_diagnostics: Vec<Diagnostic>,
     editor: EditorBuffer,
     workspace_root: PathBuf,
+    expanded_dirs: HashSet<PathBuf>,
     file_tree: Vec<FileTreeEntry>,
     dock_state: DockState<WorkspaceTab>,
     preview: PreviewPaneState,
@@ -146,7 +148,8 @@ impl GuiShell {
         };
 
         let workspace_root = workspace_root_for(&document.file_path);
-        let file_tree = build_file_tree(&workspace_root, &document.file_path);
+        let expanded_dirs = HashSet::from([workspace_root.clone()]);
+        let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
         let persistence_path = persistence_path();
         let dock_state =
             load_workspace_persistence(&persistence_path).unwrap_or_else(default_dock_state);
@@ -168,6 +171,7 @@ impl GuiShell {
             document,
             render_diagnostics: Vec::new(),
             workspace_root,
+            expanded_dirs,
             file_tree,
             dock_state,
             preview,
@@ -320,6 +324,7 @@ impl GuiShell {
         let mut viewer = WorkspaceViewer {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
+            expanded_dirs: &mut self.expanded_dirs,
             file_tree: &self.file_tree,
             timeline_markers: self
                 .document
@@ -343,6 +348,14 @@ impl GuiShell {
     fn handle_actions(&mut self, actions: UiActions) {
         if let Some(path) = actions.open_file {
             self.open_document(path);
+        }
+        if let Some(path) = actions.toggle_expand_dir {
+            if self.expanded_dirs.contains(&path) {
+                self.expanded_dirs.remove(&path);
+            } else {
+                self.expanded_dirs.insert(path.clone());
+            }
+            self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path, &self.expanded_dirs);
         }
         if actions.save {
             let _ = self.save();
@@ -378,7 +391,8 @@ impl GuiShell {
         match DocumentSession::load(path.clone()) {
             Ok(document) => {
                 self.workspace_root = workspace_root_for(&path);
-                self.file_tree = build_file_tree(&self.workspace_root, &path);
+                self.expanded_dirs = HashSet::from([self.workspace_root.clone()]);
+                self.file_tree = build_file_tree(&self.workspace_root, &path, &self.expanded_dirs);
                 self.document = document;
                 self.editor
                     .set_document(&self.document.file_path, self.document.source_text.clone());
@@ -424,7 +438,7 @@ impl GuiShell {
         let error = self.document.last_rebuild_error.clone();
         self.sync_preview_from_document(status, false, false);
         self.preview.error = error;
-        self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path);
+        self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path, &self.expanded_dirs);
         Ok(())
     }
 

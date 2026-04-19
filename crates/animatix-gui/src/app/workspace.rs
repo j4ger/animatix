@@ -5,6 +5,7 @@ const DIAGNOSTICS_PER_PHASE_LIMIT: usize = 3;
 #[derive(Default)]
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
+    pub(super) toggle_expand_dir: Option<PathBuf>,
     pub(super) save: bool,
     pub(super) reload: bool,
     pub(super) rebuild: bool,
@@ -17,6 +18,7 @@ pub(super) struct UiActions {
 pub(super) struct WorkspaceViewer<'a> {
     pub(super) current_file: &'a Path,
     pub(super) workspace_root: &'a Path,
+    pub(super) expanded_dirs: &'a mut HashSet<PathBuf>,
     pub(super) file_tree: &'a [FileTreeEntry],
     pub(super) timeline_markers: Vec<f64>,
     pub(super) editor: &'a mut EditorBuffer,
@@ -65,21 +67,27 @@ impl WorkspaceViewer<'_> {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 2.0);
                 for entry in self.file_tree {
-                    let selected = entry.path == self.current_file;
+                    let is_selected = !entry.is_dir && entry.path == self.current_file;
                     ui.horizontal(|ui| {
                         ui.set_min_height(EXPLORER_ROW_HEIGHT);
                         ui.add_space(entry.depth as f32 * EXPLORER_INDENT_PX);
                         let label = if entry.is_dir {
-                            format!("▾ {}", entry.name)
+                            let is_expanded = self.expanded_dirs.contains(&entry.path);
+                            let icon = if is_expanded { "▸" } else { "▾" };
+                            format!("{} {}", icon, entry.name)
                         } else {
                             format!("• {}", entry.name)
                         };
                         let response = ui.add_sized(
                             [ui.available_width(), EXPLORER_ROW_HEIGHT],
-                            egui::Button::new(RichText::new(label).small()).selected(selected),
+                            egui::Button::new(RichText::new(label).small()).selected(is_selected),
                         );
-                        if response.clicked() && !entry.is_dir {
-                            self.actions.open_file = Some(entry.path.clone());
+                        if response.clicked() {
+                            if entry.is_dir {
+                                self.actions.toggle_expand_dir = Some(entry.path.clone());
+                            } else {
+                                self.actions.open_file = Some(entry.path.clone());
+                            }
                         }
                     });
                 }

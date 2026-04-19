@@ -1,5 +1,6 @@
 use super::{FileTreeEntry, MAX_TREE_DEPTH, MAX_TREE_ENTRIES};
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -15,12 +16,17 @@ pub(super) fn workspace_root_for(file_path: &Path) -> PathBuf {
         .to_path_buf()
 }
 
-pub(super) fn build_file_tree(workspace_root: &Path, current_file: &Path) -> Vec<FileTreeEntry> {
+pub(super) fn build_file_tree(
+    workspace_root: &Path,
+    current_file: &Path,
+    expanded_dirs: &HashSet<PathBuf>,
+) -> Vec<FileTreeEntry> {
     let mut entries = Vec::new();
     let mut remaining = MAX_TREE_ENTRIES;
     collect_tree_entries(
         workspace_root,
         current_file,
+        expanded_dirs,
         0,
         &mut remaining,
         &mut entries,
@@ -31,6 +37,7 @@ pub(super) fn build_file_tree(workspace_root: &Path, current_file: &Path) -> Vec
 fn collect_tree_entries(
     dir: &Path,
     current_file: &Path,
+    expanded_dirs: &HashSet<PathBuf>,
     depth: usize,
     remaining: &mut usize,
     entries: &mut Vec<FileTreeEntry>,
@@ -60,8 +67,11 @@ fn collect_tree_entries(
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
-        if name.starts_with('.') && !current_file.starts_with(&path) {
-            continue;
+        if name.starts_with('.') {
+            let is_ancestor_of_current = current_file.ancestors().any(|ancestor| ancestor == path);
+            if !is_ancestor_of_current {
+                continue;
+            }
         }
 
         let is_dir = path.is_dir();
@@ -73,8 +83,8 @@ fn collect_tree_entries(
         });
         *remaining = remaining.saturating_sub(1);
 
-        if is_dir {
-            collect_tree_entries(&path, current_file, depth + 1, remaining, entries);
+        if is_dir && expanded_dirs.contains(&path) {
+            collect_tree_entries(&path, current_file, expanded_dirs, depth + 1, remaining, entries);
         }
     }
 }
