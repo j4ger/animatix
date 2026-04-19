@@ -191,8 +191,7 @@ impl WindowRuntime {
             }
             WindowEvent::RedrawRequested => {
                 if let Err(error) = self.redraw() {
-                    self.shell
-                        .set_status(format!("Render failed • {error}"), Some(error));
+                    self.shell.set_render_error(error);
                     self.window.request_redraw();
                 }
             }
@@ -297,33 +296,50 @@ impl WindowRuntime {
 
         if self.shell.preview_dirty {
             if let Some(timeline) = self.shell.document.timeline.as_ref() {
-                self.preview_surface.render(
+                if let Err(error) = self.preview_surface.render(
                     &self.device,
                     &self.queue,
                     timeline,
                     self.shell.preview.current_time_s,
-                )?;
-                let _ = self
+                ) {
+                    self.shell.set_render_error(error);
+                    return Ok(());
+                }
+                if let Err(error) = self
                     .preview_surface
-                    .sync_egui_texture(&self.device, &mut self.render_pass)?;
+                    .sync_egui_texture(&self.device, &mut self.render_pass)
+                {
+                    self.shell.set_render_error(error);
+                    return Ok(());
+                }
                 self.shell.preview_dirty = false;
-                self.shell.preview.error = None;
-                self.shell.preview.status = format!(
-                    "Live preview • t = {:.2}s / {:.2}s",
-                    self.shell.preview.current_time_s, self.shell.preview.duration_s
-                );
+                self.shell
+                    .clear_render_error(live_preview_status(&self.shell.preview));
             }
         } else if self.preview_surface.texture_id().is_none()
             && self.preview_surface.dimensions().width > 0
             && self.preview_surface.dimensions().height > 0
         {
-            let _ = self
+            if let Err(error) = self
                 .preview_surface
-                .sync_egui_texture(&self.device, &mut self.render_pass)?;
+                .sync_egui_texture(&self.device, &mut self.render_pass)
+            {
+                self.shell.set_render_error(error);
+                return Ok(());
+            }
+            self.shell
+                .clear_render_error(live_preview_status(&self.shell.preview));
         }
 
         Ok(())
     }
+}
+
+fn live_preview_status(preview: &PreviewPaneState) -> String {
+    format!(
+        "Live preview • t = {:.2}s / {:.2}s",
+        preview.current_time_s, preview.duration_s
+    )
 }
 
 async fn create_graphics_state(

@@ -8,8 +8,8 @@ use crate::document::{DocumentSession, default_file_path, timeline_keyframe_time
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{
-    Diagnostic, DiagnosticPhase, diagnostics_phase_summary, diagnostics_summary_by_phase,
-    format_diagnostic,
+    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
+    diagnostics_summary_by_phase, format_diagnostic,
 };
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
@@ -119,6 +119,7 @@ impl PreviewPaneState {
 
 struct GuiShell {
     document: DocumentSession,
+    render_diagnostics: Vec<Diagnostic>,
     editor: EditorBuffer,
     workspace_root: PathBuf,
     file_tree: Vec<FileTreeEntry>,
@@ -165,6 +166,7 @@ impl GuiShell {
         Self {
             editor: EditorBuffer::new(&document.file_path, document.source_text.clone()),
             document,
+            render_diagnostics: Vec::new(),
             workspace_root,
             file_tree,
             dock_state,
@@ -276,6 +278,8 @@ impl GuiShell {
     }
 
     fn status_bar_ui(&self, ui: &mut egui::Ui) {
+        let diagnostics = self.combined_diagnostics();
+
         ui.horizontal(|ui| {
             ui.label(RichText::new(self.document.file_path.display().to_string()).monospace());
             ui.separator();
@@ -291,11 +295,11 @@ impl GuiShell {
             ));
             ui.separator();
             ui.label(&self.preview.status);
-            if !self.document.diagnostics.is_empty() {
+            if !diagnostics.is_empty() {
                 ui.separator();
                 ui.colored_label(
-                    diagnostics_summary_color(&self.document.diagnostics),
-                    diagnostics_phase_summary(&self.document.diagnostics),
+                    diagnostics_summary_color(&diagnostics),
+                    diagnostics_phase_summary(&diagnostics),
                 );
             }
             if let Some(error) = &self.preview.error {
@@ -311,6 +315,8 @@ impl GuiShell {
         preview_texture_id: Option<egui::TextureId>,
         actions: &mut UiActions,
     ) {
+        let diagnostics = self.combined_diagnostics();
+
         let mut viewer = WorkspaceViewer {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
@@ -323,7 +329,7 @@ impl GuiShell {
                 .unwrap_or_default(),
             editor: &mut self.editor,
             preview: &mut self.preview,
-            diagnostics: &self.document.diagnostics,
+            diagnostics: &diagnostics,
             preview_texture_id,
             actions,
             source_dirty: &mut self.document.source_text,
@@ -471,6 +477,12 @@ impl GuiShell {
         }
     }
 
+    fn combined_diagnostics(&self) -> Vec<Diagnostic> {
+        let mut diagnostics = self.document.diagnostics.clone();
+        diagnostics.extend(self.render_diagnostics.iter().cloned());
+        diagnostics
+    }
+
     fn sync_preview_from_document(
         &mut self,
         status: String,
@@ -487,6 +499,7 @@ impl GuiShell {
         if stop_playback {
             self.preview.is_playing = false;
         }
+        self.render_diagnostics.clear();
         self.preview.status = status;
         self.preview.error = None;
         self.preview_dirty = true;
@@ -495,6 +508,32 @@ impl GuiShell {
     fn set_status(&mut self, status: String, error: Option<String>) {
         self.preview.status = status;
         self.preview.error = error;
+    }
+
+    fn set_render_error(&mut self, error: String) {
+        self.render_diagnostics = vec![Diagnostic::error(
+            DiagnosticCode::RenderFailure,
+            DiagnosticPhase::Render,
+            error.clone(),
+        )];
+        self.preview_dirty = false;
+        self.set_status(format!("Render failed • {error}"), Some(error));
+    }
+
+    fn clear_render_error(&mut self, status: String) {
+        let active_render_error = self
+            .render_diagnostics
+            .first()
+            .map(|diagnostic| diagnostic.message.clone());
+        self.render_diagnostics.clear();
+
+        if let Some(render_error) = active_render_error
+            && self.preview.error.as_deref() == Some(render_error.as_str())
+            && self.preview.status == format!("Render failed • {render_error}")
+        {
+            self.preview.error = None;
+            self.preview.status = status;
+        }
     }
 
     fn save_persistence(&self) {
@@ -589,13 +628,15 @@ fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<&'static str
 #[cfg(test)]
 mod tests {
     use super::{
-        WorkspaceTab, default_dock_state, diagnostics_banner_message, diagnostics_summary_color,
-        fit_preview, has_source_load_failure, preview, primary_diagnostic_phase,
+        GuiShell, WorkspaceTab, default_dock_state, diagnostics_banner_message,
+        diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
+        primary_diagnostic_phase,
     };
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Color32;
     use egui::Vec2;
+    use std::path::PathBuf;
 
     #[test]
     fn default_workspace_has_three_tabs() {
@@ -737,5 +778,62 @@ mod tests {
             diagnostics_banner_message(&diagnostics),
             Some("Parse diagnostics need attention before trusting later build feedback.")
         );
+    }
+
+    #[test]
+    fn diagnostics_banner_message_calls_out_render_diagnostics() {
+        let diagnostics = vec![Diagnostic::error(
+            DiagnosticCode::RenderFailure,
+            DiagnosticPhase::Render,
+            "render failed",
+        )];
+
+        assert_eq!(
+            diagnostics_banner_message(&diagnostics),
+            Some("Render diagnostics affect preview output rather than source parsing.")
+        );
+    }
+
+    #[test]
+    fn clear_render_error_removes_render_failure_state() {
+        let mut shell = GuiShell::load(PathBuf::from("examples/showcase.amx"));
+        shell.set_render_error("preview failed".to_string());
+
+        shell.clear_render_error("Live preview restored".to_string());
+
+        assert!(shell.render_diagnostics.is_empty());
+        assert!(shell.preview.error.is_none());
+        assert_eq!(shell.preview.status, "Live preview restored");
+    }
+
+    #[test]
+    fn clear_render_error_preserves_non_render_preview_failures() {
+        let mut shell = GuiShell::load(PathBuf::from("examples/showcase.amx"));
+        shell.set_status(
+            "Open failed • missing.amx".to_string(),
+            Some("missing file".to_string()),
+        );
+
+        shell.clear_render_error("Live preview restored".to_string());
+
+        assert!(shell.render_diagnostics.is_empty());
+        assert_eq!(shell.preview.error.as_deref(), Some("missing file"));
+        assert_eq!(shell.preview.status, "Open failed • missing.amx");
+    }
+
+    #[test]
+    fn clear_render_error_preserves_newer_non_render_failure_when_render_diagnostic_is_stale() {
+        let mut shell = GuiShell::load(PathBuf::from("examples/showcase.amx"));
+        shell.set_render_error("preview failed".to_string());
+        shell.set_status(
+            "Rebuild blocked • parse/load error".to_string(),
+            Some("duplicate export".to_string()),
+        );
+
+        shell.clear_render_error("Live preview restored".to_string());
+
+        assert!(shell.render_diagnostics.is_empty());
+        assert_eq!(shell.preview.error.as_deref(), Some("duplicate export"));
+        assert_eq!(shell.preview.status, "Rebuild blocked • parse/load error");
     }
 }

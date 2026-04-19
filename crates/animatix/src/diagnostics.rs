@@ -36,6 +36,7 @@ impl fmt::Display for DiagnosticPhase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticCode {
     SourceLoadFailure,
+    RenderFailure,
     UnsupportedModifierKey,
     UnsupportedAssignmentProperty,
     InvalidModifierValue,
@@ -57,6 +58,7 @@ impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DiagnosticCode::SourceLoadFailure => write!(f, "source-load-failure"),
+            DiagnosticCode::RenderFailure => write!(f, "render-failure"),
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
                 write!(f, "unsupported-assignment-property")
@@ -267,6 +269,11 @@ mod tests {
             DiagnosticCode::SourceLoadFailure.to_string(),
             "source-load-failure"
         );
+    }
+
+    #[test]
+    fn render_failure_code_formats_honestly() {
+        assert_eq!(DiagnosticCode::RenderFailure.to_string(), "render-failure");
     }
 
     #[test]
