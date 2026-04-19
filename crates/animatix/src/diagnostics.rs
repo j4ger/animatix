@@ -148,6 +148,27 @@ impl<T> BuildReport<T> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DiagnosticPhaseSummary {
+    pub phase: DiagnosticPhase,
+    pub warnings: usize,
+    pub errors: usize,
+}
+
+impl DiagnosticPhaseSummary {
+    pub fn total(&self) -> usize {
+        self.warnings + self.errors
+    }
+
+    pub fn label(&self) -> String {
+        format!(
+            "{}: {}",
+            self.phase,
+            severity_summary(self.warnings, self.errors)
+        )
+    }
+}
+
 pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
     let mut parts = vec![format!(
         "{}[{}:{}] {}",
@@ -175,6 +196,55 @@ pub fn diagnostics_summary(diagnostics: &[Diagnostic]) -> String {
         .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
         .count();
 
+    severity_summary(warnings, errors)
+}
+
+pub fn diagnostics_summary_by_phase(diagnostics: &[Diagnostic]) -> Vec<DiagnosticPhaseSummary> {
+    [
+        DiagnosticPhase::Parse,
+        DiagnosticPhase::Build,
+        DiagnosticPhase::Render,
+    ]
+    .into_iter()
+    .filter_map(|phase| {
+        let warnings = diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.phase == phase && diagnostic.severity == DiagnosticSeverity::Warning
+            })
+            .count();
+        let errors = diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.phase == phase && diagnostic.severity == DiagnosticSeverity::Error
+            })
+            .count();
+
+        let summary = DiagnosticPhaseSummary {
+            phase,
+            warnings,
+            errors,
+        };
+        (summary.total() > 0).then_some(summary)
+    })
+    .collect()
+}
+
+pub fn diagnostics_phase_summary(diagnostics: &[Diagnostic]) -> String {
+    let summaries = diagnostics_summary_by_phase(diagnostics);
+
+    if summaries.is_empty() {
+        return "No diagnostics".to_string();
+    }
+
+    summaries
+        .into_iter()
+        .map(|summary| summary.label())
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn severity_summary(warnings: usize, errors: usize) -> String {
     match (warnings, errors) {
         (0, 0) => "No diagnostics".to_string(),
         (warnings, 0) => format!("{warnings} warning{}", if warnings == 1 { "" } else { "s" }),
@@ -214,5 +284,80 @@ mod tests {
             formatted.contains("error[parse:source-load-failure] Failed to load or parse source")
         );
         assert!(formatted.contains("path: examples/showcase.amx"));
+    }
+
+    #[test]
+    fn diagnostics_summary_by_phase_counts_mixed_diagnostics() {
+        let diagnostics = vec![
+            Diagnostic::error(
+                DiagnosticCode::SourceLoadFailure,
+                DiagnosticPhase::Parse,
+                "parse failed",
+            ),
+            Diagnostic::warning(
+                DiagnosticCode::UnsupportedModifierKey,
+                DiagnosticPhase::Build,
+                "unsupported modifier",
+            ),
+            Diagnostic::error(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "unknown action",
+            ),
+            Diagnostic::warning(
+                DiagnosticCode::MediaLoadFailure,
+                DiagnosticPhase::Render,
+                "preview issue",
+            ),
+        ];
+
+        let summaries = diagnostics_summary_by_phase(&diagnostics);
+
+        assert_eq!(
+            summaries,
+            vec![
+                DiagnosticPhaseSummary {
+                    phase: DiagnosticPhase::Parse,
+                    warnings: 0,
+                    errors: 1,
+                },
+                DiagnosticPhaseSummary {
+                    phase: DiagnosticPhase::Build,
+                    warnings: 1,
+                    errors: 1,
+                },
+                DiagnosticPhaseSummary {
+                    phase: DiagnosticPhase::Render,
+                    warnings: 1,
+                    errors: 0,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn diagnostics_phase_summary_formats_present_phases_only() {
+        let diagnostics = vec![
+            Diagnostic::error(
+                DiagnosticCode::SourceLoadFailure,
+                DiagnosticPhase::Parse,
+                "parse failed",
+            ),
+            Diagnostic::warning(
+                DiagnosticCode::UnknownTargetPath,
+                DiagnosticPhase::Build,
+                "missing target",
+            ),
+        ];
+
+        assert_eq!(
+            diagnostics_phase_summary(&diagnostics),
+            "parse: 1 error | build: 1 warning"
+        );
+    }
+
+    #[test]
+    fn diagnostics_phase_summary_handles_empty_input() {
+        assert_eq!(diagnostics_phase_summary(&[]), "No diagnostics");
     }
 }

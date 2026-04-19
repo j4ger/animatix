@@ -7,7 +7,10 @@ mod workspace;
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
-use animatix::diagnostics::{Diagnostic, diagnostics_summary, format_diagnostic};
+use animatix::diagnostics::{
+    Diagnostic, DiagnosticPhase, diagnostics_phase_summary, diagnostics_summary_by_phase,
+    format_diagnostic,
+};
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
@@ -154,7 +157,7 @@ impl GuiShell {
             preview.status = format!(
                 "Opened {} • parse/load error • {}",
                 document.file_path.display(),
-                diagnostics_summary(&document.diagnostics)
+                diagnostics_phase_summary(&document.diagnostics)
             );
         }
         preview.error = error;
@@ -292,7 +295,7 @@ impl GuiShell {
                 ui.separator();
                 ui.colored_label(
                     diagnostics_summary_color(&self.document.diagnostics),
-                    diagnostics_summary(&self.document.diagnostics),
+                    diagnostics_phase_summary(&self.document.diagnostics),
                 );
             }
             if let Some(error) = &self.preview.error {
@@ -377,7 +380,7 @@ impl GuiShell {
                     format!(
                         "Opened {} • parse/load error • {}",
                         self.document.file_path.display(),
-                        diagnostics_summary(&self.document.diagnostics)
+                        diagnostics_phase_summary(&self.document.diagnostics)
                     )
                 } else {
                     self.document_status(format!("Opened {}", self.document.file_path.display()))
@@ -407,7 +410,7 @@ impl GuiShell {
             format!(
                 "Reloaded {} • parse/load error • {}",
                 self.document.file_path.display(),
-                diagnostics_summary(&self.document.diagnostics)
+                diagnostics_phase_summary(&self.document.diagnostics)
             )
         } else {
             self.document_status(format!("Reloaded {}", self.document.file_path.display()))
@@ -431,7 +434,7 @@ impl GuiShell {
                     format!(
                         "Built timeline • {:.2}s total duration • {}",
                         self.document.duration_s.max(0.1),
-                        diagnostics_summary(&self.document.diagnostics)
+                        diagnostics_phase_summary(&self.document.diagnostics)
                     )
                 };
                 self.sync_preview_from_document(status, false, false);
@@ -441,7 +444,7 @@ impl GuiShell {
                 let status = if has_source_load_failure(&self.document.diagnostics) {
                     format!(
                         "Rebuild blocked • parse/load error • {}",
-                        diagnostics_summary(&self.document.diagnostics)
+                        diagnostics_phase_summary(&self.document.diagnostics)
                     )
                 } else {
                     "Rebuild blocked".to_string()
@@ -463,7 +466,7 @@ impl GuiShell {
         } else {
             format!(
                 "{base_status} • {}",
-                diagnostics_summary(&self.document.diagnostics)
+                diagnostics_phase_summary(&self.document.diagnostics)
             )
         }
     }
@@ -550,11 +553,44 @@ fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
     })
 }
 
+fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<DiagnosticPhase> {
+    let summaries = diagnostics_summary_by_phase(diagnostics);
+
+    summaries
+        .iter()
+        .find(|summary| summary.errors > 0)
+        .or_else(|| summaries.first())
+        .map(|summary| summary.phase)
+}
+
+fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<&'static str> {
+    match primary_diagnostic_phase(diagnostics) {
+        Some(DiagnosticPhase::Parse)
+            if diagnostics.iter().any(|diagnostic| {
+                diagnostic.phase == DiagnosticPhase::Parse
+                    && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
+            }) =>
+        {
+            Some("Parse errors are blocking rebuild. Fix parse issues first.")
+        }
+        Some(DiagnosticPhase::Parse) => {
+            Some("Parse diagnostics need attention before trusting later build feedback.")
+        }
+        Some(DiagnosticPhase::Build) => {
+            Some("Build diagnostics reflect runtime contract issues in the current scene.")
+        }
+        Some(DiagnosticPhase::Render) => {
+            Some("Render diagnostics affect preview output rather than source parsing.")
+        }
+        None => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        WorkspaceTab, default_dock_state, diagnostics_summary_color, fit_preview,
-        has_source_load_failure, preview,
+        WorkspaceTab, default_dock_state, diagnostics_banner_message, diagnostics_summary_color,
+        fit_preview, has_source_load_failure, preview, primary_diagnostic_phase,
     };
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
@@ -633,5 +669,73 @@ mod tests {
         )];
 
         assert!(has_source_load_failure(&diagnostics));
+    }
+
+    #[test]
+    fn primary_diagnostic_phase_prefers_parse_then_build_then_render() {
+        let diagnostics = vec![
+            Diagnostic::warning(
+                DiagnosticCode::MediaLoadFailure,
+                DiagnosticPhase::Render,
+                "render warning",
+            ),
+            Diagnostic::error(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "build error",
+            ),
+            Diagnostic::error(
+                DiagnosticCode::SourceLoadFailure,
+                DiagnosticPhase::Parse,
+                "parse error",
+            ),
+        ];
+
+        assert_eq!(
+            primary_diagnostic_phase(&diagnostics),
+            Some(DiagnosticPhase::Parse)
+        );
+    }
+
+    #[test]
+    fn diagnostics_banner_message_calls_out_parse_first() {
+        let diagnostics = vec![Diagnostic::error(
+            DiagnosticCode::SourceLoadFailure,
+            DiagnosticPhase::Parse,
+            "parse error",
+        )];
+
+        assert_eq!(
+            diagnostics_banner_message(&diagnostics),
+            Some("Parse errors are blocking rebuild. Fix parse issues first.")
+        );
+    }
+
+    #[test]
+    fn diagnostics_banner_message_calls_out_build_when_no_parse_errors() {
+        let diagnostics = vec![Diagnostic::warning(
+            DiagnosticCode::UnknownAction,
+            DiagnosticPhase::Build,
+            "build warning",
+        )];
+
+        assert_eq!(
+            diagnostics_banner_message(&diagnostics),
+            Some("Build diagnostics reflect runtime contract issues in the current scene.")
+        );
+    }
+
+    #[test]
+    fn diagnostics_banner_message_does_not_claim_parse_warnings_block_rebuild() {
+        let diagnostics = vec![Diagnostic::warning(
+            DiagnosticCode::InvalidConfigValue,
+            DiagnosticPhase::Parse,
+            "parse warning",
+        )];
+
+        assert_eq!(
+            diagnostics_banner_message(&diagnostics),
+            Some("Parse diagnostics need attention before trusting later build feedback.")
+        );
     }
 }

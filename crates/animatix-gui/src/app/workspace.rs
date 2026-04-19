@@ -1,5 +1,7 @@
 use super::*;
 
+const DIAGNOSTICS_PER_PHASE_LIMIT: usize = 3;
+
 #[derive(Default)]
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
@@ -172,37 +174,18 @@ impl WorkspaceViewer<'_> {
             ui.label(RichText::new(&self.preview.status).small().weak());
             if !self.diagnostics.is_empty() {
                 ui.add_space(4.0);
-                if self.diagnostics.iter().any(|diagnostic| {
-                    diagnostic.phase == animatix::diagnostics::DiagnosticPhase::Parse
-                        && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
-                        && diagnostic.code
-                            == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
-                }) {
+                if let Some(message) = diagnostics_banner_message(self.diagnostics) {
                     ui.colored_label(
-                        Color32::from_rgb(255, 136, 136),
-                        RichText::new("Parse/load blocked timeline rebuild")
-                            .small()
-                            .strong(),
+                        diagnostics_summary_color(self.diagnostics),
+                        RichText::new(message).small().strong(),
                     );
                     ui.add_space(2.0);
                 }
                 ui.colored_label(
                     diagnostics_summary_color(self.diagnostics),
-                    RichText::new(diagnostics_summary(self.diagnostics)).small(),
+                    RichText::new(diagnostics_phase_summary(self.diagnostics)).small(),
                 );
-                for diagnostic in self.diagnostics.iter().take(6) {
-                    ui.label(RichText::new(format_diagnostic(diagnostic)).small());
-                }
-                if self.diagnostics.len() > 6 {
-                    ui.label(
-                        RichText::new(format!(
-                            "… and {} more diagnostics",
-                            self.diagnostics.len() - 6
-                        ))
-                        .small()
-                        .weak(),
-                    );
-                }
+                render_diagnostics_by_phase(ui, self.diagnostics);
             }
             ui.separator();
 
@@ -309,5 +292,34 @@ impl WorkspaceViewer<'_> {
                     });
                 });
         });
+    }
+}
+
+fn render_diagnostics_by_phase(ui: &mut egui::Ui, diagnostics: &[Diagnostic]) {
+    for summary in diagnostics_summary_by_phase(diagnostics) {
+        egui::CollapsingHeader::new(summary.label())
+            .default_open(true)
+            .show(ui, |ui| {
+                let phase_diagnostics: Vec<_> = diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.phase == summary.phase)
+                    .collect();
+
+                for diagnostic in phase_diagnostics.iter().take(DIAGNOSTICS_PER_PHASE_LIMIT) {
+                    ui.label(RichText::new(format_diagnostic(diagnostic)).small());
+                }
+
+                if phase_diagnostics.len() > DIAGNOSTICS_PER_PHASE_LIMIT {
+                    ui.label(
+                        RichText::new(format!(
+                            "… and {} more {} diagnostics",
+                            phase_diagnostics.len() - DIAGNOSTICS_PER_PHASE_LIMIT,
+                            summary.phase
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
+            });
     }
 }
