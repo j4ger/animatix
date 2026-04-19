@@ -14,7 +14,7 @@ use animatix::diagnostics::{
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
-use egui::{Align, Color32, RichText, Stroke, Vec2};
+use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2};
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
@@ -390,8 +390,11 @@ impl GuiShell {
     fn open_document(&mut self, path: PathBuf) {
         match DocumentSession::load(path.clone()) {
             Ok(document) => {
-                self.workspace_root = workspace_root_for(&path);
-                self.expanded_dirs = HashSet::from([self.workspace_root.clone()]);
+                let new_workspace_root = workspace_root_for(&path);
+                if new_workspace_root != self.workspace_root {
+                    self.workspace_root = new_workspace_root;
+                    self.expanded_dirs = HashSet::from([self.workspace_root.clone()]);
+                }
                 self.file_tree = build_file_tree(&self.workspace_root, &path, &self.expanded_dirs);
                 self.document = document;
                 self.editor

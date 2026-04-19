@@ -65,31 +65,52 @@ impl WorkspaceViewer<'_> {
             ui.separator();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(4.0, 2.0);
+                ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
                 for entry in self.file_tree {
                     let is_selected = !entry.is_dir && entry.path == self.current_file;
-                    ui.horizontal(|ui| {
-                        ui.set_min_height(EXPLORER_ROW_HEIGHT);
-                        ui.add_space(entry.depth as f32 * EXPLORER_INDENT_PX);
-                        let label = if entry.is_dir {
-                            let is_expanded = self.expanded_dirs.contains(&entry.path);
-                            let icon = if is_expanded { "▸" } else { "▾" };
-                            format!("{} {}", icon, entry.name)
+                    let label = if entry.is_dir {
+                        let is_expanded = self.expanded_dirs.contains(&entry.path);
+                        let icon = if is_expanded { "▸" } else { "▾" };
+                        format!("{} {}", icon, entry.name)
+                    } else {
+                        format!("  {}", entry.name)
+                    };
+
+                    let height = 20.0;
+                    let (rect, response) = ui.allocate_at_least(
+                        Vec2::new(ui.available_width(), height),
+                        egui::Sense::click(),
+                    );
+
+                    ui.painter().rect_filled(
+                        rect.expand(0.5),
+                        2.0,
+                        match (is_selected, response.hovered()) {
+                            (true, _) => Color32::from_rgb(63, 81, 181),
+                            (_, true) => Color32::from_rgb(50, 50, 60),
+                            _ => Color32::TRANSPARENT,
+                        },
+                    );
+
+                    let text_rect = Rect::from_min_max(
+                        Pos2::new(rect.min.x + entry.depth as f32 * EXPLORER_INDENT_PX, rect.min.y),
+                        Pos2::new(rect.max.x, rect.max.y),
+                    );
+                    ui.painter().text(
+                        text_rect.left_center(),
+                        egui::Align2::LEFT_CENTER,
+                        label,
+                        egui::TextStyle::Small.resolve(ui.style()),
+                        Color32::from_rgb(200, 200, 200),
+                    );
+
+                    if response.clicked() {
+                        if entry.is_dir {
+                            self.actions.toggle_expand_dir = Some(entry.path.clone());
                         } else {
-                            format!("• {}", entry.name)
-                        };
-                        let response = ui.add_sized(
-                            [ui.available_width(), EXPLORER_ROW_HEIGHT],
-                            egui::Button::new(RichText::new(label).small()).selected(is_selected),
-                        );
-                        if response.clicked() {
-                            if entry.is_dir {
-                                self.actions.toggle_expand_dir = Some(entry.path.clone());
-                            } else {
-                                self.actions.open_file = Some(entry.path.clone());
-                            }
+                            self.actions.open_file = Some(entry.path.clone());
                         }
-                    });
+                    }
                 }
 
                 ui.add_space(10.0);
