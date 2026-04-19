@@ -503,6 +503,45 @@ fn test_image_stmt() {
             label: Some("photo".to_string()),
             url: "examples/checker.ppm".to_string(),
             at: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)])),
+            anchor: None,
+            offset: None,
+            size: Some((240.0, 180.0)),
+        }
+    );
+}
+
+#[test]
+fn test_svg_stmt_preserves_anchor_and_offset() {
+    assert_eq!(
+        parse_single_stmt(
+            "icon: Svg { url: \"examples/vector.svg\", anchor: scene.top, offset: (0, 24), scale: 1.5 }"
+        ),
+        Stmt::Svg {
+            label: Some("icon".to_string()),
+            url: "examples/vector.svg".to_string(),
+            at: None,
+            anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
+            offset: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)])),
+            scale: 1.5,
+        }
+    );
+}
+
+#[test]
+fn test_image_stmt_preserves_anchor_and_offset() {
+    assert_eq!(
+        parse_single_stmt(
+            "photo: Image { url: \"examples/checker.ppm\", anchor: scene.bottom, offset: (0, -40), size: (240, 180) }"
+        ),
+        Stmt::Image {
+            label: Some("photo".to_string()),
+            url: "examples/checker.ppm".to_string(),
+            at: None,
+            anchor: Some(Expr::Path(vec!["scene".to_string(), "bottom".to_string()])),
+            offset: Some(Expr::Tuple(vec![
+                Expr::Num(0.0),
+                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
+            ])),
             size: Some((240.0, 180.0)),
         }
     );

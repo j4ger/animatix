@@ -1539,6 +1539,8 @@ fn test_image_properties_are_animatable() {
                 label: Some("photo".to_string()),
                 url: example_path("checker.ppm"),
                 at: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)])),
+                anchor: None,
+                offset: None,
                 size: Some((48.0, 48.0)),
             }],
         },
@@ -1589,6 +1591,8 @@ fn test_missing_image_statement_reports_media_load_failure() {
             label: Some("photo".to_string()),
             url: "/definitely/missing/animatix-image.png".to_string(),
             at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            anchor: None,
+            offset: None,
             size: None,
         }],
     }];
@@ -1612,6 +1616,8 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
             label: Some("icon".to_string()),
             url: invalid_svg.display().to_string(),
             at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            anchor: None,
+            offset: None,
             scale: 1.0,
         }],
     }];
@@ -1677,6 +1683,8 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
                 label: Some("photo".to_string()),
                 url: example_path("checker.ppm"),
                 at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+                anchor: None,
+                offset: None,
                 size: Some((32.0, 32.0)),
             }],
         },
@@ -1707,6 +1715,8 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
                 label: Some("icon".to_string()),
                 url: example_path("vector.svg"),
                 at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+                anchor: None,
+                offset: None,
                 scale: 1.0,
             }],
         },
@@ -3052,6 +3062,8 @@ fn test_svg_primitive_reports_measured_size() {
             label: Some("logo".to_string()),
             url: svg_path,
             at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            anchor: None,
+            offset: None,
             scale: 1.0,
         }],
     }];
@@ -3072,6 +3084,8 @@ fn test_scaled_svg_primitive_reports_scaled_size() {
             label: Some("logo".to_string()),
             url: svg_path,
             at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            anchor: None,
+            offset: None,
             scale: 2.0,
         }],
     }];
@@ -3118,6 +3132,88 @@ logo.at = (70%, 32%) [1s]
             x: 0.70,
             y: 0.32,
             offset: [0.0, 0.0],
+        }
+    );
+}
+
+#[test]
+fn test_image_scene_percent_position_assignment_interpolates_binding() {
+    let ast = parse_program(
+        r#"
+photo: Image { url: "examples/checker.ppm", at: (30%, 38%) }
+
+#1s
+photo.at = (32%, 36%) [1s]
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("photo").expect("photo track should exist");
+
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::ScenePercent {
+            x: 0.30,
+            y: 0.38,
+            offset: [0.0, 0.0],
+        }
+    );
+    match track.position_binding.evaluate(1500) {
+        PositionBinding::ScenePercent { x, y, offset } => {
+            assert!((x - 0.31).abs() < f32::EPSILON * 4.0);
+            assert!((y - 0.37).abs() < f32::EPSILON * 4.0);
+            assert_eq!(offset, [0.0, 0.0]);
+        }
+        other => panic!("expected scene-percent binding at midpoint, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_showcase_logo_uses_scene_percent_binding_from_source() {
+    let showcase = std::fs::read_to_string(format!(
+        "{}/../../examples/showcase.amx",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .expect("showcase example should be readable");
+
+    let ast = parse_program(&showcase);
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("logo").expect("logo track should exist");
+
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::ScenePercent {
+            x: 0.72,
+            y: 0.38,
+            offset: [0.0, 0.0],
+        }
+    );
+    match track.position_binding.evaluate(3300) {
+        PositionBinding::ScenePercent { x, y, offset } => {
+            assert!(x < 0.72 && x > 0.70);
+            assert!(y < 0.38 && y > 0.32);
+            assert_eq!(offset, [0.0, 0.0]);
+        }
+        other => panic!("expected interpolated scene-percent binding, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_svg_source_anchor_and_offset_builds_scene_anchor_binding() {
+    let ast = parse_program(
+        r#"
+icon: Svg { url: "examples/vector.svg", anchor: scene.top, offset: (0, 48) }
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("icon").expect("icon track should exist");
+
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::SceneAnchor {
+            anchor: SceneAnchor::Top,
+            offset: [0.0, 48.0],
         }
     );
 }
