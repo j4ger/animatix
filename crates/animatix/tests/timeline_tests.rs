@@ -1455,6 +1455,54 @@ card.nonexistent.color = red
     );
 }
 
+#[test]
+fn unsupported_nested_component_property_assignment_reports_diagnostic() {
+    let dir = temp_project_dir("unsupported_component_assignment_property");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component MetricCard(title: "Default") {
+    frame: Rect, size: (240, 120), color: blue
+    badge: Circle, radius: 14, color: red
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+card: MetricCard, title: "Latency"
+
+#0s
+card.badge.glow = 10
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded);
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedAssignmentProperty
+            && diagnostic.location.subject.as_deref() == Some("card.badge.glow")
+            && diagnostic.message.contains("card.badge")
+            && diagnostic.message.contains("glow")
+    }));
+    assert_eq!(
+        report.output.tracks["card.badge"].size.evaluate(0),
+        [14.0, 14.0]
+    );
+    assert_eq!(
+        report.output.tracks["card.badge"].color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+}
+
 /// Verifies that two instances of the same component get completely isolated namespaces.
 /// Changes to one instance's nested labels do not affect the other instance.
 #[test]
@@ -3108,7 +3156,10 @@ logo.at = (70%, 32%) [1s]
     );
 
     let timeline = Timeline::build(&ast);
-    let track = timeline.tracks.get("logo").expect("logo track should exist");
+    let track = timeline
+        .tracks
+        .get("logo")
+        .expect("logo track should exist");
 
     assert_eq!(
         track.position_binding.evaluate(0),
@@ -3148,7 +3199,10 @@ photo.at = (32%, 36%) [1s]
     );
 
     let timeline = Timeline::build(&ast);
-    let track = timeline.tracks.get("photo").expect("photo track should exist");
+    let track = timeline
+        .tracks
+        .get("photo")
+        .expect("photo track should exist");
 
     assert_eq!(
         track.position_binding.evaluate(0),
@@ -3178,7 +3232,10 @@ fn test_showcase_logo_uses_scene_percent_binding_from_source() {
 
     let ast = parse_program(&showcase);
     let timeline = Timeline::build(&ast);
-    let track = timeline.tracks.get("logo").expect("logo track should exist");
+    let track = timeline
+        .tracks
+        .get("logo")
+        .expect("logo track should exist");
 
     assert_eq!(
         track.position_binding.evaluate(0),
@@ -3207,7 +3264,10 @@ icon: Svg { url: "examples/vector.svg", anchor: scene.top, offset: (0, 48) }
     );
 
     let timeline = Timeline::build(&ast);
-    let track = timeline.tracks.get("icon").expect("icon track should exist");
+    let track = timeline
+        .tracks
+        .get("icon")
+        .expect("icon track should exist");
 
     assert_eq!(
         track.position_binding.evaluate(0),
@@ -3781,6 +3841,39 @@ fn test_row_with_text_children_uses_measured_bounds() {
 }
 
 #[test]
+fn test_row_layout_does_not_reflow_from_scaled_child_animation() {
+    let ast = parse_program(
+        r#"
+row: Row, gap: 20 {
+  badge: Circle, radius: 10, color: gold
+  label: Text, text: "Stable layout", font_size: 28
+}
+
+#1s
+label.scale = 2 [1s]
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let badge = timeline
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+    let label = timeline
+        .tracks
+        .get("label")
+        .expect("label track should exist");
+
+    let badge_position = badge.position.evaluate(0);
+    let label_position = label.position.evaluate(0);
+
+    assert_eq!(badge.position.evaluate(1500), badge_position);
+    assert_eq!(label.position.evaluate(1500), label_position);
+    assert!(label.scale.evaluate(1500) > 1.0);
+    assert_eq!(label.scale.evaluate(2000), 2.0);
+}
+
+#[test]
 fn test_col_with_code_child_uses_measured_bounds() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -4042,8 +4135,14 @@ fn test_parser_built_row_with_inline_text_and_image_uses_measured_layout() {
     let label_size = label.size.evaluate(0);
     let photo_size = photo.size.evaluate(0);
 
-    assert_eq!(label.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
-    assert_eq!(photo.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
+    assert_eq!(
+        label.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(
+        photo.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
     assert!(label_size[0] > 0.0);
     assert_eq!(photo_size, [16.0, 12.0]);
     assert_eq!(label.position.evaluate(0), [-(photo_size[0] + 10.0), 0.0]);

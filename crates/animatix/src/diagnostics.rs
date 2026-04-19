@@ -36,6 +36,7 @@ impl fmt::Display for DiagnosticPhase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticCode {
     UnsupportedModifierKey,
+    UnsupportedAssignmentProperty,
     InvalidModifierValue,
     InvalidConfigValue,
     ConflictingModifierKey,
@@ -55,6 +56,9 @@ impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
+            DiagnosticCode::UnsupportedAssignmentProperty => {
+                write!(f, "unsupported-assignment-property")
+            }
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
             DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
