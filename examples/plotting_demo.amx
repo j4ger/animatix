@@ -9,9 +9,12 @@ title: Text { text: "Plotting demo", font_size: 42, color: text.primary, anchor:
 subtitle: Text { text: "Cartesian and polar curves share the same Graph runtime and animate like any other actor.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
 caption: Text { text: "The graph starts compact and centered, then grows and shifts so plot composition and graph transforms stay readable during scrubbing.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-legend_a: Text { text: "y = x^2 - 2", font_size: 18, color: accent.danger, at: (242, 236) }
-legend_b: Text { text: "y = 1 / x", font_size: 18, color: accent.warning, at: (242, 264) }
-legend_c: Text { text: "r = 3 sin(4t)", font_size: 18, color: accent.success, at: (242, 292) }
+// Legend items in a Col for proper vertical stacking
+legend: Col, anchor: scene.center, offset: (-398, 0), gap: 28 {
+  legend_a: Text { text: "y = x^2 - 2", font_size: 18, color: accent.danger },
+  legend_b: Text { text: "y = 1 / x", font_size: 18, color: accent.warning },
+  legend_c: Text { text: "r = 3 sin(4t)", font_size: 18, color: accent.success }
+}
 
 graph: Graph, x_domain: (-5, 5), y_domain: (-5, 25), size: (520, 420), at: (640, 390) {
   parabola: CartesianPlot, func: (x) => x * x - 2, color: accent.danger, width: 2,

@@ -9,11 +9,17 @@ title: Text { text: "Animatix", font_size: 72, color: text.primary, anchor: scen
 subtitle: Text { text: "Text, math, SVG, and vector primitives on one hero stage.", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 152) }
 caption: Text { text: "Anchored pockets and a bottom Row keep the scene legible.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 180) }
 
-math_label: Text { text: "Math", font_size: 18, color: accent.warning, at: (28%, 28%) }
-formula: Math { math: "E = mc^2", font_size: 82, color: accent.primary, at: (30%, 38%) }
+// Math section: label above formula using Col for proper stacking
+math_col: Col, anchor: scene.top, offset: (280, 200), align: "center", gap: 12 {
+  math_label: Text { text: "Math", font_size: 18, color: accent.warning },
+  formula: Math { math: "E = mc^2", font_size: 82, color: accent.primary }
+}
 
-svg_label: Text { text: "SVG", font_size: 18, color: accent.warning, at: (72%, 28%) }
-logo: Svg { url: "examples/vector.svg", scale: 2.15, at: (72%, 38%) }
+// SVG section: label above logo using Col for proper stacking
+svg_col: Col, anchor: scene.top, offset: (900, 200), align: "center", gap: 12 {
+  svg_label: Text { text: "SVG", font_size: 18, color: accent.warning },
+  logo: Svg { url: "examples/vector.svg", scale: 2.15 }
+}
 
 shape_label: Text { text: "Vector primitives in Row layout", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -220) }
 primitive_row: Row, anchor: scene.bottom, offset: (0, -116), gap: 144, align: "center" {
@@ -24,12 +30,12 @@ primitive_row: Row, anchor: scene.bottom, offset: (0, -116), gap: 144, align: "c
 
 #1.2s
 title.color = accent.warning [900ms, ease: ease-in-out]
-formula.at = (32%, 36%) [900ms, ease: ease-in-out]
+formula.color = accent.success [900ms, ease: ease-in-out]
 orb.radius = 114 [900ms, ease: ease-in-out]
 orb.color = accent.success [900ms, ease: ease-in-out]
 panel.size = (324, 154) [900ms, ease: ease-in-out]
 
 #2.8s
-logo.at = (70%, 32%) [1s, ease: ease-in-out]
+logo.color = accent.danger [1s, ease: ease-in-out]
 shift panel [by: (-16, -10), 1s, ease: ease-in-out]
 signal.to = (132, -24) [1s, ease: ease-in-out]

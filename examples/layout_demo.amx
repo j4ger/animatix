@@ -19,8 +19,10 @@ grid_caption: Text { text: "cols: 2 and gap: 28 keep the centered panel legible 
 left_label: Text { text: "Scene anchor + offset", font_size: 24, color: accent.warning, anchor: scene.left, offset: (210, -164) }
 left_caption: Text { text: "This Col is anchored to scene.left, then nudged inward with offset.", font_size: 16, color: text.secondary, anchor: scene.left, offset: (228, -136) }
 
-stack_label: Text { text: "Stack with percent placement", font_size: 24, color: accent.warning, at: (80%, 50%) }
-stack_caption: Text { text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color: text.secondary, at: (80%, 54%) }
+stack_header: Col, anchor: scene.right, offset: (-100, -180), align: "center", gap: 8 {
+  stack_label: Text { text: "Stack with percent placement", font_size: 24, color: accent.warning },
+  stack_caption: Text { text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color: text.secondary }
+}
 
 manual_label: Text { text: "Manual child override inside layout container", font_size: 24, color: accent.warning, anchor: scene.bottom, offset: (0, -220) }
 manual_caption: Text { text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -192) }

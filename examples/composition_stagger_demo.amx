@@ -9,9 +9,11 @@ title: Text { text: "Stagger composition demo", font_size: 42, color: text.prima
 subtitle: Text { text: "Each child statement starts with the same shared interval offset from the parent keyframe.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
 caption: Text { text: "The three siblings are evenly staged so the stagger rhythm is the first thing you notice in playback.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 
-a: Circle, radius: 42, color: accent.danger, stroke: stroke.default, stroke_width: 4, at: (340, 430)
-b: Circle, radius: 42, color: accent.primary, stroke: stroke.default, stroke_width: 4, at: (640, 430)
-c: Circle, radius: 42, color: accent.success, stroke: stroke.default, stroke_width: 4, at: (940, 430)
+circles: Row, anchor: scene.center, offset: (0, 50), gap: 100, align: "center" {
+  a: Circle, radius: 42, color: accent.danger, stroke: stroke.default, stroke_width: 4,
+  b: Circle, radius: 42, color: accent.primary, stroke: stroke.default, stroke_width: 4,
+  c: Circle, radius: 42, color: accent.success, stroke: stroke.default, stroke_width: 4
+}
 
 #0s
 stagger [180ms] {
