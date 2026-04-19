@@ -377,6 +377,8 @@ mod tests {
             label: Some(label.to_string()),
             url: "../../examples/checker.ppm".to_string(),
             at: Some(Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)])),
+            anchor: None,
+            offset: None,
             size: Some((120.0, 120.0)),
         }
     }

@@ -188,6 +188,8 @@ pub enum Stmt {
         label: Option<String>,
         url: String,
         at: Option<Expr>,
+        anchor: Option<Expr>,
+        offset: Option<Expr>,
         scale: f32,
     },
 
@@ -195,6 +197,8 @@ pub enum Stmt {
         label: Option<String>,
         url: String,
         at: Option<Expr>,
+        anchor: Option<Expr>,
+        offset: Option<Expr>,
         size: Option<(f32, f32)>,
     },
 

@@ -498,6 +498,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(label, props)| {
                 let mut url = String::new();
                 let mut at = None;
+                let mut anchor = None;
+                let mut offset = None;
                 let mut scale = 1.0;
                 for p in props {
                     match p.name.as_str() {
@@ -508,6 +510,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         }
                         "at" => {
                             at = Some(p.value);
+                        }
+                        "anchor" => {
+                            anchor = Some(p.value);
+                        }
+                        "offset" => {
+                            offset = Some(p.value);
                         }
                         "scale" => {
                             if let Expr::Num(n) = p.value {
@@ -521,6 +529,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     label,
                     url,
                     at,
+                    anchor,
+                    offset,
                     scale,
                 }
             })
@@ -535,6 +545,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(label, props)| {
                 let mut url = String::new();
                 let mut at = None;
+                let mut anchor = None;
+                let mut offset = None;
                 let mut size = None;
                 for p in props {
                     match p.name.as_str() {
@@ -545,6 +557,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         }
                         "at" => {
                             at = Some(p.value);
+                        }
+                        "anchor" => {
+                            anchor = Some(p.value);
+                        }
+                        "offset" => {
+                            offset = Some(p.value);
                         }
                         "size" => {
                             if let Expr::Tuple(t) = p.value {
@@ -564,6 +582,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     label,
                     url,
                     at,
+                    anchor,
+                    offset,
                     size,
                 }
             })

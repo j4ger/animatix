@@ -45,26 +45,46 @@ pub(super) fn rewrite_stmt(
             label,
             url,
             at,
+            anchor,
+            offset,
             scale,
         } => Stmt::Svg {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             url: url.clone(),
-            at: at.clone(),
+            at: at
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
+            anchor: anchor
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
+            offset: offset
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
             scale: *scale,
         },
         Stmt::Image {
             label,
             url,
             at,
+            anchor,
+            offset,
             size,
         } => Stmt::Image {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             url: url.clone(),
-            at: at.clone(),
+            at: at
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
+            anchor: anchor
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
+            offset: offset
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
             size: *size,
         },
         Stmt::ActorDecl {
@@ -503,4 +523,47 @@ fn rewrite_label_path(
 
 fn split_rewritten_label(label: &str) -> Vec<String> {
     label.split('.').map(str::to_string).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rewrite_media_statement_position_expressions() {
+        let stmt = Stmt::Svg {
+            label: Some("logo".to_string()),
+            url: "examples/vector.svg".to_string(),
+            at: Some(Expr::Ident("badge".to_string())),
+            anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
+            offset: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Ident("delta".to_string())])),
+            scale: 1.0,
+        };
+        let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);
+        let bindings = HashMap::from([("delta".to_string(), Expr::Num(48.0))]);
+
+        let rewritten = rewrite_stmt(&stmt, "hero", None, &known_labels, &bindings);
+
+        match rewritten {
+            Stmt::Svg {
+                label,
+                at,
+                anchor,
+                offset,
+                ..
+            } => {
+                assert_eq!(label.as_deref(), Some("hero.logo"));
+                assert_eq!(at, Some(Expr::Ident("hero.badge".to_string())));
+                assert_eq!(
+                    anchor,
+                    Some(Expr::Path(vec!["scene".to_string(), "top".to_string()]))
+                );
+                assert_eq!(
+                    offset,
+                    Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]))
+                );
+            }
+            other => panic!("expected rewritten svg statement, got {other:?}"),
+        }
+    }
 }

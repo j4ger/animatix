@@ -196,6 +196,8 @@ impl Timeline {
                 label,
                 url,
                 at,
+                anchor,
+                offset,
                 scale,
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
@@ -209,8 +211,8 @@ impl Timeline {
                 let binding_subject = format!("{}.at", label_str);
                 if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
                     at.as_ref(),
-                    None,
-                    None,
+                    anchor.as_ref(),
+                    offset.as_ref(),
                     &eval_env,
                     diagnostics,
                     &binding_subject,
@@ -254,6 +256,8 @@ impl Timeline {
                 label,
                 url,
                 at,
+                anchor,
+                offset,
                 size,
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
@@ -267,8 +271,8 @@ impl Timeline {
                 let binding_subject = format!("{}.at", label_str);
                 if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
                     at.as_ref(),
-                    None,
-                    None,
+                    anchor.as_ref(),
+                    offset.as_ref(),
                     &eval_env,
                     diagnostics,
                     &binding_subject,
