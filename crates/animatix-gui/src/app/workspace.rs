@@ -70,10 +70,12 @@ impl WorkspaceViewer<'_> {
                     let is_selected = !entry.is_dir && entry.path == self.current_file;
                     let label = if entry.is_dir {
                         let is_expanded = self.expanded_dirs.contains(&entry.path);
-                        let icon = if is_expanded { "▸" } else { "▾" };
+                        let icon = if is_expanded { "📂" } else { "📁" };
                         format!("{} {}", icon, entry.name)
                     } else {
-                        format!("  {}", entry.name)
+                        let is_amx = entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
+                        let icon = if is_amx { "🎬" } else { "📄" };
+                        format!("{} {}", icon, entry.name)
                     };
 
                     let height = 20.0;
@@ -96,12 +98,18 @@ impl WorkspaceViewer<'_> {
                         Pos2::new(rect.min.x + entry.depth as f32 * EXPLORER_INDENT_PX, rect.min.y),
                         Pos2::new(rect.max.x, rect.max.y),
                     );
+                    let is_amx = !entry.is_dir && entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
+                    let text_color = if is_amx {
+                        Color32::from_rgb(137, 200, 235)
+                    } else {
+                        Color32::from_rgb(200, 200, 200)
+                    };
                     ui.painter().text(
                         text_rect.left_center(),
                         egui::Align2::LEFT_CENTER,
                         label,
                         egui::TextStyle::Small.resolve(ui.style()),
-                        Color32::from_rgb(200, 200, 200),
+                        text_color,
                     );
 
                     if response.clicked() {
