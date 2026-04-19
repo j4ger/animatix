@@ -10,7 +10,7 @@ config { colorscheme: "editorial-dark" }
 
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Component diagnostics", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Valid dotted access stays live; invalid paths still emit warnings.", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 152) }
+subtitle: Text { text: "Valid dotted access stays live; invalid paths and unsupported properties still emit warnings.", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 152) }
 caption_ok: Text { text: "Valid dotted writes + rhs lookup", font_size: 16, color: accent.success, at: (420, 224) }
 caption_bad: Text { text: "Invalid targets still warn", font_size: 16, color: accent.danger, at: (860, 224) }
 
@@ -27,6 +27,7 @@ connector: Line, from: left.badge.at, to: right.badge.at, stroke: stroke.default
 left.badge.color = accent.danger
 right.badge.radius = 20
 left.nonexistent.color = accent.warning
+right.badge.glow = 10
 
 #1.4s
 left.color = accent.primary [0.8s, ease: ease-in-out]

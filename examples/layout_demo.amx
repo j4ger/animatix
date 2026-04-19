@@ -7,9 +7,9 @@ config { colorscheme: "editorial-dark" }
 eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
 title: Text { text: "Layout demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
 subtitle: Text { text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override, and the current slice stays declaration-time rather than per-frame reflow.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
 measure_label: Text { text: "Measured-child row", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 302) }
-measure_caption: Text { text: "Text, code, and intrinsic media now participate in the same declaration-time layout contract as authored shapes.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 330) }
+measure_caption: Text { text: "Text, code, and intrinsic media now participate in the same declaration-time layout contract as authored shapes; later scale changes do not trigger reflow in this slice.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 330) }
 
 root_label: Text { text: "Root container default placement", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 184) }
 root_caption: Text { text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 212) }

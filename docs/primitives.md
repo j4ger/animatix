@@ -485,9 +485,13 @@ Assignments can now target nested runtime labels through multi-segment dotted pa
 
 The same dotted path surface now works on the rhs for sampled property reads. Common examples are `copy.at = left.badge.at`, `echo.radius = right.badge.radius`, and scalar/vector component reads such as `source.at.x`.
 
+Unsupported assignment properties now report a build diagnostic instead of being silently ignored. A path such as `card.badge.glow = 10` is parsed, but the runtime warns because `glow` is not part of the current shipped assignment surface.
+
 Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
 
 Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.
+
+Current layout honesty note: `Row` / `Col` / `Grid` / `Stack` consume the child `size` track as a declaration-time measure/place contract. Visual-only transforms such as animated `scale`, rotation, or opacity do not promise per-frame relayout in the current shipped slice.
 
 ## 4.1 Bracket Modifier Status
 

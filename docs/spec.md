@@ -620,6 +620,7 @@ The following rules define what is and is not accessible from outside a componen
 | Nested actor label | Always reachable when the nested actor exists in the component body: `card.badge`, `left.frame` |
 | Non-existent nested label | Reports a build diagnostic and ignores the assignment target instead of creating an orphaned track |
 | Property on any track | Assignable without pre-declaration; creates the property track if it does not exist |
+| Unsupported assignment property | Reports a build diagnostic and ignores the assignment instead of silently pretending the property is runtime-real |
 
 **Reachability Example:**
 ```animatix
@@ -633,6 +634,7 @@ card: MetricCard, title: "Latency"
 #0s
 card.badge.color = red      # OK: badge exists in component
 card.nonexistent.color = blue  # Reports build diagnostic and is ignored
+card.badge.glow = 10        # Reports build diagnostic: 'glow' is not part of the shipped assignment surface
 ```
 
 ```animatix
