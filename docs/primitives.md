@@ -60,7 +60,9 @@ snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
 **Properties used by the runtime:**
 - `url`: String
 - `scale`: Number
-- `at`: Tuple `(x, y)`
+- `at`: tuple `(x, y)` or scene-relative percent tuple such as `(72%, 38%)`
+- `anchor`: scene anchor such as `scene.top`
+- `offset`: Tuple `(x, y)` used with `anchor`
 
 **Example:**
 ```animatix
@@ -78,7 +80,9 @@ Timing note: `Svg` source changes remain declaration-only today. Assigning `icon
 
 **Properties used by the runtime:**
 - `url`: String
-- `at`: Tuple `(x, y)`
+- `at`: tuple `(x, y)` or scene-relative percent tuple such as `(30%, 38%)`
+- `anchor`: scene anchor such as `scene.bottom`
+- `offset`: Tuple `(x, y)` used with `anchor`
 - `size`: Optional tuple `(width, height)`
 
 If `size` is omitted, the runtime uses the image's natural pixel size. The initial implementation keeps the surface intentionally small and file-based.
