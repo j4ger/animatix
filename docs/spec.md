@@ -388,6 +388,8 @@ The `gap` property sets uniform spacing between children. The `align` property c
 - For `Row`: aligns children vertically ("start" = top, "center" = middle, "end" = bottom)
 - For `Col`: aligns children horizontally ("start" = left, "center" = middle, "end" = right)
 
+The current layout model is a **declaration-time measure/place contract**. Layout containers consume each layout-managed child's local `size` track during timeline construction and place children deterministically from that stored size. Animated visual transforms such as `scale`, rotation, opacity, or visibility changes do **not** promise per-frame relayout in the current shipped slice.
+
 `Grid` currently supports `cols` and `gap`. `Stack` overlaps layout-managed children around a shared origin. These should not be read as a promise that every layout container shares the same alignment surface.
 
 ```animatix
