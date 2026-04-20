@@ -38,18 +38,7 @@ The roadmap below begins after that baseline.
 
 ---
 
-## 3. Recently Completed Work
-
-These slices matter as context, but they are no longer active roadmap items:
-
-- roadmap/spec contract sync so shipped behavior is documented honestly
-- reveal actions v1 plus unsupported-target diagnostics
-- colorschemes v1 with built-in schemes, alias-backed defaults, and `color: auto`
-- motion/composition ergonomics already reflected in the shipped baseline above
-
----
-
-## 4. Active Roadmap Overview
+## 3. Active Roadmap Overview
 
 The active roadmap now begins with **layout contract honesty and narrowed container-layout guidance**. The highest-value near-term work is to keep runtime behavior, docs, examples, and tests aligned around the current shipped declaration-time measure/place model before any broader surface expansion.
 
@@ -70,7 +59,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 5. Phase 1 — Layout Contract Honesty and Narrowed Container Layout
+## 4. Phase 1 — Layout Contract Honesty and Narrowed Container Layout
 
 **Urgency:** High
 
@@ -100,7 +89,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 6. Phase 2 — Diagnostic UX and Contract-Surface Feedback
+## 5. Phase 2 — Diagnostic UX and Contract-Surface Feedback
 
 **Urgency:** High
 
@@ -130,7 +119,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 7. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+## 6. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
 
 **Urgency:** High
 
@@ -160,7 +149,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 8. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+## 7. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
 
 **Urgency:** High
 
@@ -176,7 +165,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 9. Phase 5 — Tooling and Authoring Workflow Refinement
+## 8. Phase 5 — Tooling and Authoring Workflow Refinement
 
 **Urgency:** Medium
 
@@ -196,7 +185,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 10. Deferred Architectural Work
+## 9. Deferred Architectural Work
 
 These remain valuable, but they should stay out of the near-term critical path because they imply broader model changes.
 
@@ -215,7 +204,7 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 
 ---
 
-## 11. What We Should Not Do Next
+## 10. What We Should Not Do Next
 
 - treat parser acceptance as proof of runtime support
 - widen the action catalog before defining honest target coverage and diagnostics

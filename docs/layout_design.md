@@ -224,36 +224,36 @@ title: Text, anchor: scene.top, offset: (0, 80)
 
 ---
 
-## 7. Shipped Surface and Remaining Work
+## 7. Shipped Layout Surface
 
 ### Slice 1 — Semantics cleanup
 - status: implemented for `Row` / `Col` child placement semantics
-- remove `(0, 0)` sentinel behavior
-- define layout-managed vs manual placement in runtime and docs
-- preserve existing explicit `at`
+- `(0, 0)` sentinel behavior is removed
+- layout-managed vs manual placement is defined in runtime and docs
+- existing explicit `at` is preserved
 
 ### Slice 2 — Container defaults
 - status: implemented for `Row`, `Col`, `Stack`, and `Grid` root containers via `scene.center`
-- allow `Row` / `Col` without explicit `at`
-- add default container placement behavior
-- update demos and docs to show layout-first usage
+- `Row` / `Col` can omit explicit `at`
+- deterministic default container placement is part of the shipped runtime
+- demos and docs show layout-first usage
 
 ### Slice 3 — `Stack`
 - status: implemented
-- implement runtime behavior
-- add demo coverage
-- document shared-origin layering semantics
+- runtime behavior is shipped
+- demo coverage is present
+- shared-origin layering semantics are documented
 
 ### Slice 4 — `Grid`
 - status: implemented
-- implement runtime behavior
-- add demo coverage
-- document ordering, `cols`, and gap semantics
+- runtime behavior is shipped
+- demo coverage is present
+- ordering, `cols`, and gap semantics are documented
 
 ### Slice 5 — Scene-relative placement
 - status: implemented for scene anchors, percentage `at`, and `offset`
-- add anchors / percentages / offset
-- update examples to reduce manual coordinate math
+- scene anchors, percentage `at`, and `offset` are shipped
+- examples use them to reduce manual coordinate math
 
 Each slice should land with:
 - runtime changes
@@ -294,14 +294,14 @@ The current layout model should be considered successful when:
 
 The next truthful layout step is **not** full CSS flexbox parity and **not** sampled per-frame reflow. The current priority is to make the shipped declaration-time measure/place subset easier to understand and harder to misread.
 
-The current runtime already proves a narrow layout slice for the primary first-wave participants: authored vector shapes, `Image`, and text-like declarations (`Text`, `Math`, `Code`) all publish layout size through the shared `size` track that container layout consumes. What remains is to keep that contract explicit, well-tested, and clearly documented about where it stops.
+The current runtime already proves a narrow layout slice for the primary first-wave participants: authored vector shapes, `Image`, and text-like declarations (`Text`, `Math`, `Code`) all publish layout size through the shared `size` track that container layout consumes. The current priority is to keep that contract explicit, well-tested, and clearly documented about where it stops.
 
 ### 10.1 Why this priority exists
 
-Today the runtime already positions `Row`, `Col`, and `Grid` children from tracked child size, but the size-reporting contract is incomplete:
+Today the runtime already positions `Row`, `Col`, and `Grid` children from tracked child size, but the size-reporting contract is intentionally bounded:
 
 - some primitives already have meaningful authored or intrinsic size
-- some primitives still fall back to placeholder track values
+- some primitives still fall back to placeholder track values outside the tightened participant set
 - layout is still applied mainly during timeline construction rather than from sampled child state
 
 That means Animatix has a useful placement scaffold, but the main near-term need is contract honesty rather than broader layout vocabulary.
@@ -313,7 +313,7 @@ This priority should accomplish four things:
 1. make layout size an explicit runtime contract for layout-participating children
 2. keep the contract deterministic and cheap enough for random-access evaluation
 3. document per-container semantics precisely enough that examples do not over-teach the runtime
-4. document exactly which primitives report truthful layout size and which do not yet
+4. document exactly which primitives report truthful layout size and which fall outside the current bounded contract
 
 ### 10.3 Measurement contract
 
@@ -380,24 +380,24 @@ The current shipped contract should remain a **declaration-time measure/place** 
 
 Later work may move layout toward sampled-state recomputation where needed, but that should be a separate architectural step rather than an accidental side effect of adding measured bounds.
 
-### 10.7 Remaining work
+### 10.7 Shipped measurement slice and follow-up boundaries
 
 #### Slice 1 — Measurement contract and diagnostics
-- define what “layout size” means in runtime/docs/tests
-- identify placeholder-size fallbacks and make them explicit in diagnostics or docs
-- add focused tests for layout size publication
+- “layout size” is defined across runtime/docs/tests
+- placeholder-size fallbacks are called out as bounded behavior in docs and diagnostics
+- focused tests cover layout size publication
 
 #### Slice 2 — Text/Math/Code measured bounds
-- extract local bounds from the existing compilation pipeline
-- write those bounds into the size track used by container layout
-- add one focused demo showing text participating truthfully in `Row` / `Col`
+- local bounds are extracted from the existing compilation pipeline
+- those bounds are written into the size track used by container layout
+- focused examples show text participating truthfully in `Row` / `Col`
 
 #### Slice 3 — Row/Col size-aware polish
-- verify `Row` / `Col` behavior with mixed authored-size and measured-size children
-- preserve manual child opt-out semantics
-- keep layout deterministic under random-access evaluation
+- `Row` / `Col` behavior with mixed authored-size and measured-size children is verified
+- manual child opt-out semantics are preserved
+- layout remains deterministic under random-access evaluation
 
-Status note: these three slices now exist in the runtime in a bounded form. The remaining work in this phase is mainly contract honesty: keeping docs, examples, and tests aligned with the shipped subset while avoiding broader flex claims.
+Status note: these three slices exist in the runtime in a bounded form. The near-term follow-up is contract honesty: keeping docs, examples, and tests aligned with the shipped subset while avoiding broader flex claims.
 
 #### Future architectural follow-up
 - evaluate when sampled child-state relayout becomes necessary
