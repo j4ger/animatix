@@ -3223,7 +3223,7 @@ photo.at = (32%, 36%) [1s]
 }
 
 #[test]
-fn test_showcase_logo_uses_scene_percent_binding_from_source() {
+fn test_showcase_logo_is_layout_managed_inside_anchored_svg_column() {
     let showcase = std::fs::read_to_string(format!(
         "{}/../../examples/showcase.amx",
         env!("CARGO_MANIFEST_DIR")
@@ -3232,27 +3232,24 @@ fn test_showcase_logo_uses_scene_percent_binding_from_source() {
 
     let ast = parse_program(&showcase);
     let timeline = Timeline::build(&ast);
+    let svg_col = timeline
+        .tracks
+        .get("svg_col")
+        .expect("svg_col track should exist");
     let track = timeline
         .tracks
         .get("logo")
         .expect("logo track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(0),
-        PositionBinding::ScenePercent {
-            x: 0.72,
-            y: 0.38,
-            offset: [0.0, 0.0],
+        svg_col.position_binding.evaluate(0),
+        PositionBinding::SceneAnchor {
+            anchor: SceneAnchor::Top,
+            offset: [900.0, 200.0],
         }
     );
-    match track.position_binding.evaluate(3300) {
-        PositionBinding::ScenePercent { x, y, offset } => {
-            assert!(x < 0.72 && x > 0.70);
-            assert!(y < 0.38 && y > 0.32);
-            assert_eq!(offset, [0.0, 0.0]);
-        }
-        other => panic!("expected interpolated scene-percent binding, got {other:?}"),
-    }
+    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
+    assert_eq!(track.position_binding.evaluate(0), PositionBinding::Absolute);
 }
 
 #[test]
