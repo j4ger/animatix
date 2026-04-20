@@ -24,6 +24,7 @@ right.at = (860, 392)
 echo: Circle, radius: right.badge.radius, color: right.badge.color, at: (1110, 480)
 ghost: Circle, radius: left.missing.radius, color: left.missing.color, at: (1110, 560)
 connector: Line, from: left.badge.at, to: right.badge.at, stroke: stroke.default, stroke_width: 3, at: (640, 392)
+caption_diag: Text { text: "Three cases: UnknownLookupPath (ghost), UnknownTargetPath (nonexistent), UnsupportedAssignmentProperty (glow)", font_size: 12, color: text.secondary, at: (640, 580) }
 
 #0s
 left.badge.color = accent.danger
