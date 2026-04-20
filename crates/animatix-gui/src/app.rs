@@ -43,7 +43,6 @@ const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
 const REBUILD_DEBOUNCE: Duration = Duration::from_millis(150);
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
-const EXPLORER_ROW_HEIGHT: f32 = 20.0;
 const EXPLORER_INDENT_PX: f32 = 10.0;
 const TIMELINE_HEIGHT: f32 = 36.0;
 const PREVIEW_TRANSPORT_HEIGHT: f32 = 84.0;
