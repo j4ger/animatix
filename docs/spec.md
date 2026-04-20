@@ -626,6 +626,18 @@ The following rules define what is and is not accessible from outside a componen
 | Property on any track | Assignable without pre-declaration; creates the property track if it does not exist |
 | Unsupported assignment property | Reports a build diagnostic and ignores the assignment instead of silently pretending the property is runtime-real |
 
+### Ambiguous Access Diagnostics
+
+When component access is ambiguous or unintended, the runtime reports diagnostics rather than silently failing or creating orphaned state:
+
+| Access Pattern | Diagnostic | Message Template |
+|----------------|-----------|------------------|
+| `instance.missing.label` | `UnknownTargetPath` | "Assignment target '{target}' does not resolve to a declared actor or nested label; ignoring this assignment." |
+| `instance.valid_label.unsupported_prop` | `UnsupportedAssignmentProperty` | "Assignment property '{property}' on '{target}' is not part of the current runtime assignment surface; ignoring this assignment." |
+| `instance.nested.missing_prop` (rhs lookup) | `UnknownLookupPath` | "Lookup path '{lookup}' does not resolve to a sampled actor/scene property; keeping the current fallback/default value instead." |
+
+All three suggest corrections when a similar path exists in scope. The diagnostic message tells the user what is unsupported, why it was rejected, and which contract boundary was crossed.
+
 **Reachability Example:**
 ```animatix
 pub component MetricCard(title: "Metric") {
