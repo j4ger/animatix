@@ -406,7 +406,7 @@ graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 
 
 # 3. Containers
 
-Animatix is standardizing on an **auto-layout-first** scene model. Containers should become the default composition tool, while explicit `at` remains the opt-in way to do handcrafted placement.
+Animatix currently ships an **auto-layout-first** scene model with a narrow declaration-time measure/place contract. Containers are the default composition tool, while explicit `at` remains the opt-in way to do handcrafted placement.
 
 ## Row
 **Status:** Implemented in runtime auto-layout.
@@ -429,7 +429,7 @@ Properties:
 
 Design direction:
 - should remain a primary default authoring primitive
-- container placement should become optional in the future
+- container placement is now optional for root layout containers via the default `scene.center` binding
 - explicit absolute placement on the container should remain supported
 
 ## Group
@@ -456,6 +456,8 @@ Phase 1 semantics implemented today:
 - root layout containers can omit `at` and default to `scene.center`
 - scene-relative placement is supported through `anchor: scene.*`, `offset`, and percentage-based `at`
 - manual child `at` remains an explicit opt-out inside layout containers
+
+Current contract note: the shipped layout system should be understood as a deterministic container-placement scaffold, not as a promise of full flexbox parity or per-frame relayout.
 
 For current runnable demos, explanatory copy should use standalone `Text` / `Math` statements placed beside containers rather than inline text children.
 

@@ -165,7 +165,7 @@ It does **not** yet compile the full timeline builder, layout system, plotting p
 
 ### Layout Architecture Direction
 
-Animatix is moving toward a **layout-first authoring model** for scene composition.
+Animatix currently ships a **layout-first authoring model** for scene composition, but the architectural contract remains intentionally narrow.
 
 The design goal is:
 
@@ -175,14 +175,14 @@ The design goal is:
 
 This means the long-term scene model is not "remove `at`"; it is "stop requiring `at` as the primary way to compose scenes." Authors should be able to describe hierarchy, grouping, spacing, and alignment first, and only drop down to explicit coordinates when they intentionally want handcrafted placement.
 
-The architectural consequence is that layout must become a real runtime concern rather than a one-off convenience pass. Containers should be able to:
+The architectural consequence is that layout is a real part of the scene model, but in the current shipped runtime it is still expressed through a bounded declaration-time placement step rather than sampled relayout. Containers should be able to:
 
 - infer placement from layout rules
 - expose explicit alignment and spacing semantics
 - coexist with manually positioned children when needed
 - preserve deterministic results for AI-authored scenes
 
-The next meaningful step after the current Phase 1 surface is **truthful child measurement**, not immediate full flexbox support. The runtime already has container placement machinery, but it can only be as good as the child size data it receives.
+The next meaningful step is continued **layout contract honesty**, especially around truthful child measurement and clear per-container semantics, not immediate full flexbox support. The runtime already has container placement machinery, but it can only be as good as the child size data it receives and the docs that describe it.
 
 ### Current Layout Model
 
@@ -191,7 +191,7 @@ The shipped layout model has four layers, in order of preference:
 1. **Container layout by default**
    - `Row`, `Col`, `Grid`, `Stack`
    - container-owned placement
-   - alignment, gap, padding, and predictable child ordering
+   - gap, supported alignment semantics, and predictable child ordering
 
 2. **Scene-relative placement**
    - anchors such as scene center / edges / corners
@@ -206,7 +206,7 @@ The shipped layout model has four layers, in order of preference:
 
 This layered model is deliberately simpler than a full general-purpose constraint solver. The architecture prefers deterministic parent-driven layout over highly dynamic constraint solving unless the simpler model proves insufficient.
 
-For the concrete Phase 1 semantics and rollout slices, see [`layout_design.md`](layout_design.md).
+For the concrete current semantics and bounded layout direction, see [`layout_design.md`](layout_design.md).
 
 ### Phase A: Parsing and Data Unification (Load Time)
 When an `.amx` file is loaded, the compiler parses it, resolves all imports (using `FileId` assignments to build the `ModuleGraph`), and converts all visual assets into a unified `PathTree` format (a collection of Bézier curves and fill/stroke commands).
@@ -231,9 +231,7 @@ During `timeline.evaluate(time_ms)`:
 
 ### Layout Evaluation Implication
 
-Today, some container layout behavior is applied during timeline construction. The target architecture should evolve toward a model where layout-relevant placement can be recomputed from sampled child state when necessary. This matters for scenes where child size, visibility, or spacing-related properties animate over time.
-
-That does **not** mean every scene needs an expensive global layout solve every frame. It means layout containers should own a well-defined placement step whose semantics are compatible with timeline evaluation.
+Today, some container layout behavior is applied during timeline construction. In the current shipped contract, this remains a declaration-time measure/place model and should be documented that way. If sampled child-state relayout ever becomes necessary later, it should be introduced as a separate explicit architectural step rather than implied by the existing system.
 
 ### Near-Term Size-Aware Layout Direction
 
@@ -255,7 +253,7 @@ Recommended near-term direction:
 
 This is intentionally smaller than CSS Flexbox or Flutter’s broader flex ecosystem. It is closer to a **measure/place refinement** on top of the current scene graph than to a new global layout engine.
 
-The larger architectural milestone remains the same: if later scenes genuinely require relayout from sampled child state, layout should evolve into an explicit runtime phase that can recompute placement from measured child outputs without breaking random-access evaluation.
+The larger architectural milestone remains deferred: if later scenes genuinely require relayout from sampled child state, layout should evolve into an explicit runtime phase that can recompute placement from measured child outputs without breaking random-access evaluation.
 
 ### Phase C: Vello Scene Compilation (GPU, Per-Frame)
 1.  The timeline yields a final, flattened list of paths and their colors/gradients for the current frame.

@@ -51,7 +51,7 @@ These slices matter as context, but they are no longer active roadmap items:
 
 ## 4. Active Roadmap Overview
 
-The active roadmap begins with diagnostic UX and contract-surface feedback, then moves outward into truthful layout measurement, reusable theming, broader runtime breadth, and only then higher-maintenance tooling/editor integration.
+The active roadmap now begins with **layout contract honesty and narrowed container-layout guidance**. The highest-value near-term work is to keep runtime behavior, docs, examples, and tests aligned around the current shipped declaration-time measure/place model before any broader surface expansion.
 
 ### Internal architecture note
 
@@ -61,8 +61,8 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ### Current priority order
 
-1. diagnostic UX and contract-surface feedback
-2. size-aware layout for measured children
+1. layout contract honesty and narrowed container-layout guidance
+2. diagnostic UX and contract-surface feedback
 3. colorscheme follow-up with loadable schemes and inheritance
 4. breadth expansions only after those contracts are stable
 5. lower-maintenance tooling/editor refinement that improves feedback without creating a second syntax authority
@@ -70,14 +70,44 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 5. Phase 1 — Diagnostic UX and Contract-Surface Feedback
+## 5. Phase 1 — Layout Contract Honesty and Narrowed Container Layout
+
+**Urgency:** High
+
+**Goal:** Make the shipped layout model explicit, narrow, and trustworthy: declaration-time measure/place, parent-driven container placement, explicit manual opt-out, and no accidental implication of full flexbox or sampled reflow semantics.
+
+**Why first:**
+- The current runtime already ships `Row`, `Col`, `Grid`, `Stack`, root layout defaults, scene-relative placement, and manual child opt-out, but some docs still read like a broader flexbox roadmap than the runtime actually supports.
+- The highest-friction layout issues now come more from contract drift than from missing vocabulary.
+- Narrowing the layout story before widening it preserves user trust and prevents future docs/examples from teaching semantics the runtime does not own.
+
+**Includes:**
+- align `docs/layout_design.md`, `docs/spec.md`, `docs/primitives.md`, `docs/architecture.md`, and runnable examples around one canonical phrase: **declaration-time measure/place contract**
+- make clear that containers are a deterministic composition scaffold, not a promise of full CSS-style flex behavior
+- document per-container supported semantics honestly: `Row` / `Col` own `gap` + cross-axis `align`; `Grid` is deterministic `cols` + `gap`; `Stack` is shared-origin overlap; manual child placement is an explicit opt-out
+- identify and document which primitives currently provide truthful layout size and which still remain narrower or less battle-tested participants
+- tighten tests/examples/docs so animated transforms such as visual-only `scale` are not described as implying sibling reflow
+
+**Guardrails:**
+- do not widen the layout model into `flex-grow`, `flex-shrink`, wrapping, min/max sizing, or solver-heavy constraints
+- do not promise per-frame relayout from animated content, visibility changes, or visual-only transforms in this phase
+- do not let examples or design prose imply a broader layout runtime than the shipped one
+
+**Exit criteria:**
+- the major docs describe the same bounded layout contract without conflicting future-facing language
+- examples teach layout-first composition without implying sampled relayout or full flexbox parity
+- the roadmap clearly treats layout contract honesty as the active top priority rather than as a side note to feature expansion
+
+---
+
+## 6. Phase 2 — Diagnostic UX and Contract-Surface Feedback
 
 **Urgency:** High
 
 **Goal:** Sharpen reusable authoring rules and make failure modes clearer, more actionable, and more visible as the language/runtime surface grows.
 
-**Why first:**
-- The runtime now spans nested label targeting, scoped composition helpers, and colorscheme defaults, so contract sharpness matters more than adding another broad feature family immediately.
+**Why second:**
+- Once the shipped layout contract is stated honestly, better diagnostics become the next lever for trust and day-to-day authoring quality.
 - This work compounds the value of the already-shipped surface instead of expanding ambiguity.
 - Better user-facing feedback is the shortest path to a more trustworthy GUI/editor experience; it should land before heavier syntax-integration work.
 
@@ -97,57 +127,6 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 - reusable component authoring is documented and testable without ambiguity
 - diagnostics consistently tell the user what is unsupported, why it is unsupported, and which contract boundary was crossed
 - examples cover both a valid path and an intentionally unsupported path for the revised contract surface
-
----
-
-## 6. Phase 2 — Size-Aware Layout for Measured Children
-
-**Urgency:** High
-
-**Goal:** Make the existing layout containers more truthful by teaching supported children to report real layout size, starting with a narrow `Row` / `Col` measure/place slice.
-
-**Why second:**
-- The current layout model already improves authoring, but container placement still depends on incomplete child size reporting.
-- This is the smallest honest step toward flex-like ergonomics without committing the runtime to full CSS-style semantics.
-- It directly improves both human-authored and AI-authored composition because it reduces reliance on fixed offsets for mixed media/text scenes.
-
-**Includes:**
-- define a runtime contract for layout-participating child size
-- make `Text`, `Math`, and `Code` report measured local bounds into the size track used by layout
-- preserve and clarify the existing intrinsic-size path for `Image`
-- keep `Row` / `Col` deterministic with mixed measured-size and authored-size children
-- add focused tests and one focused runnable demo for measured-child layout participation
-
-**Guardrails:**
-- do not claim full flexbox parity
-- do not add `flex-grow`, `flex-shrink`, wrapping, or min/max sizing yet
-- do not promise per-frame relayout from animated content or visual-only transforms in this slice
-- do not pull in a solver-heavy constraint system
-
-**Exit criteria:**
-- supported measured children participate truthfully in `Row` / `Col`
-- docs and examples clearly state the supported subset and the remaining gaps
-- layout behavior remains compatible with random-access evaluation and current export workflows
-
-**Follow-on: animated-size-triggered reflow**
-
-After the current size-aware layout slice is stable, the next layout-specific architectural question is whether some animated size changes should trigger container relayout instead of staying declaration-time only.
-
-**Why later:**
-- it depends on the size-reporting contract above staying explicit and well-tested first
-- it is a separate architectural step from the current declaration-time measure/place model
-- it needs a truthful boundary between layout-affecting size changes and visual-only transforms such as the current `scale`
-
-**Would include:**
-- define which animated size changes are allowed to trigger relayout for supported children
-- evaluate whether relayout should be sampled per frame, per keyframe boundary, or through a narrower deterministic recomputation model compatible with random-access evaluation
-- keep diagnostics and docs honest about which primitives can trigger relayout and which still do not
-- preserve an explicit distinction between visual-only transforms and layout-affecting size changes
-
-**Guardrails:**
-- do not quietly widen the current Phase 2 contract to imply animated relayout before it is implemented
-- do not conflate visual-only `scale` with layout-triggering size changes unless the runtime contract says so explicitly
-- do not turn this into full flexbox parity, a solver-heavy system, or global responsive reflow
 
 ---
 
@@ -223,6 +202,7 @@ These remain valuable, but they should stay out of the near-term critical path b
 
 - camera framing, pan, zoom, and other viewport-state features
 - `strategy: fade` and other compositing-heavy transition models
+- sampled relayout / animated-size-triggered container recomputation beyond the current declaration-time measure/place contract
 - hot reload / file watching driven authoring workflows
 - scene inspectors, property panels, visual timeline editors, and other larger GUI systems
 - native embedded rendering surfaces in the GUI
@@ -241,6 +221,7 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 - widen the action catalog before defining honest target coverage and diagnostics
 - start camera or viewport work before local motion semantics are settled
 - mix layout semantics, transform semantics, and composition semantics into one oversized phase
+- treat the current layout system as if it already promises full flexbox-style or per-frame reflow semantics
 - over-optimize for Manim parity when Animatix can provide a clearer declarative workflow
 - build richer GUI/editor workflows on top of shifting runtime behavior
 - treat Tree-sitter GUI integration as the default next tooling step before diagnostic UX and contract-surface feedback are measurably better

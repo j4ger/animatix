@@ -375,7 +375,7 @@ This `Path` surface intentionally reuses existing call-expression syntax rather 
 
 **Design Direction**
 
-Animatix is moving toward a container-first layout model:
+Animatix currently ships a container-first layout model with a narrow declaration-time measure/place contract:
 
 - Layout containers should be the default way to compose scenes
 - Absolute positioning should remain available for precise motion-graphics-style work
@@ -387,6 +387,8 @@ Animatix is moving toward a container-first layout model:
 The `gap` property sets uniform spacing between children. The `align` property controls perpendicular alignment:
 - For `Row`: aligns children vertically ("start" = top, "center" = middle, "end" = bottom)
 - For `Col`: aligns children horizontally ("start" = left, "center" = middle, "end" = right)
+
+`Grid` currently supports `cols` and `gap`. `Stack` overlaps layout-managed children around a shared origin. These should not be read as a promise that every layout container shares the same alignment surface.
 
 ```animatix
 row: Row, gap: 12, align: "center" {
@@ -430,7 +432,7 @@ badge: Stack, at: (82%, 76%) {
 
 Supported scene anchors are: `scene.top_left`, `scene.top`, `scene.top_right`, `scene.left`, `scene.center`, `scene.right`, `scene.bottom_left`, `scene.bottom`, and `scene.bottom_right`.
 
-**Phase 1 Layout Surface**
+**Current Layout Surface**
 
 The current layout-related runtime surface is:
 
@@ -442,7 +444,7 @@ The current layout-related runtime surface is:
 
 General-purpose constraint solving is intentionally deferred. The preferred model is predictable parent-driven layout with explicit escape hatches.
 
-The concrete precedence rules and rollout slices for this direction are documented in [`layout_design.md`](layout_design.md).
+The concrete precedence rules and the current bounded design direction are documented in [`layout_design.md`](layout_design.md).
 
 **Children Declaration**  
 Children are declared inline within curly brackets. Children may be **labeled** (explicit name) or **anonymous** (no name).
