@@ -40,94 +40,33 @@ The roadmap below begins after that baseline.
 
 ## 3. Active Roadmap Overview
 
-The active roadmap now begins with **layout contract honesty and narrowed container-layout guidance**. The highest-value near-term work is to keep runtime behavior, docs, examples, and tests aligned around the current shipped declaration-time measure/place model before any broader surface expansion.
+The active roadmap begins with **Phase 1 — Colorscheme Follow-Up** (loadable schemes and inheritance). The layout contract and diagnostic UX phases have been completed.
 
 ### Internal architecture note
 
-The repository's internal structural cleanup and primitive-system refactor are tracked separately in `.sisyphus/plans/refactor_roadmap.md`.
+The repository's internal structural cleanup and primitive-system refactor are tracked separately in `docs/architecture_refactor_plan.md`.
 
 That plan is intentionally scoped to internal architecture and refactoring discipline. It should not be treated as a language-surface or shipped-feature roadmap item unless and until it materially changes roadmap sequencing.
 
 ### Current priority order
 
-1. layout contract honesty and narrowed container-layout guidance
-2. diagnostic UX and contract-surface feedback
-3. colorscheme follow-up with loadable schemes and inheritance
-4. breadth expansions only after those contracts are stable
-5. lower-maintenance tooling/editor refinement that improves feedback without creating a second syntax authority
-6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
+1. **Phase 1** — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+2. **Phase 2** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+3. **Phase 3** — Tooling and Authoring Workflow Refinement
+4. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
 
-## 4. Phase 1 — Layout Contract Honesty and Narrowed Container Layout
-
-**Urgency:** High
-
-**Goal:** Make the shipped layout model explicit, narrow, and trustworthy: declaration-time measure/place, parent-driven container placement, explicit manual opt-out, and no accidental implication of full flexbox or sampled reflow semantics.
-
-**Why first:**
-- The current runtime already ships `Row`, `Col`, `Grid`, `Stack`, root layout defaults, scene-relative placement, and manual child opt-out, but some docs still read like a broader flexbox roadmap than the runtime actually supports.
-- The highest-friction layout issues now come more from contract drift than from missing vocabulary.
-- Narrowing the layout story before widening it preserves user trust and prevents future docs/examples from teaching semantics the runtime does not own.
-
-**Includes:**
-- align `docs/layout_design.md`, `docs/spec.md`, `docs/primitives.md`, `docs/architecture.md`, and runnable examples around one canonical phrase: **declaration-time measure/place contract**
-- make clear that containers are a deterministic composition scaffold, not a promise of full CSS-style flex behavior
-- document per-container supported semantics honestly: `Row` / `Col` own `gap` + cross-axis `align`; `Grid` is deterministic `cols` + `gap`; `Stack` is shared-origin overlap; manual child placement is an explicit opt-out
-- identify and document which primitives currently provide truthful layout size and which still remain narrower or less battle-tested participants
-- tighten tests/examples/docs so animated transforms such as visual-only `scale` are not described as implying sibling reflow
-
-**Guardrails:**
-- do not widen the layout model into `flex-grow`, `flex-shrink`, wrapping, min/max sizing, or solver-heavy constraints
-- do not promise per-frame relayout from animated content, visibility changes, or visual-only transforms in this phase
-- do not let examples or design prose imply a broader layout runtime than the shipped one
-
-**Exit criteria:**
-- the major docs describe the same bounded layout contract without conflicting future-facing language
-- examples teach layout-first composition without implying sampled relayout or full flexbox parity
-- the roadmap clearly treats layout contract honesty as the active top priority rather than as a side note to feature expansion
-
----
-
-## 5. Phase 2 — Diagnostic UX and Contract-Surface Feedback
-
-**Urgency:** High
-
-**Goal:** Sharpen reusable authoring rules and make failure modes clearer, more actionable, and more visible as the language/runtime surface grows.
-
-**Why second:**
-- Once the shipped layout contract is stated honestly, better diagnostics become the next lever for trust and day-to-day authoring quality.
-- This work compounds the value of the already-shipped surface instead of expanding ambiguity.
-- Better user-facing feedback is the shortest path to a more trustworthy GUI/editor experience; it should land before heavier syntax-integration work.
-
-**Includes:**
-- clearer namespace/reachability rules for nested labels
-- stronger diagnostics around ambiguous or unintended component access
-- action/property diagnostics that stay honest as the supported surface grows
-- documentation that distinguishes parser acceptance, runtime support, and explicitly deferred surface area
-- better runnable examples for reusable component authoring patterns
-
-**Guardrails:**
-- do not widen into custom component actions or a richer runtime object model yet
-- do not build editor workflows on top of ambiguous contract edges
-- do not make Tree-sitter GUI integration a prerequisite for better diagnostics or clearer feedback
-
-**Exit criteria:**
-- reusable component authoring is documented and testable without ambiguity
-- diagnostics consistently tell the user what is unsupported, why it is unsupported, and which contract boundary was crossed
-- examples cover both a valid path and an intentionally unsupported path for the revised contract surface
-
----
-
-## 6. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+## 4. Phase 1 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
 
 **Urgency:** High
 
 **Goal:** Broaden the shipped colorschemes v1 surface into a reusable project-level theming workflow without changing the explicit-color precedence model.
 
-**Why third:**
+**Why first:**
 - Colorschemes v1 already landed and removed a large amount of palette boilerplate.
-- The next meaningful colorscheme value is shareability across projects, but it is safer after the current runtime contract and diagnostics stay honest.
+- The next meaningful colorscheme value is shareability across projects.
+- Loadable schemes enable project-level theming without copy-pasting palette blocks.
 
 **Includes:**
 - file-backed/loadable colorschemes
@@ -149,7 +88,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 7. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+## 5. Phase 2 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
 
 **Urgency:** High
 
@@ -165,7 +104,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 8. Phase 5 — Tooling and Authoring Workflow Refinement
+## 6. Phase 3 — Tooling and Authoring Workflow Refinement
 
 **Urgency:** Medium
 
@@ -185,7 +124,7 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ---
 
-## 9. Deferred Architectural Work
+## 7. Deferred Architectural Work
 
 These remain valuable, but they should stay out of the near-term critical path because they imply broader model changes.
 
@@ -204,7 +143,27 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 
 ---
 
-## 10. What We Should Not Do Next
+## 8. Completed Phases
+
+### Phase 1 — Layout Contract Honesty and Narrowed Container Layout (COMPLETED)
+
+**Completed:** 2026-04-20
+
+Aligned `docs/layout_design.md`, `docs/spec.md`, `docs/primitives.md`, `docs/architecture.md`, and runnable examples around the declaration-time measure/place contract. Made clear that containers are a deterministic composition scaffold, not a promise of full CSS-style flex behavior. Documented per-container supported semantics honestly and identified which primitives provide truthful layout size.
+
+Key commits: `c73423d`, `5ea7367`, `ae794ad`, `d521a11`
+
+### Phase 2 — Diagnostic UX and Contract-Surface Feedback (COMPLETED)
+
+**Completed:** 2026-04-21
+
+Sharpened reusable authoring rules and made failure modes clearer and more actionable. Clarified namespace/reachability rules for nested labels, strengthened diagnostics around ambiguous component access, and documented the three diagnostic cases (UnknownTargetPath, UnknownLookupPath, UnsupportedAssignmentProperty) with explicit message templates.
+
+Key commits: `94d3265`, `01815dc`, `e92621d`
+
+---
+
+## 9. What We Should Not Do Next
 
 - treat parser acceptance as proof of runtime support
 - widen the action catalog before defining honest target coverage and diagnostics
@@ -213,4 +172,4 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 - treat the current layout system as if it already promises full flexbox-style or per-frame reflow semantics
 - over-optimize for Manim parity when Animatix can provide a clearer declarative workflow
 - build richer GUI/editor workflows on top of shifting runtime behavior
-- treat Tree-sitter GUI integration as the default next tooling step before diagnostic UX and contract-surface feedback are measurably better
+- treat Tree-sitter GUI integration as the default next tooling step before the authoring-feedback gap justifies the extra synchronization cost
