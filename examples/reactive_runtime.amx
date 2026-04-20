@@ -3,10 +3,12 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Reactive runtime demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "always re-evaluates from the requested time; repeated behavior comes from explicit time math.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The static framing explains the model while the reactive actors keep moving and resizing under stateless evaluation.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Reactive runtime demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "always re-evaluates from the requested time; repeated behavior comes from explicit time math.", font_size: 20, color: text.secondary }
+  caption: Text { text: "The static framing explains the model while the reactive actors keep moving and resizing under stateless evaluation.", font_size: 16, color: text.secondary }
+}
 
 center: Circle, radius: 8, color: text.primary, at: (640, 390)
 orbiter: Circle, radius: 36, color: accent.primary, at: (820, 390)

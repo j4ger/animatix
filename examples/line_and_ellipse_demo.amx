@@ -3,10 +3,12 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Line + ellipse demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Line endpoints and ellipse radii animate independently on the same technical stage.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The axis line pivots while the ellipse changes proportion and fill, keeping the geometry easy to inspect while scrubbing.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Line + ellipse demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Line endpoints and ellipse radii animate independently on the same technical stage.", font_size: 20, color: text.secondary }
+  caption: Text { text: "The axis line pivots while the ellipse changes proportion and fill, keeping the geometry easy to inspect while scrubbing.", font_size: 16, color: text.secondary }
+}
 
 ring: Ellipse, radius_x: 180, radius_y: 90, color: (0.20, 0.80, 1.0, 0.22), stroke: accent.primary, stroke_width: 4, at: (640, 390)
 axis: Line, from: (-220, 0), to: (220, 0), stroke: accent.warning, stroke_width: 6, at: (640, 390)

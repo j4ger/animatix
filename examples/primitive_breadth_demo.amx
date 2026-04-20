@@ -4,10 +4,12 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Primitive breadth demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Dot, Square, and RegularPolygon all ride on the same current vector primitive pipeline.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Each primitive keeps a dedicated label and footprint, but the family now reads as one coherent stage.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Primitive breadth demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Dot, Square, and RegularPolygon all ride on the same current vector primitive pipeline.", font_size: 20, color: text.secondary }
+  caption: Text { text: "Each primitive keeps a dedicated label and footprint, but the family now reads as one coherent stage.", font_size: 16, color: text.secondary }
+}
 
 // Each shape gets a Col with its label above
 dot_item: Col, anchor: scene.center, offset: (-380, 60), align: "center", gap: 24 {

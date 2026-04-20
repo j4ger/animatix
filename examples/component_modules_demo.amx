@@ -7,10 +7,12 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Imported component modules", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Public components, nested labels, dotted writes, and rhs property lookup share one focused stage.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "left.badge.color, right.badge.radius, and echo.radius = right.badge.radius all stay visible without muddying the component boundary story.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Imported component modules", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Public components, nested labels, dotted writes, and rhs property lookup share one focused stage.", font_size: 20, color: text.secondary }
+  caption: Text { text: "left.badge.color, right.badge.radius, and echo.radius = right.badge.radius all stay visible without muddying the component boundary story.", font_size: 16, color: text.secondary }
+}
 
 left: MetricCard, title: "Latency"
 right: MetricCard, title: "Throughput"

@@ -4,10 +4,12 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Code primitive demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Code content renders through the existing text-path pipeline and supports animated updates.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The stage stays editor-like and restrained so color, position, and re-declaration updates remain easy to inspect.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Code primitive demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Code content renders through the existing text-path pipeline and supports animated updates.", font_size: 20, color: text.secondary }
+  caption: Text { text: "The stage stays editor-like and restrained so color, position, and re-declaration updates remain easy to inspect.", font_size: 16, color: text.secondary }
+}
 
 snippet: Code {
   code: "let velocity = x + 1",

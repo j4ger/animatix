@@ -8,9 +8,11 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Component diagnostics", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Valid dotted access stays live; invalid paths and unsupported properties still emit warnings.", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 152) }
+header: Col, anchor: scene.top, offset: (0, 98), align: "center", gap: 12 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Component diagnostics", font_size: 36, color: text.primary }
+  subtitle: Text { text: "Valid dotted access stays live; invalid paths and unsupported properties still emit warnings.", font_size: 14, color: text.secondary }
+}
 caption_ok: Text { text: "Valid dotted writes + rhs lookup", font_size: 16, color: accent.success, at: (420, 224) }
 caption_bad: Text { text: "Invalid targets still warn", font_size: 16, color: accent.danger, at: (860, 224) }
 

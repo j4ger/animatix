@@ -6,10 +6,12 @@ config { colorscheme: "editorial-dark" }
 let base = (220, 240)
 let offset = (140, 80)
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Math demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Expressions drive positions, colors, and animation targets across the same scene graph.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "Tuple math, trigonometry, lerp, modulo, and rand() each keep a labeled stage pocket; the randomness stays intentionally intact.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Math demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Expressions drive positions, colors, and animation targets across the same scene graph.", font_size: 20, color: text.secondary }
+  caption: Text { text: "Tuple math, trigonometry, lerp, modulo, and rand() each keep a labeled stage pocket; the randomness stays intentionally intact.", font_size: 16, color: text.secondary }
+}
 
 sum_circle: Circle, radius: 42, color: (0.96, 0.46, 0.52, 1.0), at: base + offset
 orbit_circle: Circle, radius: 34, color: (0.0, 1.0, 1.0, 1.0), at: (760 + 110 * cos(PI / 4), 270 + 110 * sin(PI / 4))

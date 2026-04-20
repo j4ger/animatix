@@ -3,10 +3,12 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Implicit plot demo", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Marching-squares contour extraction samples f(x, y) = 0 across the parent graph domain.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "This stays visually spare so the contour itself carries the example.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Implicit plot demo", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Marching-squares contour extraction samples f(x, y) = 0 across the parent graph domain.", font_size: 20, color: text.secondary }
+  caption: Text { text: "This stays visually spare so the contour itself carries the example.", font_size: 16, color: text.secondary }
+}
 
 formula: Text { text: "(x^2 + y^2)^2 - 2(x^2 - y^2) = 0", font_size: 18, color: accent.primary, at: (640, 236) }
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (420, 420), at: (640, 410) {

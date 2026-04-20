@@ -4,10 +4,12 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Animatix", font_size: 72, color: text.primary, anchor: scene.top, offset: (0, 82) }
-subtitle: Text { text: "Text, math, SVG, and vector primitives on one hero stage.", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 152) }
-caption: Text { text: "Anchored pockets and a bottom Row keep the scene legible.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 180) }
+header: Col, anchor: scene.top, offset: (0, 102), align: "center", gap: 12 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Animatix", font_size: 72, color: text.primary }
+  subtitle: Text { text: "Text, math, SVG, and vector primitives on one hero stage.", font_size: 18, color: text.secondary }
+  caption: Text { text: "Anchored pockets and a bottom Row keep the scene legible.", font_size: 16, color: text.secondary }
+}
 
 // Math section: label above formula using Col for proper stacking
 math_col: Col, anchor: scene.top, offset: (280, 200), align: "center", gap: 12 {

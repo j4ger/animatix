@@ -129,6 +129,26 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 - docs and examples clearly state the supported subset and the remaining gaps
 - layout behavior remains compatible with random-access evaluation and current export workflows
 
+**Follow-on: animated-size-triggered reflow**
+
+After the current size-aware layout slice is stable, the next layout-specific architectural question is whether some animated size changes should trigger container relayout instead of staying declaration-time only.
+
+**Why later:**
+- it depends on the size-reporting contract above staying explicit and well-tested first
+- it is a separate architectural step from the current declaration-time measure/place model
+- it needs a truthful boundary between layout-affecting size changes and visual-only transforms such as the current `scale`
+
+**Would include:**
+- define which animated size changes are allowed to trigger relayout for supported children
+- evaluate whether relayout should be sampled per frame, per keyframe boundary, or through a narrower deterministic recomputation model compatible with random-access evaluation
+- keep diagnostics and docs honest about which primitives can trigger relayout and which still do not
+- preserve an explicit distinction between visual-only transforms and layout-affecting size changes
+
+**Guardrails:**
+- do not quietly widen the current Phase 2 contract to imply animated relayout before it is implemented
+- do not conflate visual-only `scale` with layout-triggering size changes unless the runtime contract says so explicitly
+- do not turn this into full flexbox parity, a solver-heavy system, or global responsive reflow
+
 ---
 
 ## 7. Phase 3 — Colorscheme Follow-Up: Loadable Schemes and Inheritance

@@ -4,10 +4,12 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 
-eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary, anchor: scene.top, offset: (0, 34) }
-title: Text { text: "Animated image properties", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 74) }
-subtitle: Text { text: "Image actors animate with at and size assignments just like the vector primitives.", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 108) }
-caption: Text { text: "The status text and target label make the before-and-after beat obvious within the first second of playback.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 136) }
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text { text: "Animated image properties", font_size: 42, color: text.primary }
+  subtitle: Text { text: "Image actors animate with at and size assignments just like the vector primitives.", font_size: 20, color: text.secondary }
+  caption: Text { text: "The status text and target label make the before-and-after beat obvious within the first second of playback.", font_size: 16, color: text.secondary }
+}
 
 photo: Image { url: "examples/checker.ppm", at: (260, 330), size: (64, 64) }
 status: Text { text: "t = 0s", font_size: 18, color: accent.warning, at: (260, 412) }
