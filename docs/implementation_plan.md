@@ -6,7 +6,6 @@ This file is the repository's **master planning document** for product/runtime p
 
 - `docs/colorscheme_design.md` is the detailed design document for the current active roadmap phase
 - `docs/architecture_refactor_plan.md` tracks the internal refactor/support lane that should reduce delivery risk without redefining roadmap priority
-- execution checklists under `docs/superpowers/plans/` are historical implementation notes once the corresponding phase is complete
 
 ---
 
@@ -46,8 +45,6 @@ The roadmap below begins after that baseline.
 
 ## 3. Active Roadmap Overview
 
-The active roadmap begins with **Phase 1 — Colorscheme Follow-Up** (loadable schemes and inheritance). The layout contract and diagnostic UX phases have been completed.
-
 ### Internal architecture note
 
 The repository's internal structural cleanup and primitive-system refactor are tracked separately in `docs/architecture_refactor_plan.md`.
@@ -62,41 +59,42 @@ That document should be treated as the implementation design for Phase 1, not as
 
 ### Current priority order
 
-1. **Phase 1** — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+1. **Phase 1** — Colorscheme Follow-Up: Standard Module-Based Schemes
 2. **Phase 2** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
 3. **Phase 3** — Tooling and Authoring Workflow Refinement
 4. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
 
-## 4. Phase 1 — Colorscheme Follow-Up: Loadable Schemes and Inheritance
+## 4. Phase 1 — Colorscheme Follow-Up: Standard Module-Based Schemes
 
 **Urgency:** High
 
-**Goal:** Broaden the shipped colorschemes v1 surface into a reusable project-level theming workflow without changing the explicit-color precedence model.
+**Goal:** Broaden the shipped colorschemes v1 surface into a reusable project-level theming workflow using the existing standard module system, without changing the explicit-color precedence model.
 
 **Why first:**
 - Colorschemes v1 already landed and removed a large amount of palette boilerplate.
-- The next meaningful colorscheme value is shareability across projects.
-- Loadable schemes enable project-level theming without copy-pasting palette blocks.
+- The standard module system (`import`, `pub component`) already provides file-level reuse and composition.
+- Colorschemes should be expressed as standard modules that export color constants and scheme configurations, not as a special primitive with its own grammar and loading semantics.
 
 **Includes:**
-- Colorscheme primitive: `Colorscheme "name" { extends: "base", ... }` declarations using standard AMX grammar
-- scheme inheritance / extension via the `extends` property
-- diagnostics for missing schemes, invalid data, inheritance cycles, and unresolved external tokens
-- docs/examples that distinguish built-in-only v1 from the broader reusable scheme story
-- optional expression-environment exposure only if it still earns its complexity after the primitive lands
+- Colorscheme as standard module: a regular `.amx` file that exports semantic color constants via `pub let` declarations
+- Scheme composition via standard `import` and module-qualified access (e.g., `theme.background`, `theme.accent_primary`)
+- Optional `pub component` wrapper that pre-binds a scheme to a reusable palette configuration
+- Diagnostics for missing imports, unresolved module paths, and invalid color values (reuse existing module diagnostics)
+- docs/examples that show scheme modules alongside other standard module patterns
 
 **Guardrails:**
 - preserve the current precedence stack where explicit `color`, `stroke`, timed assignments, and `always` overrides beat scheme defaults
 - keep the model declarative and load-time/build-time oriented
-- do not jump to executable/plugin theming
+- do not introduce a special `Colorscheme` primitive or separate file format — reuse standard modules
 - do not make GUI work a dependency for shipping the runtime feature
 
 **Exit criteria:**
-- users can reuse colorschemes across projects without copy-pasting palette blocks into every `.amx` file
-- invalid loads fail honestly and fall back safely
-- docs reflect only the broadened behavior that is actually backed by runtime/tests/examples
+- users can define a colorscheme in one `.amx` file and import it into scenes via standard module syntax
+- scheme colors are accessed through module-qualified names or bound via component parameters
+- invalid imports fail with existing module diagnostics (unknown module, unresolved path)
+- docs reflect only the behavior that is actually backed by runtime/tests/examples
 
 ---
 
@@ -155,27 +153,7 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 
 ---
 
-## 8. Completed Phases
-
-### Phase 1 — Layout Contract Honesty and Narrowed Container Layout (COMPLETED)
-
-**Completed:** 2026-04-20
-
-Aligned `docs/layout_design.md`, `docs/spec.md`, `docs/primitives.md`, `docs/architecture.md`, and runnable examples around the declaration-time measure/place contract. Made clear that containers are a deterministic composition scaffold, not a promise of full CSS-style flex behavior. Documented per-container supported semantics honestly and identified which primitives provide truthful layout size.
-
-Key commits: `c73423d`, `5ea7367`, `ae794ad`, `d521a11`
-
-### Phase 2 — Diagnostic UX and Contract-Surface Feedback (COMPLETED)
-
-**Completed:** 2026-04-21
-
-Sharpened reusable authoring rules and made failure modes clearer and more actionable. Clarified namespace/reachability rules for nested labels, strengthened diagnostics around ambiguous component access, and documented the three diagnostic cases (UnknownTargetPath, UnknownLookupPath, UnsupportedAssignmentProperty) with explicit message templates.
-
-Key commits: `94d3265`, `01815dc`, `e92621d`
-
----
-
-## 9. What We Should Not Do Next
+## 8. What We Should Not Do Next
 
 - treat parser acceptance as proof of runtime support
 - widen the action catalog before defining honest target coverage and diagnostics
