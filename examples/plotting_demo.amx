@@ -5,17 +5,17 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Plotting demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Cartesian and polar curves share the same Graph runtime and animate like any other actor.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The graph starts compact and centered, then grows and shifts so plot composition and graph transforms stay readable during scrubbing.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Plotting demo", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Cartesian and polar curves share the same Graph runtime and animate like any other actor.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The graph starts compact and centered, then grows and shifts so plot composition and graph transforms stay readable during scrubbing.", font_size: 16, color: text.secondary }
 }
 
 // Legend items in a Col for proper vertical stacking
 legend: Col, anchor: scene.center, offset: (-398, 0), gap: 28 {
-  legend_a: Text { text: "y = x^2 - 2", font_size: 18, color: accent.danger },
-  legend_b: Text { text: "y = 1 / x", font_size: 18, color: accent.warning },
-  legend_c: Text { text: "r = 3 sin(4t)", font_size: 18, color: accent.success }
+  legend_a: Text, text: "y = x^2 - 2", font_size: 18, color: accent.danger },
+  legend_b: Text, text: "y = 1 / x", font_size: 18, color: accent.warning },
+  legend_c: Text, text: "r = 3 sin(4t)", font_size: 18, color: accent.success }
 }
 
 graph: Graph, x_domain: (-5, 5), y_domain: (-5, 25), size: (520, 420), at: (640, 390) {
@@ -24,7 +24,7 @@ graph: Graph, x_domain: (-5, 5), y_domain: (-5, 25), size: (520, 420), at: (640,
   rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: accent.success, width: 2
 }
 
-footer: Text { text: "Animated size and placement keep the plot readable during scrubbing and playback.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -64) }
+footer: Text, text: "Animated size and placement keep the plot readable during scrubbing and playback.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
 graph.size = (640, 500) [2s, ease: ease-in-out]

@@ -147,7 +147,7 @@ Loadable colorschemes are now supported via the `Colorscheme` primitive declarat
 ```animatix
 config { colorscheme: "editorial-dark" }
 
-title: Text { text: "Animatix", color: text.primary }
+title: Text, text: "Animatix", color: text.primary
 badge: Circle, radius: 20, color: auto
 axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
 ```
@@ -459,7 +459,15 @@ row: Row, gap: 10 {
 }
 ```
 
-Current runnable demos should use standalone `Text { ... }` and `Math { ... }` statements for explanatory labels. Inline container children are processed through the generic actor-declaration path, so user-facing captions are clearer and safer as sibling text nodes today.
+`Text`, `Math`, and `Code` are parsed as generic actor declarations and accept the same comma-separated property syntax as other actors. Both forms work equivalently:
+
+```animatix
+// Comma syntax (cleaner for simple cases)
+title: Text, text: "Hello", font_size: 24, color: text.primary
+
+// Block syntax (also valid)
+title: Text { text: "Hello", font_size: 24, color: text.primary }
+```
 
 **Anonymous Children and Auto-UID**
 

@@ -5,24 +5,24 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Primitive breadth demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Dot, Square, and RegularPolygon all ride on the same current vector primitive pipeline.", font_size: 20, color: text.secondary }
-  caption: Text { text: "Each primitive keeps a dedicated label and footprint, but the family now reads as one coherent stage.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Primitive breadth demo", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Dot, Square, and RegularPolygon all ride on the same current vector primitive pipeline.", font_size: 20, color: text.secondary }
+  caption: Text, text: "Each primitive keeps a dedicated label and footprint, but the family now reads as one coherent stage.", font_size: 16, color: text.secondary }
 }
 
 // Each shape gets a Col with its label above
 dot_item: Col, anchor: scene.center, offset: (-380, 60), align: "center", gap: 24 {
-  dot_label: Text { text: "Dot", font_size: 22, color: accent.danger },
+  dot_label: Text, text: "Dot", font_size: 22, color: accent.danger },
   dot: Dot, color: accent.danger, stroke: stroke.default, stroke_width: 3
 }
 
 square_item: Col, anchor: scene.center, offset: (0, 60), align: "center", gap: 24 {
-  square_label: Text { text: "Square", font_size: 22, color: accent.primary },
+  square_label: Text, text: "Square", font_size: 22, color: accent.primary },
   square: Square, side: 120, color: accent.primary, stroke: stroke.default, stroke_width: 4
 }
 
 poly_item: Col, anchor: scene.center, offset: (380, 60), align: "center", gap: 24 {
-  poly_label: Text { text: "RegularPolygon", font_size: 22, color: accent.success },
+  poly_label: Text, text: "RegularPolygon", font_size: 22, color: accent.success },
   hex: RegularPolygon, sides: 6, radius: 70, color: accent.success, stroke: stroke.default, stroke_width: 4
 }

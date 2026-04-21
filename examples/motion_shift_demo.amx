@@ -5,14 +5,14 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Move vs shift", font_size: 42, color: text.primary }
-  subtitle: Text { text: "move sets a local target offset; shift adds relative motion on top of current placement.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The left node still proves manual placement, while the right row keeps layout ownership obvious during playback.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Move vs shift", font_size: 42, color: text.primary }
+  subtitle: Text, text: "move sets a local target offset; shift adds relative motion on top of current placement.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The left node still proves manual placement, while the right row keeps layout ownership obvious during playback.", font_size: 16, color: text.secondary }
 }
 
-manual_label: Text { text: "move on a manual node", font_size: 22, color: accent.danger, anchor: scene.left, offset: (240, -128) }
-layout_label: Text { text: "shift on a layout-managed node", font_size: 22, color: accent.success, anchor: scene.right, offset: (-246, -128) }
+manual_label: Text, text: "move on a manual node", font_size: 22, color: accent.danger, anchor: scene.left, offset: (240, -128) }
+layout_label: Text, text: "shift on a layout-managed node", font_size: 22, color: accent.success, anchor: scene.right, offset: (-246, -128) }
 
 manual: Circle, radius: 60, color: accent.danger, stroke: stroke.default, stroke_width: 4, anchor: scene.left, offset: (240, 78)
 

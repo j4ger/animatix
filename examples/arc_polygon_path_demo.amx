@@ -4,17 +4,17 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Arc + polygon + path demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration.", font_size: 20, color: text.secondary }
-  caption: Text { text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Arc + polygon + path demo", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Arc properties animate directly while Polygon and Path change geometry by re-declaration.", font_size: 20, color: text.secondary }
+  caption: Text, text: "Three sibling columns keep each primitive family readable while preserving the current morphing and angle-update behavior.", font_size: 16, color: text.secondary }
 }
 
 // Labels in a Row above shapes
 labels_row: Row, anchor: scene.center, offset: (0, -70), gap: 80, align: "center" {
-  arc_label: Text { text: "Arc", font_size: 20, color: accent.warning },
-  poly_label: Text { text: "Polygon", font_size: 20, color: accent.success },
-  path_label: Text { text: "Path", font_size: 20, color: accent.primary }
+  arc_label: Text, text: "Arc", font_size: 20, color: accent.warning },
+  poly_label: Text, text: "Polygon", font_size: 20, color: accent.success },
+  path_label: Text, text: "Path", font_size: 20, color: accent.primary }
 }
 
 // Shapes in a Row

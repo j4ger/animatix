@@ -326,9 +326,11 @@ fn test_actor_decl_colorscheme_alias_parse() {
 #[test]
 fn test_text_colorscheme_alias_parse() {
     assert_eq!(
-        parse_single_stmt("title: Text { text: \"Animatix\", color: text.primary }"),
-        Stmt::Text {
-            label: Some("title".to_string()),
+        parse_single_stmt("title: Text, text: \"Animatix\", color: text.primary"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "title".to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
@@ -340,6 +342,7 @@ fn test_text_colorscheme_alias_parse() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }
     );
 }
@@ -435,7 +438,7 @@ fn test_morph_modifier_keys_parse() {
 fn test_component_definition_and_instantiation_parse() {
     assert_eq!(
         parse_single_stmt(
-            "pub component MetricCard(title: \"Throughput\") { label: Text { text: title } }"
+            "pub component MetricCard(title: \"Throughput\") { label: Text, text: title }"
         ),
         Stmt::ComponentDef(ComponentDef {
             is_pub: true,
@@ -445,13 +448,16 @@ fn test_component_definition_and_instantiation_parse() {
                 param_type: None,
                 default: Some(Expr::Str("Throughput".to_string())),
             }],
-            body: vec![Stmt::Text {
-                label: Some("label".to_string()),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "label".to_string(),
+                ty: "Text".to_string(),
                 props: vec![Property {
                     name: "text".to_string(),
                     value: Expr::Ident("title".to_string()),
                 }],
                 modifiers: vec![],
+                children: vec![],
             }],
         })
     );
@@ -475,9 +481,11 @@ fn test_component_definition_and_instantiation_parse() {
 #[test]
 fn test_code_stmt_parse() {
     assert_eq!(
-        parse_single_stmt("snippet: Code { code: \"fn main() {}\", font_size: 18 }"),
-        Stmt::Code {
-            label: Some("snippet".to_string()),
+        parse_single_stmt("snippet: Code, code: \"fn main() {}\", font_size: 18"),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "snippet".to_string(),
+            ty: "Code".to_string(),
             props: vec![
                 Property {
                     name: "code".to_string(),
@@ -489,6 +497,7 @@ fn test_code_stmt_parse() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }
     );
 }

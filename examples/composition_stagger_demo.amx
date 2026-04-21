@@ -5,10 +5,10 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Stagger composition demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Each child statement starts with the same shared interval offset from the parent keyframe.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The three siblings are evenly staged so the stagger rhythm is the first thing you notice in playback.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Stagger composition demo", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Each child statement starts with the same shared interval offset from the parent keyframe.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The three siblings are evenly staged so the stagger rhythm is the first thing you notice in playback.", font_size: 16, color: text.secondary }
 }
 
 circles: Row, anchor: scene.center, offset: (0, 50), gap: 100, align: "center" {

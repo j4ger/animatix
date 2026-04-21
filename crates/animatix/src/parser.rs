@@ -495,48 +495,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .collect::<Vec<_>>()
             .delimited_by(just('{').padded(), just('}').padded());
 
-        let text_stmt = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .or_not()
-            .then_ignore(text::keyword("Text"))
-            .then(block_props.clone())
-            .then(modifiers.clone())
-            .map(|((label, props), modifiers)| Stmt::Text {
-                label,
-                props,
-                modifiers,
-            })
-            .padded();
-
-        let math_stmt = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .or_not()
-            .then_ignore(text::keyword("Math"))
-            .then(block_props.clone())
-            .then(modifiers.clone())
-            .map(|((label, props), modifiers)| Stmt::Math {
-                label,
-                props,
-                modifiers,
-            })
-            .padded();
-
-        let code_stmt = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .or_not()
-            .then_ignore(text::keyword("Code"))
-            .then(block_props.clone())
-            .then(modifiers.clone())
-            .map(|((label, props), modifiers)| Stmt::Code {
-                label,
-                props,
-                modifiers,
-            })
-            .padded();
-
         let svg_stmt = ident
             .clone()
             .then_ignore(just(':').padded())
@@ -825,9 +783,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             let_decl,
             import_stmt,
             assignment,
-            text_stmt,
-            math_stmt,
-            code_stmt,
             svg_stmt,
             image_stmt,
             labeled_always_stmt,

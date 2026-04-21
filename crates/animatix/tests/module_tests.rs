@@ -36,11 +36,11 @@ fn load_program_collects_public_imported_components_only() {
         &library,
         r#"
 pub component MetricCard(title: "Throughput") {
-    label: Text { text: title }
+    label: Text, text: title
 }
 
 component InternalCard(title: "Private") {
-    private_label: Text { text: title }
+    private_label: Text, text: title
 }
 "#,
     );
@@ -77,7 +77,7 @@ fn load_program_rejects_duplicate_component_exports() {
         &first,
         r#"
 pub component MetricCard(title: "One") {
-    label: Text { text: title }
+    label: Text, text: title
 }
 "#,
     );
@@ -86,7 +86,7 @@ pub component MetricCard(title: "One") {
         &second,
         r#"
 pub component MetricCard(title: "Two") {
-    label: Text { text: title }
+    label: Text, text: title
 }
 "#,
     );
@@ -118,7 +118,7 @@ fn load_program_expand_components_produces_build_input() {
         &library,
         r#"
 pub component MetricCard(title: "Throughput") {
-    title_text: Text { text: title }
+    title_text: Text, text: title
 }
 "#,
     );

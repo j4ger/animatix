@@ -5,17 +5,17 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Animated image properties", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Image actors animate with at and size assignments just like the vector primitives.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The status text and target label make the before-and-after beat obvious within the first second of playback.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Animated image properties", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Image actors animate with at and size assignments just like the vector primitives.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The status text and target label make the before-and-after beat obvious within the first second of playback.", font_size: 16, color: text.secondary }
 }
 
 photo: Image { url: "examples/checker.ppm", at: (260, 330), size: (64, 64) }
-status: Text { text: "t = 0s", font_size: 18, color: accent.warning, at: (260, 412) }
-end_label: Text { text: "target placement + target size", font_size: 18, color: accent.primary, at: (856, 248) }
+status: Text, text: "t = 0s", font_size: 18, color: accent.warning, at: (260, 412) }
+end_label: Text, text: "target placement + target size", font_size: 18, color: accent.primary, at: (856, 248) }
 
 #1s
 photo.at = (760, 310) [1s, ease: ease-in-out]
 photo.size = (220, 220) [1s, ease: ease-in-out]
-status: Text { text: "t = 1s", font_size: 18, color: accent.warning, at: (760, 450) }
+status: Text, text: "t = 1s", font_size: 18, color: accent.warning, at: (760, 450) }

@@ -15,6 +15,6 @@ Colorscheme "ocean" {
 
 config { colorscheme: "ocean" }
 
-title: Text { text: "Ocean Theme", color: text.primary }
+title: Text, text: "Ocean Theme", color: text.primary }
 badge: Circle, radius: 20, color: auto
 axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default

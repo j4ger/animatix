@@ -5,29 +5,29 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Layout demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color: text.secondary }
-  caption: Text { text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override, and the current slice stays declaration-time rather than per-frame reflow.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary
+  title: Text, text: "Layout demo", font_size: 42, color: text.primary
+  subtitle: Text, text: "Root defaults, anchors, percentages, and layout-owned composition share one didactic stage.", font_size: 20, color: text.secondary
+  caption: Text, text: "Most actors stay container-managed; only the bottom comparison row includes a deliberate manual child override, and the current slice stays declaration-time rather than per-frame reflow.", font_size: 16, color: text.secondary
 }
-measure_label: Text { text: "Measured-child row", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 302) }
-measure_caption: Text { text: "Text, code, and intrinsic media now participate in the same declaration-time layout contract as authored shapes; animated scale and other visual transforms do not trigger reflow in this slice.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 330) }
+measure_label: Text, text: "Measured-child row", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 302)
+measure_caption: Text, text: "Text, code, and intrinsic media now participate in the same declaration-time layout contract as authored shapes; animated scale and other visual transforms do not trigger reflow in this slice.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 330)
 
-root_label: Text { text: "Root container default placement", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 184) }
-root_caption: Text { text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 212) }
-grid_label: Text { text: "Grid with cols + gap", font_size: 20, color: accent.primary, anchor: scene.top, offset: (0, 238) }
-grid_caption: Text { text: "cols: 2 and gap: 28 keep the centered panel legible without hiding the layout contract.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 262) }
+root_label: Text, text: "Root container default placement", font_size: 24, color: accent.warning, anchor: scene.top, offset: (0, 184)
+root_caption: Text, text: "This Grid declares no anchor or at, so the runtime keeps it at the default root position.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 212)
+grid_label: Text, text: "Grid with cols + gap", font_size: 20, color: accent.primary, anchor: scene.top, offset: (0, 238)
+grid_caption: Text, text: "cols: 2 and gap: 28 keep the centered panel legible without hiding the layout contract.", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 262)
 
-left_label: Text { text: "Scene anchor + offset", font_size: 24, color: accent.warning, anchor: scene.left, offset: (210, -164) }
-left_caption: Text { text: "This Col is anchored to scene.left, then nudged inward with offset.", font_size: 16, color: text.secondary, anchor: scene.left, offset: (228, -136) }
+left_label: Text, text: "Scene anchor + offset", font_size: 24, color: accent.warning, anchor: scene.left, offset: (210, -164)
+left_caption: Text, text: "This Col is anchored to scene.left, then nudged inward with offset.", font_size: 16, color: text.secondary, anchor: scene.left, offset: (228, -136)
 
 stack_header: Col, anchor: scene.right, offset: (-100, -180), align: "center", gap: 8 {
-  stack_label: Text { text: "Stack with percent placement", font_size: 24, color: accent.warning },
-  stack_caption: Text { text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color: text.secondary }
+  stack_label: Text, text: "Stack with percent placement", font_size: 24, color: accent.warning,
+  stack_caption: Text, text: "The whole Stack uses percent placement while layered children still share one origin.", font_size: 16, color: text.secondary
 }
 
-manual_label: Text { text: "Manual child override inside layout container", font_size: 24, color: accent.warning, anchor: scene.bottom, offset: (0, -220) }
-manual_caption: Text { text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -192) }
+manual_label: Text, text: "Manual child override inside layout container", font_size: 24, color: accent.warning, anchor: scene.bottom, offset: (0, -220)
+manual_caption: Text, text: "Only one Row child opts out with its own at; neighboring children still follow container flow.", font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -192)
 
 dashboard: Grid, cols: 2, gap: 28 {
   p1: Rect, size: (214, 104), color: (0.14, 0.22, 0.36, 1.0),

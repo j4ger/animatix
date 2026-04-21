@@ -199,8 +199,10 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Text {
-                label: Some("title".to_string()),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
                 props: vec![
                     Property {
                         name: "text".to_string(),
@@ -212,6 +214,7 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
                     },
                 ],
                 modifiers: vec![],
+                children: vec![],
             }],
         },
     ];
@@ -376,8 +379,10 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
-                Stmt::Text {
-                    label: Some("title".to_string()),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "title".to_string(),
+                    ty: "Text".to_string(),
                     props: vec![
                         Property {
                             name: "text".to_string(),
@@ -389,9 +394,12 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         },
                     ],
                     modifiers: vec![],
+                    children: vec![],
                 },
-                Stmt::Math {
-                    label: Some("formula".to_string()),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "formula".to_string(),
+                    ty: "Math".to_string(),
                     props: vec![
                         Property {
                             name: "math".to_string(),
@@ -403,9 +411,12 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         },
                     ],
                     modifiers: vec![],
+                    children: vec![],
                 },
-                Stmt::Code {
-                    label: Some("snippet".to_string()),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "snippet".to_string(),
+                    ty: "Code".to_string(),
                     props: vec![
                         Property {
                             name: "code".to_string(),
@@ -417,6 +428,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         },
                     ],
                     modifiers: vec![],
+                    children: vec![],
                 },
             ],
         },
@@ -519,8 +531,10 @@ right: MetricCard, title: "Throughput"
 fn test_text_spacing_preserves_space_width() {
     let text_with_space = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Text {
-            label: Some("spaced".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "spaced".to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
@@ -532,13 +546,16 @@ fn test_text_spacing_preserves_space_width() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
     let text_without_space = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Text {
-            label: Some("tight".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "tight".to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
@@ -550,6 +567,7 @@ fn test_text_spacing_preserves_space_width() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
@@ -576,8 +594,10 @@ fn test_text_spacing_preserves_space_width() {
 fn test_code_primitive_builds_text_paths() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Code {
-            label: Some("snippet".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "snippet".to_string(),
+            ty: "Code".to_string(),
             props: vec![
                 Property {
                     name: "code".to_string(),
@@ -589,6 +609,7 @@ fn test_code_primitive_builds_text_paths() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
@@ -607,8 +628,10 @@ fn test_code_primitive_builds_text_paths() {
 fn test_code_primitive_respects_position_binding() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Code {
-            label: Some("anchored_code".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "anchored_code".to_string(),
+            ty: "Code".to_string(),
             props: vec![
                 Property {
                     name: "code".to_string(),
@@ -624,6 +647,7 @@ fn test_code_primitive_respects_position_binding() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
@@ -646,7 +670,7 @@ fn test_code_primitive_respects_position_binding() {
 fn test_math_scene_percent_position_assignment_interpolates_binding() {
     let ast = parse_program(
         r#"
-math_title: Math { math: "E = mc^2", at: (30%, 38%) }
+math_title: Math, math: "E = mc^2", at: (30%, 38%)
 
 #1s
 math_title.at = (32%, 36%) [1s]
@@ -690,24 +714,30 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Code {
-                label: Some("snippet".to_string()),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "snippet".to_string(),
+                ty: "Code".to_string(),
                 props: vec![Property {
                     name: "code".to_string(),
                     value: Expr::Str("let x = 1;".to_string()),
                 }],
                 modifiers: vec![],
+                children: vec![],
             }],
         },
         Stmt::RelativeKeyframe {
             offset: Time::Seconds(1.0),
-            body: vec![Stmt::Code {
-                label: Some("snippet".to_string()),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "snippet".to_string(),
+                ty: "Code".to_string(),
                 props: vec![Property {
                     name: "code".to_string(),
                     value: Expr::Str("let x = 2;".to_string()),
                 }],
                 modifiers: vec![],
+                children: vec![],
             }],
         },
     ];
@@ -1070,7 +1100,7 @@ fn imported_component_instances_expand_with_isolated_labels_and_props() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    title_text: Text { text: title, at: (0, -20) }
+    title_text: Text, text: title, at: (0, -20)
     badge: Circle, radius: 12, color: gold
     badge.color = red
 }
@@ -1137,7 +1167,7 @@ fn imported_component_nested_assignment_targets_update_prefixed_tracks() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    title_text: Text { text: title, color: white, at: (0, -20) }
+    title_text: Text, text: title, color: white, at: (0, -20)
     badge: Circle, radius: 12, color: gold
 }
 "#,
@@ -3021,8 +3051,10 @@ fn test_row_child_with_explicit_origin_stays_manual() {
 fn test_text_primitive_reports_measured_size() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Text {
-            label: Some("title".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "title".to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
@@ -3034,6 +3066,7 @@ fn test_text_primitive_reports_measured_size() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
@@ -3049,8 +3082,10 @@ fn test_text_primitive_reports_measured_size() {
 fn test_math_primitive_reports_measured_size() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Math {
-            label: Some("formula".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "formula".to_string(),
+            ty: "Math".to_string(),
             props: vec![
                 Property {
                     name: "math".to_string(),
@@ -3062,6 +3097,7 @@ fn test_math_primitive_reports_measured_size() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 
@@ -3077,8 +3113,10 @@ fn test_math_primitive_reports_measured_size() {
 fn test_code_primitive_reports_measured_size() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Code {
-            label: Some("snippet".to_string()),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "snippet".to_string(),
+            ty: "Code".to_string(),
             props: vec![
                 Property {
                     name: "code".to_string(),
@@ -3090,6 +3128,7 @@ fn test_code_primitive_reports_measured_size() {
                 },
             ],
             modifiers: vec![],
+            children: vec![],
         }],
     }];
 

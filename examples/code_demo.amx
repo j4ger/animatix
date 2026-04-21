@@ -5,30 +5,20 @@ config { colorscheme: "editorial-dark" }
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Code primitive demo", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Code content renders through the existing text-path pipeline and supports animated updates.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The stage stays editor-like and restrained so color, position, and re-declaration updates remain easy to inspect.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Code primitive demo", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Code content renders through the existing text-path pipeline and supports animated updates.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The stage stays editor-like and restrained so color, position, and re-declaration updates remain easy to inspect.", font_size: 16, color: text.secondary }
 }
 
-snippet: Code {
-  code: "let velocity = x + 1",
-  font_size: 28,
-  color: (0.85, 0.90, 1.0, 1.0),
-  at: (640, 340)
-}
-status: Text { text: "initial render", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }
+snippet: Code, code: "let velocity = x + 1", font_size: 28, color: (0.85, 0.90, 1.0, 1.0), at: (640, 340)
+status: Text, text: "initial render", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }
 
 #1s
 snippet.color = accent.warning [0.6s, ease: ease-in-out]
 snippet.at = (640, 390) [0.6s, ease: ease-in-out]
-status: Text { text: "animated color + position", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }
+status: Text, text: "animated color + position", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }
 
 #2s
-snippet: Code {
-  code: "let velocity = x + 2",
-  font_size: 28,
-  color: accent.success,
-  at: (640, 390)
-} [0.6s, ease: ease-in-out]
-status: Text { text: "re-declared code content", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }
+snippet: Code, code: "let velocity = x + 2", font_size: 28, color: accent.success, at: (640, 390) [0.6s, ease: ease-in-out]
+status: Text, text: "re-declared code content", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -64) }

@@ -5,15 +5,15 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text { text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text { text: "Colorschemes", font_size: 42, color: text.primary }
-  subtitle: Text { text: "Built-in scheme selection, semantic color aliases, and automatic scheme colors replace hand-rolled palette boilerplate.", font_size: 20, color: text.secondary }
-  caption: Text { text: "The center panel demonstrates surface and stroke aliases, the three circles prove deterministic auto assignment, and the bottom badge shows that explicit overrides still win.", font_size: 16, color: text.secondary }
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
+  title: Text, text: "Colorschemes", font_size: 42, color: text.primary }
+  subtitle: Text, text: "Built-in scheme selection, semantic color aliases, and automatic scheme colors replace hand-rolled palette boilerplate.", font_size: 20, color: text.secondary }
+  caption: Text, text: "The center panel demonstrates surface and stroke aliases, the three circles prove deterministic auto assignment, and the bottom badge shows that explicit overrides still win.", font_size: 16, color: text.secondary }
 }
 
 panel: Rect, size: (420, 200), color: surface.primary, stroke: stroke.default, stroke_width: 2, at: (640, 378)
-panel_label: Text { text: "surface.primary + stroke.default", font_size: 18, color: text.secondary, at: (640, 316) }
-cycle_label: Text { text: "auto colors", font_size: 18, color: accent.warning, at: (640, 356) }
+panel_label: Text, text: "surface.primary + stroke.default", font_size: 18, color: text.secondary, at: (640, 316) }
+cycle_label: Text, text: "auto colors", font_size: 18, color: accent.warning, at: (640, 356) }
 
 // Three circles with auto colors in a Row
 auto_circles: Row, anchor: scene.center, offset: (0, -10), gap: 60 {
@@ -22,7 +22,7 @@ auto_circles: Row, anchor: scene.center, offset: (0, -10), gap: 60 {
   carol: Circle, radius: 28, color: auto
 }
 
-warning: Text { text: "Manual overrides still win", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -126) }
+warning: Text, text: "Manual overrides still win", font_size: 18, color: accent.warning, anchor: scene.bottom, offset: (0, -126) }
 override_badge: Circle, radius: 18, color: (1.0, 0.9, 0.2, 1.0), at: (640, 494)
 
 #1.4s
