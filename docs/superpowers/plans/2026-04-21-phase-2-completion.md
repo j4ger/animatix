@@ -1,5 +1,9 @@
 # Phase 2 Completion: Diagnostic UX and Contract-Surface Feedback
 
+> **Archived execution note:** this plan corresponds to work now recorded as completed in `docs/implementation_plan.md` under "Phase 2 — Diagnostic UX and Contract-Surface Feedback (COMPLETED)".
+>
+> Keep this file as historical implementation context, not as an active roadmap item.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete Phase 2 exit criteria: (1) reusable component authoring documented without ambiguity, (2) diagnostics tell what/why/which boundary for unsupported surface, (3) examples cover valid+invalid paths.
@@ -238,7 +242,7 @@ This plan completes the Phase 2 exit criteria through documentation improvements
 
 ## Follow-up
 
-Phase 3 (Colorscheme Follow-Up: Loadable Schemes and Inheritance) is the next phase per `docs/implementation_plan.md:122-148`. It requires:
+Per `docs/implementation_plan.md`, the next active roadmap phase after this completed work is **Phase 1 — Colorscheme Follow-Up: Loadable Schemes and Inheritance**. It requires:
 - File-backed/loadable colorschemes
 - Scheme inheritance/extension
 - Diagnostics for invalid loads/inheritance cycles

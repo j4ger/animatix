@@ -2,6 +2,12 @@
 
 This roadmap starts from the runtime that exists today. It is intentionally grounded in the shipped baseline so the repo does not keep planning documents for work that already landed.
 
+This file is the repository's **master planning document** for product/runtime priorities. Related planning docs should support this roadmap rather than compete with it:
+
+- `docs/colorscheme_design.md` is the detailed design document for the current active roadmap phase
+- `docs/architecture_refactor_plan.md` tracks the internal refactor/support lane that should reduce delivery risk without redefining roadmap priority
+- execution checklists under `docs/superpowers/plans/` are historical implementation notes once the corresponding phase is complete
+
 ---
 
 ## 1. Shipped Baseline
@@ -47,6 +53,12 @@ The active roadmap begins with **Phase 1 — Colorscheme Follow-Up** (loadable s
 The repository's internal structural cleanup and primitive-system refactor are tracked separately in `docs/architecture_refactor_plan.md`.
 
 That plan is intentionally scoped to internal architecture and refactoring discipline. It should not be treated as a language-surface or shipped-feature roadmap item unless and until it materially changes roadmap sequencing.
+
+### Active supporting design note
+
+The detailed design for the current active phase lives in `docs/colorscheme_design.md`.
+
+That document should be treated as the implementation design for Phase 1, not as a separate competing roadmap.
 
 ### Current priority order
 

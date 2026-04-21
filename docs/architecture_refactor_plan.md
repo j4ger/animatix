@@ -1,16 +1,26 @@
 # Animatix Architecture Refactor Plan
 
-> **Status: internal engineering plan**
+> **Status: internal engineering support lane with partial extraction already landed**
 >
 > This document tracks the staged refactor work needed to improve the current code architecture without changing the public DSL contract. It is intentionally separate from `docs/implementation_plan.md`, which is the product/runtime roadmap.
 >
 > **Explicitly out of scope:** the IR/VM workstream in `ir.rs` / `vm.rs`. That will be handled later.
+
+> **Current planning role:** this document supports the roadmap in `docs/implementation_plan.md`. It should reduce delivery risk and improve internal boundaries, but it does not redefine product priority on its own.
 
 ---
 
 ## 1. Purpose
 
 This plan exists so the architecture cleanup can be executed across multiple sessions without losing intent or accidentally turning into a rewrite.
+
+## 1.1 Current execution snapshot
+
+This plan started as a forward-looking refactor sequence, but parts of it have already landed in the codebase. In particular, `crates/animatix/src/timeline/` already contains extracted modules such as `build.rs`, `declarations_text.rs`, `colorscheme.rs`, `plot.rs`, `layout.rs`, `media.rs`, `svg.rs`, `image.rs`, `runtime.rs`, `scene_eval.rs`, `property_lookup.rs`, `timing.rs`, `assignments.rs`, and `position.rs`.
+
+That means this document should now be read as a **support-lane status + remaining-work plan**, not as a pristine greenfield sequence.
+
+Practical rule: if roadmap work can ship cleanly through the existing extracted seams, prefer shipping it over reopening broad refactor phases.
 
 The main goals are:
 
@@ -26,7 +36,7 @@ This plan should preserve the existing language/runtime contract unless a future
 
 ## 2. Current Problem Summary
 
-The architecture review identified these non-IR/VM issues as the highest-value refactor targets:
+The original architecture review identified these non-IR/VM issues as the highest-value refactor targets. Some related extraction work has landed since then, but these remain the guiding problem statements for the support lane:
 
 ### 2.1 `timeline/mod.rs` is a god module
 
@@ -44,9 +54,9 @@ The architecture review identified these non-IR/VM issues as the highest-value r
 
 This is the central architectural problem. Most other design smells are downstream of it.
 
-### 2.2 Text / Math / Code processing is duplicated
+### 2.2 Text / Math / Code processing is duplicated or insufficiently consolidated
 
-The declaration-processing paths for `Stmt::Text`, `Stmt::Math`, and `Stmt::Code` share nearly identical logic for:
+The declaration-processing paths for `Stmt::Text`, `Stmt::Math`, and `Stmt::Code` historically shared nearly identical logic for:
 
 - timing modifier parsing
 - color resolution including `color: auto`
@@ -63,7 +73,7 @@ That duplication makes changes higher-risk than they should be.
 - the output of the build/lowering pipeline, and
 - the runtime evaluator used by preview/export/rendering
 
-The code works, but the internal ownership boundary is less explicit than the docs imply.
+The code works, but the internal ownership boundary is still less explicit than the docs imply, even after partial extraction.
 
 ### 2.4 GUI duplicates runtime-derived logic
 
@@ -144,6 +154,15 @@ The work should happen in this order:
 
 This order is intentionally conservative: low-risk structural wins first, boundary clarification second, integration cleanup after the core is calmer.
 
+## 4.1 Status against the current codebase
+
+The phase order remains useful as an organizing principle, but the repository is no longer at phase-zero:
+
+- **Partially landed / visibly underway:** helper extraction from `timeline/mod.rs`, text-like declaration deduplication, build/runtime separation, asset-related seams
+- **Needs refreshed status review before more refactor work:** exact shape-typing completion state, remaining GUI/core ownership duplication, final orchestration cleanup
+
+Before starting a new refactor session, the first step should be to update this document against the current `timeline/` directory rather than assume every phase is still untouched.
+
 ---
 
 ## 5. Phase 1 — Replace Weak Shape Typing
@@ -182,7 +201,7 @@ This is a contained, high-signal cleanup that improves type safety before larger
 ### Target areas
 
 - `crates/animatix/src/timeline/mod.rs`
-- new internal module, likely `crates/animatix/src/timeline/content.rs`
+- extracted/shared declaration module (currently aligned more closely with `crates/animatix/src/timeline/declarations_text.rs` than the older `content.rs` placeholder name)
 
 ### Work
 
@@ -195,7 +214,7 @@ This is a contained, high-signal cleanup that improves type safety before larger
 
 ### Expected result
 
-One internal codepath for the common behavior of `Text`, `Math`, and `Code`, instead of three near-copies.
+One internal codepath for the common behavior of `Text`, `Math`, and `Code`, instead of three near-copies or only partially unified paths.
 
 ### Validation
 
@@ -211,11 +230,8 @@ One internal codepath for the common behavior of `Text`, `Math`, and `Code`, ins
 
 ### Likely extraction candidates
 
-- `timeline/content.rs`
-- `timeline/modifiers.rs`
-- `timeline/plot.rs`
-- `timeline/geometry.rs`
-- `timeline/assets.rs`
+- further narrowing of `timeline/mod.rs` by leaning on already-present seams such as `declarations_text.rs`, `timing.rs`, `property_lookup.rs`, `plot.rs`, `media.rs`, `svg.rs`, `image.rs`, `position.rs`, and `layout.rs`
+- any still-missing focused modules only where a real responsibility cluster remains and no existing extracted module is the natural home
 
 ### Extraction rules
 
@@ -230,6 +246,8 @@ One internal codepath for the common behavior of `Text`, `Math`, and `Code`, ins
 3. geometry/path helpers
 4. content declaration helpers
 5. asset-loading helpers
+
+In the current codebase, this should usually mean **moving more responsibility into the existing extracted modules** instead of creating placeholder modules purely to match the original plan text.
 
 ### Expected result
 
@@ -367,6 +385,8 @@ At the end of this phase:
 ## 12. Suggested Session Strategy
 
 This plan is explicitly meant to survive multiple work sessions.
+
+Because portions of the extraction work have already landed, each new session should begin by identifying which phase goals are already satisfied in code and which still remain.
 
 ### Good single-session units
 
