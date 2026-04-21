@@ -26,6 +26,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "pause",
                 "resume",
                 "action",
+                "Colorscheme",
             ];
             if reserved.contains(&ident) {
                 Err(Rich::custom(
@@ -393,10 +394,57 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .collect::<Vec<_>>()
         .delimited_by(just('{').padded(), just('}').padded());
 
-    let config_stmt = text::keyword("config")
-        .ignore_then(config_props)
-        .map(|settings| Stmt::Config { settings })
-        .padded();
+        let config_stmt = text::keyword("config")
+            .ignore_then(config_props)
+            .map(|settings| Stmt::Config { settings })
+            .padded();
+
+        let colorscheme_stmt = text::keyword("Colorscheme")
+            .ignore_then(
+                just('"')
+                    .ignore_then(none_of('"').repeated().collect::<String>())
+                    .then_ignore(just('"')),
+            )
+            .then(
+                just(',')
+                    .padded()
+                    .ignore_then(
+                        property
+                            .clone()
+                            .separated_by(just(',').padded())
+                            .collect::<Vec<_>>(),
+                    )
+                    .or_not()
+                    .map(|p: Option<Vec<Property>>| p.unwrap_or_default()),
+            )
+            .then(
+                property
+                    .clone()
+                    .separated_by(just(',').padded())
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|((name, inline_props), block_props)| {
+                let mut all_props = inline_props;
+                all_props.extend(block_props);
+                let mut extends = None;
+                let mut scheme_props = Vec::new();
+                for prop in all_props {
+                    if prop.name == "extends" {
+                        if let Expr::Str(base) = prop.value {
+                            extends = Some(base);
+                        }
+                    } else {
+                        scheme_props.push(prop);
+                    }
+                }
+                Stmt::Colorscheme {
+                    name,
+                    extends,
+                    properties: scheme_props,
+                }
+            })
+            .padded();
 
     let stmt = recursive(|_stmt| {
         let let_decl = text::keyword("let")
@@ -789,6 +837,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             sequence_stmt,
             stagger_stmt,
             component_def,
+            colorscheme_stmt,
             actor_decl,
             action,
             comment,

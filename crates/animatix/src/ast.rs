@@ -302,6 +302,12 @@ pub enum Stmt {
         settings: Vec<Property>,
     },
 
+    Colorscheme {
+        name: String,
+        extends: Option<String>,
+        properties: Vec<Property>,
+    },
+
     // === Comments ===
     Comment(String),
 }

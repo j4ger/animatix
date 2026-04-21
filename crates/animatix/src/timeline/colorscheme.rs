@@ -1,4 +1,7 @@
+use crate::ast::{Expr, Property};
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::env::{Environment, Value};
+use crate::timeline::utils::parse_color;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,6 +117,62 @@ impl ResolvedColorscheme {
                     color[3] as f64,
                 ]),
             );
+        }
+    }
+
+    pub fn from_properties(
+        name: String,
+        properties: &[Property],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Option<Self> {
+        let mut colors = BTreeMap::new();
+        let mut auto_cycle = Vec::new();
+
+        for prop in properties {
+            if prop.name == "auto" {
+                if let Expr::Tuple(items) = &prop.value {
+                    for item in items {
+                        let color = parse_color(item);
+                        if color != [0.0, 0.0, 0.0, 1.0] || matches!(item, Expr::Tuple(_)) {
+                            auto_cycle.push(color);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            let color = parse_color(&prop.value);
+            if color != [0.0, 0.0, 0.0, 1.0] || matches!(&prop.value, Expr::Tuple(_)) {
+                colors.insert(prop.name.clone(), color);
+            } else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidColorschemeData,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Colorscheme '{}' property '{}' has invalid color value; skipping.",
+                            name, prop.name
+                        ),
+                    )
+                    .with_subject(&prop.name),
+                );
+            }
+        }
+
+        Some(ResolvedColorscheme {
+            name,
+            colors,
+            auto_cycle,
+        })
+    }
+
+    pub fn merge_with_base(&mut self, base: &ResolvedColorscheme) {
+        let mut merged = base.colors.clone();
+        merged.extend(self.colors.clone());
+        self.colors = merged;
+
+        if self.auto_cycle.is_empty() {
+            self.auto_cycle = base.auto_cycle.clone();
         }
     }
 }

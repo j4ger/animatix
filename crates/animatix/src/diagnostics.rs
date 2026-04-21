@@ -52,6 +52,10 @@ pub enum DiagnosticCode {
     UnsupportedStaggerStatement,
     MediaLoadFailure,
     UnsupportedMediaAssignment,
+    ColorschemeLoadFailure,
+    InvalidColorschemeData,
+    ColorschemeInheritanceCycle,
+    EmptyAutoColorPool,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -80,6 +84,10 @@ impl fmt::Display for DiagnosticCode {
             }
             DiagnosticCode::MediaLoadFailure => write!(f, "media-load-failure"),
             DiagnosticCode::UnsupportedMediaAssignment => write!(f, "unsupported-media-assignment"),
+            DiagnosticCode::ColorschemeLoadFailure => write!(f, "colorscheme-load-failure"),
+            DiagnosticCode::InvalidColorschemeData => write!(f, "invalid-colorscheme-data"),
+            DiagnosticCode::ColorschemeInheritanceCycle => write!(f, "colorscheme-inheritance-cycle"),
+            DiagnosticCode::EmptyAutoColorPool => write!(f, "empty-auto-color-pool"),
         }
     }
 }

@@ -81,11 +81,11 @@ That document should be treated as the implementation design for Phase 1, not as
 - Loadable schemes enable project-level theming without copy-pasting palette blocks.
 
 **Includes:**
-- file-backed/loadable colorschemes
-- scheme inheritance / extension
-- diagnostics for missing schemes, invalid files, invalid tuples, inheritance cycles, and unresolved external tokens
+- Colorscheme primitive: `Colorscheme "name" { extends: "base", ... }` declarations using standard AMX grammar
+- scheme inheritance / extension via the `extends` property
+- diagnostics for missing schemes, invalid data, inheritance cycles, and unresolved external tokens
 - docs/examples that distinguish built-in-only v1 from the broader reusable scheme story
-- optional expression-environment exposure only if it still earns its complexity after file-backed loading lands
+- optional expression-environment exposure only if it still earns its complexity after the primitive lands
 
 **Guardrails:**
 - preserve the current precedence stack where explicit `color`, `stroke`, timed assignments, and `always` overrides beat scheme defaults

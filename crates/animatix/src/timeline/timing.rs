@@ -27,6 +27,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::ComponentDef(_) => "component definition",
         Stmt::ComponentAction { .. } => "component action",
         Stmt::Config { .. } => "config block",
+        Stmt::Colorscheme { .. } => "colorscheme definition",
         Stmt::Comment(_) => "comment",
     }
 }

@@ -33,6 +33,7 @@ This matrix is the quick-reference status view for the current language surface.
 | Actions | broader verb-first action surface | Yes | Partial | Partial | Yes | The language shape exists, but only a small built-in subset is currently implemented. |
 | Composition | `sequence { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1a lowers sequence blocks at build time; nested sequence and declarations inside sequence are deliberately unsupported. |
 | Composition | `stagger [150ms] { ... }` for actions and assignments | Yes | Runtime-real | Yes | Yes | v1b offsets each child statement by a shared interval; declarations inside stagger are deliberately unsupported. |
+| Colorscheme | `Colorscheme "name" { ... }` primitive declaration | Yes | Runtime-real | Yes | Yes | Native AMX primitive with `extends` inheritance; replaces external file formats. |
 
 ### Matrix Conventions
 
@@ -141,7 +142,7 @@ Explicit `color`, `stroke`, `stroke_color`, timed assignments, and `always` over
 
 The current `color: auto` contract is deterministic for a given compiled document and follows actor declaration order after component expansion.
 
-File-backed/loadable colorschemes remain future work. See [`colorscheme_design.md`](colorscheme_design.md).
+Loadable colorschemes are now supported via the `Colorscheme` primitive declaration. See [`colorscheme_design.md`](colorscheme_design.md) for the full design.
 
 ```animatix
 config { colorscheme: "editorial-dark" }

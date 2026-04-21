@@ -107,6 +107,7 @@ pub struct Timeline {
     pub env: Environment,
     pub modifiers: Vec<Stmt>,
     colorscheme: ResolvedColorscheme,
+    external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     auto_color_assignments: BTreeMap<String, usize>,
     next_auto_color_index: usize,
 }
@@ -124,6 +125,7 @@ impl Timeline {
             env: Environment::raw_new(),
             modifiers: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
+            external_colorschemes: std::collections::HashMap::new(),
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
         }
@@ -150,7 +152,7 @@ impl Default for Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::BinaryOp;
+    use crate::ast::{BinaryOp, Property};
 
     #[test]
     fn test_for_iter_values_supports_tuple_literals() {
@@ -227,5 +229,155 @@ mod tests {
         assert_eq!(first_overrides["pulse"]["opacity"], Value::Num(1.0));
         assert_eq!(second_overrides["pulse"]["opacity"], Value::Num(0.0));
         assert_eq!(first_overrides, repeat_overrides);
+    }
+
+    #[test]
+    fn test_colorscheme_primitive_declaration() {
+        let ast = vec![
+            Stmt::Colorscheme {
+                name: "test-scheme".to_string(),
+                extends: None,
+                properties: vec![
+                    Property {
+                        name: "scene.background".to_string(),
+                        value: Expr::Tuple(vec![
+                            Expr::Num(0.1),
+                            Expr::Num(0.2),
+                            Expr::Num(0.3),
+                        ]),
+                    },
+                    Property {
+                        name: "text.primary".to_string(),
+                        value: Expr::Tuple(vec![
+                            Expr::Num(0.9),
+                            Expr::Num(0.95),
+                            Expr::Num(1.0),
+                        ]),
+                    },
+                ],
+            },
+            Stmt::Config {
+                settings: vec![Property {
+                    name: "colorscheme".to_string(),
+                    value: Expr::Str("test-scheme".to_string()),
+                }],
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let timeline = report.output;
+
+        assert_eq!(timeline.colorscheme.name, "test-scheme");
+        assert_eq!(
+            timeline.colorscheme.color("scene.background"),
+            Some([0.1, 0.2, 0.3, 1.0])
+        );
+        assert_eq!(
+            timeline.colorscheme.color("text.primary"),
+            Some([0.9, 0.95, 1.0, 1.0])
+        );
+    }
+
+    #[test]
+    fn test_colorscheme_inheritance() {
+        let ast = vec![
+            Stmt::Colorscheme {
+                name: "child".to_string(),
+                extends: Some("default-dark".to_string()),
+                properties: vec![
+                    Property {
+                        name: "scene.background".to_string(),
+                        value: Expr::Tuple(vec![
+                            Expr::Num(0.5),
+                            Expr::Num(0.5),
+                            Expr::Num(0.5),
+                        ]),
+                    },
+                ],
+            },
+            Stmt::Config {
+                settings: vec![Property {
+                    name: "colorscheme".to_string(),
+                    value: Expr::Str("child".to_string()),
+                }],
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let timeline = report.output;
+
+        assert_eq!(timeline.colorscheme.name, "child");
+        assert_eq!(
+            timeline.colorscheme.color("scene.background"),
+            Some([0.5, 0.5, 0.5, 1.0])
+        );
+        assert_eq!(
+            timeline.colorscheme.color("text.primary"),
+            Some([1.0, 1.0, 1.0, 1.0])
+        );
+    }
+
+    #[test]
+    fn test_colorscheme_auto_cycle() {
+        let ast = vec![
+            Stmt::Colorscheme {
+                name: "auto-test".to_string(),
+                extends: None,
+                properties: vec![
+                    Property {
+                        name: "auto".to_string(),
+                        value: Expr::Tuple(vec![
+                            Expr::Tuple(vec![
+                                Expr::Num(1.0),
+                                Expr::Num(0.0),
+                                Expr::Num(0.0),
+                            ]),
+                            Expr::Tuple(vec![
+                                Expr::Num(0.0),
+                                Expr::Num(1.0),
+                                Expr::Num(0.0),
+                            ]),
+                        ]),
+                    },
+                ],
+            },
+            Stmt::Config {
+                settings: vec![Property {
+                    name: "colorscheme".to_string(),
+                    value: Expr::Str("auto-test".to_string()),
+                }],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "a".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("auto".to_string()),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "b".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("auto".to_string()),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let mut timeline = report.output;
+
+        let color_a = timeline.auto_color_for_label("a");
+        let color_b = timeline.auto_color_for_label("b");
+
+        assert_eq!(color_a, Some([1.0, 0.0, 0.0, 1.0]));
+        assert_eq!(color_b, Some([0.0, 1.0, 0.0, 1.0]));
     }
 }
