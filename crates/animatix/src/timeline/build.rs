@@ -748,8 +748,8 @@ impl Timeline {
                         arc_angles = vector_shape_state.arc_angles;
                     }
 
-                    // For Graph types, make them invisible (container only)
-                    if primitive.is_graph_host() {
+                    // For Graph types and layout containers, make them invisible (container only)
+                    if primitive.is_graph_host() || primitive.is_layout_container() {
                         fill_opacity = 0.0;
                         stroke_width = 0.0;
                     }
