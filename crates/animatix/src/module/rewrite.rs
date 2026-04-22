@@ -232,15 +232,6 @@ pub(super) fn rewrite_stmt(
             path: path.clone(),
             items: items.clone(),
         },
-        Stmt::Colorscheme {
-            name,
-            extends,
-            properties,
-        } => Stmt::Colorscheme {
-            name: name.clone(),
-            extends: extends.clone(),
-            properties: rewrite_properties(properties, prefix, root_label, known_labels, bindings),
-        },
         Stmt::Comment(comment) => Stmt::Comment(comment.clone()),
     }
 }

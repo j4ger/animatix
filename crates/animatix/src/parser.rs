@@ -26,7 +26,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "pause",
                 "resume",
                 "action",
-                "Colorscheme",
             ];
             if reserved.contains(&ident) {
                 Err(Rich::custom(
@@ -39,6 +38,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         })
         .padded();
 
+    // Dotted identifier for assignment targets and property keys with dots
     let dotted_ident = ident
         .clone()
         .separated_by(just('.').padded())
@@ -128,6 +128,24 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|(name, args)| Expr::Call(name, args))
             .boxed();
 
+        // Type construction expression: TypeName { prop1: val1, prop2: val2 }
+        // Inline property parsing since property is defined after expr
+        let construct = ident
+            .filter(|s: &String| s.chars().next().map_or(false, |c| c.is_uppercase()))
+            .then(
+                ident
+                    .clone()
+                    .then_ignore(just(':').padded())
+                    .then(expr.clone())
+                    .map(|(name, value)| Property { name, value })
+                    .separated_by(just(',').padded())
+                    .allow_trailing()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|(name, props)| Expr::Construct(name, props))
+            .boxed();
+
         // Prefix operators for unary negation and logical NOT
         let prefix_op = just('-').to(UnaryOp::Neg).or(just('!').to(UnaryOp::Not));
 
@@ -140,6 +158,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             call,
             tuple,
             array,
+            construct,
             ident.clone().map(Expr::Ident),
         ));
 
@@ -270,8 +289,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         choice((closure, conditional_expr, comparison)).boxed()
     });
 
-    let property = ident
+    // Property name can be simple ident or dotted (e.g., scene.background)
+    let property_name = dotted_ident
         .clone()
+        .map(|parts: Vec<String>| parts.join("."))
+        .or(ident.clone());
+
+    let property = property_name
         .then_ignore(just(':').padded())
         .then(expr.clone())
         .map(|(name, value)| Property { name, value });
@@ -394,57 +418,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .collect::<Vec<_>>()
         .delimited_by(just('{').padded(), just('}').padded());
 
-        let config_stmt = text::keyword("config")
-            .ignore_then(config_props)
-            .map(|settings| Stmt::Config { settings })
-            .padded();
-
-        let colorscheme_stmt = text::keyword("Colorscheme")
-            .ignore_then(
-                just('"')
-                    .ignore_then(none_of('"').repeated().collect::<String>())
-                    .then_ignore(just('"')),
-            )
-            .then(
-                just(',')
-                    .padded()
-                    .ignore_then(
-                        property
-                            .clone()
-                            .separated_by(just(',').padded())
-                            .collect::<Vec<_>>(),
-                    )
-                    .or_not()
-                    .map(|p: Option<Vec<Property>>| p.unwrap_or_default()),
-            )
-            .then(
-                property
-                    .clone()
-                    .separated_by(just(',').padded())
-                    .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
-            )
-            .map(|((name, inline_props), block_props)| {
-                let mut all_props = inline_props;
-                all_props.extend(block_props);
-                let mut extends = None;
-                let mut scheme_props = Vec::new();
-                for prop in all_props {
-                    if prop.name == "extends" {
-                        if let Expr::Str(base) = prop.value {
-                            extends = Some(base);
-                        }
-                    } else {
-                        scheme_props.push(prop);
-                    }
-                }
-                Stmt::Colorscheme {
-                    name,
-                    extends,
-                    properties: scheme_props,
-                }
-            })
-            .padded();
+    let config_stmt = text::keyword("config")
+        .ignore_then(config_props)
+        .map(|settings| Stmt::Config { settings })
+        .padded();
 
     let stmt = recursive(|_stmt| {
         let let_decl = text::keyword("let")
@@ -792,7 +769,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             sequence_stmt,
             stagger_stmt,
             component_def,
-            colorscheme_stmt,
             actor_decl,
             action,
             comment,

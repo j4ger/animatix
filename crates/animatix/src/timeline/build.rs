@@ -59,30 +59,39 @@ impl Timeline {
         self.colorscheme = colorscheme;
     }
 
-    fn load_colorscheme_declarations(
-        &mut self,
-        ast: &[Stmt],
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    fn load_colorscheme_declarations(&mut self, ast: &[Stmt], diagnostics: &mut Vec<Diagnostic>) {
         let mut schemes: std::collections::HashMap<String, ResolvedColorscheme> =
             std::collections::HashMap::new();
         let mut inheritance_edges: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
 
         for stmt in ast {
-            if let Stmt::Colorscheme {
-                name,
-                extends,
-                properties,
-            } = stmt
-            {
-                if let Some(scheme) =
-                    ResolvedColorscheme::from_properties(name.clone(), properties, diagnostics)
-                {
-                    if let Some(base_name) = extends {
-                        inheritance_edges.insert(name.clone(), base_name.clone());
+            if let Stmt::LetDecl { name, value } = stmt {
+                if let Expr::Construct(type_name, properties) = value {
+                    if type_name == "Colorscheme" {
+                        // Extract extends from properties
+                        let mut extends = None;
+                        let mut scheme_props = Vec::new();
+                        for prop in properties {
+                            if prop.name == "extends" {
+                                if let Expr::Str(base) = &prop.value {
+                                    extends = Some(base.clone());
+                                }
+                            } else {
+                                scheme_props.push(prop.clone());
+                            }
+                        }
+                        if let Some(scheme) = ResolvedColorscheme::from_properties(
+                            name.clone(),
+                            &scheme_props,
+                            diagnostics,
+                        ) {
+                            if let Some(base_name) = extends {
+                                inheritance_edges.insert(name.clone(), base_name);
+                            }
+                            schemes.insert(name.clone(), scheme);
+                        }
                     }
-                    schemes.insert(name.clone(), scheme);
                 }
             }
         }
@@ -124,7 +133,10 @@ impl Timeline {
                 Diagnostic::error(
                     DiagnosticCode::ColorschemeInheritanceCycle,
                     DiagnosticPhase::Build,
-                    format!("Colorscheme inheritance cycle detected involving '{}'.", name),
+                    format!(
+                        "Colorscheme inheritance cycle detected involving '{}'.",
+                        name
+                    ),
                 )
                 .with_subject(name),
             );

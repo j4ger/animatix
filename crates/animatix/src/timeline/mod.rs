@@ -234,27 +234,29 @@ mod tests {
     #[test]
     fn test_colorscheme_primitive_declaration() {
         let ast = vec![
-            Stmt::Colorscheme {
+            Stmt::LetDecl {
                 name: "test-scheme".to_string(),
-                extends: None,
-                properties: vec![
-                    Property {
-                        name: "scene.background".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.1),
-                            Expr::Num(0.2),
-                            Expr::Num(0.3),
-                        ]),
-                    },
-                    Property {
-                        name: "text.primary".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.9),
-                            Expr::Num(0.95),
-                            Expr::Num(1.0),
-                        ]),
-                    },
-                ],
+                value: Expr::Construct(
+                    "Colorscheme".to_string(),
+                    vec![
+                        Property {
+                            name: "scene.background".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(0.1),
+                                Expr::Num(0.2),
+                                Expr::Num(0.3),
+                            ]),
+                        },
+                        Property {
+                            name: "text.primary".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(0.9),
+                                Expr::Num(0.95),
+                                Expr::Num(1.0),
+                            ]),
+                        },
+                    ],
+                ),
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -279,21 +281,76 @@ mod tests {
     }
 
     #[test]
+    fn test_colorscheme_let_declaration() {
+        let ast = vec![
+            Stmt::LetDecl {
+                name: "test-scheme-let".to_string(),
+                value: Expr::Construct(
+                    "Colorscheme".to_string(),
+                    vec![
+                        Property {
+                            name: "scene.background".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(0.15),
+                                Expr::Num(0.25),
+                                Expr::Num(0.35),
+                            ]),
+                        },
+                        Property {
+                            name: "text.primary".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(0.85),
+                                Expr::Num(0.9),
+                                Expr::Num(0.95),
+                            ]),
+                        },
+                    ],
+                ),
+            },
+            Stmt::Config {
+                settings: vec![Property {
+                    name: "colorscheme".to_string(),
+                    value: Expr::Str("test-scheme-let".to_string()),
+                }],
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast);
+        let timeline = report.output;
+
+        assert_eq!(timeline.colorscheme.name, "test-scheme-let");
+        assert_eq!(
+            timeline.colorscheme.color("scene.background"),
+            Some([0.15, 0.25, 0.35, 1.0])
+        );
+        assert_eq!(
+            timeline.colorscheme.color("text.primary"),
+            Some([0.85, 0.9, 0.95, 1.0])
+        );
+    }
+
+    #[test]
     fn test_colorscheme_inheritance() {
         let ast = vec![
-            Stmt::Colorscheme {
+            Stmt::LetDecl {
                 name: "child".to_string(),
-                extends: Some("default-dark".to_string()),
-                properties: vec![
-                    Property {
-                        name: "scene.background".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.5),
-                            Expr::Num(0.5),
-                            Expr::Num(0.5),
-                        ]),
-                    },
-                ],
+                value: Expr::Construct(
+                    "Colorscheme".to_string(),
+                    vec![
+                        Property {
+                            name: "extends".to_string(),
+                            value: Expr::Str("default-dark".to_string()),
+                        },
+                        Property {
+                            name: "scene.background".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(0.5),
+                                Expr::Num(0.5),
+                                Expr::Num(0.5),
+                            ]),
+                        },
+                    ],
+                ),
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -320,26 +377,28 @@ mod tests {
     #[test]
     fn test_colorscheme_auto_cycle() {
         let ast = vec![
-            Stmt::Colorscheme {
+            Stmt::LetDecl {
                 name: "auto-test".to_string(),
-                extends: None,
-                properties: vec![
-                    Property {
-                        name: "auto".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Tuple(vec![
-                                Expr::Num(1.0),
-                                Expr::Num(0.0),
-                                Expr::Num(0.0),
+                value: Expr::Construct(
+                    "Colorscheme".to_string(),
+                    vec![
+                        Property {
+                            name: "auto".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Tuple(vec![
+                                    Expr::Num(1.0),
+                                    Expr::Num(0.0),
+                                    Expr::Num(0.0),
+                                ]),
+                                Expr::Tuple(vec![
+                                    Expr::Num(0.0),
+                                    Expr::Num(1.0),
+                                    Expr::Num(0.0),
+                                ]),
                             ]),
-                            Expr::Tuple(vec![
-                                Expr::Num(0.0),
-                                Expr::Num(1.0),
-                                Expr::Num(0.0),
-                            ]),
-                        ]),
-                    },
-                ],
+                        },
+                    ],
+                ),
             },
             Stmt::Config {
                 settings: vec![Property {

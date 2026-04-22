@@ -72,6 +72,9 @@ pub enum UnaryOp {
 // Key-value pairs used for actor configuration and action modifiers.
 // ----------------------------------------------------------------------------
 
+/// Key-value pair for actor configuration.
+/// Note: `name` may contain dots for nested keys (e.g., "scene.background", "border.width").
+/// The parser handles dot-separated paths; dots are preserved as-is in the name string.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Property {
     pub name: String,
@@ -300,12 +303,6 @@ pub enum Stmt {
     /// Config: @config { resolution: 1920x1080 }
     Config {
         settings: Vec<Property>,
-    },
-
-    Colorscheme {
-        name: String,
-        extends: Option<String>,
-        properties: Vec<Property>,
     },
 
     // === Comments ===
