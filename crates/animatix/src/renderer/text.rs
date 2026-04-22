@@ -1,12 +1,12 @@
 pub use super::types::TextPath;
 use kurbo::{Affine, BezPath, Point, Shape};
 use mitex::convert_math;
-use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
+use typst::World;
 use typst::{Library, LibraryExt};
 
 struct PathBuilder(BezPath);
@@ -176,7 +176,36 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color) 
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
+    center_text_paths(&mut glyphs);
     glyphs
+}
+
+/// Centers text paths around the origin so that layout positioning works correctly.
+/// The layout system positions children by their center point, so text needs to be
+/// centered around (0, 0) for layout alignment to work properly.
+pub fn center_text_paths(paths: &mut [TextPath]) {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for path in paths.iter() {
+        let bounds = path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    if min_x.is_finite() && max_x.is_finite() && min_y.is_finite() && max_y.is_finite() {
+        let center_x = (min_x + max_x) / 2.0;
+        let center_y = (min_y + max_y) / 2.0;
+        let offset = Affine::translate((-center_x, -center_y));
+
+        for path in paths.iter_mut() {
+            path.path.apply_affine(offset);
+        }
+    }
 }
 
 pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
