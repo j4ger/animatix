@@ -1,3 +1,36 @@
+//! # Timeline Architecture
+//!
+//! `Timeline` is the compiled animation package: a scene graph (parent→children hierarchy)
+//! with keyframed property tracks per actor. The scene graph drives transform/opacity
+//! inheritance via DFS; tracks store animated values over time.
+//!
+//! ## Build-time vs frame-time boundary
+//!
+//! - **`Timeline::build()`** (in `build.rs`): one-time lowering pass that parses the AST,
+//!   resolves imports, expands components, creates tracks, applies layout, compiles
+//!   text/math/code paths, and loads assets.
+//! - **`Timeline::evaluate()`** (in `runtime.rs` / `scene_eval.rs`): per-frame execution
+//!   that samples tracks, runs `always` modifiers, resolves anchors/percent positions,
+//!   and emits a `vello::Scene`.
+//!
+//! ## Submodule responsibilities
+//!
+//! | Module | Role |
+//! |--------|------|
+//! | `build.rs` | AST lowering into Timeline |
+//! | `runtime.rs` / `scene_eval.rs` | Frame-time evaluation and render-scene assembly |
+//! | `track.rs` | Keyframed property tracks and interpolation |
+//! | `layout.rs` | Container placement (Row, Col, Grid, Stack) |
+//! | `colorscheme.rs` | Built-in and inline colorscheme resolution |
+//! | `morph.rs` | Path morphing between vector shapes |
+//! | `plot.rs` | Adaptive sampling for graph plots |
+//! | `utils.rs` | Expression evaluation |
+//! | `modifier_runtime/` | IR and bytecode VM for `always` blocks |
+//!
+//! ## The compile boundary
+//!
+//! The practical compile target is the post-expansion program after module loading
+//! and component expansion—not the raw parser AST.
 pub mod actions;
 mod assignments;
 mod build;

@@ -1,4 +1,13 @@
+//! This module implements `Timeline::build()`, the one-time lowering pass from
+//! expanded AST to compiled timeline.
+//!
+//! It handles: colorscheme resolution, config processing, actor declarations,
+//! property assignments, actions, container layout, component expansion,
+//! text/math/code path compilation, and asset loading.
+
 use super::*;
+
+// === Build Entry Points ===
 
 impl Timeline {
     pub fn build(ast: &[Stmt]) -> Self {
@@ -48,6 +57,8 @@ impl Timeline {
         BuildReport::new(timeline, diagnostics)
     }
 
+    // === Colorscheme Seeding ===
+
     fn apply_colorscheme(&mut self, colorscheme: ResolvedColorscheme) {
         colorscheme.seed_environment(&mut self.env);
         let background = colorscheme
@@ -58,6 +69,8 @@ impl Timeline {
         self.background_color = bg_track;
         self.colorscheme = colorscheme;
     }
+
+    // === Colorscheme Declaration Parsing ===
 
     fn load_colorscheme_declarations(&mut self, ast: &[Stmt], diagnostics: &mut Vec<Diagnostic>) {
         let mut schemes: std::collections::HashMap<String, ResolvedColorscheme> =
@@ -114,6 +127,8 @@ impl Timeline {
 
         self.external_colorschemes = resolved;
     }
+
+    // === Colorscheme Inheritance Resolution ===
 
     fn resolve_colorscheme_with_inheritance(
         &self,
@@ -175,6 +190,8 @@ impl Timeline {
         visiting.remove(name);
         Some(scheme)
     }
+
+    // === Config Processing ===
 
     fn apply_config_settings(
         &mut self,
@@ -238,6 +255,8 @@ impl Timeline {
         Some(self.colorscheme.auto_cycle[slot % self.colorscheme.auto_cycle.len()])
     }
 
+    // === Scene Graph Node Creation ===
+
     pub(super) fn add_node(&mut self, label: String, parent_label: Option<&str>) {
         if !self.nodes.contains_key(&label) {
             self.nodes.insert(
@@ -260,6 +279,8 @@ impl Timeline {
             }
         }
     }
+
+    // === Children Processing ===
 
     /// Apply layout algorithm for Row and Col containers.
     /// Computes and sets child positions based on container type, gap, and alignment.
@@ -315,6 +336,8 @@ impl Timeline {
             }
         }
     }
+
+    // === Main AST Statement Processor ===
 
     pub(super) fn process_body(
         &mut self,
@@ -1191,6 +1214,8 @@ impl Timeline {
                     track
                         .fill_opacity
                         .add_keyframe(t_end_ms, fill_opacity, easing);
+
+                    // === Container Layout ===
 
                     if primitive.is_layout_container() {
                         self.apply_container_layout(

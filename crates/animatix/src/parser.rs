@@ -1,3 +1,30 @@
+//!
+//! # Animatix Parser
+//!
+//! Combinator-based recursive descent parser using [`chumsky`]. This parser is the
+//! executable source of truth for accepted `.amx` syntax.
+//!
+//! ## Entry Points
+//!
+//! - [`parse_program()`] — parses a full `.amx` file into `Vec<Stmt>`
+//! - [`parse_expr()`] — parses a single expression
+//!
+//! ## Key Design Notes
+//!
+//! - The grammar is expression-heavy with prefix/infix operator precedence handled via
+//!   combinator chaining in `chumsky`.
+//! - Actor declarations, actions, and assignments share a generic modifier syntax in
+//!   brackets `[...]`.
+//! - `Text`, `Math`, `Code` are parsed as generic actor declarations.
+//! - The parser accepts some syntax that the runtime may reject (e.g., method/index/construct
+//!   expressions) — honest runtime diagnostics handle the mismatch.
+//!
+//! ## Relationship to Other Systems
+//!
+//! - [`crate::ast`] defines the AST nodes this parser produces.
+//! - `tree-sitter-animatix/` is a synchronized derivative for editor tooling.
+//! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
+
 use crate::ast::*;
 use chumsky::prelude::*;
 
