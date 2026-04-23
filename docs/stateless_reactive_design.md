@@ -2,28 +2,9 @@
 
 This document describes the stateless reactive model that Animatix now ships.
 
-It also preserves the rationale and migration story for replacing the earlier coroutine-style `loop` / `yield` design.
-
 ---
 
-## 1. Problem Statement
-
-Animatix preview, scrubbing, image export, and video export all want the same core property:
-
-> the rendered frame at time `t` should be derivable directly from `t`
-
-That property is already true for keyframes, layout, sampled actor properties, and `always` evaluation.
-
-The language also overloaded `loop` for two different jobs:
-
-1. **structural generation** — create multiple objects
-2. **repeated behavior** — make something happen again and again over time
-
-Those jobs want different semantics and should not share one construct.
-
----
-
-## 2. New Model
+## 1. New Model
 
 ### Structural repetition: `for`
 
@@ -60,19 +41,7 @@ Its result is computed from:
 
 ---
 
-## 3. Design Goals
-
-The redesign should preserve these properties:
-
-1. **Random-access preview correctness** — jumping directly to `t = 8.2s` should produce the same frame as playback reaching `8.2s`.
-2. **Simple mental model** — users should think in terms of keyframes + stateless overrides, not resumable interpreters.
-3. **Good authoring ergonomics** — repeated motion should remain concise without forcing everything into raw coordinate math.
-4. **Export consistency** — preview, image export, and video rendering should agree.
-5. **AI-friendly determinism** — authored scenes should be easy to generate and reason about from text.
-
----
-
-## 4. Recommended Public Taxonomy
+## 2. Recommended Public Taxonomy
 
 Animatix should present repetition through three concepts:
 
@@ -113,7 +82,7 @@ This yields a clean split:
 
 ---
 
-## 5. What Replaces `loop`
+## 3. What Replaces `loop`
 
 The old `loop` use cases map as follows:
 
@@ -154,7 +123,7 @@ The recommended model is to make the time window explicit rather than hiding it 
 
 ---
 
-## 6. `always` Semantics
+## 4. `always` Semantics
 
 The docs should consistently describe `always` as:
 
@@ -167,23 +136,9 @@ That means:
 - it does not resume from a prior program counter
 - it does not preserve hidden mutable locals across frames
 
-This should be the main public reactive model.
-
 ---
 
-## 7. Removed Coroutine Semantics
-
-The older coroutine surface (`loop`, `yield`, labeled `stop` / `pause` / `resume`) was removed from the shipped reactive model.
-
-The language now presents one runtime reactive primitive:
-- `always`
-
-And one structural repetition primitive:
-- `for`
-
----
-
-## 8. Language Guarantee
+## 5. Language Guarantee
 
 The target language promise should be:
 
@@ -198,67 +153,3 @@ This promise should power:
 ### Important caveat
 
 Current `rand()` is not a deterministic function of time, so scenes depending on fresh randomness per evaluation should be excluded from strict repeatability guarantees until randomness is redesigned.
-
----
-
-## 9. Migration Story
-
-### Before
-
-```animatix
-pulse_job: loop 4 times {
-  pulse.size = (120, 120)
-  yield
-  pulse.size = (180, 180)
-  yield
-}
-```
-
-### After
-
-```animatix
-always {
-  pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
-}
-```
-
-### Before
-
-```animatix
-loop 5s { ... }
-```
-
-### After
-
-```animatix
-always {
-  let visible = t < 5.0
-  actor.opacity = if visible { 1.0 } else { 0.0 }
-}
-```
-
-### Before
-
-```animatix
-loop 3 times { create stuff }
-```
-
-### After
-
-```animatix
-for item in items {
-  // expanded structurally at build time
-}
-```
-
----
-
-## 10. Result
-
-Animatix now uses:
-
-1. `for` as the only repetition construct for structure
-2. `always` as the only runtime reactive primitive
-3. random-access preview/export correctness as the top evaluation contract
-
-This is the design that best matches Animatix’s preview-first architecture, current timeline system, and authoring goals.

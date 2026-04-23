@@ -1,3 +1,31 @@
+//!
+//! # Layout Design Contract
+//!
+//! Layout is a **declaration-time measure/place contract**, not a per-frame reflow.
+//! It is evaluated once when a layout container (Row, Col, Grid, Stack) is applied,
+//! and does not re-sample when animated tracks change later.
+//!
+//! 1. **Declaration-time measure**: Layout-managed children publish their local
+//!    half-extents into the shared `size` track. Authored shapes seed this from
+//!    declared geometry; text, math, code, image, and SVG seed it from measured
+//!    or intrinsic bounds.
+//!
+//! 2. **Container placement**: Containers (Row, Col, Grid, Stack) consume child
+//!    half-extents and place children deterministically based on declared order,
+//!    gap, and alignment. Placement is frozen at declaration time.
+//!
+//! 3. **Authored `at` opts out**: A child with an authored `at` value is skipped
+//!    by container placement; the author takes full responsibility for its position.
+//!
+//! 4. **Root default**: Root layout containers that are layout-managed with no `at`
+//!    default to scene center (0, 0).
+//!
+//! 5. **Visual transforms independent**: Visual transforms (scale, rotation) do
+//!    not affect layout size under the current contract; they are purely presentational.
+//!
+//! 6. **No sampled relayout**: When `size` or `position` tracks animate later, layout
+//!    does not re-evaluate. This is a deliberate trade-off for predictability.
+
 use super::{AnimationTrack, Easing, PlacementMode, Timeline};
 
 fn layout_full_extents(track: &AnimationTrack) -> (f32, f32) {

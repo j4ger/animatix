@@ -1,3 +1,16 @@
+//! Colorscheme resolution and the precedence model for color assignment.
+//!
+//! Precedence order (lowest to highest):
+//! 1. Runtime hardcoded default (white `[1,1,1,1]`)
+//! 2. Colorscheme primitive-type defaults (when property omitted)
+//! 3. Alias-based declaration defaults (e.g., `color: text.primary`)
+//! 4. `color: auto` from scheme auto pool
+//! 5. Explicit declaration values
+//! 6. Later timed assignments
+//! 7. Frame-local reactive overrides (`always`)
+//!
+//! Colorscheme resolution is build-time, not frame-time, for deterministic preview/export.
+
 use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::env::{Environment, Value};

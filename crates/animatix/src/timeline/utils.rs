@@ -1,3 +1,9 @@
+//! Expression evaluator for the animation timeline.
+//!
+//! Uses an [`Environment`] (`Rc<RefCell<HashMap>>`) for shared mutable scope.
+//! Built-ins (sin, cos, lerp, rand, format) resolve through the environment.
+//! Closures evaluate against a clone of the caller environment with parameter bindings added.
+
 use crate::ast::{BinaryOp, Expr, Time};
 use crate::timeline::env::{Environment, EvalError, Value};
 
@@ -261,6 +267,7 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
             }
         }
 
+        // Closures capture by cloning the call-time environment (not a lexical snapshot).
         Expr::Closure(args, body) => Ok(Value::Closure(args.clone(), body.clone())),
 
         Expr::Path(parts) => {
@@ -322,6 +329,9 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                 }
                 native_func(&arg_values, env)
             }
+            // Closures capture by cloning the call-time environment.
+            // Parameters are bound into the cloned environment.
+            // The body evaluates against the extended clone.
             Value::Closure(params, body) => {
                 if args.len() != params.len() {
                     return Err(EvalError::TypeMismatch(format!(

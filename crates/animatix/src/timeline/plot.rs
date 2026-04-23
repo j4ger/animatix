@@ -1,3 +1,37 @@
+//!
+//! # Adaptive Sampling Algorithm
+//!
+//! The plotting functions in this module use recursive midpoint subdivision to
+//! sample mathematical curves at adaptive resolution. The algorithm works as follows:
+//!
+//! 1. **Recursive Midpoint Subdivision**: Start with two endpoints of a segment.
+//!    Compute the midpoint and compare it against a linear interpolation between endpoints.
+//!    If the deviation exceeds `tolerance`, subdivide both halves recursively.
+//!
+//! 2. **Coarse-to-Fine Refinement**: Begin with coarse sampling and refine only where
+//!    the curve deviates significantly from a straight line. This captures detail where
+//!    needed while avoiding unnecessary computation in flat regions.
+//!
+//! 3. **Maximum Depth Cap**: Subdivision stops when reaching `max_depth` to prevent
+//!    infinite recursion and control computational cost. The minimum segment size is
+//!    thus `(total_range) / 2^max_depth`.
+//!
+//! 4. **Discontinuity Handling**: When detecting steep jumps (asymptotes, discontinuities),
+//!    inject a NaN point so Vello's path renderer breaks the stroke. This prevents
+//!    erroneous straight-line connections across gaps.
+//!
+//! 5. **Visibility Culling**: Segments whose y-coordinates (and x-coordinates for
+//!    parametric/polar) lie entirely outside the visible region with margin are culled
+//!    with NaN separators, skipping unnecessary evaluation.
+//!
+//! 6. **Tolerance-Accuracy Tradeoff**: The `tolerance` parameter (squared distance threshold)
+//!    controls how much deviation is acceptable before subdividing. Lower values produce
+//!    more accurate curves but require more samples; higher values improve performance
+//!    at the cost of accuracy.
+//!
+//! The three sampling functions (`cartesian`, `polar`, `parametric`) share this core
+//! algorithm but differ in how they map mathematical coordinates to screen space.
+
 use super::{Environment, Value, evaluate_expr};
 use crate::ast::Expr;
 

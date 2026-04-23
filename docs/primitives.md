@@ -1,31 +1,23 @@
 # Primitives
 
-This document tracks what the current runtime actually supports. Where the parser or low-level Rust modules expose additional surface area, that is called out explicitly as parser-only or planned.
+Documents current runtime support. Parser-only and planned features are noted explicitly.
 
-Current color note: the shipped runtime now supports built-in colorscheme selection via `config { colorscheme: ... }`, semantic colorscheme aliases through `color` / `stroke`, deterministic `color: auto` assignment, inline `Colorscheme` primitive definition with `extends` inheritance, and automatic primitive-type default colors. When no explicit `color` or `stroke` is provided, primitives receive scheme-appropriate defaults: `text.primary` for Text/Math/Code, `surface.primary` for shape fills, `stroke.default` for line/stroke shapes, and `accent.primary` for plot curves. Explicit `color`, `stroke`, `stroke_color`, timed assignments, and frame-local overrides still take precedence over those defaults. Module-based colorscheme reuse via `pub let` exports and `import ... as` syntax is planned future work tracked in [`implementation_plan.md`](implementation_plan.md) and [`colorscheme_design.md`](colorscheme_design.md).
+For colorscheme details including `config { colorscheme: ... }`, semantic color aliases, `color: auto`, inline `Colorscheme` with `extends`, and module-based reuse, see [`colorscheme_design.md`](colorscheme_design.md).
 
 ---
 
-# 1. Runtime-Supported Scene Primitives
+# 1. Scene Primitives
 
 ## Text
 **Status:** Implemented in parser and runtime.
 
-**Properties used by the runtime:**
+**Properties:**
 - `text`: String
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
 
-**Shorthand:** When a text declaration contains only content (and optional modifiers), the type and `text` property can be omitted:
-
-```animatix
-// Full form
-title: Text, text: "Hello World", font_size: 24, at: (640, 120)
-
-// Shorthand (desugars to the full form)
-title: "Hello World"
-```
+**Shorthand:** `title: "Hello World"` desugars to `Text { text: "Hello World", ... }`
 
 **Example:**
 ```animatix
@@ -35,8 +27,8 @@ title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 ## Math
 **Status:** Implemented in parser and runtime.
 
-**Properties used by the runtime:**
-- `math` or `latex`: String
+**Properties:**
+- `math` / `latex`: String
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
@@ -49,9 +41,9 @@ eq: Math { math: "x^2 + 3", font_size: 18, at: (640, 360) }
 ## Code
 **Status:** Implemented in parser and runtime.
 
-The current v1 `Code` primitive is intentionally small. It renders code content through the same text-path pipeline used by `Text`, which makes it a real scene primitive without committing the runtime to syntax highlighting or editor-like behavior yet.
+Renders via the text-path pipeline (no syntax highlighting in v1).
 
-**Properties used by the runtime:**
+**Properties:**
 - `code`: String
 - `font_size`: Number
 - `color`: Color
@@ -67,63 +59,45 @@ snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
 ## Svg
 **Status:** Implemented in parser and runtime.
 
-**Properties used by the runtime:**
+**Properties:**
 - `url`: String
 - `scale`: Number
-- `at`: tuple `(x, y)` or scene-relative percent tuple such as `(72%, 38%)`
-- `anchor`: scene anchor such as `scene.top`
-- `offset`: Tuple `(x, y)` used with `anchor`
+- `at`: Tuple `(x, y)` or scene-relative percent tuple `(72%, 38%)`
+- `anchor`: Scene anchor
+- `offset`: Tuple `(x, y)`
 
 **Example:**
 ```animatix
 icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 ```
 
-Layout note: `Svg` currently publishes local path bounds into the shared declaration-time layout size track, so it can participate in container placement. This is supported, but it is still a narrower and less battle-tested measurement path than authored geometry or intrinsic image sizing.
-
-Contract note: this narrower `Svg` measurement path still lives inside the same declaration-time measure/place contract described in [`spec.md`](spec.md#7-containers--layout) and bounded further in [`layout_design.md`](layout_design.md#104-initial-primitive-support).
-
-Diagnostics note: missing files or invalid SVG contents report build diagnostics instead of silently producing an empty renderable.
-
-Timing note: `Svg` source changes remain declaration-only today. Assigning `icon.url = ...` reports an unsupported media-assignment diagnostic; redeclare the `Svg` actor at a keyframe instead.
+Note: Missing files or invalid SVG contents report build diagnostics. Source changes require re-declaration at a keyframe (assignment not yet supported).
 
 ## Image
 **Status:** Implemented in parser and runtime.
 
-**Properties used by the runtime:**
+**Properties:**
 - `url`: String
-- `at`: tuple `(x, y)` or scene-relative percent tuple such as `(30%, 38%)`
-- `anchor`: scene anchor such as `scene.bottom`
-- `offset`: Tuple `(x, y)` used with `anchor`
-- `size`: Optional tuple `(width, height)`
-
-If `size` is omitted, the runtime uses the image's natural pixel size. The initial implementation keeps the surface intentionally small and file-based.
-
-Layout note: `Image` participates in the current declaration-time layout contract. Its local layout size comes from authored `size` when present, otherwise from the image's intrinsic pixel dimensions.
-
-Contract note: `Image` is one of the truthful first-wave layout participants in the shared `size` track consumed by container placement; see [`spec.md`](spec.md#7-containers--layout) for the contract and [`layout_design.md`](layout_design.md#104-initial-primitive-support) for the bounded participant list.
-
-Timing note: `Image` source changes remain an instant/discrete contract today. Duration/ease modifiers are not yet part of the guaranteed `Image` declaration surface.
-
-Diagnostics note: missing image files report build diagnostics instead of silently preserving placeholder state.
-
-**Transition note:** Animating `url` currently produces a discrete source swap, not a crossfade between two raster images. If you need a fade today, layer images manually and animate opacity instead.
+- `at`: Tuple `(x, y)` or scene-relative percent tuple `(30%, 38%)`
+- `anchor`: Scene anchor
+- `offset`: Tuple `(x, y)`
+- `size`: Optional tuple `(width, height)` — defaults to intrinsic pixel size
 
 **Example:**
 ```animatix
 photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
 ```
 
+Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
+
 ## Circle
 **Status:** Implemented in parser and runtime.
 
-Layout note: shape primitives that already carry explicit authored geometry (`radius`, `size`, equivalent path-driving properties) participate in container layout through that authored size rather than a second measured-bounds pass.
-
-**Properties used by the runtime:**
+**Properties:**
 - `radius`: Number
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
@@ -136,16 +110,7 @@ c: Circle, radius: 50, color: red, at: (200, 200)
 ## Dot
 **Status:** Implemented in parser and runtime.
 
-`Dot` is the small-radius alias of the current circle pipeline. It accepts the same style properties as `Circle`, but its default radius is intentionally much smaller so it behaves like a point marker out of the box.
-
-**Properties used by the runtime:**
-- `radius`: Number
-- `color`: Color
-- `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
-- `fill_opacity`: Number
-- `stroke_progress`: Number
-- `at`: Tuple `(x, y)`
+Small-radius alias of Circle pipeline. Same properties as Circle.
 
 **Example:**
 ```animatix
@@ -155,13 +120,13 @@ dot: Dot, color: gold, at: (320, 240)
 ## Rect
 **Status:** Implemented in parser and runtime.
 
-The runtime uses the generic actor path with `size` rather than dedicated `width`/`height` fields.
+Uses generic `size` tuple (not separate `width`/`height`).
 
-**Properties used by the runtime:**
+**Properties:**
 - `size`: Tuple `(width, height)`
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
@@ -174,14 +139,14 @@ r: Rect, size: (160, 80), color: blue, at: (400, 300)
 ## Square
 **Status:** Implemented in parser and runtime.
 
-`Square` is the equal-side alias of the current rectangle pipeline. You can still use `size`, but the dedicated `side` property is the clearer shorthand for the common case.
+Equal-side alias of Rect. Supports both `side` shorthand and `size`.
 
-**Properties used by the runtime:**
+**Properties:**
 - `side`: Number
 - `size`: Tuple `(width, height)`
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
@@ -192,16 +157,14 @@ sq: Square, side: 120, color: blue, at: (400, 300)
 ```
 
 ## Line
-**Status:** Implemented in parser and runtime.
+**Status:** Implemented in parser and runtime. Stroke-oriented (no fill).
 
-**Properties used by the runtime:**
+**Properties:**
 - `from`: Tuple `(x, y)` in local actor coordinates
 - `to`: Tuple `(x, y)` in local actor coordinates
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `at`: Tuple `(x, y)`
-
-`Line` is stroke-oriented in the current runtime. It does not produce a fill path.
 
 **Example:**
 ```animatix
@@ -211,16 +174,16 @@ axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (
 ## Arrow
 **Status:** Implemented in parser and runtime.
 
-`Arrow` is the straight-arrow companion to `Line`. It uses the same local `from` / `to` coordinates for the shaft, then generates a filled arrowhead at the `to` end through the existing vector path pipeline.
+Straight-arrow companion to Line. Generates filled arrowhead at `to` end via vector path pipeline.
 
-**Properties used by the runtime:**
+**Properties:**
 - `from`: Tuple `(x, y)` in local actor coordinates
 - `to`: Tuple `(x, y)` in local actor coordinates
 - `tip_length`: Number
 - `tip_width`: Number
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `at`: Tuple `(x, y)`
 
@@ -230,18 +193,16 @@ flow: Arrow, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, strok
 ```
 
 ## Ellipse
-**Status:** Implemented in parser and runtime.
+**Status:** Implemented in parser and runtime. Axis-aligned only (rotation planned).
 
-**Properties used by the runtime:**
+**Properties:**
 - `radius_x`: Number
 - `radius_y`: Number
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `at`: Tuple `(x, y)`
-
-The first runtime pass supports axis-aligned ellipses. Rotation is still future work at the DSL/runtime surface.
 
 **Example:**
 ```animatix
@@ -249,18 +210,16 @@ halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
 ```
 
 ## Arc
-**Status:** Implemented in parser and runtime.
+**Status:** Implemented in parser and runtime. Stroke-only (open arc, not pie slice).
 
-**Intended v1 properties:**
+**Properties:**
 - `radius_x`: Number
 - `radius_y`: Number
 - `start_angle`: Number
 - `sweep_angle`: Number
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `at`: Tuple `(x, y)`
-
-The current runtime is stroke-first. It renders an open arc path, not a filled pie slice.
 
 **Example:**
 ```animatix
@@ -270,15 +229,13 @@ ring: Arc, radius_x: 160, radius_y: 110, start_angle: -0.5, sweep_angle: 4.0, st
 ## Polygon
 **Status:** Implemented in parser and runtime.
 
-**Intended v1 properties:**
+**Properties:**
 - `points`: Tuple/list of point tuples
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `at`: Tuple `(x, y)`
-
-The current runtime uses explicit points rather than higher-level helpers such as `sides` or `radius`. Geometry changes are expected to come from re-declaration/morphing rather than property-level point animation.
 
 **Example:**
 ```animatix
@@ -288,15 +245,15 @@ badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan, at:
 ## RegularPolygon
 **Status:** Implemented in parser and runtime.
 
-`RegularPolygon` is the generated-points companion to `Polygon`. The runtime derives evenly spaced points from `sides` and `radius`, then routes the result through the same polygon/vector path pipeline.
+Generated-points companion to Polygon. Derives evenly spaced points from `sides` and `radius`.
 
-**Intended v1 properties:**
+**Properties:**
 - `sides`: Number (minimum 3)
 - `radius`: Number
 - `points`: Optional explicit point override
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `at`: Tuple `(x, y)`
 
@@ -308,15 +265,15 @@ hex: RegularPolygon, sides: 6, radius: 70, color: cyan, at: (640, 360)
 ## Path
 **Status:** Implemented in parser and runtime.
 
-**Intended v1 properties:**
-- `commands`: Tuple/list of path commands using existing call syntax
+Uses structured commands (`move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`).
+
+**Properties:**
+- `commands`: Tuple/list of path commands
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` or `width`: Number
+- `stroke_width` / `width`: Number
 - `fill_opacity`: Number
 - `at`: Tuple `(x, y)`
-
-The current runtime uses structured commands such as `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, and `close()`. This keeps the implementation aligned with the existing expression/parser model instead of introducing a separate SVG path-string parser.
 
 **Example:**
 ```animatix
@@ -335,9 +292,9 @@ guide: Path, commands: {
 ## Graph
 **Status:** Implemented in runtime.
 
-`Graph` is a container that establishes logical plotting domains and renders axes.
+Container establishing logical plotting domains and rendering axes.
 
-**Properties used by the runtime:**
+**Properties:**
 - `x_domain`: Tuple `(min, max)`
 - `y_domain`: Tuple `(min, max)`
 - `size`: Tuple `(width, height)`
@@ -346,9 +303,9 @@ guide: Path, commands: {
 ## CartesianPlot
 **Status:** Implemented in runtime.
 
-**Properties used by the runtime:**
+**Properties:**
 - `func`: Closure `(x) => expression`
-- `color` or `stroke`: Color
+- `color` / `stroke`: Color
 - `width` / `stroke_width`: Number
 - `tolerance`: Number
 - `max_depth`: Number
@@ -356,13 +313,39 @@ guide: Path, commands: {
 ## PolarPlot
 **Status:** Implemented in runtime.
 
-**Properties used by the runtime:**
+**Properties:**
 - `func`: Closure `(theta) => expression`
 - `t_domain`: Tuple `(min, max)`
-- `color` or `stroke`: Color
+- `color` / `stroke`: Color
 - `width` / `stroke_width`: Number
 - `tolerance`: Number
 - `max_depth`: Number
+
+## ParametricPlot
+**Status:** Implemented in runtime.
+
+Samples closure returning `(x, y)` over `t_domain`, maps into parent Graph domain.
+
+**Properties:**
+- `func`: Closure `(t) => (x_expr, y_expr)`
+- `t_domain`: Tuple `(min, max)`
+- `color` / `stroke`: Color
+- `width` / `stroke_width`: Number
+- `tolerance`: Number
+- `max_depth`: Number
+
+## ImplicitPlot
+**Status:** Implemented in runtime.
+
+Samples scalar field closure `(x, y) => expr`, extracts zero contour via marching squares.
+
+**Properties:**
+- `func`: Closure `(x, y) => scalar_expr`
+- `resolution`: Number of sampling cells along longer graph axis
+- `color` / `stroke`: Color
+- `width` / `stroke_width`: Number
+
+**Constraints:** Stroke-only, zero contour only (`func(x,y) = 0`), quality depends on resolution and sampled grid.
 
 **Example:**
 ```animatix
@@ -370,47 +353,11 @@ graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400
   parabola: CartesianPlot, func: (x) => x^2 + 3, color: red, width: 2,
 rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
 }
-```
 
-## ParametricPlot
-**Status:** Implemented in runtime.
-
-`ParametricPlot` samples a closure that returns a 2D point `(x, y)` over `t_domain`, then maps those math-space coordinates into the parent `Graph` domain.
-
-**Properties used by the runtime:**
-- `func`: Closure `(t) => (x_expr, y_expr)`
-- `t_domain`: Tuple `(min, max)`
-- `color` or `stroke`: Color
-- `width` / `stroke_width`: Number
-- `tolerance`: Number
-- `max_depth`: Number
-
-**Example:**
-```animatix
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
   lissajous: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
 }
-```
 
-## ImplicitPlot
-**Status:** Implemented in runtime.
-
-`ImplicitPlot` samples a scalar field closure `(x, y) => expr` across the parent `Graph` domain and extracts the zero contour using a grid-based marching-squares pass.
-
-**Properties used by the runtime:**
-- `func`: Closure `(x, y) => scalar_expr`
-- `resolution`: Number of sampling cells along the longer graph axis
-- `color` or `stroke`: Color
-- `width` / `stroke_width`: Number
-
-**Current v1 constraints:**
-- stroke-only output
-- zero contour only (`func(x, y) = 0`)
-- quality is controlled by `resolution`
-- topology and very thin features depend on the sampled grid
-
-**Example:**
-```animatix
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
   circle: ImplicitPlot, func: (x, y) => x * x + y * y - 1, resolution: 96, stroke: cyan, width: 3
 }
@@ -420,140 +367,67 @@ graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 
 
 # 3. Containers
 
-Animatix currently ships an **auto-layout-first** scene model with a narrow declaration-time measure/place contract. Containers are the default composition tool, while explicit `at` remains the opt-in way to do handcrafted placement.
+Auto-layout-first model with declaration-time measure/place contract. Explicit `at` opts into handcrafted placement.
 
 ## Row
 **Status:** Implemented in runtime auto-layout.
 
-Properties:
+**Properties:**
 - `gap`: Number
 - `align`: `start | center | end`
-
-Design direction:
-- should remain a primary default authoring primitive
-- container placement is now optional for root layout containers via the default `scene.center` binding
-- explicit absolute placement on the container should remain supported
 
 ## Col
 **Status:** Implemented in runtime auto-layout.
 
-Properties:
+**Properties:**
 - `gap`: Number
 - `align`: `start | center | end`
 
-Design direction:
-- should remain a primary default authoring primitive
-- container placement is now optional for root layout containers via the default `scene.center` binding
-- explicit absolute placement on the container should remain supported
-
 ## Group
-**Status:** Implemented as a grouping container.
+**Status:** Implemented as grouping container.
 
-`Group` participates in the scene graph and transform inheritance, but does not run a layout algorithm.
+Participates in scene graph and transform inheritance. Does not run a layout algorithm.
 
-Design direction:
-- remains the grouping/transform container
-- should coexist with layout containers for scenes that mix structured layout and manual composition
+## Grid
+**Status:** Implemented in runtime auto-layout.
 
-## Grid / Stack
-**Status:** Implemented in runtime.
+Structured two-dimensional layout. Phase 1 supports `cols` and `gap` with deterministic declaration-order placement.
 
-`Grid` and `Stack` now participate in the runtime layout system.
+**Properties:**
+- `cols`: Number
+- `gap`: Number
 
-Current role:
-- `Grid`: structured two-dimensional layout for AI-friendly dashboards, panels, equations, legends, and repeated visual blocks
-- `Stack`: layered composition for overlays, badges, callouts, and foreground/background composition without manual coordinate math
+## Stack
+**Status:** Implemented in runtime auto-layout.
 
-Phase 1 semantics implemented today:
-- `Grid` supports `cols` and `gap` with deterministic declaration-order placement
-- `Stack` overlaps layout-managed children around a shared origin
-- root layout containers can omit `at` and default to `scene.center`
-- scene-relative placement is supported through `anchor: scene.*`, `offset`, and percentage-based `at`
-- manual child `at` remains an explicit opt-out inside layout containers
+Layered composition. Overlaps layout-managed children around a shared origin.
 
-Current contract note: the shipped layout system should be understood as a deterministic container-placement scaffold, not as a promise of full flexbox parity or per-frame relayout.
+**Properties:**
+- `gap`: Number
 
-For current runnable demos, explanatory copy should use standalone `Text` / `Math` statements placed beside containers rather than inline text children.
+Root layout containers can omit `at` and default to `scene.center`. Scene-relative placement via `anchor: scene.*`, `offset`, and percentage-based `at` is supported.
 
 ---
 
 # 4. Common Animated Properties
 
-The current runtime has explicit assignment handling for these actor properties:
+Runtime supports explicit assignment for: `color`, `stroke_width`, `stroke_color`, `stroke_progress`, `fill_opacity`, `size`, `at`/`position`, `radius`, `radius_x`, `radius_y`, `from`, `to`, `start_angle`, `sweep_angle`, `scene.background_color`.
 
-- `color`
-- `stroke_width`
-- `stroke_color`
-- `stroke_progress`
-- `fill_opacity`
-- `size`
-- `at` / `position`
-- `radius`
-- `radius_x`
-- `radius_y`
-- `from`
-- `to`
-- `scene.background_color`
+Text/Math/Code use text-path keyframes; shapes use vector-path keyframes.
 
-Current runtime additions include `start_angle` and `sweep_angle` for `Arc`. `Polygon.points` and `Path.commands` are declaration-time geometry inputs rather than property-level animated tracks.
+Nested property targeting via dotted paths works on both sides: `left.badge.color = red` (assignment) and `copy.at = left.badge.at` (read). Component reads like `source.at.x` are supported.
 
-Assignments can now target nested runtime labels through multi-segment dotted paths. For example, a component-expanded nested actor can be updated with `left.badge.color = red` or `right.frame.radius = 20`. This is label targeting, not a general object-property query system.
+Geometry inputs (`Polygon.points`, `Path.commands`) are declaration-time only, not animated tracks.
 
-The same dotted path surface now works on the rhs for sampled property reads. Common examples are `copy.at = left.badge.at`, `echo.radius = right.badge.radius`, and scalar/vector component reads such as `source.at.x`.
+Unsupported assignments report build diagnostics rather than silent ignore.
 
-Unsupported assignment properties now report a build diagnostic instead of being silently ignored. A path such as `card.badge.glow = 10` is parsed, but the runtime warns because `glow` is not part of the current shipped assignment surface.
-
-Text and math content are rendered through text-path keyframes; shape actors are rendered through vector-path keyframes.
-
-Absolute positioning is intentionally preserved in the language. The design change is about making layout containers and scene-relative placement the preferred default, not about removing direct coordinate control.
-
-Current layout honesty note: `Row` / `Col` / `Grid` / `Stack` consume the child `size` track as a declaration-time measure/place contract. Visual-only transforms such as animated `scale`, rotation, or opacity do not promise per-frame relayout in the current shipped slice.
-
-## 4.1 Bracket Modifier Status
-
-Square brackets are parsed through one generic modifier shape, but the current runtime does **not** treat every declaration surface equally.
-
-**Runtime-real today:**
-- property assignments support duration shorthand plus named `delay` plus named `ease`
-- `Text`, `Math`, and `Code` declarations support duration shorthand plus named `delay` plus named `ease`
-- built-in actions (`fade-in`, `wipe-in`, `fade-out`) support duration shorthand plus named `delay` plus named `ease`
-
-**Runtime-real today:**
-- actor re-declarations use the same shipped timing subset as the other declaration/action hosts: duration shorthand plus named `delay` plus named `ease`
-- timed path-morphing re-declarations can additionally use `strategy: auto|match`, `path_arc`, and `stretch`
-
-**Planned / not yet runtime-real:**
-- `strategy: fade`
-
-Duplicate shipped modifier keys are reported deliberately and the runtime uses the last provided value. `ease` without an explicit duration remains an instant change; `delay` can shift that instant application later in time.
-
-Near-term note: the shipped scoped morph controls are `strategy: auto|match`, `path_arc`, and `stretch` on timed path-morphing re-declarations. A true `fade` strategy is deferred for now because it likely needs a different transition/compositing representation than the existing single-track morph path model.
-
-Unsupported modifier keys are reported explicitly during build/timeline construction rather than being treated as silently supported behavior.
-
-The intended long-term design is a typed declarative modifier bag with one universal duration shorthand, a small shared timing vocabulary, and host-specific keys only where a statement kind explicitly supports them.
+For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies), see [`spec.md`](spec.md).
 
 ---
 
-# 5. Morphing Status
+# 5. Planned / Parser-Only
 
-**Implemented today:**
-- Vector path interpolation for runtime scene tracks
-- Low-level path morphing in `timeline/morph.rs`
-- Shape-to-path morph helpers in `timeline/kurbo_shapes.rs`
-
-**Not implemented in the DSL/runtime yet:**
-- `strategy: fade`
-- High-level multi-strategy morph selection described in older drafts
-
----
-
-# 6. Other Planned Primitives
-
-Some shape-oriented concepts also exist in lower-level Rust modules such as `kurbo_shapes.rs`; `Arc`, `Polygon`, and `Path` are now part of the shipped runtime surface described above.
-
----
-
-# 7. Rendering Notes
-
-Animatix uses **Vello** as the primary rendering backend. Text, math, SVGs, plots, and the currently supported shape actors are all converted into vector path data for rendering.
+- `Image` / `Svg` source assignment (currently requires re-declaration)
+- `Ellipse` rotation
+- `strategy: fade` morphing
+- High-level multi-strategy morph selection
