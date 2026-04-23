@@ -1,33 +1,25 @@
-// Animatix Showcase: "The Making Of"
-// A 5-second animated demonstration of Animatix capabilities
-// Shows layout-first composition, timeline animation, morphing, and composition helpers
+// Animatix Showcase
+// A 5-second demonstration of layout-first composition, animation, and primitives
 
 config { colorscheme: "editorial-dark" }
 
 // ============================================================
-// ACT 1: Foundation (0-1s)
-// Scene establishment with fade-in and draw-in actions
+// ACT 1: Title (0-1s)
 // ============================================================
 
 #0s
 
-backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
 hero_title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.top, offset: (0, 120)
 hero_subtitle: Text, text: "Layout-first animation", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 220)
 
 #0.2s
-fade-in backdrop [800ms, ease: ease-out]
-
-#0.4s
 fade-in hero_title [600ms, ease: ease-out]
 
-#0.8s
+#0.4s
 fade-in hero_subtitle [600ms, ease: ease-in-out]
 
 // ============================================================
-// ACT 2: Layout Composition (1-2.5s)
-// Col container slides in, children appear via stagger
-// Demonstrates layout-managed positioning without explicit 'at'
+// ACT 2: Feature List (1-2.5s)
 // ============================================================
 
 #1.0s
@@ -53,9 +45,7 @@ stagger [100ms] {
 }
 
 // ============================================================
-// ACT 3: Primitives Showcase (2.5-4s)
-// Row container rises from bottom with animated shapes
-// Demonstrates property animation and morphing
+// ACT 3: Primitives (2.5-4s)
 // ============================================================
 
 #2.5s
@@ -64,7 +54,7 @@ primitives_row: Row, anchor: scene.bottom, offset: (0, -140), gap: 80, align: "c
   orb: Circle, radius: 0, color: accent.danger
   connector: Line, from: (0, 0), to: (0, 0), stroke: accent.primary, stroke_width: 4
   box: Rect, size: (0, 0), color: accent.success
-  equation: Math, math: "x", font_size: 48, color: accent.primary
+  equation: Math, math: "E = mc^2", font_size: 48, color: accent.primary
 }
 
 #2.6s
@@ -80,9 +70,6 @@ connector.to = (50, 0) [400ms, ease: ease-out]
 #3.0s
 box.size = (120, 80) [500ms, ease: ease-out]
 
-#3.2s
-equation: Math, math: "E = mc^2", font_size: 48, color: accent.primary [800ms, ease: ease-in-out]
-
 #3.4s
 orb.color = accent.success [600ms, ease: ease-in-out]
 
@@ -90,14 +77,13 @@ orb.color = accent.success [600ms, ease: ease-in-out]
 box.color = accent.warning [600ms, ease: ease-in-out]
 
 // ============================================================
-// ACT 4: Code Block and SVG Reveal (4-5s)
-// Demonstrates Code primitive and SVG
+// ACT 4: Code Block (4-5s)
 // ============================================================
 
 #4.0s
 
-code_panel: Rect, size: (400, 180), color: (0.15, 0.17, 0.22, 1.0), anchor: scene.right, offset: (-220, -40)
-code_snippet: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -40)
+code_panel: Rect, size: (400, 180), color: surface.secondary, anchor: scene.right, offset: (-220, -40)
+code_snippet: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -20)
 
 #4.1s
 shift code_panel [by: (-40, 0), 600ms, ease: ease-out]
@@ -109,17 +95,8 @@ fade-in code_panel [400ms]
 #4.3s
 fade-in code_snippet [800ms, ease: ease-in-out]
 
-#4.5s
-logo_container: Col, anchor: scene.right, offset: (-120, 80), align: "center", gap: 8 {
-  logo_label: Text, text: "Powered by", font_size: 14, color: text.secondary
-  logo_svg: Svg, url: "examples/vector.svg", scale: 1.5
-}
-
-#4.6s
-fade-in logo_container [400ms]
-
 // ============================================================
-// FINALE: Hold and subtle motion (5s+)
+// FINALE (5s+)
 // ============================================================
 
 #5.0s
@@ -130,6 +107,3 @@ sequence {
 
 #5.2s
 shift primitives_row [by: (0, -10), 2s, ease: ease-in-out]
-
-#5.5s
-equation: Math, math: "E = mc^2", font_size: 48, color: accent.danger [1s, ease: ease-in-out]
