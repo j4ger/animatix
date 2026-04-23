@@ -5,8 +5,8 @@ use animatix::module::ModuleGraph;
 use animatix::parser::parser;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    AnimationTrack, Interpolate, MorphStrategy, PlacementMode, PositionBinding, PropertyTrack,
-    SceneAnchor, Timeline, evaluate_expr, parse_color, time_to_ms,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, MorphStrategy,
+    PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use chumsky::Parser;
 use kurbo::Shape;
@@ -476,18 +476,14 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorscheme)
-    );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorReference)
-    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorscheme));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownColorReference));
 }
 
 #[test]
@@ -1194,12 +1190,10 @@ left.title_text.color = green
         timeline.tracks["left.badge"].color.evaluate(1000),
         [1.0, 0.0, 0.0, 1.0]
     );
-    assert!(
-        !timeline.tracks["left.title_text"]
-            .text_paths
-            .evaluate(1000)
-            .is_empty()
-    );
+    assert!(!timeline.tracks["left.title_text"]
+        .text_paths
+        .evaluate(1000)
+        .is_empty());
 }
 
 #[test]
@@ -3271,24 +3265,27 @@ fn test_showcase_logo_is_layout_managed_inside_anchored_svg_column() {
 
     let ast = parse_program(&showcase);
     let timeline = Timeline::build(&ast);
-    let svg_col = timeline
+    let logo_container = timeline
         .tracks
-        .get("svg_col")
-        .expect("svg_col track should exist");
+        .get("logo_container")
+        .expect("logo_container track should exist");
     let track = timeline
         .tracks
-        .get("logo")
-        .expect("logo track should exist");
+        .get("logo_svg")
+        .expect("logo_svg track should exist");
 
     assert_eq!(
-        svg_col.position_binding.evaluate(0),
-        PositionBinding::SceneAnchor {
-            anchor: SceneAnchor::Top,
-            offset: [900.0, 200.0],
-        }
+        logo_container.position_binding.evaluate(0),
+        PositionBinding::Absolute
     );
-    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::LayoutManaged);
-    assert_eq!(track.position_binding.evaluate(0), PositionBinding::Absolute);
+    assert_eq!(
+        track.placement_mode.evaluate(0),
+        PlacementMode::LayoutManaged
+    );
+    assert_eq!(
+        track.position_binding.evaluate(0),
+        PositionBinding::Absolute
+    );
 }
 
 #[test]
