@@ -423,7 +423,7 @@ mod tests {
             body: vec![circle_decl("shape"), action_stmt("draw-in", "shape", 1.0)],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
         assert_eq!(track.stroke_progress.evaluate(0), 0.0);
@@ -440,7 +440,7 @@ mod tests {
             body: vec![image_decl("photo"), action_stmt("wipe-out", "photo", 1.0)],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -460,7 +460,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
         assert_eq!(track.fill_opacity.evaluate(0), 0.0);
@@ -495,7 +495,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
         assert_eq!(track.fill_opacity.evaluate(249), 1.0);
@@ -515,7 +515,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -532,7 +532,7 @@ mod tests {
             body: vec![circle_decl("shape"), action_stmt("draw-out", "shape", 1.0)],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
         assert_eq!(track.stroke_progress.evaluate(0), 1.0);
@@ -555,7 +555,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report

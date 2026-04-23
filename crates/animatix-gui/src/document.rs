@@ -1,7 +1,8 @@
 use animatix::ast::{Expr, Stmt};
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix::module::ModuleGraph;
+use animatix::module::{ModuleGraph, Namespace};
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -9,6 +10,7 @@ pub struct DocumentSession {
     pub file_path: PathBuf,
     pub source_text: String,
     pub expanded_statements: Option<Vec<Stmt>>,
+    pub namespaces: HashMap<String, Namespace>,
     pub timeline: Option<Timeline>,
     pub diagnostics: Vec<Diagnostic>,
     pub last_rebuild_error: Option<String>,
@@ -26,6 +28,7 @@ impl DocumentSession {
             file_path,
             source_text,
             expanded_statements: None,
+            namespaces: HashMap::new(),
             timeline: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
@@ -43,6 +46,7 @@ impl DocumentSession {
             file_path,
             source_text: String::new(),
             expanded_statements: None,
+            namespaces: HashMap::new(),
             timeline: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
@@ -73,11 +77,12 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), String> {
-        let expanded_statements = match self.load_expanded_statements() {
-            Ok(expanded_statements) => expanded_statements,
+        let (expanded_statements, namespaces) = match self.load_expanded_statements() {
+            Ok((expanded_statements, namespaces)) => (expanded_statements, namespaces),
             Err(err) => {
                 self.last_rebuild_error = Some(err.clone());
                 self.expanded_statements = None;
+                self.namespaces = HashMap::new();
                 self.timeline = None;
                 self.diagnostics = vec![
                     Diagnostic::error(
@@ -92,22 +97,23 @@ impl DocumentSession {
                 return Err(err.to_string());
             }
         };
-        let report = Timeline::build_with_diagnostics(&expanded_statements);
+        let report = Timeline::build_with_diagnostics(&expanded_statements, &namespaces);
         self.last_rebuild_error = None;
         self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);
         self.expanded_statements = Some(expanded_statements);
+        self.namespaces = namespaces;
         self.diagnostics = report.diagnostics;
         self.timeline = Some(report.output);
         Ok(())
     }
 
-    fn load_expanded_statements(&self) -> Result<Vec<Stmt>, String> {
+    fn load_expanded_statements(&self) -> Result<(Vec<Stmt>, HashMap<String, Namespace>), String> {
         let mut graph = ModuleGraph::new();
         let program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))
             .map_err(|err| err.to_string())?;
-        Ok(program.expand_components())
+        Ok((program.expand_components(), program.namespaces))
     }
 }
 

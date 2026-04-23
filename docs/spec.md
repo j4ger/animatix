@@ -15,6 +15,8 @@
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
 | Components | custom component actions | No | Planned | No | Yes | Reserved but rejected by parser |
+| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/module_reuse_demo.amx`. |
+| Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
 | Expressions | closures | Yes | Runtime-real | Yes | Yes | Used by plotting/reactive examples |
 | Expressions | `Expr::Method` | AST-defined | Explicit error | Yes | Partial | Rejected at runtime |
@@ -319,7 +321,35 @@ Model: `for` for structure, keyframes for declarative timed animation, `always` 
 
 ---
 
-## 11. Components
+## 11. Imports, Modules & Namespaces
+
+**Non-aliased imports:** `import "path"` flattens the imported file's statements into the current scene. This is the backward-compatible behavior.
+
+**Aliased imports:** `import "path" as name` loads the file but does NOT flatten its statements. Instead, it collects `pub let` exports and makes them available as `name.export_name`.
+
+```animatix
+import "./theme.amx" as theme
+
+panel: Rect, size: (200, 100), color: theme.accent
+```
+
+**Exporting values:** Use `pub let` to export named values from a module:
+
+```animatix
+pub let accent = (0.38, 0.78, 1.0, 1.0)
+pub let background = (0.04, 0.06, 0.09, 1.0)
+```
+
+Non-`pub` `let` declarations remain local to the file.
+
+**Current limitations:**
+- Namespace access is one level: `alias.export_name`
+- Re-exports (a module exporting values from its own imports) are not supported
+- Export values are evaluated at build time in the importing scene's environment
+
+---
+
+## 12. Components
 
 **Definition:**
 ```animatix
@@ -349,7 +379,7 @@ btn: Button, text: "Submit"
 
 ---
 
-## 12. Math & Graphs
+## 13. Math & Graphs
 
 **`Graph`**: Container mapping logical domains to physical bounds.
 ```animatix
@@ -376,7 +406,7 @@ spiral: PolarPlot, func: (t) => t, color: blue
 
 ---
 
-## 13. Namespacing & Access
+## 14. Namespacing & Access
 
 **Imports:**
 ```animatix

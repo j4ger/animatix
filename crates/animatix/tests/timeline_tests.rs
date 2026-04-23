@@ -475,7 +475,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report
         .diagnostics
         .iter()
@@ -1554,7 +1554,7 @@ copy: Circle, radius: left.missing.radius, at: left.missing.at, color: left.miss
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let report = Timeline::build_with_diagnostics(&expanded);
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
@@ -1610,7 +1610,7 @@ echo.color = left.missing.color
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let report = Timeline::build_with_diagnostics(&expanded);
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
@@ -1660,7 +1660,7 @@ card.nonexistent.color = red
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let report = Timeline::build_with_diagnostics(&expanded);
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownTargetPath
@@ -1703,7 +1703,7 @@ card.badge.glow = 10
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let report = Timeline::build_with_diagnostics(&expanded);
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedAssignmentProperty
@@ -1863,7 +1863,7 @@ fn test_missing_image_statement_reports_media_load_failure() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::MediaLoadFailure
             && diagnostic.location.subject.as_deref() == Some("photo.url")
@@ -1888,7 +1888,7 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::MediaLoadFailure
             && diagnostic.location.subject.as_deref() == Some("icon.url")
@@ -1921,7 +1921,7 @@ fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -1965,7 +1965,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::MediaLoadFailure
             && diagnostic.location.subject.as_deref() == Some("photo.url")
@@ -1997,7 +1997,7 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedMediaAssignment
             && diagnostic.location.subject.as_deref() == Some("icon.url")
@@ -2537,7 +2537,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
     let start_bounds = vector_path_bounds(&timeline, "badge", 1000);
     let mid_bounds = vector_path_bounds(&timeline, "badge", 1500);
@@ -2617,7 +2617,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
     let start_bounds = vector_path_bounds(&timeline, "guide", 1000);
     let mid_bounds = vector_path_bounds(&timeline, "guide", 1500);
@@ -2666,7 +2666,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(report.output.tracks.contains_key("badge"));
     assert!(report.diagnostics.iter().any(|diagnostic| {
@@ -2708,7 +2708,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(report.output.tracks.contains_key("badge"));
     assert!(report.diagnostics.iter().any(|diagnostic| {
@@ -2754,7 +2754,7 @@ fn test_action_delay_starts_later() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -2814,7 +2814,7 @@ fn test_sequence_advances_statement_timing() {
         ],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -2847,7 +2847,7 @@ fn test_sequence_reports_unsupported_statements() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedSequenceStatement
@@ -2898,7 +2898,7 @@ fn test_stagger_offsets_statement_start_times() {
         ],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track_a = report.output.tracks.get("a").expect("a track");
     let track_b = report.output.tracks.get("b").expect("b track");
     let track_c = report.output.tracks.get("c").expect("c track");
@@ -2934,7 +2934,7 @@ fn test_stagger_reports_unsupported_statements() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedStaggerStatement
@@ -2974,7 +2974,7 @@ fn test_rotation_assignment_animates_track() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -3017,7 +3017,7 @@ fn test_scale_assignment_animates_track() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -3049,7 +3049,7 @@ fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -3095,7 +3095,7 @@ fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
         }],
     }];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -3176,7 +3176,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
         },
     ];
 
-    let report = Timeline::build_with_diagnostics(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report
         .output
         .tracks
@@ -4962,4 +4962,54 @@ fn test_evaluate_expr_rand() {
         "rand() * 100 should be in [0, 100), got {}",
         val
     );
+}
+
+#[test]
+fn test_namespace_export_resolution_in_expressions() {
+    let ast = vec![
+        Stmt::LetDecl {
+            is_pub: false,
+            name: "panel_color".to_string(),
+            value: Expr::Path(vec!["theme".to_string(), "accent".to_string()]),
+        },
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "panel".to_string(),
+            ty: "Rect".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Path(vec!["theme".to_string(), "accent".to_string()]),
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+        },
+    ];
+
+    let mut namespaces = std::collections::HashMap::new();
+    let mut theme_ns = animatix::module::Namespace::default();
+    theme_ns.exports.insert(
+        "accent".to_string(),
+        Expr::Tuple(vec![
+            Expr::Num(0.38),
+            Expr::Num(0.78),
+            Expr::Num(1.0),
+            Expr::Num(1.0),
+        ]),
+    );
+    namespaces.insert("theme".to_string(), theme_ns);
+
+    let report = Timeline::build_with_diagnostics(&ast,
+        &namespaces,
+    );
+
+    let timeline = report.output;
+    let track = timeline.tracks.get("panel").unwrap();
+    let color = track.color.last_value();
+    assert_eq!(color, [0.38, 0.78, 1.0, 1.0]);
 }

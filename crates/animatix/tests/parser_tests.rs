@@ -26,42 +26,42 @@ fn parse_error(src: &str) -> bool {
 fn test_let_decl_types() {
     assert_eq!(
         parse_single_stmt("let a = 42"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "a".to_string(),
             value: Expr::Num(42.0)
         }
     );
     assert_eq!(
         parse_single_stmt("let b = 3.14"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "b".to_string(),
             value: Expr::Num(3.14)
         }
     );
     assert_eq!(
         parse_single_stmt("let c = true"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "c".to_string(),
             value: Expr::Bool(true)
         }
     );
     assert_eq!(
         parse_single_stmt("let d = false"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "d".to_string(),
             value: Expr::Bool(false)
         }
     );
     assert_eq!(
         parse_single_stmt("let e = null"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "e".to_string(),
             value: Expr::Null
         }
     );
     assert_eq!(
         parse_single_stmt("let f = \"string\""),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "f".to_string(),
             value: Expr::Str("string".to_string())
         }
@@ -72,14 +72,14 @@ fn test_let_decl_types() {
 fn test_collections() {
     assert_eq!(
         parse_single_stmt("let coords = (10, 20.5)"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "coords".to_string(),
             value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.5)])
         }
     );
     assert_eq!(
         parse_single_stmt("let arr = {a, b}"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "arr".to_string(),
             value: Expr::Tuple(vec![
                 Expr::Ident("a".to_string()),
@@ -89,7 +89,7 @@ fn test_collections() {
     );
     assert_eq!(
         parse_single_stmt("let pct = (50%, 25%)"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "pct".to_string(),
             value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)])
         }
@@ -136,14 +136,14 @@ fn test_assignments_and_paths() {
     );
     assert_eq!(
         parse_single_stmt("let x = container.child"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "x".to_string(),
             value: Expr::Path(vec!["container".to_string(), "child".to_string()])
         }
     );
     assert_eq!(
         parse_single_stmt("let fill = left.badge.color"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "fill".to_string(),
             value: Expr::Path(vec![
                 "left".to_string(),
@@ -154,7 +154,7 @@ fn test_assignments_and_paths() {
     );
     assert_eq!(
         parse_single_stmt("let center = scene.center"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "center".to_string(),
             value: Expr::Path(vec!["scene".to_string(), "center".to_string()])
         }
@@ -925,7 +925,7 @@ fn test_lifecycle_hook_syntax_rejected() {
 fn test_on_is_not_reserved_identifier() {
     assert_eq!(
         parse_single_stmt("let on = 1"),
-        Stmt::LetDecl {
+        Stmt::LetDecl { is_pub: false,
             name: "on".to_string(),
             value: Expr::Num(1.0),
         }
@@ -938,7 +938,7 @@ fn test_always() {
     assert_eq!(
         result,
         Stmt::Always {
-            body: vec![Stmt::LetDecl {
+            body: vec![Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Path(vec!["btn".to_string(), "x".to_string()]),
             }],
@@ -997,7 +997,7 @@ fn test_labeled_always_simple() {
         result,
         Stmt::LabeledAlways {
             label: "reactive".to_string(),
-            body: vec![Stmt::LetDecl {
+            body: vec![Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Num(1.0),
             }],
@@ -1081,6 +1081,56 @@ fn test_for_loop_with_range() {
                     value: Expr::Ident("0.1s".to_string()),
                 }],
             })],
+        }
+    );
+}
+
+#[test]
+fn test_pub_let_declaration() {
+    let result = parse_single_stmt("pub let pi = 3.14");
+    assert_eq!(
+        result,
+        Stmt::LetDecl {
+            is_pub: true,
+            name: "pi".to_string(),
+            value: Expr::Num(3.14),
+        }
+    );
+}
+
+#[test]
+fn test_let_declaration_without_pub() {
+    let result = parse_single_stmt("let x = 42");
+    assert_eq!(
+        result,
+        Stmt::LetDecl {
+            is_pub: false,
+            name: "x".to_string(),
+            value: Expr::Num(42.0),
+        }
+    );
+}
+
+#[test]
+fn test_import_with_alias() {
+    let result = parse_single_stmt(r#"import "theme.amx" as theme"#);
+    assert_eq!(
+        result,
+        Stmt::Import {
+            path: "theme.amx".to_string(),
+            alias: Some("theme".to_string()),
+        }
+    );
+}
+
+#[test]
+fn test_import_without_alias() {
+    let result = parse_single_stmt(r#"import "shared.amx""#);
+    assert_eq!(
+        result,
+        Stmt::Import {
+            path: "shared.amx".to_string(),
+            alias: None,
         }
     );
 }

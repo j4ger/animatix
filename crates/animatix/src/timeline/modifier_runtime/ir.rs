@@ -110,7 +110,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             property: property.clone(),
             value: compile_modifier_expr(value),
         }),
-        Stmt::LetDecl { name, value } => Ok(ModifierIrStmt::Let {
+        Stmt::LetDecl { name, value, is_pub: _ } => Ok(ModifierIrStmt::Let {
             name: name.clone(),
             value: compile_modifier_expr(value),
         }),

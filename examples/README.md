@@ -36,6 +36,7 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `colorscheme_demo.amx`
 - `colorscheme_defaults_demo.amx`
 - `colorscheme_ocean.amx`
+- `module_reuse_demo.amx`
 
 ## Family Notes
 
@@ -59,6 +60,8 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `colorscheme_defaults_demo.amx` is the minimal-boilerplate demonstration: primitives receive scheme-appropriate defaults automatically (Text→text.primary, shapes→surface.primary, strokes→stroke.default) with no explicit color properties needed in most cases.
 
 `colorscheme_ocean.amx` is the focused example for inline colorscheme definition with `extends` inheritance: `let ocean = Colorscheme { extends: "default-dark", ... }` followed by `config { colorscheme: "ocean" }`.
+
+`module_reuse_demo.amx` is the focused example for the module system v1: `pub let` exports in one file, `import "..." as name` namespaced imports in another, and qualified access like `theme.accent` in actor property expressions.
 
 `code_demo.amx` is the focused example for the shipped v1 `Code` primitive: code content rendered through the existing text-path pipeline with animated position, color, and re-declaration updates.
 

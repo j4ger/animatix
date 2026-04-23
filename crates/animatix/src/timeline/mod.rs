@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn test_colorscheme_primitive_declaration() {
         let ast = vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "test-scheme".to_string(),
                 value: Expr::Construct(
                     "Colorscheme".to_string(),
@@ -305,7 +305,7 @@ mod tests {
             },
         ];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let timeline = report.output;
 
         assert_eq!(timeline.colorscheme.name, "test-scheme");
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_colorscheme_let_declaration() {
         let ast = vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "test-scheme-let".to_string(),
                 value: Expr::Construct(
                     "Colorscheme".to_string(),
@@ -354,7 +354,7 @@ mod tests {
             },
         ];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let timeline = report.output;
 
         assert_eq!(timeline.colorscheme.name, "test-scheme-let");
@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn test_colorscheme_inheritance() {
         let ast = vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "child".to_string(),
                 value: Expr::Construct(
                     "Colorscheme".to_string(),
@@ -399,7 +399,7 @@ mod tests {
             },
         ];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let timeline = report.output;
 
         assert_eq!(timeline.colorscheme.name, "child");
@@ -416,7 +416,7 @@ mod tests {
     #[test]
     fn test_colorscheme_auto_cycle() {
         let ast = vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "auto-test".to_string(),
                 value: Expr::Construct(
                     "Colorscheme".to_string(),
@@ -469,7 +469,7 @@ mod tests {
             },
         ];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let mut timeline = report.output;
 
         let color_a = timeline.auto_color_for_label("a");

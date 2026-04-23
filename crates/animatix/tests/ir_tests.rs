@@ -32,7 +32,7 @@ fn ir_lowering_lowers_always_assignment_subset() {
 fn ir_lowering_supports_conditionals_and_lets() {
     let program = vec![Stmt::Always {
         body: vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Binary(
                     Box::new(Expr::Ident("t".to_string())),
@@ -238,7 +238,7 @@ fn modifier_bytecode_compiles_assignment_subset() {
 fn modifier_bytecode_executes_let_and_if() {
     let program = vec![Stmt::Always {
         body: vec![
-            Stmt::LetDecl {
+            Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Binary(
                     Box::new(Expr::Ident("t".to_string())),

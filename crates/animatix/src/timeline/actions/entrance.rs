@@ -252,7 +252,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report
             .output
             .tracks
@@ -272,7 +272,7 @@ mod tests {
             body: vec![rect_decl("panel"), action_stmt("wipe-in", "panel", 1.0)],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("panel").expect("panel track");
 
         assert_eq!(track.stroke_progress.evaluate(0), 0.0);
@@ -294,7 +294,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report

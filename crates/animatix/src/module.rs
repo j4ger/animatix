@@ -42,11 +42,44 @@ pub struct ComponentEntry {
 pub struct LoadedProgram {
     pub statements: Vec<Stmt>,
     pub components: HashMap<String, ComponentEntry>,
+    pub namespaces: HashMap<String, Namespace>,
 }
 
 impl LoadedProgram {
     pub fn expand_components(&self) -> Vec<Stmt> {
         expand_statements(&self.statements, &self.components)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Namespace {
+    pub exports: HashMap<String, Expr>,
+}
+
+/// Collects all `pub let` declarations from statements, recursing into
+/// Keyframe, RelativeKeyframe, Sequence, and Stagger bodies.
+fn collect_pub_lets(statements: &[Stmt]) -> HashMap<String, Expr> {
+    let mut result = HashMap::new();
+    collect_pub_lets_inner(statements, &mut result);
+    result
+}
+
+fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<String, Expr>) {
+    for stmt in statements {
+        match stmt {
+            Stmt::LetDecl { is_pub, name, value } => {
+                if *is_pub {
+                    result.insert(name.clone(), value.clone());
+                }
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body }
+            | Stmt::Stagger { body, .. } => {
+                collect_pub_lets_inner(body, result);
+            }
+            _ => {}
+        }
     }
 }
 
@@ -292,9 +325,32 @@ impl ModuleGraph {
         let mut components = HashMap::new();
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
+        let mut namespaces = HashMap::new();
+        // Only collect namespaces from the entry file's direct aliased imports
+        if let Some(entry_module) = self.files.get(&entry_id) {
+            for imp in &entry_module.imports {
+                if let Some(ref alias) = imp.alias {
+                    let import_path = Self::resolve_path(
+                        entry_module.path.parent().unwrap_or(Path::new(".")),
+                        &imp.path,
+                    );
+                    if let Some(import_id) = fs::canonicalize(&import_path)
+                        .ok()
+                        .and_then(|p| self.paths.get(&p).copied())
+                    {
+                        if let Some(imported_module) = self.files.get(&import_id) {
+                            let exports = collect_pub_lets(&imported_module.statements);
+                            namespaces.insert(alias.clone(), Namespace { exports });
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(LoadedProgram {
             statements,
             components,
+            namespaces,
         })
     }
 
@@ -311,6 +367,9 @@ impl ModuleGraph {
 
         if let Some(module) = self.files.get(&file_id) {
             for imp in &module.imports {
+                if imp.alias.is_some() {
+                    continue; // Aliased imports are not flattened
+                }
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.path);
                 if let Some(import_id) = fs::canonicalize(&import_path)
@@ -379,6 +438,48 @@ impl ModuleGraph {
         }
 
         Ok(())
+    }
+
+    fn collect_namespaces_recursive(
+        &self,
+        file_id: FileId,
+        visited: &mut Vec<FileId>,
+    ) -> Result<HashMap<String, Namespace>, ModuleError> {
+        if visited.contains(&file_id) {
+            return Ok(HashMap::new());
+        }
+        visited.push(file_id);
+
+        let mut namespaces = HashMap::new();
+
+        if let Some(module) = self.files.get(&file_id) {
+            for imp in &module.imports {
+                if imp.alias.is_some() {
+                    // This is an aliased import — collect exports from the target file
+                    let import_path = Self::resolve_path(
+                        module.path.parent().unwrap_or(Path::new(".")),
+                        &imp.path,
+                    );
+                    if let Some(import_id) = fs::canonicalize(&import_path)
+                        .ok()
+                        .and_then(|p| self.paths.get(&p).copied())
+                    {
+                        // Collect pub lets from the imported file
+                        if let Some(imported_module) = self.files.get(&import_id) {
+                            let exports = collect_pub_lets(&imported_module.statements);
+                            if let Some(ref alias) = imp.alias {
+                                namespaces.insert(
+                                    alias.clone(),
+                                    Namespace { exports },
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(namespaces)
     }
 }
 

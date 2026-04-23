@@ -1,0 +1,13 @@
+// Module Reuse Demo
+// Demonstrates `pub let` exports and `import ... as` namespaced access
+
+pub let accent = (0.38, 0.78, 1.0, 1.0)
+pub let background = (0.04, 0.06, 0.09, 1.0)
+pub let text_primary = (0.97, 0.98, 1.0, 1.0)
+pub let text_secondary = (0.73, 0.80, 0.89, 1.0)
+pub let surface_primary = (0.11, 0.16, 0.24, 1.0)
+pub let success = (0.35, 0.86, 0.63, 1.0)
+pub let warning = (0.98, 0.83, 0.44, 1.0)
+pub let danger = (1.0, 0.46, 0.54, 1.0)
+
+let private = (1.0, 0.0, 0.0, 1.0) // not exported

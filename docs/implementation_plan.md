@@ -19,6 +19,7 @@ The following are already part of the current baseline and should not be treated
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
+- Module system v1: `pub let` value exports and `import ... as` namespaced imports with qualified access (`alias.export_name`)
 - Colorschemes v1: built-in scene selection, semantic color/stroke aliases, deterministic `color: auto` defaults, and inline `Colorscheme` primitive definition with `extends` inheritance
 - Colorscheme primitive-type defaults: automatic scheme-appropriate default colors when primitives omit explicit `color` / `stroke`
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
@@ -60,11 +61,11 @@ That document should be treated as the implementation design for colorscheme wor
 
 ### Current priority order
 
-1. **Phase 1** — Primitive-Type Default Colors: Automatic scheme-appropriate defaults
-2. **Phase 2** — Module System Enhancement: `pub let` exports and `import ... as` syntax
-3. **Phase 3** — Colorscheme Module Reuse: Standard module-based scheme sharing
-4. **Phase 4** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
-5. **Phase 5** — Tooling and Authoring Workflow Refinement
+1. ~~Phase 1~~ — Primitive-Type Default Colors: Shipped
+2. ~~Phase 2~~ — Module System Enhancement: `pub let` exports and `import ... as` syntax: Shipped
+3. **Phase 3** — Colorscheme Module Reuse: Standard module-based scheme sharing (active)
+4. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+5. Phase 5 — Tooling and Authoring Workflow Refinement
 6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
@@ -104,6 +105,8 @@ That document should be treated as the implementation design for colorscheme wor
 ---
 
 ## 5. Phase 2 — Module System Enhancement: `pub let` exports and `import ... as` syntax
+
+**Status: Shipped**
 
 **Urgency:** High
 
@@ -146,7 +149,8 @@ That document should be treated as the implementation design for colorscheme wor
 **Goal:** Enable colorscheme definition and reuse through the standard module system built in Phase 2.
 
 **Why after Phase 2:**
-- Colorscheme module reuse depends on `pub let` exports and `import ... as` syntax
+- Phase 2 is now shipped, enabling `pub let` exports and `import ... as` syntax
+- Colorscheme module reuse depends on this Phase 2 infrastructure
 - The inline `Colorscheme` primitive already works for ad-hoc definition
 - Module-based reuse is the natural next step after the infrastructure exists
 

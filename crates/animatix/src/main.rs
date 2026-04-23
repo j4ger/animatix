@@ -131,15 +131,15 @@ fn main() {
         } => {
             println!("Rendering Animatix file: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_program(&input) {
-                Ok(program) => program.expand_components(),
+            let (ast, namespaces) = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => (program.expand_components(), program.namespaces),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
 
-            let report = Timeline::build_with_diagnostics(&ast);
+            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
             print_build_diagnostics(&report.diagnostics);
             renderer::run_timeline_with_options(
                 report.output,
@@ -159,8 +159,8 @@ fn main() {
         } => {
             println!("Rendering Animatix image: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_program(&input) {
-                Ok(program) => program.expand_components(),
+            let (ast, namespaces) = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => (program.expand_components(), program.namespaces),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -176,7 +176,7 @@ fn main() {
                 time,
                 output_file.display()
             );
-            let report = Timeline::build_with_diagnostics(&ast);
+            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
             print_build_diagnostics(&report.diagnostics);
             renderer::render_image_timeline_with_debug(
                 report.output,
@@ -200,8 +200,8 @@ fn main() {
         } => {
             println!("Rendering Animatix video: {}", input.display());
 
-            let ast = match ModuleGraph::new().load_program(&input) {
-                Ok(program) => program.expand_components(),
+            let (ast, namespaces) = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => (program.expand_components(), program.namespaces),
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -220,7 +220,7 @@ fn main() {
                 duration,
                 output_file.display()
             );
-            let report = Timeline::build_with_diagnostics(&ast);
+            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
             print_build_diagnostics(&report.diagnostics);
             renderer::render_video_timeline_with_debug(
                 report.output,

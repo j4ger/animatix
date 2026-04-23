@@ -451,11 +451,19 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .padded();
 
     let stmt = recursive(|_stmt| {
-        let let_decl = text::keyword("let")
-            .ignore_then(ident.clone())
-            .then_ignore(just('=').padded())
-            .then(expr.clone())
-            .map(|(name, value)| Stmt::LetDecl { name, value })
+        let let_decl = text::keyword("pub")
+            .padded()
+            .or_not()
+            .then(text::keyword("let")
+                .padded()
+                .ignore_then(ident.clone())
+                .then_ignore(just('=').padded())
+                .then(expr.clone()))
+            .map(|(pub_kw, (name, value))| Stmt::LetDecl {
+                is_pub: pub_kw.is_some(),
+                name,
+                value,
+            })
             .padded();
 
         let import_stmt = text::keyword("import")
@@ -465,7 +473,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .ignore_then(none_of('"').repeated().collect::<String>())
                     .then_ignore(just('"')),
             )
-            .map(|path| Stmt::Import { path })
+            .then(
+                text::keyword("as")
+                    .padded()
+                    .ignore_then(ident.clone())
+                    .or_not(),
+            )
+            .map(|(path, alias)| Stmt::Import { path, alias })
             .padded();
 
         let assignment = dotted_ident
@@ -862,7 +876,8 @@ mod tests {
 
         // Find the LetDecl stmt
         if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::LetDecl { name, value } = &body[0] {
+            if let Stmt::LetDecl { is_pub, name, value } = &body[0] {
+                assert_eq!(*is_pub, false);
                 assert_eq!(name, "f");
                 assert_eq!(
                     *value,

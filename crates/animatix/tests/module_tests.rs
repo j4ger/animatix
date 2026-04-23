@@ -143,3 +143,75 @@ card: MetricCard, title: "Latency"
     let timeline = Timeline::build(&expanded);
     assert!(timeline.tracks.contains_key("card"));
 }
+
+#[test]
+fn load_program_collects_namespaced_pub_let_exports() {
+    let dir = temp_project_dir("namespaced_exports");
+    let entry = dir.join("scene.amx");
+    let theme = dir.join("theme.amx");
+
+    write_file(
+        &theme,
+        r#"
+pub let accent = (0.38, 0.78, 1.0, 1.0)
+pub let background = (0.04, 0.06, 0.09, 1.0)
+let private = (1.0, 0.0, 0.0, 1.0)
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./theme.amx" as theme
+
+panel: Rect, size: (200, 100), color: theme.accent
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+
+    assert!(program.namespaces.contains_key("theme"));
+    let theme_ns = program.namespaces.get("theme").unwrap();
+    assert!(theme_ns.exports.contains_key("accent"));
+    assert!(theme_ns.exports.contains_key("background"));
+    assert!(!theme_ns.exports.contains_key("private"));
+
+    // Verify the expanded statements do NOT include theme's statements
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
+    assert!(!expanded_debug.contains("0.38")); // theme's pub let values not flattened
+    assert!(!expanded_debug.contains("background")); // theme's other pub let not flattened
+    assert!(expanded_debug.contains("panel"));
+}
+
+#[test]
+fn load_program_aliased_import_does_not_flatten() {
+    let dir = temp_project_dir("aliased_no_flatten");
+    let entry = dir.join("scene.amx");
+    let helper = dir.join("helper.amx");
+
+    write_file(
+        &helper,
+        r#"
+pub let offset = 120
+hidden: Circle, radius: 50
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./helper.amx" as helper
+
+visible: Rect, size: (100, 100)
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+
+    // The hidden circle from helper should NOT be in expanded statements
+    let expanded_debug = format!("{expanded:#?}");
+    assert!(!expanded_debug.contains("hidden"));
+    assert!(expanded_debug.contains("visible"));
+}

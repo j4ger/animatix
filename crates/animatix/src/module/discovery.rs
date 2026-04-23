@@ -10,7 +10,7 @@ pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<Import> {
 
 fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<Import>) {
     match stmt {
-        Stmt::Import { path } => imports.push(Import { path: path.clone() }),
+        Stmt::Import { path, alias } => imports.push(Import { path: path.clone(), alias: alias.clone() }),
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
         | Stmt::Sequence { body } => {

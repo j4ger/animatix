@@ -11,10 +11,13 @@ use super::*;
 
 impl Timeline {
     pub fn build(ast: &[Stmt]) -> Self {
-        Self::build_with_diagnostics(ast).output
+        Self::build_with_diagnostics(ast, &std::collections::HashMap::new()).output
     }
 
-    pub fn build_with_diagnostics(ast: &[Stmt]) -> BuildReport<Self> {
+    pub fn build_with_diagnostics(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+    ) -> BuildReport<Self> {
         let mut timeline = Self::new();
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
@@ -22,6 +25,32 @@ impl Timeline {
         let mut diagnostics = Vec::new();
 
         timeline.load_colorscheme_declarations(ast, &mut diagnostics);
+
+        // Seed environment with namespace exports
+        for (alias, namespace) in namespaces {
+            for (name, expr) in &namespace.exports {
+                let key = format!("{}.{}", alias, name);
+                // Evaluate the export expression in the current env
+                match evaluate_expr(expr, &timeline.env) {
+                    Ok(value) => {
+                        timeline.env.set(&key, value);
+                    }
+                    Err(e) => {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::ModuleExportEvalError,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Failed to evaluate export '{}.{}': {}; using default.",
+                                    alias, name, e
+                                ),
+                            )
+                            .with_subject(&key),
+                        );
+                    }
+                }
+            }
+        }
 
         for stmt in ast {
             if let Stmt::Config { settings } = stmt {
@@ -79,7 +108,7 @@ impl Timeline {
             std::collections::HashMap::new();
 
         for stmt in ast {
-            if let Stmt::LetDecl { name, value } = stmt {
+            if let Stmt::LetDecl { is_pub: _, name, value } = stmt {
                 if let Expr::Construct(type_name, properties) = value {
                     if type_name == "Colorscheme" {
                         // Extract extends from properties

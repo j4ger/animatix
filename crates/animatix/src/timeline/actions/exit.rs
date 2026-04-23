@@ -131,7 +131,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report
             .output
             .tracks

@@ -56,6 +56,7 @@ pub enum DiagnosticCode {
     InvalidColorschemeData,
     ColorschemeInheritanceCycle,
     EmptyAutoColorPool,
+    ModuleExportEvalError,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -88,6 +89,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::InvalidColorschemeData => write!(f, "invalid-colorscheme-data"),
             DiagnosticCode::ColorschemeInheritanceCycle => write!(f, "colorscheme-inheritance-cycle"),
             DiagnosticCode::EmptyAutoColorPool => write!(f, "empty-auto-color-pool"),
+            DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
         }
     }
 }

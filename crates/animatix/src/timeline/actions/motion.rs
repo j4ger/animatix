@@ -614,7 +614,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert_eq!(track.motion_offset.evaluate(0), [0.0, 0.0]);
@@ -629,7 +629,7 @@ mod tests {
             body: vec![circle_decl("badge"), move_action("badge", Expr::Num(10.0))],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -649,7 +649,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert!((track.rotation.evaluate(0) - 0.0).abs() < f32::EPSILON);
@@ -667,7 +667,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -684,7 +684,7 @@ mod tests {
             body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(1.5))],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert!((track.scale.evaluate(0) - 1.0).abs() < f32::EPSILON);
@@ -699,7 +699,7 @@ mod tests {
             body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(0.0))],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -722,7 +722,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert_eq!(track.motion_offset.evaluate(0), [0.0, 0.0]);
@@ -737,7 +737,7 @@ mod tests {
             body: vec![circle_decl("badge"), shift_action("badge", Expr::Num(10.0))],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
             report
@@ -776,7 +776,7 @@ mod tests {
             ],
         }];
 
-        let report = Timeline::build_with_diagnostics(&ast);
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("child").expect("child track");
 
         assert_eq!(

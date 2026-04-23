@@ -164,6 +164,7 @@ pub enum Stmt {
     // === Declarations ===
     /// Variable: let x = 0
     LetDecl {
+        is_pub: bool,
         name: String,
         value: Expr,
     },
@@ -219,6 +220,7 @@ pub enum Stmt {
     /// Import: import "path"
     Import {
         path: String,
+        alias: Option<String>,
     },
 
     /// Use: use container.{a, b}
@@ -325,6 +327,7 @@ pub enum FileType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
     pub path: String,
+    pub alias: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

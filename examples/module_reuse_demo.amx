@@ -1,0 +1,33 @@
+// Module Reuse Demo
+// Shows `import ... as` with `pub let` exports for reusable palette modules
+
+import "./theme_module.amx" as theme
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+
+backdrop: Rect, size: (1280, 720), color: theme.background, anchor: scene.center
+
+title: Text, text: "Module Reuse", font_size: 72, color: theme.text_primary, anchor: scene.top, offset: (0, 120)
+subtitle: Text, text: "pub let exports + import as", font_size: 24, color: theme.text_secondary, anchor: scene.top, offset: (0, 200)
+
+#1s
+
+row: Row, anchor: scene.center, gap: 40, align: "center" {
+  card_a: Rect, size: (160, 100), color: theme.accent
+  card_b: Rect, size: (160, 100), color: theme.success
+  card_c: Rect, size: (160, 100), color: theme.warning
+  card_d: Rect, size: (160, 100), color: theme.danger
+}
+
+#1.5s
+fade-in row [600ms, ease: ease-out]
+
+#2.5s
+stagger [100ms] {
+  fade-in card_a [300ms]
+  fade-in card_b [300ms]
+  fade-in card_c [300ms]
+  fade-in card_d [300ms]
+}

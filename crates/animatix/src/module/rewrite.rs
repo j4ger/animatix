@@ -146,7 +146,8 @@ pub(super) fn rewrite_stmt(
                 bindings,
             ),
         }),
-        Stmt::LetDecl { name, value } => Stmt::LetDecl {
+        Stmt::LetDecl { is_pub, name, value } => Stmt::LetDecl {
+            is_pub: *is_pub,
             name: name.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
         },
@@ -227,7 +228,7 @@ pub(super) fn rewrite_stmt(
         Stmt::Config { settings } => Stmt::Config {
             settings: rewrite_properties(settings, prefix, root_label, known_labels, bindings),
         },
-        Stmt::Import { path } => Stmt::Import { path: path.clone() },
+        Stmt::Import { path, alias } => Stmt::Import { path: path.clone(), alias: alias.clone() },
         Stmt::Use { path, items } => Stmt::Use {
             path: path.clone(),
             items: items.clone(),
