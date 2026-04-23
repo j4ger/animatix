@@ -469,6 +469,21 @@ title: Text, text: "Hello", font_size: 24, color: text.primary
 title: Text { text: "Hello", font_size: 24, color: text.primary }
 ```
 
+**Text Shorthand:** For `Text` declarations consisting only of content and optional modifiers, the `type` and `text` property can be omitted, producing a more concise form:
+
+```animatix
+// Full form
+title: Text, text: "Hello"
+
+// Shorthand (desugars to the full form above)
+title: "Hello"
+
+// Shorthand with modifiers
+title: "Hello" [2s, ease: ease-in-out]
+```
+
+Note: The shorthand form always creates a `Text` actor. For `Math` or `Code`, use the full syntax with `latex`/`math` or `code` properties respectively.
+
 **Anonymous Children and Auto-UID**
 
 Children without a label receive an auto-generated UID internally. This is used by the runtime to build the scene graph and lay out inline items.

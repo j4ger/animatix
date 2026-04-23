@@ -572,6 +572,25 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        // Shorthand: label: "string" → label: Text, text: "string"
+        let text_shorthand = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then(str_val.clone())
+            .then(modifiers.clone())
+            .map(|((label, text), modifiers)| Stmt::ActorDecl {
+                is_pub: false,
+                label,
+                ty: "Text".to_string(),
+                props: vec![Property {
+                    name: "text".to_string(),
+                    value: text,
+                }],
+                modifiers,
+                children: vec![],
+            })
+            .padded();
+
         let actor_decl = text::keyword("pub")
             .padded()
             .or_not()
@@ -769,6 +788,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             sequence_stmt,
             stagger_stmt,
             component_def,
+            text_shorthand,
             actor_decl,
             action,
             comment,
@@ -830,6 +850,65 @@ mod tests {
                 );
             } else {
                 panic!("Expected LetDecl");
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
+
+    #[test]
+    fn test_text_shorthand_parser() {
+        let input = r#"a: "hello world""#;
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ActorDecl {
+                is_pub,
+                label,
+                ty,
+                props,
+                modifiers,
+                children,
+            } = &body[0]
+            {
+                assert_eq!(*is_pub, false);
+                assert_eq!(label, "a");
+                assert_eq!(ty, "Text");
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].name, "text");
+                assert_eq!(props[0].value, Expr::Str("hello world".to_string()));
+                assert!(modifiers.is_empty());
+                assert!(children.is_empty());
+            } else {
+                panic!("Expected ActorDecl, got {:?}", body[0]);
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
+
+    #[test]
+    fn test_text_shorthand_with_modifiers() {
+        let input = r#"title: "Slide 1" [2s, ease: ease-in-out]"#;
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ActorDecl {
+                label,
+                ty,
+                props,
+                modifiers,
+                ..
+            } = &body[0]
+            {
+                assert_eq!(label, "title");
+                assert_eq!(ty, "Text");
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].name, "text");
+                assert_eq!(props[0].value, Expr::Str("Slide 1".to_string()));
+                assert_eq!(modifiers.len(), 2);
+            } else {
+                panic!("Expected ActorDecl, got {:?}", body[0]);
             }
         } else {
             panic!("Expected Keyframe");

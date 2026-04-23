@@ -17,6 +17,16 @@ Current color note: the shipped runtime now supports built-in colorscheme select
 - `color`: Color
 - `at`: Tuple `(x, y)`
 
+**Shorthand:** When a text declaration contains only content (and optional modifiers), the type and `text` property can be omitted:
+
+```animatix
+// Full form
+title: Text, text: "Hello World", font_size: 24, at: (640, 120)
+
+// Shorthand (desugars to the full form)
+title: "Hello World"
+```
+
 **Example:**
 ```animatix
 title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
