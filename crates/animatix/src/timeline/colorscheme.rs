@@ -175,4 +175,50 @@ impl ResolvedColorscheme {
             self.auto_cycle = base.auto_cycle.clone();
         }
     }
+
+    /// Returns the appropriate default color for a primitive type and property.
+    ///
+    /// Semantic mapping:
+    /// - Text-like (`Text`, `Math`, `Code`): `color` → `text.primary`
+    /// - Shape fill (`Circle`, `Rect`, `Polygon`, `Ellipse`, `Square`, `Dot`, `RegularPolygon`): `color` → `surface.primary`
+    /// - Shape stroke (`Line`, `Arrow`, `Arc`): `stroke` → `stroke.default`
+    /// - Plot curves (`CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot`): `color`/`stroke` → `accent.primary`
+    /// - `Image`, `Svg`: No defaults (use intrinsic colors)
+    /// - `Graph`, containers: Already invisible (no change needed)
+    pub fn default_color_for_primitive(
+        &self,
+        primitive_type: &str,
+        property: &str,
+    ) -> Option<[f32; 4]> {
+        match primitive_type {
+            // Text-like: use text.primary for color
+            "Text" | "Math" | "Code" if property == "color" => self
+                .color("text.primary")
+                .or_else(|| Some([1.0, 1.0, 1.0, 1.0])),
+            // Shape fill: use surface.primary for color
+            "Circle" | "Rect" | "Polygon" | "Ellipse" | "Square" | "Dot" | "RegularPolygon"
+                if property == "color" =>
+            {
+                self.color("surface.primary")
+                    .or_else(|| Some([1.0, 1.0, 1.0, 1.0]))
+            }
+            // Shape stroke: use stroke.default for stroke/stroke_color
+            "Line" | "Arrow" | "Arc" if property == "stroke" || property == "stroke_color" => self
+                .color("stroke.default")
+                .or_else(|| Some([1.0, 1.0, 1.0, 1.0])),
+            // Plot curves: use accent.primary for both color and stroke
+            "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot"
+                if property == "color" || property == "stroke" || property == "stroke_color" =>
+            {
+                self.color("accent.primary")
+                    .or_else(|| Some([1.0, 1.0, 1.0, 1.0]))
+            }
+            // Image, Svg: no defaults (use intrinsic colors)
+            "Image" | "Svg" => None,
+            // Graph, containers, Group: no defaults (already invisible or use intrinsic)
+            "Graph" | "Row" | "Col" | "Grid" | "Stack" | "Group" => None,
+            // Fallback for unknown types: no default
+            _ => None,
+        }
+    }
 }

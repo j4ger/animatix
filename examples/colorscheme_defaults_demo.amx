@@ -1,0 +1,47 @@
+// Runnable example: minimal-boilerplate scene authoring with automatic
+// primitive-type default colors from the selected colorscheme.
+//
+// This scene demonstrates that explicit color properties can be omitted
+// when a colorscheme is selected — primitives receive scheme-appropriate
+// defaults automatically:
+//
+// - Text/Math/Code → text.primary
+// - Shape fills (Circle, Rect, etc.) → surface.primary
+// - Shape strokes (Line, Arrow, Arc) → stroke.default
+// - Plot curves → accent.primary
+//
+// Explicit colors still override defaults, and color: auto still cycles
+// through the auto pool.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
+  eyebrow: Text, text: "Animatix example suite", font_size: 18
+  title: Text, text: "Default Colors", font_size: 42
+  subtitle: Text, text: "Primitives receive scheme-appropriate defaults automatically.", font_size: 20
+  caption: Text, text: "No explicit color properties needed — the editorial-dark scheme handles everything.", font_size: 16
+}
+
+// Shape fills automatically get surface.primary
+panel: Rect, size: (420, 200), stroke: stroke.default, stroke_width: 2, at: (640, 378)
+panel_label: Text, text: "surface.primary + stroke.default", font_size: 18, at: (640, 316)
+
+// Three circles — two with auto colors, one with explicit override
+auto_circles: Row, anchor: scene.center, offset: (0, -10), gap: 60 {
+  alice: Circle, radius: 28
+  bob: Circle, radius: 28
+  carol: Circle, radius: 28
+}
+
+// Line automatically gets stroke.default
+axis: Line, from: (-120, 0), to: (120, 0), stroke_width: 3, at: (640, 520)
+
+// Explicit override still works
+highlight: Circle, radius: 18, color: accent.warning, at: (640, 580)
+override_label: Text, text: "Explicit accent.warning", font_size: 16, at: (640, 610)
+
+#1.4s
+alice.radius = 42 [700ms, ease: ease-in-out]
+bob.color = accent.success [700ms, ease: ease-in-out]
+carol.color = accent.danger [700ms, ease: ease-in-out]

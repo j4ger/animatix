@@ -487,6 +487,200 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
 }
 
 #[test]
+fn primitive_default_colors_apply_when_no_explicit_color() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                // Text without explicit color should get text.primary
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "title".to_string(),
+                    ty: "Text".to_string(),
+                    props: vec![Property {
+                        name: "text".to_string(),
+                        value: Expr::Str("Hello".to_string()),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                // Circle without explicit color should get surface.primary
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "badge".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                // Line without explicit stroke should get stroke.default
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "axis".to_string(),
+                    ty: "Line".to_string(),
+                    props: vec![
+                        Property {
+                            name: "from".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(-50.0), Expr::Num(0.0)]),
+                        },
+                        Property {
+                            name: "to".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(0.0)]),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+
+    // Text should get text.primary from editorial-dark scheme
+    assert_eq!(
+        timeline.tracks["title"].color.evaluate(0),
+        [0.97, 0.98, 1.0, 1.0]
+    );
+    // Circle should get surface.primary from editorial-dark scheme
+    assert_eq!(
+        timeline.tracks["badge"].color.evaluate(0),
+        [0.11, 0.16, 0.24, 1.0]
+    );
+    // Line should get stroke.default from editorial-dark scheme
+    assert_eq!(
+        timeline.tracks["axis"].stroke_color.evaluate(0),
+        [0.97, 0.98, 1.0, 1.0]
+    );
+}
+
+#[test]
+fn explicit_color_beats_primitive_default() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+            }],
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                // Circle with explicit color should keep it
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "explicit".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![
+                        Property {
+                            name: "radius".to_string(),
+                            value: Expr::Num(20.0),
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Num(1.0),
+                                Expr::Num(0.0),
+                                Expr::Num(0.0),
+                                Expr::Num(1.0),
+                            ]),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+                // Circle with auto should use auto pool, not surface.primary
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "auto_color".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![
+                        Property {
+                            name: "radius".to_string(),
+                            value: Expr::Num(20.0),
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("auto".to_string()),
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                },
+            ],
+        },
+    ];
+
+    let timeline = Timeline::build(&ast);
+
+    // Explicit color should win over default
+    assert_eq!(
+        timeline.tracks["explicit"].color.evaluate(0),
+        [1.0, 0.0, 0.0, 1.0]
+    );
+    // Auto should use first auto pool color, not surface.primary
+    assert_eq!(
+        timeline.tracks["auto_color"].color.evaluate(0),
+        [0.38, 0.78, 1.0, 1.0]
+    );
+}
+
+#[test]
+fn default_scheme_applies_primitive_defaults() {
+    // Even without explicit config.colorscheme, the default-dark scheme applies
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            // Text without explicit color should get text.primary from default-dark
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
+                props: vec![Property {
+                    name: "text".to_string(),
+                    value: Expr::Str("Hello".to_string()),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+            // Circle without explicit color should get surface.primary from default-dark
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(20.0),
+                }],
+                modifiers: vec![],
+                children: vec![],
+            },
+        ],
+    }];
+
+    let timeline = Timeline::build(&ast);
+
+    // Default-dark scheme applies automatically
+    assert_eq!(
+        timeline.tracks["title"].color.evaluate(0),
+        [1.0, 1.0, 1.0, 1.0] // text.primary in default-dark is white
+    );
+    assert_eq!(
+        timeline.tracks["badge"].color.evaluate(0),
+        [0.11, 0.16, 0.24, 1.0] // surface.primary in default-dark
+    );
+}
+
+#[test]
 fn component_instances_get_distinct_auto_colors() {
     let dir = temp_project_dir("colorscheme_component_roles");
     let entry = dir.join("scene.amx");

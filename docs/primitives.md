@@ -2,7 +2,7 @@
 
 This document tracks what the current runtime actually supports. Where the parser or low-level Rust modules expose additional surface area, that is called out explicitly as parser-only or planned.
 
-Current color note: the shipped runtime now supports built-in colorscheme selection via `config { colorscheme: ... }`, semantic colorscheme aliases through `color` / `stroke`, and deterministic `color: auto` assignment. Explicit `color`, `stroke`, `stroke_color`, timed assignments, and frame-local overrides still take precedence over those defaults. File-backed colorscheme loading remains future work and is tracked in [`implementation_plan.md`](implementation_plan.md) and [`colorscheme_design.md`](colorscheme_design.md).
+Current color note: the shipped runtime now supports built-in colorscheme selection via `config { colorscheme: ... }`, semantic colorscheme aliases through `color` / `stroke`, deterministic `color: auto` assignment, inline `Colorscheme` primitive definition with `extends` inheritance, and automatic primitive-type default colors. When no explicit `color` or `stroke` is provided, primitives receive scheme-appropriate defaults: `text.primary` for Text/Math/Code, `surface.primary` for shape fills, `stroke.default` for line/stroke shapes, and `accent.primary` for plot curves. Explicit `color`, `stroke`, `stroke_color`, timed assignments, and frame-local overrides still take precedence over those defaults. Module-based colorscheme reuse via `pub let` exports and `import ... as` syntax is planned future work tracked in [`implementation_plan.md`](implementation_plan.md) and [`colorscheme_design.md`](colorscheme_design.md).
 
 ---
 

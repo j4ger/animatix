@@ -137,19 +137,40 @@ The shipped runtime now supports a **colorschemes v1** surface built on top of t
 - colorscheme aliases through `color` on text/code/math and actor declarations
 - colorscheme aliases through `stroke` on actor declarations
 - `color: auto` for deterministic automatic colorscheme assignment
+- primitive-type default colors: when no explicit `color` or `stroke` is provided, primitives receive scheme-appropriate defaults
+
+**Color precedence (lowest to highest):**
+1. runtime hardcoded default (white)
+2. colorscheme primitive-type defaults (when property is omitted)
+3. alias-based declaration defaults through `color: text.primary` etc.
+4. `color: auto` from scheme auto pool
+5. explicit declaration values (`color: red`, `stroke: blue`)
+6. later timed assignments
+7. frame-local reactive overrides (`always`)
 
 Explicit `color`, `stroke`, `stroke_color`, timed assignments, and `always` overrides still remain stronger than alias-backed declaration defaults.
 
 The current `color: auto` contract is deterministic for a given compiled document and follows actor declaration order after component expansion.
 
-Loadable colorschemes are now supported via the `Colorscheme` primitive declaration. See [`colorscheme_design.md`](colorscheme_design.md) for the full design.
+Inline colorscheme definition is supported via the `Colorscheme` primitive with `extends` inheritance. Module-based colorscheme reuse via `pub let` exports and `import ... as` is planned future work. See [`colorscheme_design.md`](colorscheme_design.md) for the full design.
+
+**Primitive-type default mapping:**
+- Text-like (`Text`, `Math`, `Code`): color → `text.primary`
+- Shape fills (`Circle`, `Rect`, etc.): color → `surface.primary`
+- Shape strokes (`Line`, `Arrow`, `Arc`): stroke → `stroke.default`
+- Plot curves: stroke → `accent.primary`
 
 ```animatix
 config { colorscheme: "editorial-dark" }
 
-title: Text, text: "Animatix", color: text.primary
+// No explicit color needed — defaults apply automatically:
+title: Text, text: "Hello"           // color: text.primary
+panel: Rect, size: (200, 100)       // color: surface.primary
+axis: Line, from: (-100, 0), to: (100, 0)  // stroke: stroke.default
+
+// Explicit and auto still work:
 badge: Circle, radius: 20, color: auto
-axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
+override: Circle, radius: 18, color: accent.warning
 ```
 
 ---

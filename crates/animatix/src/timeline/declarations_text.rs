@@ -1,10 +1,10 @@
 use super::{
-    AnimationTrack, Diagnostic, DiagnosticCode, DiagnosticPhase, Easing, Expr, Modifier,
-    ModifierHost, ParsedTimingModifiers, Stmt, Timeline, apply_explicit_position_binding,
-    evaluate_expr_with_lookup_diagnostic, has_non_default_morph_options,
-    parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
-    preserve_discrete_position_state_before, preserve_instant_delayed_value,
-    push_modifier_diagnostic, resolve_position_binding_with_lookup_diagnostic,
+    apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
+    has_non_default_morph_options, parse_color_in_env_with_lookup_diagnostic,
+    parse_timing_modifiers, preserve_discrete_position_state_before,
+    preserve_instant_delayed_value, push_modifier_diagnostic,
+    resolve_position_binding_with_lookup_diagnostic, AnimationTrack, Diagnostic, DiagnosticCode,
+    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, ParsedTimingModifiers, Stmt, Timeline,
 };
 use crate::ast::Property;
 
@@ -231,6 +231,24 @@ impl Timeline {
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
                 _ => {}
+            }
+        }
+
+        // Apply scheme-appropriate default color when no explicit color property is provided
+        if initial_track_color.is_none() {
+            let primitive_type = match kind {
+                TextDeclarationKind::Text => "Text",
+                TextDeclarationKind::Math => "Math",
+                TextDeclarationKind::Code => "Code",
+            };
+            if let Some(scheme_color) = self.get_default_color(primitive_type, "color") {
+                initial_track_color = Some(scheme_color);
+                color = typst::visualize::Color::from_u8(
+                    (scheme_color[0] * 255.0) as u8,
+                    (scheme_color[1] * 255.0) as u8,
+                    (scheme_color[2] * 255.0) as u8,
+                    (scheme_color[3] * 255.0) as u8,
+                );
             }
         }
 

@@ -570,6 +570,27 @@ impl Timeline {
                         );
                     }
 
+                    // Apply scheme-appropriate default colors when no explicit color/stroke property is provided
+                    let has_explicit_color = props.iter().any(|p| p.name == "color");
+                    let has_explicit_stroke = props
+                        .iter()
+                        .any(|p| p.name == "stroke" || p.name == "stroke_color");
+                    let default_white = [1.0, 1.0, 1.0, 1.0];
+
+                    if !has_explicit_color && color == default_white {
+                        if let Some(scheme_color) = self.get_default_color(ty, "color") {
+                            color = scheme_color;
+                            if primitive.is_plot_curve() {
+                                stroke_color = scheme_color;
+                            }
+                        }
+                    }
+                    if !has_explicit_stroke && stroke_color == default_white {
+                        if let Some(scheme_stroke) = self.get_default_color(ty, "stroke") {
+                            stroke_color = scheme_stroke;
+                        }
+                    }
+
                     for prop in props {
                         let prop_subject = format!("{}.{}", label, prop.name);
                         match prop.name.as_str() {

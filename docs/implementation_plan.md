@@ -4,7 +4,7 @@ This roadmap starts from the runtime that exists today. It is intentionally grou
 
 This file is the repository's **master planning document** for product/runtime priorities. Related planning docs should support this roadmap rather than compete with it:
 
-- `docs/colorscheme_design.md` is the detailed design document for the current active roadmap phase
+- `docs/colorscheme_design.md` is the detailed design document for colorscheme features (both shipped and planned)
 - `docs/architecture_refactor_plan.md` tracks the internal refactor/support lane that should reduce delivery risk without redefining roadmap priority
 
 ---
@@ -19,7 +19,8 @@ The following are already part of the current baseline and should not be treated
 - Layout/container foundation: `Row`, `Col`, `Grid`, `Stack`, `Group`, root layout defaults, scene-relative placement, and manual child placement within layout containers
 - Reactive model: stateless `always`, compile-time `for`, and random-access frame evaluation
 - Component MVP: imported `pub component` instantiation, parameter binding, dotted nested-label assignment targets, and rhs sampled property lookup
-- Colorschemes v1: built-in scene selection, semantic color/stroke aliases, and deterministic `color: auto` defaults layered on top of explicit color authoring
+- Colorschemes v1: built-in scene selection, semantic color/stroke aliases, deterministic `color: auto` defaults, and inline `Colorscheme` primitive definition with `extends` inheritance
+- Colorscheme primitive-type defaults: automatic scheme-appropriate default colors when primitives omit explicit `color` / `stroke`
 - Tooling foundation: CLI renderer, egui-based GUI shell, and `tree-sitter-animatix`
 - Shared timing vocabulary already shipped in the runtime contract: duration shorthand, named `delay`, named `ease`, deterministic duplicate-key handling, and explicit instant-change semantics
 - Reveal actions v1 now shipped in the runtime contract: `fade-in`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, plus honest unsupported-target diagnostics for vector-only reveal verbs
@@ -53,42 +54,115 @@ That plan is intentionally scoped to internal architecture and refactoring disci
 
 ### Active supporting design note
 
-The detailed design for the current active phase lives in `docs/colorscheme_design.md`.
+The detailed design for colorscheme features lives in `docs/colorscheme_design.md`.
 
-That document should be treated as the implementation design for Phase 1, not as a separate competing roadmap.
+That document should be treated as the implementation design for colorscheme work, not as a separate competing roadmap.
 
 ### Current priority order
 
-1. **Phase 1** — Colorscheme Follow-Up: Standard Module-Based Schemes
-2. **Phase 2** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
-3. **Phase 3** — Tooling and Authoring Workflow Refinement
-4. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
+1. **Phase 1** — Primitive-Type Default Colors: Automatic scheme-appropriate defaults
+2. **Phase 2** — Module System Enhancement: `pub let` exports and `import ... as` syntax
+3. **Phase 3** — Colorscheme Module Reuse: Standard module-based scheme sharing
+4. **Phase 4** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+5. **Phase 5** — Tooling and Authoring Workflow Refinement
+6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
 
-## 4. Phase 1 — Colorscheme Follow-Up: Standard Module-Based Schemes
+## 4. Phase 1 — Primitive-Type Default Colors: Automatic scheme-appropriate defaults
 
 **Urgency:** High
 
-**Goal:** Broaden the shipped colorschemes v1 surface into a reusable project-level theming workflow using the existing standard module system, without changing the explicit-color precedence model.
+**Goal:** Apply scheme-appropriate default colors to primitives when no explicit `color` or `stroke` is authored, dramatically reducing palette boilerplate.
 
 **Why first:**
-- Colorschemes v1 already landed and removed a large amount of palette boilerplate.
-- The standard module system (`import`, `pub component`) already provides file-level reuse and composition.
-- Colorschemes should be expressed as standard modules that export color constants and scheme configurations, not as a special primitive with its own grammar and loading semantics.
+- The colorscheme infrastructure already exists (built-in schemes, semantic tokens, environment seeding)
+- This is a pure runtime change — no parser or module system work needed
+- Immediate authoring UX improvement: scenes become dramatically shorter
+- Sets the foundation for what "scheme-driven authoring" feels like before adding module reuse
 
 **Includes:**
-- Colorscheme as standard module: a regular `.amx` file that exports semantic color constants via `pub let` declarations
+- Primitive-to-token mapping: text-like → `text.primary`, shapes → `surface.primary`, strokes → `stroke.default`, plots → `accent.primary`
+- Track initialization changes: use scheme defaults instead of hardcoded white when property is omitted
+- Text/Math/Code declaration changes: default to scheme text color instead of white
+- Diagnostics for missing scheme tokens (fallback to white with warning)
+- Tests verifying defaults apply and explicit overrides still win
+- Example demonstrating minimal-boilerplate scene authoring
+
+**Guardrails:**
+- preserve explicit-color precedence: omitted < scheme default < alias < auto < explicit < assignment < always
+- if scheme lacks expected token, fall back to current hardcoded default (white) with optional diagnostic
+- do not change behavior of scenes without `config.colorscheme` — they keep current hardcoded defaults
+- keep changes localized to track initialization and declaration processing
+
+**Exit criteria:**
+- primitives without explicit colors receive scheme-appropriate defaults when a scheme is selected
+- explicit colors still override defaults completely
+- scenes without `config.colorscheme` behave exactly as before
+- docs and examples demonstrate the reduced boilerplate
+
+---
+
+## 5. Phase 2 — Module System Enhancement: `pub let` exports and `import ... as` syntax
+
+**Urgency:** High
+
+**Goal:** Extend the existing module system to support value exports and namespaced imports, enabling reusable data modules (including but not limited to colorschemes).
+
+**Why after Phase 1:**
+- Phase 1 delivers immediate authoring value without infrastructure changes
+- Phase 2 enables sharing and reuse, building on the authoring patterns established in Phase 1
+- The module system (`import`, `pub component`) already provides file-level reuse for components
+- `let` declarations already exist for local variables
+- Adding `pub let` and `import ... as` is a natural extension of existing patterns
+
+**Includes:**
+- `pub let` syntax for exporting named values from `.amx` files
+- `import "path" as name` syntax for namespaced imports
+- Module namespace binding for qualified access (`name.exported_value`)
+- Diagnostics for missing imports, unresolved module paths, and name collisions
+- Value export support for: colors, numbers, tuples, strings, and arrays
+- docs/examples that demonstrate module-based reuse patterns
+
+**Guardrails:**
+- reuse existing `ModuleGraph` file loading and cycle detection
+- keep exports declarative and load-time oriented (no runtime mutation of imported values)
+- do not introduce a special module file format — reuse standard `.amx` files
+- do not make GUI work a dependency for shipping the runtime feature
+- maintain backward compatibility with existing `import "path"` (non-namespaced) syntax
+
+**Exit criteria:**
+- users can define `pub let` exports in one `.amx` file and access them via `import "path" as name` in another
+- module-qualified names resolve correctly in expressions and property values
+- invalid imports fail with existing module diagnostics (unknown module, unresolved path)
+- docs reflect only the behavior that is actually backed by runtime/tests/examples
+
+---
+
+## 6. Phase 3 — Colorscheme Module Reuse: Standard module-based scheme sharing
+
+**Urgency:** High
+
+**Goal:** Enable colorscheme definition and reuse through the standard module system built in Phase 2.
+
+**Why after Phase 2:**
+- Colorscheme module reuse depends on `pub let` exports and `import ... as` syntax
+- The inline `Colorscheme` primitive already works for ad-hoc definition
+- Module-based reuse is the natural next step after the infrastructure exists
+
+**Includes:**
+- Colorscheme modules as standard `.amx` files with `pub let` color exports
 - Scheme composition via standard `import` and module-qualified access (e.g., `theme.background`, `theme.accent_primary`)
 - Optional `pub component` wrapper that pre-binds a scheme to a reusable palette configuration
-- Diagnostics for missing imports, unresolved module paths, and invalid color values (reuse existing module diagnostics)
+- Diagnostics for missing imports, unresolved module paths, and invalid color values
 - docs/examples that show scheme modules alongside other standard module patterns
 
 **Guardrails:**
 - preserve the current precedence stack where explicit `color`, `stroke`, timed assignments, and `always` overrides beat scheme defaults
 - keep the model declarative and load-time/build-time oriented
-- do not introduce a special `Colorscheme` primitive or separate file format — reuse standard modules
+- do not introduce a special `Colorscheme` primitive or separate file format for module schemes — reuse standard modules
 - do not make GUI work a dependency for shipping the runtime feature
+- maintain full backward compatibility with existing inline `Colorscheme` primitive and built-in schemes
 
 **Exit criteria:**
 - users can define a colorscheme in one `.amx` file and import it into scenes via standard module syntax
@@ -98,11 +172,11 @@ That document should be treated as the implementation design for Phase 1, not as
 
 ---
 
-## 5. Phase 2 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+## 7. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
 
 **Urgency:** High
 
-**Goal:** Expand capability after the current authoring contract and colorscheme follow-up work are both stable.
+**Goal:** Expand capability after the current authoring contract and module system work are both stable.
 
 **Includes:**
 - host-specific effect controls that map cleanly onto real runtime hooks
@@ -114,7 +188,7 @@ That document should be treated as the implementation design for Phase 1, not as
 
 ---
 
-## 6. Phase 3 — Tooling and Authoring Workflow Refinement
+## 8. Phase 5 — Tooling and Authoring Workflow Refinement
 
 **Urgency:** Medium
 
@@ -134,7 +208,7 @@ That document should be treated as the implementation design for Phase 1, not as
 
 ---
 
-## 7. Deferred Architectural Work
+## 9. Deferred Architectural Work
 
 These remain valuable, but they should stay out of the near-term critical path because they imply broader model changes.
 
@@ -153,7 +227,7 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 
 ---
 
-## 8. What We Should Not Do Next
+## 10. What We Should Not Do Next
 
 - treat parser acceptance as proof of runtime support
 - widen the action catalog before defining honest target coverage and diagnostics
@@ -163,3 +237,6 @@ For Tree-sitter specifically, the standalone grammar package remains valuable an
 - over-optimize for Manim parity when Animatix can provide a clearer declarative workflow
 - build richer GUI/editor workflows on top of shifting runtime behavior
 - treat Tree-sitter GUI integration as the default next tooling step before the authoring-feedback gap justifies the extra synchronization cost
+- remove or deprecate the inline `Colorscheme` primitive before module-based alternatives are fully functional
+- apply primitive-type defaults before the precedence model is clearly documented and tested
+- make default colors depend on complex runtime state or conditional logic

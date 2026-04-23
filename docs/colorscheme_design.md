@@ -1,18 +1,21 @@
 # Extensible Colorscheme Design for Animatix
 
-> **Status: active design document — being updated for standard module approach**
+> **Status: Design document — updated to reflect dual API approach**
 >
-> Built-in colorschemes v1 are already shipped: `config { colorscheme: ... }`, semantic color aliases through `color` / `stroke`, and `color: auto` are part of the current runtime contract. This document now owns only the broader design for reusable scheme modules using the standard module system.
+> Built-in colorschemes v1 are shipped: `config { colorscheme: ... }`, semantic color aliases through `color` / `stroke`, and `color: auto` are part of the current runtime contract.
 >
-> Scoping note: this design is intentionally **module-first and data-only**. It reuses the existing standard module system (`import`, `pub let`, `pub component`) rather than inventing a special primitive or file format.
+> The `Colorscheme` primitive with `extends` inheritance is implemented and functional for inline scheme definition.
+>
+> Standard module-based scheme reuse via `pub let` exports and `import` is the active future work direction.
 
-This document turns the remaining colorscheme follow-up discussion into a concrete product and architecture proposal.
+This document describes the complete colorscheme system design, including both the shipped APIs and the planned module-based extensions.
 
-The guiding decision is simple:
+The guiding decisions are:
 
-- **colorschemes should be reusable via standard modules**
-- **explicit actor colors must remain the final authority**
-- **extensibility should be declarative data, not executable code**
+- **colorschemes should be definable inline via the `Colorscheme` primitive** (shipped)
+- **colorschemes should be reusable via standard modules** (future work)
+- **explicit actor colors must remain the final authority** (shipped)
+- **extensibility should be declarative data, not executable code** (design principle)
 
 Animatix should make it easier for users to get a coherent palette and distinct actor colors by default, without taking away the current direct `color:` workflow.
 
@@ -20,14 +23,15 @@ Animatix should make it easier for users to get a coherent palette and distinct 
 
 ## 1. Goals
 
-The colorscheme system should accomplish six things:
+The colorscheme system should accomplish seven things:
 
 1. reduce repeated palette boilerplate across `.amx` files
-2. let a scene import a colorscheme module declaratively
+2. let a scene define a colorscheme inline or import one declaratively
 3. support automatic distinct color assignment for actor-like nodes when the author opts in
 4. preserve explicit `color`, `stroke`, and assignment-based overrides exactly as first-class author intent
 5. stay deterministic and portable across CLI render, GUI preview, image export, and video export
-6. reuse the existing standard module system instead of inventing a new primitive or file format
+6. support both inline definition and module-based reuse
+7. apply scheme-appropriate default colors to primitives when no explicit color is authored
 
 ---
 
@@ -43,7 +47,11 @@ Out of scope for the first slice:
 - a general CSS-like styling system for all actor properties
 - primitive-type magic such as "all circles are blue" as the primary model
 - per-frame procedural recoloring that bypasses the existing stateless track/override model
-- special `Colorscheme` primitive with its own grammar and inheritance semantics
+
+In scope for default colors:
+- primitive-type-aware default color selection when no explicit color is authored
+- semantic mapping from primitive categories to scheme tokens (text, surface, stroke, accent)
+- per-instance override remains fully supported and takes precedence
 
 The first useful version should feel like a palette module that exports color constants, not a second rendering language.
 
@@ -128,7 +136,7 @@ The recommended product shape has three layers:
 
 ### A. Built-in named schemes
 
-Animatix ships with a small built-in set such as:
+Animatix ships with a small built-in set:
 
 - `default-dark`
 - `default-light`
@@ -136,7 +144,32 @@ Animatix ships with a small built-in set such as:
 
 These give the feature immediate value and define the reference schema.
 
-### B. Scheme modules via standard import
+### B. Inline scheme definition via `Colorscheme` primitive (SHIPPED)
+
+Users define colorschemes inline using the `Colorscheme` primitive with property-based declaration:
+
+```animatix
+let ocean = Colorscheme {
+    extends: "default-dark",
+    auto: { (0.2, 0.4, 0.8), (0.1, 0.6, 0.5), (0.8, 0.3, 0.4) },
+    scene.background: (0.05, 0.07, 0.12),
+    text.primary: (0.95, 0.97, 1.0),
+    text.secondary: (0.7, 0.75, 0.85),
+    surface.primary: (0.08, 0.12, 0.2),
+    surface.secondary: (0.12, 0.16, 0.25),
+    accent.primary: (0.25, 0.55, 0.9),
+    accent.success: (0.2, 0.7, 0.5),
+    accent.warning: (0.9, 0.7, 0.3),
+    accent.danger: (0.85, 0.35, 0.4),
+    stroke.default: (0.9, 0.92, 0.95),
+}
+
+config { colorscheme: "ocean" }
+```
+
+The `extends` property allows inheritance from built-in schemes or other inline-defined schemes.
+
+### C. Module-imported schemes via standard `import` (FUTURE WORK)
 
 Users define colorschemes as standard `.amx` modules that export color constants.
 
@@ -175,7 +208,7 @@ alice: Circle, radius: 22, color: auto, at: (520, 360)
 bob: Circle, radius: 22, color: auto, at: (760, 360)
 ```
 
-### C. Explicit per-actor override remains final
+### D. Explicit per-actor override remains final
 
 If an actor has an explicit `color:` or a later `node.color = ...` assignment, that should still win.
 
@@ -185,11 +218,9 @@ This preserves the current DSL mental model and makes the new system safe to ado
 
 ## 6. Proposed Surface Direction
 
-The colorscheme system should reuse the existing module system for scheme distribution and the existing `config.colorscheme` for built-in selection.
+### 6.1 Scene-Level Selection (Built-in or Inline)
 
-### 6.1 Scene-Level Selection (Built-in Only)
-
-For built-in schemes, the existing syntax remains:
+For built-in schemes or inline-defined schemes, the existing syntax remains:
 
 ```animatix
 config {
@@ -197,11 +228,23 @@ config {
 }
 ```
 
-This selects a built-in scheme that seeds semantic aliases and the auto color pool. Built-in schemes are hardcoded in the runtime, not loaded from files.
+This selects a scheme by name. Built-in schemes are hardcoded in the runtime. Inline-defined schemes are resolved from `let` declarations in the current file.
 
-### 6.2 Module-Qualified Color Access
+### 6.2 Inline Scheme Definition
 
-For user-defined schemes, use standard module imports:
+```animatix
+let ocean = Colorscheme {
+    extends: "default-dark",
+    auto: { (0.2, 0.4, 0.8), (0.1, 0.6, 0.5) },
+    accent.primary: (0.25, 0.55, 0.9),
+}
+
+config { colorscheme: "ocean" }
+```
+
+### 6.3 Module-Qualified Color Access (FUTURE)
+
+For user-defined schemes in separate files, use standard module imports:
 
 ```animatix
 import "themes/brand-ocean.amx" as brand
@@ -210,9 +253,9 @@ headline: Text { text: "Branded stage", color: brand.text_primary, anchor: scene
 panel: Rect, size: (300, 160), color: brand.surface_primary, at: (640, 360)
 ```
 
-### 6.3 Alias-Based Color Properties (Built-in Schemes Only)
+### 6.4 Alias-Based Color Properties (Built-in or Inline Schemes)
 
-When a built-in scheme is selected via `config.colorscheme`, semantic aliases are available:
+When a scheme is selected via `config.colorscheme`, semantic aliases are available:
 
 ```animatix
 config {
@@ -226,7 +269,7 @@ alice: Circle, radius: 22, color: auto, at: (520, 360)
 bob: Circle, radius: 22, color: auto, at: (760, 360)
 ```
 
-### 6.4 Stroke Aliases
+### 6.5 Stroke Aliases
 
 The same model applies to stroke-style surfaces:
 
@@ -234,7 +277,38 @@ The same model applies to stroke-style surfaces:
 axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
 ```
 
-### 6.5 Explicit Color Still Works
+### 6.6 Primitive Default Colors (Automatic Scheme Application)
+
+When a colorscheme is selected via `config.colorscheme` and a primitive omits explicit `color` or `stroke`, the runtime applies a scheme-appropriate default based on the primitive type:
+
+| Primitive Category | Default Property | Scheme Token | Example Primitives |
+|---|---|---|---|
+| Text-like | `color` | `text.primary` | `Text`, `Math`, `Code` |
+| Shape fill | `color` | `surface.primary` | `Circle`, `Rect`, `Polygon`, `Ellipse`, `Square`, `Dot`, `RegularPolygon` |
+| Shape stroke | `stroke` | `stroke.default` | `Line`, `Arrow`, `Arc` |
+| Plot curves | `color` / `stroke` | `accent.primary` | `CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot` |
+| Image/Svg | (none) | — | `Image`, `Svg` use authored or intrinsic colors |
+
+```animatix
+config { colorscheme: "editorial-dark" }
+
+// These all receive scheme-appropriate defaults automatically:
+title: Text, text: "Hello"           // color defaults to text.primary
+panel: Rect, size: (200, 100)        // color defaults to surface.primary
+axis: Line, from: (-100, 0), to: (100, 0)  // stroke defaults to stroke.default
+plot: CartesianPlot, func: (x) => x^2      // color defaults to accent.primary
+
+// Explicit colors still override:
+highlight: Circle, radius: 20, color: accent.warning  // explicit wins
+```
+
+**Rules:**
+- Default colors apply only when the property is completely omitted from the declaration
+- Explicit `color`, `stroke`, or `stroke_color` always wins over defaults
+- `color: auto` is distinct from defaults — it cycles through the auto pool
+- If the scheme lacks the expected token, fall back to the current hardcoded default (white)
+
+### 6.7 Explicit Color Still Works
 
 ```animatix
 alice: Circle, radius: 22, color: auto
@@ -245,18 +319,23 @@ In this example, `alice` receives an automatically assigned scheme color while `
 
 ---
 
-## 7. Why Standard Modules Instead of a Special Primitive
+## 7. Why Both APIs?
 
-The original design proposed a `Colorscheme` primitive with `extends` inheritance. This has been reconsidered in favor of standard modules because:
+The system supports both inline `Colorscheme` primitive and standard module import because they serve different use cases:
 
-1. **No new grammar needed**: `pub let` and `import` already exist and work
-2. **No new file format**: `.amx` files are already the unit of reuse
-3. **No new loading infrastructure**: `ModuleGraph` already handles file loading and cycle detection
-4. **Composable with components**: `pub component` can pre-bind schemes to reusable configurations
-5. **Familiar to users**: same mental model as other module reuse
-6. **Tooling reuse**: parser, diagnostics, and syntax highlighting work out of the box
+**Inline `Colorscheme` primitive:**
+- Quick ad-hoc scheme definition in a single file
+- Inheritance from built-in schemes via `extends`
+- No separate file needed
+- Good for experimentation and one-off scenes
 
-The trade-off is that module-qualified names are slightly more verbose than bare aliases (`theme.text_primary` vs `text.primary`), but this is acceptable for user-defined schemes. Built-in schemes still provide the concise alias syntax via `config.colorscheme`.
+**Standard module import:**
+- Reusable across multiple scenes
+- Version control friendly
+- Composable with other module exports
+- Follows the same patterns as component reuse
+
+The trade-off is that module-qualified names are slightly more verbose than bare aliases (`theme.text_primary` vs `text.primary`), but this is acceptable for user-defined schemes. Built-in and inline schemes still provide the concise alias syntax via `config.colorscheme`.
 
 ---
 
@@ -294,16 +373,23 @@ If the selected colorscheme defines `scene.background` and the author does **not
 
 If the author explicitly sets `scene.background_color`, the authored value wins.
 
+### Rule 6: Primitive-type default colors
+
+When a primitive omits `color` or `stroke` entirely and a scheme is selected, the runtime applies a primitive-category default from the scheme (e.g., `text.primary` for `Text`, `surface.primary` for `Rect`, `stroke.default` for `Line`).
+
+If the scheme lacks the expected token, the runtime falls back to the hardcoded default (white).
+
 ### Canonical Order
 
 From lowest to highest priority:
 
-1. runtime hardcoded property default
-2. selected colorscheme defaults (built-in only)
-3. alias-based declaration defaults through `color` / `stroke`
-4. explicit declaration values such as `color`, `stroke`, `stroke_color`, `scene.background_color`
-5. later timed assignments
-6. frame-local reactive overrides
+1. runtime hardcoded property default (white)
+2. selected colorscheme primitive-type defaults (when property is omitted)
+3. alias-based declaration defaults through `color` / `stroke` (e.g., `color: text.primary`)
+4. `color: auto` assignment from scheme auto pool
+5. explicit declaration values such as `color`, `stroke`, `stroke_color`, `scene.background_color`
+6. later timed assignments
+7. frame-local reactive overrides
 
 This order should be documented in one place and mirrored in tests.
 
@@ -361,14 +447,15 @@ The scheme should be fully resolved before frame evaluation so that:
 - image/video export sees the same scene state
 - diagnostics appear during build rather than as mysterious runtime color changes
 
-### 10.2 Built-In vs Module Sources
+### 10.2 Built-In vs Inline vs Module Sources
 
-The loader should support two sources:
+The loader should support three sources:
 
 1. **Built-in scheme names** (resolved from hardcoded `BuiltInColorscheme` enum) — selected via `config.colorscheme`
-2. **Module-imported schemes** (standard `.amx` files with `pub let` exports) — imported via `import "path" as name`
+2. **Inline scheme definitions** (`let name = Colorscheme { ... }` in the current file) — referenced by name in `config.colorscheme`
+3. **Module-imported schemes** (standard `.amx` files with `pub let` exports) — imported via `import "path" as name`
 
-Built-in schemes seed semantic aliases and the auto color pool. Module-imported schemes provide color values through standard module-qualified names.
+Built-in and inline schemes seed semantic aliases and the auto color pool. Module-imported schemes provide color values through standard module-qualified names.
 
 ### 10.3 Resolution Flow for Built-in Schemes
 
@@ -380,7 +467,19 @@ config.colorscheme: "editorial-dark"
   -> Apply to timeline
 ```
 
-### 10.4 Resolution Flow for Module Schemes
+### 10.4 Resolution Flow for Inline Schemes
+
+```
+let ocean = Colorscheme { ... }
+config.colorscheme: "ocean"
+  -> Find inline Colorscheme declaration by name
+  -> Resolve inheritance if extends is present
+  -> Build ResolvedColorscheme
+  -> Seed environment with semantic aliases
+  -> Apply to timeline
+```
+
+### 10.5 Resolution Flow for Module Schemes
 
 ```
 import "themes/brand-ocean.amx" as brand
@@ -400,15 +499,17 @@ This system should fail honestly and softly.
 ### Required diagnostics
 
 1. **Unknown colorscheme**
-   - selected built-in name not found
+   - selected built-in or inline name not found
 2. **Unknown module path**
    - import path missing / unreadable (reuse existing module diagnostics)
 3. **Invalid color value**
-   - malformed RGBA tuple in module export
+   - malformed RGBA tuple in module export or inline definition
 4. **Unknown alias token**
    - `color: accent.branding` when the resolved scheme has no such token
 5. **Empty auto-assignment pool**
    - `color: auto` used but no auto-assignment colors exist after resolution
+6. **Colorscheme inheritance cycle**
+   - circular `extends` references between inline schemes
 
 ### Failure strategy
 
@@ -434,11 +535,9 @@ That means:
 - the track system still owns interpolation and later assignments
 - frame-time override semantics stay unchanged
 
-### 12.2 Environment Seeding (Built-in Schemes Only)
+### 12.2 Environment Seeding (Built-in and Inline Schemes)
 
-For built-in schemes, the environment may expose resolved scheme values under dotted names for expression use later.
-
-Illustrative direction:
+For built-in and inline schemes, the environment exposes resolved scheme values under dotted names for expression use later.
 
 ```text
 scheme.scene.background
@@ -446,13 +545,9 @@ scheme.text.primary
 scheme.accent.warning
 ```
 
-But this should be treated as an additional convenience, not the core dependency of the first implementation slice.
-
-The first slice should land clean alias-backed defaults before broadening expression lookup surface.
-
 ### 12.3 Scene Background Seeding
 
-If a built-in scheme is selected and the scene omits explicit `scene.background_color`, the loader/build phase may seed the background track from `scene.background`.
+If a scheme is selected and the scene omits explicit `scene.background_color`, the loader/build phase seeds the background track from `scene.background`.
 
 This should remain a simple default, not a second background system.
 
@@ -460,21 +555,50 @@ This should remain a simple default, not a second background system.
 
 ## 13. Examples of Intended Authoring Direction
 
-### 13.1 Minimal Built-In Scheme
+### 13.1 Minimal Built-In Scheme with Automatic Defaults
 
 ```animatix
 config {
   colorscheme: "editorial-dark"
 }
 
-title: Text { text: "Animatix", color: text.primary, anchor: scene.top, offset: (0, 80) }
-subtitle: Text { text: "One selected scheme, minimal color boilerplate", color: text.secondary, anchor: scene.top, offset: (0, 116) }
+// No explicit color needed — primitives receive scheme defaults automatically:
+title: Text, text: "Animatix", anchor: scene.top, offset: (0, 80)           // color: text.primary
+subtitle: Text, text: "Minimal boilerplate", anchor: scene.top, offset: (0, 116)  // color: text.secondary
+panel: Rect, size: (400, 200), at: (640, 360)                               // color: surface.primary
+axis: Line, from: (-120, 0), to: (120, 0), at: (640, 360)                   // stroke: stroke.default
 
+// Explicit colors and auto still work:
 left: Circle, radius: 22, color: auto, at: (520, 360)
 right: Circle, radius: 22, color: auto, at: (760, 360)
+highlight: Circle, radius: 18, color: accent.warning, at: (640, 500)       // explicit wins
 ```
 
-### 13.2 Explicit Override
+### 13.2 Inline Scheme with Inheritance
+
+```animatix
+let ocean = Colorscheme {
+    extends: "default-dark",
+    auto: { (0.2, 0.4, 0.8), (0.1, 0.6, 0.5), (0.8, 0.3, 0.4) },
+    scene.background: (0.05, 0.07, 0.12),
+    text.primary: (0.95, 0.97, 1.0),
+    text.secondary: (0.7, 0.75, 0.85),
+    surface.primary: (0.08, 0.12, 0.2),
+    accent.primary: (0.25, 0.55, 0.9),
+    accent.success: (0.2, 0.7, 0.5),
+    accent.warning: (0.9, 0.7, 0.3),
+    accent.danger: (0.85, 0.35, 0.4),
+    stroke.default: (0.9, 0.92, 0.95),
+}
+
+config { colorscheme: "ocean" }
+
+title: Text, text: "Ocean Theme", color: text.primary
+badge: Circle, radius: 20, color: auto
+axis: Line, from: (-120, 0), to: (120, 0), stroke: stroke.default
+```
+
+### 13.3 Explicit Override
 
 ```animatix
 config {
@@ -485,7 +609,7 @@ left: Circle, radius: 22, color: auto, at: (520, 360)
 right: Circle, radius: 22, color: (1.0, 0.9, 0.2, 1.0), at: (760, 360)
 ```
 
-### 13.3 Module-Imported Scheme
+### 13.4 Module-Imported Scheme (FUTURE)
 
 Scene file:
 
@@ -517,7 +641,7 @@ pub let auto_pool = [
 ]
 ```
 
-### 13.4 Scheme as Component
+### 13.5 Scheme as Component (FUTURE)
 
 ```animatix
 // components/branded-card.amx
@@ -560,14 +684,38 @@ The safest rollout is:
 - define deterministic actor-path assignment
 - add precedence and wrap tests
 
-### Slice 4 — Module-based scheme reuse *(active future work)*
+### Slice 4 — Inline scheme definition via `Colorscheme` primitive *(shipped)*
 
-- document and demonstrate scheme modules via standard `import`
-- show `pub let` color exports and module-qualified access
-- show `pub component` wrappers for pre-bound scheme configurations
+- support `let name = Colorscheme { ... }` syntax
+- support `extends` inheritance from built-in schemes
+- support custom semantic tokens and auto pools
+- add cycle detection for inheritance
+
+### Slice 5 — Module-based scheme reuse *(active future work)*
+
+- add `pub let` export syntax to parser and module system
+- add `import "..." as name` syntax to parser
+- implement module namespace binding for qualified access
+- demonstrate scheme modules alongside other standard module patterns
 - reuse existing `ModuleGraph` file loading and diagnostics
 
-### Slice 5 — Broader expression exposure and GUI follow-up *(future follow-up)*
+### Slice 5b — Primitive-type default colors *(active future work)*
+
+- apply scheme-appropriate default colors when primitives omit explicit `color` / `stroke`
+- define primitive-to-token mapping (text→text.primary, shape→surface.primary, stroke→stroke.default, plot→accent.primary)
+- preserve explicit-color precedence: omitted < scheme default < alias < auto < explicit < assignment < always
+- add tests verifying defaults apply correctly and explicit overrides still win
+- add example demonstrating minimal-boilerplate scene authoring
+
+### Slice 6 — Module-based scheme reuse *(active future work)*
+
+- add `pub let` export syntax to parser and module system
+- add `import "..." as name` syntax to parser
+- implement module namespace binding for qualified access
+- demonstrate scheme modules alongside other standard module patterns
+- reuse existing `ModuleGraph` file loading and diagnostics
+
+### Slice 7 — Broader expression exposure and GUI follow-up *(future follow-up)*
 
 - optionally expose resolved scheme tokens in the evaluation environment
 - later decide whether the GUI should surface scheme switching or role discovery
@@ -588,8 +736,8 @@ Each slice should land with:
 - inventing a GUI dependency before the DSL/runtime contract is stable
 - allowing unclear precedence between alias-backed `color`, explicit `color`, assignments, and `always`
 - broadening into a full styling language before this smaller palette model lands honestly
-- introducing a special `Colorscheme` primitive or new file format when standard modules suffice
 - treating module-qualified names as too verbose — the clarity and composability are worth the extra characters
+- removing the inline `Colorscheme` primitive before module-based reuse is fully functional
 
 ---
 
@@ -598,10 +746,12 @@ Each slice should land with:
 The colorscheme design is successful when:
 
 1. a user can select one built-in scheme and remove most repeated palette boilerplate from a normal scene
-2. a user can define a custom scheme as a standard `.amx` module and import it into scenes
-3. actor-like nodes can get distinct deterministic colors through an explicit opt-in surface
-4. explicit actor colors and timed overrides still work exactly as users expect today
-5. built-in aliases and module-qualified names share one precedence model
-6. diagnostics explain missing schemes, missing roles, and invalid module paths honestly
-7. the feature improves authoring UX without introducing a plugin/security problem or a second competing runtime model
-8. scheme reuse follows the same patterns as other module reuse (import, pub let, pub component)
+2. a user can define a custom scheme inline with the `Colorscheme` primitive
+3. a user can define a custom scheme as a standard `.amx` module and import it into scenes
+4. actor-like nodes can get distinct deterministic colors through an explicit opt-in surface
+5. primitives without explicit colors receive scheme-appropriate defaults automatically
+6. explicit actor colors and timed overrides still work exactly as users expect today
+7. built-in aliases and module-qualified names share one precedence model
+8. diagnostics explain missing schemes, missing roles, and invalid module paths honestly
+9. the feature improves authoring UX without introducing a plugin/security problem or a second competing runtime model
+10. scheme reuse follows the same patterns as other module reuse (import, pub let, pub component)

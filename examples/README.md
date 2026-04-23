@@ -33,6 +33,9 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 - `component_modules_demo.amx`
 - `component_diagnostics_demo.amx`
 - `reactive_runtime.amx`
+- `colorscheme_demo.amx`
+- `colorscheme_defaults_demo.amx`
+- `colorscheme_ocean.amx`
 
 ## Family Notes
 
@@ -50,6 +53,12 @@ The shipped GUI opens these `.amx` files directly from `crates/animatix-gui` for
 `component_diagnostics_demo.amx` is the focused example for the current component-diagnostics contract: valid dotted access remains live, while invalid nested targets and invalid rhs dotted lookups emit build diagnostics without crashing the stage.
 
 `reactive_runtime.amx` is the focused example for the shipped stateless reactive model: `always` re-evaluates from the requested time, while repeated runtime behavior is expressed through explicit time math rather than coroutine state.
+
+`colorscheme_demo.amx` is the focused example for built-in colorscheme selection with automatic primitive defaults and semantic aliases: `config { colorscheme: "editorial-dark" }` provides defaults for all primitives, `color: auto` cycles through the auto pool, and explicit overrides still win.
+
+`colorscheme_defaults_demo.amx` is the minimal-boilerplate demonstration: primitives receive scheme-appropriate defaults automatically (Text→text.primary, shapes→surface.primary, strokes→stroke.default) with no explicit color properties needed in most cases.
+
+`colorscheme_ocean.amx` is the focused example for inline colorscheme definition with `extends` inheritance: `let ocean = Colorscheme { extends: "default-dark", ... }` followed by `config { colorscheme: "ocean" }`.
 
 `code_demo.amx` is the focused example for the shipped v1 `Code` primitive: code content rendered through the existing text-path pipeline with animated position, color, and re-declaration updates.
 

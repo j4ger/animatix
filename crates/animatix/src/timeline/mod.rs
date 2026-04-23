@@ -141,6 +141,12 @@ impl Timeline {
         let max_bg_ms = self.background_color.last_keyframe_time().unwrap_or(0);
         (max_track_ms.max(max_bg_ms) as f64) / 1000.0
     }
+
+    /// Returns the appropriate default color for a primitive type and property,
+    /// based on the current colorscheme.
+    pub fn get_default_color(&self, primitive_type: &str, property: &str) -> Option<[f32; 4]> {
+        self.colorscheme.default_color_for_primitive(primitive_type, property)
+    }
 }
 
 impl Default for Timeline {
