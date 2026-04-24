@@ -424,3 +424,13 @@ right.frame.radius = 20
 **Unresolved rhs paths** report build diagnostics; host property keeps its default/fallback value.
 
 **Future-facing:** Rich object-style traversal, index-based access, method-style query composition.
+
+---
+
+## 15. Known Gaps & Limitations
+
+- **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
+- **Asymmetrical Reveal/Exit Actions:** Standard fade-out or cross-fade behaviors on some primitives and containers remain incomplete or non-intuitive compared to entrance counterparts.
+- **Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.
+- **Missing Rotation:** Basic shapes like `Ellipse` do not currently support a dedicated rotation parameter, limiting fundamental shape manipulations without resorting to matrix actions.
+- **Coordinate System Friction:** `at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) often clash, requiring significant manual intervention when mixing them.

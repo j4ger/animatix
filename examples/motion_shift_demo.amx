@@ -1,25 +1,25 @@
 // Runnable example: local motion ergonomics with `move` and `shift`.
 
-config { colorscheme: "editorial-dark" }
+config { colorscheme: "editorial-dark" 
 
 #0s
 
 header: Col, anchor: scene.top, offset: (0, 86), align: "center", gap: 10 {
-  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary }
-  title: Text, text: "Move vs shift", font_size: 42, color: text.primary }
-  subtitle: Text, text: "move sets a local target offset; shift adds relative motion on top of current placement.", font_size: 20, color: text.secondary }
-  caption: Text, text: "The left node still proves manual placement, while the right row keeps layout ownership obvious during playback.", font_size: 16, color: text.secondary }
-}
+  eyebrow: Text, text: "Animatix example suite", font_size: 18, color: accent.primary 
+  title: Text, text: "Move vs shift", font_size: 42, color: text.primary 
+  subtitle: Text, text: "move sets a local target offset; shift adds relative motion on top of current placement.", font_size: 20, color: text.secondary 
+  caption: Text, text: "The left node still proves manual placement, while the right row keeps layout ownership obvious during playback.", font_size: 16, color: text.secondary 
 
-manual_label: Text, text: "move on a manual node", font_size: 22, color: accent.danger, anchor: scene.left, offset: (240, -128) }
-layout_label: Text, text: "shift on a layout-managed node", font_size: 22, color: accent.success, anchor: scene.right, offset: (-246, -128) }
+
+manual_label: Text, text: "move on a manual node", font_size: 22, color: accent.danger, anchor: scene.left, offset: (240, -128) 
+layout_label: Text, text: "shift on a layout-managed node", font_size: 22, color: accent.success, anchor: scene.right, offset: (-246, -128) 
 
 manual: Circle, radius: 60, color: accent.danger, stroke: stroke.default, stroke_width: 4, anchor: scene.left, offset: (240, 78)
 
 row: Row, gap: 40, anchor: scene.right, offset: (-210, 78) {
   left: Rect, size: (130, 90), color: surface.primary, stroke: stroke.default, stroke_width: 4,
   moving: Rect, size: (130, 90), color: accent.primary, stroke: stroke.default, stroke_width: 4,
-}
+
 
 #0s
 move manual [to: (140, -40), 1200ms, ease: ease-in-out]
