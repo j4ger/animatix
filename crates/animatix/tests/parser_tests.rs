@@ -868,7 +868,7 @@ fn test_actor_decl_nested_with_children() {
 
 #[test]
 fn test_demo_layout_parse() {
-    let src = include_str!("../../../examples/layout_demo.amx");
+    let src = include_str!("../../../examples/layout.amx");
     let ast = parser().parse(src).into_result().unwrap();
     assert!(!ast.is_empty());
 }

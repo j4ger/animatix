@@ -1,0 +1,28 @@
+// Primitives: shapes, text, media.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+shapes: Row, anchor: scene.center, offset: (0, -60), gap: 60, align: "center" {
+  rect: Rect, size: (100, 80), color: accent.primary
+  circle: Circle, radius: 50, color: accent.success
+  ellipse: Ellipse, radius_x: 70, radius_y: 40, color: accent.warning
+  line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
+  arc: Arc, radius_x: 50, radius_y: 40, start_angle: 0.5, sweep_angle: 4, stroke: accent.primary, width: 4
+  poly: Polygon, points: {(-40, -30), (40, -30), (50, 20), (0, 50), (-50, 20)}, color: accent.success, stroke: stroke.default, stroke_width: 2
+  path: Path, commands: {move_to(-30, 0), line_to(0, -40), line_to(30, 0), close()}, stroke: accent.warning, stroke_width: 3
+  arrow: Arrow, from: (-30, 0), to: (30, 0), tip_length: 12, tip_width: 8, color: accent.danger
+}
+
+breadth: Row, anchor: scene.center, offset: (0, 60), gap: 60, align: "center" {
+  dot: Dot, color: accent.primary, stroke: stroke.default, stroke_width: 2
+  square: Square, side: 60, color: accent.success, stroke: stroke.default, stroke_width: 2
+  hex: RegularPolygon, sides: 6, radius: 40, color: accent.warning, stroke: stroke.default, stroke_width: 2
+}
+
+text: Text, text: "Text primitive", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 120)
+math: Math, math: "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 170)
+code: Code, code: "let x = 42", font_size: 20, color: accent.primary, anchor: scene.bottom, offset: (0, -120)
+
+photo: Image, url: "examples/checker.ppm", size: (80, 80), anchor: scene.left, offset: (120, 0)
+logo: Svg, url: "examples/vector.svg", scale: 1.2, anchor: scene.right, offset: (-120, 0)

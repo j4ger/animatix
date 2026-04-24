@@ -1,0 +1,24 @@
+// Plotting: Cartesian, polar, parametric, implicit curves.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+graph1: Graph, x_domain: (-5, 5), y_domain: (-5, 25), size: (480, 380), at: (360, 390) {
+  parabola: CartesianPlot, func: (x) => x * x - 2, color: accent.danger, width: 2
+  hyperbola: CartesianPlot, func: (x) => 1 / x, color: accent.warning, tolerance: 0.1, max_depth: 12
+}
+
+graph2: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 380), at: (900, 390) {
+  rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: accent.success, width: 2
+  lissajous: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: accent.primary, width: 2
+  lemniscate: ImplicitPlot, func: (x, y) => (x * x + y * y) * (x * x + y * y) - 2 * (x * x - y * y), resolution: 120, stroke: accent.warning, width: 2
+}
+
+label1: Text, text: "y = x^2 - 2  |  y = 1/x", font_size: 16, color: accent.danger, at: (360, 190)
+label2: Text, text: "Polar, parametric, implicit", font_size: 16, color: accent.primary, at: (900, 190)
+
+#2s
+graph1.size = (540, 420) [2s, ease: ease-in-out]
+
+#4s
+graph2.at = (940, 390) [1.5s, ease: ease-in-out]

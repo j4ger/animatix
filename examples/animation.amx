@@ -1,0 +1,46 @@
+// Animation: fades, motion, morph, composition, timing.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+a: Circle, radius: 60, color: accent.danger, at: (320, 390)
+b: Rect, size: (140, 100), color: accent.success, at: (640, 390)
+c: Circle, radius: 50, color: accent.primary, at: (960, 390)
+
+#0.5s
+fade-in a [600ms, ease: ease-out]
+
+#0.8s
+fade-in b [600ms, delay: 200ms, ease: ease-out]
+
+#1.1s
+fade-in c [600ms, ease: ease-out]
+
+#2.0s
+shift a [by: (120, 0), 800ms, ease: ease-in-out]
+rotate b [by: 0.785, 800ms, ease: ease-in-out]
+scale c [by: 1.5, 800ms, ease: ease-in-out]
+
+#3.0s
+a.radius = 90 [600ms, ease: bounce]
+b.color = accent.warning [600ms, ease: ease-in-out]
+
+#4.0s
+shape: Circle, radius: 80, color: accent.danger, at: (640, 390)
+
+#5.0s
+shape: Rect, size: (180, 140), color: accent.success, at: (640, 390) [1s, strategy: auto]
+
+#6.5s
+sequence {
+  fade-out a [400ms]
+  fade-out b [400ms]
+  fade-out c [400ms]
+}
+
+#7.5s
+stagger [150ms] {
+  fade-in a [400ms]
+  fade-in b [400ms]
+  fade-in c [400ms]
+}

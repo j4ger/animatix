@@ -1,0 +1,27 @@
+// Expressions: bindings, math, closures, conditionals, paths.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+let base = (240, 260)
+let off = (140, 80)
+
+a: Circle, radius: 40, color: (0.96, 0.46, 0.52, 1.0), at: base + off
+b: Circle, radius: 32, color: (0.0, 1.0, 1.0, 1.0), at: (760 + 100 * cos(PI / 4), 270 + 100 * sin(PI / 4))
+c: Circle, radius: 36, color: (lerp(0.2, 0.9, 0.5), 0.45, 0.9, 1.0), at: (948, 250)
+d: Circle, radius: 26, color: accent.warning, at: (140 + 17 % 5 * 70, 500)
+
+r1: Circle, radius: 22, color: (rand(), rand(), rand(), 1.0), at: (220 + rand() * 180, 548 + rand() * 80)
+r2: Circle, radius: 22, color: (rand(), rand(), rand(), 1.0), at: (520 + rand() * 180, 548 + rand() * 80)
+r3: Circle, radius: 22, color: (rand(), rand(), rand(), 1.0), at: (820 + rand() * 180, 548 + rand() * 80)
+
+cond: Rect, size: (120, 80), color: accent.primary, at: (640, 390)
+
+always {
+  cond.color = if (t % 2.0) < 1.0 { accent.primary } else { accent.success }
+}
+
+#3s
+a.at = base + off + (120, 60) [1.5s, ease: ease-in-out]
+b.color = accent.primary [1.5s]
+c.radius = 52 [1.5s]

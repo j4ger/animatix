@@ -308,7 +308,7 @@ fn modifier_bytecode_rejects_unsupported_ir_expr() {
 
 #[test]
 fn vm_parity_reactive_runtime_matches_ir() {
-    let expanded = load_example_program("examples/reactive_runtime.amx");
+    let expanded = load_example_program("examples/reactive.amx");
     let timeline = Timeline::build(&expanded);
     let ir = lower_modifier_ir(&expanded).expect("IR lowering should succeed");
     let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");

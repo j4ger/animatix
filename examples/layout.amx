@@ -1,0 +1,37 @@
+// Layout: Grid, Col, Row, Stack, anchors, offsets, nesting.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+dashboard: Grid, cols: 2, gap: 28, anchor: scene.center, offset: (0, -40) {
+  p1: Rect, size: (200, 100), color: surface.primary
+  p2: Rect, size: (200, 100), color: surface.secondary
+  p3: Rect, size: (200, 100), color: surface.primary
+  p4: Rect, size: (200, 100), color: surface.secondary
+}
+
+sidebar: Col, anchor: scene.left, offset: (140, 0), gap: 16, align: "center" {
+  a: Rect, size: (120, 50), color: accent.primary
+  b: Rect, size: (120, 50), color: accent.success
+  c: Rect, size: (120, 50), color: accent.warning
+}
+
+toolbar: Row, anchor: scene.top, offset: (0, 100), gap: 20, align: "center" {
+  t1: Circle, radius: 18, color: accent.danger
+  t2: Circle, radius: 18, color: accent.primary
+  t3: Circle, radius: 18, color: accent.success
+}
+
+overlay: Stack, at: (82%, 76%) {
+  plate: Rect, size: (260, 100), color: (0.10, 0.14, 0.22, 1.0)
+  ring: Circle, radius: 28, color: accent.warning
+  core: Circle, radius: 14, color: text.primary
+}
+
+// Nested layout with a manual child override
+mixed: Row, anchor: scene.bottom, offset: (0, -100), gap: 24, align: "center" {
+  focus: Circle, radius: 16, color: text.primary, at: (-80, -20)
+  x: Circle, radius: 28, color: accent.danger
+  y: Circle, radius: 22, color: accent.success
+  z: Circle, radius: 32, color: accent.primary
+}
