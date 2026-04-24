@@ -1,106 +1,135 @@
-// Animatix Showcase
-// A comprehensive 10-second demonstration of layout, primitives, plotting, and animation.
+// Animatix Showcase: "The Making Of"
+// A 5-second animated demonstration of Animatix capabilities
+// Shows layout-first composition, timeline animation, morphing, and composition helpers
 
 config { colorscheme: "editorial-dark" }
 
 // ============================================================
-// ACT 1: Title & Typography (0-2s)
+// ACT 1: Foundation (0-1s)
+// Scene establishment with fade-in and draw-in actions
 // ============================================================
 
 #0s
-hero_col: Col, anchor: scene.center, offset: (0, -40), align: "center", gap: 20 {
-  title: Text, text: "Animatix", font_size: 96, color: text.primary
-  subtitle: Text, text: "Declarative Animation Engine", font_size: 28, color: text.secondary
-  formula: Math, math: "e^{i\\pi} + 1 = 0", font_size: 42, color: accent.primary
-}
 
-#0.5s
-stagger [200ms] {
-  fade-in title [600ms, ease: ease-out]
-  fade-in subtitle [600ms, ease: ease-out]
-  fade-in formula [600ms, ease: ease-out]
-}
+backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
+hero_title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.top, offset: (0, 120)
+hero_subtitle: Text, text: "Layout-first animation", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 220)
 
-#1.8s
-shift hero_col [by: (0, -220), 800ms, ease: ease-in-out]
-scale hero_col [by: 0.6, 800ms, ease: ease-in-out]
+#0.2s
+fade-in backdrop [800ms, ease: ease-out]
+
+#0.4s
+fade-in hero_title [600ms, ease: ease-out]
+
+#0.8s
+fade-in hero_subtitle [600ms, ease: ease-in-out]
 
 // ============================================================
-// ACT 2: Layouts & Primitives (2.5-4.5s)
+// ACT 2: Layout Composition (1-2.5s)
+// Col container slides in, children appear via stagger
+// Demonstrates layout-managed positioning without explicit 'at'
 // ============================================================
 
-#2.0s
-shapes_grid: Grid, cols: 3, gap: 60, anchor: scene.center, offset: (0, 60) {
-  c: Circle, radius: 45, color: accent.danger
-  r: Rect, size: (90, 90), color: accent.warning
-  p: RegularPolygon, sides: 6, radius: 50, color: accent.success
+#1.0s
+
+feature_col: Col, anchor: scene.left, offset: (180, 0), align: "center", gap: 16 {
+  feature_title: Text, text: "Features", font_size: 28, color: accent.warning
+  feat_text: Text, text: "Rich typography", font_size: 18, color: text.secondary
+  feat_math: Text, text: "Math expressions", font_size: 18, color: text.secondary
+  feat_code: Text, text: "Code highlighting", font_size: 18, color: text.secondary
+  feat_svg: Text, text: "Vector graphics", font_size: 18, color: text.secondary
 }
+
+#1.2s
+shift feature_col [by: (60, 0), 800ms, ease: ease-out]
+
+#1.4s
+stagger [100ms] {
+  fade-in feature_title [400ms]
+  fade-in feat_text [400ms]
+  fade-in feat_math [400ms]
+  fade-in feat_code [400ms]
+  fade-in feat_svg [400ms]
+}
+
+// ============================================================
+// ACT 3: Primitives Showcase (2.5-4s)
+// Row container rises from bottom with animated shapes
+// Demonstrates property animation and morphing
+// ============================================================
 
 #2.5s
-fade-in shapes_grid [500ms]
+
+primitives_row: Row, anchor: scene.bottom, offset: (0, -140), gap: 80, align: "center" {
+  orb: Circle, radius: 0, color: accent.danger
+  connector: Line, from: (0, 0), to: (0, 0), stroke: accent.primary, stroke_width: 4
+  box: Rect, size: (0, 0), color: accent.success
+  equation: Math, math: "x", font_size: 48, color: accent.primary
+}
+
+#2.6s
+fade-in primitives_row [400ms]
+
+#2.8s
+orb.radius = 60 [600ms, ease: bounce]
+
+#2.9s
+connector.from = (-50, 0) [400ms, ease: ease-out]
+connector.to = (50, 0) [400ms, ease: ease-out]
 
 #3.0s
-c.radius = 65 [600ms, ease: bounce]
-r.color = accent.primary [600ms, ease: ease-in-out]
-r.size = (120, 60) [600ms, ease: ease-in-out]
-rotate p [by: 3.14, 600ms, ease: ease-in-out]
+box.size = (120, 80) [500ms, ease: ease-out]
+
+#3.2s
+equation: Math, math: "E = mc^2", font_size: 48, color: accent.primary [800ms, ease: ease-in-out]
+
+#3.4s
+orb.color = accent.success [600ms, ease: ease-in-out]
+
+#3.6s
+box.color = accent.warning [600ms, ease: ease-in-out]
+
+// ============================================================
+// ACT 4: Code Block and SVG Reveal (4-5s)
+// Demonstrates Code primitive and SVG
+// ============================================================
 
 #4.0s
-reveal-out shapes_grid [400ms]
 
-// ============================================================
-// ACT 3: Plotting & Mathematics (4.5-7s)
-// ============================================================
+code_panel: Rect, size: (400, 180), color: (0.15, 0.17, 0.22, 1.0), anchor: scene.right, offset: (-220, -40)
+code_snippet: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -40)
+
+#4.1s
+shift code_panel [by: (-40, 0), 600ms, ease: ease-out]
+shift code_snippet [by: (-40, 0), 600ms, ease: ease-out]
+
+#4.2s
+fade-in code_panel [400ms]
+
+#4.3s
+fade-in code_snippet [800ms, ease: ease-in-out]
 
 #4.5s
-plot_row: Row, gap: 40, anchor: scene.center, offset: (0, 60) {
-  g1: Graph, x_domain: (-3, 3), y_domain: (-1, 9), size: (220, 220) {
-    p1: CartesianPlot, func: (x) => x^2, color: accent.danger, width: 3
-  }
-  g2: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (220, 220) {
-    p2: ParametricPlot, func: (t) => (sin(3*t), cos(5*t)), t_domain: (0, 6.28), stroke: accent.warning, width: 3
-  }
-  g3: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (220, 220) {
-    p3: PolarPlot, func: (t) => 3 * sin(4*t), t_domain: (0, 6.28), stroke: accent.success, width: 3
-  }
+logo_container: Col, anchor: scene.right, offset: (-120, 80), align: "center", gap: 8 {
+  logo_label: Text, text: "Powered by", font_size: 14, color: text.secondary
+  logo_svg: Svg, url: "examples/vector.svg", scale: 1.5
 }
 
-#4.8s
-fade-in plot_row [600ms]
+#4.6s
+fade-in logo_container [400ms]
+
+// ============================================================
+// FINALE: Hold and subtle motion (5s+)
+// ============================================================
+
+#5.0s
+sequence {
+  scale hero_title [by: 1.02, 400ms, ease: ease-in-out]
+  scale hero_title [by: 0.98, 400ms, ease: ease-in-out]
+}
+
+#5.2s
+shift primitives_row [by: (0, -10), 2s, ease: ease-in-out]
 
 #5.5s
-shift plot_row [by: (0, -20), 1s, ease: ease-in-out]
-
-#6.5s
-reveal-out plot_row [500ms]
-
-// ============================================================
-// ACT 4: Code & Vectors (7-9s)
-// ============================================================
-
-#7.0s
-dev_stack: Stack, anchor: scene.center, offset: (0, 60) {
-  panel: Rect, size: (480, 160), color: surface.secondary, stroke: stroke.default, stroke_width: 2
-  code_snippet: Code, code: "fn render() -> Frame {\n    animate_all()\n}", font_size: 24, color: text.primary
-}
-
-#7.2s
-fade-in dev_stack [500ms]
-
-#8.0s
-panel.size = (540, 200) [600ms, ease: bounce]
-code_snippet.color = accent.primary [600ms]
-
-#8.8s
-reveal-out dev_stack [400ms]
-
-// ============================================================
-// FINALE (9s+)
-// ============================================================
-
-#9.2s
-shift hero_col [by: (0, 220), 800ms, ease: ease-in-out]
-scale hero_col [by: 1.66, 800ms, ease: ease-in-out]
-
-#9.6s
-title.color = accent.success [1s, ease: ease-in-out]
+equation: Math, math: "E = mc^2", font_size: 48, color: accent.danger [1s, ease: ease-in-out]

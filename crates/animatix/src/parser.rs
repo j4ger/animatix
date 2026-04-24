@@ -371,6 +371,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         Labeled(String, String, Vec<Modifier>, Vec<InlineItem>),
         Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
         Prop(Property),
+        Children(Vec<InlineItem>),
     }
 
     let inline_items = recursive(|inline_items| {
@@ -381,6 +382,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|c| c.unwrap_or_default());
 
         let flat_item = choice((
+            // Labeled inline item: label: Type [mods] [{ children }]
             ident
                 .clone()
                 .then_ignore(just(':').padded())
@@ -390,12 +392,18 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 .map(|(((label, ty), mods), children)| {
                     FlatItem::Labeled(label, ty, mods, children)
                 }),
+            // Anonymous inline item: Type [mods] [{ children }]
             type_ident
                 .clone()
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
             property.clone().map(FlatItem::Prop),
+            // Standalone children block: attaches to the preceding item
+            inline_items
+                .clone()
+                .delimited_by(just('{').padded(), just('}').padded())
+                .map(FlatItem::Children),
         ))
         .padded();
 
@@ -429,6 +437,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 match last {
                                     InlineItem::Labeled { props, .. } => props.push(p),
                                     InlineItem::Anonymous { props, .. } => props.push(p),
+                                }
+                            }
+                        }
+                        FlatItem::Children(children) => {
+                            if let Some(last) = result.last_mut() {
+                                match last {
+                                    InlineItem::Labeled { children: c, .. } => *c = children,
+                                    InlineItem::Anonymous { children: c, .. } => *c = children,
                                 }
                             }
                         }

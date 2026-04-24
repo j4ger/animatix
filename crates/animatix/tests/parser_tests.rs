@@ -818,6 +818,55 @@ fn test_actor_decl_anonymous() {
 }
 
 #[test]
+fn test_actor_decl_nested_with_children() {
+    // Inline items can have both properties and nested children blocks.
+    // The `{...}` after properties attaches to the preceding item.
+    assert_eq!(
+        parse_single_stmt(
+            "group: Group { a: Circle, size: 10 { child: Text, text: \"hi\" }, b: Rect, size: 20 }"
+        ),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "group".to_string(),
+            ty: "Group".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![
+                animatix::ast::InlineItem::Labeled {
+                    label: "a".to_string(),
+                    ty: "Circle".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(10.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![animatix::ast::InlineItem::Labeled {
+                        label: "child".to_string(),
+                        ty: "Text".to_string(),
+                        props: vec![Property {
+                            name: "text".to_string(),
+                            value: Expr::Str("hi".to_string()),
+                        }],
+                        modifiers: vec![],
+                        children: vec![],
+                    }],
+                },
+                animatix::ast::InlineItem::Labeled {
+                    label: "b".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Num(20.0),
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                }
+            ],
+        }
+    );
+}
+
+#[test]
 fn test_demo_layout_parse() {
     let src = include_str!("../../../examples/layout_demo.amx");
     let ast = parser().parse(src).into_result().unwrap();
