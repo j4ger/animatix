@@ -6,6 +6,7 @@ use super::{
 use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::track::TrackAccessor;
 
 pub(crate) fn parse_scene_anchor(expr: &Expr) -> Option<SceneAnchor> {
     match expr {
@@ -121,6 +122,7 @@ pub(crate) fn resolve_bound_position(
 pub(crate) fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
     track
         .placement_mode
+        .ensure(PlacementMode::LayoutManaged)
         .add_keyframe(time_ms, PlacementMode::Manual, Easing::Linear);
 }
 
@@ -131,36 +133,49 @@ pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack
 
     let previous_time = time_ms - 1;
 
-    if !track.placement_mode.keyframes.contains_key(&previous_time) {
-        let previous_mode = track.placement_mode.evaluate(previous_time);
+    if !track.placement_mode.as_ref().map(|t| t.keyframes.contains_key(&previous_time)).unwrap_or(false) {
+        let previous_mode = track.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
         track
             .placement_mode
+            .ensure(PlacementMode::LayoutManaged)
             .add_keyframe(previous_time, previous_mode, Easing::Linear);
     }
 
     if !track
         .position_binding
-        .keyframes
-        .contains_key(&previous_time)
+        .as_ref()
+        .map(|t| t.keyframes.contains_key(&previous_time))
+        .unwrap_or(false)
     {
-        let previous_binding = track.position_binding.evaluate(previous_time);
+        let previous_binding = track.position_binding.get(previous_time, PositionBinding::Absolute);
         track
             .position_binding
+            .ensure(PositionBinding::Absolute)
             .add_keyframe(previous_time, previous_binding, Easing::Linear);
     }
 }
 
 pub(crate) fn preserve_instant_delayed_value<T: Interpolate + Clone>(
-    track: &mut PropertyTrack<T>,
+    track: &mut Option<PropertyTrack<T>>,
     t_start_ms: u64,
-) {
-    if t_start_ms == 0 || track.keyframes.contains_key(&t_start_ms.saturating_sub(1)) {
+) where
+    T: Default,
+{
+    if t_start_ms == 0 {
         return;
     }
 
     let previous_time = t_start_ms.saturating_sub(1);
-    let previous_value = track.evaluate(previous_time);
-    track.add_keyframe(previous_time, previous_value, Easing::Linear);
+
+    // Ensure the track exists (creating with default value if needed)
+    let inner = track.ensure(T::default());
+
+    if inner.keyframes.contains_key(&previous_time) {
+        return;
+    }
+
+    let previous_value = inner.evaluate(previous_time);
+    inner.add_keyframe(previous_time, previous_value, Easing::Linear);
 }
 
 pub(crate) fn set_track_position_binding(
@@ -170,6 +185,7 @@ pub(crate) fn set_track_position_binding(
 ) {
     track
         .position_binding
+        .ensure(PositionBinding::Absolute)
         .add_keyframe(time_ms, binding, Easing::Linear);
 }
 
@@ -184,6 +200,7 @@ pub(crate) fn apply_explicit_position_binding(
     if let Some(position) = position {
         track
             .position
+            .ensure([0.0, 0.0])
             .add_keyframe(time_ms, position, Easing::Linear);
     }
 }

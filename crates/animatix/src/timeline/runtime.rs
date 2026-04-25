@@ -2,7 +2,7 @@ use super::modifier_runtime::{ir, vm};
 use super::{
     Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
     assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color, set_lookup_scalar,
-    set_lookup_vec2,
+    set_lookup_vec2, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 
 impl Timeline {
@@ -82,9 +82,9 @@ impl Timeline {
 
         for (label, track) in &self.tracks {
             let node_overrides = overrides.and_then(|map| map.get(label));
-            let motion_offset = track.motion_offset.evaluate(time_ms);
-            let rotation = track.rotation.evaluate(time_ms) as f64;
-            let scale = track.scale.evaluate(time_ms) as f64;
+            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
+            let rotation = track.rotation.get(time_ms, 0.0) as f64;
+            let scale = track.scale.get(time_ms, 1.0) as f64;
             let base_position = node_overrides
                 .and_then(|props| props.get("at").or_else(|| props.get("position")))
                 .and_then(|value| match value {
@@ -92,7 +92,7 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [x, y] = track.position.evaluate(time_ms);
+                    let [x, y] = track.position.get(time_ms, [0.0, 0.0]);
                     [x as f64, y as f64]
                 });
             let position = [
@@ -116,13 +116,13 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [w, h] = track.size.evaluate(time_ms);
+                    let [w, h] = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
                     [w as f64 * 2.0, h as f64 * 2.0]
                 });
             set_lookup_vec2(env, &format!("{}.size", label), size);
             set_lookup_scalar(env, &format!("{}.width", label), size[0]);
             set_lookup_scalar(env, &format!("{}.height", label), size[1]);
-            if super::vector_shape_exposes_tip_size(track.shape_type.evaluate(time_ms)) {
+            if super::vector_shape_exposes_tip_size(track.shape_type.get(time_ms, 0u32)) {
                 set_lookup_scalar(env, &format!("{}.tip_length", label), size[0] / 2.0);
                 set_lookup_scalar(env, &format!("{}.tip_width", label), size[1] / 2.0);
             }
@@ -151,7 +151,7 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [r, g, b, a] = track.color.evaluate(time_ms);
+                    let [r, g, b, a] = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
                     [r as f64, g as f64, b as f64, a as f64]
                 });
             set_lookup_color(env, &format!("{}.color", label), color);
@@ -164,7 +164,7 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [r, g, b, a] = track.stroke_color.evaluate(time_ms);
+                    let [r, g, b, a] = track.stroke_color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
                     [r as f64, g as f64, b as f64, a as f64]
                 });
             set_lookup_color(env, &format!("{}.stroke_color", label), stroke_color);
@@ -172,25 +172,25 @@ impl Timeline {
             let opacity = node_overrides
                 .and_then(|props| props.get("opacity"))
                 .map(Value::as_num)
-                .unwrap_or(track.opacity.evaluate(time_ms) as f64);
+                .unwrap_or(track.opacity.get(time_ms, 1.0) as f64);
             set_lookup_scalar(env, &format!("{}.opacity", label), opacity);
 
             let fill_opacity = node_overrides
                 .and_then(|props| props.get("fill_opacity"))
                 .map(Value::as_num)
-                .unwrap_or(track.fill_opacity.evaluate(time_ms) as f64);
+                .unwrap_or(track.fill_opacity.get(time_ms, 1.0) as f64);
             set_lookup_scalar(env, &format!("{}.fill_opacity", label), fill_opacity);
 
             let stroke_width = node_overrides
                 .and_then(|props| props.get("stroke_width").or_else(|| props.get("width")))
                 .map(Value::as_num)
-                .unwrap_or(track.stroke_width.evaluate(time_ms) as f64);
+                .unwrap_or(track.stroke_width.get(time_ms, 2.0) as f64);
             set_lookup_scalar(env, &format!("{}.stroke_width", label), stroke_width);
 
             let stroke_progress = node_overrides
                 .and_then(|props| props.get("stroke_progress"))
                 .map(Value::as_num)
-                .unwrap_or(track.stroke_progress.evaluate(time_ms) as f64);
+                .unwrap_or(track.stroke_progress.get(time_ms, 1.0) as f64);
             set_lookup_scalar(env, &format!("{}.stroke_progress", label), stroke_progress);
 
             let from = node_overrides
@@ -200,7 +200,7 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [x, y] = track.line_from.evaluate(time_ms);
+                    let [x, y] = track.line_from.get(time_ms, [-50.0, 0.0]);
                     [x as f64, y as f64]
                 });
             set_lookup_vec2(env, &format!("{}.from", label), from);
@@ -212,19 +212,20 @@ impl Timeline {
                     _ => None,
                 })
                 .unwrap_or_else(|| {
-                    let [x, y] = track.line_to.evaluate(time_ms);
+                    let [x, y] = track.line_to.get(time_ms, [50.0, 0.0]);
                     [x as f64, y as f64]
                 });
             set_lookup_vec2(env, &format!("{}.to", label), to);
 
+            let default_arc = [0.0, std::f32::consts::PI];
             let start_angle = node_overrides
                 .and_then(|props| props.get("start_angle"))
                 .map(Value::as_num)
-                .unwrap_or(track.arc_angles.evaluate(time_ms)[0] as f64);
+                .unwrap_or(track.arc_angles.get(time_ms, default_arc)[0] as f64);
             let sweep_angle = node_overrides
                 .and_then(|props| props.get("sweep_angle"))
                 .map(Value::as_num)
-                .unwrap_or(track.arc_angles.evaluate(time_ms)[1] as f64);
+                .unwrap_or(track.arc_angles.get(time_ms, default_arc)[1] as f64);
             set_lookup_scalar(env, &format!("{}.start_angle", label), start_angle);
             set_lookup_scalar(env, &format!("{}.sweep_angle", label), sweep_angle);
         }

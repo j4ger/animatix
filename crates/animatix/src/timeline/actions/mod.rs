@@ -80,7 +80,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    if track.image.last_value().is_some() {
+    if track.image.as_ref().map(|t| t.last_value()).flatten().is_some() {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -90,7 +90,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    if !track.text_paths.default_value.is_empty() || !track.text_paths.keyframes.is_empty() {
+    if track.text_paths.as_ref().map(|t| !t.default_value.is_empty() || !t.keyframes.is_empty()).unwrap_or(false) {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -104,8 +104,7 @@ pub(crate) fn ensure_vector_reveal_target(
         .nodes
         .get(target)
         .is_some_and(|node| !node.children.is_empty())
-        && track.vector_paths.default_value.is_empty()
-        && track.vector_paths.keyframes.is_empty()
+        && track.vector_paths.as_ref().map(|t| t.default_value.is_empty() && t.keyframes.is_empty()).unwrap_or(true)
         && track.svg_paths.is_empty()
     {
         push_unsupported_action_target_diagnostic(

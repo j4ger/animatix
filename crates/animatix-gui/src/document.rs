@@ -147,8 +147,8 @@ fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
         .unwrap_or_default()
 }
 
-fn latest_keyframe_ms<T>(track: &PropertyTrack<T>) -> Option<u64> {
-    track.keyframes.keys().next_back().copied()
+fn latest_keyframe_ms<T>(track: &Option<PropertyTrack<T>>) -> Option<u64> {
+    track.as_ref().and_then(|t| t.keyframes.keys().next_back().copied())
 }
 
 fn track_max_ms(track: &AnimationTrack) -> u64 {
@@ -208,23 +208,31 @@ pub fn timeline_keyframe_times_s(timeline: &Timeline) -> Vec<f64> {
 }
 
 fn collect_track_keyframe_times(times_ms: &mut Vec<u64>, track: &AnimationTrack) {
-    times_ms.extend(track.position.keyframes.keys().copied());
-    times_ms.extend(track.placement_mode.keyframes.keys().copied());
-    times_ms.extend(track.position_binding.keyframes.keys().copied());
-    times_ms.extend(track.size.keyframes.keys().copied());
-    times_ms.extend(track.line_from.keyframes.keys().copied());
-    times_ms.extend(track.line_to.keyframes.keys().copied());
-    times_ms.extend(track.arc_angles.keyframes.keys().copied());
-    times_ms.extend(track.color.keyframes.keys().copied());
-    times_ms.extend(track.shape_type.keyframes.keys().copied());
-    times_ms.extend(track.opacity.keyframes.keys().copied());
-    times_ms.extend(track.stroke_width.keyframes.keys().copied());
-    times_ms.extend(track.stroke_color.keyframes.keys().copied());
-    times_ms.extend(track.stroke_progress.keyframes.keys().copied());
-    times_ms.extend(track.fill_opacity.keyframes.keys().copied());
-    times_ms.extend(track.text_paths.keyframes.keys().copied());
-    times_ms.extend(track.vector_paths.keyframes.keys().copied());
-    times_ms.extend(track.image.keyframes.keys().copied());
+    fn extend_from_option<T>(times_ms: &mut Vec<u64>, track: &Option<PropertyTrack<T>>) {
+        if let Some(t) = track.as_ref() {
+            times_ms.extend(t.keyframes.keys().copied());
+        }
+    }
+
+    extend_from_option(times_ms, &track.position);
+    extend_from_option(times_ms, &track.placement_mode);
+    extend_from_option(times_ms, &track.position_binding);
+    extend_from_option(times_ms, &track.size);
+    extend_from_option(times_ms, &track.line_from);
+    extend_from_option(times_ms, &track.line_to);
+    extend_from_option(times_ms, &track.arc_angles);
+    extend_from_option(times_ms, &track.color);
+    extend_from_option(times_ms, &track.shape_type);
+    extend_from_option(times_ms, &track.opacity);
+    extend_from_option(times_ms, &track.stroke_width);
+    extend_from_option(times_ms, &track.stroke_color);
+    extend_from_option(times_ms, &track.stroke_progress);
+    extend_from_option(times_ms, &track.fill_opacity);
+    extend_from_option(times_ms, &track.text_paths);
+    extend_from_option(times_ms, &track.vector_paths);
+    if let Some(t) = track.image.as_ref() {
+        times_ms.extend(t.keyframes.keys().copied());
+    }
 }
 
 pub fn default_file_path() -> PathBuf {

@@ -7,6 +7,48 @@ use std::collections::BTreeMap;
 
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
 
+/// Extension trait for lazy property track access
+pub trait TrackAccessor<T: Interpolate + Clone> {
+    /// Get the track's value at time_ms, falling back to default if track doesn't exist
+    fn get(&self, time_ms: u64, default: T) -> T;
+    /// Ensure the track exists and return a mutable reference to it
+    fn ensure(&mut self, default: T) -> &mut PropertyTrack<T>;
+    /// Get the last value, falling back to default
+    fn last(&self, default: T) -> T;
+    /// Get the last keyframe time
+    fn last_time(&self) -> Option<u64>;
+    /// Check if there's a keyframe at or before the given time
+    fn has_keyframe_at(&self, time_ms: u64) -> bool;
+}
+
+impl<T: Interpolate + Clone> TrackAccessor<T> for Option<PropertyTrack<T>> {
+    fn get(&self, time_ms: u64, default: T) -> T {
+        self.as_ref()
+            .map(|t| t.evaluate(time_ms))
+            .unwrap_or(default)
+    }
+
+    fn ensure(&mut self, default: T) -> &mut PropertyTrack<T> {
+        self.get_or_insert_with(|| PropertyTrack::new(default))
+    }
+
+    fn last(&self, default: T) -> T {
+        self.as_ref()
+            .map(|t| t.last_value())
+            .unwrap_or(default)
+    }
+
+    fn last_time(&self) -> Option<u64> {
+        self.as_ref().and_then(|t| t.last_keyframe_time())
+    }
+
+    fn has_keyframe_at(&self, time_ms: u64) -> bool {
+        self.as_ref()
+            .map(|t| t.keyframes.contains_key(&time_ms))
+            .unwrap_or(false)
+    }
+}
+
 pub trait Interpolate {
     fn interpolate(&self, other: &Self, t: f32) -> Self;
 }
@@ -226,29 +268,35 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
             return self.default_value.clone();
         }
 
-        let mut prev_time = 0;
-        let mut prev_val = self.default_value.clone();
+        // Find the first keyframe at or after time_ms
+        let found = match self.keyframes.range(time_ms..).next() {
+            Some(entry) => entry,
+            None => {
+                // time_ms is past all keyframes, return last value
+                return self.last_value();
+            }
+        };
+        let (&found_time, (found_val, found_easing)) = found;
 
-        // Initialize prev_val with the first keyframe if it exists
-        if let Some((&t, (val, _))) = self.keyframes.iter().next() {
-            if time_ms <= t {
-                return val.clone(); // At or before first keyframe
+        // If time_ms is at or before the first keyframe, return found value directly
+        if let Some((&first_time, _)) = self.keyframes.iter().next() {
+            if time_ms <= first_time {
+                return found_val.clone();
             }
         }
 
-        for (&t, (val, easing)) in &self.keyframes {
-            if t >= time_ms {
-                let duration = (t - prev_time) as f32;
-                let elapsed = (time_ms - prev_time) as f32;
-                let progress = elapsed / duration;
-                let eased_progress = apply_easing(progress, *easing);
-                return prev_val.interpolate(&val, eased_progress);
-            }
-            prev_time = t;
-            prev_val = val.clone();
-        }
+        // Find the previous keyframe
+        let (prev_time, prev_val) = match self.keyframes.range(..time_ms).next_back() {
+            Some((&t, (val, _))) => (t, val.clone()),
+            None => (0, self.default_value.clone()),
+        };
 
-        prev_val
+        // Interpolate between prev_val and found_val
+        let duration = (found_time - prev_time) as f32;
+        let elapsed = (time_ms - prev_time) as f32;
+        let progress = elapsed / duration;
+        let eased_progress = apply_easing(progress, *found_easing);
+        prev_val.interpolate(found_val, eased_progress)
     }
 
     pub fn last_value(&self) -> T {
@@ -267,35 +315,35 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
 #[derive(Clone)]
 pub struct AnimationTrack {
     pub label: String,
-    pub position: PropertyTrack<[f32; 2]>,
-    pub motion_offset: PropertyTrack<[f32; 2]>,
-    pub rotation: PropertyTrack<f32>,
-    pub scale: PropertyTrack<f32>,
-    pub placement_mode: PropertyTrack<PlacementMode>,
-    pub position_binding: PropertyTrack<PositionBinding>,
+    pub position: Option<PropertyTrack<[f32; 2]>>,
+    pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
+    pub rotation: Option<PropertyTrack<f32>>,
+    pub scale: Option<PropertyTrack<f32>>,
+    pub placement_mode: Option<PropertyTrack<PlacementMode>>,
+    pub position_binding: Option<PropertyTrack<PositionBinding>>,
     /// Local, unrotated layout half-extents consumed by layout containers.
     ///
     /// Shape primitives usually write authored geometry here, while text-like
     /// and media primitives write measured or intrinsic bounds. Containers
     /// double this value when computing placement extents.
-    pub size: PropertyTrack<[f32; 2]>,
-    pub line_from: PropertyTrack<[f32; 2]>,
-    pub line_to: PropertyTrack<[f32; 2]>,
-    pub arc_angles: PropertyTrack<[f32; 2]>,
-    pub color: PropertyTrack<[f32; 4]>,
-    pub shape_type: PropertyTrack<u32>,
-    pub opacity: PropertyTrack<f32>,
-    pub stroke_width: PropertyTrack<f32>,
-    pub stroke_color: PropertyTrack<[f32; 4]>,
-    pub stroke_progress: PropertyTrack<f32>,
-    pub fill_opacity: PropertyTrack<f32>,
-    pub morph_options: PropertyTrack<MorphOptions>,
-    pub text_content: PropertyTrack<String>,
-    pub text_paths: PropertyTrack<Vec<TextPath>>,
-    pub vector_paths: PropertyTrack<Vec<VelloPath>>,
+    pub size: Option<PropertyTrack<[f32; 2]>>,
+    pub line_from: Option<PropertyTrack<[f32; 2]>>,
+    pub line_to: Option<PropertyTrack<[f32; 2]>>,
+    pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
+    pub color: Option<PropertyTrack<[f32; 4]>>,
+    pub shape_type: Option<PropertyTrack<u32>>,
+    pub opacity: Option<PropertyTrack<f32>>,
+    pub stroke_width: Option<PropertyTrack<f32>>,
+    pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
+    pub stroke_progress: Option<PropertyTrack<f32>>,
+    pub fill_opacity: Option<PropertyTrack<f32>>,
+    pub morph_options: Option<PropertyTrack<MorphOptions>>,
+    pub text_content: Option<PropertyTrack<String>>,
+    pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
-    pub image: PropertyTrack<Option<crate::timeline::image::SceneImage>>,
-    pub points: PropertyTrack<Vec<[f32; 2]>>,
+    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
+    pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
     /// The first time this actor was seen in the timeline (ms).
     /// Used to hide actors before their first declaration.
     pub first_seen_ms: u64,
@@ -305,84 +353,90 @@ impl AnimationTrack {
     pub fn new(label: String) -> Self {
         Self {
             label,
-            position: PropertyTrack::new([0.0, 0.0]),
-            motion_offset: PropertyTrack::new([0.0, 0.0]),
-            rotation: PropertyTrack::new(0.0),
-            scale: PropertyTrack::new(1.0),
-            placement_mode: PropertyTrack::new(PlacementMode::LayoutManaged),
-            position_binding: PropertyTrack::new(PositionBinding::Absolute),
-            size: PropertyTrack::new(DEFAULT_LAYOUT_HALF_SIZE),
-            line_from: PropertyTrack::new([-50.0, 0.0]),
-            line_to: PropertyTrack::new([50.0, 0.0]),
-            arc_angles: PropertyTrack::new([0.0, std::f32::consts::PI]),
-            color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
-            shape_type: PropertyTrack::new(0),
-            opacity: PropertyTrack::new(1.0),
-            stroke_width: PropertyTrack::new(2.0),
-            stroke_color: PropertyTrack::new([1.0, 1.0, 1.0, 1.0]),
-            stroke_progress: PropertyTrack::new(1.0),
-            fill_opacity: PropertyTrack::new(1.0),
-            morph_options: PropertyTrack::new(MorphOptions::default()),
-            text_content: PropertyTrack::new(String::new()),
-            text_paths: PropertyTrack::new(Vec::new()),
-            vector_paths: PropertyTrack::new(Vec::new()),
+            position: None,
+            motion_offset: None,
+            rotation: None,
+            scale: None,
+            placement_mode: None,
+            position_binding: None,
+            size: None,
+            line_from: None,
+            line_to: None,
+            arc_angles: None,
+            color: None,
+            shape_type: None,
+            opacity: None,
+            stroke_width: None,
+            stroke_color: None,
+            stroke_progress: None,
+            fill_opacity: None,
+            morph_options: None,
+            text_content: None,
+            text_paths: None,
+            vector_paths: None,
             svg_paths: Vec::new(),
-            image: PropertyTrack::new(None),
-            points: PropertyTrack::new(Vec::new()),
+            image: None,
+            points: None,
             first_seen_ms: 0,
         }
     }
 
     pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
+        let default_paths = PropertyTrack::new(Vec::new());
+        let paths_track = self.text_paths.as_ref().unwrap_or(&default_paths);
+        let default_morph = PropertyTrack::new(MorphOptions::default());
+        let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(
-            &self.text_paths,
-            &self.morph_options,
+            paths_track,
+            morph_track,
             time_ms,
             interpolate_text_paths,
         )
     }
 
     pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
+        let default_paths = PropertyTrack::new(Vec::new());
+        let paths_track = self.vector_paths.as_ref().unwrap_or(&default_paths);
+        let default_morph = PropertyTrack::new(MorphOptions::default());
+        let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(
-            &self.vector_paths,
-            &self.morph_options,
+            paths_track,
+            morph_track,
             time_ms,
             interpolate_vello_paths,
         )
     }
 
     pub fn max_keyframe_time(&self) -> Option<u64> {
-        [
-            self.position.last_keyframe_time(),
-            self.motion_offset.last_keyframe_time(),
-            self.rotation.last_keyframe_time(),
-            self.scale.last_keyframe_time(),
-            self.placement_mode.last_keyframe_time(),
-            self.position_binding.last_keyframe_time(),
-            self.size.last_keyframe_time(),
-            self.line_from.last_keyframe_time(),
-            self.line_to.last_keyframe_time(),
-            self.arc_angles.last_keyframe_time(),
-            self.color.last_keyframe_time(),
-            self.shape_type.last_keyframe_time(),
-            self.opacity.last_keyframe_time(),
-            self.stroke_width.last_keyframe_time(),
-            self.stroke_color.last_keyframe_time(),
-            self.stroke_progress.last_keyframe_time(),
-            self.fill_opacity.last_keyframe_time(),
-            self.morph_options.last_keyframe_time(),
-            self.text_paths.last_keyframe_time(),
-            self.vector_paths.last_keyframe_time(),
-            self.image.last_keyframe_time(),
-            self.points.last_keyframe_time(),
-        ]
-        .into_iter()
-        .flatten()
-        .max()
+        let times: Vec<Option<u64>> = vec![
+            self.position.last_time(),
+            self.motion_offset.last_time(),
+            self.rotation.last_time(),
+            self.scale.last_time(),
+            self.placement_mode.last_time(),
+            self.position_binding.last_time(),
+            self.size.last_time(),
+            self.line_from.last_time(),
+            self.line_to.last_time(),
+            self.arc_angles.last_time(),
+            self.color.last_time(),
+            self.shape_type.last_time(),
+            self.opacity.last_time(),
+            self.stroke_width.last_time(),
+            self.stroke_color.last_time(),
+            self.stroke_progress.last_time(),
+            self.fill_opacity.last_time(),
+            self.morph_options.last_time(),
+            self.text_paths.last_time(),
+            self.vector_paths.last_time(),
+            self.image.last_time(),
+            self.points.last_time(),
+        ];
+        times.into_iter().flatten().max()
     }
 }
 
-fn evaluate_paths_with_options<T: Clone>(
+fn evaluate_paths_with_options<T: Clone + Interpolate>(
     paths: &PropertyTrack<T>,
     morph_options: &PropertyTrack<MorphOptions>,
     time_ms: u64,
@@ -392,33 +446,40 @@ fn evaluate_paths_with_options<T: Clone>(
         return paths.default_value.clone();
     }
 
-    if let Some((&first_time, (first_value, _))) = paths.keyframes.iter().next() {
+    // Find the first keyframe at or after time_ms
+    let found = match paths.keyframes.range(time_ms..).next() {
+        Some(entry) => entry,
+        None => {
+            // time_ms is past all keyframes, return last value
+            return paths.last_value();
+        }
+    };
+    let (&found_time, (found_val, found_easing)) = found;
+
+    // If time_ms is at or before the first keyframe, return found value directly
+    if let Some((&first_time, _)) = paths.keyframes.iter().next() {
         if time_ms <= first_time {
-            return first_value.clone();
+            return found_val.clone();
         }
     }
 
-    let mut prev_time = 0;
-    let mut prev_val = paths.default_value.clone();
+    // Find the previous keyframe
+    let (prev_time, prev_val) = match paths.keyframes.range(..time_ms).next_back() {
+        Some((&t, (val, _))) => (t, val.clone()),
+        None => (0, paths.default_value.clone()),
+    };
 
-    for (&next_time, (next_val, easing)) in &paths.keyframes {
-        if next_time > time_ms {
-            let duration = (next_time - prev_time) as f32;
-            let elapsed = (time_ms - prev_time) as f32;
-            let progress = elapsed / duration;
-            let eased_progress = apply_easing(progress, *easing);
-            let options = morph_options
-                .keyframes
-                .get(&next_time)
-                .map(|(value, _)| *value)
-                .unwrap_or_default();
-            return interpolate(&prev_val, next_val, eased_progress, options);
-        }
-        prev_time = next_time;
-        prev_val = next_val.clone();
-    }
-
-    prev_val
+    // Interpolate
+    let duration = (found_time - prev_time) as f32;
+    let elapsed = (time_ms - prev_time) as f32;
+    let progress = elapsed / duration;
+    let eased_progress = apply_easing(progress, *found_easing);
+    let options = morph_options
+        .keyframes
+        .get(&found_time)
+        .map(|(value, _)| *value)
+        .unwrap_or_default();
+    interpolate(&prev_val, found_val, eased_progress, options)
 }
 
 fn interpolate_text_paths(

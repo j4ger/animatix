@@ -97,11 +97,13 @@ use timing::{
 };
 pub use track::{
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
+    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Modifier, Stmt};
+use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 use crate::easing::*;
 use std::collections::BTreeMap;
 
@@ -151,7 +153,6 @@ impl Default for SceneDimensions {
     }
 }
 
-#[derive(Clone)]
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
@@ -160,6 +161,7 @@ pub struct Timeline {
     pub anon_counter: usize,
     pub env: Environment,
     pub modifiers: Vec<Stmt>,
+    pub modifier_programs: Vec<ModifierIrProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     auto_color_assignments: BTreeMap<String, usize>,
@@ -167,6 +169,41 @@ pub struct Timeline {
     pub container_metadata: BTreeMap<String, ContainerMetadata>,
     pub layout_engine: LayoutEngine,
     pub dynamic_layout: bool,
+    /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
+    frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
+}
+
+/// Cache entry for frame evaluation results.
+#[derive(Clone)]
+pub(crate) struct FrameCacheEntry {
+    time_ms: u64,
+    dimensions: SceneDimensions,
+    has_modifiers: bool,
+    has_dynamic_layout: bool,
+    scene: vello::Scene,
+}
+
+impl Clone for Timeline {
+    fn clone(&self) -> Self {
+        Self {
+            tracks: self.tracks.clone(),
+            background_color: self.background_color.clone(),
+            nodes: self.nodes.clone(),
+            root_nodes: self.root_nodes.clone(),
+            anon_counter: self.anon_counter,
+            env: self.env.clone(),
+            modifiers: self.modifiers.clone(),
+            modifier_programs: self.modifier_programs.clone(),
+            colorscheme: self.colorscheme.clone(),
+            external_colorschemes: self.external_colorschemes.clone(),
+            auto_color_assignments: self.auto_color_assignments.clone(),
+            next_auto_color_index: self.next_auto_color_index,
+            container_metadata: self.container_metadata.clone(),
+            layout_engine: self.layout_engine.clone(),
+            dynamic_layout: self.dynamic_layout,
+            frame_cache: std::cell::RefCell::new(None), // cache is not cloned
+        }
+    }
 }
 
 impl Timeline {
@@ -181,6 +218,7 @@ impl Timeline {
             anon_counter: 0,
             env: Environment::raw_new(),
             modifiers: Vec::new(),
+            modifier_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
             auto_color_assignments: BTreeMap::new(),
@@ -188,6 +226,7 @@ impl Timeline {
             container_metadata: BTreeMap::new(),
             layout_engine: LayoutEngine,
             dynamic_layout: false,
+            frame_cache: std::cell::RefCell::new(None),
         }
     }
 

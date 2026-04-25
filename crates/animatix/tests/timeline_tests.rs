@@ -7,12 +7,27 @@ use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, LayoutType,
     MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    TrackAccessor,
 };
 use chumsky::Parser;
 use kurbo::Shape;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+// Extension trait for evaluating tracks with Default fallback
+trait OptionTrackEvaluate<T: Clone> {
+    fn evaluate(&self, time_ms: u64) -> T;
+}
+
+impl<T> OptionTrackEvaluate<T> for Option<PropertyTrack<T>>
+where
+    T: Interpolate + Clone + Default,
+{
+    fn evaluate(&self, time_ms: u64) -> T {
+        self.get(time_ms, T::default())
+    }
+}
 
 fn example_path(name: &str) -> String {
     format!("{}/../../examples/{}", env!("CARGO_MANIFEST_DIR"), name)
@@ -864,7 +879,7 @@ fn test_code_primitive_respects_position_binding() {
             .get("anchored_code")
             .expect("anchored_code track should exist")
             .position_binding
-            .evaluate(0),
+            .get(0, PositionBinding::Absolute),
         PositionBinding::SceneAnchor {
             anchor: SceneAnchor::Center,
             offset: [0.0, 24.0],
@@ -890,7 +905,7 @@ math_title.at = (32%, 36%) [1s]
         .expect("math_title track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(1000),
+        track.position_binding.get(1000, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.30,
             y: 0.38,
@@ -898,7 +913,7 @@ math_title.at = (32%, 36%) [1s]
         }
     );
     assert_eq!(
-        track.position_binding.evaluate(1500),
+        track.position_binding.get(1500, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.31,
             y: 0.37,
@@ -906,7 +921,7 @@ math_title.at = (32%, 36%) [1s]
         }
     );
     assert_eq!(
-        track.position_binding.evaluate(2000),
+        track.position_binding.get(2000, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.32,
             y: 0.36,
@@ -958,30 +973,32 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
 
     assert!(!track.text_paths.evaluate(0).is_empty());
     assert!(!track.text_paths.evaluate(1000).is_empty());
-    assert!(track.text_paths.keyframes.contains_key(&0));
-    assert!(track.text_paths.keyframes.contains_key(&1000));
+    assert!(track.text_paths.has_keyframe_at(0));
+    assert!(track.text_paths.has_keyframe_at(1000));
 }
 
 #[test]
 fn test_missing_properties() {
     let track = AnimationTrack::new("empty_actor".to_string());
 
-    assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
+    // With sparse storage (Option<PropertyTrack<T>>), we must use .get() with explicit defaults
+    // for properties that may not have keyframes
+    assert_eq!(track.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
     assert_eq!(
-        track.placement_mode.evaluate(0),
+        track.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
-    assert_eq!(track.size.evaluate(0), [50.0, 50.0]);
-    assert_eq!(track.line_from.evaluate(0), [-50.0, 0.0]);
-    assert_eq!(track.line_to.evaluate(0), [50.0, 0.0]);
-    assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
-    assert_eq!(track.color.evaluate(0), [1.0, 1.0, 1.0, 1.0]);
-    assert_eq!(track.shape_type.evaluate(0), 0);
-    assert_eq!(track.opacity.evaluate(0), 1.0);
+    assert_eq!(track.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
+    assert_eq!(track.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
+    assert_eq!(track.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
+    assert_eq!(track.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
+    assert_eq!(track.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
+    assert_eq!(track.shape_type.get(0, 0), 0);
+    assert_eq!(track.opacity.get(0, 1.0), 1.0);
 }
 
 #[test]
@@ -3307,7 +3324,7 @@ fn test_row_child_with_explicit_origin_stays_manual() {
         .get("origin_child")
         .expect("origin_child track should exist");
 
-    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(0, PlacementMode::LayoutManaged), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
 }
 
@@ -3470,14 +3487,14 @@ logo.at = (70%, 32%) [1s]
         .expect("logo track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.72,
             y: 0.38,
             offset: [0.0, 0.0],
         }
     );
-    match track.position_binding.evaluate(1500) {
+    match track.position_binding.get(1500, PositionBinding::Absolute) {
         PositionBinding::ScenePercent { x, y, offset } => {
             assert!((x - 0.71).abs() < f32::EPSILON * 4.0);
             assert!((y - 0.35).abs() < f32::EPSILON * 4.0);
@@ -3486,7 +3503,7 @@ logo.at = (70%, 32%) [1s]
         other => panic!("expected scene-percent binding at midpoint, got {other:?}"),
     }
     assert_eq!(
-        track.position_binding.evaluate(2000),
+        track.position_binding.get(2000, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.70,
             y: 0.32,
@@ -3513,14 +3530,14 @@ photo.at = (32%, 36%) [1s]
         .expect("photo track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.30,
             y: 0.38,
             offset: [0.0, 0.0],
         }
     );
-    match track.position_binding.evaluate(1500) {
+    match track.position_binding.get(1500, PositionBinding::Absolute) {
         PositionBinding::ScenePercent { x, y, offset } => {
             assert!((x - 0.31).abs() < f32::EPSILON * 4.0);
             assert!((y - 0.37).abs() < f32::EPSILON * 4.0);
@@ -3550,15 +3567,15 @@ fn test_showcase_logo_is_layout_managed_inside_anchored_svg_column() {
         .expect("logo_svg track should exist");
 
     assert_eq!(
-        logo_container.position_binding.evaluate(0),
+        logo_container.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
     assert_eq!(
-        track.placement_mode.evaluate(0),
+        track.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
 }
@@ -3578,7 +3595,7 @@ icon: Svg { url: "examples/vector.svg", anchor: scene.top, offset: (0, 48) }
         .expect("icon track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::SceneAnchor {
             anchor: SceneAnchor::Top,
             offset: [0.0, 48.0],
@@ -3626,7 +3643,7 @@ fn test_row_child_without_at_is_layout_managed() {
         .expect("auto_child track should exist");
 
     assert_eq!(
-        track.placement_mode.evaluate(0),
+        track.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
@@ -3694,12 +3711,12 @@ fn test_row_mixed_manual_and_layout_children() {
         .expect("layout_child track should exist");
 
     assert_eq!(
-        manual_track.placement_mode.evaluate(0),
+        manual_track.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::Manual
     );
     assert_eq!(manual_track.position.evaluate(0), [0.0, 0.0]);
     assert_eq!(
-        layout_track.placement_mode.evaluate(0),
+        layout_track.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(layout_track.position.evaluate(0), [30.0, 0.0]);
@@ -3750,7 +3767,7 @@ fn test_col_child_with_explicit_origin_stays_manual() {
         .get("origin_child")
         .expect("origin_child track should exist");
 
-    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(0, PlacementMode::LayoutManaged), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
 }
 
@@ -3793,7 +3810,7 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
         .get("manual_child")
         .expect("manual_child track should exist");
 
-    assert_eq!(track.placement_mode.evaluate(0), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(0, PlacementMode::LayoutManaged), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(0), [45.0, 55.0]);
 }
 
@@ -3837,11 +3854,11 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
         .expect("child track should exist");
 
     assert_eq!(
-        track.placement_mode.evaluate(999),
+        track.placement_mode.get(999, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
-    assert_eq!(track.placement_mode.evaluate(1000), PlacementMode::Manual);
-    assert_eq!(track.placement_mode.evaluate(1500), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(1000, PlacementMode::LayoutManaged), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(1500, PlacementMode::LayoutManaged), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(1500), [50.0, 25.0]);
 }
 
@@ -3896,14 +3913,14 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
         .expect("child track should exist");
 
     assert_eq!(
-        track.placement_mode.evaluate(999),
+        track.placement_mode.get(999, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(
-        track.position_binding.evaluate(999),
+        track.position_binding.get(999, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
-    assert_eq!(track.placement_mode.evaluate(1000), PlacementMode::Manual);
+    assert_eq!(track.placement_mode.get(1000, PlacementMode::LayoutManaged), PlacementMode::Manual);
     assert_eq!(track.position.evaluate(1500), [50.0, 25.0]);
 }
 
@@ -3929,7 +3946,7 @@ fn test_root_row_without_at_uses_container_default_center_binding() {
     let track = timeline.tracks.get("row").expect("row track should exist");
 
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::ContainerDefault {
             anchor: SceneAnchor::Center,
         }
@@ -4606,7 +4623,7 @@ fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
                 .get(label)
                 .expect("container track")
                 .position_binding
-                .evaluate(0),
+                .get(0, PositionBinding::Absolute),
             PositionBinding::ContainerDefault {
                 anchor: SceneAnchor::Center,
             }
@@ -4638,11 +4655,11 @@ fn test_parser_built_row_with_inline_text_and_image_uses_measured_layout() {
     let photo_size = photo.size.evaluate(0);
 
     assert_eq!(
-        label.placement_mode.evaluate(0),
+        label.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(
-        photo.placement_mode.evaluate(0),
+        photo.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert!(label_size[0] > 0.0);
@@ -4695,7 +4712,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
             .get("anchored")
             .expect("anchored track")
             .position_binding
-            .evaluate(0),
+            .get(0, PositionBinding::Absolute),
         PositionBinding::SceneAnchor {
             anchor: SceneAnchor::Top,
             offset: [0.0, 48.0],
@@ -4707,7 +4724,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
             .get("percent")
             .expect("percent track")
             .position_binding
-            .evaluate(0),
+            .get(0, PositionBinding::Absolute),
         PositionBinding::ScenePercent {
             x: 0.5,
             y: 0.25,
@@ -4757,7 +4774,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
     assert_ne!(track.shape_type.evaluate(0), 0);
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
     assert_eq!(
-        track.position_binding.evaluate(0),
+        track.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
 }
@@ -5288,6 +5305,6 @@ fn test_namespace_export_resolution_in_expressions() {
 
     let timeline = report.output;
     let track = timeline.tracks.get("panel").unwrap();
-    let color = track.color.last_value();
+    let color = track.color.last([0.0, 0.0, 0.0, 0.0]);
     assert_eq!(color, [0.38, 0.78, 1.0, 1.0]);
 }

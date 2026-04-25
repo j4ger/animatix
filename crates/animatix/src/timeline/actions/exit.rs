@@ -2,6 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn timing_modifier_params() -> Vec<ActionParam> {
@@ -68,21 +69,23 @@ impl BuiltinAction for FadeOut {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_opacity = track.opacity.evaluate(t_start_ms);
+            let start_opacity = track.opacity.get(t_start_ms, 1.0);
             if duration_ms > 0.0 {
                 track
                     .opacity
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_opacity = track.opacity.evaluate(guard_time);
-                if !track.opacity.keyframes.contains_key(&guard_time) {
+                let prior_opacity = track.opacity.get(guard_time, 1.0);
+                if !track.opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .opacity
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_opacity, Easing::Linear);
                 }
             }
-            track.opacity.add_keyframe(t_end_ms, 0.0, easing);
+            track.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -139,10 +142,10 @@ mod tests {
             .get("headline")
             .expect("headline track");
 
-        assert_eq!(track.opacity.evaluate(0), 1.0);
-        assert!(track.opacity.evaluate(500) < 1.0);
-        assert!(track.opacity.evaluate(500) > 0.0);
-        assert_eq!(track.opacity.evaluate(1000), 0.0);
+        assert_eq!(track.opacity.get(0, 1.0), 1.0);
+        assert!(track.opacity.get(500, 1.0) < 1.0);
+        assert!(track.opacity.get(500, 1.0) > 0.0);
+        assert_eq!(track.opacity.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 }

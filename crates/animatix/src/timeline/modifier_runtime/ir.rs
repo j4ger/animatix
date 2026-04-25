@@ -94,8 +94,17 @@ fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result
     Ok(())
 }
 
-fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
+pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
     body.iter().map(lower_modifier_stmt).collect()
+}
+
+/// Lower a flat list of modifier body statements (assignments, conditionals, lets)
+/// into a ModifierIrProgram. Unlike `lower_modifier_ir`, this does not expect
+/// Always/LabeledAlways wrapper statements.
+pub fn lower_modifier_body(statements: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
+    Ok(ModifierIrProgram {
+        statements: lower_modifier_block(statements)?,
+    })
 }
 
 fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {

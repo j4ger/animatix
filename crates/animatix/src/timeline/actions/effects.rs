@@ -2,6 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn timing_modifier_params() -> Vec<ActionParam> {
@@ -106,7 +107,7 @@ impl BuiltinAction for Shake {
                 .expect("validated target track");
 
             // Get starting offset
-            let start_offset = track.motion_offset.evaluate(t_start_ms);
+            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             // Duration per shake cycle
             let _cycle_duration = if frequency > 0 {
@@ -127,12 +128,14 @@ impl BuiltinAction for Shake {
                 // Build up shake with linear interpolation between cycles
                 track
                     .motion_offset
+                    .ensure([0.0, 0.0])
                     .add_keyframe(cycle_time, shake_offset, Easing::Linear);
             }
 
             // Return to original position at end
             track
                 .motion_offset
+                .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, start_offset, easing);
         }
     }
@@ -194,17 +197,18 @@ impl BuiltinAction for Pulse {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_scale = track.scale.evaluate(t_start_ms);
+            let start_scale = track.scale.get(t_start_ms, 1.0);
             let peak_scale = start_scale * (1.0 + intensity);
 
             // Scale up to peak
             track
                 .scale
+                .ensure(1.0)
                 .add_keyframe(t_start_ms, start_scale, Easing::Linear);
-            track.scale.add_keyframe(t_mid_ms, peak_scale, easing.clone());
+            track.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing.clone());
 
             // Scale back down
-            track.scale.add_keyframe(t_end_ms, start_scale, easing);
+            track.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);
         }
     }
 }
@@ -264,7 +268,7 @@ impl BuiltinAction for Bounce {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_offset = track.motion_offset.evaluate(t_start_ms);
+            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             // Bounce trajectory: down fast, up slower, settle
             // Keyframes at thirds of duration
@@ -274,23 +278,27 @@ impl BuiltinAction for Bounce {
             // Start
             track
                 .motion_offset
+                .ensure([0.0, 0.0])
                 .add_keyframe(t_start_ms, start_offset, Easing::Linear);
 
             // Down (elastic overshoot)
             let bounce_down = [start_offset[0], start_offset[1] + intensity];
             track
                 .motion_offset
+                .ensure([0.0, 0.0])
                 .add_keyframe(t_33, bounce_down, Easing::EaseOut);
 
             // Up (recovery)
             let bounce_up = [start_offset[0], start_offset[1] - intensity * 0.3];
             track
                 .motion_offset
+                .ensure([0.0, 0.0])
                 .add_keyframe(t_66, bounce_up, Easing::EaseOut);
 
             // Settle back
             track
                 .motion_offset
+                .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, start_offset, easing);
         }
     }
@@ -348,7 +356,7 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         // Check that multiple motion offset keyframes were added
-        assert!(!track.motion_offset.keyframes.is_empty());
+        assert!(track.motion_offset.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false));
         assert!(report.diagnostics.is_empty());
     }
 
@@ -378,7 +386,7 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         // Check that scale keyframes were added
-        assert!(track.scale.keyframes.len() >= 2);
+        assert!(track.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));
         assert!(report.diagnostics.is_empty());
     }
 }

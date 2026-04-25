@@ -4,7 +4,8 @@ use super::{
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_modifier_diagnostic,
     resolve_position_binding_with_lookup_diagnostic, AnimationTrack, Diagnostic, DiagnosticCode,
-    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, ParsedTimingModifiers, Stmt, Timeline,
+    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Stmt, Timeline,
+    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 use crate::ast::Property;
 
@@ -132,7 +133,7 @@ impl Timeline {
         let had_text_paths = self
             .tracks
             .get(&label_str)
-            .map(|track| !track.text_paths.keyframes.is_empty())
+            .map(|track| track.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false))
             .unwrap_or(false);
         let ParsedTimingModifiers {
             duration_ms,
@@ -270,6 +271,7 @@ impl Timeline {
             }
             track
                 .color
+                .ensure([1.0, 1.0, 1.0, 1.0])
                 .add_keyframe(t_start_ms, track_color, Easing::Linear);
         }
 
@@ -306,10 +308,12 @@ impl Timeline {
             let start_val = track.evaluate_text_paths(t_start_ms);
             track
                 .text_paths
+                .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
-            let start_size = track.size.evaluate(t_start_ms);
+            let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             track
                 .size
+                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
                 .add_keyframe(t_start_ms, start_size, Easing::Linear);
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
@@ -318,10 +322,11 @@ impl Timeline {
         if supports_morph_options {
             track
                 .morph_options
+                .ensure(MorphOptions::default())
                 .add_keyframe(t_end_ms, morph_options, Easing::Linear);
         }
-        track.text_paths.add_keyframe(t_end_ms, new_paths, easing);
-        track.size.add_keyframe(t_end_ms, new_half_size, easing);
+        track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     }
 
     pub(super) fn process_text_actor_decl(

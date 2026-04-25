@@ -2,6 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn timing_modifier_params() -> Vec<ActionParam> {
@@ -72,37 +73,43 @@ impl BuiltinAction for DrawIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.evaluate(guard_time);
-                let prior_fill = track.fill_opacity.evaluate(guard_time);
-                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
+                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
+                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .stroke_progress
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_stroke, Easing::Linear);
                 }
-                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .fill_opacity
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_fill, Easing::Linear);
                 }
             }
 
             track
                 .stroke_progress
+                .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
             track
                 .fill_opacity
+                .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
             if duration_ms > 0.0 && t_end_ms > t_start_ms {
                 track
                     .fill_opacity
+                    .ensure(1.0)
                     .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
             }
 
-            track.stroke_progress.add_keyframe(t_end_ms, 1.0, easing);
+            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             track
                 .fill_opacity
-                .add_keyframe(t_end_ms, 1.0, Easing::Linear);
+                .ensure(1.0)
+                .add_keyframe(t_end_ms, 1.0, easing);
         }
     }
 }
@@ -152,34 +159,38 @@ impl BuiltinAction for WipeOut {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_stroke = track.stroke_progress.evaluate(t_start_ms);
-            let start_fill = track.fill_opacity.evaluate(t_start_ms);
+            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = track.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
                 track
                     .stroke_progress
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
                 track
                     .fill_opacity
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_fill, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.evaluate(guard_time);
-                let prior_fill = track.fill_opacity.evaluate(guard_time);
-                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
+                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
+                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .stroke_progress
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_stroke, Easing::Linear);
                 }
-                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .fill_opacity
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_fill, Easing::Linear);
                 }
             }
 
-            track.stroke_progress.add_keyframe(t_end_ms, 0.0, easing);
-            track.fill_opacity.add_keyframe(t_end_ms, 0.0, easing);
+            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            track.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -229,32 +240,36 @@ impl BuiltinAction for RevealOut {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_stroke = track.stroke_progress.evaluate(t_start_ms);
+            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
                 track
                     .stroke_progress
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.evaluate(guard_time);
-                let prior_fill = track.fill_opacity.evaluate(guard_time);
-                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
+                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
+                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .stroke_progress
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_stroke, Easing::Linear);
                 }
-                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .fill_opacity
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_fill, Easing::Linear);
                 }
             }
 
             track
                 .fill_opacity
+                .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track.stroke_progress.add_keyframe(t_end_ms, 0.0, easing);
+            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -304,40 +319,45 @@ impl BuiltinAction for DrawOut {
                 .get_mut(target)
                 .expect("validated target track");
 
-            let start_stroke = track.stroke_progress.evaluate(t_start_ms);
-            let start_fill = track.fill_opacity.evaluate(t_start_ms);
+            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = track.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
                 track
                     .stroke_progress
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
                 track
                     .fill_opacity
+                    .ensure(1.0)
                     .add_keyframe(t_start_ms, start_fill, Easing::Linear);
-                track.fill_opacity.add_keyframe(
+                track.fill_opacity.ensure(1.0).add_keyframe(
                     t_end_ms.saturating_sub(1),
                     start_fill,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.evaluate(guard_time);
-                let prior_fill = track.fill_opacity.evaluate(guard_time);
-                if !track.stroke_progress.keyframes.contains_key(&guard_time) {
+                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
+                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
+                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .stroke_progress
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_stroke, Easing::Linear);
                 }
-                if !track.fill_opacity.keyframes.contains_key(&guard_time) {
+                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
                         .fill_opacity
+                        .ensure(1.0)
                         .add_keyframe(guard_time, prior_fill, Easing::Linear);
                 }
             }
 
-            track.stroke_progress.add_keyframe(t_end_ms, 0.0, easing);
+            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
             track
                 .fill_opacity
+                .ensure(1.0)
                 .add_keyframe(t_end_ms, 0.0, Easing::Linear);
         }
     }
@@ -427,10 +447,10 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.stroke_progress.evaluate(0), 0.0);
-        assert_eq!(track.stroke_progress.evaluate(1000), 1.0);
-        assert_eq!(track.fill_opacity.evaluate(500), 0.0);
-        assert_eq!(track.fill_opacity.evaluate(1000), 1.0);
+        assert_eq!(track.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(track.fill_opacity.get(500, 1.0), 0.0);
+        assert_eq!(track.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -466,11 +486,11 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.fill_opacity.evaluate(0), 0.0);
-        assert_eq!(track.stroke_progress.evaluate(0), 1.0);
-        assert!(track.stroke_progress.evaluate(500) > 0.0);
-        assert!(track.stroke_progress.evaluate(500) < 1.0);
-        assert_eq!(track.stroke_progress.evaluate(1000), 0.0);
+        assert_eq!(track.fill_opacity.get(0, 1.0), 0.0);
+        assert_eq!(track.stroke_progress.get(0, 1.0), 1.0);
+        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.stroke_progress.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -502,10 +522,10 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.fill_opacity.evaluate(249), 1.0);
-        assert_eq!(track.stroke_progress.evaluate(249), 1.0);
-        assert_eq!(track.fill_opacity.evaluate(250), 0.0);
-        assert_eq!(track.stroke_progress.evaluate(250), 0.0);
+        assert_eq!(track.fill_opacity.get(249, 1.0), 1.0);
+        assert_eq!(track.stroke_progress.get(249, 1.0), 1.0);
+        assert_eq!(track.fill_opacity.get(250, 1.0), 0.0);
+        assert_eq!(track.stroke_progress.get(250, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -541,13 +561,13 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.stroke_progress.evaluate(0), 1.0);
-        assert_eq!(track.fill_opacity.evaluate(0), 1.0);
-        assert!(track.stroke_progress.evaluate(500) > 0.0);
-        assert!(track.stroke_progress.evaluate(500) < 1.0);
-        assert_eq!(track.fill_opacity.evaluate(500), 1.0);
-        assert_eq!(track.stroke_progress.evaluate(1000), 0.0);
-        assert_eq!(track.fill_opacity.evaluate(1000), 0.0);
+        assert_eq!(track.stroke_progress.get(0, 1.0), 1.0);
+        assert_eq!(track.fill_opacity.get(0, 1.0), 1.0);
+        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.fill_opacity.get(500, 1.0), 1.0);
+        assert_eq!(track.stroke_progress.get(1000, 1.0), 0.0);
+        assert_eq!(track.fill_opacity.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 

@@ -28,7 +28,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{AnimationTrack, Easing, PlacementMode, SceneNode, Timeline};
+use super::{AnimationTrack, Easing, PlacementMode, SceneNode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -175,14 +175,14 @@ fn compute_grid_layout(
 }
 
 fn layout_full_extents(track: &AnimationTrack) -> (f32, f32) {
-    let half_extents = track.size.last_value();
+    let half_extents = track.size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
     (half_extents[0] * 2.0, half_extents[1] * 2.0)
 }
 
 /// Returns the full extents (width, height) of a track at a specific time.
 fn layout_full_extents_at_time(track: &AnimationTrack, time_ms: u64) -> (f32, f32) {
-    let half_extents = track.size.evaluate(time_ms);
+    let half_extents = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
     (half_extents[0] * 2.0, half_extents[1] * 2.0)
 }
@@ -223,8 +223,8 @@ impl LayoutEngine {
             .filter_map(|cl| {
                 tracks.get(cl).map(|track| ChildExtent {
                     label: cl.clone(),
-                    half_size: track.size.evaluate(time_ms),
-                    placement_mode: track.placement_mode.evaluate(time_ms),
+                    half_size: track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+                    placement_mode: track.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
                 })
             })
             .collect();
@@ -290,8 +290,8 @@ impl Timeline {
             .filter_map(|cl| {
                 self.tracks.get(cl).map(|track| ChildExtent {
                     label: cl.clone(),
-                    half_size: track.size.last_value(),
-                    placement_mode: track.placement_mode.last_value(),
+                    half_size: track.size.last(DEFAULT_LAYOUT_HALF_SIZE),
+                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
                 })
             })
             .collect();
@@ -315,8 +315,8 @@ impl Timeline {
         // Write positions to tracks, only for LayoutManaged children
         for (i, child_label) in children.iter().enumerate() {
             if let Some(track) = self.tracks.get_mut(child_label) {
-                if track.placement_mode.last_value() == PlacementMode::LayoutManaged {
-                    track.position.add_keyframe(t_ms, positions[i], Easing::Linear);
+                if track.placement_mode.last(PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged {
+                    track.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
                 }
             }
         }

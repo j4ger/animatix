@@ -1,7 +1,7 @@
 use super::{
-    DebugRenderOptions, PlacementMode, SceneDimensions, Timeline, Value, VectorShapeState,
+    DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, Timeline, Value, VectorShapeState,
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
-    vector_shape_uses_custom_path,
+    vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
@@ -50,13 +50,15 @@ impl Timeline {
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
-            for (_, (paths, _)) in &track.text_paths.keyframes {
-                for glyph in paths {
+            if let Some(text_paths) = &track.text_paths {
+                for (_, (paths, _)) in &text_paths.keyframes {
+                    for glyph in paths {
+                        glyphs.push(glyph.clone());
+                    }
+                }
+                for glyph in &text_paths.default_value {
                     glyphs.push(glyph.clone());
                 }
-            }
-            for glyph in &track.text_paths.default_value {
-                glyphs.push(glyph.clone());
             }
         }
         glyphs
@@ -96,8 +98,8 @@ impl Timeline {
                 return;
             }
 
-            let placement_mode = track.placement_mode.evaluate(time_ms);
-            let mut base_position = track.position.evaluate(time_ms);
+            let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+            let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
 
             // If dynamic layout is enabled and this node has a computed layout position
             if self.dynamic_layout {
@@ -107,25 +109,25 @@ impl Timeline {
                     }
                 }
             }
-            let binding = track.position_binding.evaluate(time_ms);
+            let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
             let mut position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-            let motion_offset = track.motion_offset.evaluate(time_ms);
-            let mut rotation = track.rotation.evaluate(time_ms) as f64;
-            let mut scale = track.scale.evaluate(time_ms) as f64;
-            let mut opacity = track.opacity.evaluate(time_ms);
+            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
+            let mut rotation = track.rotation.get(time_ms, 0.0) as f64;
+            let mut scale = track.scale.get(time_ms, 1.0) as f64;
+            let mut opacity = track.opacity.get(time_ms, 1.0);
             let text_paths = track.evaluate_text_paths(time_ms);
-            let points = track.points.evaluate(time_ms);
-            let shape_type = track.shape_type.evaluate(time_ms);
+            let points = track.points.get(time_ms, Vec::new());
+            let shape_type = track.shape_type.get(time_ms, 0u32);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
-            let mut half_size = track.size.evaluate(time_ms);
-            let mut line_from = track.line_from.evaluate(time_ms);
-            let mut line_to = track.line_to.evaluate(time_ms);
-            let mut arc_angles = track.arc_angles.evaluate(time_ms);
-            let mut color = track.color.evaluate(time_ms);
-            let mut stroke_width = track.stroke_width.evaluate(time_ms);
-            let mut stroke_color = track.stroke_color.evaluate(time_ms);
-            let mut fill_opacity = track.fill_opacity.evaluate(time_ms);
+            let mut half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
+            let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
+            let mut arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+            let mut color = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
+            let mut stroke_color = track.stroke_color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
 
             if let Some(node_overrides) = overrides.get(node_label) {
                 if let Some(Value::Vec2(pos)) = node_overrides.get("at") {
@@ -225,7 +227,7 @@ impl Timeline {
                 ))
                 * kurbo::Affine::rotate(rotation)
                 * kurbo::Affine::scale(scale);
-            let image = track.image.evaluate(time_ms);
+            let image = track.image.get(time_ms, None);
             let has_image = image.is_some();
 
             for vector_path in &vector_paths {
@@ -384,6 +386,22 @@ impl Timeline {
         debug_options: DebugRenderOptions,
     ) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
+
+        // Check the frame cache: return cached scene if time and dimensions match
+        // and the underlying modifiers/layout have not changed.
+        let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
+        if debug_options == DebugRenderOptions::default() {
+            if let Some(ref cached) = *self.frame_cache.borrow() {
+                if cached.time_ms == time_ms
+                    && cached.dimensions == scene_dimensions
+                    && cached.has_modifiers == has_modifiers
+                    && cached.has_dynamic_layout == self.dynamic_layout
+                {
+                    return cached.scene.clone();
+                }
+            }
+        }
+
         let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
 
@@ -393,14 +411,28 @@ impl Timeline {
         > = std::collections::HashMap::new();
         let mut frame_env = self.frame_eval_env(time_ms, scene_dimensions, &overrides);
 
-        for modifier in &self.modifiers {
-            self.apply_modifier_stmt(
-                modifier,
-                time_ms,
-                scene_dimensions,
-                &mut frame_env,
-                &mut overrides,
-            );
+        // Use compiled IR programs for fast evaluation; fall back to AST if no programs exist
+        if !self.modifier_programs.is_empty() {
+            for program in &self.modifier_programs {
+                let _ = self.apply_modifier_ir_program(
+                    program,
+                    time_ms,
+                    scene_dimensions,
+                    &mut frame_env,
+                    &mut overrides,
+                );
+            }
+        } else {
+            // AST fallback path (used when IR compilation failed or no modifiers exist)
+            for modifier in &self.modifiers {
+                self.apply_modifier_stmt(
+                    modifier,
+                    time_ms,
+                    scene_dimensions,
+                    &mut frame_env,
+                    &mut overrides,
+                );
+            }
         }
 
         let bg = vello::peniko::Color::new([
@@ -434,6 +466,17 @@ impl Timeline {
                 &overrides,
                 &std::collections::BTreeMap::new(), // empty for roots
             );
+        }
+
+        // Store result in frame cache for fast lookup on next identical evaluation request
+        if debug_options == DebugRenderOptions::default() {
+            *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
+                time_ms,
+                dimensions: scene_dimensions,
+                has_modifiers,
+                has_dynamic_layout: self.dynamic_layout,
+                scene: scene.clone(),
+            });
         }
 
         scene

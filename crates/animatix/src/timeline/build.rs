@@ -83,6 +83,22 @@ impl Timeline {
                 _ => {}
             }
         }
+
+        // Compile always-body statements into IR for faster frame-time evaluation
+        match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
+            Ok(program) => {
+                timeline.modifier_programs.push(program);
+            }
+            Err(e) => {
+                // Fall back to AST interpretation for this batch
+                diagnostics.push(Diagnostic::warning(
+                    DiagnosticCode::ModifierCompilationError,
+                    DiagnosticPhase::Build,
+                    format!("Failed to compile always blocks to IR: {}; using AST fallback.", e),
+                ));
+            }
+        }
+
         BuildReport::new(timeline, diagnostics)
     }
 
@@ -585,19 +601,21 @@ impl Timeline {
                         .cloned()
                         .unwrap_or_else(|| AnimationTrack::new(label.clone()));
 
-                    let mut position = existing_track.position.last_value();
-                    let mut size = existing_track.size.last_value();
-                    let mut line_from = existing_track.line_from.last_value();
-                    let mut line_to = existing_track.line_to.last_value();
-                    let mut arc_angles = existing_track.arc_angles.last_value();
-                    let mut color = existing_track.color.last_value();
+                    let default_size = DEFAULT_LAYOUT_HALF_SIZE;
+                    let default_arc = [0.0, std::f32::consts::PI];
+                    let mut position = existing_track.position.last([0.0, 0.0]);
+                    let mut size = existing_track.size.last(default_size);
+                    let mut line_from = existing_track.line_from.last([-50.0, 0.0]);
+                    let mut line_to = existing_track.line_to.last([50.0, 0.0]);
+                    let mut arc_angles = existing_track.arc_angles.last(default_arc);
+                    let mut color = existing_track.color.last([1.0, 1.0, 1.0, 1.0]);
                     let vector_shape = vector_shape_primitive_for_actor_type(ty);
                     let shape_type = shape_type_for_actor(ty);
-                    let opacity = existing_track.opacity.last_value();
-                    let mut stroke_width = existing_track.stroke_width.last_value();
-                    let mut stroke_color = existing_track.stroke_color.last_value();
-                    let mut stroke_progress = existing_track.stroke_progress.last_value();
-                    let mut fill_opacity = existing_track.fill_opacity.last_value();
+                    let opacity = existing_track.opacity.last(1.0);
+                    let mut stroke_width = existing_track.stroke_width.last(2.0);
+                    let mut stroke_color = existing_track.stroke_color.last([1.0, 1.0, 1.0, 1.0]);
+                    let mut stroke_progress = existing_track.stroke_progress.last(1.0);
+                    let mut fill_opacity = existing_track.fill_opacity.last(1.0);
                     let mut gap = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
@@ -620,7 +638,7 @@ impl Timeline {
                     let t_start_ms = (time_ms + delay_ms) as u64;
                     let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
                     let supports_morph_options =
-                        !existing_track.vector_paths.keyframes.is_empty() && duration_ms > 0.0;
+                        existing_track.vector_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false) && duration_ms > 0.0;
 
                     if has_non_default_morph_options(morph_options) && !supports_morph_options {
                         push_modifier_diagnostic(
@@ -1153,64 +1171,72 @@ impl Timeline {
 
                     if duration_ms > 0.0 {
                         let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
-                        let start_position = track.position.evaluate(t_start_ms);
-                        let start_size = track.size.evaluate(t_start_ms);
-                        let start_line_from = track.line_from.evaluate(t_start_ms);
-                        let start_line_to = track.line_to.evaluate(t_start_ms);
-                        let start_arc_angles = track.arc_angles.evaluate(t_start_ms);
-                        let start_color = track.color.evaluate(t_start_ms);
-                        let start_shape_type = track.shape_type.evaluate(t_start_ms);
-                        let start_opacity = track.opacity.evaluate(t_start_ms);
-                        let start_stroke_width = track.stroke_width.evaluate(t_start_ms);
-                        let start_stroke_color = track.stroke_color.evaluate(t_start_ms);
-                        let start_stroke_progress = track.stroke_progress.evaluate(t_start_ms);
-                        let start_fill_opacity = track.fill_opacity.evaluate(t_start_ms);
+                        let start_position = track.position.get(t_start_ms, [0.0, 0.0]);
+                        let start_size = track.size.get(t_start_ms, default_size);
+                        let start_line_from = track.line_from.get(t_start_ms, [-50.0, 0.0]);
+                        let start_line_to = track.line_to.get(t_start_ms, [50.0, 0.0]);
+                        let start_arc_angles = track.arc_angles.get(t_start_ms, default_arc);
+                        let start_color = track.color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+                        let start_shape_type = track.shape_type.get(t_start_ms, 0u32);
+                        let start_opacity = track.opacity.get(t_start_ms, 1.0);
+                        let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
+                        let start_stroke_color = track.stroke_color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+                        let start_stroke_progress = track.stroke_progress.get(t_start_ms, 1.0);
+                        let start_fill_opacity = track.fill_opacity.get(t_start_ms, 1.0);
 
-                        track.vector_paths.add_keyframe(
+                        track.vector_paths.ensure(Vec::new()).add_keyframe(
                             t_start_ms,
                             start_vector_paths,
                             Easing::Linear,
                         );
                         track
                             .position
+                            .ensure([0.0, 0.0])
                             .add_keyframe(t_start_ms, start_position, Easing::Linear);
                         track
                             .size
+                            .ensure(default_size)
                             .add_keyframe(t_start_ms, start_size, Easing::Linear);
                         track
                             .line_from
+                            .ensure([-50.0, 0.0])
                             .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
                         track
                             .line_to
+                            .ensure([50.0, 0.0])
                             .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
                         track
                             .arc_angles
+                            .ensure(default_arc)
                             .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
                         track
                             .color
+                            .ensure([1.0, 1.0, 1.0, 1.0])
                             .add_keyframe(t_start_ms, start_color, Easing::Linear);
                         track
                             .shape_type
+                            .ensure(0u32)
                             .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
                         track
                             .opacity
+                            .ensure(1.0)
                             .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-                        track.stroke_width.add_keyframe(
+                        track.stroke_width.ensure(2.0).add_keyframe(
                             t_start_ms,
                             start_stroke_width,
                             Easing::Linear,
                         );
-                        track.stroke_color.add_keyframe(
+                        track.stroke_color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(
                             t_start_ms,
                             start_stroke_color,
                             Easing::Linear,
                         );
-                        track.stroke_progress.add_keyframe(
+                        track.stroke_progress.ensure(1.0).add_keyframe(
                             t_start_ms,
                             start_stroke_progress,
                             Easing::Linear,
                         );
-                        track.fill_opacity.add_keyframe(
+                        track.fill_opacity.ensure(1.0).add_keyframe(
                             t_start_ms,
                             start_fill_opacity,
                             Easing::Linear,
@@ -1233,31 +1259,37 @@ impl Timeline {
                     if supports_morph_options {
                         track
                             .morph_options
+                            .ensure(MorphOptions::default())
                             .add_keyframe(t_end_ms, morph_options, Easing::Linear);
                     }
 
                     track
                         .vector_paths
+                        .ensure(Vec::new())
                         .add_keyframe(t_end_ms, vello_paths, easing);
-                    track.position.add_keyframe(t_end_ms, position, easing);
-                    track.size.add_keyframe(t_end_ms, size, easing);
-                    track.line_from.add_keyframe(t_end_ms, line_from, easing);
-                    track.line_to.add_keyframe(t_end_ms, line_to, easing);
-                    track.arc_angles.add_keyframe(t_end_ms, arc_angles, easing);
-                    track.color.add_keyframe(t_end_ms, color, easing);
-                    track.shape_type.add_keyframe(t_end_ms, shape_type, easing);
-                    track.opacity.add_keyframe(t_end_ms, opacity, easing);
+                    track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
+                    track.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
+                    track.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
+                    track.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
+                    track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
+                    track.color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(t_end_ms, color, easing);
+                    track.shape_type.ensure(0u32).add_keyframe(t_end_ms, shape_type, easing);
+                    track.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
                     track
                         .stroke_width
+                        .ensure(2.0)
                         .add_keyframe(t_end_ms, stroke_width, easing);
                     track
                         .stroke_color
+                        .ensure([1.0, 1.0, 1.0, 1.0])
                         .add_keyframe(t_end_ms, stroke_color, easing);
                     track
                         .stroke_progress
+                        .ensure(1.0)
                         .add_keyframe(t_end_ms, stroke_progress, easing);
                     track
                         .fill_opacity
+                        .ensure(1.0)
                         .add_keyframe(t_end_ms, fill_opacity, easing);
 
                     // === Container Layout ===
