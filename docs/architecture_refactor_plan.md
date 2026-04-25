@@ -1,10 +1,8 @@
 # Animatix Architecture Refactor Plan
 
-> **Status: support lane for internal boundary improvements**
+> **Status: SUPERSEDED by `docs/implementation_plan.md`**
 >
-> This document tracks refactor work to improve internal code architecture without changing the public DSL contract. Separate from `docs/implementation_plan.md` (product/runtime roadmap).
->
-> **Out of scope:** IR/VM workstream in `ir.rs` / `vm.rs`.
+> This document is retained for historical reference. All refactor and feature work is now tracked in the unified master plan at `docs/implementation_plan.md`.
 
 ---
 
