@@ -60,10 +60,17 @@ impl Timeline {
         if !modifiers.is_empty() {
             push_unsupported_media_modifier_diagnostics(diagnostics, label, actor_type, modifiers);
         }
+        let is_new_track = !self.tracks.contains_key(label);
         let track = self
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string()));
+
+        // Record first declaration time so scene evaluation can hide
+        // actors before they are declared
+        if is_new_track {
+            track.first_seen_ms = time_ms as u64;
+        }
 
         let mut url = String::new();
         let mut scale = 1.0f32;
@@ -209,10 +216,17 @@ impl Timeline {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
+                let is_new_track = !self.tracks.contains_key(&label_str);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+                // Record first declaration time so scene evaluation can hide
+                // actors before they are declared
+                if is_new_track {
+                    track.first_seen_ms = time_ms as u64;
+                }
 
                 let binding_subject = format!("{}.at", label_str);
                 if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
@@ -274,10 +288,17 @@ impl Timeline {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
+                let is_new_track = !self.tracks.contains_key(&label_str);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+                // Record first declaration time so scene evaluation can hide
+                // actors before they are declared
+                if is_new_track {
+                    track.first_seen_ms = time_ms as u64;
+                }
 
                 let binding_subject = format!("{}.at", label_str);
                 if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(

@@ -270,6 +270,9 @@ pub struct AnimationTrack {
     pub vector_paths: PropertyTrack<Vec<VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     pub image: PropertyTrack<Option<crate::timeline::image::SceneImage>>,
+    /// The first time this actor was seen in the timeline (ms).
+    /// Used to hide actors before their first declaration.
+    pub first_seen_ms: u64,
 }
 
 impl AnimationTrack {
@@ -298,6 +301,7 @@ impl AnimationTrack {
             vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
             image: PropertyTrack::new(None),
+            first_seen_ms: 0,
         }
     }
 

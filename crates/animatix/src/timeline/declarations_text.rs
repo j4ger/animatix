@@ -252,10 +252,17 @@ impl Timeline {
             }
         }
 
+        let is_new_track = !self.tracks.contains_key(&label_str);
         let track = self
             .tracks
             .entry(label_str.clone())
             .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+
+        // Record first declaration time so scene evaluation can hide
+        // actors before they are declared
+        if is_new_track {
+            track.first_seen_ms = t_start_ms;
+        }
 
         if let Some(track_color) = initial_track_color {
             if delay_ms > 0.0 && duration_ms == 0.0 {

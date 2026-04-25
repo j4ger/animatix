@@ -839,10 +839,17 @@ impl Timeline {
                         stroke_width = 0.0;
                     }
 
+                    let is_new_track = !self.tracks.contains_key(label);
                     let track = self
                         .tracks
                         .entry(label.clone())
                         .or_insert_with(|| AnimationTrack::new(label.clone()));
+
+                    // Record first declaration time so scene evaluation can hide
+                    // actors before they are declared
+                    if is_new_track {
+                        track.first_seen_ms = t_start_ms;
+                    }
 
                     if let Some((binding, bound_position)) =
                         resolve_position_binding_with_lookup_diagnostic(

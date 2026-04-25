@@ -74,6 +74,26 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
+            // Skip actors that haven't been declared yet
+            if time_ms < track.first_seen_ms {
+                // Still recurse into children so they are also hidden
+                if let Some(node) = self.nodes.get(node_label) {
+                    for child_label in &node.children {
+                        self.evaluate_node(
+                            child_label,
+                            time_ms,
+                            parent_transform,
+                            parent_opacity,
+                            scene_dimensions,
+                            debug_options,
+                            scene,
+                            overrides,
+                        );
+                    }
+                }
+                return;
+            }
+
             let base_position = track.position.evaluate(time_ms);
             let binding = track.position_binding.evaluate(time_ms);
             let mut position =
