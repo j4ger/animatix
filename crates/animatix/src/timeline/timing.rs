@@ -520,6 +520,11 @@ pub(crate) fn parse_timing_modifiers(
                     ),
                 }
             }
+            // Custom effect modifiers handled directly by effect execute functions
+            Some("intensity" | "frequency") => {
+                // These are action-specific modifiers parsed and used by effect implementations
+                // Skip emitting diagnostic - they're valid but not timing modifiers
+            }
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,

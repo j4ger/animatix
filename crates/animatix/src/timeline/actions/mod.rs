@@ -1,3 +1,4 @@
+pub mod effects;
 pub mod entrance;
 pub mod exit;
 pub mod motion;
@@ -7,6 +8,7 @@ pub mod reveal;
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
+use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use motion::{Move, Rotate, Scale, Shift};
@@ -132,6 +134,9 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(FadeOut),
         Box::new(WipeOut),
         Box::new(RevealOut),
+        Box::new(Shake),
+        Box::new(Pulse),
+        Box::new(Bounce),
     ]
 }
 

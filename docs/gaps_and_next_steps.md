@@ -9,12 +9,11 @@ During the review and redesign of the Animatix showcase, several usability frict
 * Introduce standard property assignment for strings and media sources (`tagline.text = "New Text" [1s]`, `icon.url = "new.svg"`).
 * Map these property assignments under the hood to the existing path-morphing and cross-fade systems.
 
+**Implementation Status:** Infrastructure added for text property assignment (stores text content in timeline), but render-time text path compilation is deferred. The assignment `tagline.text = "New" [1s]` stores the value but does not yet trigger dynamic re-compilation of text paths at render time. Currently, text paths are compiled at declaration time only.
+
 ## 2. Asymmetrical Reveal and Exit Actions
-**Current State:** The language ships with a standard `fade-in` action, but explicitly omits a dedicated `fade-out`. The supported exit actions (`wipe-out`, `reveal-out`, `draw-out`) do not provide a standard cross-fade out.
-**The Gap:** Users are forced to rely on `reveal-out` or manually target the `fill_opacity` and `stroke_progress` properties for a simple fade exit, leading to asymmetrical entrance and exit syntax.
-**Next Steps:**
-* Implement a native `fade-out` action that perfectly mirrors `fade-in`.
-* Ensure container-level reveals and exits cascade consistently to children.
+**Current State:** ✅ **SHIPPED** — `fade-out` is now implemented and mirrors `fade-in` behavior.
+The `fade-out` action animates opacity from current value to 0.0, perfectly complementing `fade-in`.
 
 ## 3. Static Geometry and Path Animation
 **Current State:** Geometry inputs like `Polygon.points` and `Path.commands` are restricted to declaration-time only.

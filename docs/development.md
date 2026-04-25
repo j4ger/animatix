@@ -111,6 +111,7 @@ cargo run -- image path/to/scene.amx --time 0.0 --output /tmp/frame0.png
 cargo run -- image path/to/scene.amx --time 1.5 --output /tmp/frame1.png
 cargo run -- image examples/reactive_runtime.amx --time 0.5 --output /tmp/reactive_a.png
 cargo run -- image examples/reactive_runtime.amx --time 1.5 --output /tmp/reactive_b.png
+cargo run -- image examples/effects_demo.amx --time 3.0 --output /tmp/effects_frame.png
 cargo run -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
 cargo run -- gif path/to/scene.amx --output /tmp/check.gif --fps 15
 cargo test
@@ -120,6 +121,20 @@ For demo work:
 
 - keep runnable demos under `examples/`
 - verify runnable demos with both `ast` and `image`/`video`
+- key examples: `showcase.amx`, `reactive_runtime.amx`, `effects_demo.amx`
+
+For effects actions:
+
+```bash
+cargo run -- render examples/effects_demo.amx
+cargo run -- image examples/effects_demo.amx --time 3.0 --output /tmp/effects_frame.png
+cargo run -- video examples/effects_demo.amx --output /tmp/effects.mp4 --fps 30 --duration 10
+```
+
+Available effects actions:
+- `shake target [intensity: N, frequency: F, duration]` - Rapid oscillating horizontal motion
+- `pulse target [intensity: N, duration]` - Scale up then return to normal
+- `bounce target [intensity: N, duration]` - Elastic bounce motion
 
 ## Source Areas Worth Knowing
 

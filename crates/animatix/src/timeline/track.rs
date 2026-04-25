@@ -179,6 +179,12 @@ impl Interpolate for Option<crate::timeline::image::SceneImage> {
     }
 }
 
+impl Interpolate for String {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { self.clone() } else { other.clone() }
+    }
+}
+
 #[derive(Clone)]
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
@@ -266,6 +272,7 @@ pub struct AnimationTrack {
     pub stroke_progress: PropertyTrack<f32>,
     pub fill_opacity: PropertyTrack<f32>,
     pub morph_options: PropertyTrack<MorphOptions>,
+    pub text_content: PropertyTrack<String>,
     pub text_paths: PropertyTrack<Vec<TextPath>>,
     pub vector_paths: PropertyTrack<Vec<VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
@@ -297,6 +304,7 @@ impl AnimationTrack {
             stroke_progress: PropertyTrack::new(1.0),
             fill_opacity: PropertyTrack::new(1.0),
             morph_options: PropertyTrack::new(MorphOptions::default()),
+            text_content: PropertyTrack::new(String::new()),
             text_paths: PropertyTrack::new(Vec::new()),
             vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),

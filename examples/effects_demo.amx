@@ -1,0 +1,89 @@
+// Effects Demo: shake, pulse, bounce actions
+// Demonstrates the new Effects category actions for emphasis and attention
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+// Background scene
+backdrop: Rect, size: (1280, 720), color: (0.04, 0.06, 0.09, 1.0), anchor: scene.center
+
+// Title
+title: Text, text: "Effects Actions", font_size: 64, color: auto, anchor: scene.top, offset: (0, 80)
+subtitle: Text, text: "shake · pulse · bounce", font_size: 28, color: text.secondary, anchor: scene.top, offset: (0, 140)
+
+// Three cards demonstrating each effect
+card_shake: Rect, size: (200, 120), color: surface.primary, at: (280, 360)
+  shake_label: Text, text: "Shake", font_size: 32, color: accent.danger, anchor: scene.center
+
+card_pulse: Rect, size: (200, 120), color: surface.primary, at: (640, 360)
+  pulse_label: Text, text: "Pulse", font_size: 32, color: accent.success, anchor: scene.center
+
+card_bounce: Rect, size: (200, 120), color: surface.primary, at: (1000, 360)
+  bounce_label: Text, text: "Bounce", font_size: 32, color: accent.primary, anchor: scene.center
+
+// Status label
+status: Text, text: "Click buttons below to trigger effects", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -80)
+
+// Button row
+button_row: Row, anchor: scene.bottom, offset: (0, -180), gap: 40, align: "center" {
+  shake_btn: Rect, size: (140, 50), color: accent.danger, radius: 25
+    shake_text: Text, text: "Trigger Shake", font_size: 18, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+
+  pulse_btn: Rect, size: (140, 50), color: accent.success, radius: 25
+    pulse_text: Text, text: "Trigger Pulse", font_size: 18, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+
+  bounce_btn: Rect, size: (140, 50), color: accent.primary, radius: 25
+    bounce_text: Text, text: "Trigger Bounce", font_size: 18, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+}
+
+#1s
+// Initial reveal sequence
+stagger [200ms] {
+  fade-in card_shake [500ms, ease: ease-out]
+  fade-in card_pulse [500ms, ease: ease-out]
+  fade-in card_bounce [500ms, ease: ease-out]
+}
+
+#2s
+// Shake demonstration - rapid horizontal oscillation
+shake card_shake [800ms, intensity: 20.0, frequency: 12]
+
+#3s
+// Pulse demonstration - scale up and down
+pulse card_pulse [600ms, intensity: 0.3]
+
+#4s
+// Bounce demonstration - elastic vertical motion
+bounce card_bounce [800ms, intensity: 40.0]
+
+#5.5s
+// Reset and loop demonstration
+stagger [150ms] {
+  fade-out card_shake [300ms]
+  fade-out card_pulse [300ms]
+  fade-out card_bounce [300ms]
+}
+
+#6.5s
+// Second round with different intensities
+stagger [200ms] {
+  fade-in card_shake [400ms]
+  fade-in card_pulse [400ms]
+  fade-in card_bounce [400ms]
+}
+
+#7.5s
+// Gentle shake
+shake card_shake [600ms, intensity: 8.0, frequency: 6]
+
+#8.5s
+// Strong pulse
+pulse card_pulse [400ms, intensity: 0.5]
+
+#9s
+// Subtle bounce
+bounce card_bounce [600ms, intensity: 25.0]
+
+#10s
+// Status update
+status.text = "Effects complete! Use them for emphasis and attention."

@@ -542,6 +542,26 @@ impl Timeline {
                     track.line_to.add_keyframe(t_end_ms, target_to, easing);
                 }
             }
+            "text" | "latex" | "math" | "code" => {
+                let target_text = evaluate_expr_with_lookup_diagnostic(
+                    value,
+                    &eval_env,
+                    diagnostics,
+                    &assignment_subject,
+                )
+                .unwrap_or(Value::Str(String::new()))
+                .as_str()
+                .to_string();
+                if duration_ms > 0.0 {
+                    let start_val = track.text_content.evaluate(t_start_ms);
+                    track
+                        .text_content
+                        .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                } else if instant_delayed {
+                    preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
+                }
+                track.text_content.add_keyframe(t_end_ms, target_text, easing);
+            }
             _ => {
                 push_unsupported_assignment_property_diagnostic(
                     diagnostics,

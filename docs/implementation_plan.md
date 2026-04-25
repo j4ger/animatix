@@ -28,6 +28,7 @@ The following are already part of the current baseline and should not be treated
 - Motion ergonomics already shipped in the current runtime contract: `move`, `shift`, `rotate`, and `scale`
 - Composition ergonomics already shipped in scoped form: `sequence` and `stagger` blocks for actions/property assignments with deliberate diagnostics for unsupported contents
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
+- Colorscheme module reuse v1: standard `.amx` modules with `pub let` color exports, imported via `import ... as`, accessed through module-qualified names (e.g., `theme.accent`), demonstrated in `examples/modules.amx` and `examples/modules/palette.amx`
 
 The roadmap below begins after that baseline.
 
@@ -63,8 +64,8 @@ That document should be treated as the implementation design for colorscheme wor
 
 1. ~~Phase 1~~ — Primitive-Type Default Colors: Shipped
 2. ~~Phase 2~~ — Module System Enhancement: `pub let` exports and `import ... as` syntax: Shipped
-3. **Phase 3** — Colorscheme Module Reuse: Standard module-based scheme sharing (active)
-4. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+3. ~~Phase 3~~ — Colorscheme Module Reuse: Standard module-based scheme sharing: Shipped (see `examples/modules.amx` and `examples/modules/palette.amx`)
+4. **Phase 4** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface (active)
 5. Phase 5 — Tooling and Authoring Workflow Refinement
 6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
@@ -142,9 +143,13 @@ That document should be treated as the implementation design for colorscheme wor
 
 ---
 
-## 6. Phase 3 — Colorscheme Module Reuse: Standard module-based scheme sharing
+## 6. Phase 3 — Colorscheme Module Reuse: Standard module-based scheme sharing (SHIPPED)
 
 **Urgency:** High
+
+**Status: Shipped**
+
+Phase 3 shipped with the existing Phase 2 module infrastructure. No additional runtime work was required beyond what Phase 2 already enabled.
 
 **Goal:** Enable colorscheme definition and reuse through the standard module system built in Phase 2.
 

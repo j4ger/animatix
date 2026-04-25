@@ -28,7 +28,7 @@
 | Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | `strategy:fade` deferred |
-| Actions | `fade-in`, `move`, `shift`, `rotate`, `scale`, `draw-in`, `wipe-in`, `fade-out`, `wipe-out` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
+| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | v1a lowers at build time; nested seq/decls unsupported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | v1b offsets by shared interval; nested stagger/decls unsupported |
@@ -174,8 +174,14 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Motion:** `move`, `shift`, `rotate`, `scale`
 - **Entrance:** `fade-in`, `draw-in`, `wipe-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
+- **Effects:** `shake`, `pulse`, `bounce`
 
 Vector reveal actions (`draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
+
+**Effects actions** add emphasis and attention animations:
+- `shake [intensity: N]` - Rapid oscillating horizontal motion
+- `pulse [intensity: N]` - Scale up then return to normal
+- `bounce [intensity: N]` - Elastic bounce motion
 
 ```animatix
 fade-in btn [1s]
@@ -186,6 +192,13 @@ scale badge [by: 1.5, 1s]
 draw-in badge [1s]
 fade-out btn [1s]
 wipe-out badge [1s]
+```
+
+Effects examples:
+```animatix
+shake badge [intensity: 2]
+pulse btn [intensity: 1.5]
+bounce badge [intensity: 3]
 ```
 
 **Composition:**
@@ -346,6 +359,7 @@ Non-`pub` `let` declarations remain local to the file.
 - Namespace access is one level: `alias.export_name`
 - Re-exports (a module exporting values from its own imports) are not supported
 - Export values are evaluated at build time in the importing scene's environment
+- Property assignment for `text`/`latex`/`math`/`code` stores the value but does not trigger re-compilation of text paths at render time; infrastructure is in place but render-time font compilation is deferred.
 
 ---
 
