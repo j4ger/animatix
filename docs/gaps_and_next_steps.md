@@ -14,15 +14,7 @@ During the review and redesign of the Animatix showcase, several usability frict
 
 **Implementation Status:** Infrastructure added for text property assignment (stores text content in timeline), but render-time text path compilation is deferred. The assignment `tagline.text = "New" [1s]` stores the value but does not yet trigger dynamic re-compilation of text paths at render time. Currently, text paths are compiled at declaration time only.
 
-### Gap #2: Static Geometry and Path Animation
-
-**Current State:** Geometry inputs like `Polygon.points` and `Path.commands` are restricted to declaration-time only.
-**The Gap:** In a declarative animation tool, the inability to animate path points directly is a noticeable constraint that limits advanced vector graphics and custom morphing capabilities.
-**Next Steps:**
-* Add runtime track support for arrays of points and path commands.
-* Allow users to write `poly.points = [(0,0), (50, 100), (-50, 100)] [1s, ease: ease-in-out]`.
-
-### Gap #3: Coordinate System Friction
+### Gap #2: Coordinate System Friction
 
 **Current State:** Positioning is somewhat split between an absolute coordinate system via `at: (x, y)` (or percentages) and a layout-managed system via `anchor: scene.*` and `offset: (x, y)`.
 **The Gap:** Mixing layout-anchored objects with absolutely placed items often requires significant manual tweaking and math, breaking the declarative layout promise.
@@ -30,7 +22,7 @@ During the review and redesign of the Animatix showcase, several usability frict
 * Unify the coordinate alignment model.
 * Allow layout containers to gracefully accept relative percentage coordinates without breaking internal auto-layout boundaries.
 
-### Gap #4: Parser Leniency (Trailing Braces)
+### Gap #3: Parser Leniency (Trailing Braces)
 
 **Current State:** Several shipped demos contain stray trailing braces on inline component declarations (e.g., `legend_a: Text, text: "y = x^2 - 2" }`).
 **The Gap:** While the parser gracefully ignores these trailing braces, it makes the declarative syntax look messy and confusing to learners who might think the braces are structurally required.
@@ -45,3 +37,15 @@ During the review and redesign of the Animatix showcase, several usability frict
 
 ### Primitive Rotation
 **Shipped:** `angle` property for `Ellipse`, `Arc`, `RegularPolygon` primitives. See `examples/rotation_demo.amx`.
+
+### Path Animation (Dynamic Points)
+**Shipped:** Dynamic points property animation for `Polygon` primitives. See `examples/path_animation_demo.amx`.
+
+**What works:**
+- `poly.points = [(0,0), (100, 0), (50, 100)] [1s, ease: ease-in-out]` syntax
+- Smooth point interpolation between different polygon shapes
+- Morphing triangle ↔ square, pentagon ↔ star, or arbitrary point sets
+- Runtime track support for `Vec<[f32; 2]>` with linear interpolation
+- Integrates with existing action/assignment timing system
+
+(End of file - total 73 lines)

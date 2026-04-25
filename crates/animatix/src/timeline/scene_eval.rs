@@ -103,6 +103,7 @@ impl Timeline {
             let mut scale = track.scale.evaluate(time_ms) as f64;
             let mut opacity = track.opacity.evaluate(time_ms);
             let text_paths = track.evaluate_text_paths(time_ms);
+            let points = track.points.evaluate(time_ms);
             let shape_type = track.shape_type.evaluate(time_ms);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
             let mut half_size = track.size.evaluate(time_ms);
@@ -184,6 +185,7 @@ impl Timeline {
                     let mut vector_shape_state =
                         VectorShapeState::new(half_size, line_from, line_to, arc_angles);
                     vector_shape_state.rotation = rotation as f32;
+                    vector_shape_state.points = points.clone();
                     if vector_shape_uses_custom_path(shape_type) {
                         vector_shape_state.custom_path =
                             vector_paths.first().map(|vp| vp.path.clone());

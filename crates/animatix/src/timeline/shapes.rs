@@ -26,6 +26,7 @@ pub(crate) struct VectorShapeState {
     pub regular_polygon_sides: usize,
     pub regular_polygon_radius: f32,
     pub rotation: f32,
+    pub points: Vec<[f32; 2]>,
 }
 
 impl VectorShapeState {
@@ -44,6 +45,7 @@ impl VectorShapeState {
             regular_polygon_sides: 5,
             regular_polygon_radius: size[0],
             rotation: 0.0,
+            points: Vec::new(),
         }
     }
 }
@@ -433,6 +435,18 @@ impl VectorShapePrimitive for PolygonPrimitive {
     }
 
     fn build_path(&self, state: &VectorShapeState) -> kurbo::BezPath {
+        // Use dynamic points from property assignment if available
+        if !state.points.is_empty() {
+            let mut path = kurbo::BezPath::new();
+            if let Some(first) = state.points.first() {
+                path.move_to(kurbo::Point::new(first[0] as f64, first[1] as f64));
+                for point in &state.points[1..] {
+                    path.line_to(kurbo::Point::new(point[0] as f64, point[1] as f64));
+                }
+                path.close_path();
+            }
+            return path;
+        }
         state
             .custom_path
             .clone()

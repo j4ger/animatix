@@ -30,6 +30,7 @@ The following are already part of the current baseline and should not be treated
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
 - Colorscheme module reuse v1: standard `.amx` modules with `pub let` color exports, imported via `import ... as`, accessed through module-qualified names (e.g., `theme.accent`), demonstrated in `examples/modules.amx`
 - Hot reload / file watching in GUI: auto-reloads .amx files when they change on disk
+- Path animation / dynamic points: `polygon.points = [(x,y), ...] [duration]` for animating polygon vertices
 - Effects actions v1: `shake`, `pulse`, `bounce` for emphasis/attention animations (see `examples/effects_demo.amx`)
 - Primitive rotation: `angle` property for `Ellipse`, `Arc`, `RegularPolygon` supporting both visual transform and geometry rotation (see `examples/rotation_demo.amx`)
 
@@ -70,7 +71,8 @@ That document should be treated as the implementation design for colorscheme wor
 3. ~~Phase 3~~ — Colorscheme Module Reuse: Standard module-based scheme sharing: Shipped (see `examples/modules.amx`)
 4. ~~Phase 4~~ — Breadth Expansions: Effects actions (`shake`, `pulse`, `bounce`) and primitive rotation (`angle` property): Shipped
 5. **Phase 5** — Tooling and Authoring Workflow Refinement (active): Hot reload shipped; remaining: diagnostic UX, example/tutorial structure
-6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
+6. **Phase 6** — Extended Authoring Surface: Remaining practical gaps (coordinate system fixes, text property completion)
+7. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
 
@@ -215,6 +217,7 @@ Phase 3 shipped with the existing Phase 2 module infrastructure. No additional r
 
 **Shipped in Phase 5:**
 - Hot reload / file watching: Auto-reloads .amx files when they change externally, preserving preview state (see `gui_architecture.md`)
+- Path animation: Dynamic points property for Polygon primitives with smooth interpolation
 
 **Remaining Phase 5:**
 

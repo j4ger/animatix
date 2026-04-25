@@ -3,7 +3,7 @@ use super::{
     VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr_with_lookup_diagnostic,
     mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic, parse_numeric_vec2,
-    parse_timing_modifiers, preserve_discrete_position_state_before,
+    parse_point_list_expr, parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_unknown_target_path_diagnostic,
     resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
     vector_shape_uses_custom_path,
@@ -580,6 +580,24 @@ impl Timeline {
                     preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
                 }
                 track.text_content.add_keyframe(t_end_ms, target_text, easing);
+            }
+            "points" => {
+                let target_points = parse_point_list_expr(value, &eval_env)
+                    .map(|points| {
+                        points
+                            .into_iter()
+                            .map(|p| [p.x as f32, p.y as f32])
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                if duration_ms > 0.0 {
+                    let start_val = track.points.evaluate(t_start_ms);
+                    track.points.add_keyframe(t_start_ms, start_val, Easing::Linear);
+                } else if instant_delayed {
+                    preserve_instant_delayed_value(&mut track.points, t_start_ms);
+                }
+                track.points.add_keyframe(t_end_ms, target_points, easing);
             }
             _ => {
                 push_unsupported_assignment_property_diagnostic(

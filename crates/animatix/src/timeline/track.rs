@@ -185,6 +185,24 @@ impl Interpolate for String {
     }
 }
 
+impl Interpolate for Vec<[f32; 2]> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if self.is_empty() || other.is_empty() || self.len() != other.len() {
+            // If lengths don't match or either is empty, just switch at t=0.5
+            if t < 0.5 { self.clone() } else { other.clone() }
+        } else {
+            // Interpolate each point pair
+            self.iter()
+                .zip(other.iter())
+                .map(|(a, b)| [
+                    a[0] + (b[0] - a[0]) * t,
+                    a[1] + (b[1] - a[1]) * t,
+                ])
+                .collect()
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
@@ -277,6 +295,7 @@ pub struct AnimationTrack {
     pub vector_paths: PropertyTrack<Vec<VelloPath>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     pub image: PropertyTrack<Option<crate::timeline::image::SceneImage>>,
+    pub points: PropertyTrack<Vec<[f32; 2]>>,
     /// The first time this actor was seen in the timeline (ms).
     /// Used to hide actors before their first declaration.
     pub first_seen_ms: u64,
@@ -309,6 +328,7 @@ impl AnimationTrack {
             vector_paths: PropertyTrack::new(Vec::new()),
             svg_paths: Vec::new(),
             image: PropertyTrack::new(None),
+            points: PropertyTrack::new(Vec::new()),
             first_seen_ms: 0,
         }
     }
@@ -354,6 +374,7 @@ impl AnimationTrack {
             self.text_paths.last_keyframe_time(),
             self.vector_paths.last_keyframe_time(),
             self.image.last_keyframe_time(),
+            self.points.last_keyframe_time(),
         ]
         .into_iter()
         .flatten()

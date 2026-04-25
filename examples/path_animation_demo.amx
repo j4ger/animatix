@@ -1,0 +1,66 @@
+// Path Animation Demo: Dynamic points on Polygon primitives
+// Demonstrates animating polygon points with smooth interpolation
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+title: Text, text: "Path Animation Demo", font_size: 56, color: auto, anchor: scene.top, offset: (0, 80)
+subtitle: Text, text: "Dynamic polygon points with interpolation", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 140)
+
+// A triangle that morphs into a square
+triangle: Polygon, points: [(0, -60), (52, 30), (-52, 30)], color: accent.primary, at: (320, 360)
+triangle_label: Text, text: "Triangle → Square", font_size: 18, color: text.secondary, at: (320, 280)
+
+// A pentagon that morphs into a star
+pentagon: Polygon, points: [(0, -50), (48, -15), (29, 40), (-29, 40), (-48, -15)], color: accent.success, at: (960, 360)
+star_label: Text, text: "Pentagon → Star", font_size: 18, color: text.secondary, at: (960, 280)
+
+status: Text, text: "Ready", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -120)
+
+#0.5s
+// Initial reveal
+stagger [200ms] {
+  fade-in triangle [600ms, ease: ease-out]
+  fade-in pentagon [600ms, ease: ease-out]
+}
+
+status.text = "Morphing shapes via points property..."
+
+#2s
+// Morph triangle to square
+triangle.points = [(-50, -50), (50, -50), (50, 50), (-50, 50)] [1.5s, ease: ease-in-out]
+
+#3s
+// Morph pentagon to star
+pentagon.points = [(0, -70), (21, -22), (67, -22), (34, 6), (48, 54), (0, 26), (-48, 54), (-34, 6), (-67, -22), (-21, -22)] [1.5s, ease: ease-in-out]
+
+#4.5s
+status.text = "Morph complete! Resetting..."
+
+#5.5s
+// Morph back
+sequence {
+  triangle.points = [(0, -60), (52, 30), (-52, 30)] [1.2s, ease: ease-in-out]
+  pentagon.points = [(0, -50), (48, -15), (29, 40), (-29, 40), (-48, -15)] [1.2s, ease: ease-in-out]
+}
+
+status.text = "Sequence complete"
+
+#8s
+// Continuous morphing with stagger
+sequence [500ms] {
+  // Pulse animation - scale the shapes while keeping them as polygons
+  triangle.size = (80, 80) [600ms, ease: ease-out]
+  pentagon.size = (80, 80) [600ms, ease: ease-out]
+}
+
+#9.5s
+stagger [150ms] {
+  triangle.size = (100, 100) [400ms, ease: ease-in-out]
+  pentagon.size = (100, 100) [400ms, ease: ease-in-out]
+}
+
+#10.5s
+fade-out triangle [500ms]
+fade-out pentagon [500ms]
+status.text = "Demo complete"

@@ -84,8 +84,9 @@ use property_lookup::{
 use shapes::{
     SHAPE_GRAPH, SHAPE_PLOT, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
-    finalize_vector_shape_state, shape_type_for_actor, vector_shape_exposes_tip_size,
-    vector_shape_primitive_for_actor_type, vector_shape_uses_custom_path,
+    finalize_vector_shape_state, parse_point_list_expr, shape_type_for_actor,
+    vector_shape_exposes_tip_size, vector_shape_primitive_for_actor_type,
+    vector_shape_uses_custom_path,
 };
 pub use svg::parse_svg;
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
