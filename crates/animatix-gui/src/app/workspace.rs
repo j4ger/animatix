@@ -27,6 +27,7 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) preview_texture_id: Option<egui::TextureId>,
     pub(super) actions: &'a mut UiActions,
     pub(super) source_dirty: &'a mut String,
+    pub(super) scene_dimensions: SceneDimensions,
 }
 
 impl TabViewer for WorkspaceViewer<'_> {
@@ -230,10 +231,10 @@ impl WorkspaceViewer<'_> {
             let reserved_height = PREVIEW_NON_CANVAS_HEIGHT.min((available.y - 80.0).max(0.0));
             let image_height = ((available.y - reserved_height).max(180.0))
                 .min((available.y * PREVIEW_MAX_HEIGHT_RATIO).max(180.0));
-            let desired = fit_preview(
-                self.preview.dimensions,
-                Vec2::new(available.x.max(200.0), image_height),
-            );
+        let desired = fit_preview(
+            self.scene_dimensions,
+            Vec2::new(available.x.max(200.0), image_height),
+        );
 
             let (preview_rect, _) = ui.allocate_exact_size(desired, egui::Sense::hover());
             ui.painter().rect_stroke(
@@ -282,15 +283,15 @@ impl WorkspaceViewer<'_> {
                                     .strong(),
                                 );
                                 ui.separator();
-                                ui.label(
-                                    RichText::new(format!(
-                                        "{} × {}",
-                                        self.preview.dimensions.width,
-                                        self.preview.dimensions.height
-                                    ))
-                                    .small()
-                                    .weak(),
-                                );
+                ui.label(
+                    RichText::new(format!(
+                        "{} × {}",
+                        self.scene_dimensions.width,
+                        self.scene_dimensions.height,
+                    ))
+                    .small()
+                    .weak(),
+                );
                             });
 
                             ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {

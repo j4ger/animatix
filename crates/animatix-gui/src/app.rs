@@ -320,6 +320,7 @@ impl GuiShell {
     ) {
         let diagnostics = self.combined_diagnostics();
 
+        let scene_dimensions = self.document.scene_dimensions;
         let mut viewer = WorkspaceViewer {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
@@ -337,6 +338,7 @@ impl GuiShell {
             preview_texture_id,
             actions,
             source_dirty: &mut self.document.source_text,
+            scene_dimensions,
         };
 
         DockArea::new(&mut self.dock_state)

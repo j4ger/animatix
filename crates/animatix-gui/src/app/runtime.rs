@@ -290,7 +290,7 @@ impl WindowRuntime {
     }
 
     fn sync_preview_surface(&mut self) -> Result<(), String> {
-        let dimensions = self.shell.preview.dimensions;
+        let dimensions = self.shell.document.scene_dimensions;
         self.preview_surface
             .set_dimensions(&self.device, dimensions);
 
