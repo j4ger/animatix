@@ -4,7 +4,7 @@ This document describes the internal and contributor-facing utilities that exist
 
 ## Current CLI Utilities
 
-Animatix currently exposes four practical CLI workflows.
+Animatix currently exposes five practical CLI workflows.
 
 ### 1. AST inspection
 
@@ -57,6 +57,22 @@ Common flags:
 - `--height`
 - `--output`
 
+### 5. GIF export
+
+```bash
+cargo run -- gif examples/showcase.amx --output /tmp/showcase.gif --fps 15 --duration 5
+```
+
+Use this for web-friendly animation exports and sharing.
+
+Common flags:
+
+- `--fps` (default: 15, optimized for file size)
+- `--duration`
+- `--width` (default: 640)
+- `--height` (default: 360)
+- `--output`
+
 ## About Keyframes and Timeline Debugging
 
 Animatix is built on an internal keyframed timeline system. Keyframes are created in the timeline layer and evaluated during rendering, but there is currently **no dedicated public CLI command** to export compiled keyframes or dump timeline tracks directly.
@@ -66,6 +82,7 @@ That means the current practical debugging loop is:
 1. inspect the AST with `ast`
 2. render targeted frames with `image --time ...`
 3. render a full clip with `video` when validating final behavior
+4. export a web-friendly `gif` for sharing
 
 If a dedicated keyframe export or track dump tool is added later, this document should be updated to include it.
 
@@ -95,6 +112,7 @@ cargo run -- image path/to/scene.amx --time 1.5 --output /tmp/frame1.png
 cargo run -- image examples/reactive_runtime.amx --time 0.5 --output /tmp/reactive_a.png
 cargo run -- image examples/reactive_runtime.amx --time 1.5 --output /tmp/reactive_b.png
 cargo run -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
+cargo run -- gif path/to/scene.amx --output /tmp/check.gif --fps 15
 cargo test
 ```
 

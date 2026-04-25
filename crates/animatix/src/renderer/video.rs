@@ -376,3 +376,104 @@ pub fn render_image_timeline_with_debug(
         debug_options,
     ));
 }
+
+pub fn render_gif_timeline(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+) {
+    render_gif_timeline_with_debug(
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        DebugRenderOptions::default(),
+    );
+}
+
+pub fn render_gif_timeline_with_debug(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+) {
+    pollster::block_on(render_gif_async(
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+    ));
+}
+
+async fn render_gif_async(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+) {
+    use image::codecs::gif::{GifEncoder, Repeat};
+
+    let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
+    let total_frames = (duration * fps as f32).ceil() as u32;
+    let frame_duration_ms = (1000 / fps) as u16;
+
+    // Create output file
+    let output = std::fs::File::create(output_file).expect("Failed to create GIF file");
+    let mut encoder = GifEncoder::new(output);
+    encoder
+        .set_repeat(Repeat::Infinite)
+        .expect("Failed to set GIF repeat");
+
+    for frame in 0..total_frames {
+        let time = (frame as f64) / (fps as f64);
+
+        let scene_frame = renderer
+            .render_timeline_with_debug(
+                &timeline,
+                time,
+                SceneDimensions { width, height },
+                debug_options,
+            )
+            .expect("Failed to render offscreen frame");
+
+        let img = image::RgbaImage::from_raw(
+            scene_frame.width,
+            scene_frame.height,
+            scene_frame.rgba,
+        )
+        .expect("Failed to create image buffer from offscreen frame");
+
+        // Convert to RGB8 and quantize for GIF
+        // Convert RGBA to RGBA8 before encoding (GIF encoder needs RgbaImage)
+        encoder
+            .encode_frame(image::Frame::from_parts(
+                img,
+                0,
+                0,
+                image::Delay::from_saturating_duration(std::time::Duration::from_millis(
+                    frame_duration_ms as u64,
+                )),
+            ))
+            .expect("Failed to encode GIF frame");
+
+        use std::io::Write;
+        print!("\rRendering GIF frame {}/{}", frame + 1, total_frames);
+        std::io::stdout().flush().unwrap();
+    }
+
+    println!("\nGIF render complete!");
+}

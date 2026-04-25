@@ -37,10 +37,11 @@ cargo run --bin animatix -- render examples/showcase.amx
 cargo run --bin animatix -- render examples/showcase.amx --loop
 cargo run --bin animatix -- image examples/showcase.amx --time 1.0 --output showcase.png
 cargo run --bin animatix -- video examples/showcase.amx --fps 30 --duration 5 --output showcase.mp4
+cargo run --bin animatix -- gif examples/showcase.amx --fps 15 --duration 5 --output showcase.gif
 cargo run --bin animatix-gui -- examples/showcase.amx
 ```
 
-`render` opens a live preview window. Use `render --loop` to replay the authored timeline instead of holding on the last frame. `image` writes a PNG for one timestamp, and `video` exports an MP4.
+`render` opens a live preview window. Use `render --loop` to replay the authored timeline instead of holding on the last frame. `image` writes a PNG for one timestamp, `video` exports an MP4, and `gif` exports an animated GIF.
 
 Useful CLI commands:
 
@@ -56,6 +57,9 @@ cargo run --bin animatix -- image examples/showcase.amx --time 1.5 --output fram
 
 # Render a video at a chosen resolution
 cargo run --bin animatix -- video examples/showcase.amx --width 1920 --height 1080 --fps 30 --duration 5 --output demo.mp4
+
+# Render an animated GIF (great for web sharing)
+cargo run --bin animatix -- gif examples/showcase.amx --fps 15 --duration 5 --output showcase.gif
 ```
 
 If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphics dependencies used by the repo.

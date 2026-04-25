@@ -94,12 +94,86 @@ enum Commands {
         #[arg(long)]
         debug_bounds: bool,
     },
+    /// Render a scene to an animated GIF file
+    Gif {
+        /// The input Animatix scene file (.amx)
+        input: PathBuf,
+
+        /// Output GIF width
+        #[arg(long, default_value_t = 640)]
+        width: u32,
+
+        /// Output GIF height
+        #[arg(long, default_value_t = 360)]
+        height: u32,
+
+        /// Output framerate
+        #[arg(long, default_value_t = 15)]
+        fps: u32,
+
+        /// Render time in seconds
+        #[arg(long, default_value_t = 5.0)]
+        duration: f32,
+
+        /// Output filename
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Draw per-node content bounding boxes for debugging
+        #[arg(long)]
+        debug_bounds: bool,
+    },
 }
 
 fn main() {
     let args = Args::parse();
 
     match args.command {
+        Commands::Gif {
+            input,
+            width,
+            height,
+            fps,
+            duration,
+            output,
+            debug_bounds,
+        } => {
+            println!("Rendering Animatix GIF: {}", input.display());
+
+            let (ast, namespaces) = match ModuleGraph::new().load_program(&input) {
+                Ok(program) => (program.expand_components(), program.namespaces),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            let output_file = output.unwrap_or_else(|| {
+                let now = chrono::Local::now();
+                PathBuf::from(format!("animatix_{}.gif", now.format("%y%m%d_%H%M%S")))
+            });
+            println!(
+                "Output configuration: {}x{} at {} FPS for {} seconds -> {}",
+                width,
+                height,
+                fps,
+                duration,
+                output_file.display()
+            );
+            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
+            print_build_diagnostics(&report.diagnostics);
+            renderer::render_gif_timeline_with_debug(
+                report.output,
+                width,
+                height,
+                fps,
+                duration,
+                &output_file,
+                DebugRenderOptions {
+                    draw_bounds: debug_bounds,
+                },
+            );
+        }
         Commands::Ast {
             input,
             compact,
