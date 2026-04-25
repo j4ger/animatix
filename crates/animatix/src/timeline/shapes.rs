@@ -25,6 +25,7 @@ pub(crate) struct VectorShapeState {
     pub custom_path: Option<kurbo::BezPath>,
     pub regular_polygon_sides: usize,
     pub regular_polygon_radius: f32,
+    pub rotation: f32,
 }
 
 impl VectorShapeState {
@@ -42,6 +43,7 @@ impl VectorShapeState {
             custom_path: None,
             regular_polygon_sides: 5,
             regular_polygon_radius: size[0],
+            rotation: 0.0,
         }
     }
 }
@@ -293,7 +295,7 @@ impl VectorShapePrimitive for EllipsePrimitive {
         KurboShape::Ellipse {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
-            rotation: 0.0,
+            rotation: state.rotation as f64,
         }
         .to_path_default()
     }
@@ -349,7 +351,7 @@ impl VectorShapePrimitive for ArcPrimitive {
             radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
             start_angle: state.arc_angles[0] as f64,
             sweep_angle: state.arc_angles[1] as f64,
-            rotation: 0.0,
+            rotation: state.rotation as f64,
         }
         .to_path_default()
     }
@@ -486,6 +488,7 @@ impl VectorShapePrimitive for RegularPolygonPrimitive {
                     points: regular_polygon_points(
                         state.regular_polygon_sides,
                         state.regular_polygon_radius,
+                        state.rotation,
                     ),
                 }
                 .to_path_default(),
@@ -627,13 +630,13 @@ pub(crate) fn build_vector_shape_vello_path(
         .map(|primitive| primitive.build_vello_path(state, style))
 }
 
-pub(crate) fn regular_polygon_points(sides: usize, radius: f32) -> Vec<kurbo::Point> {
+pub(crate) fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
     let sides = sides.max(3);
     let radius = radius as f64;
     let angle_step = std::f64::consts::TAU / sides as f64;
     (0..sides)
         .map(|index| {
-            let angle = -std::f64::consts::FRAC_PI_2 + angle_step * index as f64;
+            let angle = -std::f64::consts::FRAC_PI_2 + rotation as f64 + angle_step * index as f64;
             kurbo::Point::new(radius * angle.cos(), radius * angle.sin())
         })
         .collect()

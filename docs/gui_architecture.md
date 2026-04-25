@@ -22,6 +22,7 @@ What exists today:
 - cross-platform live preview rendering via a persistent offscreen GPU renderer with in-memory egui texture presentation
 - preview sizing that stays fixed to the document scene dimensions rather than following tile size
 - a denser explorer and a simplified top bar for the current editor-first shell
+- file watching with auto-reload when the loaded .amx file changes on disk
 - a unified bottom transport bar that anchors transport controls and the timeline to the bottom of the preview tile
 - a split internal architecture between document state and preview state
 - a preview surface seam that supports the current offscreen live-preview path and leaves room for future preview delivery changes
@@ -96,6 +97,25 @@ Owns:
 This layer controls playback state and the preview-pane contract seen by the UI.
 
 The editor updates `DocumentSession`. Rebuild operations refresh the compiled document and duration. `PreviewPaneState` owns current time, playback state, status text, errors, and preview dimensions.
+
+## Hot Reload
+
+The GUI automatically watches the currently loaded .amx file for changes. When the file is modified externally (e.g., via an external editor or save action), the GUI:
+
+1. Detects the file change via the OS file watcher
+2. Debounces rapid changes (300ms) to avoid reload storms
+3. Automatically reloads the file from disk
+4. Rebuilds the timeline
+5. Updates the editor buffer to reflect the new content
+
+This enables a smooth workflow where users can edit files in their preferred editor while still seeing live preview updates.
+
+### How it works
+
+- Files are watched using the `notify` crate's system-specific watcher
+- Changes trigger the same code path as manual "Reload from Disk"
+- The `prepare_frame()` method calls `check_hot_reload()` each frame
+- Reload state is tracked to avoid duplicate reloads
 
 ## Rebuild Flow
 

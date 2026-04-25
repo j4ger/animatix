@@ -5,6 +5,7 @@ mod runtime;
 mod workspace;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
+use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{
@@ -159,9 +160,31 @@ struct GuiShell {
     pending_rebuild_at: Option<Instant>,
     last_frame_at: Instant,
     persistence_path: PathBuf,
+    hot_reloader: Option<HotReloader>,
+    last_reload_time: Option<Instant>,
 }
 
 impl GuiShell {
+    fn check_hot_reload(&mut self, app_time: Instant) {
+        if let Some(ref mut reloader) = self.hot_reloader {
+            match reloader.update(app_time) {
+                ReloadStatus::ShouldReload { path: _ } => {
+                    if let Err(err) = self.document.reload_from_disk() {
+                        self.preview.error = Some(err);
+                        self.preview.status = "Hot reload failed".to_string();
+                } else {
+                    self.editor
+                        .set_document(&self.document.file_path, self.document.source_text.clone());
+                    self.last_reload_time = Some(app_time);
+                        self.preview.status = "File reloaded".to_string();
+                        self.preview.error = None;
+                    }
+                }
+                ReloadStatus::NoChange => {}
+            }
+        }
+    }
+
     fn load(initial_path: PathBuf) -> Self {
         let (document, status, error) = match DocumentSession::load(initial_path.clone()) {
             Ok(document) => {
@@ -181,6 +204,7 @@ impl GuiShell {
         let persistence_path = persistence_path();
         let dock_state =
             load_workspace_persistence(&persistence_path).unwrap_or_else(default_dock_state);
+        let hot_reloader = HotReloader::new(&document.file_path).ok();
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
         if let Some(status) = status {
@@ -207,6 +231,8 @@ impl GuiShell {
             pending_rebuild_at: None,
             last_frame_at: Instant::now(),
             persistence_path,
+            hot_reloader,
+            last_reload_time: None,
         }
     }
 
@@ -222,6 +248,9 @@ impl GuiShell {
         let now = Instant::now();
         let delta = now.saturating_duration_since(self.last_frame_at);
         self.last_frame_at = now;
+
+        // Check for hot reload
+        self.check_hot_reload(now);
 
         if self.preview.is_playing {
             self.preview.tick(delta);
@@ -457,6 +486,9 @@ impl GuiShell {
                 self.document = document;
                 self.editor
                     .set_document(&self.document.file_path, self.document.source_text.clone());
+                if let Some(ref mut reloader) = self.hot_reloader {
+                    let _ = reloader.update_watched_file(&self.document.file_path);
+                }
                 let status = if has_source_load_failure(&self.document.diagnostics) {
                     format!(
                         "Opened {} • parse/load error • {}",

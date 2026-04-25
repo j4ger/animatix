@@ -28,7 +28,10 @@ The following are already part of the current baseline and should not be treated
 - Motion ergonomics already shipped in the current runtime contract: `move`, `shift`, `rotate`, and `scale`
 - Composition ergonomics already shipped in scoped form: `sequence` and `stagger` blocks for actions/property assignments with deliberate diagnostics for unsupported contents
 - Scoped morph modifier support already shipped for timed path-morphing re-declarations: `strategy: auto|match`, `path_arc`, and `stretch`
-- Colorscheme module reuse v1: standard `.amx` modules with `pub let` color exports, imported via `import ... as`, accessed through module-qualified names (e.g., `theme.accent`), demonstrated in `examples/modules.amx` and `examples/modules/palette.amx`
+- Colorscheme module reuse v1: standard `.amx` modules with `pub let` color exports, imported via `import ... as`, accessed through module-qualified names (e.g., `theme.accent`), demonstrated in `examples/modules.amx`
+- Hot reload / file watching in GUI: auto-reloads .amx files when they change on disk
+- Effects actions v1: `shake`, `pulse`, `bounce` for emphasis/attention animations (see `examples/effects_demo.amx`)
+- Primitive rotation: `angle` property for `Ellipse`, `Arc`, `RegularPolygon` supporting both visual transform and geometry rotation (see `examples/rotation_demo.amx`)
 
 The roadmap below begins after that baseline.
 
@@ -64,9 +67,9 @@ That document should be treated as the implementation design for colorscheme wor
 
 1. ~~Phase 1~~ — Primitive-Type Default Colors: Shipped
 2. ~~Phase 2~~ — Module System Enhancement: `pub let` exports and `import ... as` syntax: Shipped
-3. ~~Phase 3~~ — Colorscheme Module Reuse: Standard module-based scheme sharing: Shipped (see `examples/modules.amx` and `examples/modules/palette.amx`)
-4. **Phase 4** — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface (active)
-5. Phase 5 — Tooling and Authoring Workflow Refinement
+3. ~~Phase 3~~ — Colorscheme Module Reuse: Standard module-based scheme sharing: Shipped (see `examples/modules.amx`)
+4. ~~Phase 4~~ — Breadth Expansions: Effects actions (`shake`, `pulse`, `bounce`) and primitive rotation (`angle` property): Shipped
+5. **Phase 5** — Tooling and Authoring Workflow Refinement (active): Hot reload shipped; remaining: diagnostic UX, example/tutorial structure
 6. Tree-sitter GUI integration only after its authoring value justifies the extra synchronization and maintenance cost
 
 ---
@@ -181,9 +184,16 @@ Phase 3 shipped with the existing Phase 2 module infrastructure. No additional r
 
 ---
 
-## 7. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface
+## 7. Phase 4 — Breadth Expansions: Host-Specific Effects and Remaining Practical Surface (SHIPPED)
 
 **Urgency:** High
+
+**Status: Shipped**
+
+**Shipped:**
+- Effects actions: `shake`, `pulse`, `bounce` with intensity/frequency modifiers
+- Primitive rotation: `angle` property assignment for `Ellipse`, `Arc`, `RegularPolygon`
+- Examples: `examples/effects_demo.amx`, `examples/rotation_demo.amx`
 
 **Goal:** Expand capability after the current authoring contract and module system work are both stable.
 
@@ -197,11 +207,16 @@ Phase 3 shipped with the existing Phase 2 module infrastructure. No additional r
 
 ---
 
-## 8. Phase 5 — Tooling and Authoring Workflow Refinement
+## 8. Phase 5 — Tooling and Authoring Workflow Refinement (ACTIVE)
 
 **Urgency:** Medium
 
 **Goal:** Improve discovery, feedback, and day-to-day editing on top of the stabilized runtime contract.
+
+**Shipped in Phase 5:**
+- Hot reload / file watching: Auto-reloads .amx files when they change externally, preserving preview state (see `gui_architecture.md`)
+
+**Remaining Phase 5:**
 
 **Includes:**
 - continue improving the egui GUI shell

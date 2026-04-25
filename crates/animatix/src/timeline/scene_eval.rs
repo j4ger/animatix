@@ -183,6 +183,7 @@ impl Timeline {
                 } else {
                     let mut vector_shape_state =
                         VectorShapeState::new(half_size, line_from, line_to, arc_angles);
+                    vector_shape_state.rotation = rotation as f32;
                     if vector_shape_uses_custom_path(shape_type) {
                         vector_shape_state.custom_path =
                             vector_paths.first().map(|vp| vp.path.clone());

@@ -516,6 +516,25 @@ impl Timeline {
                     .arc_angles
                     .add_keyframe(t_end_ms, target_angles, easing);
             }
+            "angle" => {
+                let target_angle = evaluate_expr_with_lookup_diagnostic(
+                    value,
+                    &eval_env,
+                    diagnostics,
+                    &assignment_subject,
+                )
+                .unwrap_or(Value::Num(track.rotation.last_value() as f64))
+                .as_num() as f32;
+                if duration_ms > 0.0 {
+                    let start_val = track.rotation.evaluate(t_start_ms);
+                    track
+                        .rotation
+                        .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                } else if instant_delayed {
+                    preserve_instant_delayed_value(&mut track.rotation, t_start_ms);
+                }
+                track.rotation.add_keyframe(t_end_ms, target_angle, easing);
+            }
             "from" => {
                 if let Some(target_from) = parse_numeric_vec2(value, &eval_env) {
                     if duration_ms > 0.0 {

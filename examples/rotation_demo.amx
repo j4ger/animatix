@@ -1,0 +1,95 @@
+// Rotation Demo: Demonstrates primitive-level rotation assignment
+// Shows how to rotate Ellipse, Rect, and RegularPolygon with [angle] property
+
+config { colorscheme: "default-dark" }
+
+#0s
+// Title
+title: Text, text: "Rotation Property Demo", font_size: 56, color: auto, anchor: scene.top, offset: (0, 80)
+subtitle: Text, text: "ellipse.angle, rect.angle, polygon.angle", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 140)
+
+// Three rotating shapes
+center_guide: Line, from: (0, -300), to: (0, 300), stroke: (0.3, 0.3, 0.4, 1.0), stroke_width: 1
+
+// Rotating ellipse - oval that rotates
+elliptical: Ellipse, size: (160, 80), color: accent.primary, at: (320, 360)
+ellipse_label: Text, text: "Ellipse (oval)", font_size: 18, color: text.secondary, at: (320, 280)
+
+// Rotating rectangle - bar that rotates
+rectangular: Rect, size: (120, 40), color: accent.success, at: (640, 360)
+rect_label: Text, text: "Rectangle (bar)", font_size: 18, color: text.secondary, at: (640, 280)
+
+// Rotating polygon - star that rotates
+star_polygon: RegularPolygon, sides: 5, radius: 60, color: accent.warning, at: (960, 360)
+polygon_label: Text, text: "Polygon (5-point star)", font_size: 18, color: text.secondary, at: (960, 280)
+
+// Status/status bar
+status: Text, text: "Demonstrating primitive rotation via property assignment", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -120)
+
+// Buttons to trigger rotations
+controls: Row, anchor: scene.bottom, offset: (0, -200), gap: 60, align: "center" {
+  trigger_elliptical: Rect, size: (180, 44), color: accent.primary, radius: 22
+    trigger_ell_text: Text, text: "Rotate Ellipse", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+
+  trigger_rect: Rect, size: (180, 44), color: accent.success, radius: 22
+    trigger_rect_text: Text, text: "Rotate Rectangle", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+
+  trigger_star: Rect, size: (180, 44), color: accent.warning, radius: 22
+    trigger_star_text: Text, text: "Rotate Star", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
+}
+
+// Initial fades
+#0.5s
+stagger [200ms] {
+  fade-in elliptical [600ms, ease: ease-out]
+  fade-in rectangular [600ms, ease: ease-out]
+  fade-in star_polygon [600ms, ease: ease-out]
+}
+
+// Demo sequence
+#1.5s
+// Static rotations to show the property works
+elliptical.angle = 0.785 [0s]  // 45 degrees
+rectangular.angle = 1.5708 [0s]  // 90 degrees
+star_polygon.angle = 0.0 [0s]
+
+status.text = "Static rotations applied"
+
+#3s
+// Animate all rotations back to 0
+sequence {
+  elliptical.angle = 0.0 [800ms, ease: ease-in-out]
+  rectangular.angle = 0.0 [800ms, ease: ease-in-out]
+  star_polygon.angle = 0.0 [800ms, ease: ease-in-out]
+}
+
+status.text = "Static rotations reset"
+
+#4s
+// Continuous rotation animation
+stagger [150ms] {
+  elliptical.angle = 6.283 [2s, ease: ease-in-out]  // Full 360 rotation
+  rectangular.angle = -6.283 [2s, ease: ease-in-out]  // Full rotation opposite direction
+  star_polygon.angle = (std::f64::consts::PI * 4.0) [2s, ease: ease-in-out]  // 2 full rotations
+}
+
+status.text = "Continuous rotation animations"
+
+#6.5s
+status.text = "Rotation complete"
+
+#7s
+// Final settle with rotations at various angles
+sequence [300ms] {
+  elliptical.angle = 0.392 [0s]  // 22.5 degrees
+  rectangular.angle = -0.785 [0s]  // -45 degrees
+  star_polygon.angle = 0.523 [0s]  // 30 degrees
+}
+
+status.text = "Final rotated positions"
+
+#8.5s
+fade-out status [500ms]
+fade-out elliptical [500ms]
+fade-out rectangular [500ms]
+fade-out star_polygon [500ms]

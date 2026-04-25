@@ -176,6 +176,10 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
 
+**Rotation:** Two ways to rotate:
+- `rotate item [by: angle, duration]` - Visual transform (applies to actor)
+- `item.angle = value [duration]` - Geometry rotation (path generation)
+
 Vector reveal actions (`draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
 
 **Effects actions** add emphasis and attention animations:
