@@ -105,6 +105,26 @@ use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayoutType {
+    Row,
+    Col,
+    Grid,
+    Stack,
+}
+
+#[derive(Clone, Debug)]
+pub struct ContainerMetadata {
+    pub layout_type: LayoutType,
+    pub gap: f32,
+    pub align: String,
+    pub cols: Option<usize>,
+    pub child_order: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct LayoutEngine;
+
 #[derive(Debug, Clone)]
 pub struct SceneNode {
     pub label: String,
@@ -144,6 +164,9 @@ pub struct Timeline {
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     auto_color_assignments: BTreeMap<String, usize>,
     next_auto_color_index: usize,
+    pub container_metadata: BTreeMap<String, ContainerMetadata>,
+    pub layout_engine: LayoutEngine,
+    pub dynamic_layout: bool,
 }
 
 impl Timeline {
@@ -162,6 +185,9 @@ impl Timeline {
             external_colorschemes: std::collections::HashMap::new(),
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
+            container_metadata: BTreeMap::new(),
+            layout_engine: LayoutEngine,
+            dynamic_layout: false,
         }
     }
 

@@ -1,6 +1,6 @@
 use super::{
-    DebugRenderOptions, SceneDimensions, Timeline, Value, VectorShapeState, VectorShapeStyle,
-    VelloPath, build_vector_shape_vello_path, resolve_bound_position,
+    DebugRenderOptions, PlacementMode, SceneDimensions, Timeline, Value, VectorShapeState,
+    VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path,
 };
 use crate::renderer::types::TextPath;
@@ -72,6 +72,7 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
     ) {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
             // Skip actors that haven't been declared yet
@@ -88,13 +89,24 @@ impl Timeline {
                             debug_options,
                             scene,
                             overrides,
+                            layout_positions,
                         );
                     }
                 }
                 return;
             }
 
-            let base_position = track.position.evaluate(time_ms);
+            let placement_mode = track.placement_mode.evaluate(time_ms);
+            let mut base_position = track.position.evaluate(time_ms);
+
+            // If dynamic layout is enabled and this node has a computed layout position
+            if self.dynamic_layout {
+                if let Some(layout_pos) = layout_positions.get(node_label) {
+                    if placement_mode == PlacementMode::LayoutManaged {
+                        base_position = *layout_pos;
+                    }
+                }
+            }
             let binding = track.position_binding.evaluate(time_ms);
             let mut position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
@@ -328,6 +340,23 @@ impl Timeline {
         };
 
         if let Some(node) = self.nodes.get(node_label) {
+            // Compute dynamic layout for this container's children
+            let child_layout_positions = if self.dynamic_layout {
+                if let Some(metadata) = self.container_metadata.get(node_label) {
+                    self.layout_engine.compute_layout_for_time(
+                        node_label,
+                        metadata,
+                        time_ms,
+                        &self.tracks,
+                        &self.nodes,
+                    )
+                } else {
+                    std::collections::BTreeMap::new()
+                }
+            } else {
+                std::collections::BTreeMap::new()
+            };
+
             for child in &node.children {
                 self.evaluate_node(
                     child,
@@ -338,6 +367,7 @@ impl Timeline {
                     debug_options,
                     scene,
                     overrides,
+                    &child_layout_positions,
                 );
             }
         }
@@ -402,6 +432,7 @@ impl Timeline {
                 debug_options,
                 &mut scene,
                 &overrides,
+                &std::collections::BTreeMap::new(), // empty for roots
             );
         }
 

@@ -228,6 +228,15 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for setting in settings {
+            if setting.name == "dynamic_layout" {
+                self.dynamic_layout = match &setting.value {
+                    Expr::Bool(b) => *b,
+                    Expr::Str(s) => s.parse().unwrap_or(false),
+                    _ => false,
+                };
+                continue;
+            }
+
             if setting.name != "colorscheme" {
                 continue;
             }
@@ -1254,6 +1263,31 @@ impl Timeline {
                     // === Container Layout ===
 
                     if primitive.is_layout_container() {
+                        let layout_type = match ty.as_str() {
+                            "Row" => LayoutType::Row,
+                            "Col" => LayoutType::Col,
+                            "Grid" => LayoutType::Grid,
+                            "Stack" => LayoutType::Stack,
+                            _ => LayoutType::Row,
+                        };
+
+                        let child_order = if let Some(node) = self.nodes.get(label) {
+                            node.children.clone()
+                        } else {
+                            Vec::new()
+                        };
+
+                        self.container_metadata.insert(
+                            label.to_string(),
+                            ContainerMetadata {
+                                layout_type,
+                                gap,
+                                align: align.clone().unwrap_or_else(|| "center".to_string()),
+                                cols,
+                                child_order,
+                            },
+                        );
+
                         self.apply_container_layout(
                             label,
                             ty,

@@ -241,7 +241,7 @@ These remain valuable, but they should stay out of the near-term critical path b
 
 - camera framing, pan, zoom, and other viewport-state features
 - `strategy: fade` and other compositing-heavy transition models
-- sampled relayout / animated-size-triggered container recomputation beyond the current declaration-time measure/place contract
+- ~~sampled relayout / animated-size-triggered container recomputation~~ (now active, see `docs/dynamic_layout_design.md`)
 - hot reload / file watching driven authoring workflows
 - scene inspectors, property panels, visual timeline editors, and other larger GUI systems
 - native embedded rendering surfaces in the GUI

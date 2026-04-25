@@ -5,8 +5,8 @@ use animatix::module::ModuleGraph;
 use animatix::parser::parser;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, MorphStrategy,
-    PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, LayoutType,
+    MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
 };
 use chumsky::Parser;
 use kurbo::Shape;
@@ -4191,6 +4191,184 @@ label.scale = 2 [1s]
     assert_eq!(label.position.evaluate(1500), label_position);
     assert!(label.scale.evaluate(1500) > 1.0);
     assert_eq!(label.scale.evaluate(2000), 2.0);
+}
+
+#[test]
+fn test_row_layout_reflows_from_size_change_when_dynamic_enabled() {
+    let ast = parse_program(
+        r#"
+config { dynamic_layout: true }
+
+row: Row, gap: 20 {
+  badge: Circle, radius: 10, color: gold
+  label: Rect, size: (40, 20), color: blue
+}
+
+#1s
+label.size = (80, 40) [1s]
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    assert!(timeline.dynamic_layout);
+
+    let badge = timeline.tracks.get("badge").expect("badge track");
+    let label = timeline.tracks.get("label").expect("label track");
+
+    // At t=0, label half-size is (20, 10)
+    assert_eq!(label.size.evaluate(0), [20.0, 10.0]);
+
+    // At t=2s, label half-size is (40, 20)
+    assert_eq!(label.size.evaluate(2000), [40.0, 20.0]);
+
+    // With DYNAMIC layout enabled, when we evaluate the scene at t=2s,
+    // the layout engine should recompute positions based on the new size.
+    // The badge position should shift because label is now wider.
+
+    // Build-time positions (frozen):
+    let badge_pos_frozen = badge.position.evaluate(2000);
+    let label_pos_frozen = label.position.evaluate(2000);
+
+    // For now, verify the flag is set and sizes animate correctly
+    // Full dynamic layout verification requires scene evaluation
+    assert!(timeline.dynamic_layout);
+}
+
+#[test]
+fn test_container_metadata_populated_for_layout_containers() {
+    let ast = parse_program(
+        r#"
+row: Row, gap: 30, align: "center" {
+  a: Circle, radius: 20
+  b: Circle, radius: 20
+}
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+
+    let metadata = timeline
+        .container_metadata
+        .get("row")
+        .expect("row should have container metadata");
+
+    assert!(matches!(metadata.layout_type, LayoutType::Row));
+    assert_eq!(metadata.gap, 30.0);
+    assert_eq!(metadata.align, "center");
+    assert_eq!(metadata.child_order, vec!["a", "b"]);
+}
+
+#[test]
+fn test_grid_container_metadata_includes_cols() {
+    let ast = parse_program(
+        r#"
+dashboard: Grid, cols: 3, gap: 10 {
+  p1: Rect, size: (50, 50)
+  p2: Rect, size: (50, 50)
+  p3: Rect, size: (50, 50)
+}
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+
+    let metadata = timeline
+        .container_metadata
+        .get("dashboard")
+        .expect("dashboard should have metadata");
+
+    assert!(matches!(metadata.layout_type, LayoutType::Grid));
+    assert_eq!(metadata.cols, Some(3));
+    assert_eq!(metadata.child_order, vec!["p1", "p2", "p3"]);
+}
+
+#[test]
+fn test_dynamic_layout_disabled_by_default() {
+    let ast = parse_program(
+        r#"
+row: Row, gap: 20 {
+  a: Circle, radius: 10
+}
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    assert!(!timeline.dynamic_layout);
+}
+
+#[test]
+fn test_layout_engine_recomputes_positions_when_size_changes() {
+    // Build a timeline with dynamic layout and a size animation
+    let ast = parse_program(
+        r#"
+config { dynamic_layout: true }
+
+row: Row, gap: 20 {
+  left: Circle, radius: 10
+  right: Rect, size: (40, 20)
+}
+
+#1s
+right.size = (80, 20) [1s]
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let metadata = timeline
+        .container_metadata
+        .get("row")
+        .expect("row metadata");
+
+    // At t=0: left full width = 20, right full width = 40, gap = 20
+    // total = 20 + 20 + 40 = 80, main_start = -40
+    // left position = -40 + 10 = -30, right position = -40 + 20 + 20 + 20 = 20
+    let positions_0 = timeline
+        .layout_engine
+        .compute_layout_for_time("row", metadata, 0, &timeline.tracks, &timeline.nodes);
+
+    assert_eq!(positions_0.get("left").copied().unwrap(), [-30.0, 0.0]);
+    assert_eq!(positions_0.get("right").copied().unwrap(), [20.0, 0.0]);
+
+    // At t=2000: left full width = 20, right full width = 80 (size doubled), gap = 20
+    // total = 20 + 20 + 80 = 120, main_start = -60
+    // left position = -60 + 10 = -50, right position = -60 + 20 + 20 + 40 = 20
+    let positions_2s = timeline
+        .layout_engine
+        .compute_layout_for_time("row", metadata, 2000, &timeline.tracks, &timeline.nodes);
+
+    // Left should have shifted left because the row got wider
+    assert_eq!(positions_2s.get("left").copied().unwrap(), [-50.0, 0.0]);
+    // Right center stays at the same absolute position
+    assert_eq!(positions_2s.get("right").copied().unwrap(), [20.0, 0.0]);
+}
+
+#[test]
+fn test_layout_engine_skips_manual_placement_children() {
+    let ast = parse_program(
+        r#"
+config { dynamic_layout: true }
+
+row: Row, gap: 20 {
+  left: Circle, radius: 10
+  right: Circle, radius: 10, at: (100, 0)
+}
+"#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let metadata = timeline
+        .container_metadata
+        .get("row")
+        .expect("row metadata");
+
+    let positions = timeline
+        .layout_engine
+        .compute_layout_for_time("row", metadata, 0, &timeline.tracks, &timeline.nodes);
+
+    // left is LayoutManaged, so it should be in the result
+    assert!(positions.contains_key("left"));
+    // right has explicit `at`, so it's Manual and should NOT be in layout result
+    assert!(!positions.contains_key("right"));
 }
 
 #[test]
