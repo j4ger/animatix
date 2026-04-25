@@ -282,6 +282,7 @@ mod tests {
                     modifiers: vec![],
                     children: vec![],
                 }],
+                span: None,
             },
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(2.0),
@@ -291,6 +292,7 @@ mod tests {
                     value: animatix::ast::Expr::Num(0.5),
                     modifiers: vec![],
                 }],
+                span: None,
             },
         ];
 
@@ -339,6 +341,7 @@ mod tests {
                     modifiers: vec![],
                     children: vec![],
                 }],
+                span: None,
             },
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
@@ -348,6 +351,7 @@ mod tests {
                     value: Expr::Num(0.5),
                     modifiers: vec![],
                 }],
+                span: None,
             },
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
@@ -357,6 +361,7 @@ mod tests {
                     value: Expr::Num(4.0),
                     modifiers: vec![],
                 }],
+                span: None,
             },
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.5),
@@ -366,6 +371,7 @@ mod tests {
                     value: Expr::Num(1.0),
                     modifiers: vec![],
                 }],
+                span: None,
             },
         ];
 

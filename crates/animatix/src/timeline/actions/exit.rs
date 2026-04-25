@@ -129,6 +129,7 @@ mod tests {
                     }],
                 }),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());

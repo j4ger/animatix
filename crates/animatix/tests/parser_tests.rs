@@ -908,14 +908,14 @@ fn test_keyframes() {
     let ast = parser().parse(src).into_result().unwrap();
     assert_eq!(ast.len(), 2);
 
-    if let Stmt::Keyframe { time, body } = &ast[0] {
+    if let Stmt::Keyframe { time, body, .. } = &ast[0] {
         assert_eq!(*time, Time::Milliseconds(500));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected Keyframe");
     }
 
-    if let Stmt::Keyframe { time, body } = &ast[1] {
+    if let Stmt::Keyframe { time, body, .. } = &ast[1] {
         assert_eq!(*time, Time::Seconds(2.5));
         assert_eq!(body.len(), 1);
     } else {
@@ -936,21 +936,21 @@ fn test_relative_keyframes() {
     let ast = parser().parse(src).into_result().unwrap();
     assert_eq!(ast.len(), 3);
 
-    if let Stmt::Keyframe { time, body } = &ast[0] {
+    if let Stmt::Keyframe { time, body, .. } = &ast[0] {
         assert_eq!(*time, Time::Seconds(0.0));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected absolute Keyframe");
     }
 
-    if let Stmt::RelativeKeyframe { offset, body } = &ast[1] {
+    if let Stmt::RelativeKeyframe { offset, body, .. } = &ast[1] {
         assert_eq!(*offset, Time::Milliseconds(500));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected RelativeKeyframe");
     }
 
-    if let Stmt::RelativeKeyframe { offset, body } = &ast[2] {
+    if let Stmt::RelativeKeyframe { offset, body, .. } = &ast[2] {
         assert_eq!(*offset, Time::Seconds(1.5));
         assert_eq!(body.len(), 1);
     } else {

@@ -25,7 +25,7 @@ fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<Import>) {
 pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
     match stmt {
         Stmt::Import { .. } => None,
-        Stmt::Keyframe { time, body } => {
+        Stmt::Keyframe { time, body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             if body.is_empty() {
                 None
@@ -33,10 +33,11 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 Some(Stmt::Keyframe {
                     time: time.clone(),
                     body,
+                    span: None,
                 })
             }
         }
-        Stmt::RelativeKeyframe { offset, body } => {
+        Stmt::RelativeKeyframe { offset, body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             if body.is_empty() {
                 None
@@ -44,6 +45,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 Some(Stmt::RelativeKeyframe {
                     offset: offset.clone(),
                     body,
+                    span: None,
                 })
             }
         }

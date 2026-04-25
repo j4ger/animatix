@@ -19,13 +19,15 @@ fn expand_stmt_into(
     output: &mut Vec<Stmt>,
 ) {
     match stmt {
-        Stmt::Keyframe { time, body } => output.push(Stmt::Keyframe {
+        Stmt::Keyframe { time, body, .. } => output.push(Stmt::Keyframe {
             time: time.clone(),
             body: expand_statements(body, components),
+            span: None,
         }),
-        Stmt::RelativeKeyframe { offset, body } => output.push(Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe { offset, body, .. } => output.push(Stmt::RelativeKeyframe {
             offset: offset.clone(),
             body: expand_statements(body, components),
+            span: None,
         }),
         Stmt::Always { body } => output.push(Stmt::Always {
             body: expand_statements(body, components),

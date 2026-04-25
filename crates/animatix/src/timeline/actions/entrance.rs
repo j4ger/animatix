@@ -250,6 +250,7 @@ mod tests {
                     }],
                 }),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -270,6 +271,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![rect_decl("panel"), action_stmt("wipe-in", "panel", 1.0)],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -292,6 +294,7 @@ mod tests {
                 text_decl("headline"),
                 action_stmt("wipe-in", "headline", 1.0),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());

@@ -859,9 +859,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .then(stmt.clone().repeated().collect::<Vec<_>>())
         .map(|((is_relative, t), body)| {
             if is_relative.is_some() {
-                Stmt::RelativeKeyframe { offset: t, body }
+                Stmt::RelativeKeyframe { offset: t, body, span: None }
             } else {
-                Stmt::Keyframe { time: t, body }
+                Stmt::Keyframe { time: t, body, span: None }
             }
         })
         .padded();
@@ -873,6 +873,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         stmt.map(|s| Stmt::Keyframe {
             time: Time::Seconds(0.0), // default timeline wrapper
             body: vec![s],
+            span: None,
         }),
     ))
     .repeated()

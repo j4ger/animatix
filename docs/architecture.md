@@ -1,177 +1,161 @@
-# Animatix Architecture: The Vector-First Pipeline
+# Animatix Architecture
 
-This document describes the vector-first architecture used by Animatix. The system renders text, math, and SVGs as mathematical paths, enabling infinite scalability, true vector morphing, and a unified rendering model.
+## Overview
 
-## 1. The Goal
+Animatix is a layout-first animation system with three core components:
 
-- **Infinite Scalability:** Render text, math, and SVGs with perfect crispness at any zoom level.
-- **True Vector Morphing:** Mathematically precise interpolation between different shapes.
-- **Unified Rendering Model:** Everything becomes a unified mathematical "Path".
+1. **Parser** (Chumsky-based) — Converts `.amx` source into an AST
+2. **Timeline** — Compiles AST into animated property tracks
+3. **Renderers** (Vello/WGPU, PPM, Frame sequences) — Rasterizes evaluated scenes
 
-## 2. The Core Tech Stack
+## 1. File Processing Pipeline
 
-- **Vello (WGPU Compute):** GPU compute shaders for 2D path rendering with anti-aliasing.
-- **Typst / Fontdue:** Extract raw Bézier curves from glyphs instead of rasterizing.
-- **usvg:** Parse SVG files into paths.
+### A: Source → AST
 
-## 3. The Unified Pipeline
-
-### Module Resolution (Load Time)
-
-Files are parsed and imports resolved via `FileId` assignments. The `ModuleGraph` prevents redundant parsing and detects cyclic dependencies. Imported `pub component` definitions are expanded before timeline build.
-
-*Note: Real-time hot-reloading is postponed until the UI/Editor phase.*
-
-### Compile Boundary
-
-The practical compile target is **the post-expansion program** after module loading and component expansion:
-
-1. Parse source files into `Vec<Stmt>`
-2. Resolve imports and collect component definitions through `ModuleGraph::load_program(...)`
-3. Expand component instances with `LoadedProgram::expand_components()`
-4. Lower into an executable `Timeline` with `Timeline::build(...)`
-
-A future compiler should target the expanded program, not the raw parser AST.
-
-### Build-Time Responsibilities
-
-`Timeline::build(...)` performs one-time lowering between the expanded program and frame evaluation:
-
-- Standard-library seeding for expression evaluation
-- Scene-node and root-node construction
-- Keyframe and property-track creation
-- `for` expansion during body processing
-- Built-in action lowering into track keyframes
-- Text/math/code glyph extraction into renderable paths
-- SVG and image asset loading
-- Layout placement for `Row`, `Col`, `Grid`, and `Stack`
-- Plotting geometry sampling for `CartesianPlot` and `PolarPlot`
-- Collecting `always` / labeled-`always` bodies into the retained modifier list
-
-The output is a compiled timeline package: scene graph structure, typed tracks, prebuilt assets/paths, and retained modifier statements.
-
-### Colorscheme Integration
-
-Colorscheme v1 is a load-time/build-time defaulting layer. Built-in scheme selection, semantic aliases, and `color: auto` resolve before timeline evaluation and seed property-track structures. This keeps preview, scrubbing, image export, and video export deterministic.
-
-### The Timeline Data Structure
-
-The `Timeline` stores animation state with two complementary structures:
-
-1. **`scene_graph`**: A hierarchical mapping of parent `SceneNode` identifiers to their children, forming a tree where each node represents a rendered entity.
-
-2. **`tracks`**: A `BTreeMap` mapping each `SceneNode`'s identifier to its `AnimationTrack`, storing keyframed property values over time.
-
-```text
-scene_graph: HashMap<SceneNodeId, Vec<SceneNodeId>>
-tracks: BTreeMap<SceneNodeId, AnimationTrack>
+```
+.amx File → Tree-sitter grammar (syntax highlighting)
+         ↓
+       Chumsky parser (semantic analysis)
+         ↓
+     AST (Expr, Stmt hierarchy)
 ```
 
-The `scene_graph` enables parent-to-child traversal for transform inheritance; `tracks` provide per-node animation data. Nodes without track entries are static.
+### B: Module System
 
-### SceneNode Hierarchy
+The `ModuleGraph` manages file dependencies:
+- Tracks `import` declarations
+- Resolves relative paths
+- Collects `pub` exports (components via `pub component`, values via `pub let`)
 
-- **Root nodes**: Attach directly to the scene.
-- **Container nodes** (`Row`, `Col`, `Grid`, `Stack`, `Group`): Hold children and apply layout/transform rules.
-- **Leaf nodes** (`Text`, `Math`, `Svg`, `Circle`, `Rect`, plot output paths): Fully resolved renderables.
-- **Anonymous nodes**: Receive auto-generated UIDs for individual keyframing without label collisions.
+### C: Timeline Compilation
 
-### Evaluate Phase: Recursive DFS Transform Computation
+`Timeline::build_with_diagnostics(...)` is the main compilation entry:
+1. **Module Expansion** (`module/expand.rs`): Inlines component instances
+2. **IR Compilation** (`timeline/modifier_runtime/`): Compiles `always` blocks to bytecode
+3. **Track Building** (`timeline/build.rs`): Creates `AnimationTrack` entries per actor
+4. **Layout Resolution** (`timeline/layout.rs`): Computes container placements
 
-During `timeline.evaluate(time_ms)`, the engine traverses the scene graph recursively:
+## 2. Data Structures
 
-```text
-function evaluate_node(node_id, parent_transform):
-    local_transform = tracks[node_id].sample(time_ms)
-    global_transform = parent_transform * local_transform
-    global_opacity = parent_opacity * local_opacity
+### Timeline
 
-    for each child in scene_graph[node_id]:
-        evaluate_node(child, global_transform, global_opacity)
+```rust
+Timeline {
+    tracks: BTreeMap<String, AnimationTrack>,  // Actor properties
+    nodes: BTreeMap<String, SceneNode>,         // Parent→children hierarchy
+    root_nodes: Vec<String>,                    // Top-level actors
+    modifiers: Vec<Stmt>,                       // Reactive blocks
+}
 ```
 
-This DFS accumulates transforms and opacities down the hierarchy. The final render list contains only leaf nodes with pre-computed global transforms.
+### AnimationTrack
 
-### Frame-Time Responsibilities
+Per-actor storage for animated properties:
+- `position: PropertyTrack<[f32; 2]>` — Keyframed positions
+- `opacity: PropertyTrack<f32>` — Keyframed opacity
+- `color: PropertyTrack<[f32; 4]>` — Keyframed colors
+- And many more (see `timeline/track.rs`)
 
-`Timeline::evaluate(...)` is the frame-time execution entry point:
+### PropertyTrack
 
-- Seeding per-frame evaluation environment (`t`, scene dimensions, sampled runtime lookup values)
-- Executing retained `always` modifier bodies through `apply_modifier_stmt(...)`
-- Applying frame-local overrides on top of sampled track values
-- Resolving scene-anchor, percent, and container-default position bindings
-- Traversing the scene graph and sampling property tracks at the requested time
-- Interpolating morphable path/text track data through `PropertyTrack::evaluate(...)`
-- Emitting the final `vello::Scene` for rasterization
+```rust
+struct PropertyTrack<T> {
+    keyframes: BTreeMap<u64, (T, Easing)>,  // time_ms → (value, easing)
+    default_value: T,                        // Before first keyframe
+}
+```
 
-The renderer backends are host-side consumers of that evaluated scene. They do not own language semantics.
+## 3. Runtime Evaluation
 
-### IR and Bytecode Foothold
+### Frame-Time Pipeline
 
-The first IR layer is a **modifier IR** for `always` / labeled-`always` bodies whose payloads are compiled expressions, housed under `timeline/modifier_runtime/`.
+```
+evaluate(time_s):
+  1. clear scene
+  2. background color
+  3. for track in timeline:
+       sample properties at time_ms
+       build RenderCommand
+  4. flatten to render list
+  5. push to vello::Scene
+```
 
-The IR stabilizes the expression subset crossing the build-time/frame-time boundary: `let` values, conditionals, assignment RHS, dotted runtime lookups (`node.at.x`, `scene.background_color`).
+### Sampling Logic
 
-Unsupported forms (closures, method/index/construct expressions) remain on explicit rejection or AST fallback paths.
+`PropertyTrack::evaluate(time_ms)`:
+1. Find keyframes bracketing `time_ms`
+2. Interpolate between prev and next using stored easing
+3. Return interpolated value via `Interpolate` trait
 
-The bytecode VM compiles the modifier IR subset into a small stack machine. Scope is limited to compiled modifier expressions, `let`/`assign`/`if` modifier statements, env loads/stores, and built-ins `sin`, `cos`, `lerp`, and `format`.
+## 4. Layout System
 
-## 4. Layout Architecture Direction
+### Container Hierarchy
 
-Animatix ships a **layout-first authoring model**. The design goal is:
+- **Row/Col**: Children arranged horizontally/vertically with gap
+- **Grid**: CSS-like grid layout with cols/rows
+- **Stack**: Overlapping layers
 
-1. **Auto-layout should be the default authoring path** for AI-generated and human-authored scenes.
-2. **Absolute positioning remains a first-class escape hatch** for motion graphics and deliberate manual placement.
-3. **Parent containers should own child placement** whenever layout semantics are in use.
+### Positioning Modes
 
-The long-term scene model is not "remove `at`"; it is "stop requiring `at` as the primary way to compose scenes." Authors describe hierarchy, grouping, spacing, and alignment first, dropping to explicit coordinates only when intentionally wanted.
+| Mode | Implementation |
+|------|---------------|
+| `at: (x, y)` | Absolute coordinates in scene space |
+| `anchor` + `offset` | Relative to named scene anchors |
+| Container auto-placement | Computed by parent, stored in track |
 
-The shipped layout model has four layers (in order of preference):
+## 5. Animation System
 
-1. **Container layout by default** (`Row`, `Col`, `Grid`, `Stack`) with gap, alignment, and predictable child ordering
-2. **Scene-relative placement** (anchors, percentage-based positioning)
-3. **Manual override within layout** (opt-out of container placement)
-4. **Fully absolute positioning** (`at: (x, y)` for motion graphics)
+### Keyframe Timing
 
-This layered model prefers deterministic parent-driven layout over dynamic constraint solving.
+- **Absolute**: `#2s` — At 2 seconds
+- **Relative**: `#+1s` — 1 second after last absolute keyframe
+- **Stagger**: Offsets children by fixed interval
 
-### Near-Term Size-Aware Layout
+### Easing
 
-The current runtime has **placement before full measurement truth**. Container layout already consumes child size data. Authored-shape primitives, images, and text/math/code declarations feed measured bounds into the layout size track. SVG paths are available for rendering.
+Standard easing curve transformation applied to animation progress:
 
-The recommended direction: keep the parent-driven container model, formalize a local layout-size contract, and keep the first slice declaration-time and deterministic rather than promising sampled per-frame reflow.
+```rust
+fn apply_easing(progress: f32, easing: Easing) -> f32 {
+    match easing {
+        Easing::Linear => progress,
+        Easing::EaseIn => progress * progress,
+        // ... curves
+    }
+}
+```
 
-## 5. Pipeline Phases
+### Path Morphing
 
-### Phase A: Parsing and Data Unification (Load Time)
+When an actor is re-declared at a later keyframe, path data interpolates:
+1. Extract paths from both declarations
+2. Point-match using `lyon` or stretch-based alignment
+3. Interpolate position coordinates
 
-When an `.amx` file is loaded, the compiler parses it, resolves imports, and converts assets into a unified `PathTree` format:
+## 6. Rendering
 
-- **Text & Math:** Typst calculates glyph positions; font outlines are stored as paths.
-- **SVGs:** Loaded via `usvg` and converted to path definitions.
-- **Shapes:** `.amx` primitives (circles, rects) are generated as mathematical paths.
+### Vello Pipeline
 
-### Phase B: Animation Engine & Interpolation (Per-Frame)
+```
+evaluate(time_ms) → Vec<RenderCommand>
+  ↓
+for cmd in commands:
+  match cmd {
+    Fill { path, color } => scene.fill_path(path, color),
+    Stroke { path, width, color } => scene.stroke_path(path, width, color),
+    Image { ... } => draw image,
+  }
+  ↓
+vello.encode(&mut encoder)
+  ↓
+render_pass.draw(encoder)
+```
 
-- **Scene Graph Traversal:** The `Timeline` maintains a hierarchical `scene_graph` for nested coordinate systems.
-- **Global Transform Computation:** Recursive DFS from roots to leaves, accumulating transforms.
-- **Opacity Inheritance:** Opacity multiplies down the tree (child at 0.8 opacity inside parent at 0.5 = final 0.4).
-- **Morphing:** When an actor is re-declared at a later keyframe, the engine interpolates path coordinates to generate an intermediate path on the CPU.
+### PPM Output
 
-### Phase C: Vello Scene Compilation (GPU, Per-Frame)
-
-1. The timeline yields a flattened list of paths and colors for the current frame.
-2. Paths are pushed into a `vello::Scene` object.
-3. `vello.render_to_texture(...)` is called.
-4. Vello's compute shaders calculate coverage and draw pixels to the WGPU output texture.
-
-## 6. Handling Specific Media
-
-### Per-Letter Text Animation & Morphing
-
-Text is a collection of discrete curve groups, not a single block or texture:
-- Different transformation matrices can be applied to individual letters.
-- Letter "A" can morph directly into letter "B" via curve interpolation.
+CPU-side rasterization for file output:
+- Renders scene to 4-channel RGBA buffer
+- Outputs PPM format for video encoding
 
 ## 7. Expression Evaluation
 
@@ -245,3 +229,34 @@ The major vector-first migration is complete:
 - **Runtime container layout support** exists for `Row`, `Col`, `Grid`, and `Stack`.
 
 The remaining work expands the runtime surface on top of this architecture rather than replacing the renderer.
+
+## 10. Future: Editor-Timeline Sync
+
+### Status: **Planned / Partially Implemented**
+
+A key planned feature is bidirectional sync between the GUI timeline scrubber and the text editor. When the user scrubs to a keyframe, the editor should automatically scroll to that keyframe's source location.
+
+### Implementation Path
+
+**Current State:**
+- ✅ `Span` struct added to `ast.rs` — tracks line/column for source locations
+- ✅ `span: Option<Span>` field added to `Keyframe` and `RelativeKeyframe` statements
+- 🔄 Parser span capture: Not yet implemented (using `chumsky` with span-aware combinators)
+- 🔄 Timeline index: Not yet built (`time -> source location` mapping)
+- ❌ Editor cursor control: Blocked by egui TextEdit limitations (no cursor/scroll API)
+
+### Technical Blockers
+
+1. **AST Spans**: Parser needs to capture `Rich<'src, char>` span info into AST nodes
+2. **egui TextEdit**: No programmatic cursor or scroll control available
+   - Alternative: Use tree-sitter for AST + integrate a proper code editor (egui_code_editor, lapce, etc.)
+3. **Unsaved Edit Handling**: Source text may diverge from parsed state; mapping becomes stale
+
+### Usage Pattern (When Complete)
+
+```
+Timeline Scrub → Find nearest keyframe time →
+  Query time→span index → Editor.scroll_to(span.line)
+```
+
+The span infrastructure in the AST preserves forward compatibility while the GUI layer evolves.

@@ -151,6 +151,7 @@ fn modifier_ir_can_lower_post_expansion_program() {
                     modifiers: vec![],
                 }],
             }],
+            span: None,
         },
         Stmt::Comment("ignored".to_string()),
     ];
@@ -414,6 +415,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 ],
             },
         ],
+        span: None,
     }];
 
     let timeline = Timeline::build(&ast);

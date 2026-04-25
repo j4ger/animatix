@@ -151,19 +151,21 @@ pub(super) fn rewrite_stmt(
             name: name.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
         },
-        Stmt::Keyframe { time, body } => Stmt::Keyframe {
+        Stmt::Keyframe { time, body, .. } => Stmt::Keyframe {
             time: time.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::RelativeKeyframe { offset, body } => Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe { offset, body, .. } => Stmt::RelativeKeyframe {
             offset: offset.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
         Stmt::Always { body } => Stmt::Always {
             body: body

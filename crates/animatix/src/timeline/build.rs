@@ -61,11 +61,11 @@ impl Timeline {
         for stmt in ast {
             match stmt {
                 Stmt::Config { .. } => {}
-                Stmt::Keyframe { time, body } => {
+                Stmt::Keyframe { time, body, .. } => {
                     current_build_time_ms = time_to_ms(time);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 }
-                Stmt::RelativeKeyframe { offset, body } => {
+                Stmt::RelativeKeyframe { offset, body, .. } => {
                     current_build_time_ms += time_to_ms(offset);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 }

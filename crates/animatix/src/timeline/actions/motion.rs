@@ -612,6 +612,7 @@ mod tests {
                     Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(-30.0)]),
                 ),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -627,6 +628,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), move_action("badge", Expr::Num(10.0))],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -647,6 +649,7 @@ mod tests {
                 circle_decl("badge"),
                 rotate_action("badge", Expr::Num(1.5708)),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -665,6 +668,7 @@ mod tests {
                 circle_decl("badge"),
                 rotate_action("badge", Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)])),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -682,6 +686,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(1.5))],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -697,6 +702,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), scale_action("badge", Expr::Num(0.0))],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -720,6 +726,7 @@ mod tests {
                     Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(-24.0)]),
                 ),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -735,6 +742,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("badge"), shift_action("badge", Expr::Num(10.0))],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -774,6 +782,7 @@ mod tests {
                 },
                 shift_action("child", Expr::Tuple(vec![Expr::Num(25.0), Expr::Num(0.0)])),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());

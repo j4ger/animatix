@@ -421,6 +421,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("shape"), action_stmt("draw-in", "shape", 1.0)],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -438,6 +439,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![image_decl("photo"), action_stmt("wipe-out", "photo", 1.0)],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -458,6 +460,7 @@ mod tests {
                 circle_decl("shape"),
                 action_stmt("reveal-out", "shape", 1.0),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -493,6 +496,7 @@ mod tests {
                     ],
                 }),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -513,6 +517,7 @@ mod tests {
                 text_decl("headline"),
                 action_stmt("reveal-out", "headline", 1.0),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -530,6 +535,7 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![circle_decl("shape"), action_stmt("draw-out", "shape", 1.0)],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
@@ -553,6 +559,7 @@ mod tests {
                 text_decl("headline"),
                 action_stmt("draw-out", "headline", 1.0),
             ],
+            span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
