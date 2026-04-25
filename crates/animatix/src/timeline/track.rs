@@ -208,12 +208,12 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
         // Initialize prev_val with the first keyframe if it exists
         if let Some((&t, (val, _))) = self.keyframes.iter().next() {
             if time_ms <= t {
-                return val.clone(); // Before first keyframe
+                return val.clone(); // At or before first keyframe
             }
         }
 
         for (&t, (val, easing)) in &self.keyframes {
-            if t > time_ms {
+            if t >= time_ms {
                 let duration = (t - prev_time) as f32;
                 let elapsed = (time_ms - prev_time) as f32;
                 let progress = elapsed / duration;

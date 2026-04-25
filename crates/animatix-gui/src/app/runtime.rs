@@ -1,4 +1,5 @@
 use super::*;
+use crate::document::timeline_keyframe_times_s;
 
 pub fn run_gui(path: Option<PathBuf>) {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -136,6 +137,38 @@ impl WindowRuntime {
         match &event.logical_key {
             Key::Named(NamedKey::Space) => {
                 self.shell.preview.toggle_playback();
+                self.shell.preview_dirty = true;
+                true
+            }
+            Key::Character(c) if c.as_str() == "," => {
+                let keyframes = self
+                    .shell
+                    .document
+                    .timeline
+                    .as_ref()
+                    .map(timeline_keyframe_times_s)
+                    .unwrap_or_default();
+                self.shell.preview.go_to_previous_keyframe(&keyframes);
+                self.shell.preview.status = format!(
+                    "Previous keyframe • t = {:.2}s / {:.2}s",
+                    self.shell.preview.current_time_s, self.shell.preview.duration_s
+                );
+                self.shell.preview_dirty = true;
+                true
+            }
+            Key::Character(c) if c.as_str() == "." => {
+                let keyframes = self
+                    .shell
+                    .document
+                    .timeline
+                    .as_ref()
+                    .map(timeline_keyframe_times_s)
+                    .unwrap_or_default();
+                self.shell.preview.go_to_next_keyframe(&keyframes);
+                self.shell.preview.status = format!(
+                    "Next keyframe • t = {:.2}s / {:.2}s",
+                    self.shell.preview.current_time_s, self.shell.preview.duration_s
+                );
                 self.shell.preview_dirty = true;
                 true
             }

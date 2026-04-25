@@ -97,6 +97,35 @@ impl PreviewPaneState {
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
     }
 
+    fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
+        if keyframes.is_empty() {
+            return;
+        }
+        let next = keyframes
+            .iter()
+            .find(|&&t| t > self.current_time_s)
+            .copied()
+            .unwrap_or(self.duration_s);
+        self.current_time_s = next;
+        self.clamp_time();
+        self.is_playing = false;
+    }
+
+    fn go_to_previous_keyframe(&mut self, keyframes: &[f64]) {
+        if keyframes.is_empty() {
+            return;
+        }
+        let prev = keyframes
+            .iter()
+            .rev()
+            .find(|&&t| t < self.current_time_s)
+            .copied()
+            .unwrap_or(0.0);
+        self.current_time_s = prev;
+        self.clamp_time();
+        self.is_playing = false;
+    }
+
     fn toggle_playback(&mut self) {
         if self.current_time_s >= self.duration_s {
             self.current_time_s = 0.0;
@@ -384,6 +413,34 @@ impl GuiShell {
             self.preview.status = "Editing source • rebuild scheduled".to_string();
         }
         if actions.request_repaint {
+            self.preview_dirty = true;
+        }
+        if actions.prev_keyframe {
+            let keyframes = self
+                .document
+                .timeline
+                .as_ref()
+                .map(timeline_keyframe_times_s)
+                .unwrap_or_default();
+            self.preview.go_to_previous_keyframe(&keyframes);
+            self.preview.status = format!(
+                "Previous keyframe • t = {:.2}s / {:.2}s",
+                self.preview.current_time_s, self.preview.duration_s
+            );
+            self.preview_dirty = true;
+        }
+        if actions.next_keyframe {
+            let keyframes = self
+                .document
+                .timeline
+                .as_ref()
+                .map(timeline_keyframe_times_s)
+                .unwrap_or_default();
+            self.preview.go_to_next_keyframe(&keyframes);
+            self.preview.status = format!(
+                "Next keyframe • t = {:.2}s / {:.2}s",
+                self.preview.current_time_s, self.preview.duration_s
+            );
             self.preview_dirty = true;
         }
     }

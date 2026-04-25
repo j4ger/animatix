@@ -13,6 +13,8 @@ pub(super) struct UiActions {
     pub(super) scrub_to: Option<f64>,
     pub(super) editor_changed: bool,
     pub(super) request_repaint: bool,
+    pub(super) prev_keyframe: bool,
+    pub(super) next_keyframe: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
@@ -294,21 +296,29 @@ impl WorkspaceViewer<'_> {
                 );
                             });
 
-                            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                                if ui.button("Rebuild").clicked() {
-                                    self.actions.rebuild = true;
-                                }
-                                if ui
-                                    .button(if self.preview.is_playing {
-                                        "Pause"
-                                    } else {
-                                        "Play"
-                                    })
-                                    .clicked()
-                                {
-                                    self.actions.toggle_playback = true;
-                                }
-                            });
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("Rebuild").clicked() {
+                        self.actions.rebuild = true;
+                    }
+                    ui.add_space(4.0);
+                    if ui.button(">>").on_hover_text_at_pointer("Next keyframe (.)")
+                        .clicked()
+                    {
+                        self.actions.next_keyframe = true;
+                    }
+                    if ui.button("<<").on_hover_text_at_pointer("Previous keyframe (,)")
+                        .clicked()
+                    {
+                        self.actions.prev_keyframe = true;
+                    }
+                    ui.add_space(4.0);
+                    if ui
+                        .button(if self.preview.is_playing { "Pause" } else { "Play" })
+                        .clicked()
+                    {
+                        self.actions.toggle_playback = true;
+                    }
+                });
                         });
 
                         if let Some(error) = &self.preview.error {
