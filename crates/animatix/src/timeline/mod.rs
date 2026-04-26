@@ -131,12 +131,6 @@ pub struct ContainerMetadata {
 #[derive(Clone, Debug, Default)]
 pub struct LayoutEngine;
 
-#[derive(Debug, Clone)]
-pub struct SceneNode {
-    pub label: String,
-    pub children: Vec<String>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SceneDimensions {
     pub width: u32,
@@ -160,7 +154,6 @@ impl Default for SceneDimensions {
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
-    pub nodes: BTreeMap<String, SceneNode>,
     pub root_nodes: Vec<String>,
     pub anon_counter: usize,
     pub env: Environment,
@@ -193,7 +186,6 @@ impl Clone for Timeline {
         Self {
             tracks: self.tracks.clone(),
             background_color: self.background_color.clone(),
-            nodes: self.nodes.clone(),
             root_nodes: self.root_nodes.clone(),
             anon_counter: self.anon_counter,
             env: self.env.clone(),
@@ -219,10 +211,9 @@ impl Timeline {
         Self {
             tracks: BTreeMap::new(),
             background_color: bg_track,
-            nodes: BTreeMap::new(),
             root_nodes: Vec::new(),
             anon_counter: 0,
-            env: Environment::raw_new(),
+            env: Environment::new(),
             modifiers: Vec::new(),
             modifier_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
@@ -248,6 +239,56 @@ impl Timeline {
         (max_track_ms.max(max_bg_ms) as f64) / 1000.0
     }
 
+    /// Returns all keyframe time positions across all tracks, in seconds.
+    /// Used by the GUI timeline scrubber to show keyframe markers.
+    pub fn keyframe_times_s(&self) -> Vec<f64> {
+        let mut times_ms = Vec::new();
+        for track in self.tracks.values() {
+            // Collect times from each property track
+            if let Some(pos) = track.position.as_ref() {
+                times_ms.extend(pos.keyframes.keys().copied());
+            }
+            if let Some(size) = track.size.as_ref() {
+                times_ms.extend(size.keyframes.keys().copied());
+            }
+            if let Some(color) = track.color.as_ref() {
+                times_ms.extend(color.keyframes.keys().copied());
+            }
+            if let Some(opacity) = track.opacity.as_ref() {
+                times_ms.extend(opacity.keyframes.keys().copied());
+            }
+            if let Some(text) = track.text_paths.as_ref() {
+                times_ms.extend(text.keyframes.keys().copied());
+            }
+            if let Some(vec) = track.vector_paths.as_ref() {
+                times_ms.extend(vec.keyframes.keys().copied());
+            }
+        }
+        times_ms.sort_unstable();
+        times_ms.dedup();
+        times_ms.into_iter().map(|ms| ms as f64 / 1000.0).collect()
+    }
+
+    /// Returns true if an actor with the given label exists.
+    pub fn has_actor(&self, label: &str) -> bool {
+        self.tracks.contains_key(label)
+    }
+
+    /// Returns an iterator over all track labels.
+    pub fn actor_labels(&self) -> impl Iterator<Item = &String> {
+        self.tracks.keys()
+    }
+
+    /// Returns the list of root actor labels (actors with no parent).
+    pub fn root_actor_labels(&self) -> &[String] {
+        &self.root_nodes
+    }
+
+    /// Returns a reference to the track for the given label, if it exists.
+    pub fn get_track(&self, label: &str) -> Option<&AnimationTrack> {
+        self.tracks.get(label)
+    }
+
     /// Returns the appropriate default color for a primitive type and property,
     /// based on the current colorscheme.
     pub fn get_default_color(&self, primitive_type: &str, property: &str) -> Option<[f32; 4]> {
@@ -268,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_for_iter_values_supports_tuple_literals() {
-        let env = Environment::raw_new();
+        let env = Environment::new();
         let values = for_iter_values(
             &Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
             &env,

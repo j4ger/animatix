@@ -28,7 +28,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{AnimationTrack, Easing, PlacementMode, SceneNode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
+use super::{AnimationTrack, Easing, PlacementMode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -200,10 +200,9 @@ impl LayoutEngine {
         metadata: &ContainerMetadata,
         time_ms: u64,
         tracks: &BTreeMap<String, AnimationTrack>,
-        nodes: &BTreeMap<String, SceneNode>,
     ) -> BTreeMap<String, [f32; 2]> {
-        let children = if let Some(node) = nodes.get(container_label) {
-            node.children.clone()
+        let children = if let Some(track) = tracks.get(container_label) {
+            track.children.clone()
         } else {
             return BTreeMap::new();
         };
@@ -265,8 +264,8 @@ impl Timeline {
         align: Option<&str>,
         cols: Option<usize>,
     ) {
-        let children = if let Some(node) = self.nodes.get(container_label) {
-            node.children.clone()
+        let children = if let Some(track) = self.tracks.get(container_label) {
+            track.children.clone()
         } else {
             return;
         };

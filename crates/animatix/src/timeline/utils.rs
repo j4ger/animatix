@@ -383,7 +383,7 @@ fn format_value(value: &Value) -> String {
 }
 
 pub fn parse_color(expr: &Expr) -> [f32; 4] {
-    parse_color_in_env(expr, &Environment::raw_new())
+    parse_color_in_env(expr, &Environment::new())
 }
 
 fn named_color(name: &str) -> Option<[f32; 4]> {
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_closure() {
-        let mut env = Environment::raw_new();
+        let mut env = Environment::new();
         let closure = Value::Closure(
             vec!["x".to_string()],
             Box::new(Expr::Binary(
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_method_returns_explicit_error() {
-        let env = Environment::raw_new();
+        let env = Environment::new();
         let expr = Expr::Method(
             Box::new(Expr::Ident("graph".to_string())),
             "plot".to_string(),
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_index_returns_explicit_error() {
-        let env = Environment::raw_new();
+        let env = Environment::new();
         let expr = Expr::Index(
             Box::new(Expr::Ident("items".to_string())),
             Box::new(Expr::Num(0.0)),
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_construct_returns_explicit_error() {
-        let env = Environment::raw_new();
+        let env = Environment::new();
         let expr = Expr::Construct("Button".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env);
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_closure_uses_call_time_environment() {
-        let mut env = Environment::raw_new();
+        let mut env = Environment::new();
         env.set(
             "f",
             Value::Closure(
@@ -524,7 +524,7 @@ mod tests {
 
     #[test]
     fn test_evaluate_path_uses_flat_dotted_lookup_key() {
-        let mut env = Environment::raw_new();
+        let mut env = Environment::new();
         env.set("node.at.x", Value::Num(320.0));
 
         let expr = Expr::Path(vec!["node".to_string(), "at".to_string(), "x".to_string()]);

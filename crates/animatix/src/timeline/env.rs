@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
@@ -133,26 +132,13 @@ impl Value {
 #[derive(Clone)]
 pub struct Environment {
     values: HashMap<String, Value>,
-    parent: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
-    pub fn raw_new() -> Self {
+    pub fn new() -> Self {
         Environment {
             values: HashMap::new(),
-            parent: None,
         }
-    }
-
-    pub fn new() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self::raw_new()))
-    }
-
-    pub fn child(parent: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Environment {
-            values: HashMap::new(),
-            parent: Some(parent),
-        }))
     }
 
     pub fn set(&mut self, name: &str, value: Value) {
@@ -160,26 +146,12 @@ impl Environment {
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
-        if let Some(val) = self.values.get(name) {
-            Some(val.clone())
-        } else if let Some(parent) = &self.parent {
-            parent.borrow().get(name)
-        } else {
-            None
-        }
-    }
-
-    pub fn set_parent(&mut self, parent: Rc<RefCell<Environment>>) {
-        self.parent = Some(parent);
+        self.values.get(name).cloned()
     }
 
     pub fn all_keys(&self) -> Vec<String> {
         let mut keys: Vec<String> = self.values.keys().cloned().collect();
-        if let Some(parent) = &self.parent {
-            keys.extend(parent.borrow().all_keys());
-        }
         keys.sort();
-        keys.dedup();
         keys
     }
 }

@@ -193,46 +193,7 @@ pub fn timeline_duration_seconds(timeline: &Timeline) -> f64 {
 }
 
 pub fn timeline_keyframe_times_s(timeline: &Timeline) -> Vec<f64> {
-    let mut times_ms = Vec::new();
-
-    for track in timeline.tracks.values() {
-        collect_track_keyframe_times(&mut times_ms, track);
-    }
-
-    times_ms.sort_unstable();
-    times_ms.dedup();
-    times_ms
-        .into_iter()
-        .map(|time_ms| time_ms as f64 / 1000.0)
-        .collect()
-}
-
-fn collect_track_keyframe_times(times_ms: &mut Vec<u64>, track: &AnimationTrack) {
-    fn extend_from_option<T>(times_ms: &mut Vec<u64>, track: &Option<PropertyTrack<T>>) {
-        if let Some(t) = track.as_ref() {
-            times_ms.extend(t.keyframes.keys().copied());
-        }
-    }
-
-    extend_from_option(times_ms, &track.position);
-    extend_from_option(times_ms, &track.placement_mode);
-    extend_from_option(times_ms, &track.position_binding);
-    extend_from_option(times_ms, &track.size);
-    extend_from_option(times_ms, &track.line_from);
-    extend_from_option(times_ms, &track.line_to);
-    extend_from_option(times_ms, &track.arc_angles);
-    extend_from_option(times_ms, &track.color);
-    extend_from_option(times_ms, &track.shape_type);
-    extend_from_option(times_ms, &track.opacity);
-    extend_from_option(times_ms, &track.stroke_width);
-    extend_from_option(times_ms, &track.stroke_color);
-    extend_from_option(times_ms, &track.stroke_progress);
-    extend_from_option(times_ms, &track.fill_opacity);
-    extend_from_option(times_ms, &track.text_paths);
-    extend_from_option(times_ms, &track.vector_paths);
-    if let Some(t) = track.image.as_ref() {
-        times_ms.extend(t.keyframes.keys().copied());
-    }
+    timeline.keyframe_times_s()
 }
 
 pub fn default_file_path() -> PathBuf {
@@ -421,9 +382,9 @@ card: MetricCard, title: "Latency"
         let document = DocumentSession::load(entry).expect("document should rebuild");
         let timeline = document.timeline.as_ref().expect("timeline should exist");
 
-        assert!(timeline.tracks.contains_key("card"));
-        assert!(timeline.tracks.contains_key("card.title_text"));
-        assert!(timeline.tracks.contains_key("card.badge"));
+        assert!(timeline.has_actor("card"));
+        assert!(timeline.has_actor("card.title_text"));
+        assert!(timeline.has_actor("card.badge"));
         assert!(document.last_rebuild_error.is_none());
         assert_eq!(
             document.scene_dimensions,

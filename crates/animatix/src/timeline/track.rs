@@ -348,6 +348,8 @@ pub struct AnimationTrack {
     /// The first time this actor was seen in the timeline (ms).
     /// Used to hide actors before their first declaration.
     pub first_seen_ms: u64,
+    /// Children of this actor in the scene graph, by label.
+    pub children: Vec<String>,
 }
 
 impl AnimationTrack {
@@ -379,6 +381,7 @@ impl AnimationTrack {
             image: None,
             points: None,
             first_seen_ms: 0,
+            children: Vec::new(),
         }
     }
 

@@ -88,9 +88,9 @@ impl Timeline {
 
         let target_key = assignment_target_key(target);
 
-        if target.len() > 1 && !self.nodes.contains_key(&target_key) {
+        if target.len() > 1 && !self.tracks.contains_key(&target_key) {
             let suggestion =
-                best_path_suggestion(&target_key, self.nodes.keys().map(String::as_str));
+                best_path_suggestion(&target_key, self.tracks.keys().map(String::as_str));
             push_unknown_target_path_diagnostic(
                 diagnostics,
                 &assignment_subject,

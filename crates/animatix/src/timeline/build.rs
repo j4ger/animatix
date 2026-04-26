@@ -315,24 +315,23 @@ impl Timeline {
     // === Scene Graph Node Creation ===
 
     pub(super) fn add_node(&mut self, label: String, parent_label: Option<&str>) {
-        if !self.nodes.contains_key(&label) {
-            self.nodes.insert(
-                label.clone(),
-                SceneNode {
-                    label: label.clone(),
-                    children: Vec::new(),
-                },
-            );
-            if let Some(parent) = parent_label {
-                if let Some(p) = self.nodes.get_mut(parent) {
-                    if !p.children.contains(&label) {
-                        p.children.push(label.clone());
-                    }
-                }
-            } else {
-                if !self.root_nodes.contains(&label) {
-                    self.root_nodes.push(label.clone());
-                }
+        // Ensure the actor track exists
+        let track = self.tracks
+            .entry(label.clone())
+            .or_insert_with(|| AnimationTrack::new(label.clone()));
+
+        if let Some(parent) = parent_label {
+            // Add child to parent's children list
+            let parent_track = self.tracks
+                .entry(parent.to_string())
+                .or_insert_with(|| AnimationTrack::new(parent.to_string()));
+            if !parent_track.children.contains(&label) {
+                parent_track.children.push(label.clone());
+            }
+        } else {
+            // No parent → root node
+            if !self.root_nodes.contains(&label) {
+                self.root_nodes.push(label.clone());
             }
         }
     }
@@ -1073,11 +1072,9 @@ impl Timeline {
                     _ => LayoutType::Row,
                 };
 
-                let child_order = if let Some(node) = self.nodes.get(label) {
-                    node.children.clone()
-                } else {
-                    Vec::new()
-                };
+                let child_order = self.tracks.get(label)
+                    .map(|t| t.children.clone())
+                    .unwrap_or_default();
 
                 self.container_metadata.insert(
                     label.to_string(),
@@ -1978,11 +1975,9 @@ impl Timeline {
                             _ => LayoutType::Row,
                         };
 
-                        let child_order = if let Some(node) = self.nodes.get(label) {
-                            node.children.clone()
-                        } else {
-                            Vec::new()
-                        };
+                        let child_order = self.tracks.get(label)
+                            .map(|t| t.children.clone())
+                            .unwrap_or_default();
 
                         self.container_metadata.insert(
                             label.to_string(),

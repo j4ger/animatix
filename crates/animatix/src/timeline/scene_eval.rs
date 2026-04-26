@@ -80,8 +80,8 @@ impl Timeline {
             // Skip actors that haven't been declared yet
             if time_ms < track.first_seen_ms {
                 // Still recurse into children so they are also hidden
-                if let Some(node) = self.nodes.get(node_label) {
-                    for child_label in &node.children {
+                if let Some(track) = self.tracks.get(node_label) {
+                    for child_label in &track.children.clone() {
                         self.evaluate_node(
                             child_label,
                             time_ms,
@@ -341,7 +341,7 @@ impl Timeline {
             (parent_transform, parent_opacity)
         };
 
-        if let Some(node) = self.nodes.get(node_label) {
+        if let Some(track) = self.tracks.get(node_label) {
             // Compute dynamic layout for this container's children
             let child_layout_positions = if self.dynamic_layout {
                 if let Some(metadata) = self.container_metadata.get(node_label) {
@@ -350,7 +350,6 @@ impl Timeline {
                         metadata,
                         time_ms,
                         &self.tracks,
-                        &self.nodes,
                     )
                 } else {
                     std::collections::BTreeMap::new()
@@ -359,7 +358,7 @@ impl Timeline {
                 std::collections::BTreeMap::new()
             };
 
-            for child in &node.children {
+            for child in &track.children.clone() {
                 self.evaluate_node(
                     child,
                     time_ms,

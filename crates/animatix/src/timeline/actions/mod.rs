@@ -101,9 +101,9 @@ pub(crate) fn ensure_vector_reveal_target(
     }
 
     if timeline
-        .nodes
+        .tracks
         .get(target)
-        .is_some_and(|node| !node.children.is_empty())
+        .is_some_and(|track| !track.children.is_empty())
         && track.vector_paths.as_ref().map(|t| t.default_value.is_empty() && t.keyframes.is_empty()).unwrap_or(true)
         && track.svg_paths.is_empty()
     {
@@ -170,7 +170,7 @@ mod tests {
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
-    use crate::timeline::{AnimationTrack, SceneNode};
+    use crate::timeline::AnimationTrack;
 
     #[test]
     fn unknown_actions_emit_diagnostics() {
@@ -216,16 +216,9 @@ mod tests {
     #[test]
     fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
         let mut timeline = Timeline::new();
-        timeline
-            .tracks
-            .insert("row".to_string(), AnimationTrack::new("row".to_string()));
-        timeline.nodes.insert(
-            "row".to_string(),
-            SceneNode {
-                label: "row".to_string(),
-                children: vec!["row.child".to_string()],
-            },
-        );
+        let mut track = AnimationTrack::new("row".to_string());
+        track.children.push("row.child".to_string());
+        timeline.tracks.insert("row".to_string(), track);
 
         let mut diagnostics = Vec::new();
         let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics);

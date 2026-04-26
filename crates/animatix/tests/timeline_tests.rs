@@ -4341,7 +4341,7 @@ right.size = (80, 20) [1s]
     // left position = -40 + 10 = -30, right position = -40 + 20 + 20 + 20 = 20
     let positions_0 = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks, &timeline.nodes);
+        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
 
     assert_eq!(positions_0.get("left").copied().unwrap(), [-30.0, 0.0]);
     assert_eq!(positions_0.get("right").copied().unwrap(), [20.0, 0.0]);
@@ -4351,7 +4351,7 @@ right.size = (80, 20) [1s]
     // left position = -60 + 10 = -50, right position = -60 + 20 + 20 + 40 = 20
     let positions_2s = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 2000, &timeline.tracks, &timeline.nodes);
+        .compute_layout_for_time("row", metadata, 2000, &timeline.tracks);
 
     // Left should have shifted left because the row got wider
     assert_eq!(positions_2s.get("left").copied().unwrap(), [-50.0, 0.0]);
@@ -4380,7 +4380,7 @@ row: Row, gap: 20 {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks, &timeline.nodes);
+        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
 
     // left is LayoutManaged, so it should be in the result
     assert!(positions.contains_key("left"));
@@ -4781,7 +4781,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
 
 #[test]
 fn test_evaluate_expr_sin_cos() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
     // sin(0) = 0
     let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]), &env)
@@ -4833,7 +4833,7 @@ fn test_evaluate_expr_sin_cos() {
 
 #[test]
 fn test_evaluate_expr_format() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
     // format("value: {}", 42)
     let result = evaluate_expr(
@@ -4886,7 +4886,7 @@ fn test_evaluate_expr_format() {
 
 #[test]
 fn test_evaluate_expr_path_uses_dotted_environment_lookup() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     env.set("left.badge.color", animatix::timeline::Value::Num(7.0));
 
     let result = evaluate_expr(
@@ -4904,7 +4904,7 @@ fn test_evaluate_expr_path_uses_dotted_environment_lookup() {
 
 #[test]
 fn test_evaluate_expr_constants() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
     assert!(
         (evaluate_expr(&Expr::Ident("PI".to_string()), &env)
@@ -4926,7 +4926,7 @@ fn test_evaluate_expr_constants() {
 
 #[test]
 fn test_evaluate_expr_tuple() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
     let result = evaluate_expr(&Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]), &env)
         .unwrap_or(animatix::timeline::Value::Num(0.0));
@@ -4971,7 +4971,7 @@ fn test_timeline_with_expr_call_properties() {
 
 #[test]
 fn test_evaluate_expr_modulo() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
 
     // Basic modulo: 10 % 3 = 1
@@ -5032,7 +5032,7 @@ fn test_evaluate_expr_modulo() {
 
 #[test]
 fn test_evaluate_expr_vec2_operations() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
 
     // Vec2 addition: (10, 20) + (5, 5) = (15, 25)
@@ -5121,7 +5121,7 @@ fn test_evaluate_expr_vec2_operations() {
 
 #[test]
 fn test_evaluate_expr_vec3_operations() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
 
     // Vec3 addition: (1, 2, 3) + (4, 5, 6) = (5, 7, 9)
@@ -5163,7 +5163,7 @@ fn test_evaluate_expr_vec3_operations() {
 
 #[test]
 fn test_evaluate_expr_color_operations() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
 
     // Color addition: RED + GREEN = (1, 1, 0, 2)
@@ -5216,7 +5216,7 @@ fn test_evaluate_expr_color_operations() {
 
 #[test]
 fn test_evaluate_expr_rand() {
-    let mut env = animatix::timeline::Environment::raw_new();
+    let mut env = animatix::timeline::Environment::new();
     animatix::timeline::load_standard_library(&mut env);
 
     // rand() should return a value between 0 and 1

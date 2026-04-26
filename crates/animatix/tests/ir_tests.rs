@@ -122,7 +122,7 @@ fn compiled_ir_matches_evaluate_expr_for_supported_subset() {
     );
 
     let compiled = compile_modifier_expr(&expr);
-    let mut env = Environment::raw_new();
+    let mut env = Environment::new();
     load_standard_library(&mut env);
     env.set("t", Value::Num(std::f64::consts::FRAC_PI_2));
     env.set("pulse", Value::Num(3.0));

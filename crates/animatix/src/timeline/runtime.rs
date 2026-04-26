@@ -22,6 +22,11 @@ impl Timeline {
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));
+        // Fast path: no modifiers means no property lookups at frame time.
+        // Skip the per-track property evaluation entirely.
+        if self.modifier_programs.is_empty() && self.modifiers.is_empty() {
+            return env;
+        }
         self.inject_runtime_lookup_values(
             &mut env,
             time_ms,
