@@ -1,6 +1,6 @@
 use super::modifier_runtime::{ir, vm};
 use super::{
-    Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
+    Environment, EvalError, SceneAnchor, SceneDimensions, ShapeType, Stmt, Timeline, Value,
     assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color, set_lookup_scalar,
     set_lookup_vec2, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
@@ -122,7 +122,7 @@ impl Timeline {
             set_lookup_vec2(env, &format!("{}.size", label), size);
             set_lookup_scalar(env, &format!("{}.width", label), size[0]);
             set_lookup_scalar(env, &format!("{}.height", label), size[1]);
-            if super::vector_shape_exposes_tip_size(track.shape_type.get(time_ms, 0u32)) {
+            if super::vector_shape_exposes_tip_size(track.shape_type.get(time_ms, ShapeType::Rect)) {
                 set_lookup_scalar(env, &format!("{}.tip_length", label), size[0] / 2.0);
                 set_lookup_scalar(env, &format!("{}.tip_width", label), size[1] / 2.0);
             }

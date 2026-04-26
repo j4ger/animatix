@@ -1,20 +1,30 @@
 use super::property_lookup::parse_numeric_vec2;
 use super::{
-    Diagnostic, Environment, KurboShape, VelloPath, evaluate_expr,
+    Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr,
     evaluate_expr_with_lookup_diagnostic, parse_numeric_vec2_with_lookup_diagnostic,
 };
 use crate::ast::Expr;
 
-pub(crate) const SHAPE_RECT: u32 = 0;
-pub(crate) const SHAPE_CIRCLE: u32 = 1;
-pub(crate) const SHAPE_LINE: u32 = 2;
-pub(crate) const SHAPE_ELLIPSE: u32 = 3;
-pub(crate) const SHAPE_ARC: u32 = 4;
-pub(crate) const SHAPE_POLYGON: u32 = 5;
-pub(crate) const SHAPE_PATH: u32 = 6;
-pub(crate) const SHAPE_ARROW: u32 = 7;
-pub(crate) const SHAPE_GRAPH: u32 = 8;
-pub(crate) const SHAPE_PLOT: u32 = 9;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ShapeType {
+    #[default]
+    Rect = 0,
+    Circle = 1,
+    Line = 2,
+    Ellipse = 3,
+    Arc = 4,
+    Polygon = 5,
+    Path = 6,
+    Arrow = 7,
+    Graph = 8,
+    Plot = 9,
+}
+
+impl Interpolate for ShapeType {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct VectorShapeState {
@@ -59,7 +69,7 @@ pub(crate) struct VectorShapeStyle {
 }
 
 pub(crate) trait VectorShapePrimitive: Sync {
-    fn shape_type(&self) -> u32;
+    fn shape_type(&self) -> ShapeType;
 
     fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
@@ -135,8 +145,8 @@ static DOT_PRIMITIVE: DotPrimitive = DotPrimitive;
 static REGULAR_POLYGON_PRIMITIVE: RegularPolygonPrimitive = RegularPolygonPrimitive;
 
 impl VectorShapePrimitive for RectPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_RECT
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Rect
     }
 
     fn build_path(&self, state: &VectorShapeState) -> kurbo::BezPath {
@@ -151,8 +161,8 @@ impl VectorShapePrimitive for RectPrimitive {
 }
 
 impl VectorShapePrimitive for SquarePrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_RECT
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Rect
     }
 
     fn apply_property(
@@ -182,8 +192,8 @@ impl VectorShapePrimitive for SquarePrimitive {
 }
 
 impl VectorShapePrimitive for CirclePrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_CIRCLE
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Circle
     }
 
     fn build_path(&self, state: &VectorShapeState) -> kurbo::BezPath {
@@ -196,8 +206,8 @@ impl VectorShapePrimitive for CirclePrimitive {
 }
 
 impl VectorShapePrimitive for DotPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_CIRCLE
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Circle
     }
 
     fn apply_defaults(&self, state: &mut VectorShapeState) {
@@ -213,8 +223,8 @@ impl VectorShapePrimitive for DotPrimitive {
 }
 
 impl VectorShapePrimitive for LinePrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_LINE
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Line
     }
 
     fn apply_property(
@@ -262,8 +272,8 @@ impl VectorShapePrimitive for LinePrimitive {
 }
 
 impl VectorShapePrimitive for EllipsePrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_ELLIPSE
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Ellipse
     }
 
     fn apply_property(
@@ -304,8 +314,8 @@ impl VectorShapePrimitive for EllipsePrimitive {
 }
 
 impl VectorShapePrimitive for ArcPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_ARC
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Arc
     }
 
     fn apply_property(
@@ -364,8 +374,8 @@ impl VectorShapePrimitive for ArcPrimitive {
 }
 
 impl VectorShapePrimitive for ArrowPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_ARROW
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Arrow
     }
 
     fn apply_defaults(&self, state: &mut VectorShapeState) {
@@ -411,8 +421,8 @@ impl VectorShapePrimitive for ArrowPrimitive {
 }
 
 impl VectorShapePrimitive for PolygonPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_POLYGON
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Polygon
     }
 
     fn apply_property(
@@ -459,8 +469,8 @@ impl VectorShapePrimitive for PolygonPrimitive {
 }
 
 impl VectorShapePrimitive for RegularPolygonPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_POLYGON
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Polygon
     }
 
     fn apply_property(
@@ -516,8 +526,8 @@ impl VectorShapePrimitive for RegularPolygonPrimitive {
 }
 
 impl VectorShapePrimitive for PathPrimitive {
-    fn shape_type(&self) -> u32 {
-        SHAPE_PATH
+    fn shape_type(&self) -> ShapeType {
+        ShapeType::Path
     }
 
     fn apply_property(
@@ -569,30 +579,30 @@ pub(crate) fn vector_shape_primitive_for_actor_type(
 }
 
 pub(crate) fn vector_shape_primitive_for_shape_type(
-    shape_type: u32,
+    shape_type: ShapeType,
 ) -> Option<&'static dyn VectorShapePrimitive> {
     match shape_type {
-        SHAPE_RECT => Some(&RECT_PRIMITIVE),
-        SHAPE_CIRCLE => Some(&CIRCLE_PRIMITIVE),
-        SHAPE_LINE => Some(&LINE_PRIMITIVE),
-        SHAPE_ELLIPSE => Some(&ELLIPSE_PRIMITIVE),
-        SHAPE_ARC => Some(&ARC_PRIMITIVE),
-        SHAPE_POLYGON => Some(&POLYGON_PRIMITIVE),
-        SHAPE_PATH => Some(&PATH_PRIMITIVE),
-        SHAPE_ARROW => Some(&ARROW_PRIMITIVE),
+        ShapeType::Rect => Some(&RECT_PRIMITIVE),
+        ShapeType::Circle => Some(&CIRCLE_PRIMITIVE),
+        ShapeType::Line => Some(&LINE_PRIMITIVE),
+        ShapeType::Ellipse => Some(&ELLIPSE_PRIMITIVE),
+        ShapeType::Arc => Some(&ARC_PRIMITIVE),
+        ShapeType::Polygon => Some(&POLYGON_PRIMITIVE),
+        ShapeType::Path => Some(&PATH_PRIMITIVE),
+        ShapeType::Arrow => Some(&ARROW_PRIMITIVE),
         _ => None,
     }
 }
 
-pub(crate) fn shape_type_for_actor(ty: &str) -> u32 {
+pub(crate) fn shape_type_for_actor(ty: &str) -> ShapeType {
     if let Some(primitive) = vector_shape_primitive_for_actor_type(ty) {
         return primitive.shape_type();
     }
 
     match ty {
-        "Graph" => SHAPE_GRAPH,
-        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => SHAPE_PLOT,
-        _ => SHAPE_RECT,
+        "Graph" => ShapeType::Graph,
+        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => ShapeType::Plot,
+        _ => ShapeType::Rect,
     }
 }
 
@@ -623,20 +633,20 @@ pub(crate) fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorSh
     }
 }
 
-pub(crate) fn vector_shape_exposes_tip_size(shape_type: u32) -> bool {
+pub(crate) fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
     vector_shape_primitive_for_shape_type(shape_type)
         .map(VectorShapePrimitive::exposes_tip_size)
         .unwrap_or(false)
 }
 
-pub(crate) fn vector_shape_uses_custom_path(shape_type: u32) -> bool {
+pub(crate) fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
     vector_shape_primitive_for_shape_type(shape_type)
         .map(VectorShapePrimitive::uses_custom_path)
         .unwrap_or(false)
 }
 
 pub(crate) fn build_vector_shape_vello_path(
-    shape_type: u32,
+    shape_type: ShapeType,
     state: &VectorShapeState,
     style: VectorShapeStyle,
 ) -> Option<VelloPath> {
@@ -779,7 +789,7 @@ pub(crate) fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option
 }
 
 pub(crate) fn build_shape(
-    shape_type: u32,
+    shape_type: ShapeType,
     size: [f32; 2],
     line_from: [f32; 2],
     line_to: [f32; 2],
@@ -788,33 +798,33 @@ pub(crate) fn build_shape(
     let state = VectorShapeState::new(size, line_from, line_to, arc_angles);
     if let Some(primitive) = vector_shape_primitive_for_shape_type(shape_type) {
         let path = primitive.build_path(&state);
-        if matches!(shape_type, SHAPE_ARROW | SHAPE_POLYGON | SHAPE_PATH) {
+        if matches!(shape_type, ShapeType::Arrow | ShapeType::Polygon | ShapeType::Path) {
             return KurboShape::Path { path };
         }
     }
 
     match shape_type {
-        SHAPE_CIRCLE => KurboShape::Circle {
+        ShapeType::Circle => KurboShape::Circle {
             center: kurbo::Point::new(0.0, 0.0),
             radius: size[0] as f64,
         },
-        SHAPE_LINE => KurboShape::Line {
+        ShapeType::Line => KurboShape::Line {
             p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
             p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
         },
-        SHAPE_ELLIPSE => KurboShape::Ellipse {
+        ShapeType::Ellipse => KurboShape::Ellipse {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
             rotation: 0.0,
         },
-        SHAPE_ARC => KurboShape::Arc {
+        ShapeType::Arc => KurboShape::Arc {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
             start_angle: arc_angles[0] as f64,
             sweep_angle: arc_angles[1] as f64,
             rotation: 0.0,
         },
-        SHAPE_ARROW => KurboShape::Path {
+        ShapeType::Arrow => KurboShape::Path {
             path: build_arrow_path(line_from, line_to, size[0], size[1]),
         },
         _ => KurboShape::Rect {
@@ -827,7 +837,7 @@ pub(crate) fn build_shape(
 }
 
 pub(crate) fn shape_fill_color(
-    shape_type: u32,
+    shape_type: ShapeType,
     color: [f32; 4],
     fill_opacity: f32,
 ) -> Option<vello::peniko::Color> {
@@ -869,7 +879,7 @@ pub(crate) fn shape_stroke(
 }
 
 pub(crate) fn build_shape_vello_path(
-    shape_type: u32,
+    shape_type: ShapeType,
     size: [f32; 2],
     line_from: [f32; 2],
     line_to: [f32; 2],
@@ -910,15 +920,15 @@ mod tests {
 
     #[test]
     fn arrow_reports_tip_lookup_support() {
-        assert!(vector_shape_exposes_tip_size(SHAPE_ARROW));
-        assert!(!vector_shape_exposes_tip_size(SHAPE_RECT));
+        assert!(vector_shape_exposes_tip_size(ShapeType::Arrow));
+        assert!(!vector_shape_exposes_tip_size(ShapeType::Rect));
     }
 
     #[test]
     fn polygon_shapes_report_custom_path_usage() {
-        assert!(vector_shape_uses_custom_path(SHAPE_POLYGON));
-        assert!(vector_shape_uses_custom_path(SHAPE_PATH));
-        assert!(!vector_shape_uses_custom_path(SHAPE_RECT));
+        assert!(vector_shape_uses_custom_path(ShapeType::Polygon));
+        assert!(vector_shape_uses_custom_path(ShapeType::Path));
+        assert!(!vector_shape_uses_custom_path(ShapeType::Rect));
     }
 
     #[test]

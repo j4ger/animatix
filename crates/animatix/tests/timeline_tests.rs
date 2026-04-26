@@ -6,7 +6,7 @@ use animatix::parser::parser;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, LayoutType,
-    MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, Timeline,
+    MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, ShapeType, Timeline,
     TrackAccessor,
 };
 use chumsky::Parser;
@@ -997,7 +997,7 @@ fn test_missing_properties() {
     assert_eq!(track.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
     assert_eq!(track.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
     assert_eq!(track.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
-    assert_eq!(track.shape_type.get(0, 0), 0);
+    assert_eq!(track.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
     assert_eq!(track.opacity.get(0, 1.0), 1.0);
 }
 
@@ -1078,7 +1078,7 @@ fn test_regular_polygon_builds_runtime_path() {
     let timeline = Timeline::build(&ast);
     let track = timeline.tracks.get("hex").expect("hex track should exist");
 
-    assert_eq!(track.shape_type.evaluate(0), 5);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Polygon);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -1112,7 +1112,7 @@ fn test_arrow_primitive_builds_runtime_path() {
         .get("arrow")
         .expect("arrow track should exist");
 
-    assert_eq!(track.shape_type.evaluate(0), 7);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Arrow);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -1208,7 +1208,7 @@ fn test_parametric_plot_builds_runtime_path() {
         .get("curve")
         .expect("parametric track should exist");
 
-    assert_ne!(track.shape_type.evaluate(0), 0);
+    assert_ne!(track.shape_type.evaluate(0), ShapeType::Rect);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -1284,7 +1284,7 @@ fn test_implicit_plot_builds_runtime_path() {
         .get("contour")
         .expect("implicit plot track should exist");
 
-    assert_ne!(track.shape_type.evaluate(0), 0);
+    assert_ne!(track.shape_type.evaluate(0), ShapeType::Rect);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -2094,7 +2094,7 @@ fn test_line_actor_builds_runtime_path() {
         .expect("axis track should exist");
     let bounds = vector_path_bounds(&timeline, "axis", 0);
 
-    assert_eq!(track.shape_type.evaluate(0), 2);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Line);
     assert_eq!(track.line_from.evaluate(0), [-40.0, 0.0]);
     assert_eq!(track.line_to.evaluate(0), [60.0, 20.0]);
     assert!(track.vector_paths.evaluate(0)[0].fill.is_none());
@@ -2135,7 +2135,7 @@ fn test_ellipse_actor_builds_runtime_path() {
         .expect("halo track should exist");
     let bounds = vector_path_bounds(&timeline, "halo", 0);
 
-    assert_eq!(track.shape_type.evaluate(0), 3);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Ellipse);
     assert_eq!(track.size.evaluate(0), [80.0, 30.0]);
     assert!((bounds.x0 + 80.0).abs() < 0.1);
     assert!((bounds.y0 + 30.0).abs() < 0.1);
@@ -2183,7 +2183,7 @@ fn test_arc_actor_builds_runtime_path() {
     let vector_path = &track.vector_paths.evaluate(0)[0];
     let bounds = vector_path.path.bounding_box();
 
-    assert_eq!(track.shape_type.evaluate(0), 4);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Arc);
     assert_eq!(track.size.evaluate(0), [80.0, 40.0]);
     assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
     assert!(vector_path.fill.is_none());
@@ -2222,7 +2222,7 @@ fn test_polygon_actor_builds_runtime_path() {
     let vector_path = &track.vector_paths.evaluate(0)[0];
     let bounds = vector_path.path.bounding_box();
 
-    assert_eq!(track.shape_type.evaluate(0), 5);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Polygon);
     assert!(vector_path.fill.is_some());
     assert!((bounds.x0 + 80.0).abs() < 0.1);
     assert!((bounds.y0 + 70.0).abs() < 0.1);
@@ -2277,7 +2277,7 @@ fn test_path_actor_builds_runtime_path() {
     let vector_path = &track.vector_paths.evaluate(0)[0];
     let bounds = vector_path.path.bounding_box();
 
-    assert_eq!(track.shape_type.evaluate(0), 6);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Path);
     assert!(vector_path.stroke.is_some());
     assert!((bounds.x0 + 120.0).abs() < 0.1);
     assert!(bounds.y0 < -80.0);
@@ -4771,7 +4771,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
         .tracks
         .get("plot")
         .expect("plot track should exist");
-    assert_ne!(track.shape_type.evaluate(0), 0);
+    assert_ne!(track.shape_type.evaluate(0), ShapeType::Rect);
     assert_eq!(track.position.evaluate(0), [0.0, 0.0]);
     assert_eq!(
         track.position_binding.get(0, PositionBinding::Absolute),

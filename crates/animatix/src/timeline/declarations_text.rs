@@ -71,48 +71,21 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        match stmt {
-            Stmt::Text {
-                label,
-                props,
-                modifiers,
-            } => self.process_text_declaration(
-                TextDeclarationKind::Text,
-                label.as_deref(),
-                props,
-                modifiers,
-                time_ms,
-                parent_label,
-                diagnostics,
-            ),
-            Stmt::Math {
-                label,
-                props,
-                modifiers,
-            } => self.process_text_declaration(
-                TextDeclarationKind::Math,
-                label.as_deref(),
-                props,
-                modifiers,
-                time_ms,
-                parent_label,
-                diagnostics,
-            ),
-            Stmt::Code {
-                label,
-                props,
-                modifiers,
-            } => self.process_text_declaration(
-                TextDeclarationKind::Code,
-                label.as_deref(),
-                props,
-                modifiers,
-                time_ms,
-                parent_label,
-                diagnostics,
-            ),
+        let kind = match stmt {
+            Stmt::Text { .. } => TextDeclarationKind::Text,
+            Stmt::Math { .. } => TextDeclarationKind::Math,
+            Stmt::Code { .. } => TextDeclarationKind::Code,
             _ => unreachable!("process_text_like_statement only handles text-like statements"),
-        }
+        };
+        let (label, props, modifiers) = match stmt {
+            Stmt::Text { label, props, modifiers }
+            | Stmt::Math { label, props, modifiers }
+            | Stmt::Code { label, props, modifiers } => {
+                (label.as_deref(), props, modifiers)
+            }
+            _ => unreachable!(),
+        };
+        self.process_text_declaration(kind, label, props, modifiers, time_ms, parent_label, diagnostics)
     }
 
     fn process_text_declaration(

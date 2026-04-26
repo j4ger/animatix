@@ -3,6 +3,7 @@ use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::{
     MorphOptions, align_path_lists_with_strategy, morph_paths_with_options,
 };
+use crate::timeline::shapes::ShapeType;
 use std::collections::BTreeMap;
 
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
@@ -331,7 +332,7 @@ pub struct AnimationTrack {
     pub line_to: Option<PropertyTrack<[f32; 2]>>,
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
     pub color: Option<PropertyTrack<[f32; 4]>>,
-    pub shape_type: Option<PropertyTrack<u32>>,
+    pub shape_type: Option<PropertyTrack<ShapeType>>,
     pub opacity: Option<PropertyTrack<f32>>,
     pub stroke_width: Option<PropertyTrack<f32>>,
     pub stroke_color: Option<PropertyTrack<[f32; 4]>>,

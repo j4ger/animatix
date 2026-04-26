@@ -1,6 +1,6 @@
 use super::{
     AnimationTrack, Diagnostic, Easing, ModifierHost, ParsedTimingModifiers, PositionBinding,
-    Timeline, Value, VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
+    ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr_with_lookup_diagnostic,
     mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic, parse_numeric_vec2,
     parse_point_list_expr, parse_timing_modifiers, preserve_discrete_position_state_before,
@@ -661,7 +661,7 @@ impl Timeline {
         {
             let default_size = crate::timeline::track::DEFAULT_LAYOUT_HALF_SIZE;
             let default_arc = [0.0, std::f32::consts::PI];
-            let shape_type = track.shape_type.last(0u32);
+            let shape_type = track.shape_type.last(ShapeType::Rect);
             let size = track.size.last(default_size);
             let line_from = track.line_from.last([-50.0, 0.0]);
             let line_to = track.line_to.last([50.0, 0.0]);

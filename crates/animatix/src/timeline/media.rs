@@ -138,6 +138,7 @@ impl Timeline {
                 if url.is_empty() {
                     return;
                 }
+                // TODO: Use self.asset_cache.get_or_load_svg(path) once callers pass &mut self
                 match std::fs::read_to_string(&url) {
                     Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
                         Ok(mut parsed_paths) => {
@@ -175,6 +176,7 @@ impl Timeline {
                 if url.is_empty() {
                     return;
                 }
+                // TODO: Use self.asset_cache.get_or_load_image(path) once callers pass &mut self
                 match crate::timeline::image::load_image(&url) {
                     Ok(image) => {
                         let display_size = authored_size
@@ -248,6 +250,7 @@ impl Timeline {
                         .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
+                // TODO: Use self.asset_cache.get_or_load_svg(path) once callers pass &mut self
                 match std::fs::read_to_string(url) {
                     Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
                         Ok(mut parsed_paths) => {
@@ -321,6 +324,7 @@ impl Timeline {
                         .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
+                // TODO: Use self.asset_cache.get_or_load_image(path) once callers pass &mut self
                 match crate::timeline::image::load_image(url) {
                     Ok(image) => {
                         let display_size = size

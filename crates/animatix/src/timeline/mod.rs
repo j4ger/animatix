@@ -32,6 +32,8 @@
 //! The practical compile target is the post-expansion program after module loading
 //! and component expansion—not the raw parser AST.
 pub mod actions;
+pub mod assets;
+mod actor_kind;
 mod assignments;
 mod build;
 pub mod colorscheme;
@@ -58,6 +60,7 @@ pub mod utils;
 pub mod vello_path;
 
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
+pub use actor_kind::ActorKind;
 use actions::process_action;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{Environment, EvalError, Value, load_standard_library};
@@ -82,12 +85,13 @@ use property_lookup::{
     set_lookup_vec2,
 };
 use shapes::{
-    SHAPE_GRAPH, SHAPE_PLOT, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
+    VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
     finalize_vector_shape_state, parse_point_list_expr, shape_type_for_actor,
     vector_shape_exposes_tip_size, vector_shape_primitive_for_actor_type,
     vector_shape_uses_custom_path,
 };
+pub use shapes::ShapeType;
 pub use svg::parse_svg;
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
 use timing::{
@@ -169,6 +173,7 @@ pub struct Timeline {
     pub container_metadata: BTreeMap<String, ContainerMetadata>,
     pub layout_engine: LayoutEngine,
     pub dynamic_layout: bool,
+    pub asset_cache: assets::AssetCache,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
 }
@@ -201,6 +206,7 @@ impl Clone for Timeline {
             container_metadata: self.container_metadata.clone(),
             layout_engine: self.layout_engine.clone(),
             dynamic_layout: self.dynamic_layout,
+            asset_cache: self.asset_cache.clone(),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
         }
     }
@@ -226,6 +232,7 @@ impl Timeline {
             container_metadata: BTreeMap::new(),
             layout_engine: LayoutEngine,
             dynamic_layout: false,
+            asset_cache: assets::AssetCache::new(),
             frame_cache: std::cell::RefCell::new(None),
         }
     }

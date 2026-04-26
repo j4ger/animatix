@@ -1,5 +1,5 @@
 use super::{
-    DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, Timeline, Value, VectorShapeState,
+    DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
@@ -118,7 +118,7 @@ impl Timeline {
             let mut opacity = track.opacity.get(time_ms, 1.0);
             let text_paths = track.evaluate_text_paths(time_ms);
             let points = track.points.get(time_ms, Vec::new());
-            let shape_type = track.shape_type.get(time_ms, 0u32);
+            let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
             let mut half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
@@ -193,7 +193,7 @@ impl Timeline {
             }
 
             if !vector_paths.is_empty() {
-                vector_paths = if matches!(shape_type, super::SHAPE_GRAPH | super::SHAPE_PLOT) {
+                vector_paths = if matches!(shape_type, ShapeType::Graph | ShapeType::Plot) {
                     vector_paths
                 } else {
                     let mut vector_shape_state =

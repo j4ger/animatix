@@ -120,3 +120,10 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
 
     Ok(paths)
 }
+
+/// Read and parse an SVG file.
+pub fn parse_svg_file(path: &str) -> Result<Vec<VelloPath>, String> {
+    let svg_content =
+        std::fs::read_to_string(path).map_err(|error| format!("Failed to read SVG file '{path}': {error}"))?;
+    parse_svg(&svg_content)
+}

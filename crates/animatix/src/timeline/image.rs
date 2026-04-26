@@ -20,8 +20,13 @@ pub fn load_image(path: &str) -> Result<SceneImage, String> {
         height,
     };
 
-    Ok(SceneImage {
-        data,
-        natural_size: [width as f32, height as f32],
-    })
+        Ok(SceneImage {
+            data,
+            natural_size: [width as f32, height as f32],
+        })
+}
+
+/// Alias for load_image to match the naming convention used in assets.rs
+pub fn load_image_file(path: &str) -> Result<SceneImage, String> {
+    load_image(path)
 }

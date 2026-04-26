@@ -6,6 +6,9 @@
 //! text/math/code path compilation, and asset loading.
 
 use super::*;
+use crate::ast::{InlineItem, Property};
+use crate::timeline::actor_kind::find_actor_kind;
+use crate::timeline::vello_path::VelloPath;
 
 // === Build Entry Points ===
 
@@ -391,6 +394,714 @@ impl Timeline {
         }
     }
 
+    // === Plot Actor Processing ===
+
+    #[allow(clippy::too_many_arguments)]
+    fn process_plot_actor(
+        &mut self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        children: &[InlineItem],
+        diagnostics: &mut Vec<Diagnostic>,
+        existing_track: &AnimationTrack,
+    ) -> Option<(
+        [f32; 2],
+        [f32; 2],
+        [f32; 2],
+        [f32; 2],
+        [f32; 4],
+        f32,
+        [f32; 4],
+        f32,
+        f32,
+        ShapeType,
+        Vec<VelloPath>,
+    )> {
+        let primitive = PrimitiveDescriptor::for_actor_type(ty);
+        if !primitive.is_graph_host() && !primitive.is_plot() {
+            return None;
+        }
+
+        let mut x_domain = [-10.0, 10.0];
+        let mut y_domain = [-10.0, 10.0];
+        let mut t_domain = [0.0, std::f64::consts::TAU];
+        let mut func = None;
+        let mut initial_size = [50.0, 50.0];
+        let mut tolerance = 0.5;
+        let mut max_depth = 10.0;
+        let mut resolution = 96.0;
+        let mut at_expr: Option<Expr> = None;
+        let mut anchor_expr: Option<Expr> = None;
+        let mut offset_expr: Option<Expr> = None;
+        let initial_eval_env = self.build_eval_env(time_ms as u64);
+
+        for prop in props {
+            let prop_subject = format!("{}.{}", label, prop.name);
+            match prop.name.as_str() {
+                "size" => {
+                    let size_val = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec2([w, h]) = size_val {
+                        initial_size[0] = w as f32 / 2.0;
+                        initial_size[1] = h as f32 / 2.0;
+                    }
+                }
+                "radius" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    let r = v.as_num() as f32;
+                    initial_size = [r, r];
+                }
+                "x_domain" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec2([min, max]) = v {
+                        x_domain = [min, max];
+                    }
+                }
+                "y_domain" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec2([min, max]) = v {
+                        y_domain = [min, max];
+                    }
+                }
+                "t_domain" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec2([min, max]) = v {
+                        t_domain = [min, max];
+                    }
+                }
+                "func" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Closure(args, body) = v {
+                        func = Some((args, body));
+                    }
+                }
+                "tolerance" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    tolerance = v.as_num();
+                }
+                "max_depth" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    max_depth = v.as_num();
+                }
+                "resolution" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(96.0));
+                    resolution = v.as_num();
+                }
+                "at" => at_expr = Some(prop.value.clone()),
+                "anchor" => anchor_expr = Some(prop.value.clone()),
+                "offset" => offset_expr = Some(prop.value.clone()),
+                _ => {}
+            }
+        }
+
+        if primitive.is_graph_host() {
+            self.env
+                .set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
+            self.env
+                .set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
+            self.env.set(
+                &format!("{}_size", label),
+                Value::Vec2([
+                    initial_size[0] as f64 * 2.0,
+                    initial_size[1] as f64 * 2.0,
+                ]),
+            );
+        }
+
+        self.process_inline_items(time_ms, children, label, diagnostics);
+
+        let default_size = DEFAULT_LAYOUT_HALF_SIZE;
+        let default_arc = [0.0, std::f32::consts::PI];
+        let size = existing_track.size.last(default_size);
+        let line_from = existing_track.line_from.last([-50.0, 0.0]);
+        let line_to = existing_track.line_to.last([50.0, 0.0]);
+        let arc_angles = existing_track.arc_angles.last(default_arc);
+        let color = existing_track.color.last([1.0, 1.0, 1.0, 1.0]);
+        let shape_type = shape_type_for_actor(ty);
+        let stroke_width = existing_track.stroke_width.last(2.0);
+        let stroke_color = existing_track.stroke_color.last([1.0, 1.0, 1.0, 1.0]);
+        let stroke_progress = existing_track.stroke_progress.last(1.0);
+        let fill_opacity = 0.0f32;
+
+        let mut vello_paths = vec![];
+
+        if primitive.is_graph_host() {
+            let mut path = kurbo::BezPath::new();
+            let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+                size[1] as f64
+                    * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
+            } else {
+                size[1] as f64
+            };
+            path.move_to((-(size[0] as f64), x_axis_y));
+            path.line_to((size[0] as f64, x_axis_y));
+
+            let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+                size[0] as f64
+                    * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]))
+            } else {
+                -(size[0] as f64)
+            };
+            path.move_to((y_axis_x, -(size[1] as f64)));
+            path.line_to((y_axis_x, size[1] as f64));
+
+            vello_paths.push(VelloPath {
+                path,
+                fill: None,
+                stroke: Some((
+                    vello::peniko::Color::from_rgba8(255, 255, 255, 255),
+                    2.0,
+                )),
+            });
+        } else if primitive.is_plot_curve() {
+            let p_label = parent_label.unwrap_or("").to_string();
+            let mut p_x_domain = [-10.0, 10.0];
+            let mut p_y_domain = [-10.0, 10.0];
+            let mut p_size = [500.0, 500.0];
+
+            if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
+                p_x_domain = xd;
+            }
+            if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
+                p_y_domain = yd;
+            }
+            if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+                p_size = sz;
+            }
+
+            if let Some((args, body)) = func {
+                let eval_env = self.build_eval_env(time_ms as u64);
+                let mut env_copy = eval_env.clone();
+                let arg_name = if !args.is_empty() {
+                    args[0].clone()
+                } else {
+                    "x".to_string()
+                };
+
+                let (min_t, max_t) = if ty == "CartesianPlot" {
+                    (p_x_domain[0], p_x_domain[1])
+                } else if ty == "ImplicitPlot" {
+                    (0.0, 0.0)
+                } else {
+                    (t_domain[0], t_domain[1])
+                };
+
+                if ty == "ImplicitPlot" {
+                    let path = build_implicit_plot_path(
+                        &mut env_copy,
+                        &args,
+                        &body,
+                        &p_x_domain,
+                        &p_y_domain,
+                        &p_size,
+                        resolution.round().max(8.0) as usize,
+                    );
+                    vello_paths.push(VelloPath {
+                        path,
+                        fill: None,
+                        stroke: if stroke_width > 0.0 {
+                            Some((
+                                vello::peniko::Color::from_rgba8(
+                                    (stroke_color[0] * 255.0) as u8,
+                                    (stroke_color[1] * 255.0) as u8,
+                                    (stroke_color[2] * 255.0) as u8,
+                                    (stroke_color[3] * 255.0) as u8,
+                                ),
+                                stroke_width,
+                            ))
+                        } else {
+                            None
+                        },
+                    });
+                } else {
+                    env_copy.set(&arg_name, Value::Num(min_t));
+                    let start_eval =
+                        evaluate_expr(&body, &env_copy).unwrap_or(Value::Num(0.0));
+                    let (start_math_x, start_math_y) = if ty == "CartesianPlot" {
+                        (min_t, start_eval.as_num())
+                    } else if ty == "ParametricPlot" {
+                        match start_eval {
+                            Value::Vec2([x, y]) => (x, y),
+                            _ => (0.0, 0.0),
+                        }
+                    } else {
+                        let start_val = start_eval.as_num();
+                        (start_val * min_t.cos(), start_val * min_t.sin())
+                    };
+                    let start_screen_x = -(p_size[0] / 2.0)
+                        + p_size[0]
+                            * ((start_math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
+                    let start_screen_y = (p_size[1] / 2.0)
+                        - p_size[1]
+                            * ((start_math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+
+                    env_copy.set(&arg_name, Value::Num(max_t));
+                    let end_eval =
+                        evaluate_expr(&body, &env_copy).unwrap_or(Value::Num(0.0));
+                    let (end_math_x, end_math_y) = if ty == "CartesianPlot" {
+                        (max_t, end_eval.as_num())
+                    } else if ty == "ParametricPlot" {
+                        match end_eval {
+                            Value::Vec2([x, y]) => (x, y),
+                            _ => (0.0, 0.0),
+                        }
+                    } else {
+                        let end_val = end_eval.as_num();
+                        (end_val * max_t.cos(), end_val * max_t.sin())
+                    };
+                    let end_screen_x = -(p_size[0] / 2.0)
+                        + p_size[0]
+                            * ((end_math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
+                    let end_screen_y = (p_size[1] / 2.0)
+                        - p_size[1]
+                            * ((end_math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+
+                    let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
+                    let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
+
+                    let mut pts = vec![p0];
+
+                    if ty == "CartesianPlot" {
+                        sample_recursive_cartesian(
+                            min_t,
+                            max_t,
+                            p0,
+                            p1,
+                            0,
+                            max_depth as usize,
+                            tolerance,
+                            &mut env_copy,
+                            &arg_name,
+                            &body,
+                            &p_x_domain,
+                            &p_y_domain,
+                            &p_size,
+                            &mut pts,
+                        );
+                    } else if ty == "PolarPlot" {
+                        sample_recursive_polar(
+                            min_t,
+                            max_t,
+                            p0,
+                            p1,
+                            0,
+                            max_depth as usize,
+                            tolerance,
+                            &mut env_copy,
+                            &arg_name,
+                            &body,
+                            &p_x_domain,
+                            &p_y_domain,
+                            &p_size,
+                            &mut pts,
+                        );
+                    } else {
+                        sample_recursive_parametric(
+                            min_t,
+                            max_t,
+                            p0,
+                            p1,
+                            0,
+                            max_depth as usize,
+                            tolerance,
+                            &mut env_copy,
+                            &arg_name,
+                            &body,
+                            &p_x_domain,
+                            &p_y_domain,
+                            &p_size,
+                            &mut pts,
+                        );
+                    }
+
+                    let mut path = kurbo::BezPath::new();
+                    let mut first = true;
+                    for pt in pts {
+                        if pt.x.is_nan() || pt.y.is_nan() {
+                            first = true;
+                        } else if first {
+                            path.move_to((pt.x, pt.y));
+                            first = false;
+                        } else {
+                            path.line_to((pt.x, pt.y));
+                        }
+                    }
+                    vello_paths.push(VelloPath {
+                        path,
+                        fill: None,
+                        stroke: if stroke_width > 0.0 {
+                            Some((
+                                vello::peniko::Color::from_rgba8(
+                                    (stroke_color[0] * 255.0) as u8,
+                                    (stroke_color[1] * 255.0) as u8,
+                                    (stroke_color[2] * 255.0) as u8,
+                                    (stroke_color[3] * 255.0) as u8,
+                                ),
+                                stroke_width,
+                            ))
+                        } else {
+                            None
+                        },
+                    });
+                }
+            }
+        }
+
+        Some((
+            initial_size,
+            line_from,
+            line_to,
+            arc_angles,
+            color,
+            stroke_width,
+            stroke_color,
+            stroke_progress,
+            fill_opacity,
+            shape_type,
+            vello_paths,
+        ))
+    }
+
+    // === Shape Actor Processing ===
+
+    #[allow(clippy::too_many_arguments)]
+    fn process_shape_actor(
+        _label: &str,
+        ty: &str,
+        _time_ms: f64,
+        _parent_label: Option<&str>,
+        _diagnostics: &mut Vec<Diagnostic>,
+        _existing_track: &AnimationTrack,
+        _vector_shape_state: &mut VectorShapeState,
+        size: [f32; 2],
+        line_from: [f32; 2],
+        line_to: [f32; 2],
+        arc_angles: [f32; 2],
+        color: [f32; 4],
+        stroke_width: f32,
+        stroke_color: [f32; 4],
+        _stroke_progress: f32,
+        fill_opacity: f32,
+        shape_type: ShapeType,
+    ) -> Vec<VelloPath> {
+        let primitive = PrimitiveDescriptor::for_actor_type(ty);
+        if primitive.is_plot() {
+            return vec![];
+        }
+
+        let vello_path = build_vector_shape_vello_path(
+            shape_type,
+            _vector_shape_state,
+            VectorShapeStyle {
+                color,
+                stroke_width,
+                stroke_color,
+                fill_opacity,
+            },
+        )
+        .unwrap_or_else(|| {
+            build_shape_vello_path(
+                shape_type,
+                size,
+                line_from,
+                line_to,
+                arc_angles,
+                color,
+                stroke_width,
+                stroke_color,
+                fill_opacity,
+            )
+        });
+        vec![vello_path]
+    }
+
+    // === ActorKind Dispatch Methods ===
+
+    /// Dispatch method for plot actor kinds (called from ActorKind trait impl)
+    pub(super) fn process_plot_actor_dispatch(
+        &mut self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let existing_track = self
+            .tracks
+            .get(label)
+            .cloned()
+            .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
+
+        if let Some((
+            initial_size,
+            line_from,
+            line_to,
+            arc_angles,
+            color,
+            stroke_width,
+            stroke_color,
+            stroke_progress,
+            fill_opacity,
+            shape_type,
+            vello_paths,
+        )) = self.process_plot_actor(
+            label,
+            ty,
+            props,
+            time_ms,
+            parent_label,
+            children,
+            diagnostics,
+            &existing_track,
+        ) {
+            // Use returned values for keyframe insertion
+            let default_size = DEFAULT_LAYOUT_HALF_SIZE;
+            let default_arc = [0.0, std::f32::consts::PI];
+            let position = existing_track.position.last([0.0, 0.0]);
+            let size = initial_size;
+            let opacity = 1.0;
+
+            let ParsedTimingModifiers {
+                duration_ms,
+                delay_ms,
+                easing,
+                morph_options: _,
+            } = parse_timing_modifiers(
+                modifiers,
+                ModifierHost::ActorDeclaration,
+                Some(label),
+                diagnostics,
+            );
+            let t_start_ms = (time_ms + delay_ms) as u64;
+            let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+            let is_new_track = !self.tracks.contains_key(label);
+            let track = self
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+
+            if is_new_track {
+                track.first_seen_ms = t_start_ms;
+            }
+
+            // === Keyframe Insertion ===
+            if duration_ms > 0.0 {
+                let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
+                let start_position = track.position.get(t_start_ms, [0.0, 0.0]);
+                let start_size = track.size.get(t_start_ms, default_size);
+                let start_line_from = track.line_from.get(t_start_ms, [-50.0, 0.0]);
+                let start_line_to = track.line_to.get(t_start_ms, [50.0, 0.0]);
+                let start_arc_angles = track.arc_angles.get(t_start_ms, default_arc);
+                let start_color = track.color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+                let start_shape_type = track.shape_type.get(t_start_ms, ShapeType::Rect);
+                let start_opacity = track.opacity.get(t_start_ms, 1.0);
+                let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
+                let start_stroke_color = track.stroke_color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+                let start_stroke_progress = track.stroke_progress.get(t_start_ms, 1.0);
+                let start_fill_opacity = track.fill_opacity.get(t_start_ms, 1.0);
+
+                track.vector_paths.ensure(Vec::new()).add_keyframe(
+                    t_start_ms,
+                    start_vector_paths,
+                    Easing::Linear,
+                );
+                track
+                    .position
+                    .ensure([0.0, 0.0])
+                    .add_keyframe(t_start_ms, start_position, Easing::Linear);
+                track
+                    .size
+                    .ensure(default_size)
+                    .add_keyframe(t_start_ms, start_size, Easing::Linear);
+                track
+                    .line_from
+                    .ensure([-50.0, 0.0])
+                    .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
+                track
+                    .line_to
+                    .ensure([50.0, 0.0])
+                    .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
+                track
+                    .arc_angles
+                    .ensure(default_arc)
+                    .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
+                track
+                    .color
+                    .ensure([1.0, 1.0, 1.0, 1.0])
+                    .add_keyframe(t_start_ms, start_color, Easing::Linear);
+                track
+                    .shape_type
+                    .ensure(ShapeType::Rect)
+                    .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
+                track
+                    .opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+                track.stroke_width.ensure(2.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke_width,
+                    Easing::Linear,
+                );
+                track.stroke_color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(
+                    t_start_ms,
+                    start_stroke_color,
+                    Easing::Linear,
+                );
+                track.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke_progress,
+                    Easing::Linear,
+                );
+                track.fill_opacity.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_fill_opacity,
+                    Easing::Linear,
+                );
+            } else if delay_ms > 0.0 {
+                preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
+                preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
+                preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
+                preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
+                preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                preserve_instant_delayed_value(&mut track.shape_type, t_start_ms);
+                preserve_instant_delayed_value(&mut track.opacity, t_start_ms);
+                preserve_instant_delayed_value(&mut track.stroke_width, t_start_ms);
+                preserve_instant_delayed_value(&mut track.stroke_color, t_start_ms);
+                preserve_instant_delayed_value(&mut track.stroke_progress, t_start_ms);
+                preserve_instant_delayed_value(&mut track.fill_opacity, t_start_ms);
+            }
+
+            track
+                .vector_paths
+                .ensure(Vec::new())
+                .add_keyframe(t_end_ms, vello_paths, easing);
+            track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
+            track.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
+            track.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
+            track.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
+            track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
+            track.color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(t_end_ms, color, easing);
+            track.shape_type.ensure(ShapeType::Rect).add_keyframe(t_end_ms, shape_type, easing);
+            track.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
+            track
+                .stroke_width
+                .ensure(2.0)
+                .add_keyframe(t_end_ms, stroke_width, easing);
+            track
+                .stroke_color
+                .ensure([1.0, 1.0, 1.0, 1.0])
+                .add_keyframe(t_end_ms, stroke_color, easing);
+            track
+                .stroke_progress
+                .ensure(1.0)
+                .add_keyframe(t_end_ms, stroke_progress, easing);
+            track
+                .fill_opacity
+                .ensure(1.0)
+                .add_keyframe(t_end_ms, fill_opacity, easing);
+
+            // === Container Layout ===
+            let primitive = PrimitiveDescriptor::for_actor_type(ty);
+            if primitive.is_layout_container() {
+                let layout_type = match ty {
+                    "Row" => LayoutType::Row,
+                    "Col" => LayoutType::Col,
+                    "Grid" => LayoutType::Grid,
+                    "Stack" => LayoutType::Stack,
+                    _ => LayoutType::Row,
+                };
+
+                let child_order = if let Some(node) = self.nodes.get(label) {
+                    node.children.clone()
+                } else {
+                    Vec::new()
+                };
+
+                self.container_metadata.insert(
+                    label.to_string(),
+                    ContainerMetadata {
+                        layout_type,
+                        gap: 0.0,
+                        align: "center".to_string(),
+                        cols: None,
+                        child_order,
+                    },
+                );
+
+                self.apply_container_layout(
+                    label,
+                    ty,
+                    t_start_ms as f64,
+                    0.0,
+                    Some("center"),
+                    None,
+                );
+            }
+        }
+    }
+
     // === Main AST Statement Processor ===
 
     pub(super) fn process_body(
@@ -402,19 +1113,10 @@ impl Timeline {
     ) {
         for stmt in body {
             match stmt {
-                Stmt::Text { .. } => {
+                Stmt::Text { .. } | Stmt::Math { .. } | Stmt::Code { .. } => {
                     self.process_text_like_statement(stmt, time_ms, parent_label, diagnostics)
                 }
-                Stmt::Math { .. } => {
-                    self.process_text_like_statement(stmt, time_ms, parent_label, diagnostics)
-                }
-                Stmt::Code { .. } => {
-                    self.process_text_like_statement(stmt, time_ms, parent_label, diagnostics)
-                }
-                Stmt::Svg { .. } => {
-                    self.process_media_statement(stmt, time_ms, parent_label, diagnostics)
-                }
-                Stmt::Image { .. } => {
+                Stmt::Svg { .. } | Stmt::Image { .. } => {
                     self.process_media_statement(stmt, time_ms, parent_label, diagnostics)
                 }
                 Stmt::ActorDecl {
@@ -426,34 +1128,16 @@ impl Timeline {
                     children,
                 } => {
                     self.add_node(label.clone(), parent_label);
+
+                    // Try trait-based dispatch first
+                    if let Some(kind) = find_actor_kind(ty) {
+                        kind.build(self, label, ty, props, modifiers, children, time_ms, parent_label, diagnostics);
+                        continue;
+                    }
+
+                    // Fallback: process as unknown actor type
+                    // (for built-in types, find_actor_kind should always return Some)
                     let primitive = PrimitiveDescriptor::for_actor_type(ty);
-
-                    if matches!(ty.as_str(), "Text" | "Math" | "Code") {
-                        self.process_text_actor_decl(
-                            ty,
-                            label,
-                            props,
-                            modifiers,
-                            time_ms,
-                            parent_label,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-
-                    if matches!(ty.as_str(), "Svg" | "Image") {
-                        self.process_media_actor_decl(
-                            ty,
-                            label,
-                            props,
-                            modifiers,
-                            time_ms,
-                            parent_label,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-
                     let mut x_domain = [-10.0, 10.0];
                     let mut y_domain = [-10.0, 10.0];
                     let mut t_domain = [0.0, std::f64::consts::TAU];
@@ -1139,34 +1823,25 @@ impl Timeline {
                             }
                         }
                     } else if !primitive.is_plot() {
-                        vector_shape_state.size = size;
-                        vector_shape_state.line_from = line_from;
-                        vector_shape_state.line_to = line_to;
-                        vector_shape_state.arc_angles = arc_angles;
-                        let vello_path = build_vector_shape_vello_path(
+                        vello_paths = Self::process_shape_actor(
+                            label,
+                            ty,
+                            time_ms,
+                            parent_label,
+                            diagnostics,
+                            &existing_track,
+                            &mut vector_shape_state,
+                            size,
+                            line_from,
+                            line_to,
+                            arc_angles,
+                            color,
+                            stroke_width,
+                            stroke_color,
+                            stroke_progress,
+                            fill_opacity,
                             shape_type,
-                            &vector_shape_state,
-                            VectorShapeStyle {
-                                color,
-                                stroke_width,
-                                stroke_color,
-                                fill_opacity,
-                            },
-                        )
-                        .unwrap_or_else(|| {
-                            build_shape_vello_path(
-                                shape_type,
-                                size,
-                                line_from,
-                                line_to,
-                                arc_angles,
-                                color,
-                                stroke_width,
-                                stroke_color,
-                                fill_opacity,
-                            )
-                        });
-                        vello_paths.push(vello_path);
+                        );
                     }
 
                     if duration_ms > 0.0 {
@@ -1177,7 +1852,7 @@ impl Timeline {
                         let start_line_to = track.line_to.get(t_start_ms, [50.0, 0.0]);
                         let start_arc_angles = track.arc_angles.get(t_start_ms, default_arc);
                         let start_color = track.color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
-                        let start_shape_type = track.shape_type.get(t_start_ms, 0u32);
+                        let start_shape_type = track.shape_type.get(t_start_ms, ShapeType::Rect);
                         let start_opacity = track.opacity.get(t_start_ms, 1.0);
                         let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
                         let start_stroke_color = track.stroke_color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
@@ -1215,7 +1890,7 @@ impl Timeline {
                             .add_keyframe(t_start_ms, start_color, Easing::Linear);
                         track
                             .shape_type
-                            .ensure(0u32)
+                            .ensure(ShapeType::Rect)
                             .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
                         track
                             .opacity
@@ -1273,7 +1948,7 @@ impl Timeline {
                     track.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
                     track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
                     track.color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(t_end_ms, color, easing);
-                    track.shape_type.ensure(0u32).add_keyframe(t_end_ms, shape_type, easing);
+                    track.shape_type.ensure(ShapeType::Rect).add_keyframe(t_end_ms, shape_type, easing);
                     track.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
                     track
                         .stroke_width
