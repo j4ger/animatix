@@ -70,7 +70,7 @@ status.text = "Static rotations reset"
 stagger [150ms] {
   elliptical.angle = 6.283 [2s, ease: ease-in-out]  // Full 360 rotation
   rectangular.angle = -6.283 [2s, ease: ease-in-out]  // Full rotation opposite direction
-  star_polygon.angle = (std::f64::consts::PI * 4.0) [2s, ease: ease-in-out]  // 2 full rotations
+  star_polygon.angle = 12.566 [2s, ease: ease-in-out]  // 2 full rotations (4 * PI)
 }
 
 status.text = "Continuous rotation animations"
@@ -80,10 +80,10 @@ status.text = "Rotation complete"
 
 #7s
 // Final settle with rotations at various angles
-sequence [300ms] {
-  elliptical.angle = 0.392 [0s]  // 22.5 degrees
-  rectangular.angle = -0.785 [0s]  // -45 degrees
-  star_polygon.angle = 0.523 [0s]  // 30 degrees
+sequence {
+  elliptical.angle = 0.392 [300ms]  // 22.5 degrees
+  rectangular.angle = -0.785 [300ms]  // -45 degrees
+  star_polygon.angle = 0.523 [300ms]  // 30 degrees
 }
 
 status.text = "Final rotated positions"

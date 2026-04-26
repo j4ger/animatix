@@ -122,6 +122,9 @@ pub(crate) fn parse_easing_name(raw: &str) -> Option<Easing> {
         "ease-out" => Some(Easing::EaseOut),
         "ease-in-out" => Some(Easing::EaseInOut),
         "bounce" => Some(Easing::Bounce),
+        "elastic" => Some(Easing::Elastic),
+        "back" => Some(Easing::Back),
+        "expo" => Some(Easing::Expo),
         "linear" => Some(Easing::Linear),
         _ => None,
     }
@@ -348,7 +351,7 @@ pub(crate) fn parse_timing_modifiers(
                             diagnostics,
                             DiagnosticCode::InvalidModifierValue,
                             format!(
-                                "Unsupported ease value '{raw}' on {}; supported values are linear, ease-in, ease-out, ease-in-out, and bounce.",
+                                "Unsupported ease value '{raw}' on {}; supported values are linear, ease-in, ease-out, ease-in-out, bounce, elastic, back, and expo.",
                                 host.display_name()
                             ),
                             subject,

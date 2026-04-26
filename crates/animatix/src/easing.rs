@@ -5,6 +5,9 @@ pub enum Easing {
     EaseOut,
     EaseInOut,
     Bounce,
+    Elastic,
+    Back,
+    Expo,
 }
 
 pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
@@ -34,6 +37,25 @@ pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
             } else {
                 let t = t - 2.625 / d1;
                 n1 * t * t + 0.984375
+            }
+        }
+        Easing::Elastic => {
+            if t == 0.0 || t == 1.0 {
+                return t;
+            }
+            let c4 = (2.0 * std::f32::consts::PI) / 3.0;
+            -(2.0_f32.powf(10.0 * (t - 1.0))) * ((t * 10.0 - 10.75) * c4).sin()
+        }
+        Easing::Back => {
+            let c1 = 1.70158;
+            let c3 = c1 + 1.0;
+            c3 * t * t * t - c1 * t * t
+        }
+        Easing::Expo => {
+            if t == 0.0 {
+                0.0
+            } else {
+                2.0_f32.powf(10.0 * (t - 1.0))
             }
         }
     }

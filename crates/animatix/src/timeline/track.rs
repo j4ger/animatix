@@ -134,6 +134,12 @@ pub enum PositionBinding {
     ContainerDefault {
         anchor: SceneAnchor,
     },
+    /// Layout-managed by parent container, but with a percentage offset.
+    /// The container computes the base position, then applies (x%, y%) offset.
+    ContainerPercent {
+        x: f32,
+        y: f32,
+    },
 }
 
 impl Interpolate for PositionBinding {
@@ -175,6 +181,13 @@ impl Interpolate for PositionBinding {
                     anchor: other_anchor,
                 },
             ) if anchor == other_anchor => Self::ContainerDefault { anchor },
+            (
+                Self::ContainerPercent { x: x1, y: y1 },
+                Self::ContainerPercent { x: x2, y: y2 },
+            ) => Self::ContainerPercent {
+                x: x1.interpolate(&x2, t),
+                y: y1.interpolate(&y2, t),
+            },
             _ => {
                 if t < 0.5 {
                     *self
@@ -386,6 +399,22 @@ impl AnimationTrack {
     }
 
     pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
+        // Check if text content has been dynamically changed via runtime assignment.
+        // If text_content has keyframes, it means the text was modified after the
+        // initial declaration. Since we can't recompile Typst text to paths at
+        // runtime, we return empty paths to indicate the text should be invisible
+        // until the next scene build.
+        if let Some(content_track) = &self.text_content {
+            if !content_track.keyframes.is_empty() {
+                let current_text = content_track.evaluate(time_ms);
+                if !current_text.is_empty() {
+                    // Text was assigned at runtime but we can't recompile paths.
+                    // Return empty to avoid showing stale compiled paths.
+                    return Vec::new();
+                }
+            }
+        }
+
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = self.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());

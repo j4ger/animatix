@@ -145,6 +145,11 @@ impl Diagnostic {
         self.location.subject = Some(subject.into());
         self
     }
+
+    /// Returns true if this diagnostic represents an error (not a warning).
+    pub fn is_error(&self) -> bool {
+        self.severity == DiagnosticSeverity::Error
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

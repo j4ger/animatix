@@ -113,6 +113,14 @@ pub(crate) fn resolve_bound_position(
         PositionBinding::ContainerDefault { anchor } => {
             scene_anchor_point(anchor, scene_dimensions)
         }
+        PositionBinding::ContainerPercent { x, y } => {
+            // Container-managed position is in base_position.
+            // Apply percentage offset and return directly (already in local coords).
+            return [
+                base_position[0] + scene_dimensions.width as f32 * x,
+                base_position[1] + scene_dimensions.height as f32 * y,
+            ];
+        }
     };
 
     let local_point = parent_transform.inverse() * scene_point;

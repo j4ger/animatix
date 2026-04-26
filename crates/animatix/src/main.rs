@@ -123,6 +123,11 @@ enum Commands {
         #[arg(long)]
         debug_bounds: bool,
     },
+    /// Parse an .amx file and print build diagnostics
+    Check {
+        /// Path to the .amx file
+        file: String,
+    },
 }
 
 fn main() {
@@ -307,6 +312,44 @@ fn main() {
                     draw_bounds: debug_bounds,
                 },
             );
+        }
+        Commands::Check { file } => {
+            let source = match std::fs::read_to_string(&file) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Cannot read {}: {}", file, e);
+                    std::process::exit(1);
+                }
+            };
+            let mut module_graph = ModuleGraph::new();
+            let (ast, namespaces) = match module_graph.load_program_with_source(std::path::Path::new(&file), Some(&source)) {
+                Ok(program) => (program.expand_components(), program.namespaces),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
+
+            if report.diagnostics.is_empty() {
+                println!("{}: OK (no diagnostics)", file);
+            } else {
+                for diag in &report.diagnostics {
+                    let prefix = match diag.phase {
+                        animatix::diagnostics::DiagnosticPhase::Parse => "[parse]",
+                        animatix::diagnostics::DiagnosticPhase::Build => "[build]",
+                        animatix::diagnostics::DiagnosticPhase::Render => "[render]",
+                    };
+                    let severity = if diag.is_error() { "ERROR" } else { "WARNING" };
+                    println!("{prefix} {severity}: {}", diag.message);
+                    if let Some(subject) = &diag.location.subject {
+                        println!("  subject: {subject}");
+                    }
+                }
+                if report.diagnostics.iter().any(|d| d.is_error()) {
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
