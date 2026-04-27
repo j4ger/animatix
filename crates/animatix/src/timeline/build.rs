@@ -315,11 +315,6 @@ impl Timeline {
     // === Scene Graph Node Creation ===
 
     pub(super) fn add_node(&mut self, label: String, parent_label: Option<&str>) {
-        // Ensure the actor track exists
-        let track = self.tracks
-            .entry(label.clone())
-            .or_insert_with(|| AnimationTrack::new(label.clone()));
-
         if let Some(parent) = parent_label {
             // Add child to parent's children list
             let parent_track = self.tracks
@@ -933,13 +928,12 @@ impl Timeline {
             let t_start_ms = (time_ms + delay_ms) as u64;
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-            let is_new_track = !self.tracks.contains_key(label);
             let track = self
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
 
-            if is_new_track {
+            if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;
             }
 
@@ -1547,7 +1541,6 @@ impl Timeline {
                         stroke_width = 0.0;
                     }
 
-                    let is_new_track = !self.tracks.contains_key(label);
                     let track = self
                         .tracks
                         .entry(label.clone())
@@ -1555,7 +1548,7 @@ impl Timeline {
 
                     // Record first declaration time so scene evaluation can hide
                     // actors before they are declared
-                    if is_new_track {
+                    if track.first_seen_ms == u64::MAX {
                         track.first_seen_ms = t_start_ms;
                     }
 

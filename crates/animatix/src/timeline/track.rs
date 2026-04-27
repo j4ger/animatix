@@ -393,7 +393,7 @@ impl AnimationTrack {
             svg_paths: Vec::new(),
             image: None,
             points: None,
-            first_seen_ms: 0,
+            first_seen_ms: u64::MAX,
             children: Vec::new(),
         }
     }

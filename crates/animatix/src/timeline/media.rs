@@ -61,7 +61,6 @@ impl Timeline {
         if !modifiers.is_empty() {
             push_unsupported_media_modifier_diagnostics(diagnostics, label, actor_type, modifiers);
         }
-        let is_new_track = !self.tracks.contains_key(label);
         let track = self
             .tracks
             .entry(label.to_string())
@@ -69,7 +68,7 @@ impl Timeline {
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
-        if is_new_track {
+        if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = time_ms as u64;
         }
 
@@ -221,7 +220,6 @@ impl Timeline {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
-                let is_new_track = !self.tracks.contains_key(&label_str);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
@@ -229,7 +227,7 @@ impl Timeline {
 
                 // Record first declaration time so scene evaluation can hide
                 // actors before they are declared
-                if is_new_track {
+                if track.first_seen_ms == u64::MAX {
                     track.first_seen_ms = time_ms as u64;
                 }
 
@@ -295,7 +293,6 @@ impl Timeline {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);
                 self.add_node(label_str.clone(), parent_label);
-                let is_new_track = !self.tracks.contains_key(&label_str);
                 let track = self
                     .tracks
                     .entry(label_str.clone())
@@ -303,7 +300,7 @@ impl Timeline {
 
                 // Record first declaration time so scene evaluation can hide
                 // actors before they are declared
-                if is_new_track {
+                if track.first_seen_ms == u64::MAX {
                     track.first_seen_ms = time_ms as u64;
                 }
 

@@ -206,6 +206,35 @@ fn test_timeline_build_and_evaluate() {
 }
 
 #[test]
+fn nested_children_keep_their_actual_first_seen_time() {
+    let ast = parse_program(
+        r#"
+        #1s
+        group: Col {
+          child_text: Text, text: "Hello", font_size: 32
+          child_box: Rect, size: (120, 80)
+        }
+        "#,
+    );
+
+    let timeline = Timeline::build(&ast);
+
+    let group = timeline.tracks.get("group").expect("group track should exist");
+    let child_text = timeline
+        .tracks
+        .get("child_text")
+        .expect("child_text track should exist");
+    let child_box = timeline
+        .tracks
+        .get("child_box")
+        .expect("child_box track should exist");
+
+    assert_eq!(group.first_seen_ms, 1000);
+    assert_eq!(child_text.first_seen_ms, 1000);
+    assert_eq!(child_box.first_seen_ms, 1000);
+}
+
+#[test]
 fn config_colorscheme_seeds_scene_background_and_text_alias() {
     let ast = vec![
         Stmt::Config {
