@@ -38,7 +38,7 @@ stagger [100ms] {
   fade-in d [400ms]
 }
 
-#2.5s
+#2.6s
 primitives: Row, anchor: scene.bottom, offset: (0, -140), gap: 80, align: "center" {
   orb: Circle, radius: 0, color: accent.danger
   connector: Line, from: (0, 0), to: (0, 0), stroke: accent.primary, stroke_width: 4
@@ -68,21 +68,21 @@ orb.color = accent.success [600ms, ease: ease-in-out]
 #3.6s
 box.color = accent.warning [600ms, ease: ease-in-out]
 
-#4.0s
+#4.2s
 panel: Rect, size: (400, 180), color: (0.15, 0.17, 0.22, 1.0), anchor: scene.right, offset: (-220, -40)
-code: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -40)
 
-#4.1s
+#4.2s
 shift panel [by: (-40, 0), 600ms, ease: ease-out]
-shift code [by: (-40, 0), 600ms, ease: ease-out]
 
 #4.2s
 fade-in panel [400ms]
 
 #4.3s
+code: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -40)
+shift code [by: (-40, 0), 600ms, ease: ease-out]
 fade-in code [800ms, ease: ease-in-out]
 
-#4.5s
+#4.6s
 logo_container: Col, anchor: scene.right, offset: (-120, 80), align: "center", gap: 8 {
   logo_label: Text, text: "Powered by", font_size: 14, color: text.secondary
   logo_svg: Svg, url: "examples/vector.svg", scale: 1.5
