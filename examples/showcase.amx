@@ -1,7 +1,7 @@
 // Animatix Showcase
 // A 5-second demonstration of layout, animation, primitives, and composition.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 #0s
 backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center

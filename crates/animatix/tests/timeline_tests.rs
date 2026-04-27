@@ -3525,6 +3525,42 @@ fn test_scaled_svg_primitive_reports_scaled_size() {
 }
 
 #[test]
+fn test_svg_paths_are_centered_around_origin() {
+    let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![Stmt::Svg {
+            label: Some("logo".to_string()),
+            url: svg_path,
+            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            anchor: None,
+            offset: None,
+            scale: 1.0,
+        }],
+        span: None,
+    }];
+
+    let timeline = Timeline::build(&ast);
+    let track = timeline.tracks.get("logo").expect("logo track should exist");
+
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for path in &track.svg_paths {
+        let bounds = path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    assert!((min_x + max_x).abs() < 1e-6, "svg should be horizontally centered");
+    assert!((min_y + max_y).abs() < 1e-6, "svg should be vertically centered");
+}
+
+#[test]
 fn test_svg_scene_percent_position_assignment_interpolates_binding() {
     let ast = parse_program(
         r#"

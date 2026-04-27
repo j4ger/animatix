@@ -27,6 +27,31 @@ pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
     }
 }
 
+pub fn center_svg_paths(paths: &mut [VelloPath]) {
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for path in paths.iter() {
+        let bounds = path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    if min_x.is_finite() && max_x.is_finite() && min_y.is_finite() && max_y.is_finite() {
+        let center_x = (min_x + max_x) / 2.0;
+        let center_y = (min_y + max_y) / 2.0;
+        let offset = kurbo::Affine::translate((-center_x, -center_y));
+
+        for path in paths.iter_mut() {
+            path.path.apply_affine(offset);
+        }
+    }
+}
+
 pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
     let opt = Options::default();
     let tree = Tree::from_str(svg_data, &opt).map_err(|error| format!("{error:?}"))?;
@@ -117,6 +142,7 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
     }
 
     visit(root, &mut paths);
+    center_svg_paths(&mut paths);
 
     Ok(paths)
 }
