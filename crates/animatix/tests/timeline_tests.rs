@@ -235,6 +235,32 @@ fn nested_children_keep_their_actual_first_seen_time() {
 }
 
 #[test]
+fn redeclaring_nested_actor_does_not_promote_it_to_root() {
+    let ast = parse_program(
+        r#"
+        #0s
+        primitives: Row {
+          equation: Math, math: "x", font_size: 48
+        }
+
+        #1s
+        equation: Math, math: "E = mc^2", font_size: 48 [800ms, ease: ease-in-out]
+        "#,
+    );
+
+    let timeline = Timeline::build(&ast);
+
+    assert!(timeline.root_actor_labels().contains(&"primitives".to_string()));
+    assert!(!timeline.root_actor_labels().contains(&"equation".to_string()));
+
+    let primitives = timeline
+        .tracks
+        .get("primitives")
+        .expect("primitives track should exist");
+    assert_eq!(primitives.children, vec!["equation".to_string()]);
+}
+
+#[test]
 fn config_colorscheme_seeds_scene_background_and_text_alias() {
     let ast = vec![
         Stmt::Config {
