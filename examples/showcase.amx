@@ -83,13 +83,33 @@ shift code [by: (-40, 0), 600ms, ease: ease-out]
 fade-in code [800ms, ease: ease-in-out]
 
 #4.6s
-logo_container: Col, anchor: scene.right, offset: (-120, 80), align: "center", gap: 8 {
-  logo_label: Text, text: "Powered by", font_size: 14, color: text.secondary
-  logo_svg: Svg, url: "examples/vector.svg", scale: 1.5
-}
+ending_halo: Circle, radius: 0, color: accent.primary, at: (1040, 540)
+ending_logo: Svg, url: "logo.svg", at: (1040, 540), scale: 0.0
+ending_beam_a: Line, from: (1040, 540), to: (1040, 540), stroke: accent.success, stroke_width: 4
+ending_beam_b: Line, from: (1040, 540), to: (1040, 540), stroke: accent.danger, stroke_width: 4
+ending_kicker: Text, text: "Scene → Story", font_size: 20, color: accent.warning, anchor: scene.right, offset: (-180, 84)
+ending_caption: Text, text: "Primitives composed in time", font_size: 16, color: text.secondary, anchor: scene.right, offset: (-180, 116)
 
 #4.6s
-fade-in logo_container [400ms]
+stagger [80ms] {
+  fade-in ending_halo [260ms]
+  fade-in ending_logo [260ms]
+  fade-in ending_kicker [320ms]
+  fade-in ending_caption [320ms]
+}
+
+#4.68s
+ending_halo.radius = 54 [520ms, ease: ease-out]
+scale ending_logo [by: 1.0, 480ms, ease: bounce]
+
+#4.78s
+ending_beam_a.from = (990, 500) [420ms, ease: ease-out]
+ending_beam_a.to = (1090, 580) [420ms, ease: ease-out]
+ending_beam_b.from = (990, 580) [420ms, ease: ease-out]
+ending_beam_b.to = (1090, 500) [420ms, ease: ease-out]
+
+#4.92s
+rotate ending_logo [by: 0.12, 700ms, ease: ease-in-out]
 
 #5.0s
 sequence {
@@ -97,8 +117,17 @@ sequence {
   scale title [by: 0.98, 400ms, ease: ease-in-out]
 }
 
+#5.1s
+pulse ending_halo [500ms, intensity: 0.18]
+
 #5.2s
 shift primitives [by: (0, -10), 2s, ease: ease-in-out]
+
+#5.2s
+shift ending_halo [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_logo [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_beam_a [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_beam_b [by: (0, -8), 2s, ease: ease-in-out]
 
 #5.5s
 equation: Math, math: "E = mc^2", font_size: 48, color: accent.danger [1s, ease: ease-in-out]
