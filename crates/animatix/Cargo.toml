@@ -24,6 +24,7 @@ usvg = "0.47.0"
 vello = "0.8.0"
 wgpu = "28.0.0"
 winit = "0.30.13"
+taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 
 [build-dependencies]
 naga = { version = "28.0.0", features = ["termcolor"] }

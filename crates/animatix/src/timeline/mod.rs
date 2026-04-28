@@ -43,6 +43,7 @@ pub mod image;
 pub mod kurbo_shapes;
 mod layout;
 mod media;
+pub(crate) mod taffy_layout;
 pub(crate) mod modifier_runtime;
 pub mod morph;
 mod plot;
