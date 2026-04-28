@@ -51,6 +51,7 @@ pub enum DiagnosticCode {
     UnknownLookupPath,
     UnsupportedStaggerStatement,
     MediaLoadFailure,
+    LayoutSizeFallback,
     UnsupportedMediaAssignment,
     ColorschemeLoadFailure,
     InvalidColorschemeData,
@@ -85,6 +86,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "unsupported-stagger-statement")
             }
             DiagnosticCode::MediaLoadFailure => write!(f, "media-load-failure"),
+            DiagnosticCode::LayoutSizeFallback => write!(f, "layout-size-fallback"),
             DiagnosticCode::UnsupportedMediaAssignment => write!(f, "unsupported-media-assignment"),
             DiagnosticCode::ColorschemeLoadFailure => write!(f, "colorscheme-load-failure"),
             DiagnosticCode::InvalidColorschemeData => write!(f, "invalid-colorscheme-data"),

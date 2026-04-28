@@ -127,7 +127,7 @@ impl Timeline {
             std::collections::HashMap::new();
 
         for stmt in ast {
-            if let Stmt::LetDecl { is_pub: _, name, value } = stmt {
+            if let Stmt::LetDecl { name, value, .. } = stmt {
                 if let Expr::Construct(type_name, properties) = value {
                     if type_name == "Colorscheme" {
                         // Extract extends from properties
@@ -434,9 +434,6 @@ impl Timeline {
         let mut tolerance = 0.5;
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
-        let mut at_expr: Option<Expr> = None;
-        let mut anchor_expr: Option<Expr> = None;
-        let mut offset_expr: Option<Expr> = None;
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         for prop in props {
@@ -544,9 +541,6 @@ impl Timeline {
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
                 }
-                "at" => at_expr = Some(prop.value.clone()),
-                "anchor" => anchor_expr = Some(prop.value.clone()),
-                "offset" => offset_expr = Some(prop.value.clone()),
                 _ => {}
             }
         }
@@ -1095,6 +1089,7 @@ impl Timeline {
                     0.0,
                     Some("center"),
                     None,
+                    diagnostics,
                 );
             }
         }
@@ -1997,6 +1992,7 @@ impl Timeline {
                             gap,
                             align.as_deref(),
                             cols,
+                            diagnostics,
                         );
                     }
                 }

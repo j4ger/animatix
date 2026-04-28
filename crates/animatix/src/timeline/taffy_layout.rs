@@ -26,21 +26,36 @@ use taffy::prelude::*;
 use crate::timeline::layout::ChildExtent;
 use crate::timeline::LayoutType;
 
+fn fixed_leaf_style(half_size: [f32; 2]) -> Style {
+    Style {
+        size: Size {
+            width: Dimension::length(half_size[0] * 2.0),
+            height: Dimension::length(half_size[1] * 2.0),
+        },
+        ..Default::default()
+    }
+}
+
+fn center_relative_position(container: &Layout, child: &Layout) -> [f32; 2] {
+    [
+        child.location.x + child.size.width / 2.0 - container.size.width / 2.0,
+        child.location.y + child.size.height / 2.0 - container.size.height / 2.0,
+    ]
+}
+
 /// Computed layout result for a single child.
 #[derive(Clone, Debug)]
 pub struct TaffyLayoutResult {
-    /// The label of the child
-    pub label: String,
     /// The center-relative position [x, y] of the child
     pub position: [f32; 2],
 }
 
 /// Compute layout using Taffy for Row/Col containers.
-/// Returns positions for all children (but only LayoutManaged children have meaningful positions).
+/// Returns positions for all children.
 ///
 /// IMPORTANT: Manual children participate in container sizing (spacing) but are excluded
-/// from position assignment. This preserves the original behavior where manual children
-/// affect the overall layout extent but don't receive computed positions.
+/// from authored position assignment by the caller. This preserves the original behavior
+/// where manual children affect the overall layout extent but don't receive assigned positions.
 pub fn compute_taffy_linear_layout(
     children: &[ChildExtent],
     layout_type: LayoutType,
@@ -58,15 +73,7 @@ pub fn compute_taffy_linear_layout(
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
 
     for child in children {
-        let node = taffy
-            .new_leaf(Style {
-                size: Size {
-                    width: Dimension::length(child.half_size[0] * 2.0),
-                    height: Dimension::length(child.half_size[1] * 2.0),
-                },
-                ..Default::default()
-            })
-            .unwrap();
+        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).unwrap();
         child_nodes.push(node);
     }
 
@@ -93,19 +100,13 @@ pub fn compute_taffy_linear_layout(
     taffy.compute_layout(container_node, Size::MAX_CONTENT).unwrap();
 
     let container_layout = taffy.layout(container_node).unwrap();
-    let container_center_x = container_layout.size.width / 2.0;
-    let container_center_y = container_layout.size.height / 2.0;
-
     children
         .iter()
         .zip(child_nodes)
-        .map(|(child, node)| {
+        .map(|(_child, node)| {
             let child_layout = taffy.layout(node).unwrap();
-            let x = child_layout.location.x + child_layout.size.width / 2.0 - container_center_x;
-            let y = child_layout.location.y + child_layout.size.height / 2.0 - container_center_y;
             TaffyLayoutResult {
-                label: child.label.clone(),
-                position: [x, y],
+                position: center_relative_position(container_layout, child_layout),
             }
         })
         .collect()
@@ -128,22 +129,14 @@ pub fn compute_taffy_grid_layout(
 
     // Create Taffy nodes for all children so declaration order and spacing semantics
     // remain identical even when some children are manually positioned.
-    let mut child_nodes: Vec<NodeId> = Vec::new();
+    let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
     for child in children {
-        let node = taffy
-            .new_leaf(Style {
-                size: Size {
-                    width: Dimension::length(child.half_size[0] * 2.0),
-                    height: Dimension::length(child.half_size[1] * 2.0),
-                },
-                ..Default::default()
-            })
-            .unwrap();
+        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).unwrap();
         child_nodes.push(node);
     }
 
     // Compute column widths and row heights (including manual children for sizing)
-    let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows, gap);
+    let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
 
     // Create grid template using helper functions
     let col_template: Vec<GridTemplateComponent<String>> = col_widths
@@ -194,31 +187,17 @@ pub fn compute_taffy_grid_layout(
 
     // Extract positions
     let container_layout = taffy.layout(container_node).unwrap();
-    let container_center_x = container_layout.size.width / 2.0;
-    let container_center_y = container_layout.size.height / 2.0;
+    let mut results: Vec<TaffyLayoutResult> = Vec::with_capacity(children.len());
 
-    let mut results: Vec<TaffyLayoutResult> = Vec::new();
-
-    for (i, child) in children.iter().enumerate() {
+    for (i, _child) in children.iter().enumerate() {
         let child_layout = taffy.layout(child_nodes[i]).unwrap();
 
-        let x = child_layout.location.x + child_layout.size.width / 2.0 - container_center_x;
-        let y = child_layout.location.y + child_layout.size.height / 2.0 - container_center_y;
-
         results.push(TaffyLayoutResult {
-            label: child.label.clone(),
-            position: [x, y],
+            position: center_relative_position(container_layout, child_layout),
         });
     }
 
-    // Sort to match original order
-    let mut label_to_result: std::collections::HashMap<String, TaffyLayoutResult> =
-        results.into_iter().map(|r| (r.label.clone(), r)).collect();
-
-    children
-        .iter()
-        .filter_map(|c| label_to_result.remove(&c.label))
-        .collect()
+    results
 }
 
 /// Compute grid column widths and row heights.
@@ -226,7 +205,6 @@ fn compute_grid_tracks(
     children: &[ChildExtent],
     cols: usize,
     rows: usize,
-    _gap: f32,
 ) -> (Vec<f32>, Vec<f32>) {
     let cols = cols.max(1);
     let rows = rows.max(1);

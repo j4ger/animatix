@@ -2013,6 +2013,52 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
 }
 
 #[test]
+fn test_row_with_missing_image_reports_layout_size_fallback() {
+    let ast = parse_program(
+        r#"
+        row: Row, gap: 12 {
+            broken: Image, url: "/definitely/missing/animatix-image.png"
+            ok: Rect, size: (20, 20)
+        }
+        "#,
+    );
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::MediaLoadFailure
+            && diagnostic.location.subject.as_deref() == Some("broken.url")
+    }));
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::LayoutSizeFallback
+            && diagnostic.location.subject.as_deref() == Some("broken")
+    }));
+}
+
+#[test]
+fn test_manual_missing_image_does_not_report_layout_size_fallback() {
+    let ast = parse_program(
+        r#"
+        row: Row, gap: 12 {
+            broken: Image, url: "/definitely/missing/animatix-image.png", at: (10, 0)
+            ok: Rect, size: (20, 20)
+        }
+        "#,
+    );
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::MediaLoadFailure
+            && diagnostic.location.subject.as_deref() == Some("broken.url")
+    }));
+    assert!(!report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::LayoutSizeFallback
+            && diagnostic.location.subject.as_deref() == Some("broken")
+    }));
+}
+
+#[test]
 fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
@@ -6015,20 +6061,19 @@ fn test_svg_in_row_is_layout_managed() {
     assert_ne!(pos1[0], pos2[0], "icons should have distinct X positions");
 }
 
-/// Verifies Image can be layout-managed inside a Col.
-///
-/// NOTE: Image inside layout containers may not report declared size (similar to SVG).
-/// This test verifies layout management and position computation, which work correctly.
+/// Verifies Image can be layout-managed inside a Col and preserves declared size.
 #[test]
 fn test_image_in_col_is_layout_managed() {
-    let ast = parse_program(
+    let ast = parse_program(&format!(
         r#"
-        photo_col: Col, gap: 24 {
-            photo1: Image, url: "examples/checker.ppm", size: (32, 24)
-            photo2: Image, url: "examples/checker.ppm", size: (32, 24)
-        }
+        photo_col: Col, gap: 24 {{
+            photo1: Image, url: "{}", size: (32, 24)
+            photo2: Image, url: "{}", size: (32, 24)
+        }}
         "#,
-    );
+        example_path("checker.ppm"),
+        example_path("checker.ppm")
+    ));
 
     let timeline = Timeline::build(&ast);
     let metadata = timeline
@@ -6048,14 +6093,11 @@ fn test_image_in_col_is_layout_managed() {
         PlacementMode::LayoutManaged
     );
 
-    // NOTE: Image size inside layout may not be properly set - checking for [0,0] or actual size
+    // Image size should propagate through the shared layout size track.
     let photo1_size = photo1_track.size.evaluate(0);
-    // Size may be [0,0] or [16,12] depending on whether size was properly propagated
-    assert!(
-        photo1_size[0] >= 0.0 && photo1_size[1] >= 0.0,
-        "image size should be non-negative, got {:?}",
-        photo1_size
-    );
+    let photo2_size = photo2_track.size.evaluate(0);
+    assert_eq!(photo1_size, [16.0, 12.0]);
+    assert_eq!(photo2_size, [16.0, 12.0]);
 
     // Verify layout computes positions
     let positions = timeline

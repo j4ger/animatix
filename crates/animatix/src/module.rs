@@ -163,11 +163,7 @@ impl ModuleGraph {
 
     fn resolve_path(base_dir: &Path, import_path: &str) -> PathBuf {
         let trimmed = import_path.trim_matches('"');
-        if trimmed.starts_with("./") || trimmed.starts_with("../") {
-            base_dir.join(trimmed)
-        } else {
-            base_dir.join(trimmed)
-        }
+        base_dir.join(trimmed)
     }
 
     fn load_file(
@@ -329,19 +325,18 @@ impl ModuleGraph {
         // Only collect namespaces from the entry file's direct aliased imports
         if let Some(entry_module) = self.files.get(&entry_id) {
             for imp in &entry_module.imports {
-                if let Some(ref alias) = imp.alias {
+                if let Some(alias) = &imp.alias {
                     let import_path = Self::resolve_path(
                         entry_module.path.parent().unwrap_or(Path::new(".")),
                         &imp.path,
                     );
-                    if let Some(import_id) = fs::canonicalize(&import_path)
+                    if let Some(imported_module) = fs::canonicalize(&import_path)
                         .ok()
                         .and_then(|p| self.paths.get(&p).copied())
+                        .and_then(|import_id| self.files.get(&import_id))
                     {
-                        if let Some(imported_module) = self.files.get(&import_id) {
-                            let exports = collect_pub_lets(&imported_module.statements);
-                            namespaces.insert(alias.clone(), Namespace { exports });
-                        }
+                        let exports = collect_pub_lets(&imported_module.statements);
+                        namespaces.insert(alias.clone(), Namespace { exports });
                     }
                 }
             }
@@ -440,47 +435,6 @@ impl ModuleGraph {
         Ok(())
     }
 
-    fn collect_namespaces_recursive(
-        &self,
-        file_id: FileId,
-        visited: &mut Vec<FileId>,
-    ) -> Result<HashMap<String, Namespace>, ModuleError> {
-        if visited.contains(&file_id) {
-            return Ok(HashMap::new());
-        }
-        visited.push(file_id);
-
-        let mut namespaces = HashMap::new();
-
-        if let Some(module) = self.files.get(&file_id) {
-            for imp in &module.imports {
-                if imp.alias.is_some() {
-                    // This is an aliased import — collect exports from the target file
-                    let import_path = Self::resolve_path(
-                        module.path.parent().unwrap_or(Path::new(".")),
-                        &imp.path,
-                    );
-                    if let Some(import_id) = fs::canonicalize(&import_path)
-                        .ok()
-                        .and_then(|p| self.paths.get(&p).copied())
-                    {
-                        // Collect pub lets from the imported file
-                        if let Some(imported_module) = self.files.get(&import_id) {
-                            let exports = collect_pub_lets(&imported_module.statements);
-                            if let Some(ref alias) = imp.alias {
-                                namespaces.insert(
-                                    alias.clone(),
-                                    Namespace { exports },
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(namespaces)
-    }
 }
 
 impl Default for ModuleGraph {

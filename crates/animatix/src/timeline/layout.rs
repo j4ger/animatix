@@ -28,7 +28,8 @@
 
 use std::collections::BTreeMap;
 
-use super::{AnimationTrack, Easing, PlacementMode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
+use super::{AnimationTrack, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
+use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 
 use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_grid_layout};
 
@@ -73,19 +74,6 @@ fn compute_grid_layout(
 ) -> Vec<[f32; 2]> {
     let results = compute_taffy_grid_layout(children, gap, cols);
     results.into_iter().map(|r| r.position).collect()
-}
-
-fn layout_full_extents(track: &AnimationTrack) -> (f32, f32) {
-    let half_extents = track.size.last(DEFAULT_LAYOUT_HALF_SIZE);
-
-    (half_extents[0] * 2.0, half_extents[1] * 2.0)
-}
-
-/// Returns the full extents (width, height) of a track at a specific time.
-fn layout_full_extents_at_time(track: &AnimationTrack, time_ms: u64) -> (f32, f32) {
-    let half_extents = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-
-    (half_extents[0] * 2.0, half_extents[1] * 2.0)
 }
 
 use super::LayoutEngine;
@@ -156,6 +144,24 @@ impl LayoutEngine {
 }
 
 impl Timeline {
+    fn push_layout_size_fallback_diagnostic(
+        diagnostics: &mut Vec<Diagnostic>,
+        container_label: &str,
+        container_ty: &str,
+        child_label: &str,
+    ) {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::LayoutSizeFallback,
+                DiagnosticPhase::Build,
+                format!(
+                    "Layout-managed child '{child_label}' in {container_ty} container '{container_label}' had no seeded size at layout time; using default half-size [50, 50]."
+                ),
+            )
+            .with_subject(child_label),
+        );
+    }
+
     pub(super) fn apply_container_layout(
         &mut self,
         container_label: &str,
@@ -164,6 +170,7 @@ impl Timeline {
         gap: f32,
         align: Option<&str>,
         cols: Option<usize>,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         let children = if let Some(track) = self.tracks.get(container_label) {
             track.children.clone()
@@ -188,10 +195,22 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = children
             .iter()
             .filter_map(|cl| {
-                self.tracks.get(cl).map(|track| ChildExtent {
-                    label: cl.clone(),
-                    half_size: track.size.last(DEFAULT_LAYOUT_HALF_SIZE),
-                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
+                self.tracks.get(cl).map(|track| {
+                    let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
+                    if placement_mode == PlacementMode::LayoutManaged && track.size.is_none() {
+                        Self::push_layout_size_fallback_diagnostic(
+                            diagnostics,
+                            container_label,
+                            container_ty,
+                            cl,
+                        );
+                    }
+
+                    ChildExtent {
+                        label: cl.clone(),
+                        half_size: track.size.last(DEFAULT_LAYOUT_HALF_SIZE),
+                        placement_mode,
+                    }
                 })
             })
             .collect();

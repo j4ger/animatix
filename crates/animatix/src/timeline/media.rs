@@ -45,6 +45,85 @@ fn push_unsupported_media_modifier_diagnostics(
     }
 }
 
+fn seed_svg_track(
+    track: &mut AnimationTrack,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject_label: &str,
+    url: &str,
+    scale: f32,
+    time_ms: u64,
+) {
+    if url.is_empty() {
+        return;
+    }
+
+    match std::fs::read_to_string(url) {
+        Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
+            Ok(mut parsed_paths) => {
+                if scale != 1.0 {
+                    let affine = kurbo::Affine::scale(scale as f64);
+                    for path in &mut parsed_paths {
+                        path.path.apply_affine(affine);
+                    }
+                }
+                let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
+                track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    measured_half_size,
+                    Easing::Linear,
+                );
+                track.svg_paths = parsed_paths;
+            }
+            Err(error) => push_media_load_failure_diagnostic(
+                diagnostics,
+                &format!("{}.url", subject_label),
+                url,
+                format!("Failed to parse SVG file '{url}': {error}"),
+            ),
+        },
+        Err(error) => push_media_load_failure_diagnostic(
+            diagnostics,
+            &format!("{}.url", subject_label),
+            url,
+            format!("Failed to read SVG file '{url}': {error}"),
+        ),
+    }
+}
+
+fn seed_image_track(
+    track: &mut AnimationTrack,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject_label: &str,
+    url: &str,
+    authored_half_size: Option<[f32; 2]>,
+    time_ms: u64,
+) {
+    if url.is_empty() {
+        return;
+    }
+
+    match crate::timeline::image::load_image(url) {
+        Ok(image) => {
+            let display_size = authored_half_size
+                .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
+            track
+                .size
+                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+                .add_keyframe(time_ms, display_size, Easing::Linear);
+            track
+                .image
+                .ensure(None)
+                .add_keyframe(time_ms, Some(image), Easing::Linear);
+        }
+        Err(error) => push_media_load_failure_diagnostic(
+            diagnostics,
+            &format!("{}.url", subject_label),
+            url,
+            format!("Failed to load image file '{url}': {error}"),
+        ),
+    }
+}
+
 impl Timeline {
     pub(super) fn process_media_actor_decl(
         &mut self,
@@ -133,69 +212,9 @@ impl Timeline {
         }
 
         match actor_type {
-            "Svg" => {
-                if url.is_empty() {
-                    return;
-                }
-                // TODO: Use self.asset_cache.get_or_load_svg(path) once callers pass &mut self
-                match std::fs::read_to_string(&url) {
-                    Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
-                        Ok(mut parsed_paths) => {
-                            if scale != 1.0 {
-                                let affine = kurbo::Affine::scale(scale as f64);
-                                for path in &mut parsed_paths {
-                                    path.path.apply_affine(affine);
-                                }
-                            }
-                            let measured_half_size =
-                                crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                            track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                                time_ms as u64,
-                                measured_half_size,
-                                Easing::Linear,
-                            );
-                            track.svg_paths = parsed_paths;
-                        }
-                        Err(error) => push_media_load_failure_diagnostic(
-                            diagnostics,
-                            &format!("{}.url", label),
-                            &url,
-                            format!("Failed to parse SVG file '{url}': {error}"),
-                        ),
-                    },
-                    Err(error) => push_media_load_failure_diagnostic(
-                        diagnostics,
-                        &format!("{}.url", label),
-                        &url,
-                        format!("Failed to read SVG file '{url}': {error}"),
-                    ),
-                }
-            }
+            "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, time_ms as u64),
             "Image" => {
-                if url.is_empty() {
-                    return;
-                }
-                // TODO: Use self.asset_cache.get_or_load_image(path) once callers pass &mut self
-                match crate::timeline::image::load_image(&url) {
-                    Ok(image) => {
-                        let display_size = authored_size
-                            .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
-                        track
-                            .size
-                            .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-                            .add_keyframe(time_ms as u64, display_size, Easing::Linear);
-                        track
-                            .image
-                            .ensure(None)
-                            .add_keyframe(time_ms as u64, Some(image), Easing::Linear);
-                    }
-                    Err(error) => push_media_load_failure_diagnostic(
-                        diagnostics,
-                        &format!("{}.url", label),
-                        &url,
-                        format!("Failed to load image file '{url}': {error}"),
-                    ),
-                }
+                seed_image_track(track, diagnostics, label, &url, authored_size, time_ms as u64)
             }
             _ => {}
         }
@@ -248,39 +267,7 @@ impl Timeline {
                         .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
-                // TODO: Use self.asset_cache.get_or_load_svg(path) once callers pass &mut self
-                match std::fs::read_to_string(url) {
-                    Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
-                        Ok(mut parsed_paths) => {
-                            if *scale != 1.0 {
-                                let affine = kurbo::Affine::scale(*scale as f64);
-                                for path in &mut parsed_paths {
-                                    path.path.apply_affine(affine);
-                                }
-                            }
-                            let measured_half_size =
-                                crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                            track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                                time_ms as u64,
-                                measured_half_size,
-                                Easing::Linear,
-                            );
-                            track.svg_paths = parsed_paths;
-                        }
-                        Err(error) => push_media_load_failure_diagnostic(
-                            diagnostics,
-                            &format!("{}.url", label_str),
-                            url,
-                            format!("Failed to parse SVG file '{url}': {error}"),
-                        ),
-                    },
-                    Err(error) => push_media_load_failure_diagnostic(
-                        diagnostics,
-                        &format!("{}.url", label_str),
-                        url,
-                        format!("Failed to read SVG file '{url}': {error}"),
-                    ),
-                }
+                seed_svg_track(track, diagnostics, &label_str, url, *scale, time_ms as u64);
             }
             Stmt::Image {
                 label,
@@ -321,29 +308,14 @@ impl Timeline {
                         .add_keyframe(time_ms as u64, [0.0, 0.0], Easing::Linear);
                 }
 
-                // TODO: Use self.asset_cache.get_or_load_image(path) once callers pass &mut self
-                match crate::timeline::image::load_image(url) {
-                    Ok(image) => {
-                        let display_size = size
-                            .map(|(width, height)| [width / 2.0, height / 2.0])
-                            .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
-
-                        track
-                            .size
-                            .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-                            .add_keyframe(time_ms as u64, display_size, Easing::Linear);
-                        track
-                            .image
-                            .ensure(None)
-                            .add_keyframe(time_ms as u64, Some(image), Easing::Linear);
-                    }
-                    Err(error) => push_media_load_failure_diagnostic(
-                        diagnostics,
-                        &format!("{}.url", label_str),
-                        url,
-                        format!("Failed to load image file '{url}': {error}"),
-                    ),
-                }
+                seed_image_track(
+                    track,
+                    diagnostics,
+                    &label_str,
+                    url,
+                    size.map(|(width, height)| [width / 2.0, height / 2.0]),
+                    time_ms as u64,
+                );
             }
             _ => unreachable!("process_media_statement only handles svg/image statements"),
         }
