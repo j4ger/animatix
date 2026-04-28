@@ -1,5 +1,6 @@
 use animatix::renderer::core::RendererCore;
 use animatix::timeline::{SceneDimensions, Timeline};
+use kurbo::Rect;
 
 pub struct PreviewSurface {
     renderer: RendererCore,
@@ -9,6 +10,8 @@ pub struct PreviewSurface {
     sample_view: Option<wgpu::TextureView>,
     texture_id: Option<egui::TextureId>,
     dimensions: SceneDimensions,
+    /// Per-actor world-space hit regions from the last render call.
+    hit_regions: Vec<(String, Rect)>,
 }
 
 impl PreviewSurface {
@@ -24,6 +27,7 @@ impl PreviewSurface {
                 width: 0,
                 height: 0,
             },
+            hit_regions: Vec::new(),
         }
     }
 
@@ -33,6 +37,11 @@ impl PreviewSurface {
 
     pub fn texture_id(&self) -> Option<egui::TextureId> {
         self.texture_id
+    }
+
+    /// Returns the actor hit regions from the last render call.
+    pub fn hit_regions(&self) -> &[(String, Rect)] {
+        &self.hit_regions
     }
 
     pub fn set_dimensions(&mut self, device: &wgpu::Device, dimensions: SceneDimensions) {
@@ -102,6 +111,7 @@ impl PreviewSurface {
             .ok_or_else(|| "Preview texture is not initialized".to_string())?;
 
         let scene = timeline.evaluate(time_s, self.dimensions);
+        self.hit_regions = timeline.hit_regions();
         self.renderer.render_vello_scene(
             device,
             queue,

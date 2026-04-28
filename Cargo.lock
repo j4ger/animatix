@@ -164,6 +164,7 @@ dependencies = [
  "egui_dock",
  "egui_extras",
  "egui_wgpu_backend",
+ "kurbo 0.13.0",
  "notify",
  "pollster",
  "ron",

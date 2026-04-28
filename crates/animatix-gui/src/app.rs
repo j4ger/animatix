@@ -1,4 +1,5 @@
 mod file_tree;
+mod inspector;
 mod persistence;
 mod preview;
 mod runtime;
@@ -57,6 +58,7 @@ enum WorkspaceTab {
     Explorer,
     Editor,
     Preview,
+    Inspector,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -162,6 +164,9 @@ struct GuiShell {
     persistence_path: PathBuf,
     hot_reloader: Option<HotReloader>,
     last_reload_time: Option<Instant>,
+    selected_actor: Option<String>,
+    /// Per-actor hit regions from the last render (for click-to-select).
+    hit_regions: Vec<(String, kurbo::Rect)>,
 }
 
 impl GuiShell {
@@ -233,6 +238,8 @@ impl GuiShell {
             persistence_path,
             hot_reloader,
             last_reload_time: None,
+            selected_actor: None,
+            hit_regions: Vec::new(),
         }
     }
 
@@ -397,6 +404,9 @@ impl GuiShell {
             actions,
             source_dirty: &mut self.document.source_text,
             scene_dimensions,
+            timeline: self.document.timeline.as_ref(),
+            selected_actor: &mut self.selected_actor,
+            hit_regions: &self.hit_regions,
         };
 
         DockArea::new(&mut self.dock_state)
@@ -471,6 +481,16 @@ impl GuiShell {
                 self.preview.current_time_s, self.preview.duration_s
             );
             self.preview_dirty = true;
+        }
+        if let Some(label) = actions.select_actor {
+            if self
+                .document
+                .timeline
+                .as_ref()
+                .is_some_and(|t| t.has_actor(&label))
+            {
+                self.selected_actor = Some(label);
+            }
         }
     }
 
@@ -746,13 +766,14 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn default_workspace_has_three_tabs() {
+    fn default_workspace_has_four_tabs() {
         let dock_state = default_dock_state();
         let tabs: Vec<_> = dock_state.iter_all_tabs().map(|(_, tab)| *tab).collect();
-        assert_eq!(tabs.len(), 3);
+        assert_eq!(tabs.len(), 4);
         assert!(tabs.contains(&WorkspaceTab::Explorer));
         assert!(tabs.contains(&WorkspaceTab::Editor));
         assert!(tabs.contains(&WorkspaceTab::Preview));
+        assert!(tabs.contains(&WorkspaceTab::Inspector));
     }
 
     #[test]

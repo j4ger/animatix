@@ -201,6 +201,9 @@ pub struct Timeline {
     pub asset_cache: assets::AssetCache,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
+    /// Per-actor world-space bounding boxes from the last evaluate call.
+    /// Each entry is (actor_label, world_bounds). Populated during evaluate.
+    pub hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -232,6 +235,7 @@ impl Clone for Timeline {
             dynamic_layout: self.dynamic_layout,
             asset_cache: self.asset_cache.clone(),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
+            hit_regions: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -257,6 +261,7 @@ impl Timeline {
             dynamic_layout: false,
             asset_cache: assets::AssetCache::new(),
             frame_cache: std::cell::RefCell::new(None),
+            hit_regions: std::cell::RefCell::new(Vec::new()),
         }
     }
 
@@ -314,6 +319,12 @@ impl Timeline {
     /// Returns the list of root actor labels (actors with no parent).
     pub fn root_actor_labels(&self) -> &[String] {
         &self.root_nodes
+    }
+
+    /// Returns the hit regions from the last evaluate call.
+    /// Each entry is (actor_label, world_bounds) in scene coordinates.
+    pub fn hit_regions(&self) -> Vec<(String, kurbo::Rect)> {
+        self.hit_regions.borrow().clone()
     }
 
     /// Returns a reference to the track for the given label, if it exists.

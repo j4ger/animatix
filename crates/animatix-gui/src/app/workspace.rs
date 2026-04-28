@@ -1,4 +1,6 @@
 use super::*;
+use animatix::timeline::Timeline;
+use kurbo::Point;
 
 const DIAGNOSTICS_PER_PHASE_LIMIT: usize = 3;
 
@@ -15,6 +17,7 @@ pub(super) struct UiActions {
     pub(super) request_repaint: bool,
     pub(super) prev_keyframe: bool,
     pub(super) next_keyframe: bool,
+    pub(super) select_actor: Option<String>,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
@@ -30,6 +33,9 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) actions: &'a mut UiActions,
     pub(super) source_dirty: &'a mut String,
     pub(super) scene_dimensions: SceneDimensions,
+    pub(super) timeline: Option<&'a Timeline>,
+    pub(super) selected_actor: &'a mut Option<String>,
+    pub(super) hit_regions: &'a [(String, kurbo::Rect)],
 }
 
 impl TabViewer for WorkspaceViewer<'_> {
@@ -40,6 +46,7 @@ impl TabViewer for WorkspaceViewer<'_> {
             WorkspaceTab::Explorer => "Explorer".into(),
             WorkspaceTab::Editor => "Editor".into(),
             WorkspaceTab::Preview => "Preview".into(),
+            WorkspaceTab::Inspector => "Inspector".into(),
         }
     }
 
@@ -48,6 +55,7 @@ impl TabViewer for WorkspaceViewer<'_> {
             WorkspaceTab::Explorer => self.explorer_ui(ui),
             WorkspaceTab::Editor => self.editor_ui(ui),
             WorkspaceTab::Preview => self.preview_ui(ui),
+            WorkspaceTab::Inspector => self.inspector_ui(ui),
         }
     }
 
@@ -238,7 +246,7 @@ impl WorkspaceViewer<'_> {
             Vec2::new(available.x.max(200.0), image_height),
         );
 
-            let (preview_rect, _) = ui.allocate_exact_size(desired, egui::Sense::hover());
+            let (preview_rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
             ui.painter().rect_stroke(
                 preview_rect,
                 6.0,
@@ -247,6 +255,26 @@ impl WorkspaceViewer<'_> {
             );
             ui.painter()
                 .rect_filled(preview_rect, 6.0, Color32::from_rgb(18, 20, 24));
+
+            // Click-to-select: test click against actor hit regions
+            if response.clicked() && !self.hit_regions.is_empty() {
+                if let Some(click_pos) = response.interact_pointer_pos() {
+                    // Map click position in preview rect to scene coordinates
+                    let scale_x = self.scene_dimensions.width as f64 / desired.x as f64;
+                    let scale_y = self.scene_dimensions.height as f64 / desired.y as f64;
+                    let scene_x = (click_pos.x - preview_rect.min.x) as f64 * scale_x;
+                    let scene_y = (click_pos.y - preview_rect.min.y) as f64 * scale_y;
+                    let scene_point = Point::new(scene_x, scene_y);
+
+                    // Iterate in reverse: last-drawn (children) are on top
+                    for (label, bounds) in self.hit_regions.iter().rev() {
+                        if bounds.contains(scene_point) {
+                            self.actions.select_actor = Some(label.clone());
+                            break;
+                        }
+                    }
+                }
+            }
 
             match self.preview_texture_id {
                 Some(texture_id) => {
@@ -340,6 +368,11 @@ impl WorkspaceViewer<'_> {
                     });
                 });
         });
+    }
+
+    fn inspector_ui(&mut self, ui: &mut egui::Ui) {
+        let current_time_s = self.preview.current_time_s;
+        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s);
     }
 }
 

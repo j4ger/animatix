@@ -4,8 +4,9 @@ pub(super) fn default_dock_state() -> DockState<WorkspaceTab> {
     let mut dock_state = DockState::new(vec![WorkspaceTab::Editor]);
     let surface = dock_state.main_surface_mut();
     let [editor, _explorer] =
-        surface.split_left(NodeIndex::root(), 0.18, vec![WorkspaceTab::Explorer]);
-    let [_editor, _preview] = surface.split_right(editor, 0.37, vec![WorkspaceTab::Preview]);
+        surface.split_left(NodeIndex::root(), 0.15, vec![WorkspaceTab::Explorer]);
+    let [_editor, _preview] = surface.split_right(editor, 0.30, vec![WorkspaceTab::Preview]);
+    let [_preview, _inspector] = surface.split_right(_preview, 0.18, vec![WorkspaceTab::Inspector]);
     dock_state
 }
 

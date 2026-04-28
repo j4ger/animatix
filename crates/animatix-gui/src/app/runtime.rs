@@ -345,8 +345,12 @@ impl WindowRuntime {
                     self.shell.set_render_error(error);
                     return Ok(());
                 }
-                self.shell.preview_dirty = false;
-                self.shell
+                    self.shell.preview_dirty = false;
+                    self.shell.hit_regions = self
+                        .preview_surface
+                        .hit_regions()
+                        .to_vec();
+                    self.shell
                     .clear_render_error(live_preview_status(&self.shell.preview));
             }
         } else if self.preview_surface.texture_id().is_none()

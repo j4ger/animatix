@@ -46,6 +46,18 @@ fn node_local_bounds(
     bounds
 }
 
+fn transform_rect_bbox(transform: &kurbo::Affine, rect: kurbo::Rect) -> kurbo::Rect {
+    let p0 = *transform * kurbo::Point::new(rect.x0, rect.y0);
+    let p1 = *transform * kurbo::Point::new(rect.x0, rect.y1);
+    let p2 = *transform * kurbo::Point::new(rect.x1, rect.y0);
+    let p3 = *transform * kurbo::Point::new(rect.x1, rect.y1);
+    let x0 = p0.x.min(p1.x).min(p2.x).min(p3.x);
+    let y0 = p0.y.min(p1.y).min(p2.y).min(p3.y);
+    let x1 = p0.x.max(p1.x).max(p2.x).max(p3.x);
+    let y1 = p0.y.max(p1.y).max(p2.y).max(p3.y);
+    kurbo::Rect::new(x0, y0, x1, y1)
+}
+
 impl Timeline {
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
@@ -75,6 +87,7 @@ impl Timeline {
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
     ) {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
             // Skip actors that haven't been declared yet
@@ -92,6 +105,7 @@ impl Timeline {
                             scene,
                             overrides,
                             layout_positions,
+                            hit_regions,
                         );
                     }
                 }
@@ -336,6 +350,27 @@ impl Timeline {
                 scene.stroke(&stroke, local_transform, debug_color, None, &local_bounds);
             }
 
+            // Collect world-space hit region for click-to-select
+            let lb = node_local_bounds(
+                &vector_paths,
+                &text_paths,
+                &track.svg_paths,
+                has_image.then_some(half_size),
+            );
+            let world_bounds = if let Some(local_bounds) = lb {
+                transform_rect_bbox(&local_transform, local_bounds)
+            } else {
+                // Fall back to half-size based bounds
+                let default_bounds = kurbo::Rect::new(
+                    (-half_size[0]) as f64,
+                    (-half_size[1]) as f64,
+                    half_size[0] as f64,
+                    half_size[1] as f64,
+                );
+                transform_rect_bbox(&local_transform, default_bounds)
+            };
+            hit_regions.push((node_label.to_string(), world_bounds));
+
             (local_transform, local_opacity)
         } else {
             (parent_transform, parent_opacity)
@@ -368,6 +403,7 @@ impl Timeline {
                     scene,
                     overrides,
                     &child_layout_positions,
+                    hit_regions,
                 );
             }
         }
@@ -402,6 +438,9 @@ impl Timeline {
 
         let mut scene = vello::Scene::new();
         let bg_color = self.background_color.evaluate(time_ms);
+
+        // Collect actor world-space bounding boxes for click-to-select
+        let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();
 
         let mut overrides: std::collections::HashMap<
             String,
@@ -463,8 +502,12 @@ impl Timeline {
                 &mut scene,
                 &overrides,
                 &std::collections::BTreeMap::new(), // empty for roots
+                &mut hit_regions,
             );
         }
+
+        // Store hit regions for click-to-select
+        *self.hit_regions.borrow_mut() = hit_regions;
 
         // Store result in frame cache for fast lookup on next identical evaluation request
         if debug_options == DebugRenderOptions::default() {

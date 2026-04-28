@@ -27,6 +27,7 @@ What exists today:
 - a split internal architecture between document state and preview state
 - a preview surface seam that supports the current offscreen live-preview path and leaves room for future preview delivery changes
 - a docked workspace shell built with egui panels and tabs rather than a separate node-editor environment
+- a read-only Actor Inspector panel that shows the full timeline actor tree, selected actor properties, and keyframe data
 
 What is intentionally not shipped yet:
 
@@ -227,7 +228,7 @@ These are deliberately out of scope for the first GUI crate:
 - native embedded surface composition inside the egui shell
 - a more direct preview-surface integration strategy if the render stack warrants it later
 - Tree-sitter-backed GUI highlighting or code intelligence until its authoring value justifies the extra parser/query synchronization cost
-- visual scene inspector
+- visual scene inspector (Phase 1 read-only inspector now shipped — see `docs/actor_inspector.md`)
 - property editor
 - editable keyframe lane editor
 - export dialogs
