@@ -17,7 +17,7 @@ use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
 use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2};
-use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
+use egui_dock::{DockArea, DockState, NodeIndex, Style, TabIndex, TabViewer};
 use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
 use egui_winit::State as EguiWinitState;
 use file_tree::{build_file_tree, workspace_root_for};
@@ -207,8 +207,9 @@ impl GuiShell {
         let expanded_dirs = HashSet::from([workspace_root.clone()]);
         let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
         let persistence_path = persistence_path();
-        let dock_state =
+        let mut dock_state =
             load_workspace_persistence(&persistence_path).unwrap_or_else(default_dock_state);
+        ensure_workspace_tab_present(&mut dock_state, WorkspaceTab::Inspector);
         let hot_reloader = HotReloader::new(&document.file_path).ok();
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
@@ -293,6 +294,9 @@ impl GuiShell {
         ui.horizontal(|ui| {
             ui.label(RichText::new("Animatix").strong().size(18.0));
             ui.separator();
+            action_button(ui, "Inspector", false, || {
+                actions.show_inspector = true;
+            });
             ui.label(
                 RichText::new(
                     self.document
@@ -425,6 +429,9 @@ impl GuiShell {
                 self.expanded_dirs.insert(path.clone());
             }
             self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path, &self.expanded_dirs);
+        }
+        if actions.show_inspector {
+            self.open_workspace_tab(WorkspaceTab::Inspector);
         }
         if actions.save {
             let _ = self.save();
@@ -676,6 +683,47 @@ impl GuiShell {
             let _ = fs::write(&self.persistence_path, serialized);
         }
     }
+
+    fn open_workspace_tab(&mut self, target: WorkspaceTab) {
+        if let Some((surface, node, tab_index)) = find_workspace_tab(&self.dock_state, target) {
+            self.dock_state.set_focused_node_and_surface((surface, node));
+            self.dock_state.set_active_tab((surface, node, tab_index));
+            return;
+        }
+
+        self.dock_state.push_to_focused_leaf(target);
+
+        if let Some((surface, node, tab_index)) = find_workspace_tab(&self.dock_state, target) {
+            self.dock_state.set_focused_node_and_surface((surface, node));
+            self.dock_state.set_active_tab((surface, node, tab_index));
+        }
+    }
+}
+
+fn ensure_workspace_tab_present(dock_state: &mut DockState<WorkspaceTab>, target: WorkspaceTab) {
+    if find_workspace_tab(dock_state, target).is_none() {
+        dock_state.push_to_focused_leaf(target);
+    }
+}
+
+fn find_workspace_tab(
+    dock_state: &DockState<WorkspaceTab>,
+    target: WorkspaceTab,
+) -> Option<(egui_dock::SurfaceIndex, NodeIndex, TabIndex)> {
+    for ((surface, node), tab) in dock_state.iter_all_tabs() {
+        if *tab != target {
+            continue;
+        }
+
+        let tab_index = dock_state[surface][node]
+            .tabs()
+            .and_then(|tabs| tabs.iter().position(|candidate| *candidate == target))
+            .map(TabIndex::from)?;
+
+        return Some((surface, node, tab_index));
+    }
+
+    None
 }
 
 fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
@@ -757,12 +805,13 @@ mod tests {
     use super::{
         GuiShell, WorkspaceTab, default_dock_state, diagnostics_banner_message,
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
-        primary_diagnostic_phase,
+        primary_diagnostic_phase, ensure_workspace_tab_present,
     };
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Color32;
     use egui::Vec2;
+    use egui_dock::DockState;
     use std::path::PathBuf;
 
     #[test]
@@ -773,6 +822,16 @@ mod tests {
         assert!(tabs.contains(&WorkspaceTab::Explorer));
         assert!(tabs.contains(&WorkspaceTab::Editor));
         assert!(tabs.contains(&WorkspaceTab::Preview));
+        assert!(tabs.contains(&WorkspaceTab::Inspector));
+    }
+
+    #[test]
+    fn ensure_workspace_tab_present_restores_missing_inspector_tab() {
+        let mut dock_state = DockState::new(vec![WorkspaceTab::Editor]);
+
+        ensure_workspace_tab_present(&mut dock_state, WorkspaceTab::Inspector);
+
+        let tabs: Vec<_> = dock_state.iter_all_tabs().map(|(_, tab)| *tab).collect();
         assert!(tabs.contains(&WorkspaceTab::Inspector));
     }
 

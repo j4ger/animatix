@@ -8,6 +8,7 @@ const DIAGNOSTICS_PER_PHASE_LIMIT: usize = 3;
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
     pub(super) toggle_expand_dir: Option<PathBuf>,
+    pub(super) show_inspector: bool,
     pub(super) save: bool,
     pub(super) reload: bool,
     pub(super) rebuild: bool,
