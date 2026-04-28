@@ -1,5 +1,5 @@
 use animatix::ast::{
-    Action, ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, Time, UnaryOp,
+    Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Stmt, Time, UnaryOp,
 };
 use animatix::parser::parser;
 use chumsky::Parser;
@@ -1182,4 +1182,192 @@ fn test_import_without_alias() {
             alias: None,
         }
     );
+}
+
+#[test]
+fn test_slot_marker_in_container() {
+    let src = r#"header: Col {
+  @slot
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "header");
+        assert_eq!(ty, "Col");
+        assert_eq!(children.len(), 1);
+        assert!(matches!(children[0], InlineItem::SlotMarker));
+    } else {
+        panic!("Expected ActorDecl, got {:?}", stmt);
+    }
+}
+
+#[test]
+fn test_slot_marker_with_defaults_in_container() {
+    let src = r#"footer: Col {
+  @slot
+  Text, text: "Default"
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "footer");
+        assert_eq!(ty, "Col");
+        assert_eq!(children.len(), 2);
+        assert!(matches!(children[0], InlineItem::SlotMarker));
+        match &children[1] {
+            InlineItem::Anonymous { ty, props, .. } => {
+                assert_eq!(ty, "Text");
+                assert!(!props.is_empty());
+            }
+            _ => panic!("Expected Anonymous item, got {:?}", children[1]),
+        }
+    } else {
+        panic!("Expected ActorDecl, got {:?}", stmt);
+    }
+}
+
+#[test]
+fn test_slot_fill_parsing() {
+    let src = r#"slide: SlideLayout {
+  @header {
+    title: Text, text: "Hello"
+  }
+  @body {
+    badge: Circle, radius: 20
+  }
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "slide");
+        assert_eq!(ty, "SlideLayout");
+        assert_eq!(children.len(), 2);
+
+        match &children[0] {
+            InlineItem::SlotFill { slot_name, items } => {
+                assert_eq!(slot_name, "header");
+                assert_eq!(items.len(), 1);
+                match &items[0] {
+                    InlineItem::Labeled { label, ty, .. } => {
+                        assert_eq!(label, "title");
+                        assert_eq!(ty, "Text");
+                    }
+                    _ => panic!("Expected Labeled item in slot fill"),
+                }
+            }
+            _ => panic!("Expected SlotFill, got {:?}", children[0]),
+        }
+
+        match &children[1] {
+            InlineItem::SlotFill { slot_name, items } => {
+                assert_eq!(slot_name, "body");
+                assert_eq!(items.len(), 1);
+            }
+            _ => panic!("Expected SlotFill, got {:?}", children[1]),
+        }
+    } else {
+        panic!("Expected ActorDecl, got {:?}", stmt);
+    }
+}
+
+#[test]
+fn test_mixed_slot_fill_parsing() {
+    // @slot itself should also parse as a slot fill when used as @slot { items }
+    let src = r#"mycomp: MyComponent {
+  @slot {
+    Text, text: "Content"
+  }
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { children, .. } = stmt {
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            InlineItem::SlotFill { slot_name, items } => {
+                assert_eq!(slot_name, "slot");
+                assert_eq!(items.len(), 1);
+            }
+            _ => panic!("Expected SlotFill"),
+        }
+    } else {
+        panic!("Expected ActorDecl");
+    }
+}
+
+#[test]
+fn test_empty_slot_fill() {
+    // Tests parsing a slot fill with empty body @slotname { }
+    let src = r#"modal: Dialog {
+  @slot { }
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "modal");
+        assert_eq!(ty, "Dialog");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            InlineItem::SlotFill { slot_name, items } => {
+                assert_eq!(slot_name, "slot");
+                assert!(items.is_empty());
+            }
+            _ => panic!("Expected SlotFill"),
+        }
+    } else {
+        panic!("Expected ActorDecl");
+    }
+}
+
+#[test]
+fn test_slot_fill_with_multiple_items() {
+    // Tests a slot fill containing multiple items
+    let src = r#"header: Header {
+  @title {
+    Text, text: "Welcome"
+    Text, text: "Subtitle"
+  }
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "header");
+        assert_eq!(ty, "Header");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            InlineItem::SlotFill { slot_name, items } => {
+                assert_eq!(slot_name, "title");
+                assert_eq!(items.len(), 2);
+            }
+            _ => panic!("Expected SlotFill"),
+        }
+    } else {
+        panic!("Expected ActorDecl");
+    }
+}
+
+#[test]
+fn test_slot_marker_as_only_child() {
+    // Tests @slot as the only item in the container (no defaults)
+    let src = r#"sidebar: Sidebar {
+  @slot
+}"#;
+    let stmt = parse_single_stmt(src);
+    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+        assert_eq!(label, "sidebar");
+        assert_eq!(ty, "Sidebar");
+        assert_eq!(children.len(), 1);
+        assert!(matches!(children[0], InlineItem::SlotMarker));
+    } else {
+        panic!("Expected ActorDecl");
+    }
+}
+
+#[test]
+fn test_at_slot_as_slot_fill() {
+    // When @slot is followed by { }, it's parsed as a slot fill with name "slot"
+    // This is a valid-but-weird case
+    let src = r#"comp: Component {
+  @slot {
+    Text, text: "Inline content"
+  }
+}"#;
+    let stmt = parse_single_stmt(src);
+    // Just ensure it parses without error
+    if let Stmt::ActorDecl { children, .. } = stmt {
+        assert!(!children.is_empty());
+    }
 }

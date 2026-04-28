@@ -423,6 +423,14 @@ impl Timeline {
                     };
                     self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
+                // SlotMarker and SlotFill are resolved during component expansion.
+                // At timeline build time they should never appear in the AST.
+                crate::ast::InlineItem::SlotMarker { .. }
+                | crate::ast::InlineItem::SlotFill { .. } => {
+                    // Unreachable after correct component expansion.
+                    // Emitting a diagnostic here is noisy for a correctness-invariant;
+                    // if they appear, the timeline simply ignores them.
+                }
             }
         }
     }

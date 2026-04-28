@@ -1,0 +1,21 @@
+// Template: SlideLayout with named slots for header, body, footer.
+// Slot marker @slot indicates a fillable container position.
+// Non-@slot children in the same container are used as defaults when the slot is not filled.
+pub component SlideLayout {
+  config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+  #0s
+  backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
+
+  header: Col, anchor: scene.top, offset: (0, 100), gap: 12, align: "center" {
+    @slot
+  }
+
+  body: Group, at: (640, 380) {
+    @slot
+  }
+
+  footer: Col, anchor: scene.bottom, offset: (0, -80), gap: 8, align: "center" {
+    @slot
+    text: Text, text: "Powered by Animatix", font_size: 14, color: text.secondary
+  }
+}

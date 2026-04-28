@@ -1,0 +1,20 @@
+// Slot Demo: using SlideLayout component with @slot fills.
+// @slotname { items } fills a named slot in the component.
+import "./templates/slide_layout.amx"
+
+slide: SlideLayout {
+  @header {
+    title: Text, text: "Welcome to Animatix", font_size: 48, color: text.primary
+    subtitle: Text, text: "Declarative Animation Language", font_size: 24, color: text.secondary
+  }
+  @body {
+    circle: Circle, radius: 30, color: auto
+  }
+  // footer omitted — uses the default "Powered by Animatix" text
+}
+
+#1s
+fade-in slide [800ms, ease: ease-out]
+
+#2s
+move circle to (200, 0) [1s, ease: ease-in-out]

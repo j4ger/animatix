@@ -1,5 +1,6 @@
 use super::{
-    ComponentEntry, Expr, HashMap, HashSet, ParamDef, Property, Stmt, rewrite::rewrite_stmt,
+    ComponentEntry, Expr, HashMap, HashSet, InlineItem, ParamDef, Property, Stmt,
+    rewrite::rewrite_stmt,
 };
 
 pub(super) fn expand_statements(
@@ -67,12 +68,12 @@ fn expand_stmt_into(
             ty,
             props,
             modifiers: _,
-            children: _,
+            children,
             ..
         } => {
             if let Some(component) = components.get(ty) {
                 output.extend(expand_component_instance(
-                    label, props, component, components,
+                    label, props, children, component, components,
                 ));
             } else {
                 output.push(stmt.clone());
@@ -85,6 +86,7 @@ fn expand_stmt_into(
 fn expand_component_instance(
     instance_label: &str,
     instance_props: &[Property],
+    instance_children: &[InlineItem],
     component: &ComponentEntry,
     components: &HashMap<String, ComponentEntry>,
 ) -> Vec<Stmt> {
@@ -92,9 +94,18 @@ fn expand_component_instance(
     let root_label = first_labeled_stmt(&component.definition.body);
     let known_labels = collect_labels(&component.definition.body);
 
-    let rewritten = component
-        .definition
-        .body
+    // Extract slot fills from instance children (keyed by original slot name)
+    let mut slot_fills: HashMap<String, Vec<InlineItem>> = HashMap::new();
+    for item in instance_children {
+        if let InlineItem::SlotFill { slot_name, items } = item {
+            slot_fills.insert(slot_name.clone(), items.clone());
+        }
+    }
+
+    // Resolve slots on original component body BEFORE rewriting labels
+    let resolved = resolve_slots(&component.definition.body, &slot_fills);
+
+    let rewritten = resolved
         .iter()
         .map(|stmt| {
             rewrite_stmt(
@@ -214,4 +225,62 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         }
         _ => {}
     }
+}
+
+fn has_slot_marker(children: &[InlineItem]) -> bool {
+    children
+        .iter()
+        .any(|item| matches!(item, InlineItem::SlotMarker))
+}
+
+fn resolve_slots(
+    stmts: &[Stmt],
+    slot_fills: &HashMap<String, Vec<InlineItem>>,
+) -> Vec<Stmt> {
+    stmts
+        .iter()
+        .map(|stmt| match stmt {
+            Stmt::ActorDecl {
+                is_pub,
+                label,
+                ty,
+                props,
+                modifiers,
+                children,
+            } => {
+                if has_slot_marker(&children) {
+                    // Collect non-slot defaults from the container
+                    let defaults: Vec<InlineItem> = children
+                        .iter()
+                        .filter(|item| !matches!(item, InlineItem::SlotMarker))
+                        .cloned()
+                        .collect();
+
+                    // Get fill items by original slot name
+                    let fill_items = slot_fills.get(label);
+
+                    let replacement = if let Some(items) = fill_items {
+                        items.clone()
+                    } else if !defaults.is_empty() {
+                        defaults
+                    } else {
+                        // Required slot, no fill, no defaults
+                        Vec::new()
+                    };
+
+                    Stmt::ActorDecl {
+                        is_pub: *is_pub,
+                        label: label.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: replacement,
+                    }
+                } else {
+                    stmt.clone()
+                }
+            }
+            _ => stmt.clone(),
+        })
+        .collect()
 }

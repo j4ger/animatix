@@ -174,6 +174,17 @@ pub enum InlineItem {
         modifiers: Vec<Modifier>,
         children: Vec<InlineItem>,
     },
+    ///
+    /// @slot marker inside a container's children block.
+    /// Default items (if any) are non-@slot sibling items in the same container.
+    SlotMarker,
+    /// Filled slot content from a component instantiation site.
+    /// Maps to a container label inside the component body (e.g. `header { ... }` maps to the
+    /// container named `header` that contains a `@slot` marker).
+    SlotFill {
+        slot_name: String,
+        items: Vec<InlineItem>,
+    },
 }
 
 // ----------------------------------------------------------------------------

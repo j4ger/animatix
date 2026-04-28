@@ -239,7 +239,7 @@ pub(super) fn rewrite_stmt(
     }
 }
 
-fn rewrite_inline_items(
+pub(super) fn rewrite_inline_items(
     items: &[InlineItem],
     prefix: &str,
     root_label: Option<&str>,
@@ -284,6 +284,11 @@ fn rewrite_inline_items(
                     known_labels,
                     bindings,
                 ),
+            },
+            InlineItem::SlotMarker => InlineItem::SlotMarker,
+            InlineItem::SlotFill { slot_name, items } => InlineItem::SlotFill {
+                slot_name: slot_name.clone(),
+                items: rewrite_inline_items(items, prefix, root_label, known_labels, bindings),
             },
         })
         .collect()

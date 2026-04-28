@@ -211,7 +211,402 @@ visible: Rect, size: (100, 100)
     let expanded = program.expand_components();
 
     // The hidden circle from helper should NOT be in expanded statements
-    let expanded_debug = format!("{expanded:#?}");
-    assert!(!expanded_debug.contains("hidden"));
-    assert!(expanded_debug.contains("visible"));
-}
+     let expanded_debug = format!("{expanded:#?}");
+     assert!(!expanded_debug.contains("hidden"));
+     assert!(expanded_debug.contains("visible"));
+ }
+
+ #[test]
+ fn load_program_expands_component_with_slots() {
+     let dir = temp_project_dir("slots_basic");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component SlideLayout {
+     header: Col {
+         @slot
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ slide: SlideLayout {
+     @header {
+         title: Text, text: "Hello"
+     }
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+      // Component should be expanded (no "SlideLayout" left)
+      assert!(!expanded_debug.contains("SlideLayout"));
+      // Instance should be there
+      assert!(expanded_debug.contains("slide"));
+      // Filled item should be present
+      assert!(expanded_debug.contains("\"title\""));
+      assert!(expanded_debug.contains("Hello"));
+ }
+
+ #[test]
+ fn load_program_slot_defaults_fallback() {
+     let dir = temp_project_dir("slots_defaults");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component SlideLayout {
+     footer: Col {
+         @slot
+         Text, text: "Default Footer"
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+  slide: SlideLayout {}
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(!expanded_debug.contains("SlideLayout"));
+     assert!(expanded_debug.contains("slide"));
+     // Default item should appear
+     assert!(expanded_debug.contains("Default Footer"));
+ }
+
+ #[test]
+ fn load_program_slot_mixed_filled_and_unfilled() {
+     let dir = temp_project_dir("slots_mixed");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component SlideLayout {
+     header: Col {
+         @slot
+         Text, text: "Default Header"
+     }
+     body: Group {
+         @slot
+     }
+     footer: Col {
+         @slot
+         Text, text: "Default Footer"
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ slide: SlideLayout {
+     @body {
+         Circle, radius: 20
+     }
+ }
+ // header and footer not filled — should use defaults
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(!expanded_debug.contains("SlideLayout"));
+     assert!(expanded_debug.contains("slide"));
+     // Default header and footer should appear
+     assert!(expanded_debug.contains("Default Header"));
+     assert!(expanded_debug.contains("Default Footer"));
+     // Filled body should appear
+     assert!(expanded_debug.contains("Circle"));
+ }
+
+ #[test]
+ fn load_program_slot_unfilled_required_becomes_empty() {
+     let dir = temp_project_dir("slots_unfilled");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component SlideLayout {
+     body: Group {
+         @slot
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+  slide: SlideLayout {}
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+      assert!(!expanded_debug.contains("SlideLayout"));
+       // The container should still exist (just empty)
+       assert!(expanded_debug.contains("slide"));
+       assert!(expanded_debug.contains("children: []"));
+ }
+
+ #[test]
+ fn load_program_slot_multiple_instances_different_fills() {
+     let dir = temp_project_dir("slot_multi_instance");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component Card {
+     header: Col {
+         @slot
+     }
+     body: Group {
+         @slot
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ first: Card {
+     @header {
+         Text, text: "First Header"
+     }
+     @body {
+         Text, text: "First Body"
+     }
+ }
+
+ second: Card {
+     @header {
+         Text, text: "Second Header"
+     }
+     @body {
+         Text, text: "Second Body"
+     }
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(expanded_debug.contains("first"));
+     assert!(expanded_debug.contains("Second Header"));
+     assert!(expanded_debug.contains("Second Body"));
+     assert!(expanded_debug.contains("first"));
+     assert!(expanded_debug.contains("First Header"));
+     assert!(expanded_debug.contains("First Body"));
+     assert!(!expanded_debug.contains("Card"));
+ }
+
+ #[test]
+ fn load_program_slot_empty_fill() {
+     let dir = temp_project_dir("slot_empty_fill");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component Slide {
+     header: Col {
+         @slot
+         Text, text: "Default Header"
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ slide: Slide {
+     @header {}
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(expanded_debug.contains("slide"));
+     assert!(!expanded_debug.contains("Default Header"));
+     assert!(!expanded_debug.contains("Slide"));
+ }
+
+ #[test]
+ fn load_program_slot_with_component_as_fill() {
+     let dir = temp_project_dir("slot_component_fill");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component Slide {
+     header: Col {
+         @slot
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ slide: Slide {
+     @header {
+         title: Text, text: "My Title"
+     }
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(expanded_debug.contains("slide"));
+     assert!(expanded_debug.contains("My Title"));
+     assert!(!expanded_debug.contains("Slide"));
+ }
+
+ #[test]
+ fn load_program_slot_fill_nonexistent_slot() {
+     let dir = temp_project_dir("slot_nonexistent");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component Card {
+     header: Col {
+         @slot
+         Text, text: "Default Header"
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ card: Card {
+     @nonexistent {
+         Text, text: "This should be ignored"
+     }
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(expanded_debug.contains("card"));
+     assert!(expanded_debug.contains("Default Header"));
+     assert!(!expanded_debug.contains("This should be ignored"));
+     assert!(!expanded_debug.contains("Card"));
+ }
+
+ #[test]
+ fn load_program_slot_all_filled_no_defaults_used() {
+     let dir = temp_project_dir("slot_all_filled");
+     let entry = dir.join("scene.amx");
+     let library = dir.join("slides.amx");
+
+     write_file(
+         &library,
+         r#"
+ pub component Card {
+     header: Col {
+         @slot
+         Text, text: "Default Header"
+     }
+     footer: Col {
+         @slot
+         Text, text: "Default Footer"
+     }
+ }
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./slides.amx"
+
+ card: Card {
+     @header {
+         Text, text: "Custom Header"
+     }
+     @footer {
+         Text, text: "Custom Footer"
+     }
+ }
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let expanded_debug = format!("{expanded:#?}");
+
+     assert!(expanded_debug.contains("card"));
+     assert!(expanded_debug.contains("Custom Header"));
+     assert!(expanded_debug.contains("Custom Footer"));
+     assert!(!expanded_debug.contains("Default Header"));
+     assert!(!expanded_debug.contains("Default Footer"));
+     assert!(!expanded_debug.contains("Card"));
+ }
+

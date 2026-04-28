@@ -372,6 +372,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
         Prop(Property),
         Children(Vec<InlineItem>),
+        SlotMarker,
+        SlotFill(String, Vec<InlineItem>),
     }
 
     let inline_items = recursive(|inline_items| {
@@ -382,6 +384,21 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|c| c.unwrap_or_default());
 
         let flat_item = choice((
+            // @slotname { items } in component instantiation blocks
+            // MUST be tried BEFORE the @slot marker so that @slot { ... } is
+            // parsed as a slot fill (not as a SlotMarker with a dropped block).
+            just('@')
+                .ignore_then(ident.clone())
+                .then(
+                    inline_items
+                        .clone()
+                        .delimited_by(just('{').padded(), just('}').padded()),
+                )
+                .map(|(name, items)| FlatItem::SlotFill(name, items)),
+            // @slot marker in component definition blocks
+            // Only matches when @slot appears WITHOUT a following { items } block
+            // (because the SlotFill alternative above would have matched first).
+            just("@slot").padded().to(FlatItem::SlotMarker),
             // Labeled inline item: label: Type [mods] [{ children }]
             ident
                 .clone()
@@ -437,6 +454,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 match last {
                                     InlineItem::Labeled { props, .. } => props.push(p),
                                     InlineItem::Anonymous { props, .. } => props.push(p),
+                                    _ => {}
                                 }
                             }
                         }
@@ -445,8 +463,18 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 match last {
                                     InlineItem::Labeled { children: c, .. } => *c = children,
                                     InlineItem::Anonymous { children: c, .. } => *c = children,
+                                    _ => {}
                                 }
                             }
+                        }
+                        FlatItem::SlotMarker => {
+                            result.push(InlineItem::SlotMarker);
+                        }
+                        FlatItem::SlotFill(name, items) => {
+                            result.push(InlineItem::SlotFill {
+                                slot_name: name,
+                                items,
+                            });
                         }
                     }
                 }

@@ -33,6 +33,7 @@
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | v1a lowers at build time; nested seq/decls unsupported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | v1b offsets by shared interval; nested stagger/decls unsupported |
 | Colorscheme | `Colorscheme "name" { ... }` | Yes | Runtime-real | Yes | Yes | Native AMX primitive with `extends` |
+| Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
 
 **Key:** Parser=Yes (syntax accepted), Runtime-real (end-to-end execution), Tests=Yes (automated evidence exists).
 
@@ -52,6 +53,7 @@
 | `:` | Actor binding + scene placement | `btn: Button, text: "OK"` |
 | `#` | Keyframe (absolute `#0s` or relative `#+1s`) | `#2.5s`, `#+1s` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
+| `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
 | `[ ]` | Statement modifiers (duration, delay, ease) | `[2s, ease: bounce]` |
 | `=` | Property assignment (instant or animated) | `btn.color = red` |
 | `,` | Separates object properties | `Type, prop: val` |
@@ -394,6 +396,55 @@ btn: Button, text: "Submit"
 **Non-existent nested targets** report `UnknownTargetPath` diagnostics and are ignored (no orphaned tracks).
 
 **Future-facing:** Custom component actions (`action ...` syntax), richer namespace controls.
+
+### 12.1 Slots
+
+Slots allow component authors to declare fillable regions that can be customized at instantiation time.
+
+**Declaring slots:** Place the `@slot` marker inside a container's children block.
+
+```animatix
+pub component SlideLayout {
+  config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+  #0s
+  backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
+
+  // Required slot — error if not filled:
+  header: Col, anchor: scene.top {
+    @slot
+  }
+
+  // Optional slot — non-@slot children serve as defaults:
+  footer: Col, anchor: scene.bottom {
+    @slot
+    text: Text, text: "Default footer", font_size: 14
+  }
+}
+```
+
+**Filling slots:** Use `@slotname { items }` inside the component instantiation block.
+
+```animatix
+slide: SlideLayout {
+  @header {
+    title: Text, text: "My Title", font_size: 48
+  }
+  // footer uses the default "Default footer" text
+}
+```
+
+**Shipped behavior:**
+- `@slot` marks a container as fillable within a component definition
+- Instance `@slotname { items }` fills the slot by container label
+- Non-`@slot` siblings in the container act as defaults when the slot is not filled
+- Slot content participates in the component's keyframe structure
+- Components can be used as slot content (recursive expansion)
+- `@slot` inside `for`, `if`, `always`, `sequence`, or `stagger` blocks is disallowed
+
+**Current scope:**
+- Slots are resolved at compile time during component expansion
+- Unfilled required slots (no fill + no defaults) produce an empty container at build time
+- Slots are matched by container label (named, positional-independent)
 
 ---
 

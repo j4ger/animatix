@@ -108,6 +108,10 @@ pub enum ModuleError {
         first_path: PathBuf,
         second_path: PathBuf,
     },
+    UnfilledSlot {
+        component: String,
+        slot_name: String,
+    },
     IoError(std::io::Error),
 }
 
@@ -139,6 +143,16 @@ impl fmt::Display for ModuleError {
                 first_path.display(),
                 second_path.display()
             ),
+            ModuleError::UnfilledSlot {
+                component,
+                slot_name,
+            } => {
+                write!(
+                    f,
+                    "Unfilled slot: component '{}' requires slot '{}' but no fill provided and no defaults exist",
+                    component, slot_name
+                )
+            }
             ModuleError::IoError(e) => {
                 write!(f, "IO error: {}", e)
             }
