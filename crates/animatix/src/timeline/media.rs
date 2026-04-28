@@ -72,6 +72,11 @@ fn seed_svg_track(
                     measured_half_size,
                     Easing::Linear,
                 );
+                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    measured_half_size,
+                    Easing::Linear,
+                );
                 track.svg_paths = parsed_paths;
             }
             Err(error) => push_media_load_failure_diagnostic(
@@ -109,6 +114,9 @@ fn seed_image_track(
             track
                 .size
                 .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+                .add_keyframe(time_ms, display_size, Easing::Linear);
+            track
+                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
                 .add_keyframe(time_ms, display_size, Easing::Linear);
             track
                 .image

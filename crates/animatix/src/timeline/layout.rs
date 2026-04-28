@@ -6,7 +6,7 @@
 //! and does not re-sample when animated tracks change later.
 //!
 //! 1. **Declaration-time measure**: Layout-managed children publish their local
-//!    half-extents into the shared `size` track. Authored shapes seed this from
+//!    half-extents into a dedicated layout-size track. Authored shapes seed this from
 //!    declared geometry; text, math, code, image, and SVG seed it from measured
 //!    or intrinsic bounds.
 //!
@@ -23,12 +23,12 @@
 //! 5. **Visual transforms independent**: Visual transforms (scale, rotation) do
 //!    not affect layout size under the current contract; they are purely presentational.
 //!
-//! 6. **No sampled relayout**: When `size` or `position` tracks animate later, layout
+//! 6. **No sampled relayout**: When layout-size or `position` tracks animate later, layout
 //!    does not re-evaluate. This is a deliberate trade-off for predictability.
 
 use std::collections::BTreeMap;
 
-use super::{AnimationTrack, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE};
+use super::{AnimationTrack, ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 
 use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_grid_layout};
@@ -81,55 +81,55 @@ use super::LayoutEngine;
 use super::ContainerMetadata;
 
 impl LayoutEngine {
-    /// Computes layout positions for all children of a container at a specific time.
-    /// Returns a BTreeMap mapping child labels to their computed positions.
-    pub fn compute_layout_for_time(
-        &self,
-        container_label: &str,
+    fn compute_positions(
         metadata: &ContainerMetadata,
-        time_ms: u64,
-        tracks: &BTreeMap<String, AnimationTrack>,
-    ) -> BTreeMap<String, [f32; 2]> {
-        let children = if let Some(track) = tracks.get(container_label) {
-            track.children.clone()
-        } else {
-            return BTreeMap::new();
-        };
-
+        children: &[ChildExtent],
+    ) -> Vec<[f32; 2]> {
         let is_row = metadata.layout_type == super::LayoutType::Row;
         let is_col = metadata.layout_type == super::LayoutType::Col;
         let is_stack = metadata.layout_type == super::LayoutType::Stack;
         let is_grid = metadata.layout_type == super::LayoutType::Grid;
 
         if !is_row && !is_col && !is_stack && !is_grid {
-            return BTreeMap::new();
+            return Vec::new();
         }
 
+        if is_stack {
+            compute_stack_layout(children)
+        } else if is_grid {
+            compute_grid_layout(children, metadata.gap, metadata.cols.unwrap_or(1).max(1))
+        } else {
+            compute_linear_layout(children, is_row, metadata.gap, &metadata.align)
+        }
+    }
+
+    /// Computes layout positions for all children of a container at a specific time.
+    /// Returns a BTreeMap mapping child labels to their computed positions.
+    pub fn compute_layout_for_time(
+        &self,
+        metadata: &ContainerMetadata,
+        time_ms: u64,
+        tracks: &BTreeMap<String, AnimationTrack>,
+    ) -> BTreeMap<String, [f32; 2]> {
         // Sample child extents at current time
-        let child_extents: Vec<ChildExtent> = children
+        let child_extents: Vec<ChildExtent> = metadata
+            .layout_children
             .iter()
-            .filter_map(|cl| {
-                tracks.get(cl).map(|track| ChildExtent {
-                    label: cl.clone(),
-                    half_size: track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+            .map(|child| {
+                let track = tracks
+                    .get(&child.label)
+                    .expect("admitted layout child must have a track");
+                ChildExtent {
+                    label: child.label.clone(),
+                    half_size: track
+                        .layout_size_get(time_ms)
+                        .expect("admitted layout child must have seeded layout_size"),
                     placement_mode: track.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
-                })
+                }
             })
             .collect();
 
-        // Compute positions using pure functions
-        let positions: Vec<[f32; 2]> = if is_stack {
-            compute_stack_layout(&child_extents)
-        } else if is_grid {
-            compute_grid_layout(&child_extents, metadata.gap, metadata.cols.unwrap_or(1).max(1))
-        } else {
-            compute_linear_layout(
-                &child_extents,
-                is_row,
-                metadata.gap,
-                &metadata.align,
-            )
-        };
+        let positions = Self::compute_positions(metadata, &child_extents);
 
         // Build result BTreeMap, only including LayoutManaged children
         let mut result = BTreeMap::new();
@@ -144,7 +144,7 @@ impl LayoutEngine {
 }
 
 impl Timeline {
-    fn push_layout_size_fallback_diagnostic(
+    fn push_layout_size_exclusion_diagnostic(
         diagnostics: &mut Vec<Diagnostic>,
         container_label: &str,
         container_ty: &str,
@@ -155,85 +155,98 @@ impl Timeline {
                 DiagnosticCode::LayoutSizeFallback,
                 DiagnosticPhase::Build,
                 format!(
-                    "Layout-managed child '{child_label}' in {container_ty} container '{container_label}' had no seeded size at layout time; using default half-size [50, 50]."
+                    "Layout-managed child '{child_label}' in {container_ty} container '{container_label}' had no seeded layout_size and was excluded from layout admission."
                 ),
             )
             .with_subject(child_label),
         );
     }
 
+    pub(super) fn build_layout_children(
+        &self,
+        container_label: &str,
+        container_ty: &str,
+        child_order: &[String],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Vec<ContainerLayoutChild> {
+        let mut layout_children = Vec::with_capacity(child_order.len());
+
+        for child_label in child_order {
+            let Some(track) = self.tracks.get(child_label) else {
+                continue;
+            };
+
+            let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
+
+            // Only children with seeded layout_size are admitted into the layout set.
+            // Manual children may still exist in the scene graph via track.children,
+            // but they are excluded from layout spacing/placement when unmeasured.
+            let is_admitted = if !track.has_layout_size() {
+                if placement_mode == PlacementMode::LayoutManaged {
+                    Self::push_layout_size_exclusion_diagnostic(
+                        diagnostics,
+                        container_label,
+                        container_ty,
+                        child_label,
+                    );
+                }
+                false
+            } else {
+                true
+            };
+
+            if is_admitted {
+                layout_children.push(ContainerLayoutChild {
+                    label: child_label.clone(),
+                });
+            }
+        }
+
+        layout_children
+    }
+
     pub(super) fn apply_container_layout(
         &mut self,
         container_label: &str,
-        container_ty: &str,
         time_ms: f64,
-        gap: f32,
-        align: Option<&str>,
-        cols: Option<usize>,
-        diagnostics: &mut Vec<Diagnostic>,
+        _diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let children = if let Some(track) = self.tracks.get(container_label) {
-            track.children.clone()
-        } else {
+        let Some(metadata) = self.container_metadata.get(container_label).cloned() else {
             return;
         };
 
-        let is_row = container_ty == "Row";
-        let is_col = container_ty == "Col";
-        let is_stack = container_ty == "Stack";
-        let is_grid = container_ty == "Grid";
+        let children = metadata.layout_children.clone();
 
-        if !is_row && !is_col && !is_stack && !is_grid {
-            return;
-        }
-
-        // Layout containers consume child-local half-extents from the shared
-        // size track. Authored shapes seed this track from declared geometry;
+        // Layout containers consume child-local half-extents from the dedicated
+        // layout-size track. Authored shapes seed this track from declared geometry;
         // text, math, code, image, and SVG paths seed it from measured or
         // intrinsic bounds. Placement is declaration-time and does not promise
         // sampled per-frame relayout when those tracks animate later.
         let child_extents: Vec<ChildExtent> = children
             .iter()
-            .filter_map(|cl| {
-                self.tracks.get(cl).map(|track| {
-                    let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
-                    if placement_mode == PlacementMode::LayoutManaged && track.size.is_none() {
-                        Self::push_layout_size_fallback_diagnostic(
-                            diagnostics,
-                            container_label,
-                            container_ty,
-                            cl,
-                        );
-                    }
-
-                    ChildExtent {
-                        label: cl.clone(),
-                        half_size: track.size.last(DEFAULT_LAYOUT_HALF_SIZE),
-                        placement_mode,
-                    }
-                })
+            .map(|cl| {
+                let track = self
+                    .tracks
+                    .get(&cl.label)
+                    .expect("admitted layout child must have a track");
+                let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
+                ChildExtent {
+                    label: cl.label.clone(),
+                    half_size: track
+                        .layout_size_last()
+                        .expect("admitted layout child must have seeded layout_size"),
+                    placement_mode,
+                }
             })
             .collect();
 
         let t_ms = time_ms as u64;
 
-        // Compute positions using pure functions
-        let positions: Vec<[f32; 2]> = if is_stack {
-            compute_stack_layout(&child_extents)
-        } else if is_grid {
-            compute_grid_layout(&child_extents, gap, cols.unwrap_or(1).max(1))
-        } else {
-            compute_linear_layout(
-                &child_extents,
-                is_row,
-                gap,
-                align.unwrap_or("center"),
-            )
-        };
+        let positions = LayoutEngine::compute_positions(&metadata, &child_extents);
 
         // Write positions to tracks, only for LayoutManaged children
-        for (i, child_label) in children.iter().enumerate() {
-            if let Some(track) = self.tracks.get_mut(child_label) {
+        for (i, child) in children.iter().enumerate() {
+            if let Some(track) = self.tracks.get_mut(&child.label) {
                 if track.placement_mode.last(PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged {
                     track.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
                 }

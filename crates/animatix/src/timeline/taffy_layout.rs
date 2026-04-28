@@ -249,8 +249,6 @@ mod tests {
         // Total width = 100 + 10 + 100 = 210
         // a at -55, b at 55
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].label, "a");
-        assert_eq!(results[1].label, "b");
         // Check that positions are roughly centered
         let total_span = results[1].position[0] - results[0].position[0];
         assert!((total_span - 110.0).abs() < 0.1);
@@ -269,8 +267,6 @@ mod tests {
         // Total height = 100 + 10 + 100 = 210
         // a at -55, b at 55 (in y)
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].label, "a");
-        assert_eq!(results[1].label, "b");
         let total_span = results[1].position[1] - results[0].position[1];
         assert!((total_span - 110.0).abs() < 0.1);
     }
@@ -289,9 +285,6 @@ mod tests {
         // b (Manual) should still receive a computed slot in declaration order,
         // even though callers later exclude it from authored layout assignment.
         // In this symmetric 3-child layout: a=-110, b=0, c=110 (center child at origin is correct)
-        assert_eq!(results[0].label, "a");
-        assert_eq!(results[1].label, "b");
-        assert_eq!(results[2].label, "c");
         // Verify a and c are at symmetric non-zero positions
         assert_eq!(results[0].position[0], -results[2].position[0]); // symmetric
         assert!(results[0].position[0] < 0.0); // a is left of center

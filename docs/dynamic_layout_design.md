@@ -1,208 +1,184 @@
 # Dynamic Layout Flow Design
 
-## Problem Statement
+This document now describes the current dynamic-layout architecture and what remains deferred.
 
-The current layout system is a **declaration-time measure/place contract** — positions are baked as keyframes during `Timeline::build()` and never recomputed at frame time. From `layout.rs`:
+## Current Status
 
-> Layout is a declaration-time measure/place contract, not a per-frame reflow.
-> It is evaluated once when a layout container (Row, Col, Grid, Stack) is applied,
-> and does not re-sample when animated tracks change later.
+Animatix now has both:
 
-This means:
-- When a child's `size` changes via animation, siblings do **not** reflow
-- When a child's `scale` changes, container positions stay frozen
-- Container properties (`gap`, `align`) cannot be animated
-- Text content changes that affect measured bounds do not trigger relayout
+- **build-time baked layout** via `apply_container_layout()`
+- **opt-in dynamic layout** via `config { dynamic_layout: true }`
 
-The test `test_row_layout_does_not_reflow_from_scaled_child_animation` explicitly codifies this as the intended behavior.
+The current pipeline is:
 
-## Goal
+```text
+AST → build()
+    → seed render/runtime tracks
+    → seed dedicated layout_size tracks
+    → admit measured children into container_metadata.layout_children
+    → optionally bake declaration-time positions
 
-Enable **dynamic layout flow**: layout containers should recompute child positions per-frame based on current track values (size, placement_mode, etc.), while preserving backward compatibility for existing scenes.
-
-## Architectural Redesign
-
-### Core Principle
-
-Refactor layout from a **build-time mutator** (writes keyframes) into a **frame-time pure function** (returns computed positions):
-
-```
-Current:  AST → build() → [bake positions] → evaluate() → scene
-Proposed: AST → build() → [metadata only] → evaluate() → [layout pass] → scene
+evaluate()
+    → if dynamic_layout: recompute layout positions from admitted children
+    → scene traversal still follows track.children
 ```
 
-### Phase 1: Extract Pure Layout Functions (Non-Breaking)
+---
 
-Refactor `layout.rs` so that the layout algorithm is callable as a pure function independent of timeline mutation.
+## Core Architectural Split
 
-Current `apply_container_layout()`:
-- Reads `track.size.last_value()` (final declared size)
-- Writes `track.position.add_keyframe(t_ms, [x, y], Linear)` directly
+### Scene graph
 
-New design:
-- Extract `compute_row_layout()`, `compute_col_layout()`, `compute_grid_layout()`, `compute_stack_layout()` as pure functions
-- They take `&[(String, [f32; 2])]` (child label + sampled size) and container params
-- They return `BTreeMap<String, [f32; 2]>` (computed positions)
-- `apply_container_layout()` calls the pure function + writes keyframes (unchanged behavior)
+- `track.children` remains the traversal/render graph
+- children excluded from layout still render if otherwise valid
 
-### Phase 2: ContainerMetadata (Non-Breaking)
+### Layout graph
 
-Add a new struct to `Timeline` that stores container properties for frame-time access:
+- `container_metadata.layout_children` is the admitted layout subset
+- layout computation uses this subset only
+- admitted children must have seeded `layout_size`
+
+This distinction is now deliberate and is the main architectural invariant added by the migration.
+
+---
+
+## Current Data Model
 
 ```rust
-#[derive(Clone, Debug)]
-pub struct ContainerMetadata {
-    pub layout_type: LayoutType,      // Row, Col, Grid, Stack
-    pub gap: f32,
-    pub align: String,
-    pub cols: Option<usize>,
-    pub child_order: Vec<String>,     // stable iteration order
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutType {
     Row,
     Col,
     Grid,
     Stack,
 }
-```
 
-Populate `container_metadata` in `build.rs` when processing container actors. Existing behavior is unchanged.
-
-### Phase 3: LayoutEngine (Non-Breaking)
-
-Add `LayoutEngine` to `Timeline`:
-
-```rust
-pub struct LayoutEngine;
-
-impl LayoutEngine {
-    /// Pure function — samples track sizes at time_ms, returns computed positions.
-    /// Does NOT mutate tracks.
-    pub fn compute_layout_for_time(
-        &self,
-        container_label: &str,
-        metadata: &ContainerMetadata,
-        time_ms: u64,
-        tracks: &BTreeMap<String, AnimationTrack>,
-        nodes: &BTreeMap<String, SceneNode>,
-    ) -> BTreeMap<String, [f32; 2]>;
+pub struct ContainerLayoutChild {
+    pub label: String,
 }
-```
 
-Key implementation detail: use `track.size.evaluate(time_ms)` instead of `track.size.last_value()`. This is the single most important change — it enables layout to respond to animated size changes.
-
-### Phase 4: Per-Frame Layout Integration (Opt-In)
-
-Modify `scene_eval.rs::evaluate_node()` to:
-
-1. Before processing children, check if this node is a layout container
-2. If yes, call `layout_engine.compute_layout_for_time()`
-3. Store computed positions in a temporary `EvalContext`
-4. When resolving child positions, use computed layout position if available and child is `LayoutManaged`
-
-Add a config option to enable dynamic layout:
-```animatix
-config { dynamic_layout: true }
-```
-
-When `dynamic_layout: false` (default), behavior is identical to today.
-When `dynamic_layout: true`, layout-managed children use per-frame computed positions.
-
-### Phase 5: Migration to Default Dynamic Layout (Future)
-
-Once dynamic layout is proven stable:
-- Make it the default behavior
-- Deprecate `apply_container_layout()` position-baking
-- Remove baked position keyframes from build-time
-- Update all tests to expect dynamic behavior
-
-## Data Structure Changes
-
-### `mod.rs` — Additions
-
-```rust
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LayoutType { Row, Col, Grid, Stack }
-
-#[derive(Clone, Debug)]
 pub struct ContainerMetadata {
     pub layout_type: LayoutType,
     pub gap: f32,
     pub align: String,
     pub cols: Option<usize>,
     pub child_order: Vec<String>,
+    pub layout_children: Vec<ContainerLayoutChild>,
 }
-
-pub struct LayoutEngine;
 ```
 
-### `Timeline` struct additions
+And on each track:
 
 ```rust
-pub container_metadata: BTreeMap<String, ContainerMetadata>,
-pub layout_engine: LayoutEngine,
-pub dynamic_layout: bool,  // config option, default false
+pub size: Option<PropertyTrack<[f32; 2]>>,      // legacy/general geometric size
+pub layout_size: LayoutSizeState,               // authoritative layout measure
 ```
 
-### `track.rs` — No changes needed
+Layout uses `layout_size`; rendering/runtime compatibility still uses legacy `size` where needed.
 
-`PropertyTrack<T>` already supports animated values. `placement_mode` is already a track.
+---
 
-## Handling Edge Cases
+## Current Layout Engine Behavior
 
-### placement_mode transitions
+### Build-time layout
 
-A child can switch from `LayoutManaged` → `Manual` via `at` assignment. At frame time:
-- If `placement_mode.evaluate(time_ms) == Manual`, skip in layout computation
-- The child's `position` track continues to control its position
-- Transition is instantaneous at the keyframe boundary (consistent with current discrete interpolation)
+`Timeline::apply_container_layout()`:
 
-### Text/Math/Code size changes
+- reuses the already-registered real `ContainerMetadata`
+- reads only admitted children from `container_metadata.layout_children`
+- samples `layout_size_last()`
+- expects admitted children to have seeded layout size
+- writes baked authored positions for layout-managed children only
 
-Text content changes already produce `size` keyframes at build time via `declarations_text.rs`. When content changes, measured bounds are stored as `size` keyframes. With dynamic layout, these animated sizes naturally trigger reflow.
+### Dynamic layout
 
-### Container property animation
+`LayoutEngine::compute_layout_for_time()`:
 
-Phase 1-4 keeps `gap`, `align`, `cols` as static metadata. Future work can promote them to tracks or allow modifier overrides.
+- reads only admitted children from `container_metadata.layout_children`
+- samples `layout_size_get(time_ms)`
+- expects admitted children to have seeded layout size
+- returns computed positions for layout-managed children only
 
-### Performance
+### Container backends
 
-Per-frame layout is O(M) for M children. For initial implementation, recompute every frame without caching. The arithmetic is simple (addition, multiplication, max). Profile before adding caching complexity.
+- `Row`, `Col`, and `Grid` use the Taffy-backed layout adapter
+- `Stack` remains special-cased and places all admitted children at origin
 
-## Migration Path
+---
 
-| Phase | Action | Breaking? | Tests |
-|-------|--------|-----------|-------|
-| 1 | Extract pure layout functions | No | None changed |
-| 2 | Add ContainerMetadata population | No | None changed |
-| 3 | Add compute_layout_for_time() | No | None changed |
-| 4 | Integrate into scene_eval, add config | No | Rename frozen test, add dynamic test |
-| 5 | Make dynamic default | Yes | All layout tests updated |
+## Admission Rules
 
-## Files Modified
+At build time, each container validates its children.
 
-| File | Changes |
-|------|---------|
-| `mod.rs` | Add `LayoutType`, `ContainerMetadata`, `LayoutEngine`, `dynamic_layout` flag |
-| `layout.rs` | Refactor into pure functions; add `LayoutEngine::compute_layout_for_time()` |
-| `build.rs` | Populate `container_metadata`; parse `dynamic_layout` config |
-| `scene_eval.rs` | Add layout pass; use computed positions for LayoutManaged children |
-| `timeline_tests.rs` | Rename `test_row_layout_does_not_reflow...`, add dynamic tests |
+- If a child has seeded `layout_size`, it is admitted into `layout_children`
+- If a child does not have seeded `layout_size`, it is excluded from layout admission
+- If that excluded child was layout-managed, a `LayoutSizeFallback` warning is emitted
 
-## Relationship to Existing Design Documents
+Important: despite the diagnostic code name, layout no longer falls back to `[50, 50]` inside admitted layout computation. The warning now means **excluded from admission**, not **positioned with fallback size**.
 
-- **`layout_design.md`**: This document extends the shipped layout model. The core placement modes (LayoutManaged, Scene-relative, Manual) remain unchanged. Dynamic layout adds per-frame recomputation to LayoutManaged placement.
-- **`implementation_plan.md`**: Dynamic layout was previously listed under "Deferred Architectural Work" ("sampled relayout / animated-size-triggered container recomputation"). This design enables it as an active feature.
-- **`architecture_refactor_plan.md`**: The refactor to pure functions aligns with internal architecture cleanup goals.
+---
 
-## Risks and Mitigations
+## Dynamic Layout Scope
 
-| Risk | Mitigation |
-|------|------------|
-| Performance regression from per-frame layout | Start without caching; profile first |
-| Breaking existing scenes | Opt-in via `config { dynamic_layout: true }` |
-| Text size keyframes out of sync | Already handled by build-time measurement |
-| placement_mode interpolation edge cases | Discrete interpolation at t=0.5, consistent with current behavior |
-| Nested container complexity | DFS evaluation already handles nesting; layout runs before child transform |
+When `config { dynamic_layout: true }` is enabled:
+
+- admitted children are re-sampled from `layout_size` per frame
+- size animation can trigger recomputed layout positions
+- manual placement is still respected at output time
+
+What dynamic layout does **not** currently do:
+
+- it does not rebuild admission at frame time
+- it does not animate container metadata like `gap`, `align`, or `cols`
+- it does not replace scene traversal membership
+
+So current dynamic layout is:
+
+> dynamic resampling of a static admitted child set
+
+not a fully dynamic scene/layout graph.
+
+---
+
+## What Was Completed Across the Migration
+
+### Completed
+
+1. Added a dedicated `layout_size` path
+2. Mirrored layout-relevant builders and assignments into `layout_size`
+3. Switched layout to read `layout_size` instead of legacy `size`
+4. Added `layout_children` as the layout-authoritative child set
+5. Excluded unmeasured children from layout admission
+6. Removed layout-engine fallback sizing from admitted-child layout computation
+7. Validated both baked and dynamic layout paths end to end
+
+### Still Deferred
+
+1. richer `ContainerLayoutChild` entries than just labels
+2. reducing metadata duplication between `child_order` and `layout_children`
+3. typed builder outputs instead of mutation-first construction
+4. retiring legacy `size` from non-layout subsystems if desired later
+
+`child_order` is still intentionally retained today for authored/debug/test visibility, even though layout execution no longer consumes it.
+
+---
+
+## Relationship to Other Docs
+
+- `layout_design.md` describes the shipped author-facing model
+- this document focuses on runtime/build architecture and admission rules
+
+---
+
+## Main Remaining Risk Boundary
+
+The strongest invariant now is local to layout:
+
+> admitted layout children must have seeded `layout_size`
+
+The remaining architectural looseness is outside that boundary:
+
+- scene graph and layout graph are still separate data structures
+- builders still mutate tracks directly rather than returning typed build products
+- legacy `size` still coexists for compatibility
+
+Those are cleanup/future-architecture topics, not active correctness gaps in the current admitted-child layout path.

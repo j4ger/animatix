@@ -242,10 +242,18 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "tip_length" => {
                 let default_size = crate::timeline::track::DEFAULT_LAYOUT_HALF_SIZE;
@@ -263,12 +271,20 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 let mut target_size = track.size.get(t_end_ms, default_size);
                 target_size[0] = target_tip_length;
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "tip_width" => {
                 let default_size = crate::timeline::track::DEFAULT_LAYOUT_HALF_SIZE;
@@ -286,12 +302,20 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 let mut target_size = track.size.get(t_end_ms, default_size);
                 target_size[1] = target_tip_width;
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "url" => {
                 let target_url = evaluate_expr_with_lookup_diagnostic(
@@ -454,10 +478,18 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "radius_x" => {
                 let default_size = crate::timeline::track::DEFAULT_LAYOUT_HALF_SIZE;
@@ -477,10 +509,18 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "radius_y" => {
                 let default_size = crate::timeline::track::DEFAULT_LAYOUT_HALF_SIZE;
@@ -500,10 +540,18 @@ impl Timeline {
                         .size
                         .ensure(default_size)
                         .add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    let start_layout_val = track.layout_size_get(t_start_ms).unwrap_or(default_size);
+                    track
+                        .ensure_layout_size(default_size)
+                        .add_keyframe(t_start_ms, start_layout_val, Easing::Linear);
                 } else if instant_delayed {
                     preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                    track
+                        .layout_size
+                        .preserve_instant_delayed_value(default_size, t_start_ms);
                 }
                 track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+                track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
             }
             "start_angle" => {
                 let default_arc = [0.0, std::f32::consts::PI];

@@ -120,13 +120,44 @@ pub enum LayoutType {
     Stack,
 }
 
+impl LayoutType {
+    pub fn from_container_ty(container_ty: &str) -> Self {
+        match container_ty {
+            "Row" => Self::Row,
+            "Col" => Self::Col,
+            "Grid" => Self::Grid,
+            "Stack" => Self::Stack,
+            _ => Self::Row,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContainerLayoutChild {
+    /// Layout-admitted child label.
+    ///
+    /// This is a validated subset of scene-graph children used only for layout
+    /// membership/order. Children excluded here still remain in `track.children`
+    /// for scene traversal/rendering.
+    pub label: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct ContainerMetadata {
     pub layout_type: LayoutType,
     pub gap: f32,
     pub align: String,
     pub cols: Option<usize>,
+    /// Raw authored child order snapshot for this container.
+    ///
+    /// This is retained for debugging/tests and for preserving the distinction
+    /// between authored scene-graph membership and admitted layout membership.
     pub child_order: Vec<String>,
+    /// Layout-admitted subset in authored order.
+    ///
+    /// Layout computation uses this field, while scene traversal/rendering still
+    /// uses `track.children`.
+    pub layout_children: Vec<ContainerLayoutChild>,
 }
 
 #[derive(Clone, Debug, Default)]

@@ -8,6 +8,18 @@ use std::collections::BTreeMap;
 
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
 
+#[derive(Clone)]
+pub enum LayoutSizeState {
+    Unseeded,
+    Seeded(PropertyTrack<[f32; 2]>),
+}
+
+impl Default for LayoutSizeState {
+    fn default() -> Self {
+        Self::Unseeded
+    }
+}
+
 /// Extension trait for lazy property track access
 pub trait TrackAccessor<T: Interpolate + Clone> {
     /// Get the track's value at time_ms, falling back to default if track doesn't exist
@@ -335,12 +347,17 @@ pub struct AnimationTrack {
     pub scale: Option<PropertyTrack<f32>>,
     pub placement_mode: Option<PropertyTrack<PlacementMode>>,
     pub position_binding: Option<PropertyTrack<PositionBinding>>,
-    /// Local, unrotated layout half-extents consumed by layout containers.
+    /// Legacy/general geometric half-extents used by rendering/runtime paths.
     ///
-    /// Shape primitives usually write authored geometry here, while text-like
-    /// and media primitives write measured or intrinsic bounds. Containers
-    /// double this value when computing placement extents.
+    /// This remains populated for compatibility and non-layout consumers, but
+    /// container layout no longer reads this field directly.
     pub size: Option<PropertyTrack<[f32; 2]>>,
+    /// Dedicated layout half-extents consumed by container layout.
+    ///
+    /// This is the authoritative layout measurement source for admitted layout
+    /// children. The legacy `size` track remains alongside it for rendering and
+    /// runtime compatibility.
+    pub layout_size: LayoutSizeState,
     pub line_from: Option<PropertyTrack<[f32; 2]>>,
     pub line_to: Option<PropertyTrack<[f32; 2]>>,
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
@@ -376,6 +393,7 @@ impl AnimationTrack {
             placement_mode: None,
             position_binding: None,
             size: None,
+            layout_size: LayoutSizeState::Unseeded,
             line_from: None,
             line_to: None,
             arc_angles: None,
@@ -449,6 +467,7 @@ impl AnimationTrack {
             self.placement_mode.last_time(),
             self.position_binding.last_time(),
             self.size.last_time(),
+            self.layout_size.last_time(),
             self.line_from.last_time(),
             self.line_to.last_time(),
             self.arc_angles.last_time(),
@@ -466,6 +485,78 @@ impl AnimationTrack {
             self.points.last_time(),
         ];
         times.into_iter().flatten().max()
+    }
+
+    pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
+        self.layout_size.get(time_ms)
+    }
+
+    pub fn layout_size_last(&self) -> Option<[f32; 2]> {
+        self.layout_size.last()
+    }
+
+    pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
+        self.layout_size.ensure(default)
+    }
+
+    pub fn has_layout_size(&self) -> bool {
+        self.layout_size.is_seeded()
+    }
+}
+
+impl LayoutSizeState {
+    pub fn get(&self, time_ms: u64) -> Option<[f32; 2]> {
+        match self {
+            Self::Unseeded => None,
+            Self::Seeded(track) => Some(track.evaluate(time_ms)),
+        }
+    }
+
+    pub fn last(&self) -> Option<[f32; 2]> {
+        match self {
+            Self::Unseeded => None,
+            Self::Seeded(track) => Some(track.last_value()),
+        }
+    }
+
+    pub fn last_time(&self) -> Option<u64> {
+        match self {
+            Self::Unseeded => None,
+            Self::Seeded(track) => track.last_keyframe_time(),
+        }
+    }
+
+    pub fn ensure(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
+        match self {
+            Self::Unseeded => {
+                *self = Self::Seeded(PropertyTrack::new(default));
+                match self {
+                    Self::Seeded(track) => track,
+                    Self::Unseeded => unreachable!(),
+                }
+            }
+            Self::Seeded(track) => track,
+        }
+    }
+
+    pub fn is_seeded(&self) -> bool {
+        matches!(self, Self::Seeded(_))
+    }
+
+    pub fn preserve_instant_delayed_value(&mut self, default: [f32; 2], t_start_ms: u64) {
+        if t_start_ms == 0 {
+            return;
+        }
+
+        let previous_time = t_start_ms.saturating_sub(1);
+        let inner = self.ensure(default);
+
+        if inner.keyframes.contains_key(&previous_time) {
+            return;
+        }
+
+        let previous_value = inner.evaluate(previous_time);
+        inner.add_keyframe(previous_time, previous_value, Easing::Linear);
     }
 }
 

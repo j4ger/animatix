@@ -346,7 +346,6 @@ impl Timeline {
             let child_layout_positions = if self.dynamic_layout {
                 if let Some(metadata) = self.container_metadata.get(node_label) {
                     self.layout_engine.compute_layout_for_time(
-                        node_label,
                         metadata,
                         time_ms,
                         &self.tracks,

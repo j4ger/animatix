@@ -1,30 +1,30 @@
 # Animatix Layout Design
 
-This document defines the current layout model: layout-first as the default authoring model, absolute positioning as a first-class explicit escape hatch, and a narrow declaration-time measure/place contract.
+This document describes the current shipped layout model.
 
-Animatix should become easier for both humans and AI to author by default, without losing the ability to build hand-placed motion graphics.
+Animatix uses a parent-driven layout system with an explicit manual-placement escape hatch. Layout is intentionally narrower than full CSS or constraint-based UI layout.
 
 ---
 
 ## 1. Core Model
 
-Animatix layout should follow a parent-driven model:
-
 - containers decide child placement when layout semantics are active
-- children report size and layout-relevant properties
-- manual placement is opt-in, not inferred from magic values
+- children participate in layout only if they have an admitted `layout_size`
+- manual placement is explicit, not inferred from sentinel values
+- scene-graph membership and layout membership are related but not identical
 
-This means placement should no longer depend on sentinel behavior like `(0, 0)` meaning "unset".
+The key current distinction is:
+
+- `track.children` = scene traversal / rendering graph
+- `container_metadata.layout_children` = admitted subset used for layout computation
 
 ---
 
 ## 2. Placement Modes
 
-Every actor or child should conceptually be in one of these placement modes:
-
 ### A. Layout-managed
 
-The parent container owns placement.
+The parent container owns authored placement.
 
 ```animatix
 row: Row {
@@ -50,59 +50,43 @@ The actor opts into direct authored placement.
 badge: Circle, radius: 18, at: (1180, 80)
 ```
 
+Manual children remain in the scene graph, but layout output only assigns positions to layout-managed children.
+
 ---
 
-## 3. Recommended Syntax Direction
+## 3. Layout Measurement Contract
 
-### Keep valid today
-```animatix
-orb: Circle, radius: 40, at: (240, 360)
+Container layout consumes a dedicated `layout_size` track.
 
-row: Row, at: (640, 360), gap: 20 {
-  a: Circle, radius: 20
-  b: Circle, radius: 20
-}
-```
+- shapes usually seed it from authored geometry
+- text / math / code seed it from measured glyph bounds
+- image seeds it from authored or intrinsic image size
+- svg seeds it from measured SVG bounds when available
 
-### Preferred current patterns
-```animatix
-row: Row, gap: 20 {
-  a: Circle, radius: 20
-  b: Circle, radius: 20
-}
+Legacy `size` still exists for rendering/runtime compatibility, but layout no longer reads it directly.
 
-stack: Stack {
-  bg: Rect, size: (280, 120)
-  badge: Circle, radius: 22
-}
-
-title: Text, anchor: scene.top, offset: (0, 80)
-```
-
-### Defer
-- full general-purpose constraints
-- multi-pass dependency-based alignment systems
-- implicit "smart" reflow with unclear precedence
+Children without seeded `layout_size` are excluded from layout admission. A build warning is emitted for layout-managed children excluded this way.
 
 ---
 
 ## 4. Shipped Layout Surface
 
 ### Row / Col
-- children are either layout-managed or manual
-- `(0, 0)` sentinel behavior is removed
-- containers can omit explicit `at` — defaults to `scene.center`
-
-### Stack
-- default overlapping container
-- children share the same container placement origin
-- later children render on top of earlier children
-- use cases: badges, labels over shapes, foreground/background composition
+- Taffy-backed linear layout
+- deterministic authored-order placement
+- `gap` and cross-axis `align` supported
+- containers can omit explicit `at` and default to `scene.center`
 
 ### Grid
-- default structured 2D layout container
-- predictable row/column placement with `gap` support
-- explicit column count, deterministic ordering from declaration order
+- Taffy-backed grid placement
+- deterministic ordering from declaration order
+- explicit `cols`
+- `gap` supported
+
+### Stack
+- special-cased, not Taffy-backed
+- all admitted children share the same origin
+- use cases: overlays, badges, foreground/background composition
 
 ### Scene-relative placement
 - scene anchors: center, top, bottom, left, right, corners
@@ -111,10 +95,40 @@ title: Text, anchor: scene.top, offset: (0, 80)
 
 ---
 
-## 5. Non-Goals
+## 5. Admission and Membership
 
-The current layout model should **not** try to solve:
+At build time, containers snapshot two child lists:
+
+- `child_order`: raw authored child order
+- `layout_children`: admitted subset with seeded `layout_size`
+
+Layout computation uses only `layout_children`.
+
+This means:
+
+- a child may exist and render in the scene graph but not participate in layout
+- missing layout measurement is surfaced as a diagnostic, not silently replaced in layout computation
+
+---
+
+## 6. Dynamic Layout
+
+When `config { dynamic_layout: true }` is enabled:
+
+- admitted children are resampled from `layout_size` at frame time
+- layout-managed children receive recomputed positions
+- manual children are still excluded from authored position assignment
+
+Current dynamic layout still uses static admitted membership from container metadata; it does not re-admit children at frame time.
+
+---
+
+## 7. Non-Goals
+
+The current layout model does **not** try to solve:
+
 - full constraint solving
 - automatic collision avoidance
 - responsive reflow across arbitrary breakpoints
-- per-frame relayout from animated content, scale, or visibility changes
+- container-property animation (`gap`, `align`, `cols` remain static metadata)
+- scene-graph membership changes driven by frame-time layout admission

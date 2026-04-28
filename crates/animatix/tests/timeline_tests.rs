@@ -5,7 +5,8 @@ use animatix::module::ModuleGraph;
 use animatix::parser::parser;
 use animatix::renderer::text::TextPath;
 use animatix::timeline::{
-    evaluate_expr, parse_color, time_to_ms, AnimationTrack, Interpolate, LayoutType,
+    evaluate_expr, parse_color, time_to_ms, AnimationTrack, ContainerLayoutChild, ContainerMetadata,
+    DEFAULT_LAYOUT_HALF_SIZE, Interpolate, LayoutType,
     MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, ShapeType, Timeline,
     TrackAccessor,
 };
@@ -2056,6 +2057,95 @@ fn test_manual_missing_image_does_not_report_layout_size_fallback() {
         diagnostic.code == DiagnosticCode::LayoutSizeFallback
             && diagnostic.location.subject.as_deref() == Some("broken")
     }));
+}
+
+#[test]
+fn test_layout_uses_dedicated_layout_size_not_legacy_size() {
+    let mut timeline = Timeline::new();
+
+    let mut container = AnimationTrack::new("row".to_string());
+    container.children = vec!["left".to_string(), "right".to_string()];
+    timeline.tracks.insert("row".to_string(), container);
+
+    let mut left = AnimationTrack::new("left".to_string());
+    left.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(0, [5.0, 5.0], Easing::Linear);
+    left.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(0, [20.0, 10.0], Easing::Linear);
+    timeline.tracks.insert("left".to_string(), left);
+
+    let mut right = AnimationTrack::new("right".to_string());
+    right.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(0, [5.0, 5.0], Easing::Linear);
+    right
+        .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(0, [20.0, 10.0], Easing::Linear);
+    timeline.tracks.insert("right".to_string(), right);
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: 0.0,
+        align: "center".to_string(),
+        cols: None,
+        child_order: vec!["left".to_string(), "right".to_string()],
+        layout_children: vec![
+            ContainerLayoutChild {
+                label: "left".to_string(),
+            },
+            ContainerLayoutChild {
+                label: "right".to_string(),
+            },
+        ],
+    };
+
+    let computed = timeline
+        .layout_engine
+        .compute_layout_for_time(&metadata, 0, &timeline.tracks);
+
+    assert_eq!(computed.get("left"), Some(&[-20.0, 0.0]));
+    assert_eq!(computed.get("right"), Some(&[20.0, 0.0]));
+}
+
+#[test]
+fn test_layout_size_fallback_uses_unseeded_layout_size_even_if_legacy_size_exists() {
+    let mut timeline = Timeline::new();
+
+    let mut container = AnimationTrack::new("row".to_string());
+    container.children = vec!["fallback_child".to_string(), "measured_child".to_string()];
+    timeline.tracks.insert("row".to_string(), container);
+
+    let mut fallback_child = AnimationTrack::new("fallback_child".to_string());
+    fallback_child
+        .size
+        .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(0, [12.0, 8.0], Easing::Linear);
+    timeline
+        .tracks
+        .insert("fallback_child".to_string(), fallback_child);
+
+    let mut measured_child = AnimationTrack::new("measured_child".to_string());
+    measured_child
+        .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(0, [10.0, 10.0], Easing::Linear);
+    timeline
+        .tracks
+        .insert("measured_child".to_string(), measured_child);
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: 0.0,
+        align: "center".to_string(),
+        cols: None,
+        child_order: vec!["fallback_child".to_string(), "measured_child".to_string()],
+        layout_children: vec![ContainerLayoutChild {
+            label: "measured_child".to_string(),
+        }],
+    };
+
+    let computed = timeline
+        .layout_engine
+        .compute_layout_for_time(&metadata, 0, &timeline.tracks);
+
+    assert_eq!(computed.get("fallback_child"), None);
+    assert_eq!(computed.get("measured_child"), Some(&[0.0, 0.0]));
 }
 
 #[test]
@@ -4489,7 +4579,7 @@ right.size = (80, 20) [1s]
     // left position = -40 + 10 = -30, right position = -40 + 20 + 20 + 20 = 20
     let positions_0 = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     assert_eq!(positions_0.get("left").copied().unwrap(), [-30.0, 0.0]);
     assert_eq!(positions_0.get("right").copied().unwrap(), [20.0, 0.0]);
@@ -4499,7 +4589,7 @@ right.size = (80, 20) [1s]
     // left position = -60 + 10 = -50, right position = -60 + 20 + 20 + 40 = 20
     let positions_2s = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
 
     // Left should have shifted left because the row got wider
     assert_eq!(positions_2s.get("left").copied().unwrap(), [-50.0, 0.0]);
@@ -4528,7 +4618,7 @@ row: Row, gap: 20 {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // left is LayoutManaged, so it should be in the result
     assert!(positions.contains_key("left"));
@@ -5484,7 +5574,7 @@ fn test_manual_children_do_not_affect_layout_spacing() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // Manual child still contributes spacing. With a 30px manual circle, 20px gap,
     // and a 20px auto circle: total = 30 + 20 + 20 = 70, start = -35,
@@ -5584,10 +5674,10 @@ fn test_row_col_parity_horizontal_vertical_distribution() {
 
     let row_positions = row_timeline
         .layout_engine
-        .compute_layout_for_time("row", row_metadata, 0, &row_timeline.tracks);
+        .compute_layout_for_time(row_metadata, 0, &row_timeline.tracks);
     let col_positions = col_timeline
         .layout_engine
-        .compute_layout_for_time("col", col_metadata, 0, &col_timeline.tracks);
+        .compute_layout_for_time(col_metadata, 0, &col_timeline.tracks);
 
     // Row: total width = 20 + 10 + 30 = 60, start = -30
     // a at -30 + 10 = -20, b at -30 + 20 + 10 + 15 = 15
@@ -5622,7 +5712,7 @@ fn test_grid_parity_with_row_col_extent_computation() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("grid", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // Col 0: max width = max(30, 20) = 50, positions should center in 50-wide cell
     // Col 1: max width = 50
@@ -5679,7 +5769,7 @@ fn test_dynamic_layout_recomputes_on_size_change() {
     // left at -52 + 12 = -40, right at -52 + 24 + 20 + 30 = 22
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert_eq!(pos_0.get("left").copied().unwrap(), [-40.0, 0.0]);
     assert_eq!(pos_0.get("right").copied().unwrap(), [22.0, 0.0]);
 
@@ -5688,14 +5778,14 @@ fn test_dynamic_layout_recomputes_on_size_change() {
     // left at -72 + 12 = -60, right at -72 + 24 + 20 + 50 = 22
     let pos_3s = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 3000, &timeline.tracks);
+        .compute_layout_for_time(metadata, 3000, &timeline.tracks);
     assert_eq!(pos_3s.get("left").copied().unwrap(), [-60.0, 0.0]);
     // right center stays at 22 (same absolute position because left shifted)
     assert_eq!(pos_3s.get("right").copied().unwrap(), [22.0, 0.0]);
 }
 
-/// Verifies that dynamic layout follows the built timeline child set rather than
-/// mutating container membership over time.
+/// Verifies that dynamic layout uses the admitted child set, but samples sizes
+/// from that set at the queried time.
 #[test]
 fn test_dynamic_layout_recomputes_on_child_addition() {
     let ast = parse_program(
@@ -5720,20 +5810,90 @@ fn test_dynamic_layout_recomputes_on_child_addition() {
         .get("row")
         .expect("row should have metadata");
 
-    // The timeline model retains both declared children in container metadata/tracks.
-    // Layout therefore reflects both children even at the initial sample time.
+    // The admitted child set is built from the final validated metadata, so both
+    // children participate in dynamic layout sampling once admitted.
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert_eq!(pos_0.get("a").copied().unwrap(), [-27.5, 0.0]);
     assert_eq!(pos_0.get("b").copied().unwrap(), [17.5, 0.0]);
 
     // At t=1s+, positions remain consistent with the same child set.
     let pos_1s = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 1000, &timeline.tracks);
+        .compute_layout_for_time(metadata, 1000, &timeline.tracks);
     assert_eq!(pos_1s.get("a").copied().unwrap(), [-27.5, 0.0]);
     assert_eq!(pos_1s.get("b").copied().unwrap(), [17.5, 0.0]);
+}
+
+#[test]
+fn test_dynamic_layout_excludes_unadmitted_children_at_all_times() {
+    let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
+    let ast = parse_program(&format!(
+        r#"
+        config {{ dynamic_layout: true }}
+        icon_row: Row, gap: 20 {{
+            icon1: Svg {{ url: "{}" }}
+            icon2: Svg {{ url: "{}" }}
+        }}
+        "#,
+        svg_path, svg_path
+    ));
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let metadata = timeline
+        .container_metadata
+        .get("icon_row")
+        .expect("icon_row should have metadata");
+
+    assert!(metadata.layout_children.is_empty());
+
+    for time_ms in [0_u64, 500, 1000, 2000] {
+        let positions = timeline
+            .layout_engine
+            .compute_layout_for_time(metadata, time_ms, &timeline.tracks);
+        assert!(!positions.contains_key("icon1"));
+        assert!(!positions.contains_key("icon2"));
+    }
+}
+
+#[test]
+fn test_dynamic_layout_uses_layout_size_for_radius_y_assignment() {
+    let ast = parse_program(
+        r#"
+        config { dynamic_layout: true }
+
+        row: Row, gap: 20 {
+          left: Rect, size: (40, 40)
+          right: Ellipse, radius_x: 10, radius_y: 10
+        }
+
+        #1s
+        right.radius_y = 40 [1s]
+        "#,
+    );
+
+    let timeline = Timeline::build(&ast);
+    let metadata = timeline
+        .container_metadata
+        .get("row")
+        .expect("row should have metadata");
+
+    let pos_0 = timeline
+        .layout_engine
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+    let pos_2s = timeline
+        .layout_engine
+        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
+
+    assert_eq!(pos_0.get("left").copied().unwrap(), [-20.0, 0.0]);
+    assert_eq!(pos_0.get("right").copied().unwrap(), [30.0, 0.0]);
+
+    // Y-size changes should not affect row main-axis placement, but the mirrored
+    // layout_size track must remain seeded so dynamic layout continues to succeed.
+    assert_eq!(pos_2s.get("left").copied().unwrap(), [-20.0, 0.0]);
+    assert_eq!(pos_2s.get("right").copied().unwrap(), [30.0, 0.0]);
 }
 
 /// Verifies Stack unchanged semantics: Stack positions all children at origin (0,0)
@@ -5759,7 +5919,7 @@ fn test_stack_overlaps_all_children_at_origin() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("stack", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // Stack places ALL children at origin regardless of their sizes
     assert_eq!(positions.get("base").copied().unwrap(), [0.0, 0.0]);
@@ -5793,10 +5953,10 @@ fn test_stack_does_not_reflow_on_size_change() {
     // Stack should always place 'growing' at origin regardless of size
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time("stack", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     let pos_2s = timeline
         .layout_engine
-        .compute_layout_for_time("stack", metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
 
     // Both times, growing should be at origin
     assert_eq!(pos_0.get("growing").copied().unwrap(), [0.0, 0.0]);
@@ -5823,7 +5983,7 @@ fn test_stack_ignores_manual_placement_all_children_at_origin() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("stack", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // Stack only includes LayoutManaged children in positions
     // 'manual' is Manual, so only 'auto' should be in positions
@@ -5896,7 +6056,7 @@ fn test_text_in_row_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("label_row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert!(positions.contains_key("title"), "title should have layout position");
     assert!(positions.contains_key("subtitle"), "subtitle should have layout position");
 
@@ -5945,7 +6105,7 @@ fn test_math_in_col_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("formula_col", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert!(positions.contains_key("eq1"), "eq1 should have layout position");
     assert!(positions.contains_key("eq2"), "eq2 should have layout position");
 
@@ -5992,7 +6152,7 @@ fn test_code_in_grid_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("snippet_grid", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert!(positions.contains_key("fn_a"));
     assert!(positions.contains_key("fn_b"));
     assert!(positions.contains_key("fn_c"));
@@ -6010,8 +6170,9 @@ fn test_code_in_grid_is_layout_managed() {
 /// Verifies Svg can be layout-managed inside a Row with anchor and exposes sane size.
 ///
 /// NOTE: SVG inside layout containers without explicit `at` does NOT report intrinsic
-/// size - the size track remains at default [0,0]. This is a known limitation:
-/// SVG size measurement requires an explicit `at` position outside of layout containers.
+/// size - the size track remains at default [0,0]. With the strict layout admission
+/// policy, SVGs without seeded layout_size are EXCLUDED from layout positioning.
+/// A warning is emitted but they are not given layout positions.
 #[test]
 fn test_svg_in_row_is_layout_managed() {
     let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
@@ -6025,7 +6186,8 @@ fn test_svg_in_row_is_layout_managed() {
         svg_path, svg_path
     ));
 
-    let timeline = Timeline::build(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
     let metadata = timeline
         .container_metadata
         .get("icon_row")
@@ -6048,17 +6210,25 @@ fn test_svg_in_row_is_layout_managed() {
     let icon1_size = icon1_track.size.evaluate(0);
     assert_eq!(icon1_size, [0.0, 0.0], "SVG in layout has no intrinsic size");
 
-    // Verify layout computes positions
+    // SVGs without seeded layout_size should be excluded from layout_children
+    // and a LayoutSizeFallback warning should be emitted
+    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon1"));
+    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon2"));
+    assert!(report.diagnostics.iter().any(|d| {
+        d.code == DiagnosticCode::LayoutSizeFallback
+            && d.location.subject.as_deref() == Some("icon1")
+    }));
+    assert!(report.diagnostics.iter().any(|d| {
+        d.code == DiagnosticCode::LayoutSizeFallback
+            && d.location.subject.as_deref() == Some("icon2")
+    }));
+
+    // Verify layout computes positions - but SVGs are excluded so no positions for them
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("icon_row", metadata, 0, &timeline.tracks);
-    assert!(positions.contains_key("icon1"));
-    assert!(positions.contains_key("icon2"));
-
-    // Verify distinct horizontal positions
-    let pos1 = positions.get("icon1").copied().unwrap();
-    let pos2 = positions.get("icon2").copied().unwrap();
-    assert_ne!(pos1[0], pos2[0], "icons should have distinct X positions");
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+    assert!(!positions.contains_key("icon1"), "SVG without layout_size should be excluded");
+    assert!(!positions.contains_key("icon2"), "SVG without layout_size should be excluded");
 }
 
 /// Verifies Image can be layout-managed inside a Col and preserves declared size.
@@ -6102,7 +6272,7 @@ fn test_image_in_col_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("photo_col", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert!(positions.contains_key("photo1"));
     assert!(positions.contains_key("photo2"));
 
@@ -6261,7 +6431,7 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("graph_grid", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     assert!(positions.contains_key("plot_a"));
     assert!(positions.contains_key("plot_b"));
 
@@ -6309,7 +6479,7 @@ fn test_circle_in_row_is_layout_managed() {
     // Verify layout positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("dot_row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     let red_pos = positions.get("red_dot").copied().unwrap();
     let blue_pos = positions.get("blue_dot").copied().unwrap();
     assert_ne!(red_pos[0], blue_pos[0], "dots should have distinct X positions");
@@ -6352,7 +6522,7 @@ fn test_rect_in_col_is_layout_managed() {
     // Verify layout positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("box_col", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     let small_pos = positions.get("small_box").copied().unwrap();
     let tall_pos = positions.get("tall_box").copied().unwrap();
     assert_ne!(small_pos[1], tall_pos[1], "boxes should have distinct Y positions");
@@ -6363,6 +6533,9 @@ fn test_rect_in_col_is_layout_managed() {
 // =============================================================================
 
 /// Verifies Stack places all actor kinds at origin regardless of their sizes.
+///
+/// NOTE: With strict layout admission, children without seeded layout_size
+/// (like SVG without explicit at) are excluded from layout positioning.
 #[test]
 fn test_stack_places_all_actor_kinds_at_origin() {
     let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
@@ -6378,7 +6551,8 @@ fn test_stack_places_all_actor_kinds_at_origin() {
         svg_path
     ));
 
-    let timeline = Timeline::build(&ast);
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
     let metadata = timeline
         .container_metadata
         .get("mixed_stack")
@@ -6386,13 +6560,21 @@ fn test_stack_places_all_actor_kinds_at_origin() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("mixed_stack", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
-    // ALL children should be at origin (0, 0) - Stack semantics
+    // Children with seeded layout_size should be at origin (Stack semantics)
+    // SVG without layout_size is excluded from layout_children
     assert_eq!(positions.get("label").copied().unwrap(), [0.0, 0.0]);
-    assert_eq!(positions.get("icon").copied().unwrap(), [0.0, 0.0]);
+    assert!(!positions.contains_key("icon"), "SVG without layout_size should be excluded");
     assert_eq!(positions.get("badge").copied().unwrap(), [0.0, 0.0]);
     assert_eq!(positions.get("box").copied().unwrap(), [0.0, 0.0]);
+
+    // Verify SVG was excluded and warning was emitted
+    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon"));
+    assert!(report.diagnostics.iter().any(|d| {
+        d.code == DiagnosticCode::LayoutSizeFallback
+            && d.location.subject.as_deref() == Some("icon")
+    }));
 }
 
 /// Verifies Stack does not reflow when mixed actor kind children change size.
@@ -6422,10 +6604,10 @@ fn test_stack_does_not_reflow_mixed_actor_kinds() {
     // Both at t=0 and t=2s should be at origin
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time("mixed_stack", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
     let pos_2s = timeline
         .layout_engine
-        .compute_layout_for_time("mixed_stack", metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
 
     assert_eq!(pos_0.get("growing_text").copied().unwrap(), [0.0, 0.0]);
     assert_eq!(pos_0.get("growing_shape").copied().unwrap(), [0.0, 0.0]);
@@ -6460,7 +6642,7 @@ fn test_layout_engine_excludes_manual_children() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time("row", metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, 0, &timeline.tracks);
 
     // Only layout-managed children should appear
     assert!(positions.contains_key("l1"));
@@ -6527,10 +6709,10 @@ fn test_row_center_align_same_semantics_as_col_center() {
 
     let row_positions = row_timeline
         .layout_engine
-        .compute_layout_for_time("row", row_metadata, 0, &row_timeline.tracks);
+        .compute_layout_for_time(row_metadata, 0, &row_timeline.tracks);
     let col_positions = col_timeline
         .layout_engine
-        .compute_layout_for_time("col", col_metadata, 0, &col_timeline.tracks);
+        .compute_layout_for_time(col_metadata, 0, &col_timeline.tracks);
 
     // Center alignment affects only the cross axis. Main-axis positions still differ.
     assert_eq!(row_positions.get("tall").copied().unwrap(), [-25.0, 0.0]);

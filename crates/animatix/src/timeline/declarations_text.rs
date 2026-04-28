@@ -283,13 +283,20 @@ impl Timeline {
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
             let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let start_layout_size = track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
             track
                 .size
                 .ensure(DEFAULT_LAYOUT_HALF_SIZE)
                 .add_keyframe(t_start_ms, start_size, Easing::Linear);
+            track
+                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
+                .add_keyframe(t_start_ms, start_layout_size, Easing::Linear);
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut track.size, t_start_ms);
+            track
+                .layout_size
+                .preserve_instant_delayed_value(DEFAULT_LAYOUT_HALF_SIZE, t_start_ms);
         }
         if supports_morph_options {
             track
@@ -299,6 +306,7 @@ impl Timeline {
         }
         track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     }
 
     pub(super) fn process_text_actor_decl(

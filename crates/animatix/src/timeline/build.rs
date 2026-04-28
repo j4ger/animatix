@@ -13,6 +13,38 @@ use crate::timeline::vello_path::VelloPath;
 // === Build Entry Points ===
 
 impl Timeline {
+    fn register_container_metadata_and_apply_layout(
+        &mut self,
+        label: &str,
+        container_ty: &str,
+        time_ms: u64,
+        gap: f32,
+        align: Option<&str>,
+        cols: Option<usize>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let child_order = self
+            .tracks
+            .get(label)
+            .map(|t| t.children.clone())
+            .unwrap_or_default();
+        let layout_children = self.build_layout_children(label, container_ty, &child_order, diagnostics);
+
+        self.container_metadata.insert(
+            label.to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::from_container_ty(container_ty),
+                gap,
+                align: align.unwrap_or("center").to_string(),
+                cols,
+                child_order,
+                layout_children,
+            },
+        );
+
+        self.apply_container_layout(label, time_ms as f64, diagnostics);
+    }
+
     pub fn build(ast: &[Stmt]) -> Self {
         Self::build_with_diagnostics(ast, &std::collections::HashMap::new()).output
     }
@@ -968,6 +1000,9 @@ impl Timeline {
                     .ensure(default_size)
                     .add_keyframe(t_start_ms, start_size, Easing::Linear);
                 track
+                    .ensure_layout_size(default_size)
+                    .add_keyframe(t_start_ms, start_size, Easing::Linear);
+                track
                     .line_from
                     .ensure([-50.0, 0.0])
                     .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
@@ -1015,6 +1050,9 @@ impl Timeline {
                 preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
                 preserve_instant_delayed_value(&mut track.position, t_start_ms);
                 preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                track
+                    .layout_size
+                    .preserve_instant_delayed_value(default_size, t_start_ms);
                 preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
                 preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
                 preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
@@ -1033,6 +1071,7 @@ impl Timeline {
                 .add_keyframe(t_end_ms, vello_paths, easing);
             track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
             track.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
+            track.ensure_layout_size(default_size).add_keyframe(t_end_ms, size, easing);
             track.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
             track.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
             track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
@@ -1059,33 +1098,10 @@ impl Timeline {
             // === Container Layout ===
             let primitive = PrimitiveDescriptor::for_actor_type(ty);
             if primitive.is_layout_container() {
-                let layout_type = match ty {
-                    "Row" => LayoutType::Row,
-                    "Col" => LayoutType::Col,
-                    "Grid" => LayoutType::Grid,
-                    "Stack" => LayoutType::Stack,
-                    _ => LayoutType::Row,
-                };
-
-                let child_order = self.tracks.get(label)
-                    .map(|t| t.children.clone())
-                    .unwrap_or_default();
-
-                self.container_metadata.insert(
-                    label.to_string(),
-                    ContainerMetadata {
-                        layout_type,
-                        gap: 0.0,
-                        align: "center".to_string(),
-                        cols: None,
-                        child_order,
-                    },
-                );
-
-                self.apply_container_layout(
+                self.register_container_metadata_and_apply_layout(
                     label,
                     ty,
-                    t_start_ms as f64,
+                    t_start_ms,
                     0.0,
                     Some("center"),
                     None,
@@ -1865,6 +1881,9 @@ impl Timeline {
                             .ensure(default_size)
                             .add_keyframe(t_start_ms, start_size, Easing::Linear);
                         track
+                            .ensure_layout_size(default_size)
+                            .add_keyframe(t_start_ms, start_size, Easing::Linear);
+                        track
                             .line_from
                             .ensure([-50.0, 0.0])
                             .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
@@ -1912,6 +1931,9 @@ impl Timeline {
                         preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
                         preserve_instant_delayed_value(&mut track.position, t_start_ms);
                         preserve_instant_delayed_value(&mut track.size, t_start_ms);
+                        track
+                            .layout_size
+                            .preserve_instant_delayed_value(default_size, t_start_ms);
                         preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
                         preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
                         preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
@@ -1936,6 +1958,7 @@ impl Timeline {
                         .add_keyframe(t_end_ms, vello_paths, easing);
                     track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
                     track.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
+                    track.ensure_layout_size(default_size).add_keyframe(t_end_ms, size, easing);
                     track.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
                     track.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
                     track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
@@ -1962,33 +1985,10 @@ impl Timeline {
                     // === Container Layout ===
 
                     if primitive.is_layout_container() {
-                        let layout_type = match ty.as_str() {
-                            "Row" => LayoutType::Row,
-                            "Col" => LayoutType::Col,
-                            "Grid" => LayoutType::Grid,
-                            "Stack" => LayoutType::Stack,
-                            _ => LayoutType::Row,
-                        };
-
-                        let child_order = self.tracks.get(label)
-                            .map(|t| t.children.clone())
-                            .unwrap_or_default();
-
-                        self.container_metadata.insert(
-                            label.to_string(),
-                            ContainerMetadata {
-                                layout_type,
-                                gap,
-                                align: align.clone().unwrap_or_else(|| "center".to_string()),
-                                cols,
-                                child_order,
-                            },
-                        );
-
-                        self.apply_container_layout(
+                        self.register_container_metadata_and_apply_layout(
                             label,
                             ty,
-                            t_start_ms as f64,
+                            t_start_ms,
                             gap,
                             align.as_deref(),
                             cols,
