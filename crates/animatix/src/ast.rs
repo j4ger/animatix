@@ -15,6 +15,13 @@ pub struct Span {
     pub end_col: usize,
 }
 
+/// Byte-offset range into source text. Used for surgical source edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct ByteSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
 impl Span {
     pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Self {
         Self {
@@ -107,6 +114,20 @@ pub enum UnaryOp {
 pub struct Property {
     pub name: String,
     pub value: Expr,
+    /// Byte-offset span of the value expression within the source text.
+    /// Used for surgical source edits (writing back to .amx file).
+    #[doc(hidden)]
+    pub value_span: Option<ByteSpan>,
+}
+
+impl Default for Property {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            value: Expr::Null,
+            value_span: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -295,6 +316,10 @@ pub enum Stmt {
         property: String,
         value: Expr,
         modifiers: Vec<Modifier>,
+        /// Byte-offset span of the value expression within the source text.
+        /// Used for surgical source edits (writing back to .amx file).
+        #[doc(hidden)]
+        value_span: Option<ByteSpan>,
     },
 
     /// Composition helper: sequence { ... }

@@ -5,7 +5,7 @@ mod preview;
 mod runtime;
 pub(crate) mod transport_bar;
 mod widgets;
-mod workspace;
+pub(crate) mod workspace;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::hot_reload::{HotReloader, ReloadStatus};
@@ -710,10 +710,11 @@ impl GuiShell {
 
     /// Handle a property edit from the inspector panel.
     ///
-    /// For now, this stores the edit visually and triggers a preview repaint.
-    /// Actual source modification (writing back to .amx) is a follow-up task.
+    /// Updates the in-memory timeline and persists the change back to the .amx source file
+    /// via surgical source editing.
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
+        use crate::source_edit::{apply_source_edit, serialize_property_value, serialize_size_value};
 
         // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {
@@ -725,7 +726,6 @@ impl GuiShell {
                                 let pt = track.position.get_or_insert_with(|| {
                                     animatix::timeline::PropertyTrack::new(*v)
                                 });
-                                // Update default value (no keyframe, just visual feedback)
                                 pt.default_value = *v;
                             }
                             "size" => {
@@ -857,12 +857,49 @@ impl GuiShell {
             }
         }
 
+        // Try to persist the change back to the .amx source file
+        let source_written = if let Some(ref source_index) = self.document.source_index {
+            if let Some(span) = source_index.find(&edit.actor, &edit.property) {
+                // Determine if this is a size property that needs half-size scaling
+                let is_half_size = matches!(edit.property.as_str(), "size" | "radius");
+                let serialized = if is_half_size {
+                    serialize_size_value(&edit.value, true)
+                } else {
+                    serialize_property_value(&edit.value)
+                };
+
+                // Apply surgical edit to source
+                let new_source = apply_source_edit(&self.document.source_text, &span, &serialized);
+
+                // Update document and editor
+                self.document.source_text = new_source.clone();
+                self.editor.replace_text(new_source);
+                self.document.is_dirty = true;
+
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         // Mark preview as dirty to trigger a re-render
         self.preview_dirty = true;
-        self.preview.status = format!(
-            "Edited {}.{} — visual preview only",
-            edit.actor, edit.property
-        );
+
+        if source_written {
+            // Schedule a debounced rebuild to re-parse the modified source
+            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = format!(
+                "Edited {}.{} — source updated",
+                edit.actor, edit.property
+            );
+        } else {
+            self.preview.status = format!(
+                "Edited {}.{} — visual only (no source span)",
+                edit.actor, edit.property
+            );
+        }
     }
 }
 

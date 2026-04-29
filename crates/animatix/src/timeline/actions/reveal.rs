@@ -357,6 +357,7 @@ mod tests {
                 Property {
                     name: "radius".to_string(),
                     value: crate::ast::Expr::Num(40.0),
+                    value_span: None,
                 },
                 Property {
                     name: "at".to_string(),
@@ -364,6 +365,7 @@ mod tests {
                         crate::ast::Expr::Num(320.0),
                         crate::ast::Expr::Num(240.0),
                     ]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -389,14 +391,17 @@ mod tests {
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("Hello".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(32.0),
+                    value_span: None,
                 },
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],

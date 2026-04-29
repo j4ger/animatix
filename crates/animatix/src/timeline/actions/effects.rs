@@ -303,6 +303,7 @@ mod tests {
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],

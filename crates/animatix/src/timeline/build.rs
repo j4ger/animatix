@@ -1843,6 +1843,7 @@ impl Timeline {
                     property,
                     value,
                     modifiers,
+                    value_span: _,
                 } => self.process_assignment_statement(
                     target,
                     property,

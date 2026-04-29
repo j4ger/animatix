@@ -107,11 +107,13 @@ pub(super) fn rewrite_stmt(
             property,
             value,
             modifiers,
+            value_span,
         } => Stmt::Assignment {
             target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+            value_span: *value_span,
         },
         Stmt::Sequence { body } => Stmt::Sequence {
             body: body
@@ -306,6 +308,7 @@ fn rewrite_properties(
         .map(|prop| Property {
             name: prop.name.clone(),
             value: rewrite_expr(&prop.value, prefix, root_label, known_labels, bindings),
+            value_span: prop.value_span,
         })
         .collect()
 }

@@ -12,7 +12,7 @@ pub(super) struct PropertyEdit {
 
 /// The typed value of a property edit.
 #[derive(Debug, Clone)]
-pub(super) enum PropertyValue {
+pub(crate) enum PropertyValue {
     Vec2([f32; 2]),
     Float(f32),
     Color([f32; 4]),

@@ -165,10 +165,12 @@ fn test_timeline_build_and_evaluate() {
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Ident("red".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -186,10 +188,12 @@ fn test_timeline_build_and_evaluate() {
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Ident("blue".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -280,6 +284,7 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -292,10 +297,12 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
                     Property {
                         name: "text".to_string(),
                         value: Expr::Str("Animatix".to_string()),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -324,6 +331,7 @@ fn explicit_color_beats_colorscheme_alias() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -336,10 +344,12 @@ fn explicit_color_beats_colorscheme_alias() {
                     Property {
                         name: "color".to_string(),
                         value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Ident("red".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -363,6 +373,7 @@ fn explicit_stroke_beats_stroke_alias() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -375,10 +386,12 @@ fn explicit_stroke_beats_stroke_alias() {
                     Property {
                         name: "stroke".to_string(),
                         value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
+                        value_span: None,
                     },
                     Property {
                         name: "stroke".to_string(),
                         value: Expr::Ident("red".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -402,6 +415,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -414,6 +428,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                     props: vec![Property {
                         name: "color".to_string(),
                         value: Expr::Ident("auto".to_string()),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -425,6 +440,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                     props: vec![Property {
                         name: "color".to_string(),
                         value: Expr::Ident("auto".to_string()),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -441,6 +457,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 props: vec![Property {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -464,6 +481,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -477,10 +495,12 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         Property {
                             name: "text".to_string(),
                             value: Expr::Str("Animatix".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "color".to_string(),
                             value: Expr::Ident("auto".to_string()),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -494,10 +514,12 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         Property {
                             name: "math".to_string(),
                             value: Expr::Str("E = mc^2".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "color".to_string(),
                             value: Expr::Ident("auto".to_string()),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -511,10 +533,12 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                         Property {
                             name: "code".to_string(),
                             value: Expr::Str("fn main() {}".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "color".to_string(),
                             value: Expr::Ident("auto".to_string()),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -548,6 +572,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("missing-scheme".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -559,6 +584,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
                 props: vec![Property {
                     name: "color".to_string(),
                     value: Expr::Path(vec!["accent".to_string(), "missing".to_string()]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -585,6 +611,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -598,6 +625,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                     props: vec![Property {
                         name: "text".to_string(),
                         value: Expr::Str("Hello".to_string()),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -610,6 +638,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -623,10 +652,12 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                         Property {
                             name: "from".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(-50.0), Expr::Num(0.0)]),
+                            value_span: None,
                         },
                         Property {
                             name: "to".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(0.0)]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -663,6 +694,7 @@ fn explicit_color_beats_primitive_default() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
             }],
         },
         Stmt::Keyframe {
@@ -677,6 +709,7 @@ fn explicit_color_beats_primitive_default() {
                         Property {
                             name: "radius".to_string(),
                             value: Expr::Num(20.0),
+                            value_span: None,
                         },
                         Property {
                             name: "color".to_string(),
@@ -686,6 +719,7 @@ fn explicit_color_beats_primitive_default() {
                                 Expr::Num(0.0),
                                 Expr::Num(1.0),
                             ]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -700,10 +734,12 @@ fn explicit_color_beats_primitive_default() {
                         Property {
                             name: "radius".to_string(),
                             value: Expr::Num(20.0),
+                            value_span: None,
                         },
                         Property {
                             name: "color".to_string(),
                             value: Expr::Ident("auto".to_string()),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -742,6 +778,7 @@ fn default_scheme_applies_primitive_defaults() {
                 props: vec![Property {
                     name: "text".to_string(),
                     value: Expr::Str("Hello".to_string()),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -754,6 +791,7 @@ fn default_scheme_applies_primitive_defaults() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -824,10 +862,12 @@ fn test_text_spacing_preserves_space_width() {
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("A B".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(48.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -846,10 +886,12 @@ fn test_text_spacing_preserves_space_width() {
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("AB".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(48.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -889,10 +931,12 @@ fn test_code_primitive_builds_text_paths() {
                 Property {
                     name: "code".to_string(),
                     value: Expr::Str("fn main() {}".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -924,14 +968,17 @@ fn test_code_primitive_respects_position_binding() {
                 Property {
                     name: "code".to_string(),
                     value: Expr::Str("let x = 1;".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "anchor".to_string(),
                     value: Expr::Path(vec!["scene".to_string(), "center".to_string()]),
+                    value_span: None,
                 },
                 Property {
                     name: "offset".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1010,6 +1057,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
                 props: vec![Property {
                     name: "code".to_string(),
                     value: Expr::Str("let x = 1;".to_string()),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -1025,6 +1073,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
                 props: vec![Property {
                     name: "code".to_string(),
                     value: Expr::Str("let x = 2;".to_string()),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -1080,6 +1129,7 @@ fn test_square_primitive_builds_rect_shape() {
             props: vec![Property {
                 name: "side".to_string(),
                 value: Expr::Num(80.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -1131,10 +1181,12 @@ fn test_regular_polygon_builds_runtime_path() {
                 Property {
                     name: "sides".to_string(),
                     value: Expr::Num(6.0),
+                    value_span: None,
                 },
                 Property {
                     name: "radius".to_string(),
                     value: Expr::Num(40.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1162,10 +1214,12 @@ fn test_arrow_primitive_builds_runtime_path() {
                 Property {
                     name: "from".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(0.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "to".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(0.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1196,10 +1250,12 @@ fn test_arrow_tip_properties_update_size_track() {
                 Property {
                     name: "tip_length".to_string(),
                     value: Expr::Num(30.0),
+                    value_span: None,
                 },
                 Property {
                     name: "tip_width".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1229,14 +1285,17 @@ fn test_parametric_plot_builds_runtime_path() {
                 Property {
                     name: "x_domain".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "y_domain".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(300.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1253,14 +1312,17 @@ fn test_parametric_plot_builds_runtime_path() {
                                 Expr::Call("sin".to_string(), vec![Expr::Ident("t".to_string())]),
                             ])),
                         ),
+                        value_span: None,
                     },
                     Property {
                         name: "t_domain".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Ident("cyan".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -1292,14 +1354,17 @@ fn test_implicit_plot_builds_runtime_path() {
                 Property {
                     name: "x_domain".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "y_domain".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(300.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -1329,14 +1394,17 @@ fn test_implicit_plot_builds_runtime_path() {
                                 Box::new(Expr::Num(1.0)),
                             )),
                         ),
+                        value_span: None,
                     },
                     Property {
                         name: "resolution".to_string(),
                         value: Expr::Num(48.0),
+                        value_span: None,
                     },
                     Property {
                         name: "color".to_string(),
                         value: Expr::Ident("cyan".to_string()),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -1368,6 +1436,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
                 props: vec![Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -1381,6 +1450,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
                 property: "rotation".to_string(),
                 value: Expr::Num(1.0),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -1515,10 +1585,12 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Num(18.0),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -1532,10 +1604,12 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Path(vec!["source".to_string(), "radius".to_string()]),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Path(vec!["source".to_string(), "at".to_string()]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -1565,6 +1639,7 @@ fn rhs_path_lookup_supports_vector_components() {
                 props: vec![Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -1587,6 +1662,7 @@ fn rhs_path_lookup_supports_vector_components() {
                             "y".to_string(),
                         ]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -1936,6 +2012,7 @@ fn test_image_properties_are_animatable() {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
+                    value_span: None,
                 },
                 Stmt::Assignment {
                     target: vec!["photo".to_string()],
@@ -1945,6 +2022,7 @@ fn test_image_properties_are_animatable() {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
+                    value_span: None,
                 },
             ],
             span: None,
@@ -2159,6 +2237,7 @@ fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
             props: vec![Property {
                 name: "url".to_string(),
                 value: Expr::Str(example_path("checker.ppm")),
+                value_span: None,
             }],
             modifiers: vec![
                 Modifier {
@@ -2216,6 +2295,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
                 property: "url".to_string(),
                 value: Expr::Str("/definitely/missing/animatix-image.png".to_string()),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2250,6 +2330,7 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
                 property: "url".to_string(),
                 value: Expr::Str(example_path("vector.svg")),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2274,14 +2355,17 @@ fn test_line_actor_builds_runtime_path() {
                 Property {
                     name: "from".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(-40.0), Expr::Num(0.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "to".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(20.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "stroke_width".to_string(),
                     value: Expr::Num(3.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -2319,10 +2403,12 @@ fn test_ellipse_actor_builds_runtime_path() {
                 Property {
                     name: "radius_x".to_string(),
                     value: Expr::Num(80.0),
+                    value_span: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(30.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -2358,18 +2444,22 @@ fn test_arc_actor_builds_runtime_path() {
                 Property {
                     name: "radius_x".to_string(),
                     value: Expr::Num(80.0),
+                    value_span: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(40.0),
+                    value_span: None,
                 },
                 Property {
                     name: "start_angle".to_string(),
                     value: Expr::Num(0.0),
+                    value_span: None,
                 },
                 Property {
                     name: "sweep_angle".to_string(),
                     value: Expr::Num(std::f64::consts::PI),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -2410,6 +2500,7 @@ fn test_polygon_actor_builds_runtime_path() {
                     Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
                     Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
                 ]),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -2465,6 +2556,7 @@ fn test_path_actor_builds_runtime_path() {
                     ),
                     Expr::Call("close".to_string(), vec![]),
                 ]),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -2513,6 +2605,7 @@ fn test_path_quad_to_builds_runtime_path() {
                         ],
                     ),
                 ]),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -2541,10 +2634,12 @@ fn test_line_assignments_rebuild_runtime_path() {
                     Property {
                         name: "from".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(-20.0), Expr::Num(0.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "to".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(0.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -2559,6 +2654,7 @@ fn test_line_assignments_rebuild_runtime_path() {
                 property: "to".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(40.0)]),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2587,10 +2683,12 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
                     Property {
                         name: "radius_x".to_string(),
                         value: Expr::Num(80.0),
+                        value_span: None,
                     },
                     Property {
                         name: "radius_y".to_string(),
                         value: Expr::Num(30.0),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -2605,6 +2703,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
                 property: "radius_y".to_string(),
                 value: Expr::Num(60.0),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2633,18 +2732,22 @@ fn test_arc_assignments_rebuild_runtime_path() {
                     Property {
                         name: "radius_x".to_string(),
                         value: Expr::Num(80.0),
+                        value_span: None,
                     },
                     Property {
                         name: "radius_y".to_string(),
                         value: Expr::Num(40.0),
+                        value_span: None,
                     },
                     Property {
                         name: "start_angle".to_string(),
                         value: Expr::Num(0.0),
+                        value_span: None,
                     },
                     Property {
                         name: "sweep_angle".to_string(),
                         value: Expr::Num(std::f64::consts::PI / 2.0),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -2659,6 +2762,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
                 property: "sweep_angle".to_string(),
                 value: Expr::Num(std::f64::consts::PI),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2687,18 +2791,22 @@ fn test_arc_negative_sweep_builds_runtime_path() {
                 Property {
                     name: "radius_x".to_string(),
                     value: Expr::Num(70.0),
+                    value_span: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(50.0),
+                    value_span: None,
                 },
                 Property {
                     name: "start_angle".to_string(),
                     value: Expr::Num(std::f64::consts::PI),
+                    value_span: None,
                 },
                 Property {
                     name: "sweep_angle".to_string(),
                     value: Expr::Num(-std::f64::consts::PI / 2.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -2730,6 +2838,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
                         Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
                         Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -2748,6 +2857,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
                     Expr::Num(1.0),
                 ]),
                 modifiers: vec![],
+                value_span: None,
             }],
             span: None,
         },
@@ -2780,6 +2890,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
                         Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
                         Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -2801,6 +2912,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
                         Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(120.0)]),
                         Expr::Tuple(vec![Expr::Num(-80.0), Expr::Num(90.0)]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![Modifier {
                     name: None,
@@ -2847,6 +2959,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
                         ),
                         Expr::Call("close".to_string(), vec![]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -2883,6 +2996,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
                         ),
                         Expr::Call("close".to_string(), vec![]),
                     ]),
+                    value_span: None,
                 }],
                 modifiers: vec![Modifier {
                     name: None,
@@ -2919,6 +3033,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -2934,6 +3049,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(48.0),
+                    value_span: None,
                 }],
                 modifiers: vec![Modifier {
                     name: Some("strategy".to_string()),
@@ -2968,6 +3084,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3010,6 +3127,7 @@ fn test_action_delay_starts_later() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3062,6 +3180,7 @@ fn test_sequence_advances_statement_timing() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3091,6 +3210,7 @@ fn test_sequence_advances_statement_timing() {
                                 value: Expr::Ident("200ms".to_string()),
                             },
                         ],
+                        value_span: None,
                     },
                 ],
             },
@@ -3124,6 +3244,7 @@ fn test_sequence_reports_unsupported_statements() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3150,6 +3271,7 @@ fn test_stagger_offsets_statement_start_times() {
         props: vec![Property {
             name: "radius".to_string(),
             value: Expr::Num(24.0),
+            value_span: None,
         }],
         modifiers: vec![],
         children: vec![],
@@ -3213,6 +3335,7 @@ fn test_stagger_reports_unsupported_statements() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3242,6 +3365,7 @@ fn test_rotation_assignment_animates_track() {
                 props: vec![Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(60.0)]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3258,6 +3382,7 @@ fn test_rotation_assignment_animates_track() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                value_span: None,
             }],
             span: None,
         },
@@ -3287,6 +3412,7 @@ fn test_scale_assignment_animates_track() {
                 props: vec![Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(60.0)]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3303,6 +3429,7 @@ fn test_scale_assignment_animates_track() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                value_span: None,
             }],
             span: None,
         },
@@ -3331,6 +3458,7 @@ fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(24.0),
+                value_span: None,
             }],
             modifiers: vec![Modifier {
                 name: Some("delay".to_string()),
@@ -3364,6 +3492,7 @@ fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(24.0),
+                value_span: None,
             }],
             modifiers: vec![
                 Modifier {
@@ -3420,10 +3549,12 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Num(50.0),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(300.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -3441,10 +3572,12 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
                     Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(640.0), Expr::Num(360.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![
@@ -3499,6 +3632,7 @@ fn test_row_child_with_explicit_origin_stays_manual() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(20.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
@@ -3508,10 +3642,12 @@ fn test_row_child_with_explicit_origin_stays_manual() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -3543,10 +3679,12 @@ fn test_text_primitive_reports_measured_size() {
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("Animatix layout".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(36.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3575,10 +3713,12 @@ fn test_math_primitive_reports_measured_size() {
                 Property {
                     name: "math".to_string(),
                     value: Expr::Str("E = mc^2".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(42.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3607,10 +3747,12 @@ fn test_code_primitive_reports_measured_size() {
                 Property {
                     name: "code".to_string(),
                     value: Expr::Str("fn main() {}".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(22.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3858,10 +4000,12 @@ fn test_row_child_without_at_is_layout_managed() {
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "gap".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3871,6 +4015,7 @@ fn test_row_child_without_at_is_layout_managed() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -3904,10 +4049,12 @@ fn test_row_mixed_manual_and_layout_children() {
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "gap".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3919,10 +4066,12 @@ fn test_row_mixed_manual_and_layout_children() {
                         Property {
                             name: "radius".to_string(),
                             value: Expr::Num(20.0),
+                            value_span: None,
                         },
                         Property {
                             name: "at".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -3934,6 +4083,7 @@ fn test_row_mixed_manual_and_layout_children() {
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -3977,10 +4127,12 @@ fn test_col_child_with_explicit_origin_stays_manual() {
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(400.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "gap".to_string(),
                     value: Expr::Num(10.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -3991,10 +4143,12 @@ fn test_col_child_with_explicit_origin_stays_manual() {
                     Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(60.0)]),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -4025,6 +4179,7 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(20.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
@@ -4034,10 +4189,12 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(45.0), Expr::Num(55.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -4069,6 +4226,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -4085,6 +4243,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                value_span: None,
             }],
             span: None,
         },
@@ -4117,6 +4276,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -4133,10 +4293,12 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
                     Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
+                        value_span: None,
                     },
                     Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(50.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![Modifier {
@@ -4178,6 +4340,7 @@ fn test_root_row_without_at_uses_container_default_center_binding() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(20.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -4208,10 +4371,12 @@ fn test_grid_layout_positions_children_in_cells() {
                 Property {
                     name: "cols".to_string(),
                     value: Expr::Num(2.0),
+                    value_span: None,
                 },
                 Property {
                     name: "gap".to_string(),
                     value: Expr::Num(10.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -4222,6 +4387,7 @@ fn test_grid_layout_positions_children_in_cells() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4232,6 +4398,7 @@ fn test_grid_layout_positions_children_in_cells() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4242,6 +4409,7 @@ fn test_grid_layout_positions_children_in_cells() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4252,6 +4420,7 @@ fn test_grid_layout_positions_children_in_cells() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(20.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4317,6 +4486,7 @@ fn test_stack_layout_overlaps_children_by_default() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(50.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4327,6 +4497,7 @@ fn test_stack_layout_overlaps_children_by_default() {
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(12.0),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4368,6 +4539,7 @@ fn test_row_with_text_children_uses_measured_bounds() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(20.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![
@@ -4378,10 +4550,12 @@ fn test_row_with_text_children_uses_measured_bounds() {
                         Property {
                             name: "text".to_string(),
                             value: Expr::Str("A".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(36.0),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4394,10 +4568,12 @@ fn test_row_with_text_children_uses_measured_bounds() {
                         Property {
                             name: "text".to_string(),
                             value: Expr::Str("Measured layout".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(36.0),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4637,6 +4813,7 @@ fn test_col_with_code_child_uses_measured_bounds() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(12.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![
@@ -4646,6 +4823,7 @@ fn test_col_with_code_child_uses_measured_bounds() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(40.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4657,10 +4835,12 @@ fn test_col_with_code_child_uses_measured_bounds() {
                         Property {
                             name: "code".to_string(),
                             value: Expr::Str("let x = 1".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(22.0),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4694,6 +4874,7 @@ fn test_row_with_mixed_authored_and_measured_children() {
             props: vec![Property {
                 name: "gap".to_string(),
                 value: Expr::Num(16.0),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![
@@ -4703,6 +4884,7 @@ fn test_row_with_mixed_authored_and_measured_children() {
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(10.0),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4714,10 +4896,12 @@ fn test_row_with_mixed_authored_and_measured_children() {
                         Property {
                             name: "text".to_string(),
                             value: Expr::Str("Measured".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(28.0),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4730,10 +4914,12 @@ fn test_row_with_mixed_authored_and_measured_children() {
                         Property {
                             name: "url".to_string(),
                             value: Expr::Str(example_path("checker.ppm")),
+                            value_span: None,
                         },
                         Property {
                             name: "size".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(32.0), Expr::Num(24.0)]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4785,6 +4971,7 @@ fn test_row_align_start_uses_measured_child_height() {
             props: vec![Property {
                 name: "align".to_string(),
                 value: Expr::Str("start".to_string()),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![
@@ -4794,6 +4981,7 @@ fn test_row_align_start_uses_measured_child_height() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(20.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -4805,10 +4993,12 @@ fn test_row_align_start_uses_measured_child_height() {
                         Property {
                             name: "code".to_string(),
                             value: Expr::Str("fn main() {\n    println!(\"hi\");\n}".to_string()),
+                            value_span: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(26.0),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -4921,10 +5111,12 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
                     Property {
                         name: "anchor".to_string(),
                         value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
+                        value_span: None,
                     },
                     Property {
                         name: "offset".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]),
+                        value_span: None,
                     },
                 ],
                 modifiers: vec![],
@@ -4937,6 +5129,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
                 props: vec![Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)]),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -4987,6 +5180,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
                     vec!["x".to_string()],
                     Box::new(Expr::Ident("x".to_string())),
                 ),
+                value_span: None,
             }],
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
@@ -4998,6 +5192,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
                         vec!["x".to_string()],
                         Box::new(Expr::Ident("x".to_string())),
                     ),
+                    value_span: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -5197,6 +5392,7 @@ fn test_timeline_with_expr_call_properties() {
                 Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
             ]),
             modifiers: vec![],
+            value_span: None,
         }],
         span: None,
     }];
@@ -5515,10 +5711,12 @@ fn test_namespace_export_resolution_in_expressions() {
                 Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                    value_span: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Path(vec!["theme".to_string(), "accent".to_string()]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -6297,10 +6495,12 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                 Property {
                     name: "cols".to_string(),
                     value: Expr::Num(2.0),
+                    value_span: None,
                 },
                 Property {
                     name: "gap".to_string(),
                     value: Expr::Num(20.0),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
@@ -6312,14 +6512,17 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                         Property {
                             name: "x_domain".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                            value_span: None,
                         },
                         Property {
                             name: "y_domain".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                            value_span: None,
                         },
                         Property {
                             name: "size".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -6339,14 +6542,17 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                                         ),
                                     ])),
                                 ),
+                                value_span: None,
                             },
                             Property {
                                 name: "t_domain".to_string(),
                                 value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                                value_span: None,
                             },
                             Property {
                                 name: "color".to_string(),
                                 value: Expr::Ident("cyan".to_string()),
+                                value_span: None,
                             },
                         ],
                         modifiers: vec![],
@@ -6360,14 +6566,17 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                         Property {
                             name: "x_domain".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                            value_span: None,
                         },
                         Property {
                             name: "y_domain".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                            value_span: None,
                         },
                         Property {
                             name: "size".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)]),
+                            value_span: None,
                         },
                     ],
                     modifiers: vec![],
@@ -6387,14 +6596,17 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                                         ),
                                     ])),
                                 ),
+                                value_span: None,
                             },
                             Property {
                                 name: "t_domain".to_string(),
                                 value: Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(2.0)]),
+                                value_span: None,
                             },
                             Property {
                                 name: "color".to_string(),
                                 value: Expr::Ident("magenta".to_string()),
+                                value_span: None,
                             },
                         ],
                         modifiers: vec![],

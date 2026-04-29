@@ -5,5 +5,6 @@ pub mod ir;
 pub mod module;
 pub mod parser;
 pub mod renderer;
+pub mod source_index;
 pub mod timeline;
 pub mod vm;

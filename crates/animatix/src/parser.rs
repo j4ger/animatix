@@ -26,6 +26,7 @@
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
 
 use crate::ast::*;
+use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 
 pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
@@ -164,7 +165,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .clone()
                     .then_ignore(just(':').padded())
                     .then(expr.clone())
-                    .map(|(name, value)| Property { name, value })
+                    .map(|(name, value)| Property { name, value, value_span: None })
                     .separated_by(just(',').padded())
                     .allow_trailing()
                     .collect::<Vec<_>>()
@@ -324,8 +325,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
     let property = property_name
         .then_ignore(just(':').padded())
-        .then(expr.clone())
-        .map(|(name, value)| Property { name, value });
+        .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+            let span = extra.span();
+            (value, ByteSpan { start: span.start, end: span.end })
+        }))
+        .map(|(name, (value, value_span))| Property {
+            name,
+            value,
+            value_span: Some(value_span),
+        });
 
     let modifier = choice((
         // named modifier: ease: bounce
@@ -529,9 +537,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         let assignment = dotted_ident
             .clone()
             .then_ignore(just('=').padded())
-            .then(expr.clone())
+            .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+                let span = extra.span();
+                (value, ByteSpan { start: span.start, end: span.end })
+            }))
             .then(modifiers.clone())
-            .try_map(|((path, value), modifiers), span| {
+            .try_map(|((path, (value, value_span)), modifiers), span| {
                 if path.len() < 2 {
                     Err(Rich::custom(
                         span,
@@ -545,6 +556,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         property,
                         value,
                         modifiers,
+                        value_span: Some(value_span),
                     })
                 }
             })
@@ -670,6 +682,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 props: vec![Property {
                     name: "text".to_string(),
                     value: text,
+                    value_span: None,
                 }],
                 modifiers,
                 children: vec![],

@@ -1,6 +1,7 @@
 use animatix::ast::{Expr, Stmt};
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::module::{ModuleGraph, Namespace};
+use animatix::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline};
 use std::collections::HashMap;
 use std::fs;
@@ -9,8 +10,10 @@ use std::path::{Path, PathBuf};
 pub struct DocumentSession {
     pub file_path: PathBuf,
     pub source_text: String,
+    pub raw_statements: Option<Vec<Stmt>>,
     pub expanded_statements: Option<Vec<Stmt>>,
     pub namespaces: HashMap<String, Namespace>,
+    pub source_index: Option<SourceIndex>,
     pub timeline: Option<Timeline>,
     pub diagnostics: Vec<Diagnostic>,
     pub last_rebuild_error: Option<String>,
@@ -27,8 +30,10 @@ impl DocumentSession {
         let mut document = Self {
             file_path,
             source_text,
+            raw_statements: None,
             expanded_statements: None,
             namespaces: HashMap::new(),
+            source_index: None,
             timeline: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
@@ -45,8 +50,10 @@ impl DocumentSession {
         Self {
             file_path,
             source_text: String::new(),
+            raw_statements: None,
             expanded_statements: None,
             namespaces: HashMap::new(),
+            source_index: None,
             timeline: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
@@ -77,11 +84,15 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), String> {
-        let (expanded_statements, namespaces) = match self.load_expanded_statements() {
-            Ok((expanded_statements, namespaces)) => (expanded_statements, namespaces),
+        let (raw_statements, expanded_statements, namespaces) = match self.load_program() {
+            Ok((raw_statements, expanded_statements, namespaces)) => {
+                (raw_statements, expanded_statements, namespaces)
+            }
             Err(err) => {
                 self.last_rebuild_error = Some(err.clone());
+                self.raw_statements = None;
                 self.expanded_statements = None;
+                self.source_index = None;
                 self.namespaces = HashMap::new();
                 self.timeline = None;
                 self.diagnostics = vec![
@@ -97,23 +108,34 @@ impl DocumentSession {
                 return Err(err.to_string());
             }
         };
+
+        // Build source index from raw (non-expanded) statements
+        let source_index = SourceIndex::build(&raw_statements);
+
         let report = Timeline::build_with_diagnostics(&expanded_statements, &namespaces);
         self.last_rebuild_error = None;
         self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);
+        self.raw_statements = Some(raw_statements);
         self.expanded_statements = Some(expanded_statements);
+        self.source_index = Some(source_index);
         self.namespaces = namespaces;
         self.diagnostics = report.diagnostics;
         self.timeline = Some(report.output);
         Ok(())
     }
 
-    fn load_expanded_statements(&self) -> Result<(Vec<Stmt>, HashMap<String, Namespace>), String> {
+    /// Load the program, returning (raw_statements, expanded_statements, namespaces).
+    /// Raw statements are the parsed statements before component expansion.
+    fn load_program(&self) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>), String> {
         let mut graph = ModuleGraph::new();
         let program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))
             .map_err(|err| err.to_string())?;
-        Ok((program.expand_components(), program.namespaces))
+        let raw_statements = program.statements.clone();
+        let expanded_statements = program.expand_components();
+        let namespaces = program.namespaces;
+        Ok((raw_statements, expanded_statements, namespaces))
     }
 }
 
@@ -247,6 +269,7 @@ mod tests {
                             animatix::ast::Expr::Num(100.0),
                             animatix::ast::Expr::Num(100.0),
                         ]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -260,6 +283,7 @@ mod tests {
                     property: "scale".to_string(),
                     value: animatix::ast::Expr::Num(0.5),
                     modifiers: vec![],
+                    value_span: None,
                 }],
                 span: None,
             },
@@ -275,6 +299,7 @@ mod tests {
             settings: vec![Property {
                 name: "resolution".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
+                value_span: None,
             }],
         }];
 
@@ -306,6 +331,7 @@ mod tests {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -319,6 +345,7 @@ mod tests {
                     property: "scale".to_string(),
                     value: Expr::Num(0.5),
                     modifiers: vec![],
+                    value_span: None,
                 }],
                 span: None,
             },
@@ -329,6 +356,7 @@ mod tests {
                     property: "stroke_width".to_string(),
                     value: Expr::Num(4.0),
                     modifiers: vec![],
+                    value_span: None,
                 }],
                 span: None,
             },
@@ -339,6 +367,7 @@ mod tests {
                     property: "scale".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
+                    value_span: None,
                 }],
                 span: None,
             },

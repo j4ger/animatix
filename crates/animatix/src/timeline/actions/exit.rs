@@ -81,14 +81,17 @@ mod tests {
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("Bye".to_string()),
+                    value_span: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(32.0),
+                    value_span: None,
                 },
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
+                    value_span: None,
                 },
             ],
             modifiers: vec![],
