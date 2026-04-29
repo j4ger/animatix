@@ -23,6 +23,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_dock_state, load_workspace_persistence, persistence_path};
 use preview::fit_preview;
+use preview::DragState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -156,6 +157,8 @@ struct GuiShell {
     selected_actor: Option<String>,
     /// Per-actor hit regions from the last render (for click-to-select).
     hit_regions: Vec<(String, kurbo::Rect)>,
+    /// Current drag interaction state on the preview canvas.
+    drag_state: DragState,
 }
 
 impl GuiShell {
@@ -230,6 +233,7 @@ impl GuiShell {
             last_reload_time: None,
             selected_actor: None,
             hit_regions: Vec::new(),
+            drag_state: DragState::None,
         }
     }
 
@@ -404,6 +408,7 @@ impl GuiShell {
             timeline: self.document.timeline.as_ref(),
             selected_actor: &mut self.selected_actor,
             hit_regions: &self.hit_regions,
+            drag_state: &mut self.drag_state,
         };
 
         DockArea::new(&mut self.dock_state)
