@@ -216,15 +216,29 @@ Each widget shows:
 
 ## Keyboard Shortcuts
 
+### Global
+
 | Shortcut | Action |
 |----------|--------|
-| `Space` | Play/Pause |
+| `Space` | Play/Pause (when editor not focused) |
 | `←` / `→` | Scrub ±0.1s |
 | `,` / `.` | Prev/Next keyframe |
 | `⌘S` | Save |
 | `⌘E` | Toggle Explorer |
 | `⌘I` | Toggle Inspector |
 | `Escape` | Deselect actor |
+
+### Editor (when focused)
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Space` | Trigger completion |
+| `Up/Down` | Navigate completion list |
+| `Tab/Enter` | Confirm completion |
+| `Esc` | Dismiss completion |
+| `Ctrl+Click` | Go-to-definition |
+
+Note: Global shortcuts (Space, arrows, comma/period) are disabled when the editor has focus to avoid conflicts with text input.
 
 ---
 
@@ -244,9 +258,17 @@ The GUI watches the loaded .amx file for changes. On modification:
 | Class | Example | UI Treatment |
 |-------|---------|--------------|
 | File load | Missing file | Red banner in preview |
-| Parse | Syntax error | Red gutter markers in editor |
-| Build | Unknown action | Amber banner, partial timeline |
+| Parse | Syntax error | Red squiggles in editor + diagnostic message |
+| Semantic | Unknown action/label | Yellow squiggles in editor |
+| Info | Unknown property for type | Blue squiggles in editor |
+| Build | Timeline build failure | Amber banner, partial timeline |
 | Render | GPU error | Red overlay on preview |
+
+### Diagnostic Sources
+
+1. **Tree-sitter** — syntax errors (ERROR/MISSING nodes)
+2. **Chumsky** — parse errors (more detailed messages)
+3. **Semantic checks** — unknown actions, undefined labels, unknown types/properties, duplicate labels
 
 ---
 
@@ -262,31 +284,157 @@ The GUI watches the loaded .amx file for changes. On modification:
 
 ## Editor
 
-- `egui::TextEdit` with Syntect-backed syntax highlighting
-- Local `animatix.sublime-syntax` grammar
-- Line numbers in gutter
-- Keyframe markers (amber dots) in gutter
-- Error markers (red dots) from diagnostics
+### Syntax Highlighting
+
+- Tree-sitter based highlighting via `animatix-gui/src/highlighting.rs`
+- 14 highlight groups: keyword, type, string, number, comment, operator, punctuation, variable, property, parameter, function
+- Gruvbox-inspired dark/light themes
+- Cached highlighting (invalidated on text change)
+
+### Auto-complete
+
+- `CompletionPopup` widget (`completion_popup.rs`)
+- Triggered by Ctrl+Space, or auto-trigger on `:`, `.`, ` ` characters
+- Context-aware completions from `animatix-analyzer`:
+  - Keywords + snippets at top level
+  - Types after `:` in declarations
+  - Properties inside `{ }` blocks
+  - Labels after action verbs
+- Keyboard navigation: Up/Down to select, Tab/Enter to confirm, Esc to dismiss
+- Color-coded icons per completion kind (K=keyword, T=type, P=property, etc.)
+
+### Diagnostics
+
+- Colored squiggles via LayoutJob background tints
+- Errors: red tint, Warnings: yellow tint, Info: blue tint
+- Sources: tree-sitter syntax errors, chumsky parse errors, semantic checks
+- Semantic checks: unknown actions, undefined labels, unknown types/properties
+
+### Hover
+
+- Tooltip on mouse hover over identifiers
+- Shows: type info, documentation, usage examples
+- Works for: labels, types, actions, keywords, literals
+
+### Go-to-definition
+
+- Ctrl+Click on identifiers
+- Jumps to label/component definition in same file
+- (Future: cross-file navigation via LSP)
+
+### Keyboard Shortcuts (Editor-specific)
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Space` | Trigger completion |
+| `Up/Down` | Navigate completion list |
+| `Tab/Enter` | Confirm completion |
+| `Esc` | Dismiss completion |
+| `Ctrl+Click` | Go-to-definition |
 
 ---
 
 ## File Structure
 
 ```
-crates/animatix-gui/src/
-├── lib.rs
-├── main.rs
-├── document.rs
-├── editor.rs
-├── hot_reload.rs
-├── preview_surface.rs
-└── app/
-    ├── mod.rs
-    ├── runtime.rs
-    ├── persistence.rs
-    ├── file_tree.rs
-    ├── transport_bar.rs
-    ├── inspector.rs
-    ├── preview.rs
-    └── workspace.rs
+crates/
+├── animatix/                    # Core library
+│   └── src/
+│       ├── ast.rs               # AST types
+│       ├── parser.rs            # Chumsky parser
+│       ├── diagnostics.rs       # Diagnostic types
+│       ├── module.rs            # Module system
+│       ├── source_index.rs      # Source location mapping
+│       └── timeline/            # Timeline compilation
+│
+├── animatix-analyzer/           # Shared language intelligence
+│   └── src/
+│       ├── lib.rs               # Analyzer struct
+│       ├── symbol_table.rs      # Symbol extraction from AST
+│       ├── completer.rs         # Context-aware completions
+│       └── diagnostics.rs       # Parse + semantic diagnostics
+│
+├── animatix-lsp/                # LSP server for external editors
+│   └── src/
+│       └── main.rs              # tower-lsp server
+│
+├── animatix-gui/                # Desktop GUI application
+│   └── src/
+│       ├── lib.rs
+│       ├── main.rs
+│       ├── document.rs          # Document session management
+│       ├── editor.rs            # Code editor with analyzer integration
+│       ├── completion_popup.rs  # Completion popup widget
+│       ├── highlighting.rs      # Tree-sitter highlighting + diagnostic squiggles
+│       ├── hot_reload.rs        # File watcher
+│       ├── preview_surface.rs   # GPU render surface
+│       ├── source_edit.rs       # Surgical source text editing
+│       └── app/
+│           ├── mod.rs
+│           ├── runtime.rs       # eframe::App impl
+│           ├── persistence.rs   # Workspace state persistence
+│           ├── file_tree.rs     # File explorer
+│           ├── transport_bar.rs # Playback controls
+│           ├── inspector.rs     # Actor property inspector
+│           ├── preview.rs       # Preview pane
+│           └── workspace.rs     # Dock layout management
+│
+└── tree-sitter-animatix/        # Tree-sitter grammar
+    ├── grammar.js               # Grammar definition
+    ├── queries/highlights.scm   # Highlight queries
+    └── src/parser.c             # Generated parser
 ```
+
+---
+
+## LSP Server (External Editors)
+
+The `animatix-lsp` crate provides language intelligence to external editors via the Language Server Protocol.
+
+### Capabilities
+
+| Feature | LSP Method | Status |
+|---------|------------|--------|
+| Completions | `textDocument/completion` | ✅ |
+| Hover | `textDocument/hover` | ✅ |
+| Go-to-definition | `textDocument/definition` | ✅ |
+| Document symbols | `textDocument/documentSymbol` | ✅ |
+| Diagnostics | Published on change | ✅ |
+
+### Usage
+
+```bash
+# Run directly (communicates via stdin/stdout)
+animatix-lsp
+```
+
+### Editor Configuration
+
+**VS Code** (`.vscode/settings.json`):
+```json
+{
+  "amx.languageServer": {
+    "command": "animatix-lsp",
+    "args": []
+  }
+}
+```
+
+**Neovim** (nvim-lspconfig):
+```lua
+require('lspconfig').animatix.setup {
+  cmd = { 'animatix-lsp' },
+  filetypes = { 'amx' },
+  root_dir = require('lspconfig').util.root_pattern('.git', 'Cargo.toml'),
+}
+```
+
+### Architecture
+
+The LSP server is a thin wrapper around `animatix-analyzer`:
+- Each opened document gets an `Analyzer` instance
+- LSP requests delegate to analyzer methods
+- Type conversions happen inline (~50 lines)
+- No separate conversion layer needed
+
+See `docs/analyzer-design.md` for the full analyzer architecture.
