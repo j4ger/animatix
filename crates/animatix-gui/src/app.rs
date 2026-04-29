@@ -4,6 +4,7 @@ mod persistence;
 mod preview;
 mod runtime;
 pub(crate) mod transport_bar;
+mod widgets;
 mod workspace;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
@@ -491,6 +492,9 @@ impl GuiShell {
                 self.selected_actor = Some(label);
             }
         }
+        if let Some(edit) = actions.property_edit {
+            self.handle_property_edit(edit);
+        }
     }
 
     fn open_document(&mut self, path: PathBuf) {
@@ -697,6 +701,163 @@ impl GuiShell {
                 });
             let _ = self.dock_state.set_active_tab(tab_path);
         }
+    }
+
+    /// Handle a property edit from the inspector panel.
+    ///
+    /// For now, this stores the edit visually and triggers a preview repaint.
+    /// Actual source modification (writing back to .amx) is a follow-up task.
+    fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
+        use workspace::PropertyValue;
+
+        // Apply the edit to the in-memory timeline if it exists
+        if let Some(ref mut timeline) = self.document.timeline {
+            if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
+                match &edit.value {
+                    PropertyValue::Vec2(v) => {
+                        match edit.property.as_str() {
+                            "position" => {
+                                let pt = track.position.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                // Update default value (no keyframe, just visual feedback)
+                                pt.default_value = *v;
+                            }
+                            "size" => {
+                                let pt = track.size.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "line_from" => {
+                                let pt = track.line_from.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "line_to" => {
+                                let pt = track.line_to.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "arc_angles" => {
+                                let pt = track.arc_angles.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "motion_offset" => {
+                                let pt = track.motion_offset.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            _ => {}
+                        }
+                    }
+                    PropertyValue::Float(v) => {
+                        match edit.property.as_str() {
+                            "rotation" => {
+                                let pt = track.rotation.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "scale" => {
+                                let pt = track.scale.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "opacity" => {
+                                let pt = track.opacity.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "stroke_width" => {
+                                let pt = track.stroke_width.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "stroke_progress" => {
+                                let pt = track.stroke_progress.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "fill_opacity" => {
+                                let pt = track.fill_opacity.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            _ => {}
+                        }
+                    }
+                    PropertyValue::Color(v) => {
+                        match edit.property.as_str() {
+                            "color" => {
+                                let pt = track.color.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            "stroke_color" => {
+                                let pt = track.stroke_color.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(*v)
+                                });
+                                pt.default_value = *v;
+                            }
+                            _ => {}
+                        }
+                    }
+                    PropertyValue::Text(v) => {
+                        match edit.property.as_str() {
+                            "text_content" => {
+                                let pt = track.text_content.get_or_insert_with(|| {
+                                    animatix::timeline::PropertyTrack::new(v.clone())
+                                });
+                                pt.default_value = v.clone();
+                            }
+                            "shape_type" => {
+                                // Parse shape type from text
+                                use animatix::timeline::ShapeType;
+                                let shape = match v.as_str() {
+                                    "Rect" => Some(ShapeType::Rect),
+                                    "Circle" => Some(ShapeType::Circle),
+                                    "Line" => Some(ShapeType::Line),
+                                    "Ellipse" => Some(ShapeType::Ellipse),
+                                    "Arc" => Some(ShapeType::Arc),
+                                    "Polygon" => Some(ShapeType::Polygon),
+                                    "Path" => Some(ShapeType::Path),
+                                    "Arrow" => Some(ShapeType::Arrow),
+                                    "Graph" => Some(ShapeType::Graph),
+                                    "Plot" => Some(ShapeType::Plot),
+                                    _ => None,
+                                };
+                                if let Some(shape) = shape {
+                                    let pt = track.shape_type.get_or_insert_with(|| {
+                                        animatix::timeline::PropertyTrack::new(shape)
+                                    });
+                                    pt.default_value = shape;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mark preview as dirty to trigger a re-render
+        self.preview_dirty = true;
+        self.preview.status = format!(
+            "Edited {}.{} — visual preview only",
+            edit.actor, edit.property
+        );
     }
 }
 

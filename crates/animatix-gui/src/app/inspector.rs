@@ -1,18 +1,22 @@
 use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
-use egui::{Color32, RichText, ScrollArea, Stroke, Vec2};
+use egui::{Color32, RichText, ScrollArea, Vec2};
 use std::collections::BTreeMap;
+
+use super::widgets;
+use super::workspace::{PropertyEdit, PropertyValue, UiActions};
 
 /// Renders the actor inspector panel.
 ///
 /// Shows:
 /// - A collapsible tree view of all actors in the timeline
-/// - Selected actor's properties grouped by category
+/// - Selected actor's properties grouped by category (editable)
 /// - Keyframe list with current-time highlighting
 pub(super) fn inspector_ui(
     ui: &mut egui::Ui,
     timeline: Option<&Timeline>,
     selected_actor: &mut Option<String>,
     current_time_s: f64,
+    actions: &mut UiActions,
 ) {
     ui.vertical(|ui| {
         // Reset selection if actor no longer exists in timeline
@@ -101,7 +105,7 @@ pub(super) fn inspector_ui(
             };
 
             ScrollArea::vertical().show(ui, |ui| {
-                render_actor_details(ui, track, current_time_s);
+                render_actor_details(ui, track, current_time_s, actions);
             });
         } else {
             ui.vertical_centered(|ui| {
@@ -242,7 +246,12 @@ fn shape_type_hint(track: &AnimationTrack) -> Option<&'static str> {
     })
 }
 
-fn render_actor_details(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s: f64) {
+fn render_actor_details(
+    ui: &mut egui::Ui,
+    track: &AnimationTrack,
+    current_time_s: f64,
+    actions: &mut UiActions,
+) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
 
     ui.add_space(2.0);
@@ -271,10 +280,10 @@ fn render_actor_details(ui: &mut egui::Ui, track: &AnimationTrack, current_time_
 
     ui.add_space(6.0);
 
-    // Property groups
+    // Property groups (editable)
     let groups = build_property_groups(track, current_time_ms);
     for group in &groups {
-        render_property_group(ui, group);
+        render_property_group(ui, group, &track.label, actions);
     }
 
     ui.add_space(8.0);
@@ -296,7 +305,13 @@ fn render_actor_details(ui: &mut egui::Ui, track: &AnimationTrack, current_time_
 
 struct PropertyGroup {
     name: &'static str,
-    properties: Vec<(String, PropertyDisplayValue)>,
+    properties: Vec<PropertyEntry>,
+}
+
+struct PropertyEntry {
+    name: String,
+    value: PropertyDisplayValue,
+    has_keyframes: bool,
 }
 
 enum PropertyDisplayValue {
@@ -313,19 +328,35 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     let mut transform = PropertyGroup { name: "Transform", properties: Vec::new() };
     if let Some(pt) = &track.position {
         let v = pt.evaluate(time_ms);
-        transform.properties.push(("position".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        transform.properties.push(PropertyEntry {
+            name: "position".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.motion_offset {
         let v = pt.evaluate(time_ms);
-        transform.properties.push(("motion_offset".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        transform.properties.push(PropertyEntry {
+            name: "motion_offset".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.rotation {
         let v = pt.evaluate(time_ms);
-        transform.properties.push(("rotation".into(), PropertyDisplayValue::Scalar(format!("{:.1}°", v.to_degrees()))));
+        transform.properties.push(PropertyEntry {
+            name: "rotation".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.1}°", v.to_degrees())),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.scale {
         let v = pt.evaluate(time_ms);
-        transform.properties.push(("scale".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
+        transform.properties.push(PropertyEntry {
+            name: "scale".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if !transform.properties.is_empty() {
         groups.push(transform);
@@ -335,23 +366,43 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     let mut shape = PropertyGroup { name: "Shape", properties: Vec::new() };
     if let Some(pt) = &track.shape_type {
         let v = pt.evaluate(time_ms);
-        shape.properties.push(("shape_type".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+        shape.properties.push(PropertyEntry {
+            name: "shape_type".into(),
+            value: PropertyDisplayValue::Text(format!("{v:?}")),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.line_from {
         let v = pt.evaluate(time_ms);
-        shape.properties.push(("line_from".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        shape.properties.push(PropertyEntry {
+            name: "line_from".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.line_to {
         let v = pt.evaluate(time_ms);
-        shape.properties.push(("line_to".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        shape.properties.push(PropertyEntry {
+            name: "line_to".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.arc_angles {
         let v = pt.evaluate(time_ms);
-        shape.properties.push(("arc_angles".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        shape.properties.push(PropertyEntry {
+            name: "arc_angles".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.points {
         let v = pt.evaluate(time_ms);
-        shape.properties.push(("points".into(), PropertyDisplayValue::Text(format!("{} pts", v.len()))));
+        shape.properties.push(PropertyEntry {
+            name: "points".into(),
+            value: PropertyDisplayValue::Text(format!("{} pts", v.len())),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if !shape.properties.is_empty() {
         groups.push(shape);
@@ -361,27 +412,51 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     let mut style = PropertyGroup { name: "Style", properties: Vec::new() };
     if let Some(pt) = &track.color {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("color".into(), PropertyDisplayValue::Color(v)));
+        style.properties.push(PropertyEntry {
+            name: "color".into(),
+            value: PropertyDisplayValue::Color(v),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.opacity {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("opacity".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
+        style.properties.push(PropertyEntry {
+            name: "opacity".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.stroke_width {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("stroke_width".into(), PropertyDisplayValue::Scalar(format!("{:.1}", v))));
+        style.properties.push(PropertyEntry {
+            name: "stroke_width".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.1}", v)),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.stroke_color {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("stroke_color".into(), PropertyDisplayValue::Color(v)));
+        style.properties.push(PropertyEntry {
+            name: "stroke_color".into(),
+            value: PropertyDisplayValue::Color(v),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.stroke_progress {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("stroke_progress".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
+        style.properties.push(PropertyEntry {
+            name: "stroke_progress".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.fill_opacity {
         let v = pt.evaluate(time_ms);
-        style.properties.push(("fill_opacity".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
+        style.properties.push(PropertyEntry {
+            name: "fill_opacity".into(),
+            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if !style.properties.is_empty() {
         groups.push(style);
@@ -392,19 +467,35 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     if let Some(pt) = &track.text_content {
         let v = pt.evaluate(time_ms);
         let display = if v.len() > 30 { format!("{}…", &v[..30]) } else { v.clone() };
-        content.properties.push(("text_content".into(), PropertyDisplayValue::Text(display)));
+        content.properties.push(PropertyEntry {
+            name: "text_content".into(),
+            value: PropertyDisplayValue::Text(display),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.text_paths {
         let v = pt.evaluate(time_ms);
-        content.properties.push(("text_paths".into(), PropertyDisplayValue::Text(format!("{} paths", v.len()))));
+        content.properties.push(PropertyEntry {
+            name: "text_paths".into(),
+            value: PropertyDisplayValue::Text(format!("{} paths", v.len())),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.vector_paths {
         let v = pt.evaluate(time_ms);
-        content.properties.push(("vector_paths".into(), PropertyDisplayValue::Text(format!("{} paths", v.len()))));
+        content.properties.push(PropertyEntry {
+            name: "vector_paths".into(),
+            value: PropertyDisplayValue::Text(format!("{} paths", v.len())),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.image {
         let v = pt.evaluate(time_ms);
-        content.properties.push(("image".into(), PropertyDisplayValue::Text(if v.is_some() { "loaded".into() } else { "none".into() })));
+        content.properties.push(PropertyEntry {
+            name: "image".into(),
+            value: PropertyDisplayValue::Text(if v.is_some() { "loaded".into() } else { "none".into() }),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if !content.properties.is_empty() {
         groups.push(content);
@@ -414,15 +505,27 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     let mut layout = PropertyGroup { name: "Layout", properties: Vec::new() };
     if let Some(pt) = &track.size {
         let v = pt.evaluate(time_ms);
-        layout.properties.push(("size".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+        layout.properties.push(PropertyEntry {
+            name: "size".into(),
+            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.placement_mode {
         let v = pt.evaluate(time_ms);
-        layout.properties.push(("placement_mode".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+        layout.properties.push(PropertyEntry {
+            name: "placement_mode".into(),
+            value: PropertyDisplayValue::Text(format!("{v:?}")),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if let Some(pt) = &track.position_binding {
         let v = pt.evaluate(time_ms);
-        layout.properties.push(("position_binding".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+        layout.properties.push(PropertyEntry {
+            name: "position_binding".into(),
+            value: PropertyDisplayValue::Text(format!("{v:?}")),
+            has_keyframes: !pt.keyframes.is_empty(),
+        });
     }
     if !layout.properties.is_empty() {
         groups.push(layout);
@@ -431,7 +534,12 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     groups
 }
 
-fn render_property_group(ui: &mut egui::Ui, group: &PropertyGroup) {
+fn render_property_group(
+    ui: &mut egui::Ui,
+    group: &PropertyGroup,
+    actor_label: &str,
+    actions: &mut UiActions,
+) {
     let count = group.properties.len();
     let header_text = format!("{}  ({})", group.name, count);
 
@@ -443,87 +551,136 @@ fn render_property_group(ui: &mut egui::Ui, group: &PropertyGroup) {
     )
     .default_open(true)
     .show(ui, |ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
-        for (name, value) in &group.properties {
-            render_property_row(ui, name, value);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+        for entry in &group.properties {
+            render_editable_property_row(ui, actor_label, entry, actions);
         }
     });
 }
 
-fn render_property_row(ui: &mut egui::Ui, name: &str, value: &PropertyDisplayValue) {
-    let row_height = 18.0;
-    let available = ui.available_width();
-    let (rect, _response) = ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
+/// Renders a single editable property row, dispatching to the appropriate widget.
+fn render_editable_property_row(
+    ui: &mut egui::Ui,
+    actor_label: &str,
+    entry: &PropertyEntry,
+    actions: &mut UiActions,
+) {
+    let name = &entry.name;
+    let has_kf = entry.has_keyframes;
 
-    // Property name
-    ui.painter().text(
-        egui::pos2(rect.min.x + 8.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        name,
-        egui::TextStyle::Small.resolve(ui.style()),
-        Color32::from_rgb(110, 118, 135),
-    );
+    match &entry.value {
+        PropertyDisplayValue::Vec2(x_str, y_str) => {
+            // Parse current values for the widget
+            let x: f32 = x_str.parse().unwrap_or(0.0);
+            let y: f32 = y_str.parse().unwrap_or(0.0);
 
-    // Value (right-aligned)
-    match value {
-        PropertyDisplayValue::Scalar(s) => {
-            ui.painter().text(
-                egui::pos2(rect.max.x - 6.0, rect.center().y),
-                egui::Align2::RIGHT_CENTER,
-                s,
-                egui::TextStyle::Small.resolve(ui.style()),
-                Color32::from_rgb(200, 206, 220),
-            );
-        }
-        PropertyDisplayValue::Vec2(x, y) => {
-            let text = format!("({}, {})", x, y);
-            ui.painter().text(
-                egui::pos2(rect.max.x - 6.0, rect.center().y),
-                egui::Align2::RIGHT_CENTER,
-                &text,
-                egui::TextStyle::Small.resolve(ui.style()),
-                Color32::from_rgb(200, 206, 220),
-            );
+            if let Some((new_x, new_y)) = widgets::vec2_input(ui, name, x, y, has_kf) {
+                actions.property_edit = Some(PropertyEdit {
+                    actor: actor_label.to_string(),
+                    property: name.clone(),
+                    value: PropertyValue::Vec2([new_x, new_y]),
+                });
+            }
         }
         PropertyDisplayValue::Color(rgba) => {
-            // Color swatch + hex
-            let hex = color_to_hex(rgba);
-            let swatch_size = 10.0;
-            let swatch_x = rect.max.x - 6.0 - 60.0;
-            let swatch_rect = egui::Rect::from_center_size(
-                egui::pos2(swatch_x, rect.center().y),
-                Vec2::new(swatch_size, swatch_size),
-            );
-            let color = Color32::from_rgba_premultiplied(
-                (rgba[0] * 255.0) as u8,
-                (rgba[1] * 255.0) as u8,
-                (rgba[2] * 255.0) as u8,
-                (rgba[3] * 255.0) as u8,
-            );
-            ui.painter().rect_filled(swatch_rect, 2.0, color);
-            ui.painter().rect_stroke(
-                swatch_rect,
-                2.0,
-                Stroke::new(1.0, Color32::from_rgb(60, 65, 78)),
-                egui::StrokeKind::Outside,
-            );
-
-            ui.painter().text(
-                egui::pos2(rect.max.x - 6.0, rect.center().y),
-                egui::Align2::RIGHT_CENTER,
-                &hex,
-                egui::TextStyle::Small.resolve(ui.style()),
-                Color32::from_rgb(200, 206, 220),
-            );
+            if let Some(new_rgba) = widgets::color_input(ui, name, *rgba, has_kf) {
+                actions.property_edit = Some(PropertyEdit {
+                    actor: actor_label.to_string(),
+                    property: name.clone(),
+                    value: PropertyValue::Color(new_rgba),
+                });
+            }
+        }
+        PropertyDisplayValue::Scalar(s) => {
+            // Determine widget type based on property name
+            match name.as_str() {
+                "opacity" | "fill_opacity" | "stroke_progress" => {
+                    let val: f32 = s.trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                        .parse()
+                        .unwrap_or(0.0);
+                    if let Some(new_val) = widgets::slider_input(ui, name, val, 0.0, 1.0, has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Float(new_val),
+                        });
+                    }
+                }
+                "rotation" => {
+                    // Rotation is stored in radians, displayed in degrees
+                    let val_deg: f32 = s.trim_end_matches('°').parse().unwrap_or(0.0);
+                    if let Some(new_deg) = widgets::float_input(ui, name, val_deg, "°", has_kf) {
+                        // Convert back to radians for the action
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Float(new_deg.to_radians()),
+                        });
+                    }
+                }
+                "scale" => {
+                    let val: f32 = s.parse().unwrap_or(1.0);
+                    if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Float(new_val),
+                        });
+                    }
+                }
+                "stroke_width" => {
+                    let val: f32 = s.parse().unwrap_or(0.0);
+                    if let Some(new_val) = widgets::float_input(ui, name, val, "px", has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Float(new_val),
+                        });
+                    }
+                }
+                _ => {
+                    // Generic scalar: try float_input
+                    let val: f32 = s.parse().unwrap_or(0.0);
+                    if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Float(new_val),
+                        });
+                    }
+                }
+            }
         }
         PropertyDisplayValue::Text(s) => {
-            ui.painter().text(
-                egui::pos2(rect.max.x - 6.0, rect.center().y),
-                egui::Align2::RIGHT_CENTER,
-                s,
-                egui::TextStyle::Small.resolve(ui.style()),
-                Color32::from_rgb(137, 200, 235),
-            );
+            // Determine widget type based on property name
+            match name.as_str() {
+                "shape_type" => {
+                    let variants = &[
+                        "Rect", "Circle", "Line", "Ellipse", "Arc",
+                        "Polygon", "Path", "Arrow", "Graph", "Plot",
+                    ];
+                    if let Some(new_val) = widgets::enum_selector(ui, name, s, variants, has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Text(new_val),
+                        });
+                    }
+                }
+                "text_content" => {
+                    if let Some(new_text) = widgets::text_input(ui, name, s, has_kf) {
+                        actions.property_edit = Some(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: name.clone(),
+                            value: PropertyValue::Text(new_text),
+                        });
+                    }
+                }
+                _ => {
+                    // Read-only fallback for complex types (points, paths, etc.)
+                    widgets::readonly_row(ui, name, s, has_kf);
+                }
+            }
         }
     }
 }
@@ -640,18 +797,6 @@ fn format_num(v: f32) -> String {
         format!("{:.0}", v)
     } else {
         format!("{:.1}", v)
-    }
-}
-
-fn color_to_hex(rgba: &[f32; 4]) -> String {
-    let r = (rgba[0] * 255.0).round() as u8;
-    let g = (rgba[1] * 255.0).round() as u8;
-    let b = (rgba[2] * 255.0).round() as u8;
-    if rgba[3] >= 0.99 {
-        format!("#{:02x}{:02x}{:02x}", r, g, b)
-    } else {
-        let a = (rgba[3] * 255.0).round() as u8;
-        format!("#{:02x}{:02x}{:02x}{:02x}", r, g, b, a)
     }
 }
 

@@ -2,6 +2,23 @@ use super::*;
 use animatix::timeline::Timeline;
 use kurbo::Point;
 
+/// Describes a property edit made in the inspector panel.
+#[derive(Debug, Clone)]
+pub(super) struct PropertyEdit {
+    pub(super) actor: String,
+    pub(super) property: String,
+    pub(super) value: PropertyValue,
+}
+
+/// The typed value of a property edit.
+#[derive(Debug, Clone)]
+pub(super) enum PropertyValue {
+    Vec2([f32; 2]),
+    Float(f32),
+    Color([f32; 4]),
+    Text(String),
+}
+
 #[derive(Default)]
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
@@ -17,6 +34,7 @@ pub(super) struct UiActions {
     pub(super) prev_keyframe: bool,
     pub(super) next_keyframe: bool,
     pub(super) select_actor: Option<String>,
+    pub(super) property_edit: Option<PropertyEdit>,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
@@ -302,6 +320,6 @@ impl WorkspaceViewer<'_> {
 
     fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         let current_time_s = self.preview.current_time_s;
-        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s);
+        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions);
     }
 }
