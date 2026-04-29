@@ -24,15 +24,15 @@ struct State {
 impl State {
     async fn new(
         window: Arc<Window>,
+        event_loop: &ActiveEventLoop,
         timeline: &Timeline,
         debug_options: DebugRenderOptions,
     ) -> Self {
         let size = window.inner_size();
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
+            Box::new(event_loop.owned_display_handle()),
+        ));
 
         let surface = instance.create_surface(window.clone()).unwrap();
 
@@ -102,8 +102,20 @@ impl State {
         }
     }
 
-    fn render(&mut self, current_time: f64) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
+    fn render(&mut self, current_time: f64) -> Result<(), String> {
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Timeout
+            | wgpu::CurrentSurfaceTexture::Occluded
+            | wgpu::CurrentSurfaceTexture::Suboptimal(_) => return Ok(()),
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.resize(self.size);
+                return Ok(());
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err("Surface validation failed".to_string());
+            }
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -182,6 +194,7 @@ impl ApplicationHandler for App {
 
             let state = pollster::block_on(State::new(
                 window.clone(),
+                event_loop,
                 &self.timeline,
                 self.debug_options,
             ));
@@ -231,12 +244,7 @@ impl ApplicationHandler for App {
 
                 match state.render(current_time) {
                     Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        state.resize(state.size);
-                    }
-                    Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
-                    Err(wgpu::SurfaceError::Timeout) => {}
-                    Err(wgpu::SurfaceError::Other) => {}
+                    Err(_) => {}
                 }
                 window.request_redraw();
             }

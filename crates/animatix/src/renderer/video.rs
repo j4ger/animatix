@@ -37,10 +37,7 @@ async fn render_video_async(
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
 ) {
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::PRIMARY,
-        ..Default::default()
-    });
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {

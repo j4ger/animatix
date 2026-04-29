@@ -8,7 +8,6 @@ pub struct PreviewSurface {
     render_view: Option<wgpu::TextureView>,
     sample_texture: Option<wgpu::Texture>,
     sample_view: Option<wgpu::TextureView>,
-    texture_id: Option<egui::TextureId>,
     dimensions: SceneDimensions,
     /// Per-actor world-space hit regions from the last render call.
     hit_regions: Vec<(String, Rect)>,
@@ -22,7 +21,6 @@ impl PreviewSurface {
             render_view: None,
             sample_texture: None,
             sample_view: None,
-            texture_id: None,
             dimensions: SceneDimensions {
                 width: 0,
                 height: 0,
@@ -35,13 +33,14 @@ impl PreviewSurface {
         self.dimensions
     }
 
-    pub fn texture_id(&self) -> Option<egui::TextureId> {
-        self.texture_id
-    }
-
     /// Returns the actor hit regions from the last render call.
     pub fn hit_regions(&self) -> &[(String, Rect)] {
         &self.hit_regions
+    }
+
+    /// Returns the sample texture view for registration with egui.
+    pub fn sample_view(&self) -> Option<&wgpu::TextureView> {
+        self.sample_view.as_ref()
     }
 
     pub fn set_dimensions(&mut self, device: &wgpu::Device, dimensions: SceneDimensions) {
@@ -146,41 +145,5 @@ impl PreviewSurface {
         queue.submit(std::iter::once(encoder.finish()));
 
         Ok(())
-    }
-
-    pub fn sync_egui_texture(
-        &mut self,
-        device: &wgpu::Device,
-        render_pass: &mut egui_wgpu_backend::RenderPass,
-    ) -> Result<egui::TextureId, String> {
-        let sample_view = self
-            .sample_view
-            .as_ref()
-            .ok_or_else(|| "Preview texture is not initialized".to_string())?;
-
-        let id = match self.texture_id {
-            Some(id) => {
-                render_pass
-                    .update_egui_texture_from_wgpu_texture(
-                        device,
-                        sample_view,
-                        wgpu::FilterMode::Linear,
-                        id,
-                    )
-                    .map_err(|err| err.to_string())?;
-                id
-            }
-            None => {
-                let id = render_pass.egui_texture_from_wgpu_texture(
-                    device,
-                    sample_view,
-                    wgpu::FilterMode::Linear,
-                );
-                self.texture_id = Some(id);
-                id
-            }
-        };
-
-        Ok(id)
     }
 }

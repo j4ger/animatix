@@ -17,9 +17,7 @@ use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
 use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2};
-use egui_dock::{DockArea, DockState, NodeIndex, Style, TabIndex, TabViewer};
-use egui_wgpu_backend::{RenderPass, ScreenDescriptor};
-use egui_winit::State as EguiWinitState;
+use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_dock_state, load_workspace_persistence, persistence_path};
 use preview::{fit_preview, paint_timeline_scrubber};
@@ -27,14 +25,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
-use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalSize, PhysicalSize};
-use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, NamedKey};
-use winit::window::{Window, WindowId};
 use workspace::{UiActions, WorkspaceViewer};
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
@@ -273,16 +264,16 @@ impl GuiShell {
         }
     }
 
-    fn ui(&mut self, ctx: &egui::Context, preview_texture_id: Option<egui::TextureId>) {
+    fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
         let mut actions = UiActions::default();
 
-        egui::TopBottomPanel::top("toolbar")
+        egui::Panel::top("toolbar")
             .resizable(false)
-            .show(ctx, |ui| self.toolbar_ui(ui, &mut actions));
-        egui::TopBottomPanel::bottom("status_bar")
+            .show_inside(ui, |ui| self.toolbar_ui(ui, &mut actions));
+        egui::Panel::bottom("status_bar")
             .resizable(false)
-            .show(ctx, |ui| self.status_bar_ui(ui));
-        egui::CentralPanel::default().show(ctx, |ui| {
+            .show_inside(ui, |ui| self.status_bar_ui(ui));
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             self.workspace_ui(ui, preview_texture_id, &mut actions);
         });
 
@@ -685,17 +676,25 @@ impl GuiShell {
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        if let Some((surface, node, tab_index)) = find_workspace_tab(&self.dock_state, target) {
-            self.dock_state.set_focused_node_and_surface((surface, node));
-            self.dock_state.set_active_tab((surface, node, tab_index));
+        if let Some(tab_path) = find_workspace_tab(&self.dock_state, target) {
+            self.dock_state
+                .set_focused_node_and_surface(egui_dock::NodePath {
+                    surface: tab_path.surface,
+                    node: tab_path.node,
+                });
+            let _ = self.dock_state.set_active_tab(tab_path);
             return;
         }
 
         self.dock_state.push_to_focused_leaf(target);
 
-        if let Some((surface, node, tab_index)) = find_workspace_tab(&self.dock_state, target) {
-            self.dock_state.set_focused_node_and_surface((surface, node));
-            self.dock_state.set_active_tab((surface, node, tab_index));
+        if let Some(tab_path) = find_workspace_tab(&self.dock_state, target) {
+            self.dock_state
+                .set_focused_node_and_surface(egui_dock::NodePath {
+                    surface: tab_path.surface,
+                    node: tab_path.node,
+                });
+            let _ = self.dock_state.set_active_tab(tab_path);
         }
     }
 }
@@ -709,18 +708,13 @@ fn ensure_workspace_tab_present(dock_state: &mut DockState<WorkspaceTab>, target
 fn find_workspace_tab(
     dock_state: &DockState<WorkspaceTab>,
     target: WorkspaceTab,
-) -> Option<(egui_dock::SurfaceIndex, NodeIndex, TabIndex)> {
-    for ((surface, node), tab) in dock_state.iter_all_tabs() {
+) -> Option<egui_dock::TabPath> {
+    for (tab_path, tab) in dock_state.iter_all_tabs() {
         if *tab != target {
             continue;
         }
 
-        let tab_index = dock_state[surface][node]
-            .tabs()
-            .and_then(|tabs| tabs.iter().position(|candidate| *candidate == target))
-            .map(TabIndex::from)?;
-
-        return Some((surface, node, tab_index));
+        return Some(tab_path);
     }
 
     None
