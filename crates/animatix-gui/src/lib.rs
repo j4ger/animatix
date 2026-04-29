@@ -1,6 +1,7 @@
 pub mod app;
 pub mod document;
 pub mod editor;
+pub mod highlighting;
 pub mod hot_reload;
 pub mod preview_surface;
 pub mod source_edit;

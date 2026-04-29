@@ -1,0 +1,11 @@
+[package]
+name = "tree-sitter-animatix"
+version = "0.1.0"
+edition = "2024"
+description = "Tree-sitter grammar for Animatix DSL"
+
+[build-dependencies]
+cc = "1.0"
+
+[dependencies]
+tree-sitter = "0.26"

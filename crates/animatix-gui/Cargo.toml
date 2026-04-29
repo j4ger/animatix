@@ -8,6 +8,7 @@ animatix = { path = "../animatix" }
 directories = "6.0.0"
 eframe = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu"] }
 egui = { version = "0.34", features = ["serde"] }
+egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
 egui_extras = { version = "0.34", features = ["syntect"] }
 egui_dock = { version = "0.19", features = ["serde"] }
 kurbo = "0.13.0"
@@ -18,4 +19,7 @@ syntect = { version = "5.3.0", features = ["default-fancy", "yaml-load"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["fmt"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
+tree-sitter = "0.26"
+tree-sitter-animatix = { path = "../tree-sitter-animatix" }
+tree-sitter-highlight = "0.26"
 wgpu = "29.0.0"

@@ -56,6 +56,11 @@ impl AnimatixApp {
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
+        // Skip shortcuts when a text input is focused (e.g., code editor)
+        if ctx.egui_wants_keyboard_input() {
+            return;
+        }
+
         let scrub_step_s = 0.1;
 
         if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
