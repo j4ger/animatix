@@ -1,0 +1,15 @@
+[package]
+name = "animatix-lsp"
+version = "0.1.0"
+edition = "2024"
+description = "LSP server for Animatix DSL — provides language intelligence to external editors"
+
+[[bin]]
+name = "animatix-lsp"
+path = "src/main.rs"
+
+[dependencies]
+animatix-analyzer = { path = "../animatix-analyzer" }
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"

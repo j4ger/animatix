@@ -1,5 +1,6 @@
 //! Tree-sitter based syntax highlighting for the Animatix DSL.
 
+use animatix_analyzer::Diagnostic;
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, FontFamily, TextFormat};
 use std::sync::LazyLock;
@@ -106,7 +107,7 @@ impl HighlightColors {
 }
 
 /// Highlight source code using tree-sitter and return an egui LayoutJob.
-pub fn highlight_source(source: &str, style: &egui::Style) -> LayoutJob {
+pub fn highlight_source(source: &str, style: &egui::Style, diagnostics: &[Diagnostic]) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = FontId::new(14.0, FontFamily::Monospace);
 
@@ -139,27 +140,18 @@ pub fn highlight_source(source: &str, style: &egui::Style) -> LayoutJob {
         }
     };
 
-    let mut job = LayoutJob::default();
+    // Collect highlight spans as (start, end, color)
+    let mut highlight_spans: Vec<(usize, usize, Color32)> = Vec::new();
     let mut current_highlight: Option<&str> = None;
     let mut last_end = 0;
 
     for event in highlights {
         match event {
             Ok(tree_sitter_highlight::HighlightEvent::Source { start, end }) => {
-                let text = &source[start..end];
                 let color = current_highlight
                     .map(|h| colors.color_for_highlight(h))
                     .unwrap_or(colors.default);
-
-                job.append(
-                    text,
-                    0.0,
-                    TextFormat {
-                        font_id: font_id.clone(),
-                        color,
-                        ..Default::default()
-                    },
-                );
+                highlight_spans.push((start, end, color));
                 last_end = end;
             }
             Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(highlight)) => {
@@ -172,20 +164,133 @@ pub fn highlight_source(source: &str, style: &egui::Style) -> LayoutJob {
         }
     }
 
-    // Append any remaining text
+    // Append any remaining text as a span
     if last_end < source.len() {
+        highlight_spans.push((last_end, source.len(), colors.default));
+    }
+
+    // Apply diagnostic backgrounds
+    let job = apply_diagnostic_backgrounds(source, &font_id, &highlight_spans, diagnostics);
+
+    job
+}
+
+/// Apply diagnostic background colors to highlight spans.
+fn apply_diagnostic_backgrounds(
+    source: &str,
+    font_id: &FontId,
+    highlight_spans: &[(usize, usize, Color32)],
+    diagnostics: &[Diagnostic],
+) -> LayoutJob {
+    // Convert diagnostics to byte offsets with background colors
+    let diag_ranges: Vec<(usize, usize, Color32)> = diagnostics
+        .iter()
+        .filter_map(|d| {
+            let start = line_col_to_byte(source, d.line, d.col);
+            let end = line_col_to_byte(source, d.end_line, d.end_col);
+            if start < end {
+                let bg = match d.severity {
+                    animatix_analyzer::DiagnosticSeverity::Error => {
+                        Color32::from_rgba_premultiplied(255, 0, 0, 30)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Warning => {
+                        Color32::from_rgba_premultiplied(255, 255, 0, 30)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Info => {
+                        Color32::from_rgba_premultiplied(0, 100, 255, 30)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Hint => {
+                        Color32::from_rgba_premultiplied(0, 200, 100, 30)
+                    }
+                };
+                Some((start, end, bg))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Collect all boundary points
+    let mut boundaries: Vec<usize> = Vec::new();
+    boundaries.push(0);
+    for &(start, end, _) in highlight_spans {
+        boundaries.push(start);
+        boundaries.push(end);
+    }
+    for &(start, end, _) in &diag_ranges {
+        boundaries.push(start);
+        boundaries.push(end);
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let mut job = LayoutJob::default();
+
+    // Process each segment between boundaries
+    for window in boundaries.windows(2) {
+        let seg_start = window[0];
+        let seg_end = window[1];
+        if seg_start >= seg_end {
+            continue;
+        }
+
+        // Find the highlight color for this segment
+        let mut highlight_color = Color32::from_rgb(235, 219, 178); // default light
+        for &(h_start, h_end, h_color) in highlight_spans {
+            if seg_start >= h_start && seg_end <= h_end {
+                highlight_color = h_color;
+                break;
+            }
+        }
+
+        // Check if segment is covered by a diagnostic
+        let mut bg_color: Option<Color32> = None;
+        for &(d_start, d_end, d_color) in &diag_ranges {
+            if seg_start >= d_start && seg_end <= d_end {
+                bg_color = Some(d_color);
+                break;
+            }
+        }
+
+        let text = &source[seg_start..seg_end];
+        let background = bg_color.unwrap_or(Color32::TRANSPARENT);
+
         job.append(
-            &source[last_end..],
+            text,
             0.0,
             TextFormat {
-                font_id,
-                color: colors.default,
+                font_id: font_id.clone(),
+                color: highlight_color,
+                background,
                 ..Default::default()
             },
         );
     }
 
     job
+}
+
+/// Convert line and column (0-indexed) to a byte offset in the source.
+fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
+    let mut current_line = 0;
+    let mut current_col = 0;
+    let mut byte_offset = 0;
+
+    for ch in source.chars() {
+        if current_line == line {
+            if current_col >= col {
+                return byte_offset;
+            }
+            current_col += 1;
+        } else if ch == '\n' {
+            current_line += 1;
+            current_col = 0;
+        }
+        byte_offset += ch.len_utf8();
+    }
+
+    // If we reached end of source and the position is at or past the requested position
+    source.len()
 }
 
 fn plain_text_job(text: &str, font_id: &FontId, color: Color32) -> LayoutJob {
@@ -215,7 +320,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style);
+        let job = highlight_source(source, &style, &[]);
 
         // Should produce a non-empty layout job
         assert!(!job.text.is_empty());
@@ -230,7 +335,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style);
+        let job = highlight_source(source, &style, &[]);
 
         assert!(!job.text.is_empty());
     }

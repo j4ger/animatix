@@ -13,9 +13,10 @@ Extract language intelligence into `animatix-analyzer` — a pure computation cr
 ```
 crates/
   animatix/              # parser, AST, timeline (existing)
-  animatix-analyzer/     # NEW: shared language intelligence
-  animatix-lsp/          # NEW: LSP server binary
+  animatix-analyzer/     # shared language intelligence
+  animatix-lsp/          # LSP server binary
   animatix-gui/          # egui app (existing, modified)
+  tree-sitter-animatix/  # tree-sitter grammar (existing)
 ```
 
 ```
@@ -46,322 +47,202 @@ crates/
 2. **Position-based API** — `(line, col)` inputs, matching LSP's `Position` type
 3. **Incremental** — `Analyzer::update()` re-parses only when source changes
 4. **Testable** — every function is a pure-ish computation, easy to unit test
-5. **Type bridge** — analyzer uses its own types; LSP crate has `From` impls
+5. **Type bridge** — analyzer uses its own types; LSP crate has inline conversions
 
 ## Crate: `animatix-analyzer`
 
 ### Public API
 
 ```rust
-pub struct Analyzer {
-    source: String,
-    ast: Option<Vec<Stmt>>,       // None if parse failed
-    parse_errors: Vec<ParseError>,
-    tree: Option<Tree>,           // tree-sitter tree
-    symbols: SymbolTable,
-}
-
-pub struct SymbolTable {
-    /// All labels defined in the file (actor labels, component names)
-    pub labels: HashMap<String, LabelInfo>,
-    /// Built-in types: Text, Math, Circle, etc.
-    pub types: HashSet<String>,
-    /// Components defined in this file
-    pub components: HashMap<String, ComponentInfo>,
-    /// Properties available per type: "Text" → ["content", "position", ...]
-    pub properties: HashMap<String, Vec<String>>,
-    /// Keywords and built-in actions
-    pub keywords: HashSet<String>,
-    pub actions: HashSet<String>,
-}
-
-pub struct LabelInfo {
-    pub name: String,
-    pub kind: LabelKind,       // Actor, Component, Let, For
-    pub line: usize,
-    pub col: usize,
-    pub ty: Option<String>,    // "Text", "Circle", etc.
-}
-
-pub struct ComponentInfo {
-    pub name: String,
-    pub params: Vec<ParamInfo>,
-    pub line: usize,
-    pub col: usize,
-}
-
-pub struct CompletionItem {
-    pub label: String,
-    pub kind: CompletionKind,
-    pub detail: Option<String>,
-    pub documentation: Option<String>,
-    pub insert_text: Option<String>,
-}
-
-pub enum CompletionKind {
-    Keyword,
-    Type,
-    Property,
-    Label,
-    Action,
-    Value,
-    Snippet,
-}
-
-pub struct Diagnostic {
-    pub severity: DiagnosticSeverity,
-    pub line: usize,
-    pub col: usize,
-    pub end_line: usize,
-    pub end_col: usize,
-    pub message: String,
-    pub code: Option<String>,
-}
-
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-    Info,
-    Hint,
-}
-
-pub struct HoverInfo {
-    pub contents: String,      // markdown
-    pub range: Option<(usize, usize, usize, usize)>,
-}
-
-pub struct Location {
-    pub file: Option<String>,  // None = same file
-    pub line: usize,
-    pub col: usize,
-}
+pub struct Analyzer { /* Clone */ }
+pub struct SymbolTable { /* labels, types, components, properties, keywords, actions */ }
+pub struct LabelInfo { name, kind, line, col, ty }
+pub struct ComponentInfo { name, params, line, col }
+pub struct CompletionItem { label, kind, detail, documentation, insert_text }
+pub enum CompletionKind { Keyword, Type, Property, Label, Action, Value, Snippet }
+pub struct Diagnostic { severity, line, col, end_line, end_col, message, code }
+pub enum DiagnosticSeverity { Error, Warning, Info, Hint }
+pub struct HoverInfo { contents, range }
+pub struct Location { file, line, col }
+pub struct DocumentSymbol { name, kind, line, col, detail }
+pub enum SymbolKind { Actor, Variable, Component, Block }
 ```
 
 ### Core Methods
 
 ```rust
 impl Analyzer {
-    /// Create from source text. Parses and builds symbol table.
     pub fn new(source: &str) -> Self;
-
-    /// Update source text. Re-parses if changed.
     pub fn update(&mut self, source: &str);
-
-    /// Completions at cursor position.
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem>;
-
-    /// All diagnostics (parse errors + semantic checks).
     pub fn diagnostics(&self) -> Vec<Diagnostic>;
-
-    /// Hover information at position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo>;
-
-    /// Go-to-definition at position.
     pub fn definition_at(&self, line: usize, col: usize) -> Option<Location>;
-
-    /// Document symbols (outline view).
     pub fn document_symbols(&self) -> Vec<DocumentSymbol>;
 }
 ```
 
-### Completion Logic
+### Completion Contexts
 
-The completer uses tree-sitter's `LookaheadIterator` for syntax-aware suggestions and the `SymbolTable` for semantic suggestions.
+| Context | Trigger | Suggestions |
+|---------|---------|-------------|
+| TopLevel | Start of file | Keywords + snippets + labels + types + actions |
+| TypePosition | After `:` in declaration | Types only |
+| PropertyBlock | Inside `{ }` | Properties for actor type + values |
+| ActionTarget | After verb like `move` | Labels (actor names) |
+| ModifierList | Inside `[ ]` | delay, ease, duration |
+| PropertyValue | After `=` or `:` in property | Context-specific values |
 
-```
-Cursor context → Completion strategy:
+### Diagnostic Checks
 
-1. Top-level (no node context)
-   → keywords (let, import, if, for, ...)
-   → labels from SymbolTable
-   → types (Text, Math, Circle, ...)
+| Check | Severity | Code |
+|-------|----------|------|
+| Tree-sitter ERROR/MISSING nodes | Error | `syntax` |
+| Chumsky parse errors | Error | `parse-N` |
+| Unknown action verb | Warning | `unknown-action` |
+| Undefined label reference | Warning | `undefined-label` |
+| Unknown type name | Warning | `unknown-type` |
+| Unknown property for type | Info | `unknown-property` |
+| Duplicate label definition | Warning | `duplicate-label` |
 
-2. After ":" in "label: " (type_identifier position)
-   → types only
+### Hover Information
 
-3. Inside property block { ... }
-   → properties for the parent actor's type
-   → values: numbers, strings, booleans, tuples
-
-4. After action verb (fade-in, move, ...)
-   → labels (actor names)
-
-5. After "." in path expression
-   → properties of the left-hand type
-
-6. Inside modifier list [ ... ]
-   → modifier names (delay, easing, ...)
-   → duration values
-```
-
-### Diagnostics
-
-```
-Source → Diagnostic pipeline:
-
-1. tree-sitter ERROR/MISSING nodes
-   → "Syntax error" at node range
-
-2. chumsky parse errors (if tree-sitter also fails)
-   → More detailed error messages
-
-3. Semantic checks (future phase):
-   → Undefined label references
-   → Unknown property for type
-   → Type mismatches in expressions
-   → Duplicate label definitions
-```
+Hover provides markdown documentation for:
+- **Labels**: kind (Actor/Variable/Component) + type
+- **Types**: description (e.g., "Text element with content and styling")
+- **Actions**: description + usage example
+- **Keywords**: description + syntax
+- **Literals**: value display
 
 ## Crate: `animatix-lsp`
 
 Thin wrapper around `animatix-analyzer` using `tower-lsp`.
 
-```rust
-struct Backend {
-    analyzer: Mutex<Analyzer>,
-}
+### Implemented Capabilities
 
-// ~200 lines total
-// Each LSP method delegates to analyzer:
-//   completion()      → analyzer.completions_at()
-//   hover()           → analyzer.hover_at()
-//   definition()      → analyzer.definition_at()
-//   document_symbol() → analyzer.document_symbols()
-//   diagnostics       → published on change via analyzer.diagnostics()
+| LSP Method | Analyzer Call | Status |
+|------------|---------------|--------|
+| `textDocument/completion` | `completions_at()` | ✅ |
+| `textDocument/hover` | `hover_at()` | ✅ |
+| `textDocument/definition` | `definition_at()` | ✅ |
+| `textDocument/documentSymbol` | `document_symbols()` | ✅ |
+| `textDocument/didOpen` | `update()` | ✅ |
+| `textDocument/didChange` | `update()` | ✅ |
+
+### Trigger Characters
+
+- `:` — trigger type completion after label
+- `.` — trigger property completion in paths
+- ` ` — trigger general completion
+
+### Usage
+
+```bash
+# Run directly (communicates via stdin/stdout)
+animatix-lsp
 ```
 
-### Type Conversion Layer
+**VS Code** (`.vscode/settings.json`):
+```json
+{
+  "amx.languageServer": {
+    "command": "animatix-lsp",
+    "args": []
+  }
+}
+```
 
-```rust
-// animatix-lsp/src/convert.rs (~150 lines)
-// From<analyzer::CompletionItem> for lsp_types::CompletionItem
-// From<analyzer::Diagnostic> for lsp_types::Diagnostic
-// From<analyzer::HoverInfo> for lsp_types::Hover
-// etc.
+**Neovim** (nvim-lspconfig):
+```lua
+require('lspconfig').animatix.setup {
+  cmd = { 'animatix-lsp' },
+  filetypes = { 'amx' },
+  root_dir = require('lspconfig').util.root_pattern('.git', 'Cargo.toml'),
+}
 ```
 
 ## Crate: `animatix-gui` (modifications)
 
-### New: `completion.rs`
+### New: `completion_popup.rs`
 
-```rust
-pub struct CompletionPopup {
-    analyzer: Analyzer,
-    items: Vec<CompletionItem>,
-    visible: bool,
-    selected: usize,
-}
+Completion popup widget with:
+- Keyboard navigation (Up/Down/Tab/Esc)
+- Filtering by trigger text
+- Color-coded icons per completion kind
+- Scroll support for long lists
+- Click outside to dismiss
 
-impl CompletionPopup {
-    /// Trigger completion at cursor position.
-    pub fn trigger(&mut self, source: &str, line: usize, col: usize);
+### New: `highlighting.rs`
 
-    /// Render popup below cursor using egui::Area.
-    pub fn show(&mut self, ui: &mut egui::Ui, cursor_rect: egui::Rect) -> Option<String>;
-
-    /// Handle keyboard navigation.
-    pub fn handle_input(&mut self, ctx: &egui::Context) -> bool;
-}
-```
+Tree-sitter syntax highlighting with diagnostic squiggles:
+- 14 highlight groups (keyword, type, string, number, comment, operator, etc.)
+- Gruvbox-inspired dark/light themes
+- Diagnostic background tints (red=error, yellow=warning, blue=info)
+- Cached highlighting (invalidated on text change)
 
 ### Modified: `editor.rs`
 
-```rust
-// In EditorBuffer::show():
-// 1. On text change, update analyzer
-// 2. On cursor move, trigger completion (debounced)
-// 3. Show CompletionPopup if visible
-// 4. Show diagnostic squiggles via LayoutJob background colors
-```
+Editor buffer with integrated language intelligence:
+- `Analyzer` instance for completions, diagnostics, hover
+- `CompletionPopup` for auto-complete UI
+- Ctrl+Space to trigger completion
+- Auto-trigger on `:`, `.`, ` ` characters
+- Hover tooltip on mouse hover
+- Ctrl+Click go-to-definition
+- Diagnostic squiggles via highlighting
 
-### Modified: `highlighting.rs`
+## Implementation Status
 
-```rust
-// Add diagnostic squiggles to LayoutJob:
-// For each diagnostic, set background color on the affected range
-// Error: red tint, Warning: yellow tint
-```
+### Phase 1: Foundation ✅
 
-## Implementation Phases
+- [x] Create `crates/animatix-analyzer/` crate
+- [x] Make parser public in `animatix`
+- [x] Implement `SymbolTable::build_from_ast(&[Stmt])`
+- [x] Implement `Analyzer::new()` and `Analyzer::update()`
+- [x] Unit tests for symbol extraction
 
-### Phase 1: Foundation (analyzer crate + symbol table)
+### Phase 2: Completion ✅
 
-**Goal**: Create `animatix-analyzer` with `SymbolTable` extraction.
+- [x] Implement `completions_at()` with context detection
+- [x] Add semantic completions from `SymbolTable`
+- [x] Add snippet completions (actor, keyframe, component, if, for, etc.)
+- [x] Unit tests for each completion context
 
-- [ ] Create `crates/animatix-analyzer/` crate
-- [ ] Make `parser::parse_program()` public in `animatix`
-- [ ] Implement `SymbolTable::build_from_ast(&[Stmt])`
-- [ ] Implement `Analyzer::new()` and `Analyzer::update()`
-- [ ] Unit tests for symbol extraction
+### Phase 3: Diagnostics ✅
 
-**Deliverable**: `Analyzer` that parses source and extracts labels, types, components, properties.
+- [x] Implement `diagnostics()` from tree-sitter ERROR nodes
+- [x] Add chumsky error conversion
+- [x] Add semantic checks (undefined labels, unknown actions/types/properties)
+- [x] Unit tests
 
-### Phase 2: Completion
+### Phase 4: GUI Integration ✅
 
-**Goal**: Context-aware completions.
+- [x] Create `completion_popup.rs` with `CompletionPopup`
+- [x] Wire into `editor.rs` (trigger on Ctrl+Space, insert on select)
+- [x] Add diagnostic squiggles to `highlighting.rs`
+- [x] Keyboard navigation (Up/Down/Tab/Esc)
 
-- [ ] Implement `completions_at()` with context detection
-- [ ] Add tree-sitter `LookaheadIterator` for syntax completions
-- [ ] Add semantic completions from `SymbolTable`
-- [ ] Unit tests for each completion context
+### Phase 5: Hover + Go-to-Definition ✅
 
-**Deliverable**: `analyzer.completions_at(line, col)` returns relevant items.
+- [x] Implement `hover_at()` — type info, docs for labels/types/properties
+- [x] Implement `definition_at()` — jump to label/component definition
+- [x] GUI: hover tooltip overlay
+- [x] GUI: Ctrl+Click go-to-definition
 
-### Phase 3: Diagnostics
+### Phase 6: LSP Server ✅
 
-**Goal**: Parse error diagnostics.
-
-- [ ] Implement `diagnostics()` from tree-sitter ERROR nodes
-- [ ] Add chumsky error conversion
-- [ ] Add semantic checks (undefined labels, unknown properties)
-- [ ] Unit tests
-
-**Deliverable**: `analyzer.diagnostics()` returns all errors/warnings.
-
-### Phase 4: GUI Integration
-
-**Goal**: Completion popup and diagnostic squiggles in the editor.
-
-- [ ] Create `completion.rs` with `CompletionPopup`
-- [ ] Wire into `editor.rs` (trigger on cursor move, insert on select)
-- [ ] Add diagnostic squiggles to `highlighting.rs`
-- [ ] Keyboard navigation (Up/Down/Tab/Esc)
-
-**Deliverable**: Working auto-complete and inline diagnostics in the GUI.
-
-### Phase 5: Hover + Go-to-Definition
-
-**Goal**: Hover tooltips and jump-to-definition.
-
-- [ ] Implement `hover_at()` — type info, docs for labels/types/properties
-- [ ] Implement `definition_at()` — jump to label/component definition
-- [ ] GUI: hover tooltip overlay
-- [ ] GUI: Ctrl+Click go-to-definition
-
-**Deliverable**: Hover shows info, Ctrl+Click jumps to definition.
-
-### Phase 6: LSP Server
-
-**Goal**: External editor support.
-
-- [ ] Create `crates/animatix-lsp/` crate
-- [ ] Implement `Backend` with `tower-lsp`
-- [ ] Type conversion layer (`analyzer` ↔ `lsp-types`)
-- [ ] stdio transport
-- [ ] Test with VS Code / Neovim
-
-**Deliverable**: `animatix-lsp` binary that external editors can connect to.
+- [x] Create `crates/animatix-lsp/` crate
+- [x] Implement `Backend` with `tower-lsp`
+- [x] Type conversion (analyzer types → lsp-types inline)
+- [x] stdio transport
+- [x] Completion, hover, definition, document symbols
 
 ### Phase 7: Cross-file Analysis (future)
-
-**Goal**: Completions across imported files.
 
 - [ ] Extend `Analyzer` to accept multiple files
 - [ ] Use `ModuleGraph` for import resolution
 - [ ] Cross-file symbol table
 - [ ] LSP: `workspace/symbol`, `textDocument/references`
-
-**Deliverable**: Completions include symbols from imported files.
 
 ## Dependencies
 
@@ -370,6 +251,7 @@ impl CompletionPopup {
 ```toml
 [dependencies]
 animatix = { path = "../animatix" }
+chumsky = "0.12"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 ```
@@ -380,7 +262,6 @@ tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 [dependencies]
 animatix-analyzer = { path = "../animatix-analyzer" }
 tower-lsp = "0.20"
-lsp-types = "0.97"
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 ```
@@ -391,22 +272,20 @@ serde_json = "1"
 animatix-analyzer = { path = "../animatix-analyzer" }
 ```
 
-## Testing Strategy
+## Testing
 
-- **analyzer**: Pure unit tests, no I/O. Each method tested independently.
-- **lsp**: Integration tests using `tower-lsp` test harness.
-- **gui**: Manual testing + snapshot tests for completion popup rendering.
+- **animatix-analyzer**: 18 unit tests (symbol extraction, completions, diagnostics)
+- **animatix-lsp**: Compiles, no unit tests (manual testing with editors)
+- **animatix-gui**: 383 total tests pass across all crates
 
-## Open Questions
+## Design Decisions
 
-1. **Parser public API**: Should `parse_program()` live in `animatix` or `animatix-analyzer`?
-   - Recommendation: Keep in `animatix`, make `pub`. Analyzer re-exports.
+1. **Tree-sitter for position lookup, chumsky AST for semantic info** — tree-sitter has `descendant_for_point_range()` for cursor context; chumsky AST has richer type information for completions.
 
-2. **Tree-sitter vs chumsky for completions**: Which parser drives completion?
-   - Recommendation: Tree-sitter for position lookup (it has `descendant_for_point`), chumsky AST for semantic info.
+2. **Analyzer owns both parsers** — `Analyzer::new()` parses with both chumsky and tree-sitter, builds symbol table from chumsky AST.
 
-3. **Completion trigger**: On every keystroke or debounced?
-   - Recommendation: Debounced (150ms) for GUI, immediate for LSP.
+3. **No separate type conversion layer** — LSP crate converts analyzer types to lsp-types inline (~50 lines), avoiding a separate conversion module.
 
-4. **Diagnostic refresh**: On every keystroke or on save?
-   - Recommendation: Debounced (300ms) for GUI, on save for LSP (standard behavior).
+4. **Completion popup is pure egui** — no external widget library, custom rendering with keyboard navigation.
+
+5. **Diagnostic squiggles via LayoutJob background** — integrates with existing syntax highlighting, no separate overlay layer.

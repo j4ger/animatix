@@ -1,0 +1,11 @@
+[package]
+name = "animatix-analyzer"
+version = "0.1.0"
+edition = "2024"
+description = "Shared language intelligence for Animatix DSL — completions, diagnostics, hover, go-to-definition"
+
+[dependencies]
+animatix = { path = "../animatix" }
+chumsky = "0.12"
+tree-sitter = "0.26"
+tree-sitter-animatix = { path = "../tree-sitter-animatix" }
