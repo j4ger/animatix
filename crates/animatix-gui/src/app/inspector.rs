@@ -1,12 +1,13 @@
 use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
-use egui::{Color32, RichText, ScrollArea, Vec2};
+use egui::{Color32, RichText, ScrollArea, Stroke, Vec2};
 use std::collections::BTreeMap;
 
 /// Renders the actor inspector panel.
 ///
 /// Shows:
 /// - A collapsible tree view of all actors in the timeline
-/// - Selected actor's properties and keyframes
+/// - Selected actor's properties grouped by category
+/// - Keyframe list with current-time highlighting
 pub(super) fn inspector_ui(
     ui: &mut egui::Ui,
     timeline: Option<&Timeline>,
@@ -14,7 +15,6 @@ pub(super) fn inspector_ui(
     current_time_s: f64,
 ) {
     ui.vertical(|ui| {
-        ui.label(RichText::new("Inspector").strong());
         // Reset selection if actor no longer exists in timeline
         let should_reset = selected_actor
             .as_ref()
@@ -27,8 +27,8 @@ pub(super) fn inspector_ui(
             ui.add_space(20.0);
             ui.label(
                 RichText::new("No timeline loaded — rebuild to inspect")
-                    .small()
-                    .weak(),
+                    .size(11.0)
+                    .color(Color32::from_rgb(90, 96, 110)),
             );
             return;
         };
@@ -36,15 +36,17 @@ pub(super) fn inspector_ui(
         let root_nodes = timeline.root_actor_labels();
         if root_nodes.is_empty() {
             ui.add_space(20.0);
-            ui.label(RichText::new("No actors in scene").small().weak());
+            ui.label(
+                RichText::new("No actors in scene")
+                    .size(11.0)
+                    .color(Color32::from_rgb(90, 96, 110)),
+            );
             return;
         }
 
-        ui.separator();
-
         // Split: actor list on top, details on bottom
         let available = ui.available_size_before_wrap();
-        let list_height = (available.y * 0.38).max(120.0);
+        let list_height = (available.y * 0.35).max(120.0);
 
         // Actor tree
         egui::Frame::NONE.show(ui, |ui| {
@@ -52,8 +54,28 @@ pub(super) fn inspector_ui(
             ScrollArea::vertical().show(ui, |ui| {
                 let actor_count = count_all_actors(timeline, root_nodes);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(format!("Actors — {actor_count}")).strong());
+                    ui.label(
+                        RichText::new("ACTORS")
+                            .size(10.0)
+                            .color(Color32::from_rgb(90, 96, 110))
+                            .strong(),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(actor_count.to_string())
+                                .size(10.0)
+                                .color(Color32::from_rgb(90, 96, 110)),
+                        );
+                    });
                 });
+                ui.add_space(2.0);
+                // Subtle separator
+                let sep_rect = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
+                ui.painter().rect_filled(
+                    sep_rect,
+                    0.0,
+                    Color32::from_rgb(40, 44, 52),
+                );
                 ui.add_space(4.0);
 
                 for root_label in root_nodes {
@@ -62,12 +84,19 @@ pub(super) fn inspector_ui(
             });
         });
 
-        ui.separator();
+        ui.add_space(4.0);
+        let sep_rect = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
+        ui.painter().rect_filled(sep_rect, 0.0, Color32::from_rgb(40, 44, 52));
+        ui.add_space(4.0);
 
         // Selected actor details
         if let Some(sel) = selected_actor.as_ref() {
             let Some(track) = timeline.get_track(sel) else {
-                ui.label(RichText::new("Actor not found").small().weak());
+                ui.label(
+                    RichText::new("Actor not found")
+                        .size(11.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
+                );
                 return;
             };
 
@@ -79,8 +108,8 @@ pub(super) fn inspector_ui(
                 ui.add_space(40.0);
                 ui.label(
                     RichText::new("Select an actor to inspect")
-                        .small()
-                        .weak(),
+                        .size(11.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
                 );
             });
         }
@@ -126,61 +155,62 @@ fn render_actor_tree(
     let shape_hint = shape_type_hint(track);
 
     let indent = depth as f32 * 12.0;
-    let height = 22.0;
+    let height = 20.0;
     let available = ui.available_width();
 
-    let (rect, response) = ui.allocate_exact_size(
-        Vec2::new(available, height),
-        egui::Sense::click(),
-    );
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
 
     // Background
     let bg_color = match (is_selected, response.hovered()) {
-        (true, _) => Color32::from_rgb(63, 81, 181),
-        (_, true) => Color32::from_rgb(45, 45, 55),
+        (true, _) => Color32::from_rgb(55, 62, 75),
+        (_, true) => Color32::from_rgb(32, 36, 44),
         _ => Color32::TRANSPARENT,
     };
     if bg_color != Color32::TRANSPARENT {
-        ui.painter().rect_filled(rect, 2.0, bg_color);
+        ui.painter().rect_filled(rect, 3.0, bg_color);
+    }
+
+    // Selected indicator (left amber bar)
+    if is_selected {
+        let indicator = egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, rect.min.y + 2.0),
+            egui::pos2(rect.min.x + 2.0, rect.max.y - 2.0),
+        );
+        ui.painter().rect_filled(indicator, 1.0, Color32::from_rgb(255, 196, 92));
     }
 
     // Label
-    let label_text = if is_anonymous {
-        format!("{:>width$}{} (anon)", "", label, width = depth * 2)
+    let display_label = if is_anonymous {
+        format!("{} (anon)", label)
     } else {
-        format!("{:>width$}{}", "", label, width = depth * 2)
+        label.to_string()
     };
 
     let text_color = if is_selected {
-        Color32::WHITE
+        Color32::from_rgb(228, 232, 243)
     } else if is_anonymous {
-        Color32::from_rgb(130, 130, 140)
+        Color32::from_rgb(90, 96, 110)
     } else {
-        Color32::from_rgb(210, 210, 220)
+        Color32::from_rgb(150, 158, 175)
     };
 
     let text_pos = egui::pos2(rect.min.x + indent + 4.0, rect.center().y);
     ui.painter().text(
         text_pos,
         egui::Align2::LEFT_CENTER,
-        &label_text,
+        &display_label,
         egui::TextStyle::Small.resolve(ui.style()),
         text_color,
     );
 
-    // Shape type hint
+    // Shape type hint (right-aligned, muted)
     if let Some(shape) = shape_hint {
-        let shape_text = RichText::new(shape).small().weak();
-        let galley = ui
-            .painter()
-            .layout_no_wrap(shape_text.text().to_string(), egui::TextStyle::Small.resolve(ui.style()), text_color.linear_multiply(0.5));
-        let shape_pos = egui::pos2(rect.max.x - galley.size().x - 6.0, rect.center().y);
         ui.painter().text(
-            shape_pos,
-            egui::Align2::LEFT_CENTER,
+            egui::pos2(rect.max.x - 6.0, rect.center().y),
+            egui::Align2::RIGHT_CENTER,
             shape,
             egui::TextStyle::Small.resolve(ui.style()),
-            text_color.linear_multiply(0.5),
+            Color32::from_rgb(90, 96, 110),
         );
     }
 
@@ -215,159 +245,419 @@ fn shape_type_hint(track: &AnimationTrack) -> Option<&'static str> {
 fn render_actor_details(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s: f64) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
 
-    ui.add_space(4.0);
-    ui.label(RichText::new(&track.label).strong().size(16.0));
+    ui.add_space(2.0);
 
-    // Shape type badge
-    if let Some(shape_pt) = &track.shape_type {
-        let shape = shape_pt.evaluate(current_time_ms);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Shape:").small().weak());
+    // Actor header: label + shape type
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(&track.label).strong().size(14.0).color(Color32::from_rgb(228, 232, 243)));
+        if let Some(shape_pt) = &track.shape_type {
+            let shape = shape_pt.evaluate(current_time_ms);
             ui.label(
                 RichText::new(format!("{shape:?}"))
-                    .small()
+                    .size(11.0)
                     .color(Color32::from_rgb(137, 200, 235)),
             );
-        });
-    }
+        }
+    });
 
     // First seen time
-    if track.first_seen_ms > 0 {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("First seen:").small().weak());
-            ui.label(
-                RichText::new(format!("{:.2}s", track.first_seen_ms as f64 / 1000.0)).small(),
-            );
-        });
+    if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
+        ui.label(
+            RichText::new(format!("First seen: {:.2}s", track.first_seen_ms as f64 / 1000.0))
+                .size(10.0)
+                .color(Color32::from_rgb(90, 96, 110)),
+        );
     }
 
-    // Children
-    if !track.children.is_empty() {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Children:").small().weak());
-            ui.label(
-                RichText::new(track.children.join(", "))
-                    .small()
-                    .color(Color32::from_rgb(180, 180, 200)),
-            );
-        });
+    ui.add_space(6.0);
+
+    // Property groups
+    let groups = build_property_groups(track, current_time_ms);
+    for group in &groups {
+        render_property_group(ui, group);
     }
 
     ui.add_space(8.0);
 
-    // Properties table
-    let properties = collect_properties(track, current_time_ms);
-    if !properties.is_empty() {
-        ui.label(RichText::new("Properties").strong());
-        ui.add_space(2.0);
-
-        for (name, value) in &properties {
-            ui.horizontal(|ui| {
-                ui.set_width(ui.available_width());
-                ui.label(RichText::new(format!("  {name}")).small());
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(value).small().strong());
-                });
-            });
-        }
-    }
-
-    ui.add_space(12.0);
-
     // Keyframe table
     let keyframes = collect_keyframes(track);
     if !keyframes.is_empty() {
-        ui.label(RichText::new("Keyframes").strong());
-        ui.add_space(4.0);
-
-        // Table header
-        ui.horizontal(|ui| {
-            ui.set_width(ui.available_width());
-            ui.label(RichText::new("  Time").small().weak());
-            ui.label(RichText::new("Property").small().weak());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(RichText::new("Value").small().weak());
-            });
-        });
-        ui.separator();
-
-        for (time_s, property, value, _easing) in &keyframes {
-            let is_current = (*time_s * 1000.0) as u64 == current_time_ms;
-            let text_color = if is_current {
-                Color32::from_rgb(255, 214, 102)
-            } else {
-                Color32::from_rgb(200, 200, 210)
-            };
-
-            ui.horizontal(|ui| {
-                ui.set_width(ui.available_width());
-                ui.label(
-                    RichText::new(format!("  {:.2}s", time_s))
-                        .small()
-                        .color(text_color),
-                );
-                ui.label(RichText::new(property).small().color(text_color));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(value).small().color(text_color));
-                });
-            });
-        }
+        render_keyframe_table(ui, &keyframes, current_time_ms);
     } else {
-        ui.label(RichText::new("No keyframes — default values only").small().weak());
+        ui.label(
+            RichText::new("No keyframes — default values only")
+                .size(10.0)
+                .color(Color32::from_rgb(90, 96, 110)),
+        );
     }
 }
 
-fn collect_properties(track: &AnimationTrack, time_ms: u64) -> Vec<(String, String)> {
-    let mut props = Vec::new();
+// ─── Property Groups ───────────────────────────────────────────────────────
 
+struct PropertyGroup {
+    name: &'static str,
+    properties: Vec<(String, PropertyDisplayValue)>,
+}
+
+enum PropertyDisplayValue {
+    Scalar(String),
+    Vec2(String, String),
+    Color([f32; 4]),
+    Text(String),
+}
+
+fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
+    let mut groups = Vec::new();
+
+    // Transform group
+    let mut transform = PropertyGroup { name: "Transform", properties: Vec::new() };
     if let Some(pt) = &track.position {
         let v = pt.evaluate(time_ms);
-        props.push(("position".into(), format!("{:?}", v)));
+        transform.properties.push(("position".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
     }
-    if let Some(pt) = &track.size {
+    if let Some(pt) = &track.motion_offset {
         let v = pt.evaluate(time_ms);
-        props.push(("size".into(), format!("{:?}", v)));
-    }
-    if let Some(pt) = &track.scale {
-        let v = pt.evaluate(time_ms);
-        props.push(("scale".into(), format!("{:.2}", v)));
+        transform.properties.push(("motion_offset".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
     }
     if let Some(pt) = &track.rotation {
         let v = pt.evaluate(time_ms);
-        props.push(("rotation".into(), format!("{:.2}°", v.to_degrees())));
+        transform.properties.push(("rotation".into(), PropertyDisplayValue::Scalar(format!("{:.1}°", v.to_degrees()))));
+    }
+    if let Some(pt) = &track.scale {
+        let v = pt.evaluate(time_ms);
+        transform.properties.push(("scale".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
+    }
+    if !transform.properties.is_empty() {
+        groups.push(transform);
+    }
+
+    // Shape group
+    let mut shape = PropertyGroup { name: "Shape", properties: Vec::new() };
+    if let Some(pt) = &track.shape_type {
+        let v = pt.evaluate(time_ms);
+        shape.properties.push(("shape_type".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+    }
+    if let Some(pt) = &track.line_from {
+        let v = pt.evaluate(time_ms);
+        shape.properties.push(("line_from".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+    }
+    if let Some(pt) = &track.line_to {
+        let v = pt.evaluate(time_ms);
+        shape.properties.push(("line_to".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+    }
+    if let Some(pt) = &track.arc_angles {
+        let v = pt.evaluate(time_ms);
+        shape.properties.push(("arc_angles".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+    }
+    if let Some(pt) = &track.points {
+        let v = pt.evaluate(time_ms);
+        shape.properties.push(("points".into(), PropertyDisplayValue::Text(format!("{} pts", v.len()))));
+    }
+    if !shape.properties.is_empty() {
+        groups.push(shape);
+    }
+
+    // Style group
+    let mut style = PropertyGroup { name: "Style", properties: Vec::new() };
+    if let Some(pt) = &track.color {
+        let v = pt.evaluate(time_ms);
+        style.properties.push(("color".into(), PropertyDisplayValue::Color(v)));
     }
     if let Some(pt) = &track.opacity {
         let v = pt.evaluate(time_ms);
-        props.push(("opacity".into(), format!("{:.2}", v)));
-    }
-    if let Some(pt) = &track.color {
-        let v = pt.evaluate(time_ms);
-        props.push(("color".into(), format!("{:?}", v)));
+        style.properties.push(("opacity".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
     }
     if let Some(pt) = &track.stroke_width {
         let v = pt.evaluate(time_ms);
-        props.push(("stroke_width".into(), format!("{:.2}", v)));
+        style.properties.push(("stroke_width".into(), PropertyDisplayValue::Scalar(format!("{:.1}", v))));
     }
     if let Some(pt) = &track.stroke_color {
         let v = pt.evaluate(time_ms);
-        props.push(("stroke_color".into(), format!("{:?}", v)));
+        style.properties.push(("stroke_color".into(), PropertyDisplayValue::Color(v)));
+    }
+    if let Some(pt) = &track.stroke_progress {
+        let v = pt.evaluate(time_ms);
+        style.properties.push(("stroke_progress".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
     }
     if let Some(pt) = &track.fill_opacity {
         let v = pt.evaluate(time_ms);
-        props.push(("fill_opacity".into(), format!("{:.2}", v)));
+        style.properties.push(("fill_opacity".into(), PropertyDisplayValue::Scalar(format!("{:.2}", v))));
     }
-    if let Some(pt) = &track.text_content {
-        let v = pt.evaluate(time_ms);
-        props.push(("text_content".into(), format!("{:?}", v)));
+    if !style.properties.is_empty() {
+        groups.push(style);
     }
 
-    props
+    // Content group
+    let mut content = PropertyGroup { name: "Content", properties: Vec::new() };
+    if let Some(pt) = &track.text_content {
+        let v = pt.evaluate(time_ms);
+        let display = if v.len() > 30 { format!("{}…", &v[..30]) } else { v.clone() };
+        content.properties.push(("text_content".into(), PropertyDisplayValue::Text(display)));
+    }
+    if let Some(pt) = &track.text_paths {
+        let v = pt.evaluate(time_ms);
+        content.properties.push(("text_paths".into(), PropertyDisplayValue::Text(format!("{} paths", v.len()))));
+    }
+    if let Some(pt) = &track.vector_paths {
+        let v = pt.evaluate(time_ms);
+        content.properties.push(("vector_paths".into(), PropertyDisplayValue::Text(format!("{} paths", v.len()))));
+    }
+    if let Some(pt) = &track.image {
+        let v = pt.evaluate(time_ms);
+        content.properties.push(("image".into(), PropertyDisplayValue::Text(if v.is_some() { "loaded".into() } else { "none".into() })));
+    }
+    if !content.properties.is_empty() {
+        groups.push(content);
+    }
+
+    // Layout group
+    let mut layout = PropertyGroup { name: "Layout", properties: Vec::new() };
+    if let Some(pt) = &track.size {
+        let v = pt.evaluate(time_ms);
+        layout.properties.push(("size".into(), PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1]))));
+    }
+    if let Some(pt) = &track.placement_mode {
+        let v = pt.evaluate(time_ms);
+        layout.properties.push(("placement_mode".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+    }
+    if let Some(pt) = &track.position_binding {
+        let v = pt.evaluate(time_ms);
+        layout.properties.push(("position_binding".into(), PropertyDisplayValue::Text(format!("{v:?}"))));
+    }
+    if !layout.properties.is_empty() {
+        groups.push(layout);
+    }
+
+    groups
+}
+
+fn render_property_group(ui: &mut egui::Ui, group: &PropertyGroup) {
+    let count = group.properties.len();
+    let header_text = format!("{}  ({})", group.name, count);
+
+    egui::CollapsingHeader::new(
+        RichText::new(&header_text)
+            .size(11.0)
+            .color(Color32::from_rgb(150, 158, 175))
+            .strong(),
+    )
+    .default_open(true)
+    .show(ui, |ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+        for (name, value) in &group.properties {
+            render_property_row(ui, name, value);
+        }
+    });
+}
+
+fn render_property_row(ui: &mut egui::Ui, name: &str, value: &PropertyDisplayValue) {
+    let row_height = 18.0;
+    let available = ui.available_width();
+    let (rect, _response) = ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
+
+    // Property name
+    ui.painter().text(
+        egui::pos2(rect.min.x + 8.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        name,
+        egui::TextStyle::Small.resolve(ui.style()),
+        Color32::from_rgb(110, 118, 135),
+    );
+
+    // Value (right-aligned)
+    match value {
+        PropertyDisplayValue::Scalar(s) => {
+            ui.painter().text(
+                egui::pos2(rect.max.x - 6.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                s,
+                egui::TextStyle::Small.resolve(ui.style()),
+                Color32::from_rgb(200, 206, 220),
+            );
+        }
+        PropertyDisplayValue::Vec2(x, y) => {
+            let text = format!("({}, {})", x, y);
+            ui.painter().text(
+                egui::pos2(rect.max.x - 6.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                &text,
+                egui::TextStyle::Small.resolve(ui.style()),
+                Color32::from_rgb(200, 206, 220),
+            );
+        }
+        PropertyDisplayValue::Color(rgba) => {
+            // Color swatch + hex
+            let hex = color_to_hex(rgba);
+            let swatch_size = 10.0;
+            let swatch_x = rect.max.x - 6.0 - 60.0;
+            let swatch_rect = egui::Rect::from_center_size(
+                egui::pos2(swatch_x, rect.center().y),
+                Vec2::new(swatch_size, swatch_size),
+            );
+            let color = Color32::from_rgba_premultiplied(
+                (rgba[0] * 255.0) as u8,
+                (rgba[1] * 255.0) as u8,
+                (rgba[2] * 255.0) as u8,
+                (rgba[3] * 255.0) as u8,
+            );
+            ui.painter().rect_filled(swatch_rect, 2.0, color);
+            ui.painter().rect_stroke(
+                swatch_rect,
+                2.0,
+                Stroke::new(1.0, Color32::from_rgb(60, 65, 78)),
+                egui::StrokeKind::Outside,
+            );
+
+            ui.painter().text(
+                egui::pos2(rect.max.x - 6.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                &hex,
+                egui::TextStyle::Small.resolve(ui.style()),
+                Color32::from_rgb(200, 206, 220),
+            );
+        }
+        PropertyDisplayValue::Text(s) => {
+            ui.painter().text(
+                egui::pos2(rect.max.x - 6.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                s,
+                egui::TextStyle::Small.resolve(ui.style()),
+                Color32::from_rgb(137, 200, 235),
+            );
+        }
+    }
+}
+
+// ─── Keyframe Table ────────────────────────────────────────────────────────
+
+fn render_keyframe_table(ui: &mut egui::Ui, keyframes: &[(f64, String, String, String)], current_time_ms: u64) {
+    ui.add_space(4.0);
+
+    // Header
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new("KEYFRAMES")
+                .size(10.0)
+                .color(Color32::from_rgb(90, 96, 110))
+                .strong(),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(
+                RichText::new(keyframes.len().to_string())
+                    .size(10.0)
+                    .color(Color32::from_rgb(90, 96, 110)),
+            );
+        });
+    });
+
+    let sep_rect = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
+    ui.painter().rect_filled(sep_rect, 0.0, Color32::from_rgb(40, 44, 52));
+    ui.add_space(4.0);
+
+    // Table header row
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+    let header_height = 16.0;
+    let available = ui.available_width();
+    let (hrect, _) = ui.allocate_exact_size(Vec2::new(available, header_height), egui::Sense::hover());
+    let muted = Color32::from_rgb(70, 76, 90);
+    ui.painter().text(
+        egui::pos2(hrect.min.x + 8.0, hrect.center().y),
+        egui::Align2::LEFT_CENTER,
+        "Time",
+        egui::TextStyle::Small.resolve(ui.style()),
+        muted,
+    );
+    ui.painter().text(
+        egui::pos2(hrect.min.x + 60.0, hrect.center().y),
+        egui::Align2::LEFT_CENTER,
+        "Property",
+        egui::TextStyle::Small.resolve(ui.style()),
+        muted,
+    );
+    ui.painter().text(
+        egui::pos2(hrect.max.x - 6.0, hrect.center().y),
+        egui::Align2::RIGHT_CENTER,
+        "Value",
+        egui::TextStyle::Small.resolve(ui.style()),
+        muted,
+    );
+
+    // Keyframe rows
+    for (time_s, property, value, _easing) in keyframes {
+        let kf_time_ms = (*time_s * 1000.0) as u64;
+        let is_current = kf_time_ms == current_time_ms;
+
+        let row_height = 18.0;
+        let available = ui.available_width();
+        let (rect, _response) = ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
+
+        // Current-time highlight: amber left border
+        if is_current {
+            let indicator = egui::Rect::from_min_max(
+                egui::pos2(rect.min.x, rect.min.y),
+                egui::pos2(rect.min.x + 2.0, rect.max.y),
+            );
+            ui.painter().rect_filled(indicator, 0.0, Color32::from_rgb(255, 196, 92));
+
+            // Subtle row background
+            ui.painter().rect_filled(rect, 0.0, Color32::from_rgba_unmultiplied(255, 196, 92, 12));
+        }
+
+        let text_color = if is_current {
+            Color32::from_rgb(255, 220, 120)
+        } else {
+            Color32::from_rgb(150, 158, 175)
+        };
+
+        ui.painter().text(
+            egui::pos2(rect.min.x + 8.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            &format!("{:.2}s", time_s),
+            egui::TextStyle::Small.resolve(ui.style()),
+            text_color,
+        );
+        ui.painter().text(
+            egui::pos2(rect.min.x + 60.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            property,
+            egui::TextStyle::Small.resolve(ui.style()),
+            text_color,
+        );
+        ui.painter().text(
+            egui::pos2(rect.max.x - 6.0, rect.center().y),
+            egui::Align2::RIGHT_CENTER,
+            value,
+            egui::TextStyle::Small.resolve(ui.style()),
+            text_color,
+        );
+    }
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+fn format_num(v: f32) -> String {
+    if v == v.floor() && v.abs() < 10000.0 {
+        format!("{:.0}", v)
+    } else {
+        format!("{:.1}", v)
+    }
+}
+
+fn color_to_hex(rgba: &[f32; 4]) -> String {
+    let r = (rgba[0] * 255.0).round() as u8;
+    let g = (rgba[1] * 255.0).round() as u8;
+    let b = (rgba[2] * 255.0).round() as u8;
+    if rgba[3] >= 0.99 {
+        format!("#{:02x}{:02x}{:02x}", r, g, b)
+    } else {
+        let a = (rgba[3] * 255.0).round() as u8;
+        format!("#{:02x}{:02x}{:02x}{:02x}", r, g, b, a)
+    }
 }
 
 fn collect_keyframes(track: &AnimationTrack) -> Vec<(f64, String, String, String)> {
     let mut all: Vec<(u64, &str, String)> = Vec::new();
 
-    // Collect keyframes from each property
     fn push_keyframes_from<V: std::fmt::Debug, E>(
         all: &mut Vec<(u64, &str, String)>,
         name: &'static str,
@@ -408,6 +698,24 @@ fn collect_keyframes(track: &AnimationTrack) -> Vec<(f64, String, String, String
     if let Some(pt) = &track.text_content {
         push_keyframes_from(&mut all, "text_content", &pt.keyframes);
     }
+    if let Some(pt) = &track.motion_offset {
+        push_keyframes_from(&mut all, "motion_offset", &pt.keyframes);
+    }
+    if let Some(pt) = &track.line_from {
+        push_keyframes_from(&mut all, "line_from", &pt.keyframes);
+    }
+    if let Some(pt) = &track.line_to {
+        push_keyframes_from(&mut all, "line_to", &pt.keyframes);
+    }
+    if let Some(pt) = &track.arc_angles {
+        push_keyframes_from(&mut all, "arc_angles", &pt.keyframes);
+    }
+    if let Some(pt) = &track.stroke_progress {
+        push_keyframes_from(&mut all, "stroke_progress", &pt.keyframes);
+    }
+    if let Some(pt) = &track.points {
+        push_keyframes_from(&mut all, "points", &pt.keyframes);
+    }
 
     all.sort_by_key(|(time, _, _)| *time);
 
@@ -417,4 +725,3 @@ fn collect_keyframes(track: &AnimationTrack) -> Vec<(f64, String, String, String
         })
         .collect()
 }
-

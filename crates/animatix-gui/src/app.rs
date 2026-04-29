@@ -3,6 +3,7 @@ mod inspector;
 mod persistence;
 mod preview;
 mod runtime;
+pub(crate) mod transport_bar;
 mod workspace;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
@@ -11,7 +12,7 @@ use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
-    diagnostics_summary_by_phase, format_diagnostic,
+    diagnostics_summary_by_phase,
 };
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
@@ -20,7 +21,7 @@ use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2};
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_dock_state, load_workspace_persistence, persistence_path};
-use preview::{fit_preview, paint_timeline_scrubber};
+use preview::fit_preview;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -37,10 +38,6 @@ const REBUILD_DEBOUNCE: Duration = Duration::from_millis(150);
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
 const EXPLORER_INDENT_PX: f32 = 10.0;
-const TIMELINE_HEIGHT: f32 = 36.0;
-const PREVIEW_TRANSPORT_HEIGHT: f32 = 84.0;
-const PREVIEW_NON_CANVAS_HEIGHT: f32 = 170.0;
-const PREVIEW_MAX_HEIGHT_RATIO: f32 = 0.62;
 
 pub use runtime::run_gui;
 
@@ -267,12 +264,51 @@ impl GuiShell {
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
         let mut actions = UiActions::default();
 
+        // Compact toolbar
         egui::Panel::top("toolbar")
             .resizable(false)
             .show_inside(ui, |ui| self.toolbar_ui(ui, &mut actions));
-        egui::Panel::bottom("status_bar")
+
+        // Transport bar at bottom (replaces status bar)
+        let keyframe_count = self
+            .document
+            .timeline
+            .as_ref()
+            .map(|t| t.keyframe_times_s().len())
+            .unwrap_or(0);
+        let actor_count = self
+            .document
+            .timeline
+            .as_ref()
+            .map(|t| t.tracks.len())
+            .unwrap_or(0);
+        let timeline_markers = self
+            .document
+            .timeline
+            .as_ref()
+            .map(timeline_keyframe_times_s)
+            .unwrap_or_default();
+        let has_error = self.preview.error.is_some();
+        let diagnostics = self.combined_diagnostics();
+
+        egui::Panel::bottom("transport_bar")
             .resizable(false)
-            .show_inside(ui, |ui| self.status_bar_ui(ui));
+            .show_inside(ui, |ui| {
+                transport_bar::transport_bar_ui(
+                    ui,
+                    &mut self.preview,
+                    self.document.scene_dimensions,
+                    &timeline_markers,
+                    actor_count,
+                    keyframe_count,
+                    self.document.is_dirty,
+                    has_error,
+                    &diagnostics,
+                    &mut actions,
+                );
+            });
+
+        // Central workspace
         egui::CentralPanel::default().show_inside(ui, |ui| {
             self.workspace_ui(ui, preview_texture_id, &mut actions);
         });
@@ -281,13 +317,21 @@ impl GuiShell {
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
-        ui.add_space(6.0);
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Animatix").strong().size(18.0));
+            ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+
+            // App title
+            ui.label(
+                RichText::new("animatix")
+                    .strong()
+                    .size(15.0)
+                    .color(Color32::from_rgb(228, 232, 243)),
+            );
+
             ui.separator();
-            action_button(ui, "Inspector", false, || {
-                actions.show_inspector = true;
-            });
+
+            // Filename
             ui.label(
                 RichText::new(
                     self.document
@@ -296,30 +340,15 @@ impl GuiShell {
                         .and_then(|name| name.to_str())
                         .unwrap_or("Untitled"),
                 )
-                .small()
-                .weak(),
+                .size(11.0)
+                .color(Color32::from_rgb(150, 158, 175)),
             );
 
+            // Right-aligned controls
             ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                action_button(
-                    ui,
-                    if self.preview.is_playing {
-                        "Pause"
-                    } else {
-                        "Play"
-                    },
-                    true,
-                    || {
-                        actions.toggle_playback = true;
-                    },
-                );
-                action_button(ui, "Rebuild", false, || {
-                    actions.rebuild = true;
-                });
-                action_button(ui, "Save", true, || {
-                    actions.save = true;
-                });
-                ui.add_space(8.0);
+                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+
+                // Status badge
                 if self.document.is_dirty {
                     badge(
                         ui,
@@ -335,41 +364,19 @@ impl GuiShell {
                         Color32::from_rgb(188, 247, 214),
                     );
                 }
+
+                action_button(ui, "Inspector", false, || {
+                    actions.show_inspector = true;
+                });
+                action_button(ui, "Rebuild", false, || {
+                    actions.rebuild = true;
+                });
+                action_button(ui, "Save", true, || {
+                    actions.save = true;
+                });
             });
         });
-        ui.add_space(6.0);
-    }
-
-    fn status_bar_ui(&self, ui: &mut egui::Ui) {
-        let diagnostics = self.combined_diagnostics();
-
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(self.document.file_path.display().to_string()).monospace());
-            ui.separator();
-            ui.label(if self.document.is_dirty {
-                "Dirty"
-            } else {
-                "Saved"
-            });
-            ui.separator();
-            ui.label(format!(
-                "{:.2}s / {:.2}s",
-                self.preview.current_time_s, self.preview.duration_s
-            ));
-            ui.separator();
-            ui.label(&self.preview.status);
-            if !diagnostics.is_empty() {
-                ui.separator();
-                ui.colored_label(
-                    diagnostics_summary_color(&diagnostics),
-                    diagnostics_phase_summary(&diagnostics),
-                );
-            }
-            if let Some(error) = &self.preview.error {
-                ui.separator();
-                ui.colored_label(Color32::from_rgb(255, 136, 136), error);
-            }
-        });
+        ui.add_space(4.0);
     }
 
     fn workspace_ui(
@@ -386,12 +393,6 @@ impl GuiShell {
             workspace_root: &self.workspace_root,
             expanded_dirs: &mut self.expanded_dirs,
             file_tree: &self.file_tree,
-            timeline_markers: self
-                .document
-                .timeline
-                .as_ref()
-                .map(timeline_keyframe_times_s)
-                .unwrap_or_default(),
             editor: &mut self.editor,
             preview: &mut self.preview,
             diagnostics: &diagnostics,

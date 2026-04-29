@@ -2,8 +2,6 @@ use super::*;
 use animatix::timeline::Timeline;
 use kurbo::Point;
 
-const DIAGNOSTICS_PER_PHASE_LIMIT: usize = 3;
-
 #[derive(Default)]
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
@@ -26,7 +24,6 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) workspace_root: &'a Path,
     pub(super) expanded_dirs: &'a mut HashSet<PathBuf>,
     pub(super) file_tree: &'a [FileTreeEntry],
-    pub(super) timeline_markers: Vec<f64>,
     pub(super) editor: &'a mut EditorBuffer,
     pub(super) preview: &'a mut PreviewPaneState,
     pub(super) diagnostics: &'a [Diagnostic],
@@ -200,8 +197,9 @@ impl WorkspaceViewer<'_> {
 
     fn preview_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
+            // Minimal header
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Preview").strong());
+                ui.label(RichText::new("Preview").strong().size(12.0).color(Color32::from_rgb(150, 158, 175)));
                 ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                     if self.preview.is_playing {
                         badge(
@@ -214,60 +212,52 @@ impl WorkspaceViewer<'_> {
                         badge(
                             ui,
                             "Paused",
-                            Color32::from_rgb(60, 64, 76),
-                            Color32::from_rgb(228, 232, 243),
+                            Color32::from_rgb(40, 44, 52),
+                            Color32::from_rgb(150, 158, 175),
                         );
                     }
                 });
             });
-            ui.label(RichText::new(&self.preview.status).small().weak());
+
+            // Diagnostics banner (compact)
             if !self.diagnostics.is_empty() {
-                ui.add_space(4.0);
                 if let Some(message) = diagnostics_banner_message(self.diagnostics) {
+                    ui.add_space(2.0);
                     ui.colored_label(
                         diagnostics_summary_color(self.diagnostics),
                         RichText::new(message).small().strong(),
                     );
-                    ui.add_space(2.0);
                 }
-                ui.colored_label(
-                    diagnostics_summary_color(self.diagnostics),
-                    RichText::new(diagnostics_phase_summary(self.diagnostics)).small(),
-                );
-                render_diagnostics_by_phase(ui, self.diagnostics);
             }
-            ui.separator();
 
+            ui.add_space(4.0);
+
+            // Canvas — takes all available space
             let available = ui.available_size_before_wrap();
-            let reserved_height = PREVIEW_NON_CANVAS_HEIGHT.min((available.y - 80.0).max(0.0));
-            let image_height = ((available.y - reserved_height).max(180.0))
-                .min((available.y * PREVIEW_MAX_HEIGHT_RATIO).max(180.0));
-        let desired = fit_preview(
-            self.scene_dimensions,
-            Vec2::new(available.x.max(200.0), image_height),
-        );
+            let desired = fit_preview(
+                self.scene_dimensions,
+                Vec2::new(available.x.max(200.0), available.y.max(180.0)),
+            );
 
             let (preview_rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
             ui.painter().rect_stroke(
                 preview_rect,
                 6.0,
-                Stroke::new(1.0, Color32::from_rgb(58, 63, 74)),
+                Stroke::new(1.0, Color32::from_rgb(40, 44, 52)),
                 egui::StrokeKind::Outside,
             );
             ui.painter()
-                .rect_filled(preview_rect, 6.0, Color32::from_rgb(18, 20, 24));
+                .rect_filled(preview_rect, 6.0, Color32::from_rgb(12, 14, 18));
 
             // Click-to-select: test click against actor hit regions
             if response.clicked() && !self.hit_regions.is_empty() {
                 if let Some(click_pos) = response.interact_pointer_pos() {
-                    // Map click position in preview rect to scene coordinates
                     let scale_x = self.scene_dimensions.width as f64 / desired.x as f64;
                     let scale_y = self.scene_dimensions.height as f64 / desired.y as f64;
                     let scene_x = (click_pos.x - preview_rect.min.x) as f64 * scale_x;
                     let scene_y = (click_pos.y - preview_rect.min.y) as f64 * scale_y;
                     let scene_point = Point::new(scene_x, scene_y);
 
-                    // Iterate in reverse: last-drawn (children) are on top
                     for (label, bounds) in self.hit_regions.iter().rev() {
                         if bounds.contains(scene_point) {
                             self.actions.select_actor = Some(label.clone());
@@ -287,121 +277,31 @@ impl WorkspaceViewer<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Preview initializing…",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        Color32::from_rgb(150, 155, 168),
+                        Color32::from_rgb(90, 96, 110),
                     );
                 }
             }
 
-            let has_error = self.preview.error.is_some();
-            let transport_height = PREVIEW_TRANSPORT_HEIGHT + if has_error { 26.0 } else { 0.0 };
-            ui.add_space((ui.available_height() - transport_height).max(0.0));
-
-            egui::Frame::new()
-                .fill(Color32::from_rgb(22, 25, 31))
-                .stroke(Stroke::new(1.0, Color32::from_rgb(52, 58, 68)))
-                .corner_radius(egui::CornerRadius::same(10))
-                .inner_margin(egui::Margin::symmetric(12, 10))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(format!(
-                                        "t = {:.2}s / {:.2}s",
-                                        self.preview.current_time_s, self.preview.duration_s
-                                    ))
-                                    .strong(),
-                                );
-                                ui.separator();
-                ui.label(
-                    RichText::new(format!(
-                        "{} × {}",
-                        self.scene_dimensions.width,
-                        self.scene_dimensions.height,
-                    ))
-                    .small()
-                    .weak(),
+            // Error display (compact, overlaid)
+            if let Some(error) = &self.preview.error {
+                let error_rect = egui::Rect::from_min_max(
+                    egui::pos2(preview_rect.min.x + 8.0, preview_rect.max.y - 28.0),
+                    egui::pos2(preview_rect.max.x - 8.0, preview_rect.max.y - 8.0),
                 );
-                            });
-
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Rebuild").clicked() {
-                        self.actions.rebuild = true;
-                    }
-                    ui.add_space(4.0);
-                    if ui.button(">>").on_hover_text_at_pointer("Next keyframe (.)")
-                        .clicked()
-                    {
-                        self.actions.next_keyframe = true;
-                    }
-                    if ui.button("<<").on_hover_text_at_pointer("Previous keyframe (,)")
-                        .clicked()
-                    {
-                        self.actions.prev_keyframe = true;
-                    }
-                    ui.add_space(4.0);
-                    if ui
-                        .button(if self.preview.is_playing { "Pause" } else { "Play" })
-                        .clicked()
-                    {
-                        self.actions.toggle_playback = true;
-                    }
-                });
-                        });
-
-                        if let Some(error) = &self.preview.error {
-                            ui.add_space(2.0);
-                            ui.colored_label(Color32::from_rgb(255, 136, 136), error);
-                        }
-
-                        ui.add_space(4.0);
-                        let mut scrub = self.preview.current_time_s;
-                        if paint_timeline_scrubber(
-                            ui,
-                            &mut scrub,
-                            self.preview.duration_s,
-                            &self.timeline_markers,
-                            self.preview.is_playing,
-                        ) {
-                            self.actions.scrub_to = Some(scrub);
-                        }
-                    });
-                });
+                ui.painter().rect_filled(error_rect, 4.0, Color32::from_rgba_unmultiplied(40, 10, 10, 200));
+                ui.painter().text(
+                    error_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    error,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    Color32::from_rgb(255, 136, 136),
+                );
+            }
         });
     }
 
     fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         let current_time_s = self.preview.current_time_s;
         inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s);
-    }
-}
-
-fn render_diagnostics_by_phase(ui: &mut egui::Ui, diagnostics: &[Diagnostic]) {
-    for summary in diagnostics_summary_by_phase(diagnostics) {
-        egui::CollapsingHeader::new(summary.label())
-            .default_open(true)
-            .show(ui, |ui| {
-                let phase_diagnostics: Vec<_> = diagnostics
-                    .iter()
-                    .filter(|diagnostic| diagnostic.phase == summary.phase)
-                    .collect();
-
-                for diagnostic in phase_diagnostics.iter().take(DIAGNOSTICS_PER_PHASE_LIMIT) {
-                    ui.label(RichText::new(format_diagnostic(diagnostic)).small());
-                }
-
-                if phase_diagnostics.len() > DIAGNOSTICS_PER_PHASE_LIMIT {
-                    ui.label(
-                        RichText::new(format!(
-                            "… and {} more {} diagnostics",
-                            phase_diagnostics.len() - DIAGNOSTICS_PER_PHASE_LIMIT,
-                            summary.phase
-                        ))
-                        .small()
-                        .weak(),
-                    );
-                }
-            });
     }
 }

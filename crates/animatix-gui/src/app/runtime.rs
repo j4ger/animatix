@@ -191,7 +191,7 @@ impl AnimatixApp {
 
 impl eframe::App for AnimatixApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        let [r, g, b, a] = Color32::from_rgb(18, 20, 24).to_normalized_gamma_f32();
+        let [r, g, b, a] = Color32::from_rgb(12, 14, 18).to_normalized_gamma_f32();
         [r, g, b, a]
     }
 
@@ -230,13 +230,53 @@ fn live_preview_status(preview: &PreviewPaneState) -> String {
 
 fn install_theme(ctx: &egui::Context) {
     let mut style = (*ctx.global_style()).clone();
-    style.spacing.item_spacing = Vec2::new(10.0, 10.0);
-    style.spacing.button_padding = Vec2::new(12.0, 8.0);
-    style.spacing.window_margin = egui::Margin::same(8);
-    style.visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(22, 25, 31);
-    style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(35, 39, 47);
-    style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(49, 55, 66);
-    style.visuals.widgets.active.bg_fill = Color32::from_rgb(70, 78, 92);
-    style.visuals.panel_fill = Color32::from_rgb(18, 20, 24);
+
+    // Tighter spacing
+    style.spacing.item_spacing = Vec2::new(4.0, 4.0);
+    style.spacing.button_padding = Vec2::new(8.0, 4.0);
+    style.spacing.window_margin = egui::Margin::same(6);
+    style.spacing.indent = 14.0;
+
+    // Background hierarchy (darkest to lightest)
+    style.visuals.panel_fill = Color32::from_rgb(18, 20, 24);          // BG_PANEL
+    style.visuals.window_fill = Color32::from_rgb(18, 20, 24);         // BG_PANEL
+    style.visuals.extreme_bg_color = Color32::from_rgb(12, 14, 18);    // BG_BASE
+    style.visuals.faint_bg_color = Color32::from_rgb(24, 27, 33);      // BG_SURFACE
+
+    // Widget states
+    style.visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(24, 27, 33);    // BG_SURFACE
+    style.visuals.widgets.noninteractive.weak_bg_fill = Color32::from_rgb(24, 27, 33);
+    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(40, 44, 52)); // BORDER_SUBTLE
+    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(150, 158, 175)); // TEXT_SECONDARY
+    style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(4);
+
+    style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(32, 36, 44);          // BG_WIDGET
+    style.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(32, 36, 44);
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(40, 44, 52));
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(200, 206, 220));
+    style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(4);
+
+    style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(42, 47, 57);            // BG_HOVER
+    style.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(42, 47, 57);
+    style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(84, 110, 255)); // BORDER_FOCUS
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_rgb(228, 232, 243)); // TEXT_PRIMARY
+    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
+
+    style.visuals.widgets.active.bg_fill = Color32::from_rgb(55, 62, 75);             // BG_ACTIVE
+    style.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(55, 62, 75);
+    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(84, 110, 255));
+    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::from_rgb(228, 232, 243));
+    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
+
+    // Selection
+    style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(84, 110, 255, 60);
+    style.visuals.selection.stroke = Stroke::new(1.0, Color32::from_rgb(84, 110, 255));
+
+    // Text colors
+    style.visuals.override_text_color = Some(Color32::from_rgb(228, 232, 243)); // TEXT_PRIMARY
+
+    // Strikethrough / separator
+    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(32, 36, 44));
+
     ctx.set_global_style(style);
 }
