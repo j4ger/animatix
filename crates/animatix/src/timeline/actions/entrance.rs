@@ -1,30 +1,9 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
-
-fn timing_modifier_params() -> Vec<ActionParam> {
-    vec![
-        ActionParam {
-            name: "ease".to_string(),
-            description: "Easing function for the animation".to_string(),
-            type_info: "string".to_string(),
-        },
-        ActionParam {
-            name: "duration-shorthand".to_string(),
-            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                .to_string(),
-            type_info: "positional time literal".to_string(),
-        },
-        ActionParam {
-            name: "delay".to_string(),
-            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-            type_info: "time literal".to_string(),
-        },
-    ]
-}
 
 pub struct WipeIn;
 
@@ -36,7 +15,7 @@ impl BuiltinAction for WipeIn {
             description: "Wipes in the target by animating stroke progress and fill opacity."
                 .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 
@@ -112,7 +91,7 @@ impl BuiltinAction for FadeIn {
             category: "Entrance".to_string(),
             description: "Fades in the target by animating its overall opacity.".to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 

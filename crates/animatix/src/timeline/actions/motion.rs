@@ -1,12 +1,12 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::{Action, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, Value, evaluate_expr, parse_timing_modifiers};
 
-fn timing_modifier_params() -> Vec<ActionParam> {
-    vec![
+fn motion_timing_params() -> Vec<ActionParam> {
+    let mut params = vec![
         ActionParam {
             name: "to".to_string(),
             description:
@@ -32,23 +32,9 @@ fn timing_modifier_params() -> Vec<ActionParam> {
                 .to_string(),
             type_info: "vec2".to_string(),
         },
-        ActionParam {
-            name: "ease".to_string(),
-            description: "Easing function for the animation".to_string(),
-            type_info: "string".to_string(),
-        },
-        ActionParam {
-            name: "duration-shorthand".to_string(),
-            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                .to_string(),
-            type_info: "positional time literal".to_string(),
-        },
-        ActionParam {
-            name: "delay".to_string(),
-            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-            type_info: "time literal".to_string(),
-        },
-    ]
+    ];
+    params.extend(base_timing_params());
+    params
 }
 
 fn push_shift_diagnostic(
@@ -210,7 +196,7 @@ impl BuiltinAction for Move {
                 "Moves the target to a local translation offset on top of its existing placement."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: motion_timing_params(),
         }
     }
 
@@ -291,7 +277,7 @@ impl BuiltinAction for Shift {
                 "Applies a relative local translation on top of the target's existing placement."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: motion_timing_params(),
         }
     }
 
@@ -373,7 +359,7 @@ impl BuiltinAction for Rotate {
                 "Applies a relative local rotation in radians on top of the target's existing placement."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: motion_timing_params(),
         }
     }
 
@@ -452,7 +438,7 @@ impl BuiltinAction for Scale {
                 "Applies a relative uniform local scale on top of the target's existing placement."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: motion_timing_params(),
         }
     }
 

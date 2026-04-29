@@ -1,30 +1,9 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
-
-fn timing_modifier_params() -> Vec<ActionParam> {
-    vec![
-        ActionParam {
-            name: "ease".to_string(),
-            description: "Easing function for the animation".to_string(),
-            type_info: "string".to_string(),
-        },
-        ActionParam {
-            name: "duration-shorthand".to_string(),
-            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                .to_string(),
-            type_info: "positional time literal".to_string(),
-        },
-        ActionParam {
-            name: "delay".to_string(),
-            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-            type_info: "time literal".to_string(),
-        },
-    ]
-}
 
 pub struct FadeOut;
 
@@ -35,7 +14,7 @@ impl BuiltinAction for FadeOut {
             category: "Exit".to_string(),
             description: "Fades out the target by animating its overall opacity to 0.".to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 

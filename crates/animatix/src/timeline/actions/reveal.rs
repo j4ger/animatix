@@ -1,30 +1,9 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
-
-fn timing_modifier_params() -> Vec<ActionParam> {
-    vec![
-        ActionParam {
-            name: "ease".to_string(),
-            description: "Easing function for the animation".to_string(),
-            type_info: "string".to_string(),
-        },
-        ActionParam {
-            name: "duration-shorthand".to_string(),
-            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                .to_string(),
-            type_info: "positional time literal".to_string(),
-        },
-        ActionParam {
-            name: "delay".to_string(),
-            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-            type_info: "time literal".to_string(),
-        },
-    ]
-}
 
 pub struct DrawIn;
 
@@ -37,7 +16,7 @@ impl BuiltinAction for DrawIn {
                 "Draws in vector targets by animating stroke progress first, then revealing fill at the end."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 
@@ -125,7 +104,7 @@ impl BuiltinAction for WipeOut {
                 "Wipes out vector targets by animating stroke progress and fill opacity down together."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 
@@ -206,7 +185,7 @@ impl BuiltinAction for RevealOut {
                 "Exits vector targets by hiding fill at the start, then erasing stroke progress over time."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 
@@ -285,7 +264,7 @@ impl BuiltinAction for DrawOut {
                 "Exits vector targets by erasing stroke progress over time while keeping fill until the end."
                     .to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: base_timing_params(),
         }
     }
 

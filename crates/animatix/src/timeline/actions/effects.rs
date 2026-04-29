@@ -1,12 +1,12 @@
-use super::registry::{ActionParam, ActionSignature, BuiltinAction};
+use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
-fn timing_modifier_params() -> Vec<ActionParam> {
-    vec![
+fn effect_timing_params() -> Vec<ActionParam> {
+    let mut params = vec![
         ActionParam {
             name: "intensity".to_string(),
             description: "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
@@ -19,23 +19,9 @@ fn timing_modifier_params() -> Vec<ActionParam> {
                 .to_string(),
             type_info: "number".to_string(),
         },
-        ActionParam {
-            name: "ease".to_string(),
-            description: "Easing function for the animation".to_string(),
-            type_info: "string".to_string(),
-        },
-        ActionParam {
-            name: "duration-shorthand".to_string(),
-            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
-                .to_string(),
-            type_info: "positional time literal".to_string(),
-        },
-        ActionParam {
-            name: "delay".to_string(),
-            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
-            type_info: "time literal".to_string(),
-        },
-    ]
+    ];
+    params.extend(base_timing_params());
+    params
 }
 
 /// Shake action applies rapid oscillating position offsets to simulate shaking
@@ -48,7 +34,7 @@ impl BuiltinAction for Shake {
             category: "Effects".to_string(),
             description: "Shakes the target with rapid oscillating horizontal motion.".to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: effect_timing_params(),
         }
     }
 
@@ -151,7 +137,7 @@ impl BuiltinAction for Pulse {
             category: "Effects".to_string(),
             description: "Pulses the target by scaling up and then returning to normal.".to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: effect_timing_params(),
         }
     }
 
@@ -223,7 +209,7 @@ impl BuiltinAction for Bounce {
             category: "Effects".to_string(),
             description: "Applies elastic bounce motion to the target.".to_string(),
             params: vec![],
-            modifiers: timing_modifier_params(),
+            modifiers: effect_timing_params(),
         }
     }
 

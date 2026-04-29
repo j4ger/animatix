@@ -28,3 +28,25 @@ pub trait BuiltinAction: Send + Sync {
         diagnostics: &mut Vec<Diagnostic>,
     );
 }
+
+/// Common timing modifier parameters shared by all actions.
+pub fn base_timing_params() -> Vec<ActionParam> {
+    vec![
+        ActionParam {
+            name: "ease".to_string(),
+            description: "Easing function for the animation".to_string(),
+            type_info: "string".to_string(),
+        },
+        ActionParam {
+            name: "duration-shorthand".to_string(),
+            description: "Bare positional duration shorthand in brackets (e.g. [1s], [500ms])"
+                .to_string(),
+            type_info: "positional time literal".to_string(),
+        },
+        ActionParam {
+            name: "delay".to_string(),
+            description: "Delay before the action starts (e.g. [delay: 250ms])".to_string(),
+            type_info: "time literal".to_string(),
+        },
+    ]
+}
