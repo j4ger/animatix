@@ -159,6 +159,20 @@ struct GuiShell {
     hit_regions: Vec<(String, kurbo::Rect)>,
     /// Current drag interaction state on the preview canvas.
     drag_state: DragState,
+    /// Actor currently hovered in preview (for hover highlight).
+    hovered_actor: Option<String>,
+    /// Actors under the last click position (for click cycling).
+    click_candidates: Vec<String>,
+    /// Current index into click_candidates for cycling.
+    cycle_index: usize,
+    /// Last click position in scene coordinates (to detect same-position clicks).
+    last_click_scene: Option<kurbo::Point>,
+    /// Whether the right-click context menu is open.
+    context_menu_open: bool,
+    /// Position for the right-click context menu (screen coordinates).
+    context_menu_pos: Option<Pos2>,
+    /// Actors at the right-click position for the context menu.
+    context_menu_actors: Vec<String>,
 }
 
 impl GuiShell {
@@ -234,6 +248,13 @@ impl GuiShell {
             selected_actor: None,
             hit_regions: Vec::new(),
             drag_state: DragState::None,
+            hovered_actor: None,
+            click_candidates: Vec::new(),
+            cycle_index: 0,
+            last_click_scene: None,
+            context_menu_open: false,
+            context_menu_pos: None,
+            context_menu_actors: Vec::new(),
         }
     }
 
@@ -409,6 +430,13 @@ impl GuiShell {
             selected_actor: &mut self.selected_actor,
             hit_regions: &self.hit_regions,
             drag_state: &mut self.drag_state,
+            hovered_actor: &mut self.hovered_actor,
+            click_candidates: &mut self.click_candidates,
+            cycle_index: &mut self.cycle_index,
+            last_click_scene: &mut self.last_click_scene,
+            context_menu_open: &mut self.context_menu_open,
+            context_menu_pos: &mut self.context_menu_pos,
+            context_menu_actors: &mut self.context_menu_actors,
         };
 
         DockArea::new(&mut self.dock_state)
