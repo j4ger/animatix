@@ -155,44 +155,53 @@ pub(super) fn draw_context_menu(
                     );
                     ui.separator();
 
+                    // Calculate max text width to prevent wrapping
+                    let max_actor_len = actors.iter().map(|a| a.len()).max().unwrap_or(10);
+                    let min_width = (max_actor_len as f32 * 7.0) + 60.0; // rough char width + padding
+
                     for (i, actor) in actors.iter().enumerate() {
                         let is_selected = current_selected.as_ref() == Some(actor);
-                        let text = if is_selected {
-                            RichText::new(format!("● {}", actor))
-                                .color(Color32::from_rgb(84, 110, 255))
+
+                        // Build button text with index prefix
+                        let prefix = if i < 9 {
+                            format!("{}.", i + 1)
                         } else {
-                            RichText::new(format!("  {}", actor))
+                            "  ".to_string()
+                        };
+
+                        let text = if is_selected {
+                            RichText::new(format!("{} {}", prefix, actor))
+                                .color(Color32::WHITE)
+                                .strong()
+                        } else {
+                            RichText::new(format!("{} {}", prefix, actor))
                                 .color(Color32::from_rgb(200, 200, 210))
                         };
 
-                        let btn = egui::Button::new(text)
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::NONE);
+                        // Use highlighted background for selected item
+                        let btn = if is_selected {
+                            egui::Button::new(text)
+                                .fill(Color32::from_rgb(84, 110, 255))
+                                .stroke(Stroke::NONE)
+                                .min_size(Vec2::new(min_width, 20.0))
+                        } else {
+                            egui::Button::new(text)
+                                .fill(Color32::TRANSPARENT)
+                                .stroke(Stroke::NONE)
+                                .min_size(Vec2::new(min_width, 20.0))
+                        };
 
-                        if ui
-                            .add_sized([ui.available_width(), 20.0], btn)
-                            .clicked()
-                        {
+                        let response = ui.add(btn);
+                        if response.clicked() {
                             selected_from_menu = Some(actor.clone());
                             close_menu = true;
-                        }
-
-                        // Show index hint
-                        if i < 9 {
-                            ui.painter().text(
-                                egui::pos2(ui.max_rect().right() - 8.0, ui.min_rect().center().y),
-                                egui::Align2::RIGHT_CENTER,
-                                format!("{}", i + 1),
-                                egui::TextStyle::Small.resolve(ui.style()),
-                                Color32::from_rgb(100, 100, 110),
-                            );
                         }
                     }
 
                     ui.separator();
                     if ui
                         .add_sized(
-                            [ui.available_width(), 18.0],
+                            [min_width, 18.0],
                             egui::Button::new(
                                 RichText::new("Cancel")
                                     .small()
