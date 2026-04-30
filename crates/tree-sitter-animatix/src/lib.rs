@@ -34,10 +34,7 @@ mod tests {
 
         let source = r#"
 # 0s
-title: Text {
-    content: "Hello",
-    position: (400, 300),
-}
+title: Text, content: "Hello", position: (400, 300)
 "#;
         let tree = parser.parse(source, None).unwrap();
         let root = tree.root_node();

@@ -12,18 +12,13 @@
   "in"
   "pub"
   "component"
+  "sequence"
+  "stagger"
+  "config"
   "true"
   "false"
+  "null"
 ] @keyword
-
-; Statements / builtins
-[
-  "Text"
-  "Math"
-  "Code"
-  "Svg"
-  "Image"
-] @type.builtin
 
 ; Literals
 (string) @string
@@ -74,21 +69,26 @@
 (actor_declaration type: (type_identifier) @type)
 (action_statement verb: (identifier) @function)
 (action_statement target: (identifier) @variable)
-(assignment_target base: (identifier) @variable)
-(assignment_target segment: (identifier) @property)
+(assignment target: (dotted_identifier) @variable)
+(dotted_identifier base: (identifier) @variable)
+(dotted_identifier segment: (identifier) @property)
 (path_expression base: (identifier) @variable)
 (path_expression segment: (identifier) @property)
+(inline_labeled_item_with_props label: (identifier) @variable)
+(inline_labeled_item_with_props type: (type_identifier) @type)
 (inline_labeled_item label: (identifier) @variable)
 (inline_labeled_item type: (type_identifier) @type)
-(inline_anonymous_item type: (type_identifier) @type)
-(text_statement label: (identifier) @variable)
-(math_statement label: (identifier) @variable)
-(code_statement label: (identifier) @variable)
+(inline_anon_with_props type: (type_identifier) @type)
+(inline_anon type: (type_identifier) @type)
+(text_shorthand label: (identifier) @variable)
 (svg_statement label: (identifier) @variable)
 (image_statement label: (identifier) @variable)
 (labeled_always_statement label: (identifier) @variable)
 (for_statement variable: (identifier) @variable)
 (call_expression function: (identifier) @function)
+
+; Type identifiers (builtin types like Text, Circle, Button, etc.)
+(type_identifier) @type
 
 ; Generic identifiers
 (identifier) @variable
