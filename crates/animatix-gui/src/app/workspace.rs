@@ -34,6 +34,8 @@ pub(super) struct UiActions {
     pub(super) next_keyframe: bool,
     pub(super) select_actor: Option<String>,
     pub(super) property_edit: Option<PropertyEdit>,
+    pub(super) undo: bool,
+    pub(super) redo: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {

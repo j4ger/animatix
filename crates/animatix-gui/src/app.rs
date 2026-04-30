@@ -162,6 +162,10 @@ struct GuiShell {
     drag_state: DragState,
     /// Selection system state (hover, cycling, context menu).
     selection: selection::SelectionState,
+    /// Undo stack for property edits (source text snapshots).
+    undo_stack: Vec<String>,
+    /// Redo stack for property edits (source text snapshots).
+    redo_stack: Vec<String>,
 }
 
 impl GuiShell {
@@ -238,6 +242,8 @@ impl GuiShell {
             hit_regions: Vec::new(),
             drag_state: DragState::None,
             selection: selection::SelectionState::default(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -505,6 +511,12 @@ impl GuiShell {
         if let Some(edit) = actions.property_edit {
             self.handle_property_edit(edit);
         }
+        if actions.undo {
+            self.undo();
+        }
+        if actions.redo {
+            self.redo();
+        }
     }
 
     fn open_document(&mut self, path: PathBuf) {
@@ -519,6 +531,9 @@ impl GuiShell {
                 self.document = document;
                 self.editor
                     .set_document(&self.document.file_path, self.document.source_text.clone());
+                // Clear undo/redo history when switching files
+                self.undo_stack.clear();
+                self.redo_stack.clear();
                 if let Some(ref mut reloader) = self.hot_reloader {
                     let _ = reloader.update_watched_file(&self.document.file_path);
                 }
@@ -690,6 +705,41 @@ impl GuiShell {
         }
     }
 
+    /// Take a snapshot of the current source text for undo/redo.
+    /// Call this BEFORE making a change to the source.
+    fn snapshot(&mut self) {
+        self.undo_stack.push(self.document.source_text.clone());
+        self.redo_stack.clear();
+        // Limit undo history to 100 entries
+        if self.undo_stack.len() > 100 {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    /// Undo the last property edit.
+    fn undo(&mut self) {
+        if let Some(previous) = self.undo_stack.pop() {
+            self.redo_stack.push(self.document.source_text.clone());
+            self.document.source_text = previous.clone();
+            self.editor.replace_text(previous);
+            self.document.is_dirty = true;
+            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = "Undo".to_string();
+        }
+    }
+
+    /// Redo the last undone property edit.
+    fn redo(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            self.undo_stack.push(self.document.source_text.clone());
+            self.document.source_text = next.clone();
+            self.editor.replace_text(next);
+            self.document.is_dirty = true;
+            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = "Redo".to_string();
+        }
+    }
+
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
         if let Some(tab_path) = find_workspace_tab(&self.dock_state, target) {
             self.dock_state
@@ -720,6 +770,9 @@ impl GuiShell {
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
         use crate::source_edit::{apply_source_edit, serialize_property_value, serialize_size_value};
+
+        // Take a snapshot for undo before making changes
+        self.snapshot();
 
         // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {

@@ -57,11 +57,28 @@ impl AnimatixApp {
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         // Skip shortcuts when a text input is focused (e.g., code editor)
-        if ctx.egui_wants_keyboard_input() {
-            return;
-        }
+        // BUT still allow Ctrl+Z/Ctrl+Shift+Z for undo/redo of property edits
+        let wants_keyboard = ctx.egui_wants_keyboard_input();
 
         let scrub_step_s = 0.1;
+
+        // Undo/Redo (works even when editor is focused, for property edits)
+        if ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && !i.modifiers.shift) {
+            self.shell.undo();
+        }
+        if ctx.input(|i| {
+            i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && i.modifiers.shift
+        }) {
+            self.shell.redo();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::Y) && i.modifiers.ctrl) {
+            self.shell.redo();
+        }
+
+        // Skip remaining shortcuts when a text input is focused
+        if wants_keyboard {
+            return;
+        }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
             self.shell.preview.toggle_playback();
