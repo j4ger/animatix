@@ -1,16 +1,5 @@
 use super::*;
 use animatix::timeline::Timeline;
-use preview::DragState;
-
-/// Returns all actors at the given scene point, ordered from topmost (last rendered) to bottommost.
-fn actors_at_point(hit_regions: &[(String, kurbo::Rect)], point: kurbo::Point) -> Vec<String> {
-    hit_regions
-        .iter()
-        .rev()
-        .filter(|(_, bounds)| bounds.contains(point))
-        .map(|(label, _)| label.clone())
-        .collect()
-}
 
 /// Describes a property edit made in the inspector panel.
 #[derive(Debug, Clone)]
@@ -63,13 +52,7 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) selected_actor: &'a mut Option<String>,
     pub(super) hit_regions: &'a [(String, kurbo::Rect)],
     pub(super) drag_state: &'a mut DragState,
-    pub(super) hovered_actor: &'a mut Option<String>,
-    pub(super) click_candidates: &'a mut Vec<String>,
-    pub(super) cycle_index: &'a mut usize,
-    pub(super) last_click_scene: &'a mut Option<kurbo::Point>,
-    pub(super) context_menu_open: &'a mut bool,
-    pub(super) context_menu_pos: &'a mut Option<Pos2>,
-    pub(super) context_menu_actors: &'a mut Vec<String>,
+    pub(super) selection: &'a mut selection::SelectionState,
 }
 
 impl TabViewer for WorkspaceViewer<'_> {
@@ -472,151 +455,64 @@ impl WorkspaceViewer<'_> {
             }
 
             // ── Hover preview ───────────────────────────────────────────
-            if matches!(self.drag_state, DragState::None) {
-                if let Some(mouse) = pointer_pos {
-                    let scene_point = screen_to_scene(mouse);
-                    let candidates = actors_at_point(self.hit_regions, scene_point);
-                    *self.hovered_actor = candidates.first().cloned();
-                } else {
-                    *self.hovered_actor = None;
-                }
-            }
+            let is_dragging = !matches!(self.drag_state, DragState::None);
+            selection::update_hover(
+                self.selection,
+                self.hit_regions,
+                pointer_pos,
+                screen_to_scene,
+                is_dragging,
+            );
 
             // ── Right-click context menu ────────────────────────────────
             if response.secondary_clicked() && matches!(self.drag_state, DragState::None) {
                 if let Some(click_pos) = response.interact_pointer_pos() {
-                    let scene_point = screen_to_scene(click_pos);
-                    let candidates = actors_at_point(self.hit_regions, scene_point);
-                    if !candidates.is_empty() {
-                        *self.context_menu_open = true;
-                        *self.context_menu_pos = Some(click_pos);
-                        *self.context_menu_actors = candidates;
-                    }
+                    selection::handle_right_click(
+                        self.selection,
+                        self.hit_regions,
+                        click_pos,
+                        screen_to_scene,
+                    );
                 }
             }
 
             // Draw context menu if open
-            if *self.context_menu_open {
-                let menu_pos = self.context_menu_pos.unwrap_or_default();
-                let actors = self.context_menu_actors.clone();
-                let mut selected_from_menu = None;
-                let mut close_menu = false;
-
-                egui::Area::new(egui::Id::new("selection_context_menu"))
-                    .fixed_pos(menu_pos)
-                    .order(egui::Order::Foreground)
-                    .show(ui.ctx(), |ui| {
-                        egui::Frame::new()
-                            .fill(Color32::from_rgb(30, 33, 40))
-                            .stroke(Stroke::new(1.0, Color32::from_rgb(60, 65, 75)))
-                            .corner_radius(4.0)
-                            .inner_margin(4.0)
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("Select actor:")
-                                        .small()
-                                        .color(Color32::from_rgb(150, 158, 175)),
-                                );
-                                ui.separator();
-                                for (i, actor) in actors.iter().enumerate() {
-                                    let is_selected =
-                                        self.selected_actor.as_ref() == Some(actor);
-                                    let text = if is_selected {
-                                        RichText::new(format!("● {}", actor))
-                                            .color(Color32::from_rgb(84, 110, 255))
-                                    } else {
-                                        RichText::new(format!("  {}", actor))
-                                            .color(Color32::from_rgb(200, 200, 210))
-                                    };
-                                    let btn = egui::Button::new(text)
-                                        .fill(Color32::TRANSPARENT)
-                                        .stroke(Stroke::NONE);
-                                    if ui.add_sized(
-                                        [ui.available_width(), 20.0],
-                                        btn,
-                                    ).clicked()
-                                    {
-                                        selected_from_menu = Some(actor.clone());
-                                        close_menu = true;
-                                    }
-                                    // Show index hint
-                                    if i < 9 {
-                                        ui.painter().text(
-                                            egui::pos2(
-                                                ui.max_rect().right() - 8.0,
-                                                ui.min_rect().center().y,
-                                            ),
-                                            egui::Align2::RIGHT_CENTER,
-                                            format!("{}", i + 1),
-                                            egui::TextStyle::Small.resolve(ui.style()),
-                                            Color32::from_rgb(100, 100, 110),
-                                        );
-                                    }
-                                }
-                                ui.separator();
-                                if ui
-                                    .add_sized(
-                                        [ui.available_width(), 18.0],
-                                        egui::Button::new(
-                                            RichText::new("Cancel")
-                                                .small()
-                                                .color(Color32::from_rgb(120, 120, 130)),
-                                        )
-                                        .fill(Color32::TRANSPARENT)
-                                        .stroke(Stroke::NONE),
-                                    )
-                                    .clicked()
-                                {
-                                    close_menu = true;
-                                }
-                            });
-                    });
-
-                if let Some(actor) = selected_from_menu {
+            if self.selection.context_menu_open {
+                let (selected, close) = selection::draw_context_menu(
+                    ui,
+                    self.selection,
+                    self.selected_actor,
+                );
+                if let Some(actor) = selected {
                     self.actions.select_actor = Some(actor);
                 }
-                if close_menu {
-                    *self.context_menu_open = false;
+                if close {
+                    self.selection.context_menu_open = false;
                 }
             }
 
             // ── Click-to-select with cycling ────────────────────────────
-            if response.clicked() && matches!(self.drag_state, DragState::None) && !*self.context_menu_open {
+            if response.clicked()
+                && matches!(self.drag_state, DragState::None)
+                && !self.selection.context_menu_open
+            {
                 if let Some(click_pos) = response.interact_pointer_pos() {
-                    let scene_point = screen_to_scene(click_pos);
-                    let candidates = actors_at_point(self.hit_regions, scene_point);
-
-                    if candidates.is_empty() {
-                        *self.selected_actor = None;
-                        *self.click_candidates = Vec::new();
-                        *self.cycle_index = 0;
-                        *self.last_click_scene = None;
+                    let selected = selection::handle_click(
+                        self.selection,
+                        self.hit_regions,
+                        click_pos,
+                        screen_to_scene,
+                    );
+                    if let Some(actor) = selected {
+                        self.actions.select_actor = Some(actor);
                     } else {
-                        // Check if this is a repeat click at the same position
-                        let is_same_position = self.last_click_scene.map_or(false, |last| {
-                            let dx = (scene_point.x - last.x).abs();
-                            let dy = (scene_point.y - last.y).abs();
-                            dx < 5.0 && dy < 5.0
-                        });
-
-                        if is_same_position && *self.click_candidates == candidates {
-                            // Cycle to next candidate
-                            *self.cycle_index = (*self.cycle_index + 1) % candidates.len();
-                        } else {
-                            // New click position, reset cycle
-                            *self.click_candidates = candidates;
-                            *self.cycle_index = 0;
-                        }
-
-                        *self.last_click_scene = Some(scene_point);
-                        self.actions.select_actor =
-                            Some(self.click_candidates[*self.cycle_index].clone());
+                        *self.selected_actor = None;
                     }
                 }
             }
 
             // ── Cursor feedback ─────────────────────────────────────────
-            if matches!(self.drag_state, DragState::None) {
+            if matches!(self.drag_state, DragState::None) && !self.selection.context_menu_open {
                 if let Some(mouse) = pointer_pos {
                     let scene = screen_to_scene(mouse);
                     let is_over_selected = self
@@ -632,16 +528,16 @@ impl WorkspaceViewer<'_> {
 
                     if is_over_selected {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                    } else if self.hovered_actor.is_some() {
+                    } else if self.selection.hovered_actor.is_some() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                 }
-            } else {
+            } else if !self.selection.context_menu_open {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
             }
 
             // ── Draw hover highlight ────────────────────────────────────
-            if let Some(hovered) = self.hovered_actor.as_ref() {
+            if let Some(hovered) = self.selection.hovered_actor.as_ref() {
                 // Don't draw hover if it's the same as selected
                 if self.selected_actor.as_ref() != Some(hovered) {
                     if let Some(hover_rect) = preview::selection_screen_rect(
@@ -651,105 +547,19 @@ impl WorkspaceViewer<'_> {
                         self.scene_dimensions,
                         desired,
                     ) {
-                        // Subtle dashed outline for hover
-                        let hover_color = Color32::from_rgba_unmultiplied(84, 110, 255, 80);
-                        let dash_len = 4.0;
-                        let gap_len = 3.0;
-                        let corners = [
-                            hover_rect.left_top(),
-                            hover_rect.right_top(),
-                            hover_rect.right_bottom(),
-                            hover_rect.left_bottom(),
-                        ];
-                        for i in 0..4 {
-                            let start = corners[i];
-                            let end = corners[(i + 1) % 4];
-                            let total = start.distance(end);
-                            let mut pos = 0.0;
-                            while pos < total {
-                                let t0 = pos / total;
-                                let t1 = ((pos + dash_len).min(total)) / total;
-                                let p0 = Pos2::new(
-                                    start.x + (end.x - start.x) * t0,
-                                    start.y + (end.y - start.y) * t0,
-                                );
-                                let p1 = Pos2::new(
-                                    start.x + (end.x - start.x) * t1,
-                                    start.y + (end.y - start.y) * t1,
-                                );
-                                ui.painter().line_segment(
-                                    [p0, p1],
-                                    Stroke::new(1.0, hover_color),
-                                );
-                                pos += dash_len + gap_len;
-                            }
-                        }
-
-                        // Tooltip with actor name
-                        let tooltip_pos = egui::pos2(
-                            hover_rect.center().x,
-                            hover_rect.top() - 20.0,
-                        );
-                        let galley = ui.painter().layout_no_wrap(
-                            hovered.clone(),
-                            egui::TextStyle::Small.resolve(ui.style()),
-                            Color32::WHITE,
-                        );
-                        let tooltip_size = galley.size();
-                        let tooltip_rect = egui::Rect::from_center_size(
-                            tooltip_pos,
-                            tooltip_size + Vec2::new(8.0, 4.0),
-                        );
-                        ui.painter().rect_filled(
-                            tooltip_rect,
-                            3.0,
-                            Color32::from_rgba_unmultiplied(30, 33, 40, 220),
-                        );
-                        ui.painter().rect_stroke(
-                            tooltip_rect,
-                            3.0,
-                            Stroke::new(1.0, Color32::from_rgb(60, 65, 75)),
-                            egui::StrokeKind::Outside,
-                        );
-                        ui.painter().galley(
-                            tooltip_rect.left_center() + Vec2::new(4.0, -tooltip_size.y / 2.0),
-                            galley,
-                            Color32::WHITE,
-                        );
+                        selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
                     }
                 }
             }
 
             // ── Draw cycle indicator ────────────────────────────────────
-            if self.click_candidates.len() > 1 {
-                if let Some(mouse) = pointer_pos {
-                    let indicator_text = format!(
-                        "{}/{}",
-                        *self.cycle_index + 1,
-                        self.click_candidates.len()
-                    );
-                    let indicator_pos = egui::pos2(mouse.x + 16.0, mouse.y - 8.0);
-                    let galley = ui.painter().layout_no_wrap(
-                        indicator_text,
-                        egui::TextStyle::Small.resolve(ui.style()),
-                        Color32::WHITE,
-                    );
-                    let size = galley.size();
-                    let rect = egui::Rect::from_center_size(
-                        indicator_pos,
-                        size + Vec2::new(6.0, 3.0),
-                    );
-                    ui.painter().rect_filled(
-                        rect,
-                        3.0,
-                        Color32::from_rgba_unmultiplied(84, 110, 255, 200),
-                    );
-                    ui.painter().galley(
-                        rect.left_center() + Vec2::new(3.0, -size.y / 2.0),
-                        galley,
-                        Color32::WHITE,
-                    );
-                }
+            if let Some(mouse) = pointer_pos {
+                selection::draw_cycle_indicator(
+                    ui.painter(),
+                    mouse,
+                    self.selection.cycle_index,
+                    self.selection.click_candidates.len(),
+                );
             }
 
             // ── Draw selection overlay with handles ─────────────────────
