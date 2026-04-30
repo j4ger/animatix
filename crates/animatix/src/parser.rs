@@ -1014,4 +1014,98 @@ mod tests {
             panic!("Expected Keyframe");
         }
     }
+
+    #[test]
+    fn test_vec2_value_span_accuracy() {
+        // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
+        let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ActorDecl { props, .. } = &body[0] {
+                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+                let span = size_prop.value_span.unwrap();
+
+                // The value in source is "(2494.552, 1377.7778)"
+                // Find its actual position in the input
+                let value_start = input.find("(2494.552").unwrap();
+                let value_end = input.find("1377.7778)").unwrap() + "1377.7778)".len();
+
+                assert_eq!(span.start, value_start, "span start mismatch");
+                assert_eq!(span.end, value_end, "span end mismatch");
+
+                // Verify the span extracts the correct text
+                let extracted = &input[span.start..span.end];
+                assert_eq!(extracted, "(2494.552, 1377.7778)", "span extracts wrong text");
+            } else {
+                panic!("Expected ActorDecl");
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
+
+    #[test]
+    fn test_vec2_value_span_with_trailing_comma() {
+        // Test with trailing comma in tuple: (2494.552, 1377.7778,)
+        let input = r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#;
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ActorDecl { props, .. } = &body[0] {
+                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+                let span = size_prop.value_span.unwrap();
+
+                // The value in source is "(2494.552, 1377.7778,)"
+                let value_start = input.find("(2494.552").unwrap();
+                let value_end = input.find("1377.7778,)").unwrap() + "1377.7778,)".len();
+
+                assert_eq!(span.start, value_start, "span start mismatch");
+                assert_eq!(span.end, value_end, "span end mismatch");
+
+                let extracted = &input[span.start..span.end];
+                assert_eq!(extracted, "(2494.552, 1377.7778,)", "span extracts wrong text");
+            } else {
+                panic!("Expected ActorDecl");
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
+
+    #[test]
+    fn test_multiple_properties_span_independence() {
+        // Test that spans for multiple properties don't overlap
+        let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ActorDecl { props, .. } = &body[0] {
+                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+                let color_prop = props.iter().find(|p| p.name == "color").unwrap();
+                let anchor_prop = props.iter().find(|p| p.name == "anchor").unwrap();
+
+                let size_span = size_prop.value_span.unwrap();
+                let color_span = color_prop.value_span.unwrap();
+                let anchor_span = anchor_prop.value_span.unwrap();
+
+                // Verify spans don't overlap
+                assert!(size_span.end <= color_span.start, "size span overlaps color span");
+                assert!(color_span.end <= anchor_span.start, "color span overlaps anchor span");
+
+                // Verify extracted text
+                let size_text = &input[size_span.start..size_span.end];
+                let color_text = &input[color_span.start..color_span.end];
+                let anchor_text = &input[anchor_span.start..anchor_span.end];
+
+                assert_eq!(size_text, "(100, 200)");
+                assert_eq!(color_text, "red");
+                assert_eq!(anchor_text, "center");
+            } else {
+                panic!("Expected ActorDecl");
+            }
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
 }

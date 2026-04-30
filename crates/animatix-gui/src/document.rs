@@ -68,6 +68,14 @@ impl DocumentSession {
         self.is_dirty = true;
     }
 
+    /// Rebuild just the source index from the current source text.
+    /// This is faster than a full rebuild and used for immediate span updates after edits.
+    pub fn rebuild_source_index(&mut self) {
+        if let Ok((raw_statements, _, _)) = self.load_program() {
+            self.source_index = Some(SourceIndex::build(&raw_statements));
+        }
+    }
+
     pub fn reload_from_disk(&mut self) -> Result<(), String> {
         self.source_text = fs::read_to_string(&self.file_path)
             .map_err(|err| format!("Failed to reload {}: {err}", self.file_path.display()))?;

@@ -189,6 +189,35 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_size_edit_preserves_values() {
+        // Simulate the exact bug: dragging a size handle
+        // Original source: "backdrop: Rect, size: (2494.552, 1377.7778)"
+        // After drag, the new size is (2509.0366, 671.8605) - these are FULL size values
+        // The span covers "(2494.552, 1377.7778)"
+        let source = "backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background";
+        let span = ByteSpan {
+            start: source.find("(2494.552").unwrap(),
+            end: source.find("1377.7778)").unwrap() + "1377.7778)".len(),
+        };
+
+        // The drag handler sends full-size values
+        let new_value = PropertyValue::Vec2([2509.0366, 671.8605]);
+
+        // BUG: serialize_size_value with is_half_size=true doubles the values!
+        let serialized_wrong = serialize_size_value(&new_value, true);
+        let result_wrong = apply_source_edit(source, &span, &serialized_wrong);
+        // This would produce: "size: (5018.0732, 1343.721)" - wrong!
+
+        // CORRECT: should NOT double since drag already sends full-size
+        let serialized_correct = serialize_size_value(&new_value, false);
+        let result_correct = apply_source_edit(source, &span, &serialized_correct);
+        assert_eq!(
+            result_correct,
+            "backdrop: Rect, size: (2509.0366, 671.8605), color: scene.background"
+        );
+    }
+
+    #[test]
     fn roundtrip_position_edit() {
         // Simulate finding position span in: "btn: Button, at: (100, 200)"
         let source = "btn: Button, at: (100, 200)";

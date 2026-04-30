@@ -769,7 +769,7 @@ impl GuiShell {
     /// via surgical source editing.
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
-        use crate::source_edit::{apply_source_edit, serialize_property_value, serialize_size_value};
+        use crate::source_edit::{apply_source_edit, serialize_property_value};
 
         // Take a snapshot for undo before making changes
         self.snapshot();
@@ -918,13 +918,8 @@ impl GuiShell {
         // Try to persist the change back to the .amx source file
         let source_written = if let Some(ref source_index) = self.document.source_index {
             if let Some(span) = source_index.find(&edit.actor, &edit.property) {
-                // Determine if this is a size property that needs half-size scaling
-                let is_half_size = matches!(edit.property.as_str(), "size" | "radius");
-                let serialized = if is_half_size {
-                    serialize_size_value(&edit.value, true)
-                } else {
-                    serialize_property_value(&edit.value)
-                };
+                // Serialize the value - drag handler and inspector both send full-size values
+                let serialized = serialize_property_value(&edit.value);
 
                 // Apply surgical edit to source
                 let new_source = apply_source_edit(&self.document.source_text, &span, &serialized);
@@ -933,6 +928,9 @@ impl GuiShell {
                 self.document.source_text = new_source.clone();
                 self.editor.replace_text(new_source);
                 self.document.is_dirty = true;
+
+                // Rebuild source index immediately so the next edit has correct spans
+                self.document.rebuild_source_index();
 
                 true
             } else {
