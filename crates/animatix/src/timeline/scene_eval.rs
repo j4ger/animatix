@@ -92,6 +92,30 @@ impl Timeline {
         let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
             // Skip actors that haven't been declared yet
             if time_ms < track.first_seen_ms {
+                // Still compute hit region so the actor can be selected in the editor
+                let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+                let base_position = track.position.get(time_ms, [0.0, 0.0]);
+                let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
+                let position =
+                    resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
+                let rotation = track.rotation.get(time_ms, 0.0) as f64;
+                let scale = track.scale.get(time_ms, 1.0) as f64;
+                let local_transform = parent_transform
+                    * kurbo::Affine::translate(kurbo::Vec2::new(
+                        position[0] as f64,
+                        position[1] as f64,
+                    ))
+                    * kurbo::Affine::rotate(rotation)
+                    * kurbo::Affine::scale(scale);
+                let default_bounds = kurbo::Rect::new(
+                    (-half_size[0]) as f64,
+                    (-half_size[1]) as f64,
+                    half_size[0] as f64,
+                    half_size[1] as f64,
+                );
+                let world_bounds = transform_rect_bbox(&local_transform, default_bounds);
+                hit_regions.push((node_label.to_string(), world_bounds));
+
                 // Still recurse into children so they are also hidden
                 if let Some(track) = self.tracks.get(node_label) {
                     for child_label in &track.children.clone() {

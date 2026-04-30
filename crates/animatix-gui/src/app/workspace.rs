@@ -562,20 +562,6 @@ impl WorkspaceViewer<'_> {
                 );
             }
 
-            // ── Draw selection overlay with handles ─────────────────────
-            if let Some(actor) = self.selected_actor.clone() {
-                let is_dragging = !matches!(self.drag_state, DragState::None);
-                if let Some(sel_rect) = preview::selection_screen_rect(
-                    &actor,
-                    self.hit_regions,
-                    preview_rect,
-                    self.scene_dimensions,
-                    desired,
-                ) {
-                    preview::draw_selection_overlay(ui.painter(), sel_rect, is_dragging);
-                }
-            }
-
             match self.preview_texture_id {
                 Some(texture_id) => {
                     ui.put(preview_rect, egui::Image::new((texture_id, desired)));
@@ -588,6 +574,20 @@ impl WorkspaceViewer<'_> {
                         egui::TextStyle::Body.resolve(ui.style()),
                         Color32::from_rgb(90, 96, 110),
                     );
+                }
+            }
+
+            // ── Draw selection overlay with handles (AFTER preview texture) ──
+            if let Some(actor) = self.selected_actor.clone() {
+                let is_dragging = !matches!(self.drag_state, DragState::None);
+                if let Some(sel_rect) = preview::selection_screen_rect(
+                    &actor,
+                    self.hit_regions,
+                    preview_rect,
+                    self.scene_dimensions,
+                    desired,
+                ) {
+                    preview::draw_selection_overlay(ui.painter(), sel_rect, is_dragging);
                 }
             }
 
