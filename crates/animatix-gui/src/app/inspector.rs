@@ -505,9 +505,12 @@ fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGr
     let mut layout = PropertyGroup { name: "Layout", properties: Vec::new() };
     if let Some(pt) = &track.size {
         let v = pt.evaluate(time_ms);
+        // The size track stores half‑extents; display full size.
+        let display_w = v[0] * 2.0;
+        let display_h = v[1] * 2.0;
         layout.properties.push(PropertyEntry {
             name: "size".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
+            value: PropertyDisplayValue::Vec2(format_num(display_w), format_num(display_h)),
             has_keyframes: !pt.keyframes.is_empty(),
         });
     }
@@ -575,7 +578,7 @@ fn render_editable_property_row(
             let y: f32 = y_str.parse().unwrap_or(0.0);
 
             if let Some((new_x, new_y)) = widgets::vec2_input(ui, name, x, y, has_kf) {
-                actions.property_edit = Some(PropertyEdit {
+                actions.property_edits.push(PropertyEdit {
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Vec2([new_x, new_y]),
@@ -584,7 +587,7 @@ fn render_editable_property_row(
         }
         PropertyDisplayValue::Color(rgba) => {
             if let Some(new_rgba) = widgets::color_input(ui, name, *rgba, has_kf) {
-                actions.property_edit = Some(PropertyEdit {
+                actions.property_edits.push(PropertyEdit {
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Color(new_rgba),
@@ -599,7 +602,7 @@ fn render_editable_property_row(
                         .parse()
                         .unwrap_or(0.0);
                     if let Some(new_val) = widgets::slider_input(ui, name, val, 0.0, 1.0, has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
@@ -611,7 +614,7 @@ fn render_editable_property_row(
                     let val_deg: f32 = s.trim_end_matches('°').parse().unwrap_or(0.0);
                     if let Some(new_deg) = widgets::float_input(ui, name, val_deg, "°", has_kf) {
                         // Convert back to radians for the action
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_deg.to_radians()),
@@ -621,7 +624,7 @@ fn render_editable_property_row(
                 "scale" => {
                     let val: f32 = s.parse().unwrap_or(1.0);
                     if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
@@ -631,7 +634,7 @@ fn render_editable_property_row(
                 "stroke_width" => {
                     let val: f32 = s.parse().unwrap_or(0.0);
                     if let Some(new_val) = widgets::float_input(ui, name, val, "px", has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
@@ -642,7 +645,7 @@ fn render_editable_property_row(
                     // Generic scalar: try float_input
                     let val: f32 = s.parse().unwrap_or(0.0);
                     if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
@@ -660,7 +663,7 @@ fn render_editable_property_row(
                         "Polygon", "Path", "Arrow", "Graph", "Plot",
                     ];
                     if let Some(new_val) = widgets::enum_selector(ui, name, s, variants, has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_val),
@@ -669,7 +672,7 @@ fn render_editable_property_row(
                 }
                 "text_content" => {
                     if let Some(new_text) = widgets::text_input(ui, name, s, has_kf) {
-                        actions.property_edit = Some(PropertyEdit {
+                        actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_text),

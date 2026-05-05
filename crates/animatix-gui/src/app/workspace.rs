@@ -1,5 +1,6 @@
 use super::*;
 use animatix::timeline::Timeline;
+use preview::ActorProps;
 
 /// Describes a property edit made in the inspector panel.
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ pub(super) struct UiActions {
     pub(super) prev_keyframe: bool,
     pub(super) next_keyframe: bool,
     pub(super) select_actor: Option<String>,
-    pub(super) property_edit: Option<PropertyEdit>,
+    pub(super) property_edits: Vec<PropertyEdit>,
     pub(super) undo: bool,
     pub(super) redo: bool,
 }
@@ -216,6 +217,25 @@ impl WorkspaceViewer<'_> {
         });
     }
 
+    // ─── Actor Property Helpers ──────────────────────────────────────────────
+
+    /// Extract spatial properties of an actor from the timeline at the given time.
+    /// Returns `None` if the actor has no explicit position or size tracks
+    /// (in which case the axis‑aligned fallback should be used for the overlay).
+    fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
+        let t = self.timeline?;
+        let track = t.get_track(actor)?;
+        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        let position = track.position.as_ref().map(|pt| pt.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+        // The size track stores half‑extents (w/2, h/2).  Double to full size.
+        let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
+        let size = [half[0] * 2.0, half[1] * 2.0];
+        let rotation = track.rotation.as_ref().map(|pt| pt.evaluate(time_ms)).unwrap_or(0.0);
+        Some(ActorProps { position, size, rotation })
+    }
+
+    // ─── Preview UI ──────────────────────────────────────────────────────────
+
     fn preview_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             // Minimal header
@@ -271,11 +291,10 @@ impl WorkspaceViewer<'_> {
             ui.painter()
                 .rect_filled(preview_rect, 6.0, Color32::from_rgb(12, 14, 18));
 
-            // ── Drag interaction handling ───────────────────────────────
+            // ── Coordinate mapping helpers ───────────────────────────────
             let scale_x = self.scene_dimensions.width as f64 / desired.x as f64;
             let scale_y = self.scene_dimensions.height as f64 / desired.y as f64;
 
-            // Helper: screen position → scene coordinates
             let screen_to_scene = |screen: egui::Pos2| -> kurbo::Point {
                 kurbo::Point::new(
                     (screen.x - preview_rect.min.x) as f64 * scale_x,
@@ -283,181 +302,293 @@ impl WorkspaceViewer<'_> {
                 )
             };
 
-            // Get current pointer position (works even when pointer leaves widget)
+            let scene_to_screen = |scene: kurbo::Point| -> egui::Pos2 {
+                Pos2::new(
+                    (preview_rect.min.x as f64 + scene.x / scale_x) as f32,
+                    (preview_rect.min.y as f64 + scene.y / scale_y) as f32,
+                )
+            };
+
+            // Get current pointer position
             let pointer_pos = ui
                 .ctx()
                 .input(|i| i.pointer.latest_pos())
                 .filter(|p| preview_rect.contains(*p));
 
+            // ── Drag interaction handling ────────────────────────────────
+            let is_dragging = !matches!(self.drag_state, DragState::None);
+
             // Start new drag
             if response.drag_started() {
                 if let (Some(actor), Some(mouse)) = (self.selected_actor.clone(), pointer_pos) {
                     let scene = screen_to_scene(mouse);
+                    let props = self.get_actor_props(&actor);
 
-                    // Check scale handles first (highest priority)
-                    if let Some(sel_rect) = preview::selection_screen_rect(
-                        &actor,
-                        self.hit_regions,
-                        preview_rect,
-                        self.scene_dimensions,
-                        desired,
-                    ) {
-                        let handle_positions = preview::scale_handle_positions(sel_rect);
-                        for (i, handle_pos) in handle_positions.iter().enumerate() {
-                            if mouse.distance(*handle_pos) <= 8.0 {
-                                let start_size = self
-                                    .hit_regions
-                                    .iter()
-                                    .find(|(l, _)| l == &actor)
-                                    .map(|(_, r)| {
-                                        [(r.x1 - r.x0) as f32, (r.y1 - r.y0) as f32]
-                                    })
-                                    .unwrap_or([100.0, 100.0]);
-                                *self.drag_state = DragState::Scale {
-                                    actor,
-                                    handle: i,
-                                    start_scene: scene,
-                                    start_size,
-                                };
-                                return;
-                            }
+                    if let Some(ref p) = props {
+                        // Check scale handles (rotated)
+                        let handle_world = preview::world_handle_positions(p);
+                        let handle_screen: [Pos2; 8] =
+                            std::array::from_fn(|i| scene_to_screen(handle_world[i]));
+                        if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
+                            let anchor_local = preview::handle_anchor_local(idx, p.size);
+                            *self.drag_state = DragState::Scale {
+                                actor,
+                                handle: idx,
+                                start_scene: scene,
+                                start_position: p.position,
+                                start_size: p.size,
+                                start_rotation: p.rotation,
+                                anchor_local,
+                                constrain_axis: preview::handle_constrains_axis(idx),
+                                uniform_ratio: ui.input(|i| i.modifiers.shift),
+                            };
+                            // Don't process other interactions
+                            return;
                         }
 
                         // Check rotation handle
-                        let top_center = egui::Pos2::new(sel_rect.center().x, sel_rect.top());
-                        let rot_center = egui::Pos2::new(
-                            top_center.x,
-                            top_center.y - preview::ROTATION_OFFSET,
-                        );
-                        if mouse.distance(rot_center) <= 10.0 {
-                            let start_rotation = self
-                                .timeline
-                                .and_then(|t| t.get_track(&actor))
-                                .and_then(|tr| tr.rotation.as_ref())
-                                .map(|pt| pt.evaluate(0))
-                                .unwrap_or(0.0);
+                        let rot_world = preview::rotation_handle_world(p);
+                        let rot_screen = scene_to_screen(rot_world);
+                        if preview::hit_test_rotation_handle(mouse, rot_screen) {
+                            let center = [p.position[0], p.position[1]];
+                            let angle = ((scene.y - center[1] as f64) as f32)
+                                .atan2((scene.x - center[0] as f64) as f32);
                             *self.drag_state = DragState::Rotate {
                                 actor,
-                                start_scene: scene,
-                                start_rotation,
+                                start_angle: angle,
+                                start_rotation: p.rotation,
+                                center,
                             };
                             return;
                         }
                     }
 
-                    // Check actor body (move)
-                    for (label, bounds) in self.hit_regions.iter().rev() {
-                        if label == &actor && bounds.contains(scene) {
-                            let start_position = self
-                                .timeline
-                                .and_then(|t| t.get_track(&actor))
-                                .and_then(|tr| tr.position.as_ref())
-                                .map(|pt| pt.evaluate(0))
-                                .unwrap_or([0.0, 0.0]);
-                            *self.drag_state = DragState::Move {
-                                actor,
-                                start_scene: scene,
-                                start_position,
-                            };
-                            return;
-                        }
+                    // Check actor body for move
+                    let hit_body = props
+                        .map(|p| {
+                            // Point-in-rotated-rect test in local space
+                            let local_pt = [
+                                (scene.x - p.position[0] as f64) as f32,
+                                (scene.y - p.position[1] as f64) as f32,
+                            ];
+                            let cos = (-p.rotation).cos();
+                            let sin = (-p.rotation).sin();
+                            let lx = local_pt[0] * cos - local_pt[1] * sin;
+                            let ly = local_pt[0] * sin + local_pt[1] * cos;
+                            let hw = p.size[0] / 2.0;
+                            let hh = p.size[1] / 2.0;
+                            lx.abs() <= hw && ly.abs() <= hh
+                        })
+                        .unwrap_or(false);
+
+                    if hit_body
+                        || self
+                            .hit_regions
+                            .iter()
+                            .rev()
+                            .any(|(label, bounds)| label == &actor && bounds.contains(scene))
+                    {
+                        let start_position = if let Some(ref p) = props {
+                            p.position
+                        } else {
+                            self.hit_regions
+                                .iter()
+                                .find(|(l, _)| l == &actor)
+                                .map(|(_, r)| {
+                                    [(r.x0 + r.x1) as f32 / 2.0, (r.y0 + r.y1) as f32 / 2.0]
+                                })
+                                .unwrap_or([0.0, 0.0])
+                        };
+                        *self.drag_state = DragState::Move {
+                            actor,
+                            start_scene: scene,
+                            start_position,
+                        };
                     }
                 }
             }
 
             // Update ongoing drag
-            if let DragState::None = *self.drag_state {
+            if !is_dragging {
+                // nothing — handled by match arms below
             } else if let Some(mouse) = pointer_pos {
                 let scene = screen_to_scene(mouse);
                 let shift = ui.input(|i| i.modifiers.shift);
 
                 match self.drag_state.clone() {
-                    DragState::Move { actor, start_scene, start_position } => {
+                    DragState::Move {
+                        actor,
+                        start_scene,
+                        start_position,
+                    } => {
                         let dx = (scene.x - start_scene.x) as f32;
                         let dy = (scene.y - start_scene.y) as f32;
-                        self.actions.property_edit = Some(PropertyEdit {
+                        let (nx, ny) = if shift {
+                            // Constrain to cardinal axes
+                            if dx.abs() > dy.abs() {
+                                (start_position[0] + dx, start_position[1])
+                            } else {
+                                (start_position[0], start_position[1] + dy)
+                            }
+                        } else {
+                            (start_position[0] + dx, start_position[1] + dy)
+                        };
+                        self.actions.property_edits.push(PropertyEdit {
                             actor,
                             property: "position".into(),
-                            value: PropertyValue::Vec2([
-                                start_position[0] + dx,
-                                start_position[1] + dy,
-                            ]),
+                            value: PropertyValue::Vec2([nx, ny]),
                         });
                     }
-                    DragState::Scale { actor, handle, start_scene: _, start_size } => {
-                        if let Some(sel_rect) = preview::selection_screen_rect(
-                            &actor,
-                            self.hit_regions,
-                            preview_rect,
-                            self.scene_dimensions,
-                            desired,
-                        ) {
-                            let opposite = preview::scale_handle_positions(sel_rect)
-                                [(handle + 2) % 8];
-                            let opposite_scene = screen_to_scene(opposite);
-                            let dx = (scene.x - opposite_scene.x).abs() as f32;
-                            let dy = (scene.y - opposite_scene.y).abs() as f32;
-                            let min_size = 10.0;
-                            let (new_w, new_h) = if shift {
-                                let scale_factor = ((dx / start_size[0].max(1.0))
-                                    + (dy / start_size[1].max(1.0)))
-                                    / 2.0;
-                                (
-                                    (start_size[0] * scale_factor).max(min_size),
-                                    (start_size[1] * scale_factor).max(min_size),
-                                )
-                            } else {
-                                (dx.max(min_size), dy.max(min_size))
-                            };
-                            self.actions.property_edit = Some(PropertyEdit {
-                                actor,
-                                property: "size".into(),
-                                value: PropertyValue::Vec2([new_w, new_h]),
-                            });
+
+                    DragState::Scale {
+                        actor,
+                        handle,
+                        start_scene,
+                        start_position,
+                        start_size,
+                        start_rotation,
+                        anchor_local,
+                        constrain_axis,
+                        uniform_ratio,
+                    } => {
+                        // 1. Compute mouse delta in world space
+                        let dx_world = (scene.x - start_scene.x) as f32;
+                        let dy_world = (scene.y - start_scene.y) as f32;
+
+                        // 2. Rotate delta into local space
+                        let cos = (-start_rotation).cos();
+                        let sin = (-start_rotation).sin();
+                        let dx_local = dx_world * cos - dy_world * sin;
+                        let dy_local = dx_world * sin + dy_world * cos;
+
+                        // 3. Determine sign from handle position in local space
+                        let sign = match handle {
+                            0 => [-1.0_f32, -1.0], // TL: delta pulls from top-left
+                            1 => [1.0, -1.0],  // TR
+                            2 => [1.0, 1.0],   // BR
+                            3 => [-1.0, 1.0],  // BL
+                            4 => [0.0, -1.0],  // top-mid
+                            5 => [1.0, 0.0],   // right-mid
+                            6 => [0.0, 1.0],   // bottom-mid
+                            7 => [-1.0, 0.0],  // left-mid
+                            _ => [1.0, 1.0],
+                        };
+
+                        let min_size = 10.0;
+                        let mut new_w = start_size[0];
+                        let mut new_h = start_size[1];
+
+                        if sign[0] != 0.0 {
+                            new_w = (start_size[0] + sign[0] * 2.0 * dx_local).max(min_size);
                         }
+                        if sign[1] != 0.0 {
+                            new_h = (start_size[1] + sign[1] * 2.0 * dy_local).max(min_size);
+                        }
+
+                        // Uniform ratio (shift or stored from drag start)
+                        let uniform = shift || uniform_ratio;
+                        if uniform {
+                            if constrain_axis {
+                                // Edge midpoint: scale the free axis, then derive the
+                                // constrained axis from the original aspect ratio.
+                                let ratio = start_size[0] / start_size[1].max(1.0);
+                                if sign[0] == 0.0 {
+                                    // Dragging top/bottom edge — width derives from height
+                                    new_w = (new_h * ratio).max(min_size);
+                                } else {
+                                    // Dragging left/right edge — height derives from width
+                                    new_h = (new_w / ratio).max(min_size);
+                                }
+                            } else {
+                                // Corner: use the dominant axis and scale both proportionally
+                                let scale_w = new_w / start_size[0].max(1.0);
+                                let scale_h = new_h / start_size[1].max(1.0);
+                                let s = scale_w.max(scale_h);
+                                new_w = (start_size[0] * s).max(min_size);
+                                new_h = (start_size[1] * s).max(min_size);
+                            }
+                        }
+
+                        // 4. Adjust position to keep anchor fixed in world space
+                        let cos_rot = start_rotation.cos();
+                        let sin_rot = start_rotation.sin();
+                        // anchor_local is in local space based on start_size
+                        // but anchor_local in local coords is a fraction of size (e.g. (-0.5*w, -0.5*h))
+                        // After scaling, the anchor's local position changes.
+                        let old_anchor_local = [anchor_local[0], anchor_local[1]];
+                        let new_anchor_local = [
+                            old_anchor_local[0] * new_w / start_size[0].max(1.0),
+                            old_anchor_local[1] * new_h / start_size[1].max(1.0),
+                        ];
+
+                        // Anchor world position (fixed)
+                        let anchor_world_x = start_position[0]
+                            + old_anchor_local[0] * cos_rot
+                            - old_anchor_local[1] * sin_rot;
+                        let anchor_world_y = start_position[1]
+                            + old_anchor_local[0] * sin_rot
+                            + old_anchor_local[1] * cos_rot;
+
+                        // New position
+                        let new_pos_x = anchor_world_x
+                            - new_anchor_local[0] * cos_rot
+                            + new_anchor_local[1] * sin_rot;
+                        let new_pos_y = anchor_world_y
+                            - new_anchor_local[0] * sin_rot
+                            - new_anchor_local[1] * cos_rot;
+
+                        self.actions.property_edits.push(PropertyEdit {
+                            actor: actor.clone(),
+                            property: "size".into(),
+                            value: PropertyValue::Vec2([new_w, new_h]),
+                        });
+                        self.actions.property_edits.push(PropertyEdit {
+                            actor,
+                            property: "position".into(),
+                            value: PropertyValue::Vec2([new_pos_x, new_pos_y]),
+                        });
                     }
-                    DragState::Rotate { actor, start_scene: _, start_rotation } => {
-                        if let Some(sel_rect) = preview::selection_screen_rect(
-                            &actor,
-                            self.hit_regions,
-                            preview_rect,
-                            self.scene_dimensions,
-                            desired,
-                        ) {
-                            let center = sel_rect.center();
-                            let center_scene = screen_to_scene(center);
-                            let angle = ((scene.y - center_scene.y) as f32)
-                                .atan2((scene.x - center_scene.x) as f32);
-                            let angle = if shift {
-                                let step = std::f32::consts::PI / 12.0;
-                                (angle / step).round() * step
-                            } else {
-                                angle
-                            };
-                            let delta = angle - start_rotation;
-                            let new_rotation = start_rotation + delta;
-                            self.actions.property_edit = Some(PropertyEdit {
-                                actor,
-                                property: "rotation".into(),
-                                value: PropertyValue::Float(new_rotation),
-                            });
+
+                    DragState::Rotate {
+                        actor,
+                        start_angle,
+                        start_rotation,
+                        center,
+                    } => {
+                        let angle = ((scene.y - center[1] as f64) as f32)
+                            .atan2((scene.x - center[0] as f64) as f32);
+                        let mut delta = angle - start_angle;
+                        // Normalize delta to [-π, π]
+                        while delta > std::f32::consts::PI {
+                            delta -= 2.0 * std::f32::consts::PI;
                         }
+                        while delta < -std::f32::consts::PI {
+                            delta += 2.0 * std::f32::consts::PI;
+                        }
+                        let mut new_rot = start_rotation + delta;
+                        if shift {
+                            let step = std::f32::consts::PI / 12.0; // 15°
+                            new_rot = (new_rot / step).round() * step;
+                        }
+                        self.actions.property_edits.push(PropertyEdit {
+                            actor,
+                            property: "rotation".into(),
+                            value: PropertyValue::Float(new_rot),
+                        });
                     }
                     DragState::None => {}
                 }
             }
 
             // End drag
-            if matches!(self.drag_state, DragState::None) == false
+            if is_dragging
                 && (response.drag_stopped()
-                    || (!response.dragged()
-                        && !matches!(self.drag_state, DragState::None)))
+                    || (!response.dragged() && is_dragging))
             {
                 *self.drag_state = DragState::None;
             }
 
             // ── Hover preview ───────────────────────────────────────────
-            let is_dragging = !matches!(self.drag_state, DragState::None);
             selection::update_hover(
                 self.selection,
                 self.hit_regions,
@@ -467,7 +598,7 @@ impl WorkspaceViewer<'_> {
             );
 
             // ── Right-click context menu ────────────────────────────────
-            if response.secondary_clicked() && matches!(self.drag_state, DragState::None) {
+            if response.secondary_clicked() && !is_dragging {
                 if let Some(click_pos) = response.interact_pointer_pos() {
                     selection::handle_right_click(
                         self.selection,
@@ -495,7 +626,7 @@ impl WorkspaceViewer<'_> {
 
             // ── Click-to-select with cycling ────────────────────────────
             if response.clicked()
-                && matches!(self.drag_state, DragState::None)
+                && !is_dragging
                 && !self.selection.context_menu_open
             {
                 if let Some(click_pos) = response.interact_pointer_pos() {
@@ -514,7 +645,7 @@ impl WorkspaceViewer<'_> {
             }
 
             // ── Cursor feedback ─────────────────────────────────────────
-            if matches!(self.drag_state, DragState::None) && !self.selection.context_menu_open {
+            if !is_dragging && !self.selection.context_menu_open {
                 if let Some(mouse) = pointer_pos {
                     let scene = screen_to_scene(mouse);
                     let is_over_selected = self
@@ -540,7 +671,6 @@ impl WorkspaceViewer<'_> {
 
             // ── Draw hover highlight ────────────────────────────────────
             if let Some(hovered) = self.selection.hovered_actor.as_ref() {
-                // Don't draw hover if it's the same as selected
                 if self.selected_actor.as_ref() != Some(hovered) {
                     if let Some(hover_rect) = preview::selection_screen_rect(
                         hovered,
@@ -580,17 +710,24 @@ impl WorkspaceViewer<'_> {
             }
 
             // ── Draw selection overlay with handles (AFTER preview texture) ──
-            if let Some(actor) = self.selected_actor.clone() {
-                let is_dragging = !matches!(self.drag_state, DragState::None);
-                if let Some(sel_rect) = preview::selection_screen_rect(
-                    &actor,
+            if let Some(actor) = self.selected_actor.as_ref() {
+                let props = self.get_actor_props(actor);
+                let fallback = preview::selection_screen_rect(
+                    actor,
                     self.hit_regions,
                     preview_rect,
                     self.scene_dimensions,
                     desired,
-                ) {
-                    preview::draw_selection_overlay(ui.painter(), sel_rect, is_dragging);
-                }
+                );
+                preview::draw_selection_overlay(
+                    ui.painter(),
+                    props.as_ref(),
+                    fallback,
+                    is_dragging,
+                    preview_rect,
+                    self.scene_dimensions,
+                    desired,
+                );
             }
 
             // Error display (compact, overlaid)

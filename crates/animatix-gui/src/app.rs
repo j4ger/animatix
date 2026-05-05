@@ -508,7 +508,7 @@ impl GuiShell {
                 self.selected_actor = Some(label);
             }
         }
-        if let Some(edit) = actions.property_edit {
+        for edit in actions.property_edits {
             self.handle_property_edit(edit);
         }
         if actions.undo {
@@ -785,12 +785,22 @@ impl GuiShell {
                                     animatix::timeline::PropertyTrack::new(*v)
                                 });
                                 pt.default_value = *v;
+                                // Add a keyframe for live preview — the renderer reads
+                                // keyframes via evaluate(), not default_value.
+                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                                pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
                             }
                             "size" => {
+                                // The size track stores half‑extents (w/2, h/2).
+                                // Drag sends full size; source writer writes full size;
+                                // parser halves on load.  Store half‑extents here too.
+                                let half = [v[0] / 2.0, v[1] / 2.0];
                                 let pt = track.size.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
+                                    animatix::timeline::PropertyTrack::new(half)
                                 });
-                                pt.default_value = *v;
+                                pt.default_value = half;
+                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                                pt.add_keyframe(time_ms, half, animatix::easing::Easing::Linear);
                             }
                             "line_from" => {
                                 let pt = track.line_from.get_or_insert_with(|| {
@@ -826,6 +836,8 @@ impl GuiShell {
                                     animatix::timeline::PropertyTrack::new(*v)
                                 });
                                 pt.default_value = *v;
+                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                                pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
                             }
                             "scale" => {
                                 let pt = track.scale.get_or_insert_with(|| {
