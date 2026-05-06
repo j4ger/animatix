@@ -220,17 +220,38 @@ impl WorkspaceViewer<'_> {
     // ─── Actor Property Helpers ──────────────────────────────────────────────
 
     /// Extract spatial properties of an actor from the timeline at the given time.
-    /// Returns `None` if the actor has no explicit position or size tracks
+    ///
+    /// Uses `Timeline::actor_world_affine` to compute the world‑space transform,
+    /// which correctly accounts for `position_binding`, parent transforms,
+    /// `motion_offset`, and scale — matching the renderer's transform chain.
+    ///
+    /// Returns `None` if the actor has no explicit size track
     /// (in which case the axis‑aligned fallback should be used for the overlay).
     fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
         let t = self.timeline?;
         let track = t.get_track(actor)?;
         let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-        let position = track.position.as_ref().map(|pt| pt.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+
         // The size track stores half‑extents (w/2, h/2).  Double to full size.
         let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
-        let size = [half[0] * 2.0, half[1] * 2.0];
-        let rotation = track.rotation.as_ref().map(|pt| pt.evaluate(time_ms)).unwrap_or(0.0);
+        let local_size = [half[0] * 2.0, half[1] * 2.0];
+
+        // Compute world‑space affine (position + rotation + scale) via the
+        // same transform chain the renderer uses.
+        let world_affine = t.actor_world_affine(actor, time_ms, self.scene_dimensions)?;
+
+        // Decompose the affine:  [a, b, c, d, tx, ty]
+        //   a = sx·cos(θ),  b = sx·sin(θ)
+        //   c = −sy·sin(θ), d = sy·cos(θ)
+        let coeffs = world_affine.as_coeffs();
+        let position = [coeffs[4] as f32, coeffs[5] as f32];
+        let rotation = (coeffs[1] as f32).atan2(coeffs[0] as f32);
+
+        // Apply uniform scale to the local size so the overlay corners land
+        // at the correct world‑space positions.
+        let scale = ((coeffs[0] * coeffs[0] + coeffs[1] * coeffs[1]).sqrt()) as f32;
+        let size = [local_size[0] * scale, local_size[1] * scale];
+
         Some(ActorProps { position, size, rotation })
     }
 

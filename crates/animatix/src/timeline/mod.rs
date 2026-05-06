@@ -337,6 +337,93 @@ impl Timeline {
     pub fn get_default_color(&self, primitive_type: &str, property: &str) -> Option<[f32; 4]> {
         self.colorscheme.default_color_for_primitive(primitive_type, property)
     }
+
+    /// Compute the world-space affine transform for a given actor at the given time.
+    ///
+    /// Walks the scene-graph from the root to the target actor, accumulating
+    /// position (resolved through `resolve_bound_position`), rotation, scale,
+    /// and motion offset — exactly matching the renderer's transform chain.
+    pub fn actor_world_affine(
+        &self,
+        label: &str,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+    ) -> Option<kurbo::Affine> {
+        let path = self.find_path_to_actor(label)?;
+
+        let mut parent_transform = kurbo::Affine::IDENTITY;
+        let mut current_layout_positions: BTreeMap<String, [f32; 2]> = BTreeMap::new();
+
+        for node_label in &path {
+            let track = self.tracks.get(node_label)?;
+
+            let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+            let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
+
+            if self.dynamic_layout {
+                if let Some(layout_pos) = current_layout_positions.get(node_label.as_str()) {
+                    if placement_mode == PlacementMode::LayoutManaged {
+                        base_position = *layout_pos;
+                    }
+                }
+            }
+
+            let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
+            let position =
+                resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
+            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
+            let rotation = track.rotation.get(time_ms, 0.0) as f64;
+            let scale = track.scale.get(time_ms, 1.0) as f64;
+
+            parent_transform = parent_transform
+                * kurbo::Affine::translate((
+                    position[0] as f64 + motion_offset[0] as f64,
+                    position[1] as f64 + motion_offset[1] as f64,
+                ))
+                * kurbo::Affine::rotate(rotation)
+                * kurbo::Affine::scale(scale);
+
+            // Compute layout positions for this node's children (needed for next iteration)
+            if self.dynamic_layout {
+                if let Some(metadata) = self.container_metadata.get(node_label.as_str()) {
+                    current_layout_positions = self.layout_engine.compute_layout_for_time(
+                        metadata,
+                        time_ms,
+                        &self.tracks,
+                    );
+                } else {
+                    current_layout_positions = BTreeMap::new();
+                }
+            }
+        }
+
+        Some(parent_transform)
+    }
+
+    /// Find the path of actor labels from a root node down to `target`.
+    fn find_path_to_actor(&self, target: &str) -> Option<Vec<String>> {
+        for root in &self.root_nodes {
+            if let Some(path) = self.find_path_from(root, target) {
+                return Some(path);
+            }
+        }
+        None
+    }
+
+    fn find_path_from(&self, current: &str, target: &str) -> Option<Vec<String>> {
+        if current == target {
+            return Some(vec![current.to_string()]);
+        }
+        if let Some(track) = self.tracks.get(current) {
+            for child in &track.children {
+                if let Some(mut path) = self.find_path_from(child, target) {
+                    path.insert(0, current.to_string());
+                    return Some(path);
+                }
+            }
+        }
+        None
+    }
 }
 
 impl Default for Timeline {
