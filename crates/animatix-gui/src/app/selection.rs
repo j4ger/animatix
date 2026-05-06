@@ -127,18 +127,19 @@ pub(super) fn handle_click(
 // ─── Context Menu Drawing ───────────────────────────────────────────────────
 
 /// Draw the right-click context menu for actor selection.
-/// Returns the selected actor (if any) and whether to close the menu.
+/// Returns the selected actor (if any), whether to close the menu,
+/// and the screen-space rect of the menu for outside-click detection.
 pub(super) fn draw_context_menu(
     ui: &mut egui::Ui,
     selection: &SelectionState,
     current_selected: &Option<String>,
-) -> (Option<String>, bool) {
+) -> (Option<String>, bool, Option<egui::Rect>) {
     let menu_pos = selection.context_menu_pos.unwrap_or_default();
     let actors = &selection.context_menu_actors;
     let mut selected_from_menu = None;
     let mut close_menu = false;
 
-    egui::Area::new(egui::Id::new("selection_context_menu"))
+    let inner = egui::Area::new(egui::Id::new("selection_context_menu"))
         .fixed_pos(menu_pos)
         .order(egui::Order::Foreground)
         .show(ui.ctx(), |ui| {
@@ -148,8 +149,10 @@ pub(super) fn draw_context_menu(
                 .corner_radius(4.0)
                 .inner_margin(4.0)
                 .show(ui, |ui| {
+                    ui.set_min_width(140.0);
+
                     ui.label(
-                        RichText::new("Select actor:")
+                        RichText::new("Select actor")
                             .small()
                             .color(Color32::from_rgb(150, 158, 175)),
                     );
@@ -157,67 +160,64 @@ pub(super) fn draw_context_menu(
 
                     // Calculate max text width to prevent wrapping
                     let max_actor_len = actors.iter().map(|a| a.len()).max().unwrap_or(10);
-                    let min_width = (max_actor_len as f32 * 7.0) + 60.0; // rough char width + padding
+                    let min_width = (max_actor_len as f32 * 7.0 + 16.0).max(140.0);
+                    let item_height = 22.0;
 
                     for (i, actor) in actors.iter().enumerate() {
                         let is_selected = current_selected.as_ref() == Some(actor);
 
-                        // Build button text with index prefix
+                        // Build text with index prefix
                         let prefix = if i < 9 {
                             format!("{}.", i + 1)
                         } else {
                             "  ".to_string()
                         };
+                        let text = format!("{} {}", prefix, actor);
 
-                        let text = if is_selected {
-                            RichText::new(format!("{} {}", prefix, actor))
-                                .color(Color32::WHITE)
-                                .strong()
+                        // Allocate space and sense clicks
+                        let (rect, response) = ui.allocate_at_least(
+                            Vec2::new(min_width, item_height),
+                            egui::Sense::click(),
+                        );
+
+                        // Background color based on state
+                        let bg_color = if is_selected {
+                            Color32::from_rgb(84, 110, 255)
+                        } else if response.hovered() {
+                            Color32::from_rgb(50, 55, 68)
                         } else {
-                            RichText::new(format!("{} {}", prefix, actor))
-                                .color(Color32::from_rgb(200, 200, 210))
+                            Color32::TRANSPARENT
                         };
 
-                        // Use highlighted background for selected item
-                        let btn = if is_selected {
-                            egui::Button::new(text)
-                                .fill(Color32::from_rgb(84, 110, 255))
-                                .stroke(Stroke::NONE)
-                                .min_size(Vec2::new(min_width, 20.0))
+                        if bg_color != Color32::TRANSPARENT {
+                            ui.painter().rect_filled(rect, 2.0, bg_color);
+                        }
+
+                        // Text color based on state
+                        let text_color = if is_selected || response.hovered() {
+                            Color32::WHITE
                         } else {
-                            egui::Button::new(text)
-                                .fill(Color32::TRANSPARENT)
-                                .stroke(Stroke::NONE)
-                                .min_size(Vec2::new(min_width, 20.0))
+                            Color32::from_rgb(200, 200, 210)
                         };
 
-                        let response = ui.add(btn);
+                        let font_id = egui::TextStyle::Small.resolve(ui.style());
+                        ui.painter().text(
+                            rect.left_center() + Vec2::new(8.0, 0.0),
+                            egui::Align2::LEFT_CENTER,
+                            text,
+                            font_id,
+                            text_color,
+                        );
+
                         if response.clicked() {
                             selected_from_menu = Some(actor.clone());
                             close_menu = true;
                         }
                     }
-
-                    ui.separator();
-                    if ui
-                        .add_sized(
-                            [min_width, 18.0],
-                            egui::Button::new(
-                                RichText::new("Cancel")
-                                    .small()
-                                    .color(Color32::from_rgb(120, 120, 130)),
-                            )
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::NONE),
-                        )
-                        .clicked()
-                    {
-                        close_menu = true;
-                    }
                 });
         });
 
-    (selected_from_menu, close_menu)
+    (selected_from_menu, close_menu, Some(inner.response.rect))
 }
 
 // ─── Hover Overlay Drawing ──────────────────────────────────────────────────

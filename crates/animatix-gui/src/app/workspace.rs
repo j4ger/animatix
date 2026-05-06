@@ -377,7 +377,7 @@ impl WorkspaceViewer<'_> {
             // Detect drag start — either from egui (pointer inside widget rect)
             // or manually when pointer is over a handle outside the widget rect.
             let drag_started = response.drag_started()
-                || (!is_dragging && ui.input(|i| i.pointer.any_pressed()));
+                || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
 
             // Start new drag
             if drag_started {
@@ -751,13 +751,19 @@ impl WorkspaceViewer<'_> {
             }
 
             // ── Hover preview ───────────────────────────────────────────
-            selection::update_hover(
-                self.selection,
-                self.hit_regions,
-                pointer_pos,
-                screen_to_scene,
-                is_dragging,
-            );
+            // Disable hover when context menu is open to avoid stray tooltips
+            // and highlights behind the menu.
+            if !self.selection.context_menu_open {
+                selection::update_hover(
+                    self.selection,
+                    self.hit_regions,
+                    pointer_pos,
+                    screen_to_scene,
+                    is_dragging,
+                );
+            } else {
+                self.selection.hovered_actor = None;
+            }
 
             // ── Right-click context menu ────────────────────────────────
             if response.secondary_clicked() && !is_dragging {
@@ -772,12 +778,14 @@ impl WorkspaceViewer<'_> {
             }
 
             // Draw context menu if open
+            let mut menu_item_clicked = false;
             if self.selection.context_menu_open {
-                let (selected, close) = selection::draw_context_menu(
+                let (selected, close, _rect) = selection::draw_context_menu(
                     ui,
                     self.selection,
                     self.selected_actor,
                 );
+                menu_item_clicked = close;
                 if let Some(actor) = selected {
                     self.actions.select_actor = Some(actor);
                 }
@@ -786,10 +794,22 @@ impl WorkspaceViewer<'_> {
                 }
             }
 
+            // Any primary click that didn't hit a menu item closes the menu
+            // (click on empty preview space, menu background, or outside bounds).
+            let mut suppress_click = false;
+            if self.selection.context_menu_open && !menu_item_clicked {
+                if ui.input(|i| i.pointer.primary_clicked()) {
+                    self.selection.context_menu_open = false;
+                    suppress_click = true;
+                    *self.selected_actor = None;
+                }
+            }
+
             // ── Click-to-select with cycling ────────────────────────────
             if response.clicked()
                 && !is_dragging
                 && !self.selection.context_menu_open
+                && !suppress_click
             {
                 if let Some(click_pos) = response.interact_pointer_pos() {
                     let selected = selection::handle_click(
@@ -872,16 +892,20 @@ impl WorkspaceViewer<'_> {
             }
 
             // ── Draw hover highlight ────────────────────────────────────
-            if let Some(hovered) = self.selection.hovered_actor.as_ref() {
-                if self.selected_actor.as_ref() != Some(hovered) {
-                    if let Some(hover_rect) = preview::selection_screen_rect(
-                        hovered,
-                        self.hit_regions,
-                        preview_rect,
-                        self.scene_dimensions,
-                        desired,
-                    ) {
-                        selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
+            // Skip when context menu is open to avoid stray highlights / tooltips
+            // behind the menu.
+            if !self.selection.context_menu_open {
+                if let Some(hovered) = self.selection.hovered_actor.as_ref() {
+                    if self.selected_actor.as_ref() != Some(hovered) {
+                        if let Some(hover_rect) = preview::selection_screen_rect(
+                            hovered,
+                            self.hit_regions,
+                            preview_rect,
+                            self.scene_dimensions,
+                            desired,
+                        ) {
+                            selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
+                        }
                     }
                 }
             }
