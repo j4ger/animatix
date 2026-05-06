@@ -7,11 +7,33 @@
 use animatix::ast::ByteSpan;
 use crate::app::workspace::PropertyValue;
 
+/// Trim trailing whitespace (including newlines) from a byte span.
+///
+/// The parser's `.padded()` consumes whitespace including `\n`, which causes
+/// `value_span` to extend past the actual value into the trailing newline.
+/// Without this trim, `apply_source_edit` would eat the newline when replacing.
+fn trim_span(source: &str, span: &ByteSpan) -> ByteSpan {
+    let mut end = span.end;
+    while end > span.start {
+        let ch = source.as_bytes()[end - 1];
+        if ch == b' ' || ch == b'\t' || ch == b'\n' || ch == b'\r' {
+            end -= 1;
+        } else {
+            break;
+        }
+    }
+    ByteSpan { start: span.start, end }
+}
+
 /// Apply a surgical source edit: replace the text at `span` with `replacement`.
 ///
 /// Returns the modified source text. This is a pure function that doesn't
 /// interact with the filesystem.
+///
+/// The span is automatically trimmed to exclude trailing whitespace/newlines
+/// before replacement, since the parser's `.padded()` may include them.
 pub(crate) fn apply_source_edit(source: &str, span: &ByteSpan, replacement: &str) -> String {
+    let span = trim_span(source, span);
     let mut result = String::with_capacity(source.len() + replacement.len());
     result.push_str(&source[..span.start]);
     result.push_str(replacement);
@@ -35,6 +57,10 @@ pub(crate) fn insert_property_after_span(
     if anchor_span.end > source.len() {
         return None;
     }
+
+    // Trim the anchor span to exclude trailing whitespace/newlines.
+    // The parser's .padded() may include them in the span.
+    let anchor_span = trim_span(source, anchor_span);
 
     // Walk forward from the anchor to the end of the declaration line.
     // The declaration line ends at a newline, an opening brace (for children),
@@ -269,6 +295,61 @@ mod tests {
 
         let result = apply_source_edit(source, &span, &serialized);
         assert_eq!(result, "btn: Button, at: (150, 250)");
+    }
+
+    #[test]
+    fn apply_source_edit_preserves_trailing_newline() {
+        // Simulate the bug: parser's .padded() includes trailing \n in value_span.
+        // When editing the last property on a line, the newline must not be eaten.
+        let source = "backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center\n";
+        // Simulate a span that includes the trailing \n (as .padded() would produce)
+        let span = ByteSpan {
+            start: source.find("scene.center").unwrap(),
+            end: source.find("scene.center").unwrap() + "scene.center\n".len(),
+        };
+
+        let result = apply_source_edit(source, &span, "scene.top");
+        // The newline must be preserved
+        assert_eq!(
+            result,
+            "backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.top\n"
+        );
+    }
+
+    #[test]
+    fn apply_source_edit_preserves_newline_in_multiline() {
+        // Multi-line source: editing a property should not merge lines
+        let source = "backdrop: Rect, size: (1280, 720), anchor: scene.center\ntitle: Text, text: \"Hi\"\n";
+        // Span for "scene.center" with trailing \n (as .padded() produces)
+        let span = ByteSpan {
+            start: source.find("scene.center").unwrap(),
+            end: source.find("scene.center").unwrap() + "scene.center\n".len(),
+        };
+
+        let result = apply_source_edit(source, &span, "scene.top");
+        assert_eq!(
+            result,
+            "backdrop: Rect, size: (1280, 720), anchor: scene.top\ntitle: Text, text: \"Hi\"\n"
+        );
+    }
+
+    #[test]
+    fn insert_property_preserves_newline_with_padded_span() {
+        // Simulate the bug: anchor_span from parser includes trailing \n due to .padded().
+        // insert_property_after_span must trim it so the new property goes on the same line.
+        let source = "backdrop: Rect, size: (1280, 720), anchor: scene.center\ntitle: Text\n";
+        // Simulate a span that includes the trailing \n (as .padded() would produce)
+        let anchor_span = ByteSpan {
+            start: source.find("scene.center").unwrap(),
+            end: source.find("scene.center").unwrap() + "scene.center\n".len(),
+        };
+
+        let result = insert_property_after_span(source, &anchor_span, "offset", "(0, 0)")
+            .unwrap();
+        assert_eq!(
+            result,
+            "backdrop: Rect, size: (1280, 720), anchor: scene.center, offset: (0, 0)\ntitle: Text\n"
+        );
     }
 
     #[test]
