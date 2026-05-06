@@ -769,26 +769,61 @@ impl WorkspaceViewer<'_> {
             if !is_dragging && !self.selection.context_menu_open {
                 if let Some(mouse) = pointer_pos {
                     let scene = screen_to_scene(mouse);
-                    let is_over_selected = self
-                        .selected_actor
-                        .as_ref()
-                        .and_then(|a| {
-                            self.hit_regions
-                                .iter()
-                                .find(|(l, _)| l == a)
-                                .map(|(_, b)| b.contains(scene))
-                        })
-                        .unwrap_or(false);
 
-                    if is_over_selected {
-                        // Layout-managed actors can't be repositioned by drag
-                        if self.selected_actor.as_deref().map_or(false, |a| self.is_layout_managed(a)) {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+                    // Check scale/rotation handles first (higher priority than body)
+                    let over_handle = self.selected_actor.as_ref().and_then(|a| {
+                        let props = self.get_actor_props(a)?;
+                        let handle_world = preview::world_handle_positions(&props);
+                        let handle_screen: [Pos2; 8] =
+                            std::array::from_fn(|i| scene_to_screen(handle_world[i]));
+                        if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
+                            Some(idx)
                         } else {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                            let rot_world = preview::rotation_handle_world(&props);
+                            let rot_screen = scene_to_screen(rot_world);
+                            if preview::hit_test_rotation_handle(mouse, rot_screen) {
+                                Some(8usize) // sentinel for rotation handle
+                            } else {
+                                None
+                            }
                         }
-                    } else if self.selection.hovered_actor.is_some() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    });
+
+                    if let Some(handle_idx) = over_handle {
+                        let icon = match handle_idx {
+                            0 => egui::CursorIcon::ResizeNwSe,  // TL
+                            1 => egui::CursorIcon::ResizeNeSw,  // TR
+                            2 => egui::CursorIcon::ResizeNwSe,  // BR
+                            3 => egui::CursorIcon::ResizeNeSw,  // BL
+                            4 => egui::CursorIcon::ResizeVertical,   // top-mid
+                            5 => egui::CursorIcon::ResizeHorizontal, // right-mid
+                            6 => egui::CursorIcon::ResizeVertical,   // bottom-mid
+                            7 => egui::CursorIcon::ResizeHorizontal, // left-mid
+                            _ => egui::CursorIcon::Crosshair,        // rotation
+                        };
+                        ui.ctx().set_cursor_icon(icon);
+                    } else {
+                        let is_over_selected = self
+                            .selected_actor
+                            .as_ref()
+                            .and_then(|a| {
+                                self.hit_regions
+                                    .iter()
+                                    .find(|(l, _)| l == a)
+                                    .map(|(_, b)| b.contains(scene))
+                            })
+                            .unwrap_or(false);
+
+                        if is_over_selected {
+                            // Layout-managed actors can't be repositioned by drag
+                            if self.selected_actor.as_deref().map_or(false, |a| self.is_layout_managed(a)) {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+                            } else {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                            }
+                        } else if self.selection.hovered_actor.is_some() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
                     }
                 }
             } else if !self.selection.context_menu_open {
