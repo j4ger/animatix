@@ -8,6 +8,8 @@ pub(super) struct PropertyEdit {
     pub(super) actor: String,
     pub(super) property: String,
     pub(super) value: PropertyValue,
+    /// When true, create a keyframe at current time instead of overwriting defaults.
+    pub(super) create_keyframe: bool,
 }
 
 /// The typed value of a property edit.
@@ -38,6 +40,8 @@ pub(super) struct UiActions {
     pub(super) drag_ended: bool,
     pub(super) undo: bool,
     pub(super) redo: bool,
+    pub(super) toggle_editor_sync: bool,
+    pub(super) toggle_keyframe_mode: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
@@ -57,6 +61,8 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) hit_regions: &'a [(String, kurbo::Rect)],
     pub(super) drag_state: &'a mut DragState,
     pub(super) selection: &'a mut selection::SelectionState,
+    /// When true, property edits should create keyframes instead of overwriting defaults.
+    pub(super) keyframe_mode: bool,
 }
 
 impl TabViewer for WorkspaceViewer<'_> {
@@ -210,11 +216,23 @@ impl WorkspaceViewer<'_> {
             });
             ui.separator();
 
-            let response = self.editor.show(ui);
-            if response.changed() {
-                *self.source_dirty = self.editor.text().to_string();
-                self.actions.editor_changed = true;
+            // ScrollArea wrapping the editor so we can programmatically scroll
+            let mut scroll_area = egui::ScrollArea::vertical();
+
+            // Apply pending scroll offset
+            if let Some(target_line) = self.editor.pending_scroll_to_line.take() {
+                let line_height = 14.0 * 1.2; // matches editor font metrics
+                let target_y = target_line as f32 * line_height;
+                scroll_area = scroll_area.vertical_scroll_offset(target_y);
             }
+
+            scroll_area.show(ui, |ui| {
+                let response = self.editor.show(ui);
+                if response.changed() {
+                    *self.source_dirty = self.editor.text().to_string();
+                    self.actions.editor_changed = true;
+                }
+            });
         });
     }
 
@@ -509,6 +527,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "offset".into(),
                                     value: PropertyValue::Vec2(new_offset),
+                                    create_keyframe: self.keyframe_mode,
                                 });
                             }
                             PositionBinding::ScenePercent { .. } => {
@@ -520,6 +539,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "at".into(),
                                     value: PropertyValue::Vec2([nx / w, ny / h]),
+                                create_keyframe: self.keyframe_mode,
                                 });
                             }
                             _ => {
@@ -530,6 +550,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "position".into(),
                                     value: PropertyValue::Vec2([nx, ny]),
+                                create_keyframe: self.keyframe_mode,
                                 });
                             }
                         }
@@ -636,6 +657,7 @@ impl WorkspaceViewer<'_> {
                             actor: actor.clone(),
                             property: "size".into(),
                             value: PropertyValue::Vec2([new_w, new_h]),
+                        create_keyframe: self.keyframe_mode,
                         });
 
                         // Route the position adjustment through the same
@@ -661,6 +683,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "offset".into(),
                                     value: PropertyValue::Vec2(new_offset),
+                                    create_keyframe: self.keyframe_mode,
                                 });
                             }
                             PositionBinding::ScenePercent { .. } => {
@@ -670,6 +693,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "at".into(),
                                     value: PropertyValue::Vec2([new_pos_x / w, new_pos_y / h]),
+                                create_keyframe: self.keyframe_mode,
                                 });
                             }
                             _ => {
@@ -677,6 +701,7 @@ impl WorkspaceViewer<'_> {
                                     actor,
                                     property: "position".into(),
                                     value: PropertyValue::Vec2([new_pos_x, new_pos_y]),
+                                create_keyframe: self.keyframe_mode,
                                 });
                             }
                         }
@@ -707,6 +732,7 @@ impl WorkspaceViewer<'_> {
                             actor,
                             property: "rotation".into(),
                             value: PropertyValue::Float(new_rot),
+                        create_keyframe: self.keyframe_mode,
                         });
                     }
                     DragState::None => {}
@@ -926,6 +952,6 @@ impl WorkspaceViewer<'_> {
 
     fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         let current_time_s = self.preview.current_time_s;
-        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions);
+        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode);
     }
 }

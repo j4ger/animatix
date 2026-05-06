@@ -16,6 +16,8 @@ pub(super) fn transport_bar_ui(
     has_error: bool,
     diagnostics: &[Diagnostic],
     actions: &mut UiActions,
+    editor_sync_enabled: bool,
+    keyframe_mode: bool,
 ) {
     let bg = Color32::from_rgb(16, 18, 22);
     let border = Color32::from_rgb(32, 36, 44);
@@ -63,6 +65,46 @@ pub(super) fn transport_bar_ui(
                     .min_size(Vec2::new(28.0, 28.0));
                 if ui.add(next_btn).on_hover_text("Next keyframe (.)").clicked() {
                     actions.next_keyframe = true;
+                }
+
+                ui.add_space(4.0);
+
+                // Editor sync toggle
+                let sync_btn = egui::Button::new(
+                    RichText::new("🔗").size(12.0).color(
+                        if editor_sync_enabled {
+                            Color32::from_rgb(84, 110, 255)
+                        } else {
+                            Color32::from_rgb(90, 96, 110)
+                        },
+                    ),
+                )
+                .fill(Color32::from_rgb(28, 31, 38))
+                .min_size(Vec2::new(28.0, 28.0));
+                if ui.add(sync_btn)
+                    .on_hover_text("Sync editor to timeline (S)")
+                    .clicked()
+                {
+                    actions.toggle_editor_sync = true;
+                }
+
+                // Keyframe mode toggle
+                let kf_btn = egui::Button::new(
+                    RichText::new(if keyframe_mode { "🔑" } else { "○" }).size(12.0).color(
+                        if keyframe_mode {
+                            Color32::from_rgb(255, 196, 92)
+                        } else {
+                            Color32::from_rgb(90, 96, 110)
+                        },
+                    ),
+                )
+                .fill(Color32::from_rgb(28, 31, 38))
+                .min_size(Vec2::new(28.0, 28.0));
+                if ui.add(kf_btn)
+                    .on_hover_text("Keyframe mode: K — create timestamps on edit")
+                    .clicked()
+                {
+                    actions.toggle_keyframe_mode = true;
                 }
 
                 ui.add_space(6.0);

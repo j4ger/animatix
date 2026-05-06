@@ -126,27 +126,67 @@ pub(crate) fn serialize_property_value(value: &PropertyValue) -> String {
     }
 }
 
-/// Serialize a property value, handling size half-size scaling.
+/// Insert a new relative keyframe block into the source.
 ///
-/// Timeline stores size as full-size, but the source may use half-size (for radius).
-/// When the property is "size" and we detect it might be a half-size value,
-/// we need to scale appropriately.
+/// `anchor_span` is the byte span of the actor's last known property value.
+/// The keyframe block is inserted on a new line after that property's line.
 ///
-/// For now, we handle this by accepting a flag. If `is_half_size` is true,
-/// we double the values before serializing.
-pub(crate) fn serialize_size_value(value: &PropertyValue, is_half_size: bool) -> String {
-    match value {
-        PropertyValue::Vec2([w, h]) => {
-            let w = if is_half_size { w * 2.0 } else { *w };
-            let h = if is_half_size { h * 2.0 } else { *h };
-            if w.fract() == 0.0 && h.fract() == 0.0 {
-                format!("({}, {})", w as i32, h as i32)
-            } else {
-                format!("({}, {})", w, h)
-            }
-        }
-        _ => serialize_property_value(value),
+/// When `current_time_s` is very close to 0, the keyframe is omitted (the spec
+/// states initial #0s can be omitted).
+///
+/// Returns `Some(new_source)` on success, `None` if insertion failed.
+pub(crate) fn insert_keyframe_block(
+    source: &str,
+    anchor_span: &ByteSpan,
+    actor: &str,
+    property: &str,
+    value: &str,
+    current_time_s: f64,
+    prev_keyframe_time_s: f64,
+) -> Option<String> {
+    let delta_s = current_time_s - prev_keyframe_time_s;
+
+    // Omit keyframe when at t≈0 — initial declarations don't need a timestamp.
+    if delta_s < 0.001 {
+        return None;
     }
+
+    // Format compact time string
+    let time_str = if delta_s < 1.0 {
+        format!("{}ms", (delta_s * 1000.0).round() as u64)
+    } else if delta_s == delta_s.floor() {
+        format!("{}s", delta_s as i64)
+    } else {
+        format!("{:.2}s", delta_s)
+    };
+
+    // Map internal property name to source property name
+    let source_prop = match property {
+        "position" => "at",
+        other => other,
+    };
+
+    let block = format!("\n#+{} {{\n    {}.{} = {}\n}}", time_str, actor, source_prop, value);
+
+    if anchor_span.end > source.len() {
+        return None;
+    }
+
+    // Find the end of the line containing the anchor span
+    let mut insert_pos = anchor_span.end;
+    let bytes = source.as_bytes();
+    while insert_pos < bytes.len() && bytes[insert_pos] != b'\n' {
+        insert_pos += 1;
+    }
+    if insert_pos < bytes.len() {
+        insert_pos += 1; // include the newline
+    }
+
+    let mut result = String::with_capacity(source.len() + block.len());
+    result.push_str(&source[..insert_pos]);
+    result.push_str(&block);
+    result.push_str(&source[insert_pos..]);
+    Some(result)
 }
 
 #[cfg(test)]
@@ -237,50 +277,6 @@ mod tests {
     fn serialize_text_escapes_quotes() {
         let value = PropertyValue::Text("Say \"hello\"".to_string());
         assert_eq!(serialize_property_value(&value), "\"Say \\\"hello\\\"\"");
-    }
-
-    #[test]
-    fn serialize_size_value_doubles_when_half_size() {
-        let value = PropertyValue::Vec2([50.0, 50.0]);
-        // Simulating radius (half-size) being doubled for width/height
-        let result = serialize_size_value(&value, true);
-        assert_eq!(result, "(100, 100)");
-    }
-
-    #[test]
-    fn serialize_size_value_no_double_when_not_half_size() {
-        let value = PropertyValue::Vec2([100.0, 100.0]);
-        let result = serialize_size_value(&value, false);
-        assert_eq!(result, "(100, 100)");
-    }
-
-    #[test]
-    fn roundtrip_size_edit_preserves_values() {
-        // Simulate the exact bug: dragging a size handle
-        // Original source: "backdrop: Rect, size: (2494.552, 1377.7778)"
-        // After drag, the new size is (2509.0366, 671.8605) - these are FULL size values
-        // The span covers "(2494.552, 1377.7778)"
-        let source = "backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background";
-        let span = ByteSpan {
-            start: source.find("(2494.552").unwrap(),
-            end: source.find("1377.7778)").unwrap() + "1377.7778)".len(),
-        };
-
-        // The drag handler sends full-size values
-        let new_value = PropertyValue::Vec2([2509.0366, 671.8605]);
-
-        // BUG: serialize_size_value with is_half_size=true doubles the values!
-        let serialized_wrong = serialize_size_value(&new_value, true);
-        let result_wrong = apply_source_edit(source, &span, &serialized_wrong);
-        // This would produce: "size: (5018.0732, 1343.721)" - wrong!
-
-        // CORRECT: should NOT double since drag already sends full-size
-        let serialized_correct = serialize_size_value(&new_value, false);
-        let result_correct = apply_source_edit(source, &span, &serialized_correct);
-        assert_eq!(
-            result_correct,
-            "backdrop: Rect, size: (2509.0366, 671.8605), color: scene.background"
-        );
     }
 
     #[test]

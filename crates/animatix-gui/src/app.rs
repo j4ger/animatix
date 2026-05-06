@@ -169,6 +169,10 @@ struct GuiShell {
     /// Whether we've already taken an undo snapshot for the current drag.
     /// One drag-start → drag-end counts as a single undo entry.
     drag_snapshot_taken: bool,
+    /// When true, scrubbing the timeline scrolls the editor to the corresponding keyframe.
+    editor_sync_enabled: bool,
+    /// When true, property edits create keyframes at current time instead of overwriting defaults.
+    keyframe_mode: bool,
 }
 
 impl GuiShell {
@@ -248,6 +252,8 @@ impl GuiShell {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             drag_snapshot_taken: false,
+            editor_sync_enabled: true,
+            keyframe_mode: false,
         }
     }
 
@@ -282,6 +288,16 @@ impl GuiShell {
 
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
         let mut actions = UiActions::default();
+
+        // Global keyboard shortcuts for timeline toggles
+        ui.input(|i| {
+            if i.key_pressed(egui::Key::S) && !i.modifiers.command {
+                actions.toggle_editor_sync = true;
+            }
+            if i.key_pressed(egui::Key::K) && !i.modifiers.command {
+                actions.toggle_keyframe_mode = true;
+            }
+        });
 
         // Compact toolbar
         egui::Panel::top("toolbar")
@@ -324,6 +340,8 @@ impl GuiShell {
                     has_error,
                     &diagnostics,
                     &mut actions,
+                    self.editor_sync_enabled,
+                    self.keyframe_mode,
                 );
             });
 
@@ -407,6 +425,10 @@ impl GuiShell {
         let diagnostics = self.combined_diagnostics();
 
         let scene_dimensions = self.document.scene_dimensions;
+        // Feed keyframe lines into editor for decoration
+        self.editor
+            .set_keyframe_lines(self.document.keyframe_lines.clone());
+
         let mut viewer = WorkspaceViewer {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
@@ -424,6 +446,7 @@ impl GuiShell {
             hit_regions: &self.hit_regions,
             drag_state: &mut self.drag_state,
             selection: &mut self.selection,
+            keyframe_mode: self.keyframe_mode,
         };
 
         DockArea::new(&mut self.dock_state)
@@ -459,11 +482,33 @@ impl GuiShell {
             self.preview.toggle_playback();
             self.preview_dirty = true;
         }
+        if actions.toggle_editor_sync {
+            self.editor_sync_enabled = !self.editor_sync_enabled;
+            self.preview.status = if self.editor_sync_enabled {
+                "Editor sync ON".to_string()
+            } else {
+                "Editor sync OFF".to_string()
+            };
+        }
+        if actions.toggle_keyframe_mode {
+            self.keyframe_mode = !self.keyframe_mode;
+            self.preview.status = if self.keyframe_mode {
+                "Keyframe mode ON — edits create timestamps".to_string()
+            } else {
+                "Keyframe mode OFF — edits overwrite defaults".to_string()
+            };
+        }
         if let Some(next_time) = actions.scrub_to {
             self.preview.current_time_s = next_time;
             self.preview.clamp_time();
             self.preview.is_playing = false;
             self.preview_dirty = true;
+            if self.editor_sync_enabled {
+                if let Some(line) = self.document.find_keyframe_line_at(next_time) {
+                    self.editor.scroll_to_line(line);
+                    self.editor.set_highlighted_line(Some(line));
+                }
+            }
         }
         if actions.editor_changed {
             self.document
@@ -487,6 +532,13 @@ impl GuiShell {
                 self.preview.current_time_s, self.preview.duration_s
             );
             self.preview_dirty = true;
+            if self.editor_sync_enabled {
+                if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s)
+                {
+                    self.editor.scroll_to_line(line);
+                    self.editor.set_highlighted_line(Some(line));
+                }
+            }
         }
         if actions.next_keyframe {
             let keyframes = self
@@ -501,6 +553,13 @@ impl GuiShell {
                 self.preview.current_time_s, self.preview.duration_s
             );
             self.preview_dirty = true;
+            if self.editor_sync_enabled {
+                if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s)
+                {
+                    self.editor.scroll_to_line(line);
+                    self.editor.set_highlighted_line(Some(line));
+                }
+            }
         }
         if let Some(label) = actions.select_actor {
             if self
@@ -776,6 +835,104 @@ impl GuiShell {
         }
     }
 
+    /// Handle a keyframe-mode edit: insert a new relative keyframe block.
+    ///
+    /// This creates `#+Δt { actor.prop = value }` in the source instead of
+    /// overwriting an existing property value.
+    fn handle_keyframe_edit(&mut self, edit: workspace::PropertyEdit) {
+        use crate::source_edit::{insert_keyframe_block, serialize_property_value};
+
+        let is_drag = !matches!(self.drag_state, DragState::None);
+        if !is_drag || !self.drag_snapshot_taken {
+            self.snapshot();
+            if is_drag {
+                self.drag_snapshot_taken = true;
+            }
+        }
+
+        // Update in-memory timeline for live preview
+        if let Some(ref mut timeline) = self.document.timeline {
+            if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
+                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                match &edit.value {
+                    workspace::PropertyValue::Vec2(v) => {
+                        if edit.property == "position" {
+                            let pt = track.position.get_or_insert_with(|| {
+                                animatix::timeline::PropertyTrack::new(*v)
+                            });
+                            pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
+                        }
+                    }
+                    workspace::PropertyValue::Float(v) => {
+                        if edit.property == "rotation" {
+                            let pt = track.rotation.get_or_insert_with(|| {
+                                animatix::timeline::PropertyTrack::new(*v)
+                            });
+                            pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
+                        }
+                    }
+                    _ => {}
+                }
+                timeline.invalidate_frame_cache();
+            }
+        }
+
+        // Insert keyframe block into source.
+        //
+        // TODO: configurable merge window — if an existing keyframe is within
+        // ~50ms of the current time, merge the assignment into that block
+        // instead of creating a new one.
+        const MERGE_WINDOW_S: f64 = 0.05;
+        let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
+        let delta_s = self.preview.current_time_s - prev_time_s;
+        // Skip creating a redundant keyframe if we're very close to an existing one.
+        // In the future this should merge into the existing block instead.
+        let source_written = if delta_s < MERGE_WINDOW_S {
+            false
+        } else if let Some(ref source_index) = self.document.source_index {
+            let serialized = serialize_property_value(&edit.value);
+
+            if let Some(anchor_span) = source_index.last_property_span(&edit.actor) {
+                if let Some(new_source) = insert_keyframe_block(
+                    &self.document.source_text,
+                    &anchor_span,
+                    &edit.actor,
+                    &edit.property,
+                    &serialized,
+                    self.preview.current_time_s,
+                    prev_time_s,
+                ) {
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.rebuild_source_index();
+                    self.document.rescan_keyframe_lines();
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        self.preview_dirty = true;
+        if source_written {
+            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = format!(
+                "Keyframe {}.{} @ {:.2}s",
+                edit.actor, edit.property, self.preview.current_time_s
+            );
+        } else {
+            self.preview.status = format!(
+                "Keyframe {}.{} @ {:.2}s — visual only",
+                edit.actor, edit.property, self.preview.current_time_s
+            );
+        }
+    }
+
     /// Handle a property edit from the inspector panel.
     ///
     /// Updates the in-memory timeline and persists the change back to the .amx source file
@@ -783,6 +940,12 @@ impl GuiShell {
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
         use crate::source_edit::{apply_source_edit, insert_property_after_span, serialize_property_value};
+
+        // ── Keyframe mode: insert a new timestamp instead of overwriting ──────
+        if edit.create_keyframe {
+            self.handle_keyframe_edit(edit);
+            return;
+        }
 
         // Take a snapshot for undo before making changes.
         // During a drag, only snapshot once (on the first edit) so that one

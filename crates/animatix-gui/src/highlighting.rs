@@ -107,7 +107,17 @@ impl HighlightColors {
 }
 
 /// Highlight source code using tree-sitter and return an egui LayoutJob.
-pub fn highlight_source(source: &str, style: &egui::Style, diagnostics: &[Diagnostic]) -> LayoutJob {
+///
+/// Additional visual layers:
+/// - `highlighted_line`: entire line gets a subtle blue background (timeline sync)
+/// - `keyframe_lines`: timestamp portion gets an amber tag background
+pub fn highlight_source(
+    source: &str,
+    style: &egui::Style,
+    diagnostics: &[Diagnostic],
+    highlighted_line: Option<usize>,
+    keyframe_lines: &[usize],
+) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = FontId::new(14.0, FontFamily::Monospace);
 
@@ -169,18 +179,92 @@ pub fn highlight_source(source: &str, style: &egui::Style, diagnostics: &[Diagno
         highlight_spans.push((last_end, source.len(), colors.default));
     }
 
-    // Apply diagnostic backgrounds
-    let job = apply_diagnostic_backgrounds(source, &font_id, &highlight_spans, diagnostics);
+    // Build decoration ranges
+    let mut deco_ranges: Vec<(usize, usize, Color32)> = Vec::new();
+
+    // 1. Highlighted line (timeline sync) — subtle blue background
+    if let Some(line) = highlighted_line {
+        let (start, end) = line_byte_range(source, line);
+        if start < end {
+            deco_ranges.push((
+                start,
+                end,
+                Color32::from_rgba_premultiplied(84, 110, 255, 25),
+            ));
+        }
+    }
+
+    // 2. Keyframe tag backgrounds — amber tag for timestamp portion
+    for &line in keyframe_lines {
+        if let Some((tag_start, tag_end)) = keyframe_tag_range(source, line) {
+            deco_ranges.push((
+                tag_start,
+                tag_end,
+                Color32::from_rgba_premultiplied(255, 196, 92, 20),
+            ));
+        }
+    }
+
+    // Apply all background layers
+    let job = apply_background_layers(
+        source,
+        &font_id,
+        &highlight_spans,
+        diagnostics,
+        &deco_ranges,
+    );
 
     job
 }
 
-/// Apply diagnostic background colors to highlight spans.
-fn apply_diagnostic_backgrounds(
+/// Return the byte range of `line` (0-indexed) in `source`.
+fn line_byte_range(source: &str, line: usize) -> (usize, usize) {
+    let mut current_line = 0;
+    let mut byte_offset = 0;
+
+    for ch in source.chars() {
+        if current_line == line {
+            // Find end of this line
+            let rest = &source[byte_offset..];
+            let line_end = rest.find('\n').map(|i| byte_offset + i).unwrap_or(source.len());
+            return (byte_offset, line_end);
+        }
+        byte_offset += ch.len_utf8();
+        if ch == '\n' {
+            current_line += 1;
+        }
+    }
+
+    // Line is at or past end of source
+    (source.len(), source.len())
+}
+
+/// Detect the timestamp tag range on a keyframe line.
+/// Returns the byte range of the `#timestamp {` portion (inclusive of `{`).
+fn keyframe_tag_range(source: &str, line: usize) -> Option<(usize, usize)> {
+    let (line_start, line_end) = line_byte_range(source, line);
+    let line_text = &source[line_start..line_end];
+    let trimmed = line_text.trim_start();
+    if !trimmed.starts_with('#') {
+        return None;
+    }
+
+    // Find the opening brace
+    let brace_pos = trimmed.find('{')?;
+    // Calculate absolute positions
+    let prefix_len = line_text.len() - trimmed.len();
+    let tag_start = line_start + prefix_len;
+    let tag_end = tag_start + brace_pos + 1; // include '{'
+    Some((tag_start, tag_end))
+}
+
+/// Apply diagnostic and decoration background colors to highlight spans.
+fn apply_background_layers(
     source: &str,
     font_id: &FontId,
     highlight_spans: &[(usize, usize, Color32)],
     diagnostics: &[Diagnostic],
+    deco_ranges: &[(usize, usize, Color32)],
 ) -> LayoutJob {
     // Convert diagnostics to byte offsets with background colors
     let diag_ranges: Vec<(usize, usize, Color32)> = diagnostics
@@ -221,6 +305,10 @@ fn apply_diagnostic_backgrounds(
         boundaries.push(start);
         boundaries.push(end);
     }
+    for &(start, end, _) in deco_ranges {
+        boundaries.push(start);
+        boundaries.push(end);
+    }
     boundaries.sort_unstable();
     boundaries.dedup();
 
@@ -248,6 +336,14 @@ fn apply_diagnostic_backgrounds(
         for &(d_start, d_end, d_color) in &diag_ranges {
             if seg_start >= d_start && seg_end <= d_end {
                 bg_color = Some(d_color);
+                break;
+            }
+        }
+
+        // Decoration layers override diagnostic backgrounds if present
+        for &(deco_start, deco_end, deco_color) in deco_ranges {
+            if seg_start >= deco_start && seg_end <= deco_end {
+                bg_color = Some(deco_color);
                 break;
             }
         }
@@ -320,7 +416,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[]);
+        let job = highlight_source(source, &style, &[], None, &[]);
 
         // Should produce a non-empty layout job
         assert!(!job.text.is_empty());
@@ -335,7 +431,34 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[]);
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        assert!(!job.text.is_empty());
+    }
+
+    #[test]
+    fn highlight_with_keyframe_lines() {
+        let source = r#"# 0s
+title: Text, text: "Hello"
+# +1s
+title.at = (100, 200)
+"#;
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[0, 2]);
+
+        assert!(!job.text.is_empty());
+    }
+
+    #[test]
+    fn highlight_with_current_line() {
+        let source = r#"line one
+line two
+line three
+"#;
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], Some(1), &[]);
 
         assert!(!job.text.is_empty());
     }

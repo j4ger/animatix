@@ -20,6 +20,11 @@ pub struct DocumentSession {
     pub is_dirty: bool,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
+    /// Sorted mapping: absolute time (s) → 0-indexed source line of the keyframe.
+    /// Built by scanning source text on each rebuild.
+    pub keyframe_line_map: Vec<(f64, usize)>,
+    /// Set of 0-indexed line numbers that contain keyframe declarations.
+    pub keyframe_lines: Vec<usize>,
 }
 
 impl DocumentSession {
@@ -40,6 +45,8 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
+            keyframe_line_map: Vec::new(),
+            keyframe_lines: Vec::new(),
         };
 
         let _ = document.rebuild();
@@ -60,6 +67,8 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
+            keyframe_line_map: Vec::new(),
+            keyframe_lines: Vec::new(),
         }
     }
 
@@ -103,6 +112,8 @@ impl DocumentSession {
                 self.source_index = None;
                 self.namespaces = HashMap::new();
                 self.timeline = None;
+                self.keyframe_line_map = Vec::new();
+                self.keyframe_lines = Vec::new();
                 self.diagnostics = vec![
                     Diagnostic::error(
                         DiagnosticCode::SourceLoadFailure,
@@ -130,6 +141,12 @@ impl DocumentSession {
         self.namespaces = namespaces;
         self.diagnostics = report.diagnostics;
         self.timeline = Some(report.output);
+
+        // Build keyframe line map from source text
+        let (map, lines) = scan_keyframe_lines(&self.source_text);
+        self.keyframe_line_map = map;
+        self.keyframe_lines = lines;
+
         Ok(())
     }
 
@@ -145,6 +162,98 @@ impl DocumentSession {
         let namespaces = program.namespaces;
         Ok((raw_statements, expanded_statements, namespaces))
     }
+}
+
+impl DocumentSession {
+    /// Find the 0-indexed source line of the keyframe whose absolute time
+    /// is closest to and ≤ `time_s`. Returns `None` if no keyframe exists.
+    pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
+        self.keyframe_line_map
+            .iter()
+            .filter(|(t, _)| *t <= time_s)
+            .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
+            .map(|(_, line)| *line)
+    }
+
+    /// Find the absolute time of the keyframe immediately before `time_s`.
+    pub fn prev_keyframe_time(&self, time_s: f64) -> f64 {
+        self.keyframe_line_map
+            .iter()
+            .filter(|(t, _)| *t < time_s)
+            .map(|(t, _)| *t)
+            .last()
+            .unwrap_or(0.0)
+    }
+
+    /// Rescan source text for keyframes and update cached maps.
+    /// Call this after direct source text modifications (e.g. keyframe insertion)
+    /// so the editor decorations stay in sync before the next rebuild.
+    pub fn rescan_keyframe_lines(&mut self) {
+        let (map, lines) = scan_keyframe_lines(&self.source_text);
+        self.keyframe_line_map = map;
+        self.keyframe_lines = lines;
+    }
+}
+
+/// Scan source text for keyframe declarations (`#timestamp` or `#+delta`).
+///
+/// Returns `(time_to_line_map, keyframe_line_numbers)` where:
+/// - `time_to_line_map` is sorted by absolute time
+/// - `keyframe_line_numbers` is the set of lines that start a keyframe block
+fn scan_keyframe_lines(source: &str) -> (Vec<(f64, usize)>, Vec<usize>) {
+    let mut map = Vec::new();
+    let mut lines = Vec::new();
+    let mut current_time_s = 0.0;
+
+    for (line_idx, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with('#') {
+            continue;
+        }
+
+        let after_hash = trimmed[1..].trim_start();
+        let is_relative = after_hash.starts_with('+');
+        let time_part = if is_relative {
+            &after_hash[1..]
+        } else {
+            after_hash
+        };
+
+        // Extract the numeric prefix (e.g. "2.5s" or "500ms")
+        let num_end = time_part
+            .find(|c: char| !c.is_ascii_digit() && c != '.');
+        let num_str = if let Some(end) = num_end {
+            &time_part[..end]
+        } else {
+            time_part
+        };
+
+        let value: f64 = match num_str.parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let unit = time_part[num_str.len()..].trim_start();
+        let delta_s = if unit.starts_with("ms") {
+            value / 1000.0
+        } else {
+            value
+        };
+
+        if is_relative {
+            current_time_s += delta_s;
+        } else {
+            current_time_s = delta_s;
+        }
+
+        map.push((current_time_s, line_idx));
+        lines.push(line_idx);
+    }
+
+    map.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    lines.sort_unstable();
+    lines.dedup();
+    (map, lines)
 }
 
 fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {

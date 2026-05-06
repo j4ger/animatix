@@ -17,6 +17,7 @@ pub(super) fn inspector_ui(
     selected_actor: &mut Option<String>,
     current_time_s: f64,
     actions: &mut UiActions,
+    keyframe_mode: bool,
 ) {
     ui.vertical(|ui| {
         // Reset selection if actor no longer exists in timeline
@@ -105,7 +106,7 @@ pub(super) fn inspector_ui(
             };
 
             ScrollArea::vertical().show(ui, |ui| {
-                render_actor_details(ui, track, current_time_s, actions);
+                render_actor_details(ui, track, current_time_s, actions, keyframe_mode);
             });
         } else {
             ui.vertical_centered(|ui| {
@@ -251,6 +252,7 @@ fn render_actor_details(
     track: &AnimationTrack,
     current_time_s: f64,
     actions: &mut UiActions,
+    keyframe_mode: bool,
 ) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
 
@@ -283,7 +285,7 @@ fn render_actor_details(
     // Property groups (editable)
     let groups = build_property_groups(track, current_time_ms);
     for group in &groups {
-        render_property_group(ui, group, &track.label, actions);
+        render_property_group(ui, group, &track.label, actions, keyframe_mode);
     }
 
     ui.add_space(8.0);
@@ -542,6 +544,7 @@ fn render_property_group(
     group: &PropertyGroup,
     actor_label: &str,
     actions: &mut UiActions,
+    keyframe_mode: bool,
 ) {
     let count = group.properties.len();
     let header_text = format!("{}  ({})", group.name, count);
@@ -556,7 +559,7 @@ fn render_property_group(
     .show(ui, |ui| {
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
         for entry in &group.properties {
-            render_editable_property_row(ui, actor_label, entry, actions);
+            render_editable_property_row(ui, actor_label, entry, actions, keyframe_mode);
         }
     });
 }
@@ -567,6 +570,7 @@ fn render_editable_property_row(
     actor_label: &str,
     entry: &PropertyEntry,
     actions: &mut UiActions,
+    keyframe_mode: bool,
 ) {
     let name = &entry.name;
     let has_kf = entry.has_keyframes;
@@ -582,6 +586,7 @@ fn render_editable_property_row(
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Vec2([new_x, new_y]),
+                create_keyframe: keyframe_mode,
                 });
             }
         }
@@ -591,6 +596,7 @@ fn render_editable_property_row(
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Color(new_rgba),
+                create_keyframe: keyframe_mode,
                 });
             }
         }
@@ -606,6 +612,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -618,6 +625,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_deg.to_radians()),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -628,6 +636,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -638,6 +647,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -649,6 +659,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -667,6 +678,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_val),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -676,6 +688,7 @@ fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_text),
+                        create_keyframe: keyframe_mode,
                         });
                     }
                 }

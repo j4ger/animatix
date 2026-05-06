@@ -20,6 +20,12 @@ pub struct EditorBuffer {
     completion: CompletionPopup,
     /// Whether completion was just confirmed (to avoid re-triggering).
     completion_confirmed: bool,
+    /// Line to scroll to on next frame (0-indexed, consumed by caller in workspace_ui).
+    pub pending_scroll_to_line: Option<usize>,
+    /// Line to highlight as "current" (0-indexed, for timeline sync).
+    pub highlighted_line: Option<usize>,
+    /// Lines that contain keyframe declarations (for decoration).
+    pub keyframe_lines: Vec<usize>,
 }
 
 impl EditorBuffer {
@@ -32,6 +38,9 @@ impl EditorBuffer {
             analyzer,
             completion: CompletionPopup::new(),
             completion_confirmed: false,
+            pending_scroll_to_line: None,
+            highlighted_line: None,
+            keyframe_lines: Vec::new(),
         }
     }
 
@@ -41,6 +50,9 @@ impl EditorBuffer {
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
         self.completion.hide();
+        self.pending_scroll_to_line = None;
+        self.highlighted_line = None;
+        self.keyframe_lines = Vec::new();
     }
 
     pub fn text(&self) -> &str {
@@ -51,6 +63,18 @@ impl EditorBuffer {
         self.text = text;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
+    }
+
+    pub fn scroll_to_line(&mut self, line: usize) {
+        self.pending_scroll_to_line = Some(line);
+    }
+
+    pub fn set_highlighted_line(&mut self, line: Option<usize>) {
+        self.highlighted_line = line;
+    }
+
+    pub fn set_keyframe_lines(&mut self, lines: Vec<usize>) {
+        self.keyframe_lines = lines;
     }
 
     /// Get the analyzer for diagnostics, hover, etc.
@@ -71,7 +95,13 @@ impl EditorBuffer {
         // Build or reuse cached highlight
         if self.cached_highlight.is_none() {
             let diagnostics = self.analyzer.diagnostics();
-            let job = highlight::highlight_source(&self.text, &style, &diagnostics);
+            let job = highlight::highlight_source(
+                &self.text,
+                &style,
+                &diagnostics,
+                self.highlighted_line,
+                &self.keyframe_lines,
+            );
             self.cached_highlight = Some((self.text.clone(), job));
         }
 

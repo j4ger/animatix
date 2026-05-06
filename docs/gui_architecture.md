@@ -109,8 +109,12 @@ Preview drag → PropertyEdit → handle_property_edit → source + timeline + f
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- Row 1: Play/Pause, Prev/Next keyframe, scrubber with amber keyframe markers, time
+- Row 1: Play/Pause, Prev/Next keyframe, 🔗 sync toggle, 🔑 keyframe mode toggle, scrubber with amber keyframe markers, time
 - Row 2: Resolution, actor count, keyframe count, build status
+
+**🔗 Editor Sync** (default: ON) — scrubs the editor to the `#timestamp` block for the current time and highlights it. Shortcut: `S`.
+
+**🔑 Keyframe Mode** (default: OFF) — edits create `#+Δt { actor.prop = value }` blocks instead of overwriting defaults. Shortcut: `K`.
 
 ---
 
@@ -185,22 +189,35 @@ ACTORS                        4
 
 ### Edit Flow
 
+**Normal mode** (overwrite):
 ```
 User edits widget or drags preview handle
-  → PropertyEdit { actor, property, value }
+  → PropertyEdit { actor, property, value, create_keyframe: false }
     → GuiShell.handle_property_edit()
       1. Snapshot (undo)
       2. Update in-memory timeline tracks
-      3. Invalidate frame cache (so preview re-renders)
-      4. Source edit:
-         a. source_index.find(actor, property) → ByteSpan
-            - Assignments take precedence over declarations
-            - "position" ↔ "at" aliasing handled
-         b. If span found → surgical replace via apply_source_edit()
-         c. If span missing → insert via insert_property_after_span()
-            (appends property after actor's last known property)
-      5. Rebuild source index (for next edit's spans)
-      6. Schedule debounced full rebuild (re-parse source → new Timeline)
+      3. Invalidate frame cache
+      4. Source edit: surgical replace via apply_source_edit()
+         - source_index.find(actor, property) → ByteSpan
+         - "position" ↔ "at" aliasing handled
+      5. Rebuild source index
+      6. Schedule debounced full rebuild
+```
+
+**Keyframe mode** (`K` toggle, 🔑 button):
+```
+  → PropertyEdit { ..., create_keyframe: true }
+    → GuiShell.handle_keyframe_edit()
+      1. Snapshot (undo)
+      2. Update in-memory timeline tracks (add keyframe at current time)
+      3. Invalidate frame cache
+      4. Source edit: insert_keyframe_block()
+         - Computes Δt from prev keyframe time
+         - Omits block if Δt ≈ 0 (spec: #0s can be omitted)
+         - Skips if within 50ms of existing keyframe (TODO: merge instead)
+         - Inserts after actor's last property span
+      5. Rebuild source index + rescan keyframe lines (decorations)
+      6. Schedule debounced full rebuild
 ```
 
 ### Position-Binding-Aware Drag
@@ -248,6 +265,8 @@ Each widget shows:
 | `Space` | Play/Pause (when editor not focused) |
 | `←` / `→` | Scrub ±0.1s |
 | `,` / `.` | Prev/Next keyframe |
+| `S` | Toggle editor-timeline sync |
+| `K` | Toggle keyframe mode |
 | `⌘S` | Save |
 | `⌘E` | Toggle Explorer |
 | `⌘I` | Toggle Inspector |
@@ -315,6 +334,20 @@ The GUI watches the loaded .amx file for changes. On modification:
 - 14 highlight groups: keyword, type, string, number, comment, operator, punctuation, variable, property, parameter, function
 - Gruvbox-inspired dark/light themes
 - Cached highlighting (invalidated on text change)
+
+### Keyframe Decorations
+
+- **Amber tag background** on the `#timestamp {` portion of keyframe lines
+- **Blue background** on the currently synced line (when editor-timeline sync is active)
+- Driven by `DocumentSession::keyframe_lines`, rescanned after keyframe insertions
+
+### Timeline Sync
+
+When editor-timeline sync is ON (🔗 button or `S` shortcut):
+- Scrubbing the timeline → editor scrolls to the `#timestamp` block ≤ current time
+- Prev/next keyframe jumps → same scroll + highlight behavior
+- Disabled during playback to avoid jitter
+- `DocumentSession::find_keyframe_line_at(time_s)` does the lookup via a scanned `Vec<(time_s, line)>` map
 
 ### Auto-complete
 
