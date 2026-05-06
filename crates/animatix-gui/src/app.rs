@@ -166,6 +166,9 @@ struct GuiShell {
     undo_stack: Vec<String>,
     /// Redo stack for property edits (source text snapshots).
     redo_stack: Vec<String>,
+    /// Whether we've already taken an undo snapshot for the current drag.
+    /// One drag-start → drag-end counts as a single undo entry.
+    drag_snapshot_taken: bool,
 }
 
 impl GuiShell {
@@ -244,6 +247,7 @@ impl GuiShell {
             selection: selection::SelectionState::default(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            drag_snapshot_taken: false,
         }
     }
 
@@ -511,6 +515,14 @@ impl GuiShell {
         for edit in actions.property_edits {
             self.handle_property_edit(edit);
         }
+        // End drag AFTER processing edits — the workspace signals drag_ended
+        // instead of resetting drag_state directly, so handle_property_edit
+        // sees the drag as still active and coalesces the final frame's edits
+        // into the same undo entry.
+        if actions.drag_ended {
+            self.drag_state = DragState::None;
+            self.drag_snapshot_taken = false;
+        }
         if actions.undo {
             self.undo();
         }
@@ -534,6 +546,7 @@ impl GuiShell {
                 // Clear undo/redo history when switching files
                 self.undo_stack.clear();
                 self.redo_stack.clear();
+                self.drag_snapshot_taken = false;
                 if let Some(ref mut reloader) = self.hot_reloader {
                     let _ = reloader.update_watched_file(&self.document.file_path);
                 }
@@ -771,8 +784,16 @@ impl GuiShell {
         use workspace::PropertyValue;
         use crate::source_edit::{apply_source_edit, insert_property_after_span, serialize_property_value};
 
-        // Take a snapshot for undo before making changes
-        self.snapshot();
+        // Take a snapshot for undo before making changes.
+        // During a drag, only snapshot once (on the first edit) so that one
+        // drag-start → drag-end counts as a single undo entry.
+        let is_drag = !matches!(self.drag_state, DragState::None);
+        if !is_drag || !self.drag_snapshot_taken {
+            self.snapshot();
+            if is_drag {
+                self.drag_snapshot_taken = true;
+            }
+        }
 
         // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {

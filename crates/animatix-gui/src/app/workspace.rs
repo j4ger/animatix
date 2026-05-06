@@ -35,6 +35,7 @@ pub(super) struct UiActions {
     pub(super) next_keyframe: bool,
     pub(super) select_actor: Option<String>,
     pub(super) property_edits: Vec<PropertyEdit>,
+    pub(super) drag_ended: bool,
     pub(super) undo: bool,
     pub(super) redo: bool,
 }
@@ -712,15 +713,15 @@ impl WorkspaceViewer<'_> {
                 }
             }
 
-            // End drag — use raw pointer state so drags that started outside
-            // the widget rect (on out-of-bounds handles) are properly released.
+            // End drag — signal via actions so handle_actions can process
+            // the final frame's property edits while drag_state is still active.
             let pointer_released = ui.input(|i| i.pointer.any_released());
             if is_dragging
                 && (response.drag_stopped()
                     || pointer_released
                     || (!ui.input(|i| i.pointer.any_down()) && is_dragging))
             {
-                *self.drag_state = DragState::None;
+                self.actions.drag_ended = true;
             }
 
             // ── Hover preview ───────────────────────────────────────────
