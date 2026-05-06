@@ -272,6 +272,8 @@ impl Timeline {
         }
     }
 
+    /// Duration of the authored animation in seconds, derived from the latest
+    /// keyframe across all tracks, background, and child order animations.
     pub fn duration_seconds(&self) -> f64 {
         let max_track_ms = self
             .tracks
@@ -280,7 +282,14 @@ impl Timeline {
             .max()
             .unwrap_or(0);
         let max_bg_ms = self.background_color.last_keyframe_time().unwrap_or(0);
-        (max_track_ms.max(max_bg_ms) as f64) / 1000.0
+        let max_order_ms = self
+            .child_orders
+            .values()
+            .filter_map(|track| track.last_keyframe_time())
+            .max()
+            .unwrap_or(0);
+        let max_ms = max_track_ms.max(max_bg_ms).max(max_order_ms);
+        (max_ms as f64) / 1000.0
     }
 
     /// Returns all keyframe time positions across all tracks, in seconds.

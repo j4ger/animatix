@@ -537,3 +537,31 @@ right.frame.radius = 20
 - **Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.
 - **Missing Rotation:** Basic shapes like `Ellipse` do not currently support a dedicated rotation parameter, limiting fundamental shape manipulations without resorting to matrix actions.
 - **Coordinate System Friction:** `at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) often clash, requiring significant manual intervention when mixing them.
+
+---
+
+## 16. CLI Export
+
+**Video (`animatix video`) and GIF (`animatix gif`) exports:**
+
+| Flag | Default | Behavior |
+|------|---------|----------|
+| `--duration` | *auto* | Omit to use timeline length + hold |
+| `--hold` | 1.0 | Trailing hold in seconds; ignored when `--duration` is set |
+| `--fps` | 30 (video), 15 (GIF) | Output framerate |
+| `--width` / `--height` | 1280x720 (video), 640x360 (GIF) | Output resolution |
+
+**Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the time of the last keyframe across all tracks, background, and child-order animations), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
+
+```bash
+# Export full timeline + 1s hold (auto-detected ~10.9s for swap_demo.amx)
+animatix gif examples/swap_demo.amx -o out.gif
+
+# Export with a 2-second trailing hold
+animatix gif examples/swap_demo.amx -o out.gif --hold 2.0
+
+# Export explicit 3-second slice (hold is ignored when --duration is set)
+animatix gif examples/swap_demo.amx -o out.gif --duration 3.0
+```
+
+**Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold applies.
