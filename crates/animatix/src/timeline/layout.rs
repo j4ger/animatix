@@ -81,7 +81,7 @@ use super::LayoutEngine;
 use super::ContainerMetadata;
 
 impl LayoutEngine {
-    fn compute_positions(
+    pub(crate) fn compute_positions(
         metadata: &ContainerMetadata,
         children: &[ChildExtent],
     ) -> Vec<[f32; 2]> {

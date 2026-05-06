@@ -6964,3 +6964,58 @@ fn test_container_metadata_layout_type_parity() {
         LayoutType::Stack
     ));
 }
+
+/// Verifies that swap action animates child positions through interpolation.
+#[test]
+fn test_swap_action_animates_positions() {
+    let ast = parse_program(
+        r#"
+        config { dynamic_layout: true }
+
+        #0s
+        row: Row, gap: 8 {
+          a: Rect, size: (60, 80)
+          b: Rect, size: (60, 160)
+        }
+
+        #1s
+        swap a b [500ms]
+        "#,
+    );
+
+    let timeline = Timeline::build(&ast);
+
+    // Verify child_orders track was created
+    assert!(timeline.child_orders.contains_key("row"));
+    let track = timeline.child_orders.get("row").unwrap();
+    assert_eq!(track.keyframes.len(), 1);
+    let (order, _) = track.keyframes.get(&1500).unwrap(); // 1s + 500ms
+    assert_eq!(order, &vec!["b".to_string(), "a".to_string()]);
+
+    // Check positions before swap (t=0)
+    let pos_before = timeline.compute_animated_layout("row", 0);
+    let pos_a_before = pos_before.get("a").copied().unwrap();
+    let pos_b_before = pos_before.get("b").copied().unwrap();
+
+    // Check positions during swap (t=1250, midpoint)
+    let pos_mid = timeline.compute_animated_layout("row", 1250);
+    let pos_a_mid = pos_mid.get("a").copied().unwrap();
+    let pos_b_mid = pos_mid.get("b").copied().unwrap();
+
+    // Check positions after swap (t=1500)
+    let pos_after = timeline.compute_animated_layout("row", 1500);
+    let pos_a_after = pos_after.get("a").copied().unwrap();
+    let pos_b_after = pos_after.get("b").copied().unwrap();
+
+    // Before: a is left of b
+    assert!(pos_a_before[0] < pos_b_before[0], "a should be left of b before swap");
+
+    // After: a is right of b (they swapped)
+    assert!(pos_a_after[0] > pos_b_after[0], "a should be right of b after swap");
+
+    // Mid: positions should be between before and after (allowing for floating point)
+    let a_moved = (pos_a_mid[0] - pos_a_before[0]).abs() > 0.1;
+    let b_moved = (pos_b_mid[0] - pos_b_before[0]).abs() > 0.1;
+    assert!(a_moved, "a should have moved from its start position during animation; before={:?} mid={:?} after={:?}", pos_a_before, pos_a_mid, pos_a_after);
+    assert!(b_moved, "b should have moved from its start position during animation; before={:?} mid={:?} after={:?}", pos_b_before, pos_b_mid, pos_b_after);
+}

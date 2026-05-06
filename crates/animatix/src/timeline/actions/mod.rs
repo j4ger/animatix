@@ -3,6 +3,7 @@ pub mod entrance;
 pub mod exit;
 pub mod motion;
 pub mod registry;
+pub mod reorder;
 pub mod reveal;
 
 use crate::ast::Action;
@@ -13,6 +14,7 @@ use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use motion::{Move, Rotate, Scale, Shift};
 use registry::{ActionSignature, BuiltinAction};
+use reorder::Swap;
 use reveal::{DrawIn, DrawOut, RevealOut, WipeOut};
 
 fn push_unknown_action_diagnostic(action: &Action, diagnostics: &mut Vec<Diagnostic>) {
@@ -136,6 +138,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(Shake),
         Box::new(Pulse),
         Box::new(Bounce),
+        Box::new(Swap),
     ]
 }
 
@@ -170,7 +173,9 @@ mod tests {
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
-    use crate::timeline::AnimationTrack;
+    use crate::timeline::{
+        AnimationTrack, ContainerLayoutChild, ContainerMetadata, LayoutType, PropertyTrack,
+    };
 
     #[test]
     fn unknown_actions_emit_diagnostics() {
@@ -229,5 +234,197 @@ mod tests {
                 && diagnostic.message.contains("container/group node")
                 && diagnostic.message.contains("leaf actors with vector paths")
         }));
+    }
+
+    #[test]
+    fn swap_action_requires_exactly_two_targets() {
+        let action = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut timeline = Timeline::new();
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+
+        assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
+        assert!(timeline.child_orders.is_empty());
+    }
+
+    #[test]
+    fn swap_action_requires_existing_targets() {
+        let action = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string(), "b".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut timeline = Timeline::new();
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+
+        assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
+        assert!(timeline.child_orders.is_empty());
+    }
+
+    #[test]
+    fn swap_action_requires_common_parent() {
+        let mut timeline = Timeline::new();
+        timeline.tracks.insert("a".to_string(), AnimationTrack::new("a".to_string()));
+        timeline.tracks.insert("b".to_string(), AnimationTrack::new("b".to_string()));
+
+        let action = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string(), "b".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+
+        assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
+        assert!(timeline.child_orders.is_empty());
+    }
+
+    #[test]
+    fn swap_action_sets_child_order_keyframe() {
+        let mut timeline = Timeline::new();
+
+        // Set up container with children
+        let mut parent_track = AnimationTrack::new("row".to_string());
+        parent_track.children.push("a".to_string());
+        parent_track.children.push("b".to_string());
+        timeline.tracks.insert("row".to_string(), parent_track);
+
+        // Set up child tracks with layout size so they're admitted
+        let mut child_a = AnimationTrack::new("a".to_string());
+        child_a.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
+            PropertyTrack::new([15.0, 20.0])
+        );
+        timeline.tracks.insert("a".to_string(), child_a);
+
+        let mut child_b = AnimationTrack::new("b".to_string());
+        child_b.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
+            PropertyTrack::new([15.0, 40.0])
+        );
+        timeline.tracks.insert("b".to_string(), child_b);
+
+        // Set up container metadata with layout children
+        timeline.container_metadata.insert(
+            "row".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                align: "center".to_string(),
+                cols: None,
+                child_order: vec!["a".to_string(), "b".to_string()],
+                layout_children: vec![
+                    ContainerLayoutChild { label: "a".to_string() },
+                    ContainerLayoutChild { label: "b".to_string() },
+                ],
+            },
+        );
+
+        let action = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string(), "b".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
+        assert_eq!(timeline.child_orders.len(), 1);
+
+        let track = timeline.child_orders.get("row").unwrap();
+        assert_eq!(track.keyframes.len(), 1);
+        let (order, _) = track.keyframes.get(&500).unwrap();
+        assert_eq!(order, &vec!["b".to_string(), "a".to_string()]);
+    }
+
+    #[test]
+    fn swap_action_detects_overlapping_swaps() {
+        let mut timeline = Timeline::new();
+
+        // Set up container with children
+        let mut parent_track = AnimationTrack::new("row".to_string());
+        parent_track.children.push("a".to_string());
+        parent_track.children.push("b".to_string());
+        parent_track.children.push("c".to_string());
+        timeline.tracks.insert("row".to_string(), parent_track);
+
+        for label in ["a", "b", "c"] {
+            let mut child = AnimationTrack::new(label.to_string());
+            child.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
+                PropertyTrack::new([15.0, 20.0])
+            );
+            timeline.tracks.insert(label.to_string(), child);
+        }
+
+        timeline.container_metadata.insert(
+            "row".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                align: "center".to_string(),
+                cols: None,
+                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                layout_children: vec![
+                    ContainerLayoutChild { label: "a".to_string() },
+                    ContainerLayoutChild { label: "b".to_string() },
+                    ContainerLayoutChild { label: "c".to_string() },
+                ],
+            },
+        );
+
+        // First swap: a,b at 0s, completes at 500ms
+        let action1 = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string(), "b".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut diagnostics = Vec::new();
+        process_action(&action1, 0.0, &mut timeline, &mut diagnostics);
+        assert!(diagnostics.is_empty());
+
+        // Second swap: b,c at 200ms, would complete at 700ms — overlaps with first
+        let action2 = Action {
+            verb: "swap".to_string(),
+            targets: vec!["b".to_string(), "c".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+        };
+        let mut diagnostics2 = Vec::new();
+        process_action(&action2, 200.0, &mut timeline, &mut diagnostics2);
+
+        assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
+        // Only the first swap's keyframe should exist
+        let track = timeline.child_orders.get("row").unwrap();
+        assert_eq!(track.keyframes.len(), 1);
     }
 }

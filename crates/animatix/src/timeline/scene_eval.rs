@@ -403,15 +403,7 @@ impl Timeline {
         if let Some(track) = self.tracks.get(node_label) {
             // Compute dynamic layout for this container's children
             let child_layout_positions = if self.dynamic_layout {
-                if let Some(metadata) = self.container_metadata.get(node_label) {
-                    self.layout_engine.compute_layout_for_time(
-                        metadata,
-                        time_ms,
-                        &self.tracks,
-                    )
-                } else {
-                    std::collections::BTreeMap::new()
-                }
+                self.compute_animated_layout(node_label, time_ms)
             } else {
                 std::collections::BTreeMap::new()
             };
@@ -454,6 +446,7 @@ impl Timeline {
                     && cached.dimensions == scene_dimensions
                     && cached.has_modifiers == has_modifiers
                     && cached.has_dynamic_layout == self.dynamic_layout
+                    && cached.has_child_orders == !self.child_orders.is_empty()
                 {
                     return cached.scene.clone();
                 }
@@ -540,6 +533,7 @@ impl Timeline {
                 dimensions: scene_dimensions,
                 has_modifiers,
                 has_dynamic_layout: self.dynamic_layout,
+                has_child_orders: !self.child_orders.is_empty(),
                 scene: scene.clone(),
             });
         }

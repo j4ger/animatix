@@ -200,6 +200,9 @@ pub struct Timeline {
     pub layout_engine: LayoutEngine,
     pub dynamic_layout: bool,
     pub asset_cache: assets::AssetCache,
+    /// Per-container child order animations.
+    /// Key: container label. Value: track of child label orderings.
+    pub child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
@@ -214,6 +217,7 @@ pub(crate) struct FrameCacheEntry {
     dimensions: SceneDimensions,
     has_modifiers: bool,
     has_dynamic_layout: bool,
+    has_child_orders: bool,
     scene: vello::Scene,
 }
 
@@ -235,6 +239,7 @@ impl Clone for Timeline {
             layout_engine: self.layout_engine.clone(),
             dynamic_layout: self.dynamic_layout,
             asset_cache: self.asset_cache.clone(),
+            child_orders: self.child_orders.clone(),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
         }
@@ -261,6 +266,7 @@ impl Timeline {
             layout_engine: LayoutEngine,
             dynamic_layout: false,
             asset_cache: assets::AssetCache::new(),
+            child_orders: BTreeMap::new(),
             frame_cache: std::cell::RefCell::new(None),
             hit_regions: std::cell::RefCell::new(Vec::new()),
         }
@@ -315,6 +321,144 @@ impl Timeline {
     /// Returns an iterator over all track labels.
     pub fn actor_labels(&self) -> impl Iterator<Item = &String> {
         self.tracks.keys()
+    }
+
+    /// Finds the common parent container of two child labels.
+    /// Returns `None` if no shared parent exists.
+    pub fn find_common_parent(&self,
+        child_a: &str,
+        child_b: &str,
+    ) -> Option<String> {
+        for (label, track) in &self.tracks {
+            if track.children.contains(&child_a.to_string())
+                && track.children.contains(&child_b.to_string())
+            {
+                return Some(label.clone());
+            }
+        }
+        None
+    }
+
+    /// Returns the effective child order for a container at the given time.
+    /// Falls back to the container's authored `layout_children` order.
+    pub fn get_child_order(&self,
+        container_label: &str,
+        time_ms: u64,
+    ) -> Vec<String> {
+        if let Some(track) = self.child_orders.get(container_label) {
+            let value = track.evaluate(time_ms);
+            if !value.is_empty() {
+                return value;
+            }
+        }
+        self.container_metadata
+            .get(container_label)
+            .map(|m| m.layout_children.iter().map(|c| c.label.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Computes layout positions for a container using a specific child order.
+    fn compute_layout_positions_for_order(
+        &self,
+        metadata: &ContainerMetadata,
+        order: &[String],
+        time_ms: u64,
+    ) -> std::collections::BTreeMap<String, [f32; 2]> {
+        use crate::timeline::layout::ChildExtent;
+
+        let child_extents: Vec<ChildExtent> = order
+            .iter()
+            .filter_map(|label| {
+                let track = self.tracks.get(label)?;
+                Some(ChildExtent {
+                    label: label.clone(),
+                    half_size: track.layout_size_get(time_ms)?,
+                    placement_mode: track.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
+                })
+            })
+            .collect();
+
+        let positions = LayoutEngine::compute_positions(metadata, &child_extents);
+
+        let mut result = std::collections::BTreeMap::new();
+        for (i, child) in child_extents.iter().enumerate() {
+            if child.placement_mode == PlacementMode::LayoutManaged {
+                result.insert(child.label.clone(), positions[i]);
+            }
+        }
+        result
+    }
+
+    /// Computes layout positions with animated child-order transitions.
+    /// If a `child_orders` transition is active, interpolates positions between
+    /// the old and new orders. Otherwise delegates to static layout.
+    pub fn compute_animated_layout(
+        &self,
+        container_label: &str,
+        time_ms: u64,
+    ) -> std::collections::BTreeMap<String, [f32; 2]> {
+        let Some(metadata) = self.container_metadata.get(container_label) else {
+            return std::collections::BTreeMap::new();
+        };
+
+        // Check for child_orders track
+        if let Some(track) = self.child_orders.get(container_label) {
+            let prev = track.keyframes.range(..=time_ms).next_back();
+            let next = track.keyframes.range(time_ms..).next();
+
+            match (prev, next) {
+                (Some((&t1, (order1, easing1))), Some((&t2, (order2, _)))) if t1 != t2 => {
+                    // Between two keyframes: interpolate
+                    let t = ((time_ms - t1) as f32 / (t2 - t1) as f32).clamp(0.0, 1.0);
+                    let eased_t = apply_easing(t, *easing1);
+
+                    let pos1 = self.compute_layout_positions_for_order(metadata, order1, time_ms);
+                    let pos2 = self.compute_layout_positions_for_order(metadata, order2, time_ms);
+
+                    let mut result = std::collections::BTreeMap::new();
+                    for label in order1.iter().chain(order2.iter()) {
+                        let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
+                        let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
+                        result.insert(label.clone(), p1.interpolate(&p2, eased_t));
+                    }
+                    return result;
+                }
+                (Some((_, (order, _))), _) => {
+                    // At or after a keyframe (or at the only keyframe): use it directly
+                    return self.compute_layout_positions_for_order(metadata, order, time_ms);
+                }
+                (None, Some((&t, (order, easing)))) => {
+                    // Before the first keyframe: interpolate from default_value to first keyframe
+                    let t = (time_ms as f32 / t as f32).clamp(0.0, 1.0);
+                    let eased_t = apply_easing(t, *easing);
+
+                    let pos1 = self.compute_layout_positions_for_order(
+                        metadata,
+                        &track.default_value,
+                        time_ms,
+                    );
+                    let pos2 = self.compute_layout_positions_for_order(metadata, order, time_ms);
+
+                    let mut result = std::collections::BTreeMap::new();
+                    for label in track.default_value.iter().chain(order.iter()) {
+                        let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
+                        let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
+                        result.insert(label.clone(), p1.interpolate(&p2, eased_t));
+                    }
+                    return result;
+                }
+                (None, None) => {
+                    // Empty track — should not happen, but fall through
+                }
+            }
+        }
+
+        // No child_orders track — delegate to static layout
+        self.layout_engine.compute_layout_for_time(
+            metadata,
+            time_ms,
+            &self.tracks,
+        )
     }
 
     /// Returns the list of root actor labels (actors with no parent).

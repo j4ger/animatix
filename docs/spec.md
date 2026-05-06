@@ -28,7 +28,7 @@
 | Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | `strategy:fade` deferred |
-| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
+| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | v1a lowers at build time; nested seq/decls unsupported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | v1b offsets by shared interval; nested stagger/decls unsupported |
@@ -177,6 +177,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Entrance:** `fade-in`, `draw-in`, `wipe-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
+- **Reorder:** `swap`
 
 **Rotation:** Two ways to rotate:
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor)
@@ -205,6 +206,39 @@ Effects examples:
 shake badge [intensity: 2]
 pulse btn [intensity: 1.5]
 bounce badge [intensity: 3]
+```
+
+**Reorder:**
+
+`swap childA, childB [duration]` — Swaps the layout positions of two children in their parent container. Both targets must share a common parent and be `LayoutManaged`. Requires `dynamic_layout: true`.
+
+```animatix
+config { dynamic_layout: true }
+
+row: Row, gap: 8 {
+  a: Rect, size: (30, 40)
+  b: Rect, size: (30, 80)
+  c: Rect, size: (30, 60)
+}
+
+#1s
+swap a, b [500ms]
+
+#2s
+swap b, c [500ms]
+```
+
+Overlapping swaps on the same container are disallowed and emit a diagnostic.
+
+**How it works:** The `swap` action writes a keyframe to a per-container `child_orders` track at `time + duration`. During evaluation, if the current time falls between two child-order keyframes, layout positions are computed for both orders and interpolated with easing. This produces smooth sliding motion without `motion_offset` hacks.
+
+**Future: `reorder`**
+
+A planned `reorder` action would allow explicit full-order specification (e.g. reversing a container), independent of swap history. Unlike `swap`, it could support overlapping transitions by capturing a snapshot of the current order at action start time.
+
+```animatix
+# Reverse a row
+reorder row [c, b, a] [500ms]
 ```
 
 **Composition:**

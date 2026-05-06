@@ -253,6 +253,12 @@ impl Interpolate for String {
     }
 }
 
+impl Interpolate for Vec<String> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { self.clone() } else { other.clone() }
+    }
+}
+
 impl Interpolate for Vec<[f32; 2]> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if self.is_empty() || other.is_empty() || self.len() != other.len() {
