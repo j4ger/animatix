@@ -562,10 +562,10 @@ impl WorkspaceViewer<'_> {
                         let mut new_h = start_size[1];
 
                         if sign[0] != 0.0 {
-                            new_w = (start_size[0] + sign[0] * 2.0 * dx_local).max(min_size);
+                            new_w = (start_size[0] + sign[0] * dx_local).max(min_size);
                         }
                         if sign[1] != 0.0 {
-                            new_h = (start_size[1] + sign[1] * 2.0 * dy_local).max(min_size);
+                            new_h = (start_size[1] + sign[1] * dy_local).max(min_size);
                         }
 
                         // Uniform ratio (shift or stored from drag start)
