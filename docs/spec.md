@@ -564,4 +564,11 @@ animatix gif examples/swap_demo.amx -o out.gif --hold 2.0
 animatix gif examples/swap_demo.amx -o out.gif --duration 3.0
 ```
 
-**Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold applies.
+**Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
+
+```bash
+# 109-frame GIF rendered across 28 threads (~4 frames each)
+animatix gif examples/swap_demo.amx -o out.gif --fps 10
+```
+
+**Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum EvalError {
@@ -42,7 +42,7 @@ pub enum Value {
     Vec3([f64; 3]),
     Vec4([f64; 4]),
     Color([f64; 4]),
-    NativeFn(Rc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError>>),
+    NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     Closure(Vec<String>, Box<crate::ast::Expr>),
 }
 
@@ -163,7 +163,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "sin",
-        Value::NativeFn(Rc::new(|args, _env| {
+        Value::NativeFn(Arc::new(|args, _env| {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
                     "sin expects 1 argument".to_string(),
@@ -179,7 +179,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "cos",
-        Value::NativeFn(Rc::new(|args, _env| {
+        Value::NativeFn(Arc::new(|args, _env| {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
                     "cos expects 1 argument".to_string(),
@@ -195,7 +195,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "lerp",
-        Value::NativeFn(Rc::new(|args, _env| {
+        Value::NativeFn(Arc::new(|args, _env| {
             if args.len() != 3 {
                 return Err(EvalError::TypeMismatch(
                     "lerp expects 3 arguments".to_string(),
@@ -214,7 +214,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "rand",
-        Value::NativeFn(Rc::new(|_args, _env| Ok(Value::Num(rand::random::<f64>())))),
+        Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(rand::random::<f64>())))),
     );
 
     env.set("RED", Value::Color([1.0, 0.0, 0.0, 1.0]));

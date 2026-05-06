@@ -1,5 +1,4 @@
-use super::core::RendererCore;
-use super::offscreen::OffscreenRenderer;
+use super::offscreen::{OffscreenRenderer, RenderedFrame};
 use crate::ast::Stmt;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
@@ -8,6 +7,82 @@ use rsmpeg::avutil::{AVFrame, AVRational};
 use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use std::ffi::CString;
+
+// ----------------------------------------------------------------------------
+// Parallel frame rendering helper
+// ----------------------------------------------------------------------------
+
+/// Renders all frames in parallel using one thread per CPU core.
+/// Each thread gets its own `OffscreenRenderer` (created sequentially on the
+/// main thread to avoid concurrent wgpu adapter enumeration) and a cloned
+/// `Timeline`.  Returns `Vec<RenderedFrame>` in strict frame order.
+fn render_frames_in_parallel(
+    timeline: &Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    total_frames: u32,
+    debug_options: DebugRenderOptions,
+) -> Vec<RenderedFrame> {
+    if total_frames == 0 {
+        return Vec::new();
+    }
+
+    let num_cpus = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+    let chunk_size = ((total_frames as usize + num_cpus - 1) / num_cpus).max(1);
+    let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
+
+    println!(
+        "Rendering {} frames using {} thread(s) ({} frame(s) per chunk)...",
+        total_frames, num_chunks, chunk_size
+    );
+
+    // Create one renderer per chunk on the main thread.
+    // Concurrent wgpu adapter enumeration from multiple threads can be flaky
+    // on some drivers, so we stagger creation here.
+    let mut renderers = Vec::with_capacity(num_chunks);
+    for _ in 0..num_chunks {
+        renderers.push(
+            OffscreenRenderer::new().expect("Failed to create offscreen renderer"),
+        );
+    }
+
+    let mut handles = Vec::with_capacity(num_chunks);
+    for (chunk_idx, renderer) in renderers.into_iter().enumerate() {
+        let start = chunk_idx * chunk_size;
+        let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
+        let timeline = timeline.clone();
+
+        handles.push(std::thread::spawn(move || {
+            let mut renderer = renderer;
+            (start..end)
+                .map(|frame| {
+                    let time = (frame as f64) / (fps as f64);
+                    renderer
+                        .render_timeline_with_debug(
+                            &timeline,
+                            time,
+                            SceneDimensions { width, height },
+                            debug_options,
+                        )
+                        .expect("Failed to render offscreen frame")
+                })
+                .collect::<Vec<_>>()
+        }));
+    }
+
+    let chunks: Vec<Vec<RenderedFrame>> = handles
+        .into_iter()
+        .map(|h| h.join().expect("Render thread panicked"))
+        .collect();
+
+    // Flatten while preserving frame order.
+    chunks.into_iter().flatten().collect()
+}
+
+// ----------------------------------------------------------------------------
 
 pub fn render_video(
     ast: &[Stmt],
@@ -37,59 +112,24 @@ async fn render_video_async(
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
 ) {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let total_frames = (duration * fps as f32).ceil() as u32;
 
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        })
-        .await
-        .expect("Failed to find an appropriate adapter");
+    // ------------------------------------------------------------------------
+    // 1. Parallel frame rendering
+    // ------------------------------------------------------------------------
+    let frames = render_frames_in_parallel(
+        &timeline,
+        width,
+        height,
+        fps,
+        total_frames,
+        debug_options,
+    );
 
-    let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: None,
-            required_features: wgpu::Features::empty(),
-            required_limits: needed_limits,
-            memory_hints: Default::default(),
-            ..Default::default()
-        })
-        .await
-        .expect("Failed to create device");
-
-    let bytes_per_row = (width * 4 + 255) & !255;
-    let texture_desc = wgpu::TextureDescriptor {
-        size: wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::COPY_SRC
-            | wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::STORAGE_BINDING,
-        label: Some("Output Texture"),
-        view_formats: &[],
-    };
-    let texture = device.create_texture(&texture_desc);
-    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    let output_buffer_size = (bytes_per_row * height) as wgpu::BufferAddress;
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        size: output_buffer_size,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        label: None,
-        mapped_at_creation: false,
-    });
-
-    let mut core = RendererCore::new(&device, &queue);
+    // ------------------------------------------------------------------------
+    // 2. Sequential video encoding
+    // ------------------------------------------------------------------------
+    println!("\nEncoding {} frames to video...", frames.len());
 
     let filename = CString::new(output_file.to_str().unwrap()).unwrap();
     let mut format_context = AVFormatContextOutput::create(&filename).unwrap();
@@ -148,99 +188,44 @@ async fn render_video_async(
     yuv_frame.set_height(height as i32);
     yuv_frame.alloc_buffer().unwrap();
 
-    let total_frames = (duration * fps as f32).ceil() as u32;
+    for (frame, scene_frame) in frames.into_iter().enumerate() {
+        let mut rgba_frame = AVFrame::new();
+        let data_ptr = scene_frame.rgba.as_ptr() as *mut u8;
 
-    for frame in 0..total_frames {
-        let scene = timeline.evaluate_with_debug(
-            (frame as f64) / (fps as f64),
-            SceneDimensions { width, height },
-            debug_options,
-        );
-
-        core.render_vello_scene(&device, &queue, &texture_view, width, height, &scene);
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
-
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &output_buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        queue.submit(std::iter::once(encoder.finish()));
-
-        let buffer_slice = output_buffer.slice(..);
-        let (tx, rx) = std::sync::mpsc::channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
-        });
-        device
-            .poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: None,
-            })
-            .unwrap();
-        rx.recv().unwrap().unwrap();
-
-        {
-            let data = buffer_slice.get_mapped_range();
-
-            let mut rgba_frame = AVFrame::new();
-            let data_ptr = data.as_ptr() as *mut u8;
-
-            unsafe {
-                rgba_frame
-                    .fill_arrays(
-                        data_ptr,
-                        rsmpeg::ffi::AV_PIX_FMT_RGBA,
-                        width as i32,
-                        height as i32,
-                    )
-                    .unwrap();
-            }
-
-            sws_context
-                .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
+        unsafe {
+            rgba_frame
+                .fill_arrays(
+                    data_ptr,
+                    rsmpeg::ffi::AV_PIX_FMT_RGBA,
+                    width as i32,
+                    height as i32,
+                )
                 .unwrap();
-            yuv_frame.set_pts(frame as i64);
+        }
 
-            encode_context.send_frame(Some(&yuv_frame)).unwrap();
-            loop {
-                match encode_context.receive_packet() {
-                    Ok(mut packet) => {
-                        packet.rescale_ts(encode_context.time_base, stream_time_base);
-                        packet.set_stream_index(stream_index);
-                        format_context.interleaved_write_frame(&mut packet).unwrap();
-                    }
-                    Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
-                        break;
-                    }
-                    Err(e) => panic!("Encoding error: {:?}", e),
+        sws_context
+            .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
+            .unwrap();
+        yuv_frame.set_pts(frame as i64);
+
+        encode_context.send_frame(Some(&yuv_frame)).unwrap();
+        loop {
+            match encode_context.receive_packet() {
+                Ok(mut packet) => {
+                    packet.rescale_ts(encode_context.time_base, stream_time_base);
+                    packet.set_stream_index(stream_index);
+                    format_context.interleaved_write_frame(&mut packet).unwrap();
                 }
+                Err(RsmpegError::EncoderDrainError)
+                | Err(RsmpegError::EncoderFlushedError) => {
+                    break;
+                }
+                Err(e) => panic!("Encoding error: {:?}", e),
             }
         }
-        output_buffer.unmap();
 
         use std::io::Write;
-        print!("\rRendering frame {}/{}", frame + 1, total_frames);
+        print!("\rEncoding frame {}/{}", frame + 1, total_frames);
         std::io::stdout().flush().unwrap();
     }
 
@@ -424,29 +409,33 @@ async fn render_gif_async(
 ) {
     use image::codecs::gif::{GifEncoder, Repeat};
 
-    let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
     let total_frames = (duration * fps as f32).ceil() as u32;
     let frame_duration_ms = (1000 / fps) as u16;
 
-    // Create output file
+    // ------------------------------------------------------------------------
+    // 1. Parallel frame rendering
+    // ------------------------------------------------------------------------
+    let frames = render_frames_in_parallel(
+        &timeline,
+        width,
+        height,
+        fps,
+        total_frames,
+        debug_options,
+    );
+
+    // ------------------------------------------------------------------------
+    // 2. Sequential GIF encoding
+    // ------------------------------------------------------------------------
+    println!("\nEncoding {} frames to GIF...", frames.len());
+
     let output = std::fs::File::create(output_file).expect("Failed to create GIF file");
     let mut encoder = GifEncoder::new(output);
     encoder
         .set_repeat(Repeat::Infinite)
         .expect("Failed to set GIF repeat");
 
-    for frame in 0..total_frames {
-        let time = (frame as f64) / (fps as f64);
-
-        let scene_frame = renderer
-            .render_timeline_with_debug(
-                &timeline,
-                time,
-                SceneDimensions { width, height },
-                debug_options,
-            )
-            .expect("Failed to render offscreen frame");
-
+    for (frame, scene_frame) in frames.into_iter().enumerate() {
         let img = image::RgbaImage::from_raw(
             scene_frame.width,
             scene_frame.height,
@@ -454,8 +443,6 @@ async fn render_gif_async(
         )
         .expect("Failed to create image buffer from offscreen frame");
 
-        // Convert to RGB8 and quantize for GIF
-        // Convert RGBA to RGBA8 before encoding (GIF encoder needs RgbaImage)
         encoder
             .encode_frame(image::Frame::from_parts(
                 img,
@@ -468,7 +455,7 @@ async fn render_gif_async(
             .expect("Failed to encode GIF frame");
 
         use std::io::Write;
-        print!("\rRendering GIF frame {}/{}", frame + 1, total_frames);
+        print!("\rEncoding GIF frame {}/{}", frame + 1, total_frames);
         std::io::stdout().flush().unwrap();
     }
 
