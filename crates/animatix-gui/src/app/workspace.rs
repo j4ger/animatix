@@ -340,18 +340,29 @@ impl WorkspaceViewer<'_> {
                 )
             };
 
-            // Get current pointer position
+            // Get current pointer position (clamped to preview rect for scene-space work)
             let pointer_pos = ui
                 .ctx()
                 .input(|i| i.pointer.latest_pos())
                 .filter(|p| preview_rect.contains(*p));
 
+            // Unclamped pointer position for handle hit-testing — handles may
+            // extend beyond the scene boundary and must remain interactive.
+            let raw_pointer_pos = ui
+                .ctx()
+                .input(|i| i.pointer.latest_pos());
+
             // ── Drag interaction handling ────────────────────────────────
             let is_dragging = !matches!(self.drag_state, DragState::None);
 
+            // Detect drag start — either from egui (pointer inside widget rect)
+            // or manually when pointer is over a handle outside the widget rect.
+            let drag_started = response.drag_started()
+                || (!is_dragging && ui.input(|i| i.pointer.any_pressed()));
+
             // Start new drag
-            if response.drag_started() {
-                if let (Some(actor), Some(mouse)) = (self.selected_actor.clone(), pointer_pos) {
+            if drag_started {
+                if let (Some(actor), Some(mouse)) = (self.selected_actor.clone(), raw_pointer_pos) {
                     let scene = screen_to_scene(mouse);
                     let props = self.get_actor_props(&actor);
 
@@ -448,7 +459,7 @@ impl WorkspaceViewer<'_> {
             // Update ongoing drag
             if !is_dragging {
                 // nothing — handled by match arms below
-            } else if let Some(mouse) = pointer_pos {
+            } else if let Some(mouse) = raw_pointer_pos {
                 let scene = screen_to_scene(mouse);
                 let shift = ui.input(|i| i.modifiers.shift);
 
@@ -701,10 +712,13 @@ impl WorkspaceViewer<'_> {
                 }
             }
 
-            // End drag
+            // End drag — use raw pointer state so drags that started outside
+            // the widget rect (on out-of-bounds handles) are properly released.
+            let pointer_released = ui.input(|i| i.pointer.any_released());
             if is_dragging
                 && (response.drag_stopped()
-                    || (!response.dragged() && is_dragging))
+                    || pointer_released
+                    || (!ui.input(|i| i.pointer.any_down()) && is_dragging))
             {
                 *self.drag_state = DragState::None;
             }
@@ -767,7 +781,7 @@ impl WorkspaceViewer<'_> {
 
             // ── Cursor feedback ─────────────────────────────────────────
             if !is_dragging && !self.selection.context_menu_open {
-                if let Some(mouse) = pointer_pos {
+                if let Some(mouse) = raw_pointer_pos {
                     let scene = screen_to_scene(mouse);
 
                     // Check scale/rotation handles first (higher priority than body)
