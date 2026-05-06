@@ -19,6 +19,46 @@ pub(crate) fn apply_source_edit(source: &str, span: &ByteSpan, replacement: &str
     result
 }
 
+/// Insert a new `property: value` pair into an actor declaration line.
+///
+/// `anchor_span` is the value span of the actor's **last** existing property.
+/// The new property is appended at the end of that declaration line (before the
+/// trailing newline), preserving the rest of the source.
+///
+/// Returns `None` if the anchor span is out of bounds.
+pub(crate) fn insert_property_after_span(
+    source: &str,
+    anchor_span: &ByteSpan,
+    property_name: &str,
+    property_value: &str,
+) -> Option<String> {
+    if anchor_span.end > source.len() {
+        return None;
+    }
+
+    // Walk forward from the anchor to the end of the declaration line.
+    // The declaration line ends at a newline, an opening brace (for children),
+    // or end-of-file.
+    let bytes = source.as_bytes();
+    let mut insert_pos = anchor_span.end;
+
+    // Skip trailing whitespace / commas after the last value
+    while insert_pos < bytes.len() {
+        match bytes[insert_pos] {
+            b' ' | b'\t' | b',' => insert_pos += 1,
+            _ => break,
+        }
+    }
+
+    // Build replacement
+    let prop = format!(", {}: {}", property_name, property_value);
+    let mut result = String::with_capacity(source.len() + prop.len());
+    result.push_str(&source[..insert_pos]);
+    result.push_str(&prop);
+    result.push_str(&source[insert_pos..]);
+    Some(result)
+}
+
 /// Serialize a `PropertyValue` to its source text representation.
 ///
 /// This is the inverse of what the parser produces, used for writing edits back.

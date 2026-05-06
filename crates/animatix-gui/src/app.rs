@@ -769,7 +769,7 @@ impl GuiShell {
     /// via surgical source editing.
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
-        use crate::source_edit::{apply_source_edit, serialize_property_value};
+        use crate::source_edit::{apply_source_edit, insert_property_after_span, serialize_property_value};
 
         // Take a snapshot for undo before making changes
         self.snapshot();
@@ -825,6 +825,74 @@ impl GuiShell {
                                     animatix::timeline::PropertyTrack::new(*v)
                                 });
                                 pt.default_value = *v;
+                            }
+                            "offset" => {
+                                // "offset" is embedded inside PositionBinding::SceneAnchor.
+                                // Update the binding's offset field so the renderer
+                                // picks up the new position immediately.
+                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                                if let Some(ref mut pb_track) = track.position_binding {
+                                    let current = pb_track.evaluate(time_ms);
+                                    if let animatix::timeline::PositionBinding::SceneAnchor {
+                                        anchor, ..
+                                    } = current
+                                    {
+                                        let new_binding =
+                                            animatix::timeline::PositionBinding::SceneAnchor {
+                                                anchor,
+                                                offset: *v,
+                                            };
+                                        pb_track.default_value = new_binding;
+                                        pb_track.add_keyframe(
+                                            time_ms,
+                                            new_binding,
+                                            animatix::easing::Easing::Linear,
+                                        );
+                                    }
+                                }
+                            }
+                            "at" => {
+                                // "at" with Vec2 can mean either absolute position
+                                // or percent-based positioning.  Check the binding.
+                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                                let binding = track
+                                    .position_binding
+                                    .as_ref()
+                                    .map(|pb| pb.evaluate(time_ms));
+
+                                match binding {
+                                    Some(animatix::timeline::PositionBinding::ScenePercent {
+                                        ..
+                                    }) => {
+                                        // Percent-based: v is already [x_frac, y_frac]
+                                        if let Some(ref mut pb_track) = track.position_binding {
+                                            let new_binding =
+                                                animatix::timeline::PositionBinding::ScenePercent {
+                                                    x: v[0],
+                                                    y: v[1],
+                                                    offset: [0.0, 0.0],
+                                                };
+                                            pb_track.default_value = new_binding;
+                                            pb_track.add_keyframe(
+                                                time_ms,
+                                                new_binding,
+                                                animatix::easing::Easing::Linear,
+                                            );
+                                        }
+                                    }
+                                    _ => {
+                                        // Absolute: treat as regular position
+                                        let pt = track.position.get_or_insert_with(|| {
+                                            animatix::timeline::PropertyTrack::new(*v)
+                                        });
+                                        pt.default_value = *v;
+                                        pt.add_keyframe(
+                                            time_ms,
+                                            *v,
+                                            animatix::easing::Easing::Linear,
+                                        );
+                                    }
+                                }
                             }
                             _ => {}
                         }
@@ -925,10 +993,20 @@ impl GuiShell {
                     }
                 }
             }
+
+            // Invalidate the frame cache so the next evaluate() produces a fresh
+            // scene reflecting the track mutations above.
+            timeline.invalidate_frame_cache();
         }
 
         // Try to persist the change back to the .amx source file
         let source_written = if let Some(ref source_index) = self.document.source_index {
+            // Determine the source property name — "position" is written as "at" in source.
+            let source_prop_name = match edit.property.as_str() {
+                "position" => "at",
+                other => other,
+            };
+
             if let Some(span) = source_index.find(&edit.actor, &edit.property) {
                 // Serialize the value - drag handler and inspector both send full-size values
                 let serialized = serialize_property_value(&edit.value);
@@ -945,6 +1023,25 @@ impl GuiShell {
                 self.document.rebuild_source_index();
 
                 true
+            } else if let Some(anchor_span) = source_index.last_property_span(&edit.actor) {
+                // Property doesn't exist yet — insert it after the actor's last
+                // known property (e.g. adding `at:` to an actor that only has
+                // `anchor:` + `size:`).
+                let serialized = serialize_property_value(&edit.value);
+                if let Some(new_source) = insert_property_after_span(
+                    &self.document.source_text,
+                    &anchor_span,
+                    source_prop_name,
+                    &serialized,
+                ) {
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.rebuild_source_index();
+                    true
+                } else {
+                    false
+                }
             } else {
                 false
             }

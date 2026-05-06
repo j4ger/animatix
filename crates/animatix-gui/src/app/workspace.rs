@@ -1,5 +1,5 @@
 use super::*;
-use animatix::timeline::Timeline;
+use animatix::timeline::{PlacementMode, PositionBinding, Timeline, TrackAccessor};
 use preview::ActorProps;
 
 /// Describes a property edit made in the inspector panel.
@@ -219,6 +219,16 @@ impl WorkspaceViewer<'_> {
 
     // ─── Actor Property Helpers ──────────────────────────────────────────────
 
+    /// Check whether the actor is currently layout-managed by a parent container
+    /// (Row / Col / Grid / Stack).  Layout-managed actors have their position
+    /// computed by the layout engine, so direct drag-to-move is not meaningful.
+    fn is_layout_managed(&self, actor: &str) -> bool {
+        let Some(t) = self.timeline else { return false };
+        let Some(track) = t.get_track(actor) else { return false };
+        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        track.placement_mode.get(time_ms, PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged
+    }
+
     /// Extract spatial properties of an actor from the timeline at the given time.
     ///
     /// Uses `Timeline::actor_world_affine` to compute the world‑space transform,
@@ -409,6 +419,12 @@ impl WorkspaceViewer<'_> {
                             .rev()
                             .any(|(label, bounds)| label == &actor && bounds.contains(scene))
                     {
+                        // Layout-managed actors have their position controlled by
+                        // the parent container's layout engine — block move drag.
+                        if self.is_layout_managed(&actor) {
+                            return;
+                        }
+
                         let start_position = if let Some(ref p) = props {
                             p.position
                         } else {
@@ -454,11 +470,57 @@ impl WorkspaceViewer<'_> {
                         } else {
                             (start_position[0] + dx, start_position[1] + dy)
                         };
-                        self.actions.property_edits.push(PropertyEdit {
-                            actor,
-                            property: "position".into(),
-                            value: PropertyValue::Vec2([nx, ny]),
-                        });
+
+                        // Determine which source property to edit based on the
+                        // actor's position binding.
+                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                        let binding = self
+                            .timeline
+                            .and_then(|t| t.get_track(&actor))
+                            .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
+                            .unwrap_or(PositionBinding::Absolute);
+
+                        match binding {
+                            PositionBinding::SceneAnchor { anchor, .. } => {
+                                // Actor is anchored to a scene point.  Keep the
+                                // anchor, update the pixel offset so the actor
+                                // ends up at the dragged world position.
+                                let anchor_pt = animatix::timeline::scene_anchor_point(
+                                    anchor,
+                                    self.scene_dimensions,
+                                );
+                                let new_offset = [
+                                    nx - anchor_pt.x as f32,
+                                    ny - anchor_pt.y as f32,
+                                ];
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "offset".into(),
+                                    value: PropertyValue::Vec2(new_offset),
+                                });
+                            }
+                            PositionBinding::ScenePercent { .. } => {
+                                // Percent-based: convert world position back to
+                                // percentages of scene dimensions.
+                                let w = self.scene_dimensions.width.max(1) as f32;
+                                let h = self.scene_dimensions.height.max(1) as f32;
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "at".into(),
+                                    value: PropertyValue::Vec2([nx / w, ny / h]),
+                                });
+                            }
+                            _ => {
+                                // Absolute / ContainerDefault / ContainerPercent /
+                                // no binding → edit `at` (which the source writer
+                                // maps to the `at:` property).
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "position".into(),
+                                    value: PropertyValue::Vec2([nx, ny]),
+                                });
+                            }
+                        }
                     }
 
                     DragState::Scale {
@@ -563,11 +625,49 @@ impl WorkspaceViewer<'_> {
                             property: "size".into(),
                             value: PropertyValue::Vec2([new_w, new_h]),
                         });
-                        self.actions.property_edits.push(PropertyEdit {
-                            actor,
-                            property: "position".into(),
-                            value: PropertyValue::Vec2([new_pos_x, new_pos_y]),
-                        });
+
+                        // Route the position adjustment through the same
+                        // binding-aware logic as move-drag.
+                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                        let binding = self
+                            .timeline
+                            .and_then(|t| t.get_track(&actor))
+                            .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
+                            .unwrap_or(PositionBinding::Absolute);
+
+                        match binding {
+                            PositionBinding::SceneAnchor { anchor, .. } => {
+                                let anchor_pt = animatix::timeline::scene_anchor_point(
+                                    anchor,
+                                    self.scene_dimensions,
+                                );
+                                let new_offset = [
+                                    new_pos_x - anchor_pt.x as f32,
+                                    new_pos_y - anchor_pt.y as f32,
+                                ];
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "offset".into(),
+                                    value: PropertyValue::Vec2(new_offset),
+                                });
+                            }
+                            PositionBinding::ScenePercent { .. } => {
+                                let w = self.scene_dimensions.width.max(1) as f32;
+                                let h = self.scene_dimensions.height.max(1) as f32;
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "at".into(),
+                                    value: PropertyValue::Vec2([new_pos_x / w, new_pos_y / h]),
+                                });
+                            }
+                            _ => {
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "position".into(),
+                                    value: PropertyValue::Vec2([new_pos_x, new_pos_y]),
+                                });
+                            }
+                        }
                     }
 
                     DragState::Rotate {
@@ -681,7 +781,12 @@ impl WorkspaceViewer<'_> {
                         .unwrap_or(false);
 
                     if is_over_selected {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        // Layout-managed actors can't be repositioned by drag
+                        if self.selected_actor.as_deref().map_or(false, |a| self.is_layout_managed(a)) {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+                        } else {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
                     } else if self.selection.hovered_actor.is_some() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }

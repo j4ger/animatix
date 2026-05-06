@@ -92,9 +92,10 @@ Owns: document, editor, preview, dock state, hot reloader, selected actor, hit r
 ### Data Flow
 ```
 Editor → DocumentSession.set_source_text() → debounce → rebuild → Timeline
-Timeline → PreviewSurface.render() → egui texture → Preview pane
+Timeline → frame_cache → PreviewSurface.render() → egui texture → Preview pane
 Timeline.tracks → Inspector (read properties at current time)
 Preview click → hit_regions → selected_actor → Inspector highlights
+Preview drag → PropertyEdit → handle_property_edit → source + timeline + frame_cache.invalidate
 ```
 
 ---
@@ -185,14 +186,38 @@ ACTORS                        4
 ### Edit Flow
 
 ```
-User edits widget → UiActions.property_edit { actor, property, value }
-  → GuiShell.handle_actions()
-    → DocumentSession.update_source_text(actor, property, value)
-      → Generates .amx source change
-      → Triggers rebuild
-        → Timeline updated
-          → Preview refreshes
+User edits widget or drags preview handle
+  → PropertyEdit { actor, property, value }
+    → GuiShell.handle_property_edit()
+      1. Snapshot (undo)
+      2. Update in-memory timeline tracks
+      3. Invalidate frame cache (so preview re-renders)
+      4. Source edit:
+         a. source_index.find(actor, property) → ByteSpan
+            - Assignments take precedence over declarations
+            - "position" ↔ "at" aliasing handled
+         b. If span found → surgical replace via apply_source_edit()
+         c. If span missing → insert via insert_property_after_span()
+            (appends property after actor's last known property)
+      5. Rebuild source index (for next edit's spans)
+      6. Schedule debounced full rebuild (re-parse source → new Timeline)
 ```
+
+### Position-Binding-Aware Drag
+
+When the user drags an actor in the preview, the property written depends on
+the actor's `PositionBinding`:
+
+| Binding | Drag Body Writes | Drag Handle Writes |
+|---------|-----------------|-------------------|
+| `Absolute` (`at: (x, y)`) | `at` | `size` + `at` |
+| `SceneAnchor` (`anchor: scene.center`) | `offset` | `size` + `offset` |
+| `ScenePercent` (`at: (50%, 30%)`) | `at` (as percent) | `size` + `at` |
+| `LayoutManaged` (inside Row/Col/Grid) | **blocked** (NotAllowed cursor) | `size` only |
+
+Layout-managed actors have their position computed by the parent container's
+layout engine, so drag-to-reposition is not meaningful. Scale handles still
+work (they edit `size` which affects layout spacing).
 
 ### Keyframe Awareness
 

@@ -28,11 +28,16 @@ impl SourceIndex {
     /// Find the byte span for an actor's property.
     ///
     /// Handles the "at" ↔ "position" name aliasing internally.
+    ///
+    /// When the same property appears in both a declaration and an assignment
+    /// (e.g. `btn: Rect, size: (100, 100)` followed by `btn.size = (200, 200)`),
+    /// the **assignment** span is returned because assignments override
+    /// declarations at runtime.
     pub fn find(&self, actor: &str, property: &str) -> Option<ByteSpan> {
         let key = (actor.to_string(), property.to_string());
 
-        // Try exact match first
-        if let Some(span) = self.decl_props.get(&key).or_else(|| self.assignments.get(&key)) {
+        // Assignments take precedence over declarations (they override at runtime).
+        if let Some(span) = self.assignments.get(&key).or_else(|| self.decl_props.get(&key)) {
             return Some(*span);
         }
 
@@ -43,10 +48,35 @@ impl SourceIndex {
             _ => return None,
         };
         let aliased_key = (actor.to_string(), aliased.to_string());
-        self.decl_props
+        self.assignments
             .get(&aliased_key)
-            .or_else(|| self.assignments.get(&aliased_key))
+            .or_else(|| self.decl_props.get(&aliased_key))
             .copied()
+    }
+
+    /// Return the byte span of the **last** property value for `actor`
+    /// (the one with the greatest `end` offset).
+    ///
+    /// Useful for inserting a brand-new property after the last existing one
+    /// in a declaration line.
+    pub fn last_property_span(&self, actor: &str) -> Option<ByteSpan> {
+        let mut best: Option<ByteSpan> = None;
+        let mut consider = |span: &ByteSpan| {
+            if best.map_or(true, |b| span.end > b.end) {
+                best = Some(*span);
+            }
+        };
+        for ((label, _), span) in &self.decl_props {
+            if label == actor {
+                consider(span);
+            }
+        }
+        for ((label, _), span) in &self.assignments {
+            if label == actor {
+                consider(span);
+            }
+        }
+        best
     }
 
     fn walk(&mut self, stmts: &[Stmt]) {

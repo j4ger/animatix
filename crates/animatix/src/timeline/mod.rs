@@ -75,9 +75,10 @@ use plot::{
 use position::{
     apply_explicit_position_binding, mark_track_manual_position,
     preserve_discrete_position_state_before, preserve_instant_delayed_value,
-    resolve_bound_position, resolve_position_binding_with_lookup_diagnostic, scene_anchor_point,
+    resolve_bound_position, resolve_position_binding_with_lookup_diagnostic,
     set_track_position_binding,
 };
+pub use position::scene_anchor_point;
 pub(crate) use primitive::PrimitiveDescriptor;
 use property_lookup::{
     assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
@@ -330,6 +331,15 @@ impl Timeline {
     /// Returns a reference to the track for the given label, if it exists.
     pub fn get_track(&self, label: &str) -> Option<&AnimationTrack> {
         self.tracks.get(label)
+    }
+
+    /// Invalidate the frame evaluation cache.
+    ///
+    /// Call this after mutating track data (e.g. adding keyframes or changing
+    /// default values) so the next `evaluate()` produces a fresh scene instead
+    /// of returning a stale cached one.
+    pub fn invalidate_frame_cache(&self) {
+        *self.frame_cache.borrow_mut() = None;
     }
 
     /// Returns the appropriate default color for a primitive type and property,

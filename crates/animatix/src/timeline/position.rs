@@ -75,7 +75,7 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
     None
 }
 
-pub(crate) fn scene_anchor_point(
+pub fn scene_anchor_point(
     anchor: SceneAnchor,
     scene_dimensions: SceneDimensions,
 ) -> kurbo::Point {
