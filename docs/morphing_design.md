@@ -1,72 +1,54 @@
-# Vector Morphing Design for Animatix
+# Vector Morphing Design
 
-> **Status: future-extension / design-only document**
->
-> Current morphing is already shipped in a narrower form: re-declaration morphing plus scoped timed path-morphing modifiers such as `strategy: auto|match`, `path_arc`, and `stretch`. This file describes broader future-facing morph APIs and strategy controls beyond that shipped contract. For current runtime behavior, use `docs/spec.md` and `docs/primitives.md` as the source of truth.
->
-> Additional scoping note: `strategy: fade` is intentionally deferred for now. Unlike interpolation-oriented controls such as `auto`, `match`, `path_arc`, or `stretch`, a true cross-fade likely wants a different transition/compositing representation or a broader architecture change.
+Morphing in Animatix is **re-declaration based**: re-declaring an actor at a later keyframe with different geometry triggers automatic path interpolation.
 
-## Shipped Today
-
-The current runtime already supports:
-
-- actor/text/path re-declaration morphing through the timeline/property-track system
-- scoped timed path-morphing modifiers on supported re-declarations
-- low-level path alignment and interpolation helpers in `docs/kurbo_shapes.md`
-
-This document is only about what may come next beyond that shipped baseline.
-
-## 1. Syntax for Morphing
-
-In the Animatix language, morphing should be expressed as a high-level animation action rather than a simple property assignment. While property animations (e.g., `scene.item.paths = scene.item2.paths`) are intuitive for scalars and vectors, path morphing is structurally complex and often requires additional parameters (like mapping strategies or alignment hints).
-
-**Status: Planned/Proposed API**
-
-**Proposed Syntax:**
 ```animatix
-// Action-oriented approach (Recommended)
-scene.text1.morph_to(scene.text2) ease-in-out 1s
+#0s
+circle: Circle, radius: 50, at: (0, 0)
 
-// Alternatively, a morph function in a property assignment
-scene.text1.path = morph(scene.text2.path) ease-in-out 1s
+#2s
+circle: Circle, radius: 100, at: (100, 100) [2s, strategy: match]
 ```
-The `morph_to` method is cleaner and explicitly communicates that a complex transformation is occurring between the two elements' vector representations, automatically animating their `kurbo::BezPath` data.
 
-## 2. Handling Mismatched Path Lengths and Subpath Counts
+**Shipped modifiers** (timed path-morphing re-declarations only):
 
-When morphing between shapes like "A" (which has 2 subpaths: the outer outline and the inner triangle) and "BCD" (which has multiple subpaths for multiple letters and holes), the paths will rarely match 1-to-1 in subpath count or segment count.
+| Modifier | Effect |
+|----------|--------|
+| `strategy: auto` | Match subpaths by index (default) |
+| `strategy: match` | Match subpaths by centroid sort |
+| `path_arc: N` | Curved interpolation via quadratic Bezier arc |
+| `stretch: true` | Normalize to unit bounds before interpolating |
 
-**Subpath Count Mismatch:**
-*   If the source has fewer subpaths than the destination, we must generate "degenerate" subpaths (zero-area subpaths that consist of a single point, usually placed at the centroid of the destination shape or merged into the nearest existing subpath) that expand into the new subpaths.
-*   If the source has more subpaths, the extra subpaths must collapse into degenerate points (e.g., scaling down to the centroid of the nearest destination subpath) and fade out.
+`strategy: fade` is deferred (requires compositing architecture change).
 
-**Segment Count Mismatch:**
-*   Once subpaths are matched, their internal segment counts must be equalized.
-*   If Subpath A has 5 segments and Subpath B has 10 segments, we dynamically split the segments in Subpath A using `kurbo`'s curve splitting logic (e.g., splitting a cubic Bezier at `t = 0.5`) until both subpaths have exactly 10 segments.
+---
 
-## 3. Interpolating `kurbo::BezPath` Segments
+## Pipeline
 
-`kurbo::BezPath` is composed of `PathEl` segments (`MoveTo`, `LineTo`, `QuadTo`, `CurveTo`, `ClosePath`). To interpolate between them, we must ensure both paths have the exact same sequence of element types.
+Morphing runs at 4 levels, all in `crates/animatix/src/timeline/morph.rs`:
 
-**Normalization:**
-*   Convert all lines (`LineTo`) and quadratic curves (`QuadTo`) into cubic bezier curves (`CurveTo`). This ensures that every segment (except `MoveTo` and `ClosePath`) is a `CurveTo`, simplifying interpolation.
-*   For example, a `LineTo(p1)` becomes a `CurveTo` where the control points are collinear with the start and end points.
+1. **List alignment** (`align_path_lists`) — match path count between source/target lists. Extra paths become degenerate single-point paths.
+2. **Subpath alignment** (`align_subpaths`) — match subpath count within each path. Uses centroid sorting when `strategy: match`.
+3. **Segment alignment** (`align_segments`) — equalize segment count by splitting longest cubic Beziers until counts match.
+4. **Interpolation** (`morph_paths_with_options`) — lerp points with optional arc curvature and bounds normalization.
 
-**Interpolation:**
-*   Once normalized and matched in length, interpolation is a straightforward linear interpolation (Lerp) of the points within the `PathEl`.
-*   For a given animation progress `t` (from 0.0 to 1.0, after easing is applied):
-    *   `MoveTo(p0)` morphs to `MoveTo(p1)` by lerping the X and Y coordinates.
-    *   `CurveTo(c1_src, c2_src, p_src)` morphs to `CurveTo(c1_dst, c2_dst, p_dst)` by lerping all three coordinate pairs.
+**Segment conversion:** `LineTo` and `QuadTo` are converted to `CurveTo` during alignment so all segments have the same structure for interpolation.
 
-## 4. Representation in `AnimationTrack`
+---
 
-In the engine, this will be represented by extending the `AnimationTrack` system to support complex types, specifically a track for `kurbo::BezPath`.
+## Internal Representation
 
-*   **Track Type:** We will introduce a `PathAnimationTrack` (or `AnimationTrack<BezPath>`).
-*   **Keyframes:** The track will hold keyframes where the value is a normalized `BezPath`.
-*   **Evaluation:** The `evaluate(t)` function of this track will:
-    1. Find the adjacent keyframes based on the current time.
-    2. Apply the easing function to calculate the interpolation factor `f`.
-    3. Zip the normalized `PathEl` iterators from both keyframe paths.
-    4. Lerp the coordinates of each paired `PathEl` and collect them into a new `BezPath`.
-*   **Caching:** Because normalizing and equalizing segment counts is computationally heavy, the `PathAnimationTrack` should pre-process and cache the matched, converted `CurveTo`-only `BezPath` representations when the track is first created or compiled, ensuring `evaluate(t)` remains fast during playback.
+Paths are stored as standard property tracks, not a dedicated morph type:
+
+- **Text/Math/Code:** `PropertyTrack<Vec<TextPath>>` (compiled from Typst/LaTeX/source)
+- **Shapes/Vector:** `PropertyTrack<Vec<VelloPath>>` (kurbo `BezPath` + fill/stroke)
+
+Interpolation delegates to `interpolate_text_paths` / `interpolate_vello_paths` in `timeline/track.rs`, which call `morph_paths_with_options` from `timeline/morph.rs`.
+
+---
+
+## Future
+
+- `strategy: fade` — cross-fade between states (needs compositing)
+- `morph_to()` method syntax — **not planned**. Re-declaration with modifiers is the intended surface.
+- Multi-strategy morph selection beyond `auto`/`match` — speculative
