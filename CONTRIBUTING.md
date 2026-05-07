@@ -35,7 +35,6 @@ Keep these files in sync when relevant:
 - `Readme.md` — high-level user-facing capabilities and CLI usage
 - `docs/primitives.md` — runtime-supported primitives and planned gaps
 - `docs/spec.md` — language behavior and status callouts
-- `docs/implementation_plan.md` — what is shipped vs what is still missing
 - `examples/README.md` — curated runnable demos
 - `tree-sitter-animatix/README.md` — grammar package scope and maintenance contract for parser-surface changes
 
