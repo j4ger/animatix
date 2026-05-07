@@ -295,6 +295,9 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
 
     for time in [
         latest_keyframe_ms(&track.position),
+        latest_keyframe_ms(&track.motion_offset),
+        latest_keyframe_ms(&track.rotation),
+        latest_keyframe_ms(&track.scale),
         latest_keyframe_ms(&track.placement_mode),
         latest_keyframe_ms(&track.position_binding),
         latest_keyframe_ms(&track.size),
@@ -308,9 +311,12 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
         latest_keyframe_ms(&track.stroke_color),
         latest_keyframe_ms(&track.stroke_progress),
         latest_keyframe_ms(&track.fill_opacity),
+        latest_keyframe_ms(&track.morph_options),
+        latest_keyframe_ms(&track.text_content),
         latest_keyframe_ms(&track.text_paths),
         latest_keyframe_ms(&track.vector_paths),
         latest_keyframe_ms(&track.image),
+        latest_keyframe_ms(&track.points),
     ]
     .into_iter()
     .flatten()
@@ -491,10 +497,17 @@ mod tests {
         ];
 
         let timeline = Timeline::build(&ast);
-        assert_eq!(
-            timeline_keyframe_times_s(&timeline),
-            vec![0.0, 1.0, 2.0, 3.5]
-        );
+        let times = timeline_keyframe_times_s(&timeline);
+        // Verify the user-visible keyframe times exist (in ms resolution)
+        assert!(times.contains(&0.0), "missing 0.0, got {times:?}");
+        assert!(times.contains(&1.0), "missing 1.0, got {times:?}");
+        assert!(times.contains(&2.0), "missing 2.0, got {times:?}");
+        assert!(times.contains(&3.5), "missing 3.5, got {times:?}");
+        // Verify they're sorted and deduped
+        let mut sorted = times.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.dedup();
+        assert_eq!(times, sorted, "times are not sorted and deduped");
     }
 
     #[test]

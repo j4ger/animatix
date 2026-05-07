@@ -311,15 +311,11 @@ mod tests {
 
         // Set up child tracks with layout size so they're admitted
         let mut child_a = AnimationTrack::new("a".to_string());
-        child_a.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
-            PropertyTrack::new([15.0, 20.0])
-        );
+        child_a.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.tracks.insert("a".to_string(), child_a);
 
         let mut child_b = AnimationTrack::new("b".to_string());
-        child_b.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
-            PropertyTrack::new([15.0, 40.0])
-        );
+        child_b.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
         timeline.tracks.insert("b".to_string(), child_b);
 
         // Set up container metadata with layout children
@@ -373,9 +369,7 @@ mod tests {
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = crate::timeline::track::LayoutSizeState::Seeded(
-                PropertyTrack::new([15.0, 20.0])
-            );
+            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
 

@@ -1,8 +1,8 @@
 use super::modifier_runtime::{ir, vm};
 use super::{
-    Environment, EvalError, SceneAnchor, SceneDimensions, ShapeType, Stmt, Timeline, Value,
-    assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color, set_lookup_scalar,
-    set_lookup_vec2, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
+    assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color,
+    set_lookup_vec2, TrackAccessor,
 };
 
 impl Timeline {
@@ -86,153 +86,41 @@ impl Timeline {
         }
 
         for (label, track) in &self.tracks {
-            let node_overrides = overrides.and_then(|map| map.get(label));
-            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
-            let rotation = track.rotation.get(time_ms, 0.0) as f64;
-            let scale = track.scale.get(time_ms, 1.0) as f64;
-            let base_position = node_overrides
-                .and_then(|props| props.get("at").or_else(|| props.get("position")))
-                .and_then(|value| match value {
-                    Value::Vec2(v) => Some(*v),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [x, y] = track.position.get(time_ms, [0.0, 0.0]);
-                    [x as f64, y as f64]
-                });
-            let position = [
-                base_position[0] + motion_offset[0] as f64,
-                base_position[1] + motion_offset[1] as f64,
-            ];
-            set_lookup_vec2(env, &format!("{}.at", label), position);
-            env.set(&format!("{}.position", label), Value::Vec2(position));
-            set_lookup_vec2(
-                env,
-                &format!("{}.shift", label),
-                [motion_offset[0] as f64, motion_offset[1] as f64],
-            );
-            set_lookup_scalar(env, &format!("{}.rotation", label), rotation);
-            set_lookup_scalar(env, &format!("{}.scale", label), scale);
+            // Use the centralized injector for base track values.
+            crate::timeline::property_engine::inject_property_into_env(env, label, track, time_ms);
 
-            let size = node_overrides
-                .and_then(|props| props.get("size"))
-                .and_then(|value| match value {
-                    Value::Vec2(v) => Some(*v),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [w, h] = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-                    [w as f64 * 2.0, h as f64 * 2.0]
-                });
-            set_lookup_vec2(env, &format!("{}.size", label), size);
-            set_lookup_scalar(env, &format!("{}.width", label), size[0]);
-            set_lookup_scalar(env, &format!("{}.height", label), size[1]);
-            if super::vector_shape_exposes_tip_size(track.shape_type.get(time_ms, ShapeType::Rect)) {
-                set_lookup_scalar(env, &format!("{}.tip_length", label), size[0] / 2.0);
-                set_lookup_scalar(env, &format!("{}.tip_width", label), size[1] / 2.0);
+            // Apply overrides on top (from `always` blocks or modifiers).
+            let node_overrides = overrides.and_then(|map| map.get(label));
+            if let Some(overrides) = node_overrides {
+                for (key, val) in overrides {
+                    env.set(&format!("{label}.{key}"), val.clone());
+                    // Also inject typed sub-keys for known properties
+                    match val {
+                        Value::Vec2([x, y]) => {
+                            env.set(&format!("{label}.{key}.x"), Value::Num(*x));
+                            env.set(&format!("{label}.{key}.y"), Value::Num(*y));
+                        }
+                        Value::Color([r, g, b, a]) => {
+                            env.set(&format!("{label}.{key}.r"), Value::Num(*r));
+                            env.set(&format!("{label}.{key}.g"), Value::Num(*g));
+                            env.set(&format!("{label}.{key}.b"), Value::Num(*b));
+                            env.set(&format!("{label}.{key}.a"), Value::Num(*a));
+                        }
+                        _ => {}
+                    }
+                }
             }
 
-            let radius_x = node_overrides
-                .and_then(|props| props.get("radius_x"))
-                .map(Value::as_num)
-                .unwrap_or(size[0] / 2.0);
-            let radius_y = node_overrides
-                .and_then(|props| props.get("radius_y"))
-                .map(Value::as_num)
-                .unwrap_or(size[1] / 2.0);
-            let radius = node_overrides
-                .and_then(|props| props.get("radius"))
-                .map(Value::as_num)
-                .unwrap_or(radius_x);
-            set_lookup_scalar(env, &format!("{}.radius", label), radius);
-            set_lookup_scalar(env, &format!("{}.radius_x", label), radius_x);
-            set_lookup_scalar(env, &format!("{}.radius_y", label), radius_y);
-
-            let color = node_overrides
-                .and_then(|props| props.get("color"))
-                .and_then(|value| match value {
-                    Value::Color(c) => Some(*c),
-                    Value::Vec4(c) => Some(*c),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [r, g, b, a] = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
-                    [r as f64, g as f64, b as f64, a as f64]
-                });
-            set_lookup_color(env, &format!("{}.color", label), color);
-
-            let stroke_color = node_overrides
-                .and_then(|props| props.get("stroke_color").or_else(|| props.get("stroke")))
-                .and_then(|value| match value {
-                    Value::Color(c) => Some(*c),
-                    Value::Vec4(c) => Some(*c),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [r, g, b, a] = track.stroke_color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
-                    [r as f64, g as f64, b as f64, a as f64]
-                });
-            set_lookup_color(env, &format!("{}.stroke_color", label), stroke_color);
-
-            let opacity = node_overrides
-                .and_then(|props| props.get("opacity"))
-                .map(Value::as_num)
-                .unwrap_or(track.opacity.get(time_ms, 1.0) as f64);
-            set_lookup_scalar(env, &format!("{}.opacity", label), opacity);
-
-            let fill_opacity = node_overrides
-                .and_then(|props| props.get("fill_opacity"))
-                .map(Value::as_num)
-                .unwrap_or(track.fill_opacity.get(time_ms, 1.0) as f64);
-            set_lookup_scalar(env, &format!("{}.fill_opacity", label), fill_opacity);
-
-            let stroke_width = node_overrides
-                .and_then(|props| props.get("stroke_width").or_else(|| props.get("width")))
-                .map(Value::as_num)
-                .unwrap_or(track.stroke_width.get(time_ms, 2.0) as f64);
-            set_lookup_scalar(env, &format!("{}.stroke_width", label), stroke_width);
-
-            let stroke_progress = node_overrides
-                .and_then(|props| props.get("stroke_progress"))
-                .map(Value::as_num)
-                .unwrap_or(track.stroke_progress.get(time_ms, 1.0) as f64);
-            set_lookup_scalar(env, &format!("{}.stroke_progress", label), stroke_progress);
-
-            let from = node_overrides
-                .and_then(|props| props.get("from"))
-                .and_then(|value| match value {
-                    Value::Vec2(v) => Some(*v),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [x, y] = track.line_from.get(time_ms, [-50.0, 0.0]);
-                    [x as f64, y as f64]
-                });
-            set_lookup_vec2(env, &format!("{}.from", label), from);
-
-            let to = node_overrides
-                .and_then(|props| props.get("to"))
-                .and_then(|value| match value {
-                    Value::Vec2(v) => Some(*v),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    let [x, y] = track.line_to.get(time_ms, [50.0, 0.0]);
-                    [x as f64, y as f64]
-                });
-            set_lookup_vec2(env, &format!("{}.to", label), to);
-
-            let default_arc = [0.0, std::f32::consts::PI];
-            let start_angle = node_overrides
-                .and_then(|props| props.get("start_angle"))
-                .map(Value::as_num)
-                .unwrap_or(track.arc_angles.get(time_ms, default_arc)[0] as f64);
-            let sweep_angle = node_overrides
-                .and_then(|props| props.get("sweep_angle"))
-                .map(Value::as_num)
-                .unwrap_or(track.arc_angles.get(time_ms, default_arc)[1] as f64);
-            set_lookup_scalar(env, &format!("{}.start_angle", label), start_angle);
-            set_lookup_scalar(env, &format!("{}.sweep_angle", label), sweep_angle);
+            // Recalculate derived values after overrides
+            if node_overrides.is_some() {
+                let size_val = env.get(&format!("{label}.size"));
+                if let Some(Value::Vec2([w, h])) = size_val {
+                    let r = w.min(h) / 2.0;
+                    env.set(&format!("{label}.radius"), Value::Num(r));
+                    env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
+                    env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
+                }
+            }
         }
     }
 

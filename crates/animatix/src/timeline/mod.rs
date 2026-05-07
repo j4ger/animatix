@@ -48,6 +48,10 @@ pub(crate) mod modifier_runtime;
 pub mod morph;
 mod plot;
 mod position;
+pub(crate) mod property_engine;
+pub(crate) mod property_groups;
+pub(crate) mod property_registry;
+pub(crate) mod value_parser;
 mod primitive;
 mod property_lookup;
 mod runtime;
@@ -90,7 +94,7 @@ use shapes::{
     VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
     finalize_vector_shape_state, parse_point_list_expr, shape_type_for_actor,
-    vector_shape_exposes_tip_size, vector_shape_primitive_for_actor_type,
+    vector_shape_primitive_for_actor_type,
     vector_shape_uses_custom_path,
 };
 pub use shapes::ShapeType;
@@ -102,9 +106,17 @@ use timing::{
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use track::{
+    ActorKindId, ShapeKind, ActorHeader, GeometryTier, StyleTier, ActorPayload,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
+/// Extend a time_ms vector with keyframe times from a property track, if present.
+fn extend_track_times<T>(times: &mut Vec<u64>, track: &Option<PropertyTrack<T>>) {
+    if let Some(t) = track.as_ref() {
+        times.extend(t.keyframes.keys().copied());
+    }
+}
+
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 
@@ -297,24 +309,44 @@ impl Timeline {
     pub fn keyframe_times_s(&self) -> Vec<f64> {
         let mut times_ms = Vec::new();
         for track in self.tracks.values() {
-            // Collect times from each property track
-            if let Some(pos) = track.position.as_ref() {
-                times_ms.extend(pos.keyframes.keys().copied());
+            // Geometry
+            extend_track_times(&mut times_ms, &track.position);
+            extend_track_times(&mut times_ms, &track.motion_offset);
+            extend_track_times(&mut times_ms, &track.rotation);
+            extend_track_times(&mut times_ms, &track.scale);
+            extend_track_times(&mut times_ms, &track.placement_mode);
+            extend_track_times(&mut times_ms, &track.position_binding);
+            extend_track_times(&mut times_ms, &track.size);
+            // Layout
+            if let Some(ls) = track.layout_size.as_ref() {
+                times_ms.extend(ls.keyframes.keys().copied());
             }
-            if let Some(size) = track.size.as_ref() {
-                times_ms.extend(size.keyframes.keys().copied());
+            // Style
+            extend_track_times(&mut times_ms, &track.color);
+            extend_track_times(&mut times_ms, &track.opacity);
+            extend_track_times(&mut times_ms, &track.stroke_width);
+            extend_track_times(&mut times_ms, &track.stroke_color);
+            extend_track_times(&mut times_ms, &track.stroke_progress);
+            extend_track_times(&mut times_ms, &track.fill_opacity);
+            extend_track_times(&mut times_ms, &track.morph_options);
+            // Text
+            extend_track_times(&mut times_ms, &track.text_content);
+            if let Some(tp) = track.text_paths.as_ref() {
+                times_ms.extend(tp.keyframes.keys().copied());
             }
-            if let Some(color) = track.color.as_ref() {
-                times_ms.extend(color.keyframes.keys().copied());
+            // Vector paths
+            if let Some(vp) = track.vector_paths.as_ref() {
+                times_ms.extend(vp.keyframes.keys().copied());
             }
-            if let Some(opacity) = track.opacity.as_ref() {
-                times_ms.extend(opacity.keyframes.keys().copied());
-            }
-            if let Some(text) = track.text_paths.as_ref() {
-                times_ms.extend(text.keyframes.keys().copied());
-            }
-            if let Some(vec) = track.vector_paths.as_ref() {
-                times_ms.extend(vec.keyframes.keys().copied());
+            // Shape-specific
+            extend_track_times(&mut times_ms, &track.shape_type);
+            extend_track_times(&mut times_ms, &track.line_from);
+            extend_track_times(&mut times_ms, &track.line_to);
+            extend_track_times(&mut times_ms, &track.arc_angles);
+            extend_track_times(&mut times_ms, &track.points);
+            // Image
+            if let Some(im) = track.image.as_ref() {
+                times_ms.extend(im.keyframes.keys().copied());
             }
         }
         times_ms.sort_unstable();

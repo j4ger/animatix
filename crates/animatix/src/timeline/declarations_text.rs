@@ -294,9 +294,7 @@ impl Timeline {
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut track.size, t_start_ms);
-            track
-                .layout_size
-                .preserve_instant_delayed_value(DEFAULT_LAYOUT_HALF_SIZE, t_start_ms);
+            preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
         }
         if supports_morph_options {
             track

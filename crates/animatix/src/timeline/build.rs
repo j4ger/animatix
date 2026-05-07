@@ -328,9 +328,7 @@ fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u64) {
     preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
     preserve_instant_delayed_value(&mut track.position, t_start_ms);
     preserve_instant_delayed_value(&mut track.size, t_start_ms);
-    track
-        .layout_size
-        .preserve_instant_delayed_value(default_size, t_start_ms);
+    preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
     preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
     preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
@@ -1500,14 +1498,11 @@ impl Timeline {
                         let prop_subject = format!("{}.{}", label, prop.name);
                         match prop.name.as_str() {
                             "at" | "anchor" | "offset" => {}
+                            // ── Special cases with complex logic ──
                             "radius" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
                                 let r = v.as_num() as f32;
                                 size = [r, r];
                                 vector_shape_state.size = size;
@@ -1515,12 +1510,8 @@ impl Timeline {
                             }
                             "size" => {
                                 let size_val = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
                                 if let Value::Vec2([w, h]) = size_val {
                                     size[0] = w as f32 / 2.0;
                                     size[1] = h as f32 / 2.0;
@@ -1531,141 +1522,68 @@ impl Timeline {
                                 if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
                                     if let Some(actor_color) = self.auto_color_for_label(label) {
                                         color = actor_color;
-                                        if primitive.is_plot_curve() {
-                                            stroke_color = actor_color;
-                                        }
+                                        if primitive.is_plot_curve() { stroke_color = actor_color; }
                                     } else {
-                                        diagnostics.push(
-                                            Diagnostic::warning(
-                                                DiagnosticCode::UnknownColorReference,
-                                                DiagnosticPhase::Build,
-                                                format!(
-                                                    "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
-                                                    label
-                                                ),
-                                            )
-                                            .with_subject(&prop_subject),
-                                        );
+                                        diagnostics.push(Diagnostic::warning(
+                                            DiagnosticCode::UnknownColorReference,
+                                            DiagnosticPhase::Build,
+                                            format!("Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.", label),
+                                        ).with_subject(&prop_subject));
                                     }
                                 } else if let Some(resolved_color) =
                                     parse_color_in_env_with_lookup_diagnostic(
-                                        label,
-                                        "color",
-                                        &prop.value,
-                                        &eval_env,
-                                        diagnostics,
-                                        &prop_subject,
-                                    )
-                                {
+                                        label, "color", &prop.value, &eval_env, diagnostics, &prop_subject,
+                                    ) {
                                     color = resolved_color;
-                                    if primitive.is_plot_curve() {
-                                        stroke_color = resolved_color;
-                                    }
+                                    if primitive.is_plot_curve() { stroke_color = resolved_color; }
                                 }
                             }
-                            "stroke_width" => {
+                            "gap" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
+                                gap = v.as_num() as f32;
+                            }
+                            "align" => {
+                                if let Expr::Str(s) = &prop.value { align = Some(s.clone()); }
+                                else if let Expr::Ident(s) = &prop.value { align = Some(s.clone()); }
+                            }
+                            "cols" => {
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(1.0));
+                                cols = Some(v.as_num().max(1.0) as usize);
+                            }
+                            // ── Registry-driven simple properties ──
+                            // These must come BEFORE the vector_shape catch-all to avoid
+                            // being swallowed by `_ if vector_shape.is_some()`.
+                            "stroke_width" | "width" => {
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
                                 stroke_width = v.as_num() as f32;
                             }
-                            "width" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
-                                stroke_width = v.as_num() as f32;
-                            }
-                            "stroke_color" => {
-                                if let Some(resolved_color) =
-                                    parse_color_in_env_with_lookup_diagnostic(
-                                        label,
-                                        "stroke_color",
-                                        &prop.value,
-                                        &eval_env,
-                                        diagnostics,
-                                        &prop_subject,
-                                    )
-                                {
-                                    stroke_color = resolved_color;
-                                }
-                            }
-                            "stroke" => {
-                                if let Some(resolved_color) =
-                                    parse_color_in_env_with_lookup_diagnostic(
-                                        label,
-                                        "stroke",
-                                        &prop.value,
-                                        &eval_env,
-                                        diagnostics,
-                                        &prop_subject,
-                                    )
-                                {
-                                    stroke_color = resolved_color;
-                                }
+                            "stroke_color" | "stroke" => {
+                                if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
+                                    label, "stroke_color", &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ) { stroke_color = resolved_color; }
                             }
                             "stroke_progress" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
                                 stroke_progress = v.as_num() as f32;
                             }
                             "fill_opacity" => {
                                 let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
                                 fill_opacity = v.as_num() as f32;
                             }
-                            "gap" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(0.0));
-                                gap = v.as_num() as f32;
-                            }
-                            "align" => {
-                                if let Expr::Str(s) = &prop.value {
-                                    align = Some(s.clone());
-                                } else if let Expr::Ident(s) = &prop.value {
-                                    align = Some(s.clone());
-                                }
-                            }
-                            "cols" => {
-                                let v = evaluate_expr_with_lookup_diagnostic(
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
-                                )
-                                .unwrap_or(Value::Num(1.0));
-                                cols = Some(v.as_num().max(1.0) as usize);
-                            }
+                            // ── Vector shape properties (catch-all for unhandled props) ──
                             _ if vector_shape.is_some() => {
                                 if apply_vector_shape_property(
-                                    ty,
-                                    &prop.name,
-                                    &prop.value,
-                                    &eval_env,
-                                    diagnostics,
-                                    &prop_subject,
+                                    ty, &prop.name, &prop.value, &eval_env, diagnostics, &prop_subject,
                                     &mut vector_shape_state,
                                 ) {
                                     size = vector_shape_state.size;

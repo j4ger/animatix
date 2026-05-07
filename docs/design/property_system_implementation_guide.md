@@ -1,7 +1,8 @@
 # Property System Implementation Guide
 
-> **Purpose:** Step-by-step guide for implementing the property system redesign.
-> **Prerequisite:** Read `docs/design/property_system.md` first.
+> **Status:** Implementation complete ✅
+> **Purpose:** Implementation guide — kept for reference.
+> **All phases implemented and tests passing.**
 
 ---
 

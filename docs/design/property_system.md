@@ -1,33 +1,33 @@
 # Property System Design
 
-> **Status:** Design proposal  
+> **Status:** Implemented  
 > **Applies to:** `crates/animatix/src/timeline/`  
 > **Driver:** Eliminate N×M match-block explosion, add type safety, make property extension a single-point change
 
 ---
 
-## 1. Current System: The Pain
+## 1. Original Problem: The Pain (now resolved)
 
-The property system is currently implemented as **7+ cross-file `match prop.name.as_str()` blocks** that must be kept in sync:
+The property system was originally implemented as **7+ cross-file `match prop.name.as_str()` blocks** that had to be kept in sync:
 
-| File | Lines | Concern |
-|------|-------|---------|
-| `build.rs` line 893 | ~20 | Plot-domain pre-pass (ActorKind dispatch) |
-| `build.rs` line 1298 | ~80 | First property pass (domain props: `x_domain`, `func`, etc.) |
-| `build.rs` line 1501 | ~130 | Second property pass (shape props: `color`, `size`, `stroke_width`, etc.) |
-| `declarations_text.rs` line 145 | ~100 | Text/Math/Code props (`font_size`, `text`, `latex`, etc.) |
-| `media.rs` line 171 | ~30 | Svg/Image props (`url`, `scale`, `size`) |
-| `assignments.rs` line 108 | ~600 | Runtime property mutation |
-| `source_edit.rs` (gui) | ~40 | Source-editor property↔label mapping |
+| File | Lines | Concern | Status |
+|------|-------|---------|--------|
+| `build.rs` line 893 | ~20 | Plot-domain pre-pass (ActorKind dispatch) | **Merged with main pass** |
+| `build.rs` line 1298 | ~80 | First property pass (domain props: `x_domain`, `func`, etc.) | **Streamlined** |
+| `build.rs` line 1501 | ~130 | Second property pass (shape props: `color`, `size`, `stroke_width`, etc.) | **Streamlined with registry** |
+| `declarations_text.rs` line 145 | ~100 | Text/Math/Code props (`font_size`, `text`, `latex`, etc.) | **Preserved** (domain logic for typesetting) |
+| `media.rs` line 171 | ~30 | Svg/Image props (`url`, `scale`, `size`) | **Preserved** (domain logic for media loading) |
+| `assignments.rs` line 108 | ~600 | Runtime property mutation | **Replaced with registry-driven engine** ✅ |
+| `runtime.rs` | ~150 | Per-frame environment injection | **Replaced with centralized injector** ✅ |
 
-**Each block duplicates:**
+**Each block duplicated:**
 - The list of recognized property names (stringly-typed)
 - Expression-to-value parsing
 - The storage-field write
 - Keyframe timing boilerplate (snapshot-start, insert-end, preserve-delayed)
 - Default-value handling
 
-**Adding one property** requires editing 5+ files. **Adding one actor type** requires editing 7+ files with zero compiler guidance.
+**Adding one property** now requires editing 3-5 files (schema row + field + optional engine arm). **Adding one actor type** requires 7 touch points — all compiler-enforced.
 
 ---
 

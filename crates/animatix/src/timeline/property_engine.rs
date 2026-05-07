@@ -1,0 +1,424 @@
+//! # Property Engine
+//!
+//! Generic functions that replace the N×M match-block explosion.
+//!
+//! Instead of 7 separate `match prop.name.as_str()` blocks spread across
+//! build.rs, assignments.rs, declarations_text.rs, media.rs, and runtime.rs,
+//! all property dispatch goes through three functions:
+//!
+//! 1. `write_property_field()` — write a parsed value to the correct track field
+//! 2. `parse_property_value()` — convert an Expr to a PropertyValue by ValueType
+//! 3. `inject_property_into_env()` — inject a property's value into the runtime env
+//!
+//! ## Usage
+//!
+//! ```ignore
+//! let schema = lookup_property("color").unwrap();
+//! let value = parse_property_value(schema.value_type, &expr, env, diag, subject);
+//! if let Some(value) = value {
+//!     write_property_field(track, schema.field, value, t_start_ms, t_end_ms, easing, diag);
+//! }
+//! ```
+//!
+//! This replaces what was previously:
+//! ```ignore
+//! match prop.name.as_str() {
+//!     "color" => {
+//!         // parse color
+//!         // snapshot start if duration > 0
+//!         // preserve if delay > 0
+//!         // write end keyframe
+//!     }
+//!     // repeat for every property
+//! }
+//! ```
+
+use crate::ast::Expr;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::easing::Easing;
+use crate::timeline::env::{Environment, Value};
+use crate::timeline::property_registry::{ActorField, ValueType};
+use crate::timeline::{
+    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+};
+
+// Sibling module imports (accessible via super:: because we're a child of timeline)
+use super::{
+    evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
+    preserve_instant_delayed_value,
+};
+
+// ─────────────────────────────────────────────────────────────
+// Parsed property values
+// ─────────────────────────────────────────────────────────────
+
+/// A parsed property value, typed by the ValueType that produced it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PropertyValue {
+    F32(f32),
+    U32(u32),
+    Vec2([f32; 2]),
+    Vec4([f32; 4]),
+    Color([f32; 4]),
+    String(String),
+}
+
+// ─────────────────────────────────────────────────────────────
+// Parse: Expr → PropertyValue
+// ─────────────────────────────────────────────────────────────
+
+/// Parse an `Expr` into a `PropertyValue` based on the expected `ValueType`.
+/// Returns `None` when parsing fails (the caller should skip the property).
+pub(crate) fn parse_property_value(
+    value_type: ValueType,
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    match value_type {
+        ValueType::F32 => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            Some(PropertyValue::F32(v.as_num() as f32))
+        }
+        ValueType::U32 => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            let n = v.as_num();
+            Some(PropertyValue::U32(n.max(0.0) as u32))
+        }
+        ValueType::Vec2 => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            match v {
+                Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
+                _ => None,
+            }
+        }
+        ValueType::Vec4 => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            match v {
+                Value::Vec4([a, b, c, d]) => Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32])),
+                Value::Color([a, b, c, d]) => Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32])),
+                _ => None,
+            }
+        }
+        ValueType::Color => {
+            parse_color_in_env_with_lookup_diagnostic("", "color", expr, env, diagnostics, subject)
+                .map(PropertyValue::Color)
+        }
+        ValueType::String => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            Some(PropertyValue::String(v.as_str()))
+        }
+        // These types require context-specific handling (group resolution)
+        ValueType::ShapeType
+        | ValueType::PlacementMode
+        | ValueType::SceneAnchor
+        | ValueType::PositionBinding
+        | ValueType::MorphOptions
+        | ValueType::PointList
+        | ValueType::CommandList
+        | ValueType::BuildTimeOnly => None,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Write: ActorField + PropertyValue + timing → keyframes
+// ─────────────────────────────────────────────────────────────
+
+/// Write a parsed property value to the correct track field,
+/// handling keyframe timing (snapshot start, preserve delayed, write end).
+///
+/// This is the central dispatch that replaces the repetitive per-property
+/// pattern in build.rs, assignments.rs, and declarations_text.rs.
+pub(crate) fn write_property_field(
+    track: &mut AnimationTrack,
+    field: ActorField,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let has_duration = t_end_ms > t_start_ms;
+    let has_delay = t_start_ms > 0 && !has_duration;
+
+    match field {
+        // ── Geometry tier ──
+        ActorField::Position => write_vec2(&mut track.position, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
+        ActorField::MotionOffset => write_vec2(&mut track.motion_offset, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
+        ActorField::Size => write_vec2(&mut track.size, value, t_start_ms, t_end_ms, easing, DEFAULT_LAYOUT_HALF_SIZE, has_duration, has_delay),
+        ActorField::LayoutSize => write_vec2(&mut track.layout_size, value, t_start_ms, t_end_ms, easing, DEFAULT_LAYOUT_HALF_SIZE, has_duration, has_delay),
+        ActorField::Rotation => write_f32(&mut track.rotation, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
+        ActorField::Scale => write_f32(&mut track.scale, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
+        ActorField::PlacementMode => {
+            // PlacementMode is set directly, not keyframed
+        }
+        ActorField::PositionBinding => {
+            // PositionBinding is set via group resolution
+        }
+
+        // ── Style tier ──
+        ActorField::Color => write_vec4(&mut track.color, value, t_start_ms, t_end_ms, easing, [1.0, 1.0, 1.0, 1.0], has_duration, has_delay),
+        ActorField::Opacity => write_f32(&mut track.opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
+        ActorField::StrokeWidth => write_f32(&mut track.stroke_width, value, t_start_ms, t_end_ms, easing, 2.0, has_duration, has_delay),
+        ActorField::StrokeColor => write_vec4(&mut track.stroke_color, value, t_start_ms, t_end_ms, easing, [1.0, 1.0, 1.0, 1.0], has_duration, has_delay),
+        ActorField::StrokeProgress => write_f32(&mut track.stroke_progress, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
+        ActorField::FillOpacity => write_f32(&mut track.fill_opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
+        ActorField::MorphOptions => {
+            // MorphOptions is set via group resolution
+        }
+
+        // ── Shape payload ──
+        ActorField::ShapeType => {
+            if let PropertyValue::U32(v) = value {
+                let st = match v {
+                    0 => ShapeType::Rect,
+                    1 => ShapeType::Circle,
+                    2 => ShapeType::Line,
+                    3 => ShapeType::Ellipse,
+                    4 => ShapeType::Arc,
+                    5 => ShapeType::Polygon,
+                    6 => ShapeType::Path,
+                    7 => ShapeType::Arrow,
+                    _ => ShapeType::Rect,
+                };
+                write_shape_type(&mut track.shape_type, st, t_start_ms, t_end_ms, easing, ShapeType::Rect, has_duration, has_delay);
+            }
+        }
+        ActorField::LineFrom => write_vec2(&mut track.line_from, value, t_start_ms, t_end_ms, easing, [-50.0, 0.0], has_duration, has_delay),
+        ActorField::LineTo => write_vec2(&mut track.line_to, value, t_start_ms, t_end_ms, easing, [50.0, 0.0], has_duration, has_delay),
+        ActorField::ArcAngles => write_vec2(&mut track.arc_angles, value, t_start_ms, t_end_ms, easing, [0.0, std::f32::consts::PI], has_duration, has_delay),
+        ActorField::Points => {
+            // Points is handled via group resolution (vector shape state)
+        }
+        ActorField::VectorPaths => {
+            // Vector paths are generated from shape state, not parsed directly
+        }
+
+        // ── Text payload ──
+        ActorField::TextContent => write_string(&mut track.text_content, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
+        ActorField::TextPaths => {
+            // Text paths are generated from text content during build
+        }
+
+        // ── Media payload ──
+        ActorField::ImageData | ActorField::SvgPaths => {}
+
+        // ── Group fields (handled by group resolvers, not direct write) ──
+        ActorField::PositionBindingGroup
+        | ActorField::VectorShapeGroup
+        | ActorField::PlotDomainGroup
+        | ActorField::ContainerLayoutGroup => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidModifierValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Property field '{:?}' requires group resolution and cannot be written directly.",
+                        field
+                    ),
+                )
+            );
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Internal write helpers
+// ─────────────────────────────────────────────────────────────
+
+fn write_f32(
+    field: &mut Option<PropertyTrack<f32>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: f32,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::F32(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default);
+        field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+fn write_vec2(
+    field: &mut Option<PropertyTrack<[f32; 2]>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: [f32; 2],
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::Vec2(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default);
+        field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+fn write_vec4(
+    field: &mut Option<PropertyTrack<[f32; 4]>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: [f32; 4],
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let v = match value {
+        PropertyValue::Vec4(v) => v,
+        PropertyValue::Color(v) => v,
+        _ => return,
+    };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default);
+        field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+fn write_shape_type(
+    field: &mut Option<PropertyTrack<ShapeType>>,
+    value: ShapeType,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: ShapeType,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    if has_duration {
+        let start_val = field.get(t_start_ms, default);
+        field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, value, easing);
+}
+
+fn write_string(
+    field: &mut Option<PropertyTrack<String>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: String,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::String(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Environment injection
+// ─────────────────────────────────────────────────────────────
+
+/// Inject a property's value into the runtime Environment.
+/// This is called from `inject_runtime_lookup_values()` for every
+/// INJECTABLE property on every actor, every frame.
+pub(crate) fn inject_property_into_env(
+    env: &mut Environment,
+    label: &str,
+    track: &AnimationTrack,
+    time_ms: u64,
+) {
+    // Geometry
+    inject_vec2_env(env, label, "at",        &track.position, time_ms, [0.0, 0.0]);
+    inject_vec2_env(env, label, "position",  &track.position, time_ms, [0.0, 0.0]);
+    inject_vec2_env(env, label, "shift",     &track.motion_offset, time_ms, [0.0, 0.0]);
+    let size_val = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    let full_size = [size_val[0] * 2.0, size_val[1] * 2.0];
+    inject_vec2_env(env, label, "size",      &track.size, time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    env.set(&format!("{label}.width"), Value::Num(full_size[0] as f64));
+    env.set(&format!("{label}.height"), Value::Num(full_size[1] as f64));
+    inject_scalar_env(env, label, "rotation", &track.rotation, time_ms, 0.0);
+    inject_scalar_env(env, label, "scale",   &track.scale, time_ms, 1.0);
+
+    // Style
+    inject_color_env(env, label, "color",           &track.color, time_ms, [1.0, 1.0, 1.0, 1.0]);
+    inject_scalar_env(env, label, "opacity",        &track.opacity, time_ms, 1.0);
+    inject_color_env(env, label, "stroke_color",    &track.stroke_color, time_ms, [1.0, 1.0, 1.0, 1.0]);
+    inject_scalar_env(env, label, "stroke_width",   &track.stroke_width, time_ms, 2.0);
+    inject_scalar_env(env, label, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
+    inject_scalar_env(env, label, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
+
+    // Shape-specific derived fields
+    let radius = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE)[0];
+    env.set(&format!("{label}.radius"),   Value::Num(radius as f64));
+    env.set(&format!("{label}.radius_x"), Value::Num(radius as f64));
+    env.set(&format!("{label}.radius_y"), Value::Num(radius as f64));
+
+    // Arc angles
+    let [start, sweep] = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+    env.set(&format!("{label}.start_angle"), Value::Num(start as f64));
+    env.set(&format!("{label}.sweep_angle"), Value::Num(sweep as f64));
+
+    // Line from/to
+    inject_vec2_env(env, label, "from", &track.line_from, time_ms, [-50.0, 0.0]);
+    inject_vec2_env(env, label, "to",   &track.line_to, time_ms, [50.0, 0.0]);
+}
+
+fn inject_scalar_env(
+    env: &mut Environment,
+    label: &str,
+    key: &str,
+    field: &Option<PropertyTrack<f32>>,
+    time_ms: u64,
+    default: f32,
+) {
+    let val = field.get(time_ms, default) as f64;
+    env.set(&format!("{label}.{key}"), Value::Num(val));
+}
+
+fn inject_vec2_env(
+    env: &mut Environment,
+    label: &str,
+    key: &str,
+    field: &Option<PropertyTrack<[f32; 2]>>,
+    time_ms: u64,
+    default: [f32; 2],
+) {
+    let val = field.get(time_ms, default);
+    let f = |x: f32| x as f64;
+    env.set(&format!("{label}.{key}"), Value::Vec2([f(val[0]), f(val[1])]));
+    env.set(&format!("{label}.{key}.x"), Value::Num(f(val[0])));
+    env.set(&format!("{label}.{key}.y"), Value::Num(f(val[1])));
+}
+
+fn inject_color_env(
+    env: &mut Environment,
+    label: &str,
+    key: &str,
+    field: &Option<PropertyTrack<[f32; 4]>>,
+    time_ms: u64,
+    default: [f32; 4],
+) {
+    let val = field.get(time_ms, default);
+    let f = |x: f32| x as f64;
+    env.set(&format!("{label}.{key}"), Value::Color([f(val[0]), f(val[1]), f(val[2]), f(val[3])]));
+    env.set(&format!("{label}.{key}.r"), Value::Num(f(val[0])));
+    env.set(&format!("{label}.{key}.g"), Value::Num(f(val[1])));
+    env.set(&format!("{label}.{key}.b"), Value::Num(f(val[2])));
+    env.set(&format!("{label}.{key}.a"), Value::Num(f(val[3])));
+}

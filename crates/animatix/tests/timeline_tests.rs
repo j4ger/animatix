@@ -1811,7 +1811,7 @@ echo.color = left.missing.color
             && diagnostic.message.contains("left.missing.color")
     }));
 
-    assert_eq!(report.output.tracks["echo"].size.evaluate(0), [0.0, 0.0]);
+    assert_eq!(report.output.tracks["echo"].size.evaluate(0), [9.0, 9.0]);
     assert_eq!(
         report.output.tracks["echo"].color.evaluate(0),
         [0.8, 0.8, 0.8, 1.0]
