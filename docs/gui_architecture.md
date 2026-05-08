@@ -189,6 +189,8 @@ ACTORS                        4
 
 ### Edit Flow
 
+The inspector uses **AST mutation + full re-serialization** for write-back. When a property is edited, the GUI mutates the in-memory AST (`raw_statements`) and re-serializes the entire tree via [`to_source::stmts_to_source`](../../crates/animatix/src/to_source.rs). This replaces the old byte-span surgery model.
+
 **Normal mode** (overwrite):
 ```
 User edits widget or drags preview handle
@@ -197,11 +199,13 @@ User edits widget or drags preview handle
       1. Snapshot (undo)
       2. Update in-memory timeline tracks
       3. Invalidate frame cache
-      4. Source edit: surgical replace via apply_source_edit()
-         - source_index.find(actor, property) → ByteSpan
-         - "position" ↔ "at" aliasing handled
-      5. Rebuild source index
-      6. Schedule debounced full rebuild
+      4. AST mutation via source_edit_v2::apply_edit()
+         - Try SetProperty: find actor/assignment in AST, update Expr value
+         - Fall back to InsertProperty: push new Property into actor decl
+         - "position" ↔ "at" aliasing handled in one place
+      5. Re-serialize full AST → source_text
+      6. Rebuild source index directly from mutated AST (no re-parse)
+      7. Schedule debounced full rebuild
 ```
 
 **Keyframe mode** (`K` toggle, 🔑 button):
@@ -211,13 +215,13 @@ User edits widget or drags preview handle
       1. Snapshot (undo)
       2. Update in-memory timeline tracks (add keyframe at current time)
       3. Invalidate frame cache
-      4. Source edit: insert_keyframe_block()
+      4. AST mutation: insert Stmt::RelativeKeyframe { offset, body: [assignment] }
          - Computes Δt from prev keyframe time
          - Omits block if Δt ≈ 0 (spec: #0s can be omitted)
          - Skips if within 50ms of existing keyframe (TODO: merge instead)
-         - Inserts after actor's last property span
-      5. Rebuild source index + rescan keyframe lines (decorations)
-      6. Schedule debounced full rebuild
+      5. Re-serialize full AST → source_text
+      6. Rebuild source index + rescan keyframe lines (decorations)
+      7. Schedule debounced full rebuild
 ```
 
 ### Position-Binding-Aware Drag
@@ -426,7 +430,7 @@ crates/
 │       ├── highlighting.rs      # Tree-sitter highlighting + diagnostic squiggles
 │       ├── hot_reload.rs        # File watcher
 │       ├── preview_surface.rs   # GPU render surface
-│       ├── source_edit.rs       # Surgical source text editing
+│       ├── source_edit_v2.rs    # AST-based source editing (replaces surgical model)
 │       └── app/
 │           ├── mod.rs
 │           ├── runtime.rs       # eframe::App impl

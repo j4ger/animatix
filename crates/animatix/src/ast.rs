@@ -118,6 +118,10 @@ pub struct Property {
     /// Used for surgical source edits (writing back to .amx file).
     #[doc(hidden)]
     pub value_span: Option<ByteSpan>,
+    /// Trailing line comment after this property, e.g. `size: (100, 200) // half-extents`.
+    /// Only `//` line comments immediately following the property value are captured.
+    /// Block comments (`/* */`) and comments inside expressions are rejected.
+    pub trailing_comment: Option<String>,
 }
 
 impl Default for Property {
@@ -126,6 +130,7 @@ impl Default for Property {
             name: String::new(),
             value: Expr::Null,
             value_span: None,
+            trailing_comment: None,
         }
     }
 }

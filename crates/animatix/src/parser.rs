@@ -165,7 +165,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .clone()
                     .then_ignore(just(':').padded())
                     .then(expr.clone())
-                    .map(|(name, value)| Property { name, value, value_span: None })
+                    .map(|(name, value)| Property { name, value, value_span: None, trailing_comment: None })
                     .separated_by(just(',').padded())
                     .allow_trailing()
                     .collect::<Vec<_>>()
@@ -323,16 +323,23 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(|parts: Vec<String>| parts.join("."))
         .or(ident.clone());
 
+    // Trailing line comment after a property value: `size: (100, 200) // half-extents`
+    let trailing_comment = just("//")
+        .ignore_then(none_of("\r\n").repeated().to_slice().map(String::from))
+        .or_not();
+
     let property = property_name
         .then_ignore(just(':').padded())
         .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
             let span = extra.span();
             (value, ByteSpan { start: span.start, end: span.end })
         }))
-        .map(|(name, (value, value_span))| Property {
+        .then(trailing_comment)
+        .map(|((name, (value, value_span)), comment)| Property {
             name,
             value,
             value_span: Some(value_span),
+            trailing_comment: comment,
         });
 
     let modifier = choice((
@@ -683,6 +690,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     name: "text".to_string(),
                     value: text,
                     value_span: None,
+                    trailing_comment: None,
                 }],
                 modifiers,
                 children: vec![],
@@ -873,7 +881,17 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        // Reject block comments with a clear diagnostic.
+        let block_comment_reject = just("/*")
+            .try_map(|_, span| {
+                Err(Rich::custom(
+                    span,
+                    "block comments (/* */) are not supported; use // line comments instead",
+                ))
+            });
+
         choice((
+            block_comment_reject,
             let_decl,
             import_stmt,
             assignment,

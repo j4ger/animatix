@@ -7,4 +7,5 @@ pub mod parser;
 pub mod renderer;
 pub mod source_index;
 pub mod timeline;
+pub mod to_source;
 pub mod vm;

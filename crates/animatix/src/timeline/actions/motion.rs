@@ -521,6 +521,7 @@ mod tests {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
                 value_span: None,
+            trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -766,6 +767,7 @@ mod tests {
                         name: "gap".to_string(),
                         value: Expr::Num(20.0),
                         value_span: None,
+                    trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![crate::ast::InlineItem::Labeled {
@@ -775,6 +777,7 @@ mod tests {
                             name: "radius".to_string(),
                             value: Expr::Num(20.0),
                             value_span: None,
+                        trailing_comment: None,
                         }],
                         modifiers: vec![],
                         children: vec![],

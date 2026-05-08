@@ -1,8 +1,9 @@
 //! Source index for mapping actor+property names to byte spans in source text.
 //!
-//! This enables surgical source edits: when a user changes a property via the
-//! inspector widget, we look up the byte span and replace just that portion
-//! of the source text rather than re-serializing the entire file.
+//! Originally used for surgical source edits (byte-span replacement), this is
+//! now primarily for diagnostics, editor navigation, and go-to-definition.
+//! The GUI inspector uses [`crate::source_edit_v2`] (AST mutation +
+//! re-serialization) for write-back instead.
 
 use std::collections::HashMap;
 use crate::ast::{ByteSpan, InlineItem, Stmt};
@@ -194,10 +195,12 @@ mod tests {
                 Property {
                     name: "size".to_string(),
                     value: Expr::Num(100.0),
+                    trailing_comment: None,
                     value_span: Some(make_byte_span(20, 30)), ..Default::default() },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
+                    trailing_comment: None,
                     value_span: Some(make_byte_span(32, 42)), ..Default::default() },
             ],
             modifiers: vec![],
@@ -242,6 +245,7 @@ mod tests {
             props: vec![Property {
                 name: "at".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]),
+                trailing_comment: None,
                 value_span: Some(make_byte_span(15, 35)), ..Default::default() }],
             modifiers: vec![],
             children: vec![],
@@ -329,6 +333,7 @@ mod tests {
                 props: vec![Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                    trailing_comment: None,
                     value_span: Some(make_byte_span(40, 60)), ..Default::default() }],
                 modifiers: vec![],
                 children: vec![],

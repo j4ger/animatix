@@ -5,6 +5,6 @@ pub mod editor;
 pub mod highlighting;
 pub mod hot_reload;
 pub mod preview_surface;
-pub mod source_edit;
+pub mod source_edit_v2;
 
 pub use app::run_gui;

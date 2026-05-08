@@ -727,6 +727,7 @@ mod tests {
                                 Expr::Num(0.3),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                         Property {
                             name: "text.primary".to_string(),
@@ -736,6 +737,7 @@ mod tests {
                                 Expr::Num(1.0),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                     ],
                 ),
@@ -745,6 +747,7 @@ mod tests {
                     name: "colorscheme".to_string(),
                     value: Expr::Str("test-scheme".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
             },
         ];
@@ -779,6 +782,7 @@ mod tests {
                                 Expr::Num(0.35),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                         Property {
                             name: "text.primary".to_string(),
@@ -788,6 +792,7 @@ mod tests {
                                 Expr::Num(0.95),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                     ],
                 ),
@@ -797,6 +802,7 @@ mod tests {
                     name: "colorscheme".to_string(),
                     value: Expr::Str("test-scheme-let".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
             },
         ];
@@ -827,6 +833,7 @@ mod tests {
                             name: "extends".to_string(),
                             value: Expr::Str("default-dark".to_string()),
                             value_span: None,
+                        trailing_comment: None,
                         },
                         Property {
                             name: "scene.background".to_string(),
@@ -836,6 +843,7 @@ mod tests {
                                 Expr::Num(0.5),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                     ],
                 ),
@@ -845,6 +853,7 @@ mod tests {
                     name: "colorscheme".to_string(),
                     value: Expr::Str("child".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
             },
         ];
@@ -886,6 +895,7 @@ mod tests {
                                 ]),
                             ]),
                             value_span: None,
+                        trailing_comment: None,
                         },
                     ],
                 ),
@@ -895,6 +905,7 @@ mod tests {
                     name: "colorscheme".to_string(),
                     value: Expr::Str("auto-test".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
             },
             Stmt::ActorDecl {
@@ -905,6 +916,7 @@ mod tests {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
                 modifiers: vec![],
                 children: vec![],
@@ -917,6 +929,7 @@ mod tests {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
                     value_span: None,
+                trailing_comment: None,
                 }],
                 modifiers: vec![],
                 children: vec![],

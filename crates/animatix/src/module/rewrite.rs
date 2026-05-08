@@ -309,6 +309,7 @@ fn rewrite_properties(
             name: prop.name.clone(),
             value: rewrite_expr(&prop.value, prefix, root_label, known_labels, bindings),
             value_span: prop.value_span,
+            trailing_comment: prop.trailing_comment.clone(),
         })
         .collect()
 }

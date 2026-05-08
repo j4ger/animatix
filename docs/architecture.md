@@ -10,7 +10,7 @@ Animatix is a layout-first animation system with three core components:
 
 ## 1. File Processing Pipeline
 
-### A: Source → AST
+### A: Source ↔ AST
 
 ```
 .amx File → Tree-sitter grammar (syntax highlighting)
@@ -18,7 +18,11 @@ Animatix is a layout-first animation system with three core components:
        Chumsky parser (semantic analysis)
          ↓
      AST (Expr, Stmt hierarchy)
+         ↓
+     to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
+
+The AST is round-trippable: `parser()` → `Vec<Stmt>` → `to_source::stmts_to_source()` → source text. The GUI inspector mutates the AST directly and re-serializes the entire file, replacing the old byte-span surgery model. Formatting (extra spaces, blank lines, inline comments) is normalized during re-serialization.
 
 ### B: Module System
 

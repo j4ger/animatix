@@ -366,7 +366,7 @@ Verify no regressions in existing `.amx` examples:
 □ 5. Add index to allowed_properties  → actor_kind.rs
 □ 6. Add injection (if INJECTABLE)    → runtime.rs / inject_properties_into_env()
 □ 7. Add renderer handling (if render-relevant) → scene_eval.rs
-□ 8. Add GUI widget mapping (if custom) → gui/source_edit.rs
+□ 8. Add GUI widget mapping (if custom) → gui/source_edit_v2.rs (AST mutation model)
 □ 9. Add test                         → timeline/tests/
 ```
 

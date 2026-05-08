@@ -21,6 +21,48 @@ pub(crate) enum PropertyValue {
     Text(String),
 }
 
+impl From<PropertyValue> for animatix::ast::Expr {
+    fn from(pv: PropertyValue) -> Self {
+        match pv {
+            PropertyValue::Vec2([x, y]) => {
+                animatix::ast::Expr::Tuple(vec![
+                    animatix::ast::Expr::Num(x as f64),
+                    animatix::ast::Expr::Num(y as f64),
+                ])
+            }
+            PropertyValue::Float(v) => animatix::ast::Expr::Num(v as f64),
+            PropertyValue::Color([r, g, b, a]) => {
+                if (a - 1.0).abs() < 0.001
+                    && r.fract() == 0.0
+                    && g.fract() == 0.0
+                    && b.fract() == 0.0
+                {
+                    // Opaque integer color — use rgb() shorthand.
+                    animatix::ast::Expr::Call(
+                        "rgb".into(),
+                        vec![
+                            animatix::ast::Expr::Num((r * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((g * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((b * 255.0) as i64 as f64),
+                        ],
+                    )
+                } else {
+                    animatix::ast::Expr::Call(
+                        "rgba".into(),
+                        vec![
+                            animatix::ast::Expr::Num(r as f64),
+                            animatix::ast::Expr::Num(g as f64),
+                            animatix::ast::Expr::Num(b as f64),
+                            animatix::ast::Expr::Num(a as f64),
+                        ],
+                    )
+                }
+            }
+            PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct UiActions {
     pub(super) open_file: Option<PathBuf>,

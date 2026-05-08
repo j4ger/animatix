@@ -840,8 +840,6 @@ impl GuiShell {
     /// This creates `#+Δt { actor.prop = value }` in the source instead of
     /// overwriting an existing property value.
     fn handle_keyframe_edit(&mut self, edit: workspace::PropertyEdit) {
-        use crate::source_edit::{insert_keyframe_block, serialize_property_value};
-
         let is_drag = !matches!(self.drag_state, DragState::None);
         if !is_drag || !self.drag_snapshot_taken {
             self.snapshot();
@@ -877,40 +875,29 @@ impl GuiShell {
             }
         }
 
-        // Insert keyframe block into source.
-        //
-        // TODO: configurable merge window — if an existing keyframe is within
-        // ~50ms of the current time, merge the assignment into that block
-        // instead of creating a new one.
+        // Insert keyframe block into source via AST mutation.
         const MERGE_WINDOW_S: f64 = 0.05;
         let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
         let delta_s = self.preview.current_time_s - prev_time_s;
-        // Skip creating a redundant keyframe if we're very close to an existing one.
-        // In the future this should merge into the existing block instead.
         let source_written = if delta_s < MERGE_WINDOW_S {
             false
-        } else if let Some(ref source_index) = self.document.source_index {
-            let serialized = serialize_property_value(&edit.value);
-
-            if let Some(anchor_span) = source_index.last_property_span(&edit.actor) {
-                if let Some(new_source) = insert_keyframe_block(
-                    &self.document.source_text,
-                    &anchor_span,
-                    &edit.actor,
-                    &edit.property,
-                    &serialized,
-                    self.preview.current_time_s,
-                    prev_time_s,
-                ) {
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.rebuild_source_index();
-                    self.document.rescan_keyframe_lines();
-                    true
-                } else {
-                    false
-                }
+        } else if let Some(ref mut stmts) = self.document.raw_statements {
+            let expr = animatix::ast::Expr::from(edit.value.clone());
+            let source_edit = crate::source_edit_v2::SourceEdit::InsertKeyframe {
+                actor: edit.actor.clone(),
+                property: edit.property.clone(),
+                value: expr,
+                time_s: self.preview.current_time_s,
+                prev_time_s,
+            };
+            if crate::source_edit_v2::apply_edit(stmts, source_edit) {
+                let new_source = animatix::to_source::stmts_to_source(stmts);
+                self.document.source_text = new_source.clone();
+                self.editor.replace_text(new_source);
+                self.document.is_dirty = true;
+                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                self.document.rescan_keyframe_lines();
+                true
             } else {
                 false
             }
@@ -936,10 +923,9 @@ impl GuiShell {
     /// Handle a property edit from the inspector panel.
     ///
     /// Updates the in-memory timeline and persists the change back to the .amx source file
-    /// via surgical source editing.
+    /// via AST mutation + full re-serialization (see [`crate::source_edit_v2`]).
     fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
-        use crate::source_edit::{apply_source_edit, insert_property_after_span, serialize_property_value};
 
         // ── Keyframe mode: insert a new timestamp instead of overwriting ──────
         if edit.create_keyframe {
@@ -1183,49 +1169,37 @@ impl GuiShell {
             timeline.invalidate_frame_cache();
         }
 
-        // Try to persist the change back to the .amx source file
-        let source_written = if let Some(ref source_index) = self.document.source_index {
-            // Determine the source property name — "position" is written as "at" in source.
-            let source_prop_name = match edit.property.as_str() {
-                "position" => "at",
-                other => other,
+        // Persist the change back to the .amx source file via AST mutation +
+        // full re-serialization. This replaces the old byte-span surgery model.
+        let source_written = if let Some(ref mut stmts) = self.document.raw_statements {
+            let expr = animatix::ast::Expr::from(edit.value.clone());
+
+            // Try SetProperty first (update existing property).
+            let set_edit = crate::source_edit_v2::SourceEdit::SetProperty {
+                actor: edit.actor.clone(),
+                property: edit.property.clone(),
+                value: expr.clone(),
             };
 
-            if let Some(span) = source_index.find(&edit.actor, &edit.property) {
-                // Serialize the value - drag handler and inspector both send full-size values
-                let serialized = serialize_property_value(&edit.value);
+            let applied = if crate::source_edit_v2::apply_edit(stmts, set_edit) {
+                true
+            } else {
+                // Property doesn't exist yet — insert it.
+                let insert_edit = crate::source_edit_v2::SourceEdit::InsertProperty {
+                    actor: edit.actor.clone(),
+                    property: edit.property.clone(),
+                    value: expr,
+                };
+                crate::source_edit_v2::apply_edit(stmts, insert_edit)
+            };
 
-                // Apply surgical edit to source
-                let new_source = apply_source_edit(&self.document.source_text, &span, &serialized);
-
-                // Update document and editor
+            if applied {
+                let new_source = animatix::to_source::stmts_to_source(stmts);
                 self.document.source_text = new_source.clone();
                 self.editor.replace_text(new_source);
                 self.document.is_dirty = true;
-
-                // Rebuild source index immediately so the next edit has correct spans
-                self.document.rebuild_source_index();
-
+                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
                 true
-            } else if let Some(anchor_span) = source_index.last_property_span(&edit.actor) {
-                // Property doesn't exist yet — insert it after the actor's last
-                // known property (e.g. adding `at:` to an actor that only has
-                // `anchor:` + `size:`).
-                let serialized = serialize_property_value(&edit.value);
-                if let Some(new_source) = insert_property_after_span(
-                    &self.document.source_text,
-                    &anchor_span,
-                    source_prop_name,
-                    &serialized,
-                ) {
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.rebuild_source_index();
-                    true
-                } else {
-                    false
-                }
             } else {
                 false
             }

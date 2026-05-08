@@ -78,7 +78,10 @@ impl DocumentSession {
     }
 
     /// Rebuild just the source index from the current source text.
-    /// This is faster than a full rebuild and used for immediate span updates after edits.
+    ///
+    /// Used after external source changes (typing, hot-reload) when the AST is
+    /// not already available. Inspector edits mutate the AST directly and build
+    /// the index from the mutated AST without re-parsing.
     pub fn rebuild_source_index(&mut self) {
         if let Ok((raw_statements, _, _)) = self.load_program() {
             self.source_index = Some(SourceIndex::build(&raw_statements));
@@ -393,6 +396,7 @@ mod tests {
                             animatix::ast::Expr::Num(100.0),
                         ]),
                         value_span: None,
+                    trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -423,6 +427,7 @@ mod tests {
                 name: "resolution".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
                 value_span: None,
+            trailing_comment: None,
             }],
         }];
 
@@ -455,6 +460,7 @@ mod tests {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
                         value_span: None,
+                    trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],

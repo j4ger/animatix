@@ -421,11 +421,13 @@ mod tests {
                         name: "content".to_string(),
                         value: Expr::Str("Hello".to_string()),
                         value_span: None,
+                    trailing_comment: None,
                     },
                     Property {
                         name: "font_size".to_string(),
                         value: Expr::Num(24.0),
                         value_span: None,
+                    trailing_comment: None,
                     },
                 ],
                 modifiers: vec![],
