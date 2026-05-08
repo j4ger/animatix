@@ -131,7 +131,7 @@ fn collect_semantic_diagnostics(
 /// Check a single statement for semantic issues.
 fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
     match stmt {
-        Stmt::Action(action) => {
+        Stmt::Action(action, ..) => {
             // Check if action verb is known
             if !symbols.actions.contains(&action.verb) {
                 diagnostics.push(Diagnostic {
@@ -253,7 +253,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                 check_stmt(stmt, symbols, diagnostics);
             }
         }
-        Stmt::Sequence { body } | Stmt::Stagger { body, .. } | Stmt::Always { body } => {
+        Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
             for stmt in body {
                 check_stmt(stmt, symbols, diagnostics);
             }
@@ -278,7 +278,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                 check_stmt(stmt, symbols, diagnostics);
             }
         }
-        Stmt::ComponentDef(def) => {
+        Stmt::ComponentDef(def, ..) => {
             for stmt in &def.body {
                 check_stmt(stmt, symbols, diagnostics);
             }
@@ -345,7 +345,7 @@ mod tests {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            }),
+            }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
         let diagnostics = collect_diagnostics("", &[], None, &symbols, Some(&stmts));
@@ -365,7 +365,7 @@ mod tests {
                 targets: vec!["nonexistent".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            }),
+            }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
         let diagnostics = collect_diagnostics("", &[], None, &symbols, Some(&stmts));
@@ -387,6 +387,7 @@ mod tests {
                 props: vec![],
                 modifiers: vec![],
                 children: vec![],
+                span: None,
             },
         ];
         let symbols = SymbolTable::build_from_ast(&stmts);

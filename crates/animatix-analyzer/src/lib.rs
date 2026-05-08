@@ -73,10 +73,73 @@ impl Analyzer {
 
         // Build symbol table from AST
         self.symbols = if let Some(ref stmts) = self.ast {
-            SymbolTable::build_from_ast(stmts)
+            let mut table = SymbolTable::build_from_ast(stmts);
+            // Enrich with real positions from tree-sitter
+            if let Some(ref tree) = self.tree {
+                Self::enrich_positions(tree, source, &mut table);
+            }
+            table
         } else {
             SymbolTable::default()
         };
+    }
+
+    /// Walk the tree-sitter tree and populate symbol table entries with real line/col positions.
+    fn enrich_positions(tree: &Tree, source: &str, table: &mut SymbolTable) {
+        let root = tree.root_node();
+        let mut cursor = root.walk();
+        Self::walk_for_positions(&mut cursor, source, table);
+    }
+
+    fn walk_for_positions(cursor: &mut tree_sitter::TreeCursor, source: &str, table: &mut SymbolTable) {
+        let node = cursor.node();
+        let kind = node.kind();
+
+        // Extract positions for declaration nodes
+        match kind {
+            "let_declaration" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let pos = name_node.start_position();
+                    if let Some(info) = table.labels.get_mut(&name) {
+                        info.line = pos.row + 1; // tree-sitter is 0-based
+                        info.col = pos.column + 1;
+                    }
+                }
+            }
+            "actor_declaration" | "text_shorthand" => {
+                if let Some(label_node) = node.child_by_field_name("label") {
+                    let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let pos = label_node.start_position();
+                    if let Some(info) = table.labels.get_mut(&name) {
+                        info.line = pos.row + 1;
+                        info.col = pos.column + 1;
+                    }
+                }
+            }
+            "component_definition" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let pos = name_node.start_position();
+                    if let Some(info) = table.components.get_mut(&name) {
+                        info.line = pos.row + 1;
+                        info.col = pos.column + 1;
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // Recurse into children
+        if cursor.goto_first_child() {
+            loop {
+                Self::walk_for_positions(cursor, source, table);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
+        }
     }
 
     /// Get the current source text.

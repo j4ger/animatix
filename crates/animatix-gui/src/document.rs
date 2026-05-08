@@ -262,7 +262,7 @@ fn scan_keyframe_lines(source: &str) -> (Vec<(f64, usize)>, Vec<usize>) {
 fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
     ast.iter()
         .find_map(|stmt| match stmt {
-            Stmt::Config { settings } => settings.iter().find_map(|property| {
+            Stmt::Config { settings, .. } => settings.iter().find_map(|property| {
                 if property.name != "resolution" {
                     return None;
                 }
@@ -400,6 +400,7 @@ mod tests {
                     }],
                     modifiers: vec![],
                     children: vec![],
+                    span: None,
                 }],
                 span: None,
             },
@@ -411,6 +412,7 @@ mod tests {
                     value: animatix::ast::Expr::Num(0.5),
                     modifiers: vec![],
                     value_span: None,
+                    span: None,
                 }],
                 span: None,
             },
@@ -429,6 +431,7 @@ mod tests {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         }];
 
         assert_eq!(
@@ -442,7 +445,7 @@ mod tests {
 
     #[test]
     fn scene_dimensions_fall_back_to_default_when_missing() {
-        let ast = vec![Stmt::Comment("no config".to_string())];
+        let ast = vec![Stmt::Comment("no config".to_string(), None)];
 
         assert_eq!(document_scene_dimensions(&ast), SceneDimensions::default());
     }
@@ -464,6 +467,7 @@ mod tests {
                     }],
                     modifiers: vec![],
                     children: vec![],
+                    span: None,
                 }],
                 span: None,
             },
@@ -475,6 +479,7 @@ mod tests {
                     value: Expr::Num(0.5),
                     modifiers: vec![],
                     value_span: None,
+                    span: None,
                 }],
                 span: None,
             },
@@ -486,6 +491,7 @@ mod tests {
                     value: Expr::Num(4.0),
                     modifiers: vec![],
                     value_span: None,
+                    span: None,
                 }],
                 span: None,
             },
@@ -497,6 +503,7 @@ mod tests {
                     value: Expr::Num(1.0),
                     modifiers: vec![],
                     value_span: None,
+                    span: None,
                 }],
                 span: None,
             },

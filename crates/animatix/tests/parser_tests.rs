@@ -29,42 +29,48 @@ fn test_let_decl_types() {
         parse_single_stmt("let a = 42"),
         Stmt::LetDecl { is_pub: false,
             name: "a".to_string(),
-            value: Expr::Num(42.0)
+            value: Expr::Num(42.0),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let b = 3.14"),
         Stmt::LetDecl { is_pub: false,
             name: "b".to_string(),
-            value: Expr::Num(3.14)
+            value: Expr::Num(3.14),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let c = true"),
         Stmt::LetDecl { is_pub: false,
             name: "c".to_string(),
-            value: Expr::Bool(true)
+            value: Expr::Bool(true),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let d = false"),
         Stmt::LetDecl { is_pub: false,
             name: "d".to_string(),
-            value: Expr::Bool(false)
+            value: Expr::Bool(false),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let e = null"),
         Stmt::LetDecl { is_pub: false,
             name: "e".to_string(),
-            value: Expr::Null
+            value: Expr::Null,
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let f = \"string\""),
         Stmt::LetDecl { is_pub: false,
             name: "f".to_string(),
-            value: Expr::Str("string".to_string())
+            value: Expr::Str("string".to_string()),
+            span: None,
         }
     );
 }
@@ -75,7 +81,8 @@ fn test_collections() {
         parse_single_stmt("let coords = (10, 20.5)"),
         Stmt::LetDecl { is_pub: false,
             name: "coords".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.5)])
+            value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.5)]),
+            span: None,
         }
     );
     assert_eq!(
@@ -85,14 +92,16 @@ fn test_collections() {
             value: Expr::Tuple(vec![
                 Expr::Ident("a".to_string()),
                 Expr::Ident("b".to_string())
-            ])
+            ]),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let pct = (50%, 25%)"),
         Stmt::LetDecl { is_pub: false,
             name: "pct".to_string(),
-            value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)])
+            value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)]),
+            span: None,
         }
     );
 }
@@ -107,6 +116,7 @@ fn test_assignments_and_paths() {
             value: Expr::Str("red".to_string()),
             modifiers: vec![],
             value_span: Some(ByteSpan { start: 12, end: 17 }),
+            span: None,
         }
     );
     assert_eq!(
@@ -126,6 +136,7 @@ fn test_assignments_and_paths() {
                 },
             ],
             value_span: Some(ByteSpan { start: 15, end: 26 }),
+            span: None,
         }
     );
     assert_eq!(
@@ -136,6 +147,7 @@ fn test_assignments_and_paths() {
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
             value_span: Some(ByteSpan { start: 19, end: 22 }),
+            span: None,
         }
     );
     assert_eq!(
@@ -146,13 +158,15 @@ fn test_assignments_and_paths() {
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
             value_span: Some(ByteSpan { start: 19, end: 22 }),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let x = container.child"),
         Stmt::LetDecl { is_pub: false,
             name: "x".to_string(),
-            value: Expr::Path(vec!["container".to_string(), "child".to_string()])
+            value: Expr::Path(vec!["container".to_string(), "child".to_string()]),
+            span: None,
         }
     );
     assert_eq!(
@@ -163,14 +177,16 @@ fn test_assignments_and_paths() {
                 "left".to_string(),
                 "badge".to_string(),
                 "color".to_string()
-            ])
+            ]),
+            span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let center = scene.center"),
         Stmt::LetDecl { is_pub: false,
             name: "center".to_string(),
-            value: Expr::Path(vec!["scene".to_string(), "center".to_string()])
+            value: Expr::Path(vec!["scene".to_string(), "center".to_string()]),
+            span: None,
         }
     );
 }
@@ -191,7 +207,7 @@ fn test_sequence_parse() {
                         name: None,
                         value: Expr::Ident("500ms".to_string()),
                     }],
-                }),
+                }, None),
                 Stmt::Assignment {
                     target: vec!["badge".to_string()],
                     property: "color".to_string(),
@@ -207,8 +223,10 @@ fn test_sequence_parse() {
                         },
                     ],
                     value_span: Some(ByteSpan { start: 47, end: 51 }),
+            span: None,
                 },
             ],
+            span: None,
         }
     );
 }
@@ -231,7 +249,7 @@ fn test_stagger_parse() {
                         name: None,
                         value: Expr::Ident("200ms".to_string()),
                     }],
-                }),
+                }, None),
                 Stmt::Assignment {
                     target: vec!["second".to_string()],
                     property: "color".to_string(),
@@ -241,8 +259,10 @@ fn test_stagger_parse() {
                         value: Expr::Ident("100ms".to_string()),
                     }],
                     value_span: Some(ByteSpan { start: 55, end: 59 }),
+            span: None,
                 },
             ],
+            span: None,
         }
     );
 }
@@ -264,7 +284,8 @@ fn test_stagger_each_parse() {
                     name: None,
                     value: Expr::Ident("200ms".to_string()),
                 }],
-            })],
+            }, None)],
+            span: None,
         }
     );
 }
@@ -302,6 +323,7 @@ fn test_actor_decl_full() {
                 }
             ],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -317,6 +339,7 @@ fn test_config_parse() {
                 value_span: Some(ByteSpan { start: 22, end: 39 }),
             trailing_comment: None,
             }],
+            span: None,
         }
     );
 }
@@ -345,6 +368,7 @@ fn test_actor_decl_colorscheme_alias_parse() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -373,6 +397,7 @@ fn test_text_colorscheme_alias_parse() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -406,6 +431,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                 },
             ],
             children: vec![],
+            span: None,
         }
     );
 
@@ -426,6 +452,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                 },
             ],
             value_span: Some(ByteSpan { start: 15, end: 18 }),
+            span: None,
         }
     );
 }
@@ -465,6 +492,7 @@ fn test_morph_modifier_keys_parse() {
                 },
             ],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -495,8 +523,9 @@ fn test_component_definition_and_instantiation_parse() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
-        })
+        }, None)
     );
 
     assert_eq!(
@@ -513,6 +542,7 @@ fn test_component_definition_and_instantiation_parse() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -541,6 +571,7 @@ fn test_code_stmt_parse() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -558,6 +589,7 @@ fn test_image_stmt() {
             anchor: None,
             offset: None,
             size: Some((240.0, 180.0)),
+            span: None,
         }
     );
 }
@@ -575,6 +607,7 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
             anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
             offset: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)])),
             scale: 1.5,
+            span: None,
         }
     );
 }
@@ -595,6 +628,7 @@ fn test_image_stmt_preserves_anchor_and_offset() {
                 Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
             ])),
             size: Some((240.0, 180.0)),
+            span: None,
         }
     );
 }
@@ -638,6 +672,7 @@ fn test_line_actor_decl() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -672,6 +707,7 @@ fn test_ellipse_actor_decl() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -720,6 +756,7 @@ fn test_arc_actor_decl() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -761,6 +798,7 @@ fn test_polygon_actor_decl() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -818,6 +856,7 @@ fn test_path_actor_decl() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     );
 }
@@ -858,6 +897,7 @@ fn test_actor_decl_nested() {
                     children: vec![],
                 }
             ],
+            span: None,
         }
     );
 }
@@ -896,6 +936,7 @@ fn test_actor_decl_anonymous() {
                     children: vec![],
                 }
             ],
+            span: None,
         }
     );
 }
@@ -951,6 +992,7 @@ fn test_actor_decl_nested_with_children() {
                     children: vec![],
                 }
             ],
+            span: None,
         }
     );
 }
@@ -974,7 +1016,7 @@ fn test_action() {
                 name: None,
                 value: Expr::Ident("1s".to_string())
             }],
-        })
+        }, None)
     );
 }
 
@@ -982,7 +1024,7 @@ fn test_action() {
 fn test_comments() {
     assert_eq!(
         parse_single_stmt("// This is a comment"),
-        Stmt::Comment(" This is a comment".to_string())
+        Stmt::Comment(" This is a comment".to_string(), None)
     );
 }
 
@@ -1066,6 +1108,7 @@ fn test_on_is_not_reserved_identifier() {
         Stmt::LetDecl { is_pub: false,
             name: "on".to_string(),
             value: Expr::Num(1.0),
+            span: None,
         }
     );
 }
@@ -1079,7 +1122,9 @@ fn test_always() {
             body: vec![Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Path(vec!["btn".to_string(), "x".to_string()]),
+            span: None,
             }],
+            span: None,
         }
     );
 }
@@ -1098,6 +1143,7 @@ fn test_expression_conditional() {
             ),
             modifiers: vec![],
             value_span: Some(ByteSpan { start: 13, end: 57 }),
+            span: None,
         }
     );
 }
@@ -1125,7 +1171,9 @@ fn test_labeled_always() {
                 value: Expr::Ident("red".to_string()),
                 modifiers: vec![],
                 value_span: Some(ByteSpan { start: 31, end: 35 }),
+            span: None,
             }],
+            span: None,
         }
     );
 }
@@ -1140,7 +1188,9 @@ fn test_labeled_always_simple() {
             body: vec![Stmt::LetDecl { is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Num(1.0),
+            span: None,
             }],
+            span: None,
         }
     );
 }
@@ -1157,8 +1207,9 @@ fn test_conditional() {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            })],
+            }, None)],
             else_branch: None,
+            span: None,
         }
     );
 }
@@ -1175,13 +1226,14 @@ fn test_conditional_with_else() {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            })],
+            }, None)],
             else_branch: Some(vec![Stmt::Action(Action {
                 verb: "fade-out".to_string(),
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            })]),
+            }, None)]),
+            span: None,
         }
     );
 }
@@ -1199,7 +1251,8 @@ fn test_for_loop() {
                 targets: vec!["item".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            })],
+            }, None)],
+            span: None,
         }
     );
 }
@@ -1220,7 +1273,8 @@ fn test_for_loop_with_range() {
                     name: None,
                     value: Expr::Ident("0.1s".to_string()),
                 }],
-            })],
+            }, None)],
+            span: None,
         }
     );
 }
@@ -1234,6 +1288,7 @@ fn test_pub_let_declaration() {
             is_pub: true,
             name: "pi".to_string(),
             value: Expr::Num(3.14),
+            span: None,
         }
     );
 }
@@ -1247,6 +1302,7 @@ fn test_let_declaration_without_pub() {
             is_pub: false,
             name: "x".to_string(),
             value: Expr::Num(42.0),
+            span: None,
         }
     );
 }
@@ -1259,6 +1315,7 @@ fn test_import_with_alias() {
         Stmt::Import {
             path: "theme.amx".to_string(),
             alias: Some("theme".to_string()),
+            span: None,
         }
     );
 }
@@ -1271,6 +1328,7 @@ fn test_import_without_alias() {
         Stmt::Import {
             path: "shared.amx".to_string(),
             alias: None,
+            span: None,
         }
     );
 }

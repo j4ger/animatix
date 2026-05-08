@@ -80,7 +80,7 @@ pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerE
 
 fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result<(), IrLowerError> {
     match stmt {
-        Stmt::Always { body } | Stmt::LabeledAlways { body, .. } => {
+        Stmt::Always { body, .. } | Stmt::LabeledAlways { body, .. } => {
             output.extend(lower_modifier_block(body)?);
         }
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
@@ -88,7 +88,7 @@ fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result
                 lower_modifier_roots(stmt, output)?;
             }
         }
-        Stmt::Comment(_) => {}
+        Stmt::Comment(..) => {}
         _ => {}
     }
     Ok(())
@@ -119,7 +119,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             property: property.clone(),
             value: compile_modifier_expr(value),
         }),
-        Stmt::LetDecl { name, value, is_pub: _ } => Ok(ModifierIrStmt::Let {
+        Stmt::LetDecl { name, value, is_pub: _, .. } => Ok(ModifierIrStmt::Let {
             name: name.clone(),
             value: compile_modifier_expr(value),
         }),
@@ -127,14 +127,15 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             condition,
             then_branch,
             else_branch,
+            ..
         } => Ok(ModifierIrStmt::If {
             condition: compile_modifier_expr(condition),
             then_branch: lower_modifier_block(then_branch)?,
             else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
         }),
-        Stmt::Comment(_) => Err(IrLowerError::UnsupportedStatement("comment")),
+        Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
         Stmt::ForLoop { .. } => Err(IrLowerError::UnsupportedStatement("for loop")),
-        Stmt::Action(_) => Err(IrLowerError::UnsupportedStatement("action")),
+        Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
         Stmt::Text { .. }
         | Stmt::Math { .. }
         | Stmt::Code { .. }
@@ -149,7 +150,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Stagger { .. }
         | Stmt::Always { .. }
         | Stmt::LabeledAlways { .. }
-        | Stmt::ComponentDef(_)
+        | Stmt::ComponentDef(..)
         | Stmt::ComponentAction { .. }
         | Stmt::Config { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),
     }

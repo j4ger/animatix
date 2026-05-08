@@ -372,6 +372,7 @@ mod tests {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     }
 
@@ -383,6 +384,7 @@ mod tests {
             anchor: None,
             offset: None,
             size: Some((120.0, 120.0)),
+            span: None,
         }
     }
 
@@ -410,6 +412,7 @@ mod tests {
                 },
             ],
             modifiers: vec![],
+            span: None,
         }
     }
 
@@ -422,7 +425,7 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident(format!("{duration_s}s")),
             }],
-        })
+        }, None)
     }
 
     #[test]
@@ -503,7 +506,7 @@ mod tests {
                             value: Expr::Ident("0s".to_string()),
                         },
                     ],
-                }),
+                }, None),
             ],
             span: None,
         }];

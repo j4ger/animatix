@@ -30,39 +30,46 @@ fn expand_stmt_into(
             body: expand_statements(body, components),
             span: None,
         }),
-        Stmt::Always { body } => output.push(Stmt::Always {
+        Stmt::Always { body, .. } => output.push(Stmt::Always {
             body: expand_statements(body, components),
+            span: None,
         }),
-        Stmt::LabeledAlways { label, body } => output.push(Stmt::LabeledAlways {
+        Stmt::LabeledAlways { label, body, .. } => output.push(Stmt::LabeledAlways {
             label: label.clone(),
             body: expand_statements(body, components),
+            span: None,
         }),
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
+            ..
         } => output.push(Stmt::Conditional {
             condition: condition.clone(),
             then_branch: expand_statements(then_branch, components),
             else_branch: else_branch
                 .as_ref()
                 .map(|branch| expand_statements(branch, components)),
+            span: None,
         }),
         Stmt::ForLoop {
             var,
             iterable,
             body,
+            ..
         } => output.push(Stmt::ForLoop {
             var: var.clone(),
             iterable: iterable.clone(),
             body: expand_statements(body, components),
+            span: None,
         }),
-        Stmt::ComponentAction { name, params, body } => output.push(Stmt::ComponentAction {
+        Stmt::ComponentAction { name, params, body, .. } => output.push(Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
             body: expand_statements(body, components),
+            span: None,
         }),
-        Stmt::ComponentDef(_) => {}
+        Stmt::ComponentDef(..) => {}
         Stmt::ActorDecl {
             label,
             ty,
@@ -192,7 +199,7 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         } => {
             labels.insert(label.clone());
         }
-        Stmt::LabeledAlways { label, body } => {
+        Stmt::LabeledAlways { label, body, .. } => {
             labels.insert(label.clone());
             for stmt in body {
                 collect_stmt_labels(stmt, labels);
@@ -200,9 +207,9 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         }
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body }
+        | Stmt::Sequence { body, .. }
         | Stmt::Stagger { body, .. }
-        | Stmt::Always { body }
+        | Stmt::Always { body, .. }
         | Stmt::ComponentAction { body, .. }
         | Stmt::ForLoop { body, .. } => {
             for stmt in body {
@@ -247,6 +254,7 @@ fn resolve_slots(
                 props,
                 modifiers,
                 children,
+                ..
             } => {
                 if has_slot_marker(&children) {
                     // Collect non-slot defaults from the container
@@ -275,6 +283,7 @@ fn resolve_slots(
                         props: props.clone(),
                         modifiers: modifiers.clone(),
                         children: replacement,
+                        span: None,
                     }
                 } else {
                     stmt.clone()

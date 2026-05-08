@@ -207,8 +207,8 @@ impl SymbolTable {
                 self.labels.insert(name.clone(), LabelInfo {
                     name: name.clone(),
                     kind: LabelKind::Let,
-                    line: 0, // TODO: extract from span when available
-                    col: 0,
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                     ty: None,
                 });
             }
@@ -217,8 +217,8 @@ impl SymbolTable {
                 self.labels.insert(label.clone(), LabelInfo {
                     name: label.clone(),
                     kind: LabelKind::Actor,
-                    line: 0,
-                    col: 0,
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                     ty: Some(ty.clone()),
                 });
             }
@@ -263,15 +263,15 @@ impl SymbolTable {
                 }
             }
 
-            Stmt::ComponentDef(def) => {
+            Stmt::ComponentDef(def, ..) => {
                 self.components.insert(def.name.clone(), ComponentInfo {
                     name: def.name.clone(),
                     params: def.params.iter().map(|p| ParamInfo {
                         name: p.name.clone(),
                         default: None, // TODO: serialize default
                     }).collect(),
-                    line: 0,
-                    col: 0,
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                 });
 
                 // Recurse into component body
@@ -284,8 +284,8 @@ impl SymbolTable {
                 self.labels.insert(var.clone(), LabelInfo {
                     name: var.clone(),
                     kind: LabelKind::For,
-                    line: 0,
-                    col: 0,
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                     ty: None,
                 });
 
@@ -298,8 +298,8 @@ impl SymbolTable {
                 self.labels.insert(label.clone(), LabelInfo {
                     name: label.clone(),
                     kind: LabelKind::Always,
-                    line: 0,
-                    col: 0,
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                     ty: None,
                 });
 
@@ -314,7 +314,7 @@ impl SymbolTable {
                     self.collect_stmt(stmt);
                 }
             }
-            Stmt::Sequence { body } | Stmt::Stagger { body, .. } | Stmt::Always { body } => {
+            Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
                 for stmt in body {
                     self.collect_stmt(stmt);
                 }
@@ -369,6 +369,7 @@ mod tests {
                 props: vec![],
                 modifiers: vec![],
                 children: vec![],
+                span: None,
             },
         ];
         let table = SymbolTable::build_from_ast(&stmts);
@@ -383,6 +384,7 @@ mod tests {
                 is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Num(42.0),
+                span: None,
             },
         ];
         let table = SymbolTable::build_from_ast(&stmts);
@@ -404,7 +406,7 @@ mod tests {
                     },
                 ],
                 body: vec![],
-            }),
+            }, None),
         ];
         let table = SymbolTable::build_from_ast(&stmts);
         assert!(table.components.contains_key("MyButton"));
@@ -431,6 +433,7 @@ mod tests {
                     },
                 ],
                 modifiers: vec![],
+                span: None,
             },
         ];
         let table = SymbolTable::build_from_ast(&stmts);

@@ -243,6 +243,7 @@ impl Timeline {
                 anchor,
                 offset,
                 scale,
+                ..
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_svg".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);
@@ -284,6 +285,7 @@ impl Timeline {
                 anchor,
                 offset,
                 size,
+                ..
             } => {
                 let label_str = label.clone().unwrap_or_else(|| "unnamed_image".to_string());
                 let eval_env = self.build_eval_env(time_ms as u64);

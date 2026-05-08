@@ -18,26 +18,24 @@
 
 ### 1.1 Font Selection System (3-Phase Plan)
 
-**Status:** `font_family` property is registered but non-functional (mapped to wrong field, overwrites text content). Hardcoded `"Open Sans"` in Typst markup. Only one embedded font (`mock_font.ttf`).
-**Location:** `crates/animatix/src/renderer/text.rs`, `crates/animatix/src/timeline/declarations_text.rs`, `crates/animatix/src/timeline/property_registry.rs:221`.
+**Status:** Phase 1 & 2 completed. Phase 3 deferred.
+**Location:** `crates/animatix/src/renderer/text.rs`, `crates/animatix/src/timeline/scene_eval.rs`.
 
-#### Phase 1 — Static Font Bundle *(In Progress)*
-Fix the property mapping (`font_family` → dedicated `ActorField::FontFamily`), add `font_family` storage on `AnimationTrack`, bundle 5-10 open-source fonts, and wire the font name through to Typst markup. Gives users working font selection at declaration time.
+#### Phase 1 — Static Font Bundle ✅
+Fixed property mapping (`font_family` → `ActorField::FontFamily`), added `font_family`/`font_size` storage on `AnimationTrack`, redesigned `TypstWorld` with dynamic font bundle loading, and wired font names through to Typst markup. Bundled fonts: "Open Sans", "Fira Math".
 
-**Files:** `property_registry.rs`, `track.rs`, `property_engine.rs`, `declarations_text.rs`, `renderer/text.rs`, `assignments.rs`, `assets/fonts/`.
+**Files touched:** `property_registry.rs`, `track.rs`, `property_engine.rs`, `declarations_text.rs`, `renderer/text.rs`.
 
-**Effort:** Low-Medium. Mostly plumbing + font files.
+#### Phase 2 — Render-Time Recompilation ✅
+Implemented `TextCompiler` service with `HashMap` cache keyed by `(content, font_family, font_size, color, kind)`. At render time, if `always` blocks change text content/font/size, glyphs are recompiled on-demand. Cached so identical combinations only pay compilation cost once.
 
-#### Phase 2 — Render-Time Recompilation
-Property assignment for `text` / `font_family` / `font_size` stores the value but does **not** trigger re-compilation of text glyph paths at render time. Implement a `TextCompiler` service with an LRU cache keyed by `(content, font_family, font_size, color)` that recompiles text during scene evaluation when any of these change. Enables `always { title.text = format("{t}", t) }` and dynamic font changes.
-
-**Effort:** Medium. Typesetting infrastructure exists; needs cache + render-loop wiring.
+**Files touched:** `renderer/text.rs` (new `TextCompiler`), `timeline/mod.rs`, `scene_eval.rs`.
 
 #### Phase 3 — System Font Discovery *(Deferred)*
 Access all installed system fonts via `font-kit` / `fontconfig`. Removes the curated-bundle limitation but introduces cross-platform complexity, non-determinism, and async loading concerns.
 
 **Effort:** High. Platform APIs, async loading, font caching.
-**Blocked until:** Phase 1 and 2 proven; user demand for out-of-bundle fonts.
+**Blocked until:** User demand for out-of-bundle fonts.
 
 ---
 
@@ -262,12 +260,15 @@ Completions and property edits insert at approximated positions. Needs actual cu
 - Timeline scrub → editor scrolls to nearest keyframe line (via `find_keyframe_line_at`).
 - Keyframe line highlighting (amber tag background, blue synced line).
 
-**What’s missing:**
-- **Parser span capture:** `Span` struct exists in `ast.rs`, but the parser (chumsky) does not populate it.
+**What's done:**
+- **Parser span capture:** ✅ `Span` added to every `Stmt` variant; all pattern matches updated across the codebase.
+- **Analyzer positions:** ✅ `Analyzer::enrich_positions` walks the tree-sitter tree and populates real line/col numbers for declarations (let, actor, component). LSP go-to-definition now jumps to the correct line.
+
+**What's missing:**
 - **Timeline index:** No `time → source location` mapping built from parsed spans.
 - **True bidirectional sync:** Editor cursor → timeline scrub is not implemented.
 
-**Effort:** Medium. Requires parser changes to capture `Rich<'src, char>` span info.
+**Effort:** Low-Medium. Span infrastructure is ready; needs timeline index + GUI wiring.
 
 ---
 
@@ -279,14 +280,11 @@ When keyframe mode inserts a new keyframe within 50ms of an existing one, it ski
 
 ---
 
-### 5.5 Analyzer Symbol Table Line Extraction
+### 5.5 Analyzer Symbol Table Line Extraction ✅
 
-**TODO:** `crates/animatix-analyzer/src/symbol_table.rs:210`
-```rust
-line: 0, // TODO: extract from span when available
-```
+**Status:** Completed.
 
-Symbol table entries use `line: 0` as a placeholder. Once parser spans are populated, this should extract actual line numbers.
+`Analyzer::enrich_positions` walks the tree-sitter parse tree and populates real `(line, col)` positions for all declarations (let bindings, actor declarations, component definitions). LSP `goto_definition` and document outline now show correct line numbers.
 
 ---
 
@@ -400,11 +398,9 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Font Selection — Phase 1 (static bundle) | Low-Medium | Very High |
-| 2 | Font Selection — Phase 2 (runtime recompilation) | Medium | Very High |
-| 2 | `Expr::Index` (array access) | Medium | High |
-| 3 | Parser span capture (enables editor sync) | Medium | High |
-| 4 | `reorder` action | Medium | Medium-High |
+| 1 | `Expr::Index` (array access) | Medium | High |
+| 2 | `reorder` action | Medium | Medium-High |
+| 3 | Module re-exports | Low-Medium | Medium |
 | 5 | Module re-exports | Low-Medium | Medium |
 | 6 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
 | 7 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
@@ -419,3 +415,13 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 ---
 
 *Last updated: 2026-05-08*
+
+---
+
+## 10. Recently Completed
+
+| Date | Item | Notes |
+|------|------|-------|
+| 2026-05-08 | Font Selection — Phase 1 & 2 | Static font bundle + runtime text recompilation with `TextCompiler` cache |
+| 2026-05-08 | `font_family` / `font_size` property fix | Both were mapped to wrong fields (silently broken); now properly stored on `AnimationTrack` |
+| 2026-05-08 | Parser span capture + analyzer positions | `Span` added to all `Stmt` variants; `Analyzer::enrich_positions` populates real line/col from tree-sitter for LSP go-to-definition |

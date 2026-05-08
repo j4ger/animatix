@@ -506,7 +506,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
     let config_stmt = text::keyword("config")
         .ignore_then(config_props)
-        .map(|settings| Stmt::Config { settings })
+        .map(|settings| Stmt::Config { settings, span: None })
         .padded();
 
     let stmt = recursive(|_stmt| {
@@ -522,6 +522,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 is_pub: pub_kw.is_some(),
                 name,
                 value,
+                span: None,
             })
             .padded();
 
@@ -538,7 +539,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .ignore_then(ident.clone())
                     .or_not(),
             )
-            .map(|(path, alias)| Stmt::Import { path, alias })
+            .map(|(path, alias)| Stmt::Import { path, alias, span: None })
             .padded();
 
         let assignment = dotted_ident
@@ -564,6 +565,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         value,
                         modifiers,
                         value_span: Some(value_span),
+                        span: None,
                     })
                 }
             })
@@ -619,6 +621,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     anchor,
                     offset,
                     scale,
+                    span: None,
                 }
             })
             .padded();
@@ -672,6 +675,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     anchor,
                     offset,
                     size,
+                    span: None,
                 }
             })
             .padded();
@@ -694,6 +698,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 }],
                 modifiers,
                 children: vec![],
+                span: None,
             })
             .padded();
 
@@ -732,6 +737,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     props,
                     modifiers,
                     children,
+                    span: None,
                 },
             )
             .padded();
@@ -746,7 +752,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     targets,
                     args: vec![],
                     modifiers,
-                })
+                }, None)
             })
             .padded();
 
@@ -758,7 +764,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .collect::<Vec<_>>()
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
-            .map(|body| Stmt::Sequence { body })
+            .map(|body| Stmt::Sequence { body, span: None })
             .padded();
 
         let stagger_stmt = text::keyword("stagger")
@@ -770,12 +776,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .collect::<Vec<_>>()
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
-            .map(|(modifiers, body)| Stmt::Stagger { modifiers, body })
+            .map(|(modifiers, body)| Stmt::Stagger { modifiers, body, span: None })
             .padded();
 
         let comment = just("//")
             .ignore_then(none_of("\r\n").repeated().to_slice().map(String::from))
-            .map(Stmt::Comment)
+            .map(|text| Stmt::Comment(text, None))
             .padded();
 
         // Always statement: always { }
@@ -787,7 +793,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         let always_stmt = text::keyword("always")
             .ignore_then(always_body.clone())
-            .map(|body| Stmt::Always { body })
+            .map(|body| Stmt::Always { body, span: None })
             .padded();
 
         let labeled_always_stmt = ident
@@ -795,7 +801,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then_ignore(just(':').padded())
             .then(text::keyword("always"))
             .then(always_body.clone())
-            .map(|((label, _), body)| Stmt::LabeledAlways { label, body })
+            .map(|((label, _), body)| Stmt::LabeledAlways { label, body, span: None })
             .padded();
 
         // Conditional: if expr { }
@@ -812,6 +818,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     condition,
                     then_branch,
                     else_branch,
+                    span: None,
                 },
             )
             .padded();
@@ -832,6 +839,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 var,
                 iterable,
                 body,
+                span: None,
             })
             .padded();
 
@@ -877,7 +885,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     name,
                     params,
                     body,
-                })
+                }, None)
             })
             .padded();
 
@@ -952,7 +960,7 @@ mod tests {
 
         // Find the LetDecl stmt
         if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::LetDecl { is_pub, name, value } = &body[0] {
+            if let Stmt::LetDecl { is_pub, name, value, .. } = &body[0] {
                 assert_eq!(*is_pub, false);
                 assert_eq!(name, "f");
                 assert_eq!(
@@ -987,6 +995,7 @@ mod tests {
                 props,
                 modifiers,
                 children,
+                ..
             } = &body[0]
             {
                 assert_eq!(*is_pub, false);

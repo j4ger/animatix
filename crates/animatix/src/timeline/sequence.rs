@@ -8,7 +8,7 @@ impl Timeline {
     pub(super) fn sequence_statement_span_ms(&self, stmt: &Stmt) -> Option<f64> {
         let mut ignored_diagnostics = Vec::new();
         match stmt {
-            Stmt::Action(action) => {
+            Stmt::Action(action, ..) => {
                 let parsed = parse_timing_modifiers(
                     &action.modifiers,
                     ModifierHost::Action,

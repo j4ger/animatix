@@ -177,6 +177,7 @@ fn test_timeline_build_and_evaluate() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -202,6 +203,7 @@ fn test_timeline_build_and_evaluate() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -291,6 +293,7 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -314,6 +317,7 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -341,6 +345,7 @@ fn explicit_color_beats_colorscheme_alias() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -364,6 +369,7 @@ fn explicit_color_beats_colorscheme_alias() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -386,6 +392,7 @@ fn explicit_stroke_beats_stroke_alias() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -409,6 +416,7 @@ fn explicit_stroke_beats_stroke_alias() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -431,6 +439,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -447,6 +456,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                     }],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
@@ -460,6 +470,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                     }],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
             ],
             span: None,
@@ -478,6 +489,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -501,6 +513,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -525,6 +538,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
@@ -546,6 +560,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
@@ -567,6 +582,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
             ],
             span: None,
@@ -599,6 +615,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -614,6 +631,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -640,6 +658,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -657,6 +676,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                     }],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 // Circle without explicit color should get surface.primary
                 Stmt::ActorDecl {
@@ -671,6 +691,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                     }],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 // Line without explicit stroke should get stroke.default
                 Stmt::ActorDecl {
@@ -693,6 +714,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
             ],
             span: None,
@@ -728,6 +750,7 @@ fn explicit_color_beats_primitive_default() {
                 value_span: None,
             trailing_comment: None,
             }],
+            span: None,
         },
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -758,6 +781,7 @@ fn explicit_color_beats_primitive_default() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
                 // Circle with auto should use auto pool, not surface.primary
                 Stmt::ActorDecl {
@@ -780,6 +804,7 @@ fn explicit_color_beats_primitive_default() {
                     ],
                     modifiers: vec![],
                     children: vec![],
+            span: None,
                 },
             ],
             span: None,
@@ -819,6 +844,7 @@ fn default_scheme_applies_primitive_defaults() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             // Circle without explicit color should get surface.primary from default-dark
             Stmt::ActorDecl {
@@ -833,6 +859,7 @@ fn default_scheme_applies_primitive_defaults() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
         ],
         span: None,
@@ -912,6 +939,7 @@ fn test_text_spacing_preserves_space_width() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -938,6 +966,7 @@ fn test_text_spacing_preserves_space_width() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -985,6 +1014,7 @@ fn test_code_primitive_builds_text_paths() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1030,6 +1060,7 @@ fn test_code_primitive_respects_position_binding() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1109,6 +1140,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -1126,6 +1158,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -1183,6 +1216,7 @@ fn test_square_primitive_builds_rect_shape() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1208,6 +1242,7 @@ fn test_dot_primitive_uses_small_default_radius() {
             props: vec![],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1243,6 +1278,7 @@ fn test_regular_polygon_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1278,6 +1314,7 @@ fn test_arrow_primitive_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1316,6 +1353,7 @@ fn test_arrow_tip_properties_update_size_track() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -1390,6 +1428,7 @@ fn test_parametric_plot_builds_runtime_path() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -1478,6 +1517,7 @@ fn test_implicit_plot_builds_runtime_path() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -1509,6 +1549,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -1520,6 +1561,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
                 value: Expr::Num(1.0),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -1666,6 +1708,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -1687,6 +1730,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
         ],
         span: None,
@@ -1717,6 +1761,7 @@ fn rhs_path_lookup_supports_vector_components() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -1741,6 +1786,7 @@ fn rhs_path_lookup_supports_vector_components() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
         ],
         span: None,
@@ -2073,6 +2119,7 @@ fn test_image_properties_are_animatable() {
                 anchor: None,
                 offset: None,
                 size: Some((48.0, 48.0)),
+            span: None,
             }],
             span: None,
         },
@@ -2088,6 +2135,7 @@ fn test_image_properties_are_animatable() {
                         value: Expr::Ident("1s".to_string()),
                     }],
                     value_span: None,
+            span: None,
                 },
                 Stmt::Assignment {
                     target: vec!["photo".to_string()],
@@ -2098,6 +2146,7 @@ fn test_image_properties_are_animatable() {
                         value: Expr::Ident("1s".to_string()),
                     }],
                     value_span: None,
+            span: None,
                 },
             ],
             span: None,
@@ -2129,6 +2178,7 @@ fn test_missing_image_statement_reports_media_load_failure() {
             anchor: None,
             offset: None,
             size: None,
+            span: None,
         }],
         span: None,
     }];
@@ -2155,6 +2205,7 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
             anchor: None,
             offset: None,
             scale: 1.0,
+            span: None,
         }],
         span: None,
     }];
@@ -2326,6 +2377,7 @@ fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
                 },
             ],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2361,6 +2413,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
                 anchor: None,
                 offset: None,
                 size: Some((32.0, 32.0)),
+            span: None,
             }],
             span: None,
         },
@@ -2372,6 +2425,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
                 value: Expr::Str("/definitely/missing/animatix-image.png".to_string()),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2396,6 +2450,7 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
                 anchor: None,
                 offset: None,
                 scale: 1.0,
+            span: None,
             }],
             span: None,
         },
@@ -2407,6 +2462,7 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
                 value: Expr::Str(example_path("vector.svg")),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2449,6 +2505,7 @@ fn test_line_actor_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2494,6 +2551,7 @@ fn test_ellipse_actor_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2549,6 +2607,7 @@ fn test_arc_actor_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2590,6 +2649,7 @@ fn test_polygon_actor_builds_runtime_path() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2647,6 +2707,7 @@ fn test_path_actor_builds_runtime_path() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2697,6 +2758,7 @@ fn test_path_quad_to_builds_runtime_path() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2734,6 +2796,7 @@ fn test_line_assignments_rebuild_runtime_path() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -2745,6 +2808,7 @@ fn test_line_assignments_rebuild_runtime_path() {
                 value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(40.0)]),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2785,6 +2849,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -2796,6 +2861,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
                 value: Expr::Num(60.0),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2848,6 +2914,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -2859,6 +2926,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
                 value: Expr::Num(std::f64::consts::PI),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2911,6 +2979,7 @@ fn test_arc_negative_sweep_builds_runtime_path() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -2943,6 +3012,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -2959,6 +3029,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
                 ]),
                 modifiers: vec![],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -2996,6 +3067,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3022,6 +3094,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3067,6 +3140,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3108,6 +3182,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3143,6 +3218,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3163,6 +3239,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
                     value: Expr::Ident("match".to_string()),
                 }],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3196,6 +3273,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3209,7 +3287,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
                     name: Some("strategy".to_string()),
                     value: Expr::Ident("match".to_string()),
                 }],
-            })],
+            }, None)],
             span: None,
         },
     ];
@@ -3240,6 +3318,7 @@ fn test_action_delay_starts_later() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3259,7 +3338,7 @@ fn test_action_delay_starts_later() {
                         value: Expr::Ident("1s".to_string()),
                     },
                 ],
-            })],
+            }, None)],
             span: None,
         },
     ];
@@ -3294,6 +3373,7 @@ fn test_sequence_advances_statement_timing() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::Sequence {
                 body: vec![
@@ -3305,7 +3385,7 @@ fn test_sequence_advances_statement_timing() {
                             name: None,
                             value: Expr::Ident("500ms".to_string()),
                         }],
-                    }),
+                    }, None),
                     Stmt::Assignment {
                         target: vec!["badge".to_string()],
                         property: "radius".to_string(),
@@ -3321,8 +3401,10 @@ fn test_sequence_advances_statement_timing() {
                             },
                         ],
                         value_span: None,
+            span: None,
                     },
                 ],
+                span: None,
             },
         ],
         span: None,
@@ -3359,7 +3441,9 @@ fn test_sequence_reports_unsupported_statements() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -3387,6 +3471,7 @@ fn test_stagger_offsets_statement_start_times() {
         }],
         modifiers: vec![],
         children: vec![],
+            span: None,
     };
 
     let fade_out = |label: &str| {
@@ -3398,7 +3483,7 @@ fn test_stagger_offsets_statement_start_times() {
                 name: None,
                 value: Expr::Ident("200ms".to_string()),
             }],
-        })
+        }, None)
     };
 
     let ast = vec![Stmt::Keyframe {
@@ -3413,6 +3498,7 @@ fn test_stagger_offsets_statement_start_times() {
                     value: Expr::Ident("150ms".to_string()),
                 }],
                 body: vec![fade_out("a"), fade_out("b"), fade_out("c")],
+            span: None,
             },
         ],
         span: None,
@@ -3452,7 +3538,9 @@ fn test_stagger_reports_unsupported_statements() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -3483,6 +3571,7 @@ fn test_rotation_assignment_animates_track() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3497,6 +3586,7 @@ fn test_rotation_assignment_animates_track() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -3531,6 +3621,7 @@ fn test_scale_assignment_animates_track() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3545,6 +3636,7 @@ fn test_scale_assignment_animates_track() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -3581,6 +3673,7 @@ fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
                 value: Expr::Ident("1s".to_string()),
             }],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -3630,6 +3723,7 @@ fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
                 },
             ],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -3678,6 +3772,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3720,6 +3815,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
                     },
                 ],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -3777,6 +3873,7 @@ fn test_row_child_with_explicit_origin_stays_manual() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -3815,6 +3912,7 @@ fn test_text_primitive_reports_measured_size() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -3851,6 +3949,7 @@ fn test_math_primitive_reports_measured_size() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -3887,6 +3986,7 @@ fn test_code_primitive_reports_measured_size() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -3911,6 +4011,7 @@ fn test_svg_primitive_reports_measured_size() {
             anchor: None,
             offset: None,
             scale: 1.0,
+            span: None,
         }],
         span: None,
     }];
@@ -3934,6 +4035,7 @@ fn test_scaled_svg_primitive_reports_scaled_size() {
             anchor: None,
             offset: None,
             scale: 2.0,
+            span: None,
         }],
         span: None,
     }];
@@ -3956,6 +4058,7 @@ fn test_svg_paths_are_centered_around_origin() {
             anchor: None,
             offset: None,
             scale: 1.0,
+            span: None,
         }],
         span: None,
     }];
@@ -4153,6 +4256,7 @@ fn test_row_child_without_at_is_layout_managed() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -4227,6 +4331,7 @@ fn test_row_mixed_manual_and_layout_children() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -4296,6 +4401,7 @@ fn test_col_child_with_explicit_origin_stays_manual() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -4345,6 +4451,7 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -4376,6 +4483,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -4390,6 +4498,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 value_span: None,
+            span: None,
             }],
             span: None,
         },
@@ -4427,6 +4536,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -4455,6 +4565,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
                     value: Expr::Ident("1s".to_string()),
                 }],
                 children: vec![],
+            span: None,
             }],
             span: None,
         },
@@ -4494,6 +4605,7 @@ fn test_root_row_without_at_uses_container_default_center_binding() {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }],
         span: None,
     }];
@@ -4582,6 +4694,7 @@ fn test_grid_layout_positions_children_in_cells() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -4661,6 +4774,7 @@ fn test_stack_layout_overlaps_children_by_default() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -4743,6 +4857,7 @@ fn test_row_with_text_children_uses_measured_bounds() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -5014,6 +5129,7 @@ fn test_col_with_code_child_uses_measured_bounds() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -5099,6 +5215,7 @@ fn test_row_with_mixed_authored_and_measured_children() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -5182,6 +5299,7 @@ fn test_row_align_start_uses_measured_child_height() {
                     children: vec![],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];
@@ -5209,6 +5327,7 @@ fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
                 props: vec![],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -5217,6 +5336,7 @@ fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
                 props: vec![],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
         ],
         span: None,
@@ -5300,6 +5420,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -5313,6 +5434,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
                 }],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
         ],
         span: None,
@@ -5379,6 +5501,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
                 modifiers: vec![],
                 children: vec![],
             }],
+            span: None,
         }],
         span: None,
     }];
@@ -5575,6 +5698,7 @@ fn test_timeline_with_expr_call_properties() {
             ]),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }],
         span: None,
     }];
@@ -5884,6 +6008,7 @@ fn test_namespace_export_resolution_in_expressions() {
             is_pub: false,
             name: "panel_color".to_string(),
             value: Expr::Path(vec!["theme".to_string(), "accent".to_string()]),
+            span: None,
         },
         Stmt::ActorDecl {
             is_pub: false,
@@ -5905,6 +6030,7 @@ fn test_namespace_export_resolution_in_expressions() {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         },
     ];
 
@@ -6812,6 +6938,7 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                     }],
                 },
             ],
+            span: None,
         }],
         span: None,
     }];

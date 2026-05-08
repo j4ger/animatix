@@ -5,8 +5,8 @@ use std::fmt::Debug;
 // ----------------------------------------------------------------------------
 // 0. Source Spans (for editor-timeline sync)
 // ----------------------------------------------------------------------------
-/// Source location span for AST nodes.
-/// Used for editor navigation and diagnostics.
+    /// Source location span for AST nodes.
+/// Used for editor navigation, diagnostics, and bidirectional sync.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Span {
     pub start_line: usize,
@@ -15,7 +15,7 @@ pub struct Span {
     pub end_col: usize,
 }
 
-/// Byte-offset range into source text. Used for surgical source edits.
+/// Byte-offset range into source text. Used during parsing before line/col conversion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct ByteSpan {
     pub start: usize,
@@ -34,6 +34,49 @@ impl Span {
 
     pub fn line(&self) -> usize {
         self.start_line
+    }
+
+    /// Convert a `ByteSpan` to a `Span` given the source text.
+    pub fn from_byte_span(source: &str, byte_span: ByteSpan) -> Self {
+        let mut line = 1;
+        let mut col = 1;
+        let mut start_line = 1;
+        let mut start_col = 1;
+        let mut end_line = 1;
+        let mut end_col = 1;
+        let mut in_start = true;
+
+        for (i, ch) in source.char_indices() {
+            if i == byte_span.start {
+                start_line = line;
+                start_col = col;
+                in_start = false;
+            }
+            if i == byte_span.end {
+                end_line = line;
+                end_col = col;
+                break;
+            }
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+
+        // Handle edge case where end is at EOF
+        if byte_span.end == source.len() {
+            end_line = line;
+            end_col = col;
+        }
+
+        Self {
+            start_line,
+            start_col,
+            end_line,
+            end_col,
+        }
     }
 }
 
@@ -116,7 +159,7 @@ pub struct Property {
     pub value: Expr,
     /// Byte-offset span of the value expression within the source text.
     /// Used for surgical source edits (writing back to .amx file).
-    #[doc(hidden)]
+    
     pub value_span: Option<ByteSpan>,
     /// Trailing line comment after this property, e.g. `size: (100, 200) // half-extents`.
     /// Only `//` line comments immediately following the property value are captured.
@@ -224,7 +267,7 @@ pub enum InlineItem {
 pub enum Stmt {
     // === Actions ===
     /// Action invocation: move btn to (100, 100) [2s]
-    Action(Action),
+    Action(Action,  Option<Span>),
 
     // === Declarations ===
     /// Variable: let x = 0
@@ -232,6 +275,8 @@ pub enum Stmt {
         is_pub: bool,
         name: String,
         value: Expr,
+        
+        span: Option<Span>,
     },
 
     // === Actors/Nodes ===
@@ -239,18 +284,24 @@ pub enum Stmt {
         label: Option<String>,
         props: Vec<Property>,
         modifiers: Vec<Modifier>,
+        
+        span: Option<Span>,
     },
 
     Math {
         label: Option<String>,
         props: Vec<Property>,
         modifiers: Vec<Modifier>,
+        
+        span: Option<Span>,
     },
 
     Code {
         label: Option<String>,
         props: Vec<Property>,
         modifiers: Vec<Modifier>,
+        
+        span: Option<Span>,
     },
 
     Svg {
@@ -260,6 +311,8 @@ pub enum Stmt {
         anchor: Option<Expr>,
         offset: Option<Expr>,
         scale: f32,
+        
+        span: Option<Span>,
     },
 
     Image {
@@ -269,6 +322,8 @@ pub enum Stmt {
         anchor: Option<Expr>,
         offset: Option<Expr>,
         size: Option<(f32, f32)>,
+        
+        span: Option<Span>,
     },
 
     /// Actor: btn: Button, text: "OK"
@@ -280,38 +335,42 @@ pub enum Stmt {
         props: Vec<Property>,
         modifiers: Vec<Modifier>,
         children: Vec<InlineItem>, // For containers: Row { A, B }
+        
+        span: Option<Span>,
     },
 
     /// Import: import "path"
     Import {
         path: String,
         alias: Option<String>,
+        
+        span: Option<Span>,
     },
 
     /// Use: use container.{a, b}
     Use {
         path: String,
         items: Vec<String>,
+        
+        span: Option<Span>,
     },
 
     // === Timeline ===
     /// Keyframe: #2s { ... }
     /// Contains a body of statements/actions occurring at this time
-    /// Note: `span` tracks source location for editor-timeline sync feature
     Keyframe {
         time: Time,
         body: Vec<Stmt>,
-        #[doc(hidden)]
-        span: Option<Span>, // Reserved for future editor-timeline sync
+        
+        span: Option<Span>,
     },
 
     /// Relative Keyframe: #+1s { ... }
-    /// Note: `span` tracks source location for editor-timeline sync feature
     RelativeKeyframe {
         offset: Time,
         body: Vec<Stmt>,
-        #[doc(hidden)]
-        span: Option<Span>, // Reserved for future editor-timeline sync
+        
+        span: Option<Span>,
     },
 
     // === Assignments ===
@@ -323,31 +382,41 @@ pub enum Stmt {
         modifiers: Vec<Modifier>,
         /// Byte-offset span of the value expression within the source text.
         /// Used for surgical source edits (writing back to .amx file).
-        #[doc(hidden)]
+        
         value_span: Option<ByteSpan>,
+        
+        span: Option<Span>,
     },
 
     /// Composition helper: sequence { ... }
     Sequence {
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     /// Composition helper: stagger [150ms] { ... }
     Stagger {
         modifiers: Vec<Modifier>,
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     // === Reactive Blocks ===
     /// Always: always { ... }
     Always {
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     /// Labeled Always: job: always { ... }
     LabeledAlways {
         label: String,
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     // === Control Flow ===
@@ -356,6 +425,8 @@ pub enum Stmt {
         condition: Expr,
         then_branch: Vec<Stmt>,
         else_branch: Option<Vec<Stmt>>,
+        
+        span: Option<Span>,
     },
 
     /// Iteration: for item in items { ... }
@@ -363,27 +434,33 @@ pub enum Stmt {
         var: String,
         iterable: Expr,
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     // === Component Definitions (in .actor.actx files) ===
     /// Component: Button(text: "Click") { ... }
-    ComponentDef(ComponentDef),
+    ComponentDef(ComponentDef,  Option<Span>),
 
     /// Component Action: action hover { ... }
     ComponentAction {
         name: String,
         params: Vec<ParamDef>,
         body: Vec<Stmt>,
+        
+        span: Option<Span>,
     },
 
     // === Configuration ===
     /// Config: @config { resolution: 1920x1080 }
     Config {
         settings: Vec<Property>,
+        
+        span: Option<Span>,
     },
 
     // === Comments ===
-    Comment(String),
+    Comment(String,  Option<Span>),
 }
 
 // ----------------------------------------------------------------------------

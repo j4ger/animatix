@@ -308,6 +308,7 @@ mod tests {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     }
 
@@ -326,7 +327,7 @@ mod tests {
                     value: Expr::Ident("500ms".to_string()),
                 },
             ],
-        })
+        }, None)
     }
 
     #[test]
@@ -365,7 +366,7 @@ mod tests {
                         name: None,
                         value: Expr::Ident("600ms".to_string()),
                     }],
-                }),
+                }, None),
             ],
             span: None,
         }];

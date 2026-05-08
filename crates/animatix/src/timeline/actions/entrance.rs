@@ -170,6 +170,7 @@ mod tests {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     }
 
@@ -197,6 +198,7 @@ mod tests {
                 },
             ],
             modifiers: vec![],
+            span: None,
         }
     }
 
@@ -209,7 +211,7 @@ mod tests {
                 name: None,
                 value: Expr::Ident(format!("{duration_s}s")),
             }],
-        })
+        }, None)
     }
 
     #[test]
@@ -240,6 +242,7 @@ mod tests {
                         },
                     ],
                     modifiers: vec![],
+                    span: None,
                 },
                 Stmt::Action(Action {
                     verb: "fade-in".to_string(),
@@ -249,7 +252,7 @@ mod tests {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
-                }),
+                }, None),
             ],
             span: None,
         }];

@@ -525,6 +525,7 @@ mod tests {
             }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }
     }
 
@@ -543,7 +544,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
-        })
+        }, None)
     }
 
     fn move_action(target: &str, to: Expr) -> Stmt {
@@ -561,7 +562,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
-        })
+        }, None)
     }
 
     fn rotate_action(target: &str, by: Expr) -> Stmt {
@@ -579,7 +580,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
-        })
+        }, None)
     }
 
     fn scale_action(target: &str, by: Expr) -> Stmt {
@@ -597,7 +598,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
-        })
+        }, None)
     }
 
     #[test]
@@ -782,6 +783,7 @@ mod tests {
                         modifiers: vec![],
                         children: vec![],
                     }],
+                    span: None,
                 },
                 shift_action("child", Expr::Tuple(vec![Expr::Num(25.0), Expr::Num(0.0)])),
             ],

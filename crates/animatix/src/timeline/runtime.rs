@@ -147,7 +147,7 @@ impl Timeline {
                     *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
                 }
             }
-            Stmt::LetDecl { is_pub: _, name, value } => {
+            Stmt::LetDecl { is_pub: _, name, value, .. } => {
                 if let Ok(val) = evaluate_expr(value, frame_env) {
                     frame_env.set(name, val);
                 }
@@ -156,6 +156,7 @@ impl Timeline {
                 condition,
                 then_branch,
                 else_branch,
+                ..
             } => {
                 if evaluate_expr(condition, frame_env)
                     .map(|value| value.as_num() != 0.0)

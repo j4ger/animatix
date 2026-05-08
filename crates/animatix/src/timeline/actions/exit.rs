@@ -98,6 +98,7 @@ mod tests {
                 },
             ],
             modifiers: vec![],
+            span: None,
         }
     }
 
@@ -115,7 +116,7 @@ mod tests {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
-                }),
+                }, None),
             ],
             span: None,
         }];

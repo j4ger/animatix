@@ -315,21 +315,21 @@ impl ToSource for InlineItem {
 impl ToSource for Stmt {
     fn to_source(&self) -> String {
         match self {
-            Stmt::Action(a) => a.to_source(),
-            Stmt::LetDecl { is_pub, name, value } => {
+            Stmt::Action(a, ..) => a.to_source(),
+            Stmt::LetDecl { is_pub, name, value, .. } => {
                 let pub_kw = if *is_pub { "pub " } else { "" };
                 format!("{}let {} = {}", pub_kw, name, value.to_source())
             }
-            Stmt::Text { label, props, modifiers } => {
+            Stmt::Text { label, props, modifiers, .. } => {
                 serialize_actor_like_stmt(label.as_deref(), "Text", props, modifiers, &[])
             }
-            Stmt::Math { label, props, modifiers } => {
+            Stmt::Math { label, props, modifiers, .. } => {
                 serialize_actor_like_stmt(label.as_deref(), "Math", props, modifiers, &[])
             }
-            Stmt::Code { label, props, modifiers } => {
+            Stmt::Code { label, props, modifiers, .. } => {
                 serialize_actor_like_stmt(label.as_deref(), "Code", props, modifiers, &[])
             }
-            Stmt::Svg { label, url, at, anchor, offset, scale } => {
+            Stmt::Svg { label, url, at, anchor, offset, scale, .. } => {
                 let mut props: Vec<Property> = vec![Property {
                     name: "url".into(),
                     value: Expr::Str(url.clone()),
@@ -355,7 +355,7 @@ impl ToSource for Stmt {
                 }
                 serialize_actor_like_stmt(label.as_deref(), "Svg", &props, &[], &[])
             }
-            Stmt::Image { label, url, at, anchor, offset, size } => {
+            Stmt::Image { label, url, at, anchor, offset, size, .. } => {
                 let mut props: Vec<Property> = vec![Property {
                     name: "url".into(),
                     value: Expr::Str(url.clone()),
@@ -381,7 +381,7 @@ impl ToSource for Stmt {
                 }
                 serialize_actor_like_stmt(label.as_deref(), "Image", &props, &[], &[])
             }
-            Stmt::ActorDecl { is_pub, label, ty, props, modifiers, children } => {
+            Stmt::ActorDecl { is_pub, label, ty, props, modifiers, children, .. } => {
                 let s = serialize_actor_like_stmt(
                     Some(label),
                     ty,
@@ -391,11 +391,11 @@ impl ToSource for Stmt {
                 );
                 if *is_pub { format!("pub {}", s) } else { s }
             }
-            Stmt::Import { path, alias } => match alias {
+            Stmt::Import { path, alias, .. } => match alias {
                 Some(a) => format!(r#"import "{}" as {}"#, path, a),
                 None => format!(r#"import "{}""#, path),
             },
-            Stmt::Use { path, items } => {
+            Stmt::Use { path, items, .. } => {
                 let items_str = items.join(", ");
                 format!("use {}.{{{}}}", path, items_str)
             }
@@ -416,12 +416,12 @@ impl ToSource for Stmt {
                 }
                 parts.join("")
             }
-            Stmt::Sequence { body } => {
+            Stmt::Sequence { body, .. } => {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);
                 format!("sequence {{\n{}\n}}", indented)
             }
-            Stmt::Stagger { modifiers, body } => {
+            Stmt::Stagger { modifiers, body, .. } => {
                 let mut header = "stagger".to_string();
                 if !modifiers.is_empty() {
                     let mods = modifiers.iter().map(|m| m.to_source()).collect::<Vec<_>>().join(", ");
@@ -431,17 +431,17 @@ impl ToSource for Stmt {
                 let indented = indent(&body_str, 1);
                 format!("{} {{\n{}\n}}", header, indented)
             }
-            Stmt::Always { body } => {
+            Stmt::Always { body, .. } => {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);
                 format!("always {{\n{}\n}}", indented)
             }
-            Stmt::LabeledAlways { label, body } => {
+            Stmt::LabeledAlways { label, body, .. } => {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);
                 format!("{}: always {{\n{}\n}}", label, indented)
             }
-            Stmt::Conditional { condition, then_branch, else_branch } => {
+            Stmt::Conditional { condition, then_branch, else_branch, .. } => {
                 let then_str = then_branch.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let then_indented = indent(&then_str, 1);
                 let mut result = format!("if {} {{\n{}\n}}", condition.to_source(), then_indented);
@@ -452,13 +452,13 @@ impl ToSource for Stmt {
                 }
                 result
             }
-            Stmt::ForLoop { var, iterable, body } => {
+            Stmt::ForLoop { var, iterable, body, .. } => {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);
                 format!("for {} in {} {{\n{}\n}}", var, iterable.to_source(), indented)
             }
-            Stmt::ComponentDef(def) => def.to_source(),
-            Stmt::ComponentAction { name, params, body } => {
+            Stmt::ComponentDef(def, ..) => def.to_source(),
+            Stmt::ComponentAction { name, params, body, .. } => {
                 let params_str = params
                     .iter()
                     .map(|p| p.to_source())
@@ -468,7 +468,7 @@ impl ToSource for Stmt {
                 let indented = indent(&body_str, 1);
                 format!("action {}({}) {{\n{}\n}}", name, params_str, indented)
             }
-            Stmt::Config { settings } => {
+            Stmt::Config { settings, .. } => {
                 let inner = settings
                     .iter()
                     .map(|s| s.to_source())
@@ -476,7 +476,7 @@ impl ToSource for Stmt {
                     .join(", ");
                 format!("config {{ {} }}", inner)
             }
-            Stmt::Comment(text) => format!("//{}", text),
+            Stmt::Comment(text, ..) => format!("//{}", text),
         }
     }
 }

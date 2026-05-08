@@ -12,34 +12,40 @@ pub(super) fn rewrite_stmt(
             label,
             props,
             modifiers,
+            ..
         } => Stmt::Text {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+            span: None,
         },
         Stmt::Math {
             label,
             props,
             modifiers,
+            ..
         } => Stmt::Math {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+            span: None,
         },
         Stmt::Code {
             label,
             props,
             modifiers,
+            ..
         } => Stmt::Code {
             label: label
                 .as_ref()
                 .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+            span: None,
         },
         Stmt::Svg {
             label,
@@ -48,6 +54,7 @@ pub(super) fn rewrite_stmt(
             anchor,
             offset,
             scale,
+            ..
         } => Stmt::Svg {
             label: label
                 .as_ref()
@@ -63,6 +70,7 @@ pub(super) fn rewrite_stmt(
                 .as_ref()
                 .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
             scale: *scale,
+            span: None,
         },
         Stmt::Image {
             label,
@@ -71,6 +79,7 @@ pub(super) fn rewrite_stmt(
             anchor,
             offset,
             size,
+            ..
         } => Stmt::Image {
             label: label
                 .as_ref()
@@ -86,6 +95,7 @@ pub(super) fn rewrite_stmt(
                 .as_ref()
                 .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
             size: *size,
+            span: None,
         },
         Stmt::ActorDecl {
             is_pub,
@@ -94,6 +104,7 @@ pub(super) fn rewrite_stmt(
             props,
             modifiers,
             children,
+            ..
         } => Stmt::ActorDecl {
             is_pub: *is_pub,
             label: rewrite_label(label, prefix, root_label, known_labels),
@@ -101,6 +112,7 @@ pub(super) fn rewrite_stmt(
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             children: rewrite_inline_items(children, prefix, root_label, known_labels, bindings),
+            span: None,
         },
         Stmt::Assignment {
             target,
@@ -108,27 +120,31 @@ pub(super) fn rewrite_stmt(
             value,
             modifiers,
             value_span,
+            ..
         } => Stmt::Assignment {
             target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             value_span: *value_span,
+            span: None,
         },
-        Stmt::Sequence { body } => Stmt::Sequence {
+        Stmt::Sequence { body, .. } => Stmt::Sequence {
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::Stagger { modifiers, body } => Stmt::Stagger {
+        Stmt::Stagger { modifiers, body, .. } => Stmt::Stagger {
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::Action(action) => Stmt::Action(Action {
+        Stmt::Action(action, ..) => Stmt::Action(Action {
             verb: action.verb.clone(),
             targets: action
                 .targets
@@ -147,11 +163,12 @@ pub(super) fn rewrite_stmt(
                 known_labels,
                 bindings,
             ),
-        }),
-        Stmt::LetDecl { is_pub, name, value } => Stmt::LetDecl {
+        }, None),
+        Stmt::LetDecl { is_pub, name, value, .. } => Stmt::LetDecl {
             is_pub: *is_pub,
             name: name.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
+            span: None,
         },
         Stmt::Keyframe { time, body, .. } => Stmt::Keyframe {
             time: time.clone(),
@@ -169,23 +186,26 @@ pub(super) fn rewrite_stmt(
                 .collect(),
             span: None,
         },
-        Stmt::Always { body } => Stmt::Always {
+        Stmt::Always { body, .. } => Stmt::Always {
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::LabeledAlways { label, body } => Stmt::LabeledAlways {
+        Stmt::LabeledAlways { label, body, .. } => Stmt::LabeledAlways {
             label: rewrite_label(label, prefix, root_label, known_labels),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
+            ..
         } => Stmt::Conditional {
             condition: rewrite_expr(condition, prefix, root_label, known_labels, bindings),
             then_branch: then_branch
@@ -198,11 +218,13 @@ pub(super) fn rewrite_stmt(
                     .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                     .collect()
             }),
+            span: None,
         },
         Stmt::ForLoop {
             var,
             iterable,
             body,
+            ..
         } => Stmt::ForLoop {
             var: var.clone(),
             iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
@@ -210,8 +232,9 @@ pub(super) fn rewrite_stmt(
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::ComponentDef(definition) => Stmt::ComponentDef(ComponentDef {
+        Stmt::ComponentDef(definition, ..) => Stmt::ComponentDef(ComponentDef {
             is_pub: definition.is_pub,
             name: definition.name.clone(),
             params: definition.params.clone(),
@@ -220,24 +243,27 @@ pub(super) fn rewrite_stmt(
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-        }),
-        Stmt::ComponentAction { name, params, body } => Stmt::ComponentAction {
+        }, None),
+        Stmt::ComponentAction { name, params, body, .. } => Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
+            span: None,
         },
-        Stmt::Config { settings } => Stmt::Config {
+        Stmt::Config { settings, .. } => Stmt::Config {
             settings: rewrite_properties(settings, prefix, root_label, known_labels, bindings),
+            span: None,
         },
-        Stmt::Import { path, alias } => Stmt::Import { path: path.clone(), alias: alias.clone() },
-        Stmt::Use { path, items } => Stmt::Use {
+        Stmt::Import { path, alias, .. } => Stmt::Import { path: path.clone(), alias: alias.clone(), span: None },
+        Stmt::Use { path, items, .. } => Stmt::Use {
             path: path.clone(),
             items: items.clone(),
+            span: None,
         },
-        Stmt::Comment(comment) => Stmt::Comment(comment.clone()),
+        Stmt::Comment(comment, ..) => Stmt::Comment(comment.clone(), None),
     }
 }
 
@@ -553,6 +579,7 @@ mod tests {
                 Expr::Ident("delta".to_string()),
             ])),
             scale: 1.0,
+            span: None,
         };
         let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);
         let bindings = HashMap::from([("delta".to_string(), Expr::Num(48.0))]);

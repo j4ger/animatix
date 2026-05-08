@@ -498,7 +498,7 @@ impl Timeline {
         }
 
         for stmt in ast {
-            if let Stmt::Config { settings } = stmt {
+            if let Stmt::Config { settings, .. } = stmt {
                 timeline.apply_config_settings(settings, &mut diagnostics);
             }
         }
@@ -813,6 +813,7 @@ impl Timeline {
                         props: props.clone(),
                         modifiers: modifiers.clone(),
                         children: children.clone(),
+                        span: None,
                     };
                     self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
@@ -830,6 +831,7 @@ impl Timeline {
                         props: props.clone(),
                         modifiers: modifiers.clone(),
                         children: children.clone(),
+                        span: None,
                     };
                     self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
@@ -1266,6 +1268,7 @@ impl Timeline {
                     props,
                     modifiers,
                     children,
+                    ..
                 } => {
                     self.add_node(label.clone(), parent_label);
 
@@ -1762,6 +1765,7 @@ impl Timeline {
                     value,
                     modifiers,
                     value_span: _,
+                    ..
                 } => self.process_assignment_statement(
                     target,
                     property,
@@ -1770,29 +1774,30 @@ impl Timeline {
                     time_ms,
                     diagnostics,
                 ),
-                Stmt::Always { body } => {
+                Stmt::Always { body, .. } => {
                     self.modifiers.extend(body.clone());
                 }
-                Stmt::LabeledAlways { label: _, body } => {
+                Stmt::LabeledAlways { label: _, body, .. } => {
                     self.modifiers.extend(body.clone());
                 }
                 Stmt::ForLoop {
                     var,
                     iterable,
                     body,
+                    ..
                 } => {
                     for value in for_iter_values(iterable, &self.env) {
                         self.env.set(var, value);
                         self.process_body(time_ms, body, parent_label, diagnostics);
                     }
                 }
-                Stmt::Sequence { body } => {
+                Stmt::Sequence { body, .. } => {
                     self.process_sequence(time_ms, body, parent_label, diagnostics);
                 }
-                Stmt::Stagger { modifiers, body } => {
+                Stmt::Stagger { modifiers, body, .. } => {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 }
-                Stmt::Action(action) => {
+                Stmt::Action(action, ..) => {
                     process_action(action, time_ms, self, diagnostics);
                 }
                 _ => {}

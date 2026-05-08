@@ -19,7 +19,9 @@ fn ir_lowering_lowers_always_assignment_subset() {
             value: Expr::Num(1.0),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }],
+        span: None,
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
@@ -40,6 +42,7 @@ fn ir_lowering_supports_conditionals_and_lets() {
                     BinaryOp::Mul,
                     Box::new(Expr::Num(2.0)),
                 ),
+            span: None,
             },
             Stmt::Conditional {
                 condition: Expr::Binary(
@@ -53,6 +56,7 @@ fn ir_lowering_supports_conditionals_and_lets() {
                     value: Expr::Num(1.0),
                     modifiers: vec![],
                     value_span: None,
+            span: None,
                 }],
                 else_branch: Some(vec![Stmt::Assignment {
                     target: vec!["pulse".to_string()],
@@ -60,9 +64,12 @@ fn ir_lowering_supports_conditionals_and_lets() {
                     value: Expr::Num(0.0),
                     modifiers: vec![],
                     value_span: None,
+            span: None,
                 }]),
+            span: None,
             },
         ],
+        span: None,
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
@@ -81,7 +88,9 @@ fn ir_lowering_rejects_unsupported_statement_forms() {
             var: "item".to_string(),
             iterable: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]),
             body: vec![],
+            span: None,
         }],
+        span: None,
     }];
 
     let error = lower_modifier_ir(&program).expect_err("lowering should fail");
@@ -153,11 +162,13 @@ fn modifier_ir_can_lower_post_expansion_program() {
                     ),
                     modifiers: vec![],
                     value_span: None,
+            span: None,
                 }],
+                span: None,
             }],
             span: None,
         },
-        Stmt::Comment("ignored".to_string()),
+        Stmt::Comment("ignored".to_string(), None),
     ];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
@@ -182,6 +193,7 @@ fn modifier_ir_matches_statement_modifier_execution() {
             value: Expr::Num(1.0),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }],
         else_branch: Some(vec![Stmt::Assignment {
             target: vec!["pulse".to_string()],
@@ -189,11 +201,14 @@ fn modifier_ir_matches_statement_modifier_execution() {
             value: Expr::Num(0.0),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }]),
+        span: None,
     };
 
     let program = vec![Stmt::Always {
         body: vec![modifier.clone()],
+        span: None,
     }];
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
 
@@ -231,7 +246,9 @@ fn modifier_bytecode_compiles_assignment_subset() {
             value: Expr::Num(1.0),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }],
+        span: None,
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
@@ -254,6 +271,7 @@ fn modifier_bytecode_executes_let_and_if() {
                     BinaryOp::Mul,
                     Box::new(Expr::Num(2.0)),
                 ),
+            span: None,
             },
             Stmt::Conditional {
                 condition: Expr::Binary(
@@ -267,6 +285,7 @@ fn modifier_bytecode_executes_let_and_if() {
                     value: Expr::Num(1.0),
                     modifiers: vec![],
                     value_span: None,
+            span: None,
                 }],
                 else_branch: Some(vec![Stmt::Assignment {
                     target: vec!["pulse".to_string()],
@@ -274,9 +293,12 @@ fn modifier_bytecode_executes_let_and_if() {
                     value: Expr::Num(0.0),
                     modifiers: vec![],
                     value_span: None,
+            span: None,
                 }]),
+            span: None,
             },
         ],
+        span: None,
     }];
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
     let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
@@ -311,7 +333,9 @@ fn modifier_bytecode_rejects_unsupported_ir_expr() {
             ),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }],
+        span: None,
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
@@ -386,6 +410,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -413,6 +438,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 ],
                 modifiers: vec![],
                 children: vec![],
+            span: None,
             },
             Stmt::Always {
                 body: vec![
@@ -426,6 +452,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                         ),
                         modifiers: vec![],
                         value_span: None,
+            span: None,
                     },
                     Stmt::Assignment {
                         target: vec!["echo".to_string()],
@@ -437,8 +464,10 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                         ]),
                         modifiers: vec![],
                         value_span: None,
+            span: None,
                     },
                 ],
+                span: None,
             },
         ],
         span: None,

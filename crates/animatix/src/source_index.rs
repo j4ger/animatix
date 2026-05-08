@@ -117,15 +117,15 @@ impl SourceIndex {
                 }
                 Stmt::Keyframe { body, .. }
                 | Stmt::RelativeKeyframe { body, .. }
-                | Stmt::Sequence { body }
+                | Stmt::Sequence { body, .. }
                 | Stmt::Stagger { body, .. }
-                | Stmt::Always { body }
+                | Stmt::Always { body, .. }
                 | Stmt::LabeledAlways { body, .. }
                 | Stmt::Conditional { then_branch: body, .. }
                 | Stmt::ForLoop { body, .. } => {
                     self.walk(body);
                 }
-                Stmt::Config { settings } => {
+                Stmt::Config { settings, .. } => {
                     // Config properties use "at" syntax
                     for prop in settings {
                         if let Some(span) = prop.value_span {
@@ -205,6 +205,7 @@ mod tests {
             ],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }];
 
         let index = SourceIndex::build(&stmts);
@@ -227,6 +228,7 @@ mod tests {
             value: Expr::Ident("blue".to_string()),
             modifiers: vec![],
             value_span: Some(make_byte_span(50, 60)),
+            span: None,
         }];
 
         let index = SourceIndex::build(&stmts);
@@ -249,6 +251,7 @@ mod tests {
                 value_span: Some(make_byte_span(15, 35)), ..Default::default() }],
             modifiers: vec![],
             children: vec![],
+            span: None,
         }];
 
         let index = SourceIndex::build(&stmts);
@@ -273,6 +276,7 @@ mod tests {
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
             value_span: Some(make_byte_span(100, 110)),
+            span: None,
         }];
 
         let index = SourceIndex::build(&stmts);
@@ -292,13 +296,14 @@ mod tests {
                 is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Num(0.0),
+                span: None,
             },
             Stmt::Action(crate::ast::Action {
                 verb: "move".to_string(),
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
-            }),
+            }, None),
         ];
 
         let index = SourceIndex::build(&stmts);
@@ -314,6 +319,7 @@ mod tests {
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
             value_span: None,
+            span: None,
         }];
 
         let index = SourceIndex::build(&stmts);
@@ -337,6 +343,7 @@ mod tests {
                     value_span: Some(make_byte_span(40, 60)), ..Default::default() }],
                 modifiers: vec![],
                 children: vec![],
+                span: None,
             }],
             span: None,
         }];

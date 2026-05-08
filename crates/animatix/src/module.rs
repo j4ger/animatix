@@ -67,14 +67,14 @@ fn collect_pub_lets(statements: &[Stmt]) -> HashMap<String, Expr> {
 fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<String, Expr>) {
     for stmt in statements {
         match stmt {
-            Stmt::LetDecl { is_pub, name, value } => {
+            Stmt::LetDecl { is_pub, name, value, .. } => {
                 if *is_pub {
                     result.insert(name.clone(), value.clone());
                 }
             }
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body }
+            | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. } => {
                 collect_pub_lets_inner(body, result);
             }

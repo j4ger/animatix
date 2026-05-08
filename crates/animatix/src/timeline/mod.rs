@@ -670,6 +670,7 @@ mod tests {
                 value: Expr::Num(1.0),
                 modifiers: vec![],
                 value_span: None,
+                span: None,
             }],
             else_branch: Some(vec![Stmt::Assignment {
                 target: vec!["pulse".to_string()],
@@ -677,7 +678,9 @@ mod tests {
                 value: Expr::Num(0.0),
                 modifiers: vec![],
                 value_span: None,
+                span: None,
             }]),
+            span: None,
         };
 
         let mut first_overrides = std::collections::HashMap::new();
@@ -748,6 +751,7 @@ mod tests {
                         },
                     ],
                 ),
+                span: None,
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -756,6 +760,7 @@ mod tests {
                     value_span: None,
                 trailing_comment: None,
                 }],
+                span: None,
             },
         ];
 
@@ -803,6 +808,7 @@ mod tests {
                         },
                     ],
                 ),
+                span: None,
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -811,6 +817,7 @@ mod tests {
                     value_span: None,
                 trailing_comment: None,
                 }],
+                span: None,
             },
         ];
 
@@ -854,6 +861,7 @@ mod tests {
                         },
                     ],
                 ),
+                span: None,
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -862,6 +870,7 @@ mod tests {
                     value_span: None,
                 trailing_comment: None,
                 }],
+                span: None,
             },
         ];
 
@@ -906,6 +915,7 @@ mod tests {
                         },
                     ],
                 ),
+                span: None,
             },
             Stmt::Config {
                 settings: vec![Property {
@@ -914,6 +924,7 @@ mod tests {
                     value_span: None,
                 trailing_comment: None,
                 }],
+                span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -927,6 +938,7 @@ mod tests {
                 }],
                 modifiers: vec![],
                 children: vec![],
+                span: None,
             },
             Stmt::ActorDecl {
                 is_pub: false,
@@ -940,6 +952,7 @@ mod tests {
                 }],
                 modifiers: vec![],
                 children: vec![],
+                span: None,
             },
         ];
 
@@ -965,6 +978,7 @@ mod tests {
                         trailing_comment: None,
                     },
                 ],
+                span: None,
             },
             Stmt::Keyframe {
                 time: crate::ast::Time::Seconds(0.0),
@@ -1006,6 +1020,7 @@ mod tests {
                         ],
                         modifiers: vec![],
                         children: vec![],
+                        span: None,
                     },
                     Stmt::Always {
                         body: vec![Stmt::Assignment {
@@ -1017,7 +1032,9 @@ mod tests {
                             ),
                             modifiers: vec![],
                             value_span: None,
+                            span: None,
                         }],
+                        span: None,
                     },
                 ],
                 span: None,

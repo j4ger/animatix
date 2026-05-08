@@ -78,9 +78,9 @@ impl Timeline {
             _ => unreachable!("process_text_like_statement only handles text-like statements"),
         };
         let (label, props, modifiers) = match stmt {
-            Stmt::Text { label, props, modifiers }
-            | Stmt::Math { label, props, modifiers }
-            | Stmt::Code { label, props, modifiers } => {
+            Stmt::Text { label, props, modifiers, .. }
+            | Stmt::Math { label, props, modifiers, .. }
+            | Stmt::Code { label, props, modifiers, .. } => {
                 (label.as_deref(), props, modifiers)
             }
             _ => unreachable!(),

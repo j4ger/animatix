@@ -5,7 +5,7 @@ use crate::easing::*;
 
 pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
     match stmt {
-        Stmt::Action(_) => "action",
+        Stmt::Action(..) => "action",
         Stmt::Assignment { .. } => "assignment",
         Stmt::Sequence { .. } => "sequence",
         Stmt::Stagger { .. } => "stagger",
@@ -24,10 +24,10 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::LabeledAlways { .. } => "labeled always block",
         Stmt::Conditional { .. } => "conditional",
         Stmt::ForLoop { .. } => "for loop",
-        Stmt::ComponentDef(_) => "component definition",
+        Stmt::ComponentDef(..) => "component definition",
         Stmt::ComponentAction { .. } => "component action",
         Stmt::Config { .. } => "config block",
-        Stmt::Comment(_) => "comment",
+        Stmt::Comment(..) => "comment",
     }
 }
 

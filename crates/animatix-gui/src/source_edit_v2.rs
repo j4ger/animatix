@@ -176,6 +176,7 @@ fn insert_keyframe(
         value,
         modifiers: vec![],
         value_span: None,
+        span: None,
     };
 
     let keyframe = Stmt::RelativeKeyframe {
@@ -241,11 +242,11 @@ fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut
             // Recurse into containers
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body }
+            | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
-            | Stmt::Always { body }
+            | Stmt::Always { body, .. }
             | Stmt::LabeledAlways { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. })
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if let Some(found) = find_actor_decl_mut(body, label) {
                     return Some(found);
@@ -298,11 +299,11 @@ fn find_assignment_mut<'a>(
             // Recurse
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body }
+            | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
-            | Stmt::Always { body }
+            | Stmt::Always { body, .. }
             | Stmt::LabeledAlways { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. })
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if let Some(found) = find_assignment_mut(body, actor, property) {
                     return Some(found);
