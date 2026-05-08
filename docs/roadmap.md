@@ -425,3 +425,4 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 | 2026-05-08 | Font Selection — Phase 1 & 2 | Static font bundle + runtime text recompilation with `TextCompiler` cache |
 | 2026-05-08 | `font_family` / `font_size` property fix | Both were mapped to wrong fields (silently broken); now properly stored on `AnimationTrack` |
 | 2026-05-08 | Parser span capture + analyzer positions | `Span` added to all `Stmt` variants; `Analyzer::enrich_positions` populates real line/col from tree-sitter for LSP go-to-definition |
+| 2026-05-08 | Bi-directional timeline sync | `TimelineIndex` maps source lines ↔ times; editor cursor shows cyan indicator on timeline; timeline scrub scrolls editor to keyframe |

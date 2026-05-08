@@ -173,6 +173,8 @@ struct GuiShell {
     editor_sync_enabled: bool,
     /// When true, property edits create keyframes at current time instead of overwriting defaults.
     keyframe_mode: bool,
+    /// Time on the timeline corresponding to the editor cursor position (for bi-directional sync).
+    cursor_time_s: Option<f64>,
 }
 
 impl GuiShell {
@@ -254,6 +256,7 @@ impl GuiShell {
             drag_snapshot_taken: false,
             editor_sync_enabled: true,
             keyframe_mode: false,
+            cursor_time_s: None,
         }
     }
 
@@ -342,6 +345,7 @@ impl GuiShell {
                     &mut actions,
                     self.editor_sync_enabled,
                     self.keyframe_mode,
+                    self.cursor_time_s,
                 );
             });
 
@@ -349,6 +353,12 @@ impl GuiShell {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             self.workspace_ui(ui, preview_texture_id, &mut actions);
         });
+
+        // Update cursor time from editor position (bi-directional sync)
+        self.cursor_time_s = self
+            .editor
+            .cursor_line
+            .and_then(|line| self.document.timeline_index.time_s_for_line(line));
 
         self.handle_actions(actions);
     }

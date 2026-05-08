@@ -18,6 +18,7 @@ pub(super) fn transport_bar_ui(
     actions: &mut UiActions,
     editor_sync_enabled: bool,
     keyframe_mode: bool,
+    cursor_time_s: Option<f64>,
 ) {
     let bg = Color32::from_rgb(16, 18, 22);
     let border = Color32::from_rgb(32, 36, 44);
@@ -119,6 +120,7 @@ pub(super) fn transport_bar_ui(
                     timeline_markers,
                     preview.is_playing,
                     scrubber_width.max(120.0),
+                    cursor_time_s,
                 ) {
                     actions.scrub_to = Some(scrub);
                 }
@@ -221,6 +223,7 @@ fn paint_transport_scrubber(
     markers_s: &[f64],
     is_playing: bool,
     width: f32,
+    cursor_time_s: Option<f64>,
 ) -> bool {
     let height = 24.0;
     let desired_size = Vec2::new(width.max(120.0), height);
@@ -283,6 +286,39 @@ fn paint_transport_scrubber(
             ],
             Stroke::new(2.0, Color32::from_rgb(255, 196, 92)),
         );
+    }
+
+    // Cursor position indicator (editor → timeline sync)
+    // Shows where the editor cursor is on the timeline
+    if let Some(cursor_t) = cursor_time_s {
+        if cursor_t >= 0.0 && cursor_t <= duration_s {
+            let cursor_fraction = super::preview::timeline_fraction(cursor_t, duration_s);
+            let cursor_x = egui::lerp(track_rect.left()..=track_rect.right(), cursor_fraction);
+            // Draw a subtle cyan triangle above the track
+            let triangle_top = track_rect.top() - 5.0;
+            let triangle_y = track_rect.top() - 1.0;
+            painter.line_segment(
+                [
+                    egui::pos2(cursor_x, triangle_top),
+                    egui::pos2(cursor_x - 3.0, triangle_y),
+                ],
+                Stroke::new(1.5, Color32::from_rgb(100, 220, 255)),
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(cursor_x, triangle_top),
+                    egui::pos2(cursor_x + 3.0, triangle_y),
+                ],
+                Stroke::new(1.5, Color32::from_rgb(100, 220, 255)),
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(cursor_x - 3.0, triangle_y),
+                    egui::pos2(cursor_x + 3.0, triangle_y),
+                ],
+                Stroke::new(1.5, Color32::from_rgb(100, 220, 255)),
+            );
+        }
     }
 
     // Playhead

@@ -26,6 +26,8 @@ pub struct EditorBuffer {
     pub highlighted_line: Option<usize>,
     /// Lines that contain keyframe declarations (for decoration).
     pub keyframe_lines: Vec<usize>,
+    /// Current cursor line (0-indexed), updated each frame.
+    pub cursor_line: Option<usize>,
 }
 
 impl EditorBuffer {
@@ -41,6 +43,7 @@ impl EditorBuffer {
             pending_scroll_to_line: None,
             highlighted_line: None,
             keyframe_lines: Vec::new(),
+            cursor_line: None,
         }
     }
 
@@ -53,6 +56,7 @@ impl EditorBuffer {
         self.pending_scroll_to_line = None;
         self.highlighted_line = None;
         self.keyframe_lines = Vec::new();
+        self.cursor_line = None;
     }
 
     pub fn text(&self) -> &str {
@@ -63,6 +67,7 @@ impl EditorBuffer {
         self.text = text;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
+        self.cursor_line = None;
     }
 
     pub fn scroll_to_line(&mut self, line: usize) {
@@ -122,6 +127,14 @@ impl EditorBuffer {
                 .desired_width(f32::INFINITY)
                 .layouter(&mut layouter),
         );
+
+        // Track cursor position for timeline sync
+        if let Some(state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
+            if let Some(cursor_range) = state.cursor.char_range() {
+                let char_idx = cursor_range.primary.index;
+                self.cursor_line = Some(self.char_index_to_line(char_idx));
+            }
+        }
 
         // Hover tooltip handling
         if response.hovered() {
@@ -281,5 +294,19 @@ impl EditorBuffer {
         }
 
         (line, col)
+    }
+
+    /// Convert character index to 0-indexed line number.
+    fn char_index_to_line(&self, char_index: usize) -> usize {
+        let mut line = 0;
+        for (i, ch) in self.text.chars().enumerate() {
+            if i >= char_index {
+                break;
+            }
+            if ch == '\n' {
+                line += 1;
+            }
+        }
+        line
     }
 }
