@@ -138,7 +138,7 @@ panel: Rect, size: (200, 100)       // color: surface.primary
 badge: Circle, radius: 20, color: auto
 ```
 
-`Colorscheme` primitive with `extends` inheritance is supported. See [`colorscheme_design.md`](colorscheme_design.md).
+`Colorscheme` primitive with `extends` inheritance is supported. See [`architecture.md`](architecture.md) §Colorscheme System.
 
 ---
 
@@ -300,7 +300,7 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 ## 8. Containers & Layout
 
-> **See [`layout_design.md`](layout_design.md) for full details.**
+> **See [`architecture.md`](architecture.md) §Layout System for full details.**
 
 Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`.
 

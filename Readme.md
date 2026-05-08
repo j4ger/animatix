@@ -126,13 +126,15 @@ tree-sitter highlight ../examples/reactive_runtime.amx
 Useful docs:
 
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution flow and validation expectations
-- [`docs/spec.md`](docs/spec.md) — current language status matrix
-- [`docs/colorscheme_design.md`](docs/colorscheme_design.md) — future external/loadable colorscheme design notes
-- [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme and alias-based color example
+- [`docs/spec.md`](docs/spec.md) — language specification and status matrix
+- [`docs/architecture.md`](docs/architecture.md) — system architecture and design
+- [`docs/contributing.md`](docs/contributing.md) — development workflows and project structure
+- [`docs/roadmap.md`](docs/roadmap.md) — known gaps and planned features
+- [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme example
 - [`tree-sitter-animatix/README.md`](tree-sitter-animatix/README.md) — editor grammar scope and sync rules
 
 ## Roadmap
 
 Current work is focused on keeping the documented language surface honest, expanding the runtime where it already has a clear contract, and improving the GUI/editor experience without overpromising unfinished syntax.
 
-See [`docs/spec.md`](docs/spec.md) for the language status matrix and [`docs/property-system-impl-plan.md`](docs/property-system-impl-plan.md) for the current active implementation plan.
+See [`docs/spec.md`](docs/spec.md) for the language status matrix and [`docs/roadmap.md`](docs/roadmap.md) for known gaps, planned features, and work items.

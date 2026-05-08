@@ -2,7 +2,7 @@
 
 Documents current runtime support. Parser-only and planned features are noted explicitly.
 
-For colorscheme details including `config { colorscheme: ... }`, semantic color aliases, `color: auto`, inline `Colorscheme` with `extends`, and module-based reuse, see [`colorscheme_design.md`](colorscheme_design.md).
+For colorscheme details, see [`architecture.md`](architecture.md) §Colorscheme System.
 
 ---
 

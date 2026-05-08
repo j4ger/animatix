@@ -33,8 +33,10 @@ Avoid widening the documented language surface unless the runtime actually suppo
 Keep these files in sync when relevant:
 
 - `Readme.md` — high-level user-facing capabilities and CLI usage
-- `docs/primitives.md` — runtime-supported primitives and planned gaps
 - `docs/spec.md` — language behavior and status callouts
+- `docs/primitives.md` — runtime-supported primitives and planned gaps
+- `docs/architecture.md` — system architecture and design decisions
+- `docs/roadmap.md` — known gaps and planned features
 - `examples/README.md` — curated runnable demos
 - `tree-sitter-animatix/README.md` — grammar package scope and maintenance contract for parser-surface changes
 
