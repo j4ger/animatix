@@ -15,6 +15,7 @@ Runnable `.amx` demos. The GUI opens `showcase.amx` by default.
 | `colorschemes.amx` | ~20 | Colorscheme selection, auto colors, explicit overrides |
 | `modules.amx` | ~25 | `import ... as`, `pub let`, namespaced access |
 | `reactive.amx` | ~20 | `always` blocks, time-driven behavior, `if/else` |
+| `font_demo.amx` | ~55 | `font_family` selection, runtime text recompilation, dynamic `font_size` |
 
 ## Helper Modules
 

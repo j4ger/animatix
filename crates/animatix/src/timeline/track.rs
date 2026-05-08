@@ -400,6 +400,8 @@ pub struct AnimationTrack {
 
     // ── Text / media payload (flat compat fields) ──
     pub text_content: Option<PropertyTrack<String>>,
+    pub font_family: Option<PropertyTrack<String>>,
+    pub font_size: Option<PropertyTrack<f32>>,
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
@@ -445,6 +447,8 @@ impl AnimationTrack {
 
             // Text / media flat fields
             text_content: None,
+            font_family: None,
+            font_size: None,
             text_paths: None,
             svg_paths: Vec::new(),
             image: None,
@@ -505,6 +509,7 @@ impl AnimationTrack {
             self.morph_options.last_time(), self.text_paths.last_time(),
             self.vector_paths.last_time(), self.image.last_time(),
             self.points.last_time(),
+            self.font_family.last_time(), self.font_size.last_time(),
         ];
         times.into_iter().flatten().max()
     }

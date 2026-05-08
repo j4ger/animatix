@@ -197,6 +197,8 @@ pub(crate) fn write_property_field(
 
         // ── Text payload ──
         ActorField::TextContent => write_string(&mut track.text_content, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
+        ActorField::FontFamily => write_string(&mut track.font_family, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
+        ActorField::FontSize => write_f32(&mut track.font_size, value, t_start_ms, t_end_ms, easing, 48.0, has_duration, has_delay),
         ActorField::TextPaths => {
             // Text paths are generated from text content during build
         }

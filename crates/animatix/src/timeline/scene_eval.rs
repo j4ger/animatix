@@ -3,6 +3,7 @@ use super::{
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
+use crate::renderer::text::TextKind;
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
@@ -154,7 +155,7 @@ impl Timeline {
             let mut rotation = track.rotation.get(time_ms, 0.0) as f64;
             let mut scale = track.scale.get(time_ms, 1.0) as f64;
             let mut opacity = track.opacity.get(time_ms, 1.0);
-            let text_paths = track.evaluate_text_paths(time_ms);
+
             let points = track.points.get(time_ms, Vec::new());
             let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
@@ -229,6 +230,55 @@ impl Timeline {
                     scale = *factor;
                 }
             }
+
+            // ── Runtime text recompilation (Phase 2) ──
+            // If text content has changed since build time (e.g. via `always` blocks),
+            // recompile glyph paths on-demand using the TextCompiler cache.
+            let text_paths = {
+                let node_overrides = overrides.get(node_label);
+                let mut content = track.text_content.get(time_ms, String::new());
+                let mut font_family = track.font_family.get(time_ms, String::new());
+                let default_font_size = match track.kind {
+                    super::ActorKindId::Code => 24.0,
+                    _ => 48.0,
+                };
+                let mut font_size = track.font_size.get(time_ms, default_font_size);
+                let mut color = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+
+                // Apply overrides from always/reactive blocks
+                if let Some(ov) = node_overrides {
+                    if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")) {
+                        content = s.clone();
+                    }
+                    if let Some(Value::Str(s)) = ov.get("font_family") {
+                        font_family = s.clone();
+                    }
+                    if let Some(Value::Num(n)) = ov.get("font_size") {
+                        font_size = *n as f32;
+                    }
+                    if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
+                        color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                    }
+                }
+
+                if !content.is_empty() {
+                    let kind = match track.kind {
+                        super::ActorKindId::Text => TextKind::Text,
+                        super::ActorKindId::Math => TextKind::Math,
+                        super::ActorKindId::Code => TextKind::Code,
+                        _ => TextKind::Text,
+                    };
+                    self.text_compiler.borrow_mut().compile(
+                        &content,
+                        &font_family,
+                        font_size,
+                        color,
+                        kind,
+                    )
+                } else {
+                    track.evaluate_text_paths(time_ms)
+                }
+            };
 
             if !vector_paths.is_empty() {
                 vector_paths = if matches!(shape_type, ShapeType::Graph | ShapeType::Plot) {

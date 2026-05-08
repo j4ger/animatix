@@ -16,24 +16,28 @@
 
 ## 1. Deferred Features (High Impact)
 
-### 1.1 Render-Time Font Compilation for Text
+### 1.1 Font Selection System (3-Phase Plan)
 
-**Status:** Infrastructure in place; compilation deferred.
-**Location:** `crates/animatix/src/timeline/declarations_text.rs`, renderer text path.
+**Status:** `font_family` property is registered but non-functional (mapped to wrong field, overwrites text content). Hardcoded `"Open Sans"` in Typst markup. Only one embedded font (`mock_font.ttf`).
+**Location:** `crates/animatix/src/renderer/text.rs`, `crates/animatix/src/timeline/declarations_text.rs`, `crates/animatix/src/timeline/property_registry.rs:221`.
 
-Property assignment for `text` / `latex` / `math` / `code` stores the string value but does **not** trigger re-compilation of text glyph paths at render time. Changing `title.text = "New"` at runtime updates the track but the renderer still shows the old glyph paths.
+#### Phase 1 — Static Font Bundle *(In Progress)*
+Fix the property mapping (`font_family` → dedicated `ActorField::FontFamily`), add `font_family` storage on `AnimationTrack`, bundle 5-10 open-source fonts, and wire the font name through to Typst markup. Gives users working font selection at declaration time.
 
-**What exists:**
-- Text/Math/Code paths are compiled at build time via Typst/LaTeX/source shaping.
-- `text_content` track stores the string.
-- Renderer reads `text_paths` (compiled glyphs), not `text_content`.
+**Files:** `property_registry.rs`, `track.rs`, `property_engine.rs`, `declarations_text.rs`, `renderer/text.rs`, `assignments.rs`, `assets/fonts/`.
 
-**What’s needed:**
-- At render time, if `text_content` changed since last frame, re-run the typesetter.
-- Cache compiled paths per `(content, font_size, font_family)` to avoid re-shaping every frame.
-- Wire into `scene_eval.rs` or `runtime.rs` so `always { label.text = format("{t}", t) }` works.
+**Effort:** Low-Medium. Mostly plumbing + font files.
 
-**Effort:** Medium. The typesetting infrastructure exists; it needs to be called from the frame loop.
+#### Phase 2 — Render-Time Recompilation
+Property assignment for `text` / `font_family` / `font_size` stores the value but does **not** trigger re-compilation of text glyph paths at render time. Implement a `TextCompiler` service with an LRU cache keyed by `(content, font_family, font_size, color)` that recompiles text during scene evaluation when any of these change. Enables `always { title.text = format("{t}", t) }` and dynamic font changes.
+
+**Effort:** Medium. Typesetting infrastructure exists; needs cache + render-loop wiring.
+
+#### Phase 3 — System Font Discovery *(Deferred)*
+Access all installed system fonts via `font-kit` / `fontconfig`. Removes the curated-bundle limitation but introduces cross-platform complexity, non-determinism, and async loading concerns.
+
+**Effort:** High. Platform APIs, async loading, font caching.
+**Blocked until:** Phase 1 and 2 proven; user demand for out-of-bundle fonts.
 
 ---
 
@@ -396,7 +400,8 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Render-time font compilation | Medium | Very High |
+| 1 | Font Selection — Phase 1 (static bundle) | Low-Medium | Very High |
+| 2 | Font Selection — Phase 2 (runtime recompilation) | Medium | Very High |
 | 2 | `Expr::Index` (array access) | Medium | High |
 | 3 | Parser span capture (enables editor sync) | Medium | High |
 | 4 | `reorder` action | Medium | Medium-High |

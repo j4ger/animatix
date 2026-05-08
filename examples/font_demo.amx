@@ -1,0 +1,81 @@
+// Font Selection & Runtime Text Recompilation Demo
+//
+// This demo showcases:
+//   1. Static font_family selection in declarations
+//   2. Dynamic text content changes via always blocks (runtime recompilation)
+//   3. Dynamic font_size changes
+//
+// Bundled fonts: "Open Sans" (default), "Fira Math" (math fallback)
+// Add .ttf/.otf files to crates/animatix/assets/fonts/ to extend the bundle.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
+
+// ── Static font selection ──
+// Each text actor declares its font_family at creation time.
+// The system compiles glyph paths using the bundled font.
+
+heading: Text, text: "Font Selection", font_size: 64, font_family: "Open Sans",
+         color: text.primary, anchor: scene.top, offset: (0, 100)
+
+sub: Text, text: "Runtime recompilation demo", font_size: 24, font_family: "Open Sans",
+     color: text.secondary, anchor: scene.top, offset: (0, 180)
+
+// ── Dynamic counter (runtime recompilation) ──
+// The `always` block updates `counter.text` every frame.
+// Before Phase 2 this would show stale glyphs; now the TextCompiler
+// recompiles on-demand with an LRU cache.
+
+counter: Text, text: "0.00", font_size: 96, font_family: "Open Sans",
+         color: accent.primary, at: (640, 400)
+
+// ── Math with Fira Math ──
+equation: Math, math: "\\int_0^t f(x) \\; dx", font_size: 32, font_family: "Open Sans",
+          color: accent.warning, anchor: scene.bottom, offset: (0, -160)
+
+// ── Code block ──
+code_label: Text, text: "Code font demo", font_size: 20, font_family: "Open Sans",
+            color: text.secondary, anchor: scene.bottom, offset: (0, -120)
+
+code_snippet: Code, code: "let t = time()", font_size: 18, font_family: "Open Sans",
+              color: accent.success, anchor: scene.bottom, offset: (0, -80)
+
+always {
+  // Update counter every frame — triggers runtime text recompilation
+  counter.text = format("t={}", t)
+
+  // Oscillate font size smoothly
+  counter.font_size = 72 + 24 * sin(t * 2)
+}
+
+// ── Entrance choreography ──
+#0.2s
+fade-in heading [600ms, ease: ease-out]
+
+#0.5s
+fade-in sub [500ms, ease: ease-out]
+
+#0.8s
+fade-in counter [800ms, ease: bounce]
+
+#1.2s
+fade-in equation [600ms, ease: ease-in-out]
+
+#1.6s
+fade-in code_label [400ms]
+fade-in code_snippet [400ms]
+
+// ── Re-declare with new math (build-time recompilation) ──
+#3.0s
+equation: Math, math: "e^{i\\pi} + 1 = 0", font_size: 36, font_family: "Open Sans",
+          color: accent.danger [800ms, ease: ease-in-out]
+
+// ── Pulse the heading ──
+#4.0s
+pulse heading [600ms, intensity: 0.15]
+
+#5.0s
+shift heading [by: (0, -10), 1s, ease: ease-in-out]
+shift sub [by: (0, -6), 1s, ease: ease-in-out]

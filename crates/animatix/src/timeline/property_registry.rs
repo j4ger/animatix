@@ -131,6 +131,8 @@ pub enum ActorField {
     // ── Text payload ──
     TextContent,
     TextPaths,
+    FontFamily,
+    FontSize,
 
     // ── Media payload ──
     ImageData,
@@ -218,8 +220,8 @@ pub(crate) static PROPERTY_REGISTRY: &[PropertySchema] = &[
     PropertySchema { name: "cols",         value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
     PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::empty(),                  field: ActorField::VectorShapeGroup, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
     PropertySchema { name: "fill_opacity", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::FillOpacity, group: None },
-    PropertySchema { name: "font_family",  value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::TextContent, group: None },
-    PropertySchema { name: "font_size",    value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::TextContent, group: None },
+    PropertySchema { name: "font_family",  value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::FontFamily, group: None },
+    PropertySchema { name: "font_size",    value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::FontSize, group: None },
     PropertySchema { name: "from",         value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::LineFrom, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
     PropertySchema { name: "func",         value_type: ValueType::BuildTimeOnly, flags: F::empty(),               field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
     PropertySchema { name: "gap",          value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
@@ -316,7 +318,10 @@ pub(crate) fn allowed_property_indices(
             }
         }
         Text | Math | Code => {
-            names.extend_from_slice(&["text", "font_size", "font_family"]);
+            names.extend_from_slice(&["font_size", "font_family"]);
+            if kind == Text {
+                names.push("text");
+            }
             if kind == Math {
                 names.extend_from_slice(&["latex", "math"]);
             }

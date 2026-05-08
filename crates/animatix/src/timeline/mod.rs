@@ -215,6 +215,9 @@ pub struct Timeline {
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
+    /// Runtime text compiler with cache. Enables `always` blocks to change
+    /// text content / font_family / font_size and have glyphs recompiled on-demand.
+    pub text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
@@ -252,6 +255,7 @@ impl Clone for Timeline {
             dynamic_layout: self.dynamic_layout,
             asset_cache: self.asset_cache.clone(),
             child_orders: self.child_orders.clone(),
+            text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
         }
@@ -279,6 +283,7 @@ impl Timeline {
             dynamic_layout: false,
             asset_cache: assets::AssetCache::new(),
             child_orders: BTreeMap::new(),
+            text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),
             hit_regions: std::cell::RefCell::new(Vec::new()),
         }
@@ -331,6 +336,8 @@ impl Timeline {
             extend_track_times(&mut times_ms, &track.morph_options);
             // Text
             extend_track_times(&mut times_ms, &track.text_content);
+            extend_track_times(&mut times_ms, &track.font_family);
+            extend_track_times(&mut times_ms, &track.font_size);
             if let Some(tp) = track.text_paths.as_ref() {
                 times_ms.extend(tp.keyframes.keys().copied());
             }
@@ -944,5 +951,92 @@ mod tests {
 
         assert_eq!(color_a, Some([1.0, 0.0, 0.0, 1.0]));
         assert_eq!(color_b, Some([0.0, 1.0, 0.0, 1.0]));
+    }
+
+    #[test]
+    fn test_runtime_text_recompilation() {
+        let ast = vec![
+            Stmt::Config {
+                settings: vec![
+                    Property {
+                        name: "colorscheme".to_string(),
+                        value: Expr::Str("editorial-dark".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+            },
+            Stmt::Keyframe {
+                time: crate::ast::Time::Seconds(0.0),
+                body: vec![
+                    Stmt::ActorDecl {
+                        is_pub: false,
+                        label: "counter".to_string(),
+                        ty: "Text".to_string(),
+                        props: vec![
+                            Property {
+                                name: "text".to_string(),
+                                value: Expr::Str("0.00".to_string()),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
+                            Property {
+                                name: "font_size".to_string(),
+                                value: Expr::Num(48.0),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
+                            Property {
+                                name: "font_family".to_string(),
+                                value: Expr::Str("Open Sans".to_string()),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
+                            Property {
+                                name: "color".to_string(),
+                                value: Expr::Tuple(vec![
+                                    Expr::Num(1.0),
+                                    Expr::Num(1.0),
+                                    Expr::Num(1.0),
+                                    Expr::Num(1.0),
+                                ]),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
+                        ],
+                        modifiers: vec![],
+                        children: vec![],
+                    },
+                    Stmt::Always {
+                        body: vec![Stmt::Assignment {
+                            target: vec!["counter".to_string()],
+                            property: "text".to_string(),
+                            value: Expr::Call(
+                                "format".to_string(),
+                                vec![Expr::Str("t={}".to_string()), Expr::Ident("t".to_string())],
+                            ),
+                            modifiers: vec![],
+                            value_span: None,
+                        }],
+                    },
+                ],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let timeline = report.output;
+
+        // Evaluate at t=0s and t=1.5s
+        let _scene_0s = timeline.evaluate(0.0, SceneDimensions { width: 400, height: 200 });
+        let _scene_1_5s = timeline.evaluate(1.5, SceneDimensions { width: 400, height: 200 });
+
+        // The text compiler should have cached entries for both times
+        let cache_len = timeline.text_compiler.borrow().cache_len();
+        assert!(
+            cache_len >= 2,
+            "TextCompiler should have at least 2 cache entries for different times, got {}",
+            cache_len
+        );
     }
 }

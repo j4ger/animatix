@@ -9,6 +9,65 @@ use typst::utils::LazyHash;
 use typst::World;
 use typst::{Library, LibraryExt};
 
+// ─────────────────────────────────────────────────────────────
+// Font bundle
+// ─────────────────────────────────────────────────────────────
+
+/// A font entry in the bundled font set.
+struct BundledFont {
+    family: &'static str,
+    data: &'static [u8],
+}
+
+/// Fonts embedded at compile time. Add new fonts here.
+static BUNDLED_FONTS: &[BundledFont] = &[
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../../assets/mock_font.ttf"),
+    },
+    BundledFont {
+        family: "Fira Math",
+        data: include_bytes!("../../assets/fonts/FiraMath-Regular.otf"),
+    },
+];
+
+/// Fallback font family when the requested one is not in the bundle.
+pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
+pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
+
+/// Build a TypstWorld with all bundled fonts loaded.
+fn build_world(source: Source) -> TypstWorld {
+    let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len());
+    let mut book = FontBook::new();
+    for bf in BUNDLED_FONTS {
+        let font = Font::new(Bytes::new(bf.data), 0)
+            .unwrap_or_else(|| panic!("Failed to load bundled font: {}", bf.family));
+        book.push(font.info().clone());
+        fonts.push(font);
+    }
+    let library = typst::Library::builder().build();
+    TypstWorld {
+        source,
+        fonts,
+        book: LazyHash::new(book),
+        library: LazyHash::new(library),
+    }
+}
+
+/// Resolve a font family name to the family string that should appear in Typst markup.
+/// Falls back to `DEFAULT_FONT_FAMILY` if the requested family is not bundled.
+pub fn resolve_font_family(requested: &str) -> &str {
+    if requested.is_empty() {
+        return DEFAULT_FONT_FAMILY;
+    }
+    for bf in BUNDLED_FONTS {
+        if bf.family.eq_ignore_ascii_case(requested) {
+            return bf.family;
+        }
+    }
+    DEFAULT_FONT_FAMILY
+}
+
 struct PathBuilder(BezPath);
 
 impl ttf_parser::OutlineBuilder for PathBuilder {
@@ -44,34 +103,14 @@ pub struct ExtractedShape {
 
 pub struct TypstWorld {
     source: Source,
-    font: Font,
-    math_font: Font,
+    fonts: Vec<Font>,
     book: LazyHash<FontBook>,
     library: LazyHash<Library>,
 }
 
 impl TypstWorld {
     pub fn new(source: Source) -> Self {
-        let font_data = include_bytes!("../../assets/mock_font.ttf");
-        let font = Font::new(Bytes::new(font_data), 0)
-            .expect("Failed to load mock font. Replace with real font later.");
-
-        let math_font_data = include_bytes!("../../assets/fonts/FiraMath-Regular.otf");
-        let math_font =
-            Font::new(Bytes::new(math_font_data), 0).expect("Failed to load math font.");
-
-        let mut book = FontBook::new();
-        book.push(font.info().clone());
-        book.push(math_font.info().clone());
-        let library = typst::Library::builder().build();
-
-        Self {
-            source,
-            font,
-            math_font,
-            book: LazyHash::new(book),
-            library: LazyHash::new(library),
-        }
+        build_world(source)
     }
 }
 
@@ -105,13 +144,7 @@ impl World for TypstWorld {
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        if index == 0 {
-            Some(self.font.clone())
-        } else if index == 1 {
-            Some(self.math_font.clone())
-        } else {
-            None
-        }
+        self.fonts.get(index).cloned()
     }
 
     fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
@@ -119,12 +152,14 @@ impl World for TypstWorld {
     }
 }
 
-pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
+pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
+    let text_font = resolve_font_family(font_family);
     let typst_markup = convert_math(latex, None).unwrap();
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"Open Sans\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
         color.to_hex(),
+        text_font,
         typst_markup
     );
 
@@ -135,15 +170,17 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color)
     document.pages[0].frame.clone()
 }
 
-pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
+pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
+    let font = resolve_font_family(font_family);
     let escaped = text
         .replace('\\', "\\\\")
         .replace('[', "\\[")
         .replace(']', "\\]");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n{}",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{}",
         font_size,
         color.to_hex(),
+        font,
         escaped
     );
 
@@ -154,15 +191,17 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color) 
     document.pages[0].frame.clone()
 }
 
-pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color) -> Frame {
+pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
+    let font = resolve_font_family(font_family);
     let escaped = code
         .replace('\\', "\\\\")
         .replace('[', "\\[")
         .replace(']', "\\]");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"Open Sans\")\n{}",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{}",
         font_size,
         color.to_hex(),
+        font,
         escaped
     );
 
@@ -321,5 +360,92 @@ fn walk_frame_for_shapes(
             }
             _ => {}
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Runtime text recompilation (Phase 2)
+// ─────────────────────────────────────────────────────────────
+
+/// Identifies the kind of text being compiled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TextKind {
+    Text,
+    Math,
+    Code,
+}
+
+/// Cache key for compiled text paths.
+/// Since `f32` is not `Hash`, we bit-cast it to `u32` for the key.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct TextCacheKey {
+    content: String,
+    font_family: String,
+    font_size_bits: u32,
+    color: [u8; 4],
+    kind: TextKind,
+}
+
+/// Runtime text compiler with LRU-style caching.
+///
+/// When text properties change at runtime (e.g. via `always` reactive blocks),
+/// this service recompiles glyph paths on-demand and caches them so that
+/// identical `(content, font_family, font_size, color, kind)` tuples only
+/// pay compilation cost once.
+#[derive(Clone, Default)]
+pub struct TextCompiler {
+    cache: std::collections::HashMap<TextCacheKey, Vec<TextPath>>,
+}
+
+impl TextCompiler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Compile text into glyph paths, using the cache when possible.
+    pub fn compile(
+        &mut self,
+        content: &str,
+        font_family: &str,
+        font_size: f32,
+        color: [f32; 4],
+        kind: TextKind,
+    ) -> Vec<TextPath> {
+        let key = TextCacheKey {
+            content: content.to_string(),
+            font_family: font_family.to_string(),
+            font_size_bits: font_size.to_bits(),
+            color: [
+                (color[0] * 255.0) as u8,
+                (color[1] * 255.0) as u8,
+                (color[2] * 255.0) as u8,
+                (color[3] * 255.0) as u8,
+            ],
+            kind,
+        };
+
+        if let Some(cached) = self.cache.get(&key) {
+            return cached.clone();
+        }
+
+        let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
+        let frame = match kind {
+            TextKind::Text => compile_text(content, font_size, typst_color, font_family),
+            TextKind::Math => compile_math(content, font_size, typst_color, font_family),
+            TextKind::Code => compile_code(content, font_size, typst_color, font_family),
+        };
+        let paths = extract_glyphs(&frame);
+        self.cache.insert(key, paths.clone());
+        paths
+    }
+
+    /// Clear the compilation cache.
+    pub fn clear_cache(&mut self) {
+        self.cache.clear();
+    }
+
+    /// Number of entries in the cache (for testing).
+    pub fn cache_len(&self) -> usize {
+        self.cache.len()
     }
 }

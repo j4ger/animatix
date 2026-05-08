@@ -133,6 +133,7 @@ impl Timeline {
         }
 
         let mut text_content = String::new();
+        let mut font_family = String::new();
         let mut font_size = kind.default_font_size();
         let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
         let mut initial_track_color: Option<[f32; 4]> = None;
@@ -151,6 +152,16 @@ impl Timeline {
                         &prop_subject,
                     )
                     .map(|v| v.as_str())
+                    .unwrap_or_default();
+                }
+                "font_family" => {
+                    font_family = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str().to_string())
                     .unwrap_or_default();
                 }
                 "font_size" => {
@@ -262,15 +273,22 @@ impl Timeline {
             apply_explicit_position_binding(track, t_start_ms, binding, position);
         }
 
+        // Store font_family and font_size on the track so Phase-2 runtime recompilation
+        // knows what font to use.
+        if !font_family.is_empty() {
+            track.font_family.ensure(String::new()).add_keyframe(t_end_ms, font_family.clone(), easing);
+        }
+        track.font_size.ensure(kind.default_font_size()).add_keyframe(t_end_ms, font_size, easing);
+
         let frame = match kind {
             TextDeclarationKind::Text => {
-                crate::renderer::text::compile_text(&text_content, font_size, color)
+                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family)
             }
             TextDeclarationKind::Math => {
-                crate::renderer::text::compile_math(&text_content, font_size, color)
+                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family)
             }
             TextDeclarationKind::Code => {
-                crate::renderer::text::compile_code(&text_content, font_size, color)
+                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family)
             }
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);
