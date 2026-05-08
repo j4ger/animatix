@@ -26,6 +26,8 @@ pub struct EditorBuffer {
     pub highlighted_line: Option<usize>,
     /// Lines that contain keyframe declarations (for decoration).
     pub keyframe_lines: Vec<usize>,
+    /// Absolute time in seconds for each keyframe line (line → time).
+    pub keyframe_times_s: std::collections::HashMap<usize, f64>,
     /// Current cursor line (0-indexed), updated each frame.
     pub cursor_line: Option<usize>,
 }
@@ -43,6 +45,7 @@ impl EditorBuffer {
             pending_scroll_to_line: None,
             highlighted_line: None,
             keyframe_lines: Vec::new(),
+            keyframe_times_s: std::collections::HashMap::new(),
             cursor_line: None,
         }
     }
@@ -56,6 +59,7 @@ impl EditorBuffer {
         self.pending_scroll_to_line = None;
         self.highlighted_line = None;
         self.keyframe_lines = Vec::new();
+        self.keyframe_times_s.clear();
         self.cursor_line = None;
     }
 
@@ -68,6 +72,11 @@ impl EditorBuffer {
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
         self.cursor_line = None;
+        self.keyframe_times_s.clear();
+    }
+
+    pub fn set_keyframe_times_s(&mut self, times: std::collections::HashMap<usize, f64>) {
+        self.keyframe_times_s = times;
     }
 
     pub fn scroll_to_line(&mut self, line: usize) {
@@ -151,6 +160,25 @@ impl EditorBuffer {
 
                 if let Some(hover_info) = self.analyzer.hover_at(line, col) {
                     response.show_tooltip_text(hover_info.contents);
+                } else if self.keyframe_lines.contains(&line) {
+                    // Show keyframe time tooltip on hover
+                    if let Some(&time_s) = self.keyframe_times_s.get(&line) {
+                        let line_text = self.text.lines().nth(line).unwrap_or("");
+                        let trimmed = line_text.trim_start();
+                        let is_relative = trimmed.starts_with("#+") || trimmed.starts_with("# +");
+                        let tooltip = if is_relative {
+                            format!(
+                                "Keyframe: {:.2}s (relative to previous)",
+                                time_s
+                            )
+                        } else {
+                            format!(
+                                "Keyframe: {:.2}s (absolute)",
+                                time_s
+                            )
+                        };
+                        response.show_tooltip_text(tooltip);
+                    }
                 }
             }
         }
