@@ -1,13 +1,17 @@
-//! Code editor with tree-sitter syntax highlighting, line numbers, and auto-complete.
+//! Code editor with cell-based notebook UI, tree-sitter syntax highlighting,
+//! line numbers, and auto-complete.
 
-use egui::{TextEdit, TextStyle, text::LayoutJob, Key, PointerButton};
+use egui::{Key, text::LayoutJob};
 use std::path::{Path, PathBuf};
 use animatix_analyzer::Analyzer;
+use crate::cell_editor::{Cell, CellEditorState, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
 
 mod highlight {
     pub use crate::highlighting::highlight_source;
 }
+#[allow(unused_imports)]
+use highlight::highlight_source;
 
 pub struct EditorBuffer {
     text: String,
@@ -20,59 +24,89 @@ pub struct EditorBuffer {
     completion: CompletionPopup,
     /// Whether completion was just confirmed (to avoid re-triggering).
     completion_confirmed: bool,
+    /// Cell-based editor state.
+    cells: Vec<Cell>,
+    cell_state: CellEditorState,
+    /// Whether cells are dirty and need re-parsing from text.
+    cells_dirty: bool,
     /// Line to scroll to on next frame (0-indexed, consumed by caller in workspace_ui).
     pub pending_scroll_to_line: Option<usize>,
     /// Line to highlight as "current" (0-indexed, for timeline sync).
     pub highlighted_line: Option<usize>,
     /// Lines that contain keyframe declarations (for decoration).
+    /// **Deprecated**: kept for API compatibility; cells handle this visually.
     pub keyframe_lines: Vec<usize>,
     /// Absolute time in seconds for each keyframe line (line → time).
+    /// **Deprecated**: kept for API compatibility.
     pub keyframe_times_s: std::collections::HashMap<usize, f64>,
     /// Current cursor line (0-indexed), updated each frame.
     pub cursor_line: Option<usize>,
+    /// When the user clicks the ▶ play button on a keyframe cell, this is set
+    /// to the target time. The workspace layer reads it and scrubs the timeline.
+    pub pending_scrub_to_time: Option<f64>,
 }
 
 impl EditorBuffer {
     pub fn new(path: &Path, text: String) -> Self {
         let analyzer = Analyzer::new(&text);
+        let cells = parse_cells(&text);
         Self {
-            text,
+            text: text.clone(),
             document_path: path.to_path_buf(),
             cached_highlight: None,
             analyzer,
             completion: CompletionPopup::new(),
             completion_confirmed: false,
+            cells,
+            cell_state: CellEditorState::default(),
+            cells_dirty: false,
             pending_scroll_to_line: None,
             highlighted_line: None,
             keyframe_lines: Vec::new(),
             keyframe_times_s: std::collections::HashMap::new(),
             cursor_line: None,
+            pending_scrub_to_time: None,
         }
     }
 
     pub fn set_document(&mut self, path: &Path, text: String) {
-        self.text = text;
+        self.text = text.clone();
         self.document_path = path.to_path_buf();
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
         self.completion.hide();
+        self.cells = parse_cells(&text);
+        self.cell_state = CellEditorState::default();
+        self.cells_dirty = false;
         self.pending_scroll_to_line = None;
         self.highlighted_line = None;
         self.keyframe_lines = Vec::new();
         self.keyframe_times_s.clear();
         self.cursor_line = None;
+        self.pending_scrub_to_time = None;
     }
 
     pub fn text(&self) -> &str {
-        &self.text
+        // If cells were edited, source is derived from cells; otherwise use cached text.
+        if self.cells_dirty {
+            // Return text reconstructed from cells. We can't return a reference to a temporary,
+            // so we keep text in sync in show() / replace_text(). For now, return the last known text.
+            &self.text
+        } else {
+            &self.text
+        }
     }
 
     pub fn replace_text(&mut self, text: String) {
-        self.text = text;
+        self.text = text.clone();
+        self.cells = parse_cells(&text);
+        self.cell_state = CellEditorState::default();
+        self.cells_dirty = false;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
         self.cursor_line = None;
         self.keyframe_times_s.clear();
+        self.pending_scrub_to_time = None;
     }
 
     pub fn set_keyframe_times_s(&mut self, times: std::collections::HashMap<usize, f64>) {
@@ -85,6 +119,8 @@ impl EditorBuffer {
 
     pub fn set_highlighted_line(&mut self, line: Option<usize>) {
         self.highlighted_line = line;
+        // Map source line to cell index for cell-level highlighting
+        self.cell_state.highlighted_cell = line.and_then(|l| self.cell_index_for_source_line(l));
     }
 
     pub fn set_keyframe_lines(&mut self, lines: Vec<usize>) {
@@ -96,118 +132,114 @@ impl EditorBuffer {
         &self.analyzer
     }
 
+    /// Build a mapping from source line to cell index.
+    fn cell_index_for_source_line(&self, target_line: usize) -> Option<usize> {
+        let mut current_line = 0usize;
+        for (idx, cell) in self.cells.iter().enumerate() {
+            let cell_lines = cell.to_source().lines().count();
+            if target_line < current_line + cell_lines {
+                return Some(idx);
+            }
+            current_line += cell_lines;
+        }
+        None
+    }
+
+    /// Find which source line a given cell starts at.
+    fn source_line_for_cell(&self, cell_idx: usize) -> Option<usize> {
+        let mut current_line = 0usize;
+        for (idx, cell) in self.cells.iter().enumerate() {
+            if idx == cell_idx {
+                return Some(current_line);
+            }
+            current_line += cell.to_source().lines().count();
+        }
+        None
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> egui::Response {
-        let style = ui.style().clone();
-
-        // Invalidate cache if text changed
-        if let Some((ref cached_text, _)) = self.cached_highlight {
-            if *cached_text != self.text {
-                self.cached_highlight = None;
+        // Handle pending scroll by mapping line to cell
+        if let Some(target_line) = self.pending_scroll_to_line.take() {
+            if let Some(cell_idx) = self.cell_index_for_source_line(target_line) {
+                self.cell_state.scroll_to_cell = Some(cell_idx);
             }
         }
 
-        // Build or reuse cached highlight
-        if self.cached_highlight.is_none() {
-            let diagnostics = self.analyzer.diagnostics();
-            let job = highlight::highlight_source(
-                &self.text,
-                &style,
-                &diagnostics,
-                self.highlighted_line,
-                &self.keyframe_lines,
-            );
-            self.cached_highlight = Some((self.text.clone(), job));
+        // Track source changes from the cell editor
+        let mut source_changed = false;
+        let mut new_source = String::new();
+
+        // Render the cell editor
+        let mut scrub_to_time: Option<f64> = None;
+        {
+            let cells = &mut self.cells;
+            let state = &mut self.cell_state;
+            let on_source_changed = &mut |s: String| {
+                source_changed = true;
+                new_source = s;
+            };
+            let on_scrub_to_time = &mut |t: f64| {
+                scrub_to_time = Some(t);
+            };
+            render_cell_editor(ui, cells, state, on_source_changed, on_scrub_to_time);
         }
 
-        let cached_job = self.cached_highlight.as_ref().unwrap().1.clone();
+        // Build response manually since render_cell_editor doesn't return one
+        let response = ui.response();
 
-        let mut layouter = move |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
-            let mut job = cached_job.clone();
-            job.wrap.max_width = wrap_width;
-            ui.fonts_mut(|fonts| fonts.layout_job(job))
-        };
-
-        let response = ui.add(
-            TextEdit::multiline(&mut self.text)
-                .id_salt((&self.document_path, "animatix-editor"))
-                .font(TextStyle::Monospace)
-                .code_editor()
-                .desired_rows(30)
-                .desired_width(f32::INFINITY)
-                .layouter(&mut layouter),
-        );
-
-        // Track cursor position for timeline sync
-        if let Some(state) = egui::TextEdit::load_state(ui.ctx(), response.id) {
-            if let Some(cursor_range) = state.cursor.char_range() {
-                let char_idx = cursor_range.primary.index;
-                self.cursor_line = Some(self.char_index_to_line(char_idx));
-            }
+        // Handle play-button scrub
+        if let Some(time_s) = scrub_to_time {
+            self.pending_scrub_to_time = Some(time_s);
         }
 
-        // Hover tooltip handling
-        if response.hovered() {
-            if let Some(pos) = ui.ctx().pointer_interact_pos() {
-                let line_height = 14.0 * 1.2; // 16.8
-                let char_width = 8.0; // approximate monospace char width
-
-                // Convert pixel position to line/col (relative to editor rect)
-                let rel_y = pos.y - response.rect.min.y;
-                let rel_x = pos.x - response.rect.min.x;
-
-                let line = (rel_y / line_height).floor() as usize;
-                let col = (rel_x / char_width).floor() as usize;
-
-                if let Some(hover_info) = self.analyzer.hover_at(line, col) {
-                    response.show_tooltip_text(hover_info.contents);
-                } else if self.keyframe_lines.contains(&line) {
-                    // Show keyframe time tooltip on hover
-                    if let Some(&time_s) = self.keyframe_times_s.get(&line) {
-                        let line_text = self.text.lines().nth(line).unwrap_or("");
-                        let trimmed = line_text.trim_start();
-                        let is_relative = trimmed.starts_with("#+") || trimmed.starts_with("# +");
-                        let tooltip = if is_relative {
-                            format!(
-                                "Keyframe: {:.2}s (relative to previous)",
-                                time_s
-                            )
-                        } else {
-                            format!(
-                                "Keyframe: {:.2}s (absolute)",
-                                time_s
-                            )
-                        };
-                        response.show_tooltip_text(tooltip);
-                    }
+        // Handle structural edits (delete / duplicate) requested from the cell menu
+        let mut structurally_changed = false;
+        if let Some(idx) = self.cell_state.pending_delete_cell.take() {
+            if idx < self.cells.len() {
+                self.cells.remove(idx);
+                structurally_changed = true;
+                // Adjust focus if needed
+                if self.cell_state.focused_cell == Some(idx) {
+                    self.cell_state.focused_cell = None;
+                } else if self.cell_state.focused_cell.map(|f| f > idx).unwrap_or(false) {
+                    self.cell_state.focused_cell = self.cell_state.focused_cell.map(|f| f - 1);
                 }
             }
         }
+        if let Some(idx) = self.cell_state.pending_duplicate_cell.take() {
+            if idx < self.cells.len() {
+                let cloned = self.cells[idx].duplicate();
+                self.cells.insert(idx + 1, cloned);
+                structurally_changed = true;
+            }
+        }
 
-        // Ctrl+Click go-to-definition
-        if response.hovered() {
-            ui.input(|i| {
-                if i.pointer.button_clicked(PointerButton::Primary) && i.modifiers.ctrl {
-                    if let Some(pos) = i.pointer.interact_pos() {
-                        let line_height = 14.0 * 1.2; // 16.8
-                        let char_width = 8.0; // approximate monospace char width
+        if source_changed || structurally_changed {
+            if structurally_changed {
+                new_source = crate::cell_editor::cells_to_source(&self.cells);
+            }
+            self.text = new_source;
+            self.cells_dirty = false;
+            self.cached_highlight = None;
+            self.analyzer.update(&self.text);
 
-                        // Convert pixel position to line/col (relative to editor rect)
-                        let rel_y = pos.y - response.rect.min.y;
-                        let rel_x = pos.x - response.rect.min.x;
-
-                        let line = (rel_y / line_height).floor() as usize;
-                        let col = (rel_x / char_width).floor() as usize;
-
-                        if let Some(location) = self.analyzer.definition_at(line, col) {
-                            // For now, we'll scroll to the line by updating the text view offset
-                            // The actual scrolling would be handled by the caller or via a state mechanism
-                            let _target_line = location.line;
-                            // Trigger a scroll to target_line (the UI will need to handle this)
-                            ui.scroll_to_cursor(Some(egui::Align::Center));
-                        }
-                    }
+            // Update cursor_line from focused cell
+            if let Some(focused_idx) = self.cell_state.focused_cell {
+                if let Some(start_line) = self.source_line_for_cell(focused_idx) {
+                    // Estimate cursor line within cell body
+                    self.cursor_line = Some(start_line);
                 }
-            });
+            }
+
+            // Mark response as changed
+            return ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+        }
+
+        // Update cursor_line from focused cell even if not changed
+        if let Some(focused_idx) = self.cell_state.focused_cell {
+            if let Some(start_line) = self.source_line_for_cell(focused_idx) {
+                self.cursor_line = Some(start_line);
+            }
         }
 
         // Handle completion keyboard input
@@ -215,7 +247,6 @@ impl EditorBuffer {
 
         // If completion consumed the input, don't process further
         if completion_consumed {
-            // Check if Tab/Enter was pressed to confirm completion
             let insert_text = self.completion.selected_item().map(|item| {
                 item.insert_text.as_deref().unwrap_or(&item.label).to_string()
             });
@@ -235,19 +266,6 @@ impl EditorBuffer {
             });
         }
 
-        // Trigger completion on typing (after a short delay)
-        if response.changed() && !self.completion_confirmed {
-            self.analyzer.update(&self.text);
-            self.cached_highlight = None;
-
-            // Auto-trigger completion on certain characters
-            if let Some(last_char) = self.text.chars().last() {
-                if last_char == ':' || last_char == '.' || last_char == ' ' {
-                    self.trigger_completion();
-                }
-            }
-        }
-
         // Reset completion_confirmed flag
         if self.completion_confirmed {
             self.completion_confirmed = false;
@@ -255,8 +273,7 @@ impl EditorBuffer {
 
         // Show completion popup if visible
         if self.completion.is_visible() {
-            // Get cursor position (approximate - we'll use the response rect)
-            let cursor_rect = response.rect; // TODO: get actual cursor position
+            let cursor_rect = response.rect;
             if let Some(insert_text) = self.completion.ui(ui, cursor_rect) {
                 self.insert_completion(&insert_text);
                 self.completion.hide();
@@ -268,8 +285,6 @@ impl EditorBuffer {
 
     /// Trigger completion at current cursor position.
     fn trigger_completion(&mut self) {
-        // Get cursor position from the text
-        // For now, we'll use a simple heuristic: find the last word being typed
         let cursor_pos = self.text.len();
         let (line, col) = self.byte_to_line_col(cursor_pos);
 
@@ -280,16 +295,16 @@ impl EditorBuffer {
 
     /// Insert completion text at cursor position.
     fn insert_completion(&mut self, insert_text: &str) {
-        // For now, append to the end of the text
-        // TODO: insert at actual cursor position
         self.text.push_str(insert_text);
+        self.cells = parse_cells(&self.text);
+        self.cell_state = CellEditorState::default();
+        self.cells_dirty = false;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
     }
 
     /// Get the current word being typed (for completion filtering).
     fn get_current_word(&self) -> String {
-        // Find the last word before cursor
         let text = &self.text;
         let mut word = String::new();
 

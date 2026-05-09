@@ -435,17 +435,6 @@ impl GuiShell {
         let diagnostics = self.combined_diagnostics();
 
         let scene_dimensions = self.document.scene_dimensions;
-        // Feed keyframe lines and times into editor for decoration and tooltips
-        self.editor
-            .set_keyframe_lines(self.document.keyframe_lines.clone());
-        let keyframe_times: std::collections::HashMap<usize, f64> = self
-            .document
-            .timeline_index
-            .keyframes
-            .iter()
-            .map(|(ms, line)| (*line, *ms as f64 / 1000.0))
-            .collect();
-        self.editor.set_keyframe_times_s(keyframe_times);
 
         let mut viewer = WorkspaceViewer {
             current_file: &self.document.file_path,

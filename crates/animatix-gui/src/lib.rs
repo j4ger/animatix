@@ -1,5 +1,6 @@
 pub mod app;
 pub mod completion_popup;
+pub mod cell_editor;
 pub mod document;
 pub mod editor;
 pub mod highlighting;

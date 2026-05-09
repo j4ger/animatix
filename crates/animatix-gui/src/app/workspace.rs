@@ -258,86 +258,14 @@ impl WorkspaceViewer<'_> {
             });
             ui.separator();
 
-            // ScrollArea wrapping the editor so we can programmatically scroll
-            let mut scroll_area = egui::ScrollArea::vertical();
-
-            // Apply pending scroll offset
-            if let Some(target_line) = self.editor.pending_scroll_to_line.take() {
-                let line_height = 14.0 * 1.2; // matches editor font metrics
-                let target_y = target_line as f32 * line_height;
-                scroll_area = scroll_area.vertical_scroll_offset(target_y);
+            let response = self.editor.show(ui);
+            if response.changed() {
+                *self.source_dirty = self.editor.text().to_string();
+                self.actions.editor_changed = true;
             }
-
-            scroll_area.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let line_height = 14.0 * 1.2;
-                    let gutter_width = 28.0;
-                    let text_lines = self.editor.text().lines().count().max(30);
-                    let content_height = text_lines as f32 * line_height;
-
-                    // ── Timeline gutter ────────────────────────────────
-                    let gutter = ui.allocate_ui_with_layout(
-                        Vec2::new(gutter_width, 0.0),
-                        egui::Layout::top_down(egui::Align::Center),
-                        |ui| {
-                            ui.add_space(content_height);
-                        },
-                    );
-                    let mut gutter_rect = gutter.response.rect;
-
-                    // Draw gutter background
-                    ui.painter()
-                        .rect_filled(gutter_rect, 0.0, Color32::from_rgb(20, 22, 26));
-
-                    // ── Editor ─────────────────────────────────────────
-                    let response = self.editor.show(ui);
-                    if response.changed() {
-                        *self.source_dirty = self.editor.text().to_string();
-                        self.actions.editor_changed = true;
-                    }
-                    let editor_rect = response.rect;
-
-                    // Extend gutter to match editor height if needed
-                    let final_gutter_rect = gutter_rect
-                        .with_max_y(editor_rect.max.y.max(gutter_rect.max.y));
-                    if final_gutter_rect.height() > gutter_rect.height() {
-                        ui.painter().rect_filled(
-                            final_gutter_rect,
-                            0.0,
-                            Color32::from_rgb(20, 22, 26),
-                        );
-                    }
-                    gutter_rect = final_gutter_rect;
-
-                    // ── Tick marks + accent borders ────────────────────
-                    for &line in &self.editor.keyframe_lines {
-                        let y = gutter_rect.min.y + (line as f32 * line_height);
-                        if y >= gutter_rect.min.y && y <= gutter_rect.max.y {
-                            // Amber tick in gutter
-                            let tick_rect = egui::Rect::from_min_max(
-                                egui::pos2(gutter_rect.max.x - 8.0, y + 2.0),
-                                egui::pos2(gutter_rect.max.x - 2.0, y + line_height - 2.0),
-                            );
-                            ui.painter().rect_filled(
-                                tick_rect,
-                                2.0,
-                                Color32::from_rgb(255, 196, 92),
-                            );
-
-                            // 2px accent border on editor's left edge
-                            let border_rect = egui::Rect::from_min_max(
-                                egui::pos2(gutter_rect.max.x, y),
-                                egui::pos2(gutter_rect.max.x + 2.0, y + line_height),
-                            );
-                            ui.painter().rect_filled(
-                                border_rect,
-                                0.0,
-                                Color32::from_rgb(255, 196, 92),
-                            );
-                        }
-                    }
-                });
-            });
+            if let Some(time_s) = self.editor.pending_scrub_to_time.take() {
+                self.actions.scrub_to = Some(time_s);
+            }
         });
     }
 

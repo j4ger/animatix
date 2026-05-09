@@ -110,13 +110,11 @@ impl HighlightColors {
 ///
 /// Additional visual layers:
 /// - `highlighted_line`: entire line gets a subtle blue background (timeline sync)
-/// - `keyframe_lines`: timestamp portion gets an amber tag background
 pub fn highlight_source(
     source: &str,
     style: &egui::Style,
     diagnostics: &[Diagnostic],
     highlighted_line: Option<usize>,
-    keyframe_lines: &[usize],
 ) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = FontId::new(14.0, FontFamily::Monospace);
@@ -182,11 +180,7 @@ pub fn highlight_source(
     // Build decoration ranges
     let mut deco_ranges: Vec<(usize, usize, Color32)> = Vec::new();
 
-    // 1. Section bands — alternating subtle background per keyframe block
-    let section_bands = keyframe_section_bands(source, keyframe_lines);
-    deco_ranges.extend(section_bands);
-
-    // 2. Highlighted line (timeline sync) — blue background
+    // Highlighted line (timeline sync) — blue background
     if let Some(line) = highlighted_line {
         let (start, end) = line_byte_range(source, line);
         if start < end {
@@ -198,28 +192,7 @@ pub fn highlight_source(
         }
     }
 
-    // 3. Keyframe tag backgrounds — amber pill for timestamp portion
-    for &line in keyframe_lines {
-        if let Some((tag_start, tag_end)) = keyframe_tag_range(source, line) {
-            deco_ranges.push((
-                tag_start,
-                tag_end,
-                Color32::from_rgba_premultiplied(255, 196, 92, 50),
-            ));
-        }
-    }
-
-    // 4. Special text-color highlights — amber text for timestamps
-    let mut special_highlights: Vec<(usize, usize, Color32)> = Vec::new();
-    for &line in keyframe_lines {
-        if let Some((tag_start, tag_end)) = keyframe_tag_range(source, line) {
-            special_highlights.push((
-                tag_start,
-                tag_end,
-                Color32::from_rgb(255, 196, 92),
-            ));
-        }
-    }
+    let special_highlights: Vec<(usize, usize, Color32)> = Vec::new();
 
     // Apply all background layers
     let job = apply_background_layers(
@@ -254,56 +227,6 @@ fn line_byte_range(source: &str, line: usize) -> (usize, usize) {
 
     // Line is at or past end of source
     (source.len(), source.len())
-}
-
-/// Detect the timestamp tag range on a keyframe line.
-/// Returns the byte range of the `#timestamp` portion (e.g. `#0s`, `#+1.5s`).
-fn keyframe_tag_range(source: &str, line: usize) -> Option<(usize, usize)> {
-    let (line_start, line_end) = line_byte_range(source, line);
-    let line_text = &source[line_start..line_end];
-    let trimmed = line_text.trim_start();
-    if !trimmed.starts_with('#') {
-        return None;
-    }
-
-    // Include '#' and everything up to the next whitespace, '{', or end of line
-    let tag_end_rel = trimmed[1..]
-        .find(|c: char| c.is_whitespace() || c == '{')
-        .map(|i| i + 1) // +1 for the '#'
-        .unwrap_or(trimmed.len());
-    let prefix_len = line_text.len() - trimmed.len();
-    let tag_start = line_start + prefix_len;
-    let tag_end = tag_start + tag_end_rel;
-    Some((tag_start, tag_end))
-}
-
-/// Compute alternating background bands for each keyframe block.
-/// A block spans from a keyframe line to just before the next keyframe line.
-fn keyframe_section_bands(source: &str, keyframe_lines: &[usize]) -> Vec<(usize, usize, Color32)> {
-    if keyframe_lines.is_empty() {
-        return Vec::new();
-    }
-    let total_lines = source.lines().count().max(1);
-    let mut bands = Vec::new();
-    for (i, &line) in keyframe_lines.iter().enumerate() {
-        let block_end_line = keyframe_lines.get(i + 1).copied().unwrap_or(total_lines);
-        let (start_byte, _) = line_byte_range(source, line);
-        let end_byte = if block_end_line >= total_lines {
-            source.len()
-        } else {
-            let (end_byte, _) = line_byte_range(source, block_end_line);
-            end_byte
-        };
-        if end_byte > start_byte {
-            let bg = if i % 2 == 0 {
-                Color32::from_rgba_premultiplied(255, 255, 255, 5)
-            } else {
-                Color32::from_rgba_premultiplied(255, 255, 255, 2)
-            };
-            bands.push((start_byte, end_byte, bg));
-        }
-    }
-    bands
 }
 
 /// Apply diagnostic and decoration background colors to highlight spans.
@@ -480,7 +403,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None, &[]);
+        let job = highlight_source(source, &style, &[], None);
 
         // Should produce a non-empty layout job
         assert!(!job.text.is_empty());
@@ -495,21 +418,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None, &[]);
-
-        assert!(!job.text.is_empty());
-    }
-
-    #[test]
-    fn highlight_with_keyframe_lines() {
-        let source = r#"# 0s
-title: Text, text: "Hello"
-# +1s
-title.at = (100, 200)
-"#;
-
-        let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None, &[0, 2]);
+        let job = highlight_source(source, &style, &[], None);
 
         assert!(!job.text.is_empty());
     }
@@ -522,54 +431,8 @@ line three
 "#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], Some(1), &[]);
+        let job = highlight_source(source, &style, &[], Some(1));
 
         assert!(!job.text.is_empty());
-    }
-
-    #[test]
-    fn keyframe_tag_range_detects_timestamp_without_brace() {
-        let source = "#0s\nactor: Rect\n";
-        let result = keyframe_tag_range(source, 0);
-        println!("source='{}' result={:?}", source, result);
-        println!("line_range={:?}", line_byte_range(source, 0));
-        assert!(result.is_some());
-        let (start, end) = result.unwrap();
-        assert_eq!(start, 0);
-        assert!(end > start, "tag end should be > start, got {}", end);
-        // For '#0s' the tag should cover all 3 chars
-        assert_eq!(end, 3, "expected tag '#0s' (3 bytes), got {:?}", &source[start..end]);
-    }
-
-    #[test]
-    fn keyframe_section_bands_splits_by_blocks() {
-        let source = r#"#0s
-a: Rect
-b: Circle
-#+1s
-c: Text
-"#;
-        let bands = keyframe_section_bands(source, &[0, 3]);
-        assert_eq!(bands.len(), 2);
-        // Block 0: from line 0 to line 2 (inclusive)
-        // Block 1: from line 3 to EOF
-        assert!(bands[0].0 < bands[0].1); // valid range
-        assert!(bands[1].0 < bands[1].1); // valid range
-        assert!(bands[0].1 <= bands[1].0); // blocks don't overlap
-    }
-
-    #[test]
-    fn highlight_with_section_bands_and_keyframes() {
-        let source = r#"#0s
-a: Rect
-#+1s
-b: Text
-"#;
-
-        let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None, &[0, 2]);
-
-        assert!(!job.text.is_empty());
-        assert_eq!(job.text, source);
     }
 }
