@@ -88,7 +88,7 @@ pub(super) fn render_keyframe_table(
                 egui::pos2(rect.min.x + 6.0, rect.center().y),
                 Vec2::new(4.0, 4.0),
             );
-            ui.painter().rect_filled(dot, 2.0, AMBER);
+            ui.painter().rect_filled(dot, 4.0, AMBER);
         }
 
         let text_color = if is_current { AMBER } else { TEXT_SECONDARY };

@@ -50,6 +50,7 @@ pub(super) fn transport_bar_ui(
                     RichText::new(play_icon).size(16.0).color(play_color),
                 )
                 .fill(Color32::from_rgb(32, 36, 44))
+                .corner_radius(egui::CornerRadius::same(4))
                 .min_size(Vec2::new(30.0, 28.0));
                 if ui
                     .add(play_btn)
@@ -66,6 +67,7 @@ pub(super) fn transport_bar_ui(
                         .color(muted),
                 )
                 .fill(Color32::TRANSPARENT)
+                .corner_radius(egui::CornerRadius::same(4))
                 .min_size(Vec2::new(26.0, 28.0));
                 if ui
                     .add(prev_btn)
@@ -82,6 +84,7 @@ pub(super) fn transport_bar_ui(
                         .color(muted),
                 )
                 .fill(Color32::TRANSPARENT)
+                .corner_radius(egui::CornerRadius::same(4))
                 .min_size(Vec2::new(26.0, 28.0));
                 if ui
                     .add(next_btn)
@@ -101,6 +104,7 @@ pub(super) fn transport_bar_ui(
                         .color(sync_color),
                 )
                 .fill(Color32::TRANSPARENT)
+                .corner_radius(egui::CornerRadius::same(4))
                 .min_size(Vec2::new(26.0, 28.0));
                 if ui
                     .add(sync_btn)
@@ -121,6 +125,7 @@ pub(super) fn transport_bar_ui(
                     RichText::new(kf_icon).size(12.0).color(kf_color),
                 )
                 .fill(Color32::TRANSPARENT)
+                .corner_radius(egui::CornerRadius::same(4))
                 .min_size(Vec2::new(26.0, 28.0));
                 if ui
                     .add(kf_btn)

@@ -1,6 +1,7 @@
 use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
 use egui::{Color32, Id, RichText, ScrollArea, Vec2};
 
+use super::widgets;
 use super::workspace::UiActions;
 
 mod property_groups;
@@ -225,43 +226,12 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
 // ─── Tab Bar ────────────────────────────────────────────────────────────────
 
 fn render_tab_bar(ui: &mut egui::Ui, active_tab: &mut InspectorTab) {
-    let available = ui.available_width();
-    let tab_h = 26.0;
-    let tab_w = (available - 2.0) / 2.0;
-
-    let (bar_rect, _) =
-        ui.allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover());
-    ui.painter().rect_filled(bar_rect, 4.0, BG_SURFACE);
-
     let tabs = [
         (InspectorTab::Properties, egui_phosphor::regular::WRENCH, "Properties"),
         (InspectorTab::Keyframes, egui_phosphor::regular::KEY, "Keyframes"),
     ];
-
-    for (idx, (tab, icon, label)) in tabs.iter().enumerate() {
-        let is_active = *active_tab == *tab;
-        let x = bar_rect.min.x + idx as f32 * (tab_w + 2.0);
-        let tab_rect = egui::Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
-
-        if is_active {
-            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
-            ui.painter().rect_filled(pill, 4.0, BG_WIDGET);
-        }
-
-        let text_color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
-        let text = format!("{}  {}", icon, label);
-        ui.painter().text(
-            tab_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            &text,
-            egui::TextStyle::Small.resolve(ui.style()),
-            text_color,
-        );
-
-        let response = ui.interact(tab_rect, ui.id().with(("tab", idx)), egui::Sense::click());
-        if response.clicked() {
-            *active_tab = *tab;
-        }
+    if let Some(new_tab) = widgets::pill_tab_bar(ui, *active_tab, &tabs) {
+        *active_tab = new_tab;
     }
 }
 

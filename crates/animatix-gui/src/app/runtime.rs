@@ -261,7 +261,7 @@ fn install_theme(ctx: &egui::Context) {
     // Tighter spacing
     style.spacing.item_spacing = Vec2::new(4.0, 4.0);
     style.spacing.button_padding = Vec2::new(8.0, 4.0);
-    style.spacing.window_margin = egui::Margin::same(6);
+    style.spacing.window_margin = egui::Margin::same(8);
     style.spacing.indent = 14.0;
 
     // Background hierarchy (darkest to lightest)

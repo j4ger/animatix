@@ -2,6 +2,17 @@ use super::*;
 use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, ShapeType, Timeline, TrackAccessor};
 use preview::ActorProps;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SidebarTab {
+    Explorer,
+    Layers,
+}
+
+const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
+const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
+const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
+const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
+
 /// Describes a property edit made in the inspector panel.
 #[derive(Debug, Clone)]
 pub(super) struct PropertyEdit {
@@ -109,119 +120,124 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) keyframe_mode: bool,
 }
 
+/// Uniform panel frame: 8 px padding, transparent fill.
+fn panel_frame() -> egui::Frame {
+    egui::Frame::new()
+        .fill(egui::Color32::TRANSPARENT)
+        .inner_margin(egui::Margin::same(8))
+}
+
+fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
+    let tabs = [
+        (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
+        (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
+    ];
+    if let Some(new_tab) = widgets::pill_tab_bar(ui, *active_tab, &tabs) {
+        *active_tab = new_tab;
+    }
+}
+
 impl WorkspaceViewer<'_> {
-    pub(super) fn explorer_ui(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.label(RichText::new("Workspace").strong());
-            ui.label(
-                RichText::new(self.workspace_root.display().to_string())
-                    .monospace()
-                    .small(),
+    pub(super) fn sidebar_ui(&mut self, ui: &mut egui::Ui) {
+        panel_frame().show(ui, |ui| {
+            let tab_id = ui.id().with("sidebar_tab");
+            let mut active_tab = ui
+                .data(|d| d.get_temp::<SidebarTab>(tab_id))
+                .unwrap_or(SidebarTab::Explorer);
+
+            render_sidebar_tab_bar(ui, &mut active_tab);
+            ui.add_space(6.0);
+
+            ui.allocate_ui_with_layout(
+                ui.available_size(),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| match active_tab {
+                    SidebarTab::Explorer => self.explorer_content_ui(ui),
+                    SidebarTab::Layers => self.layers_content_ui(ui),
+                },
             );
-            ui.separator();
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
-                for entry in self.file_tree {
-                    let is_selected = !entry.is_dir && entry.path == self.current_file;
-                    let label = if entry.is_dir {
-                        let is_expanded = self.expanded_dirs.contains(&entry.path);
-                        let icon = if is_expanded {
-                            egui_phosphor::regular::FOLDER_OPEN
-                        } else {
-                            egui_phosphor::regular::FOLDER
-                        };
-                        format!("{} {}", icon, entry.name)
-                    } else {
-                        let is_amx = entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
-                        let icon = if is_amx {
-                            egui_phosphor::regular::FILM_STRIP
-                        } else {
-                            egui_phosphor::regular::FILE
-                        };
-                        format!("{} {}", icon, entry.name)
-                    };
-
-                    let height = 20.0;
-                    let (rect, response) = ui.allocate_at_least(
-                        Vec2::new(ui.available_width(), height),
-                        egui::Sense::click(),
-                    );
-
-                    ui.painter().rect_filled(
-                        rect.expand(0.5),
-                        2.0,
-                        match (is_selected, response.hovered()) {
-                            (true, _) => Color32::from_rgb(63, 81, 181),
-                            (_, true) => Color32::from_rgb(50, 50, 60),
-                            _ => Color32::TRANSPARENT,
-                        },
-                    );
-
-                    let text_rect = Rect::from_min_max(
-                        Pos2::new(rect.min.x + entry.depth as f32 * EXPLORER_INDENT_PX, rect.min.y),
-                        Pos2::new(rect.max.x, rect.max.y),
-                    );
-                    let is_amx = !entry.is_dir && entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
-                    let text_color = if is_amx {
-                        Color32::from_rgb(137, 200, 235)
-                    } else {
-                        Color32::from_rgb(200, 200, 200)
-                    };
-                    ui.painter().text(
-                        text_rect.left_center(),
-                        egui::Align2::LEFT_CENTER,
-                        label,
-                        egui::TextStyle::Small.resolve(ui.style()),
-                        text_color,
-                    );
-
-                    if response.clicked() {
-                        if entry.is_dir {
-                            self.actions.toggle_expand_dir = Some(entry.path.clone());
-                        } else {
-                            self.actions.open_file = Some(entry.path.clone());
-                        }
-                    }
-                }
-
-                ui.add_space(10.0);
-                ui.separator();
-                ui.add_space(4.0);
-                ui.collapsing("Action Registry", |ui| {
-                    ui.label(
-                        RichText::new("Shipped built-in actions from the runtime registry.")
-                            .small()
-                            .weak(),
-                    );
-                    for signature in get_action_signatures() {
-                        ui.add_space(4.0);
-                        ui.label(
-                            RichText::new(format!("{} · {}", signature.category, signature.name))
-                                .strong()
-                                .small(),
-                        );
-                        ui.label(RichText::new(signature.description).small());
-                        if !signature.modifiers.is_empty() {
-                            let modifier_list = signature
-                                .modifiers
-                                .iter()
-                                .map(|modifier| modifier.name.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            ui.label(
-                                RichText::new(format!("Modifiers: {modifier_list}"))
-                                    .small()
-                                    .weak(),
-                            );
-                        }
-                    }
-                });
-            });
+            ui.data_mut(|d| d.insert_temp(tab_id, active_tab));
         });
     }
 
-    pub(super) fn layers_ui(&mut self, ui: &mut egui::Ui) {
+    fn explorer_content_ui(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Workspace").strong());
+        ui.label(
+            RichText::new(self.workspace_root.display().to_string())
+                .monospace()
+                .small(),
+        );
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+            for entry in self.file_tree {
+                let is_selected = !entry.is_dir && entry.path == self.current_file;
+                let label = if entry.is_dir {
+                    let is_expanded = self.expanded_dirs.contains(&entry.path);
+                    let icon = if is_expanded {
+                        egui_phosphor::regular::FOLDER_OPEN
+                    } else {
+                        egui_phosphor::regular::FOLDER
+                    };
+                    format!("{} {}", icon, entry.name)
+                } else {
+                    let is_amx = entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
+                    let icon = if is_amx {
+                        egui_phosphor::regular::FILM_STRIP
+                    } else {
+                        egui_phosphor::regular::FILE
+                    };
+                    format!("{} {}", icon, entry.name)
+                };
+
+                let height = 20.0;
+                let (rect, response) = ui.allocate_at_least(
+                    Vec2::new(ui.available_width(), height),
+                    egui::Sense::click(),
+                );
+
+                ui.painter().rect_filled(
+                    rect,
+                    4.0,
+                    match (is_selected, response.hovered()) {
+                        (true, _) => Color32::from_rgb(32, 36, 44),
+                        (_, true) => Color32::from_rgb(24, 27, 33),
+                        _ => Color32::TRANSPARENT,
+                    },
+                );
+
+                let text_rect = Rect::from_min_max(
+                    Pos2::new(rect.min.x + entry.depth as f32 * EXPLORER_INDENT_PX, rect.min.y),
+                    Pos2::new(rect.max.x, rect.max.y),
+                );
+                let is_amx = !entry.is_dir && entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
+                let text_color = if is_amx {
+                    Color32::from_rgb(137, 200, 235)
+                } else {
+                    Color32::from_rgb(200, 200, 200)
+                };
+                ui.painter().text(
+                    text_rect.left_center(),
+                    egui::Align2::LEFT_CENTER,
+                    label,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    text_color,
+                );
+
+                if response.clicked() {
+                    if entry.is_dir {
+                        self.actions.toggle_expand_dir = Some(entry.path.clone());
+                    } else {
+                        self.actions.open_file = Some(entry.path.clone());
+                    }
+                }
+            }
+        });
+    }
+
+    fn layers_content_ui(&mut self, ui: &mut egui::Ui) {
         let Some(timeline) = self.timeline else {
             ui.vertical_centered(|ui| {
                 ui.add_space(36.0);
@@ -260,7 +276,6 @@ impl WorkspaceViewer<'_> {
         }
 
         ui.vertical(|ui| {
-            // Header
             let count = count_all_actors(timeline, &root_nodes);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
@@ -295,50 +310,20 @@ impl WorkspaceViewer<'_> {
             ui.painter().rect_filled(sep, 0.0, Color32::from_rgb(32, 36, 44));
             ui.add_space(2.0);
 
-            // Tree
             egui::ScrollArea::vertical()
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
                     for root_label in root_nodes {
-                        render_actor_tree(
-                            ui,
-                            timeline,
-                            root_label,
-                            self.selected_actor,
-                            0,
-                        );
+                        render_actor_tree(ui, timeline, root_label, self.selected_actor, 0);
                     }
                 });
         });
     }
 
     pub(super) fn editor_ui(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(
-                    RichText::new(
-                        self.current_file
-                            .file_name()
-                            .and_then(|name| name.to_str())
-                            .unwrap_or("Untitled"),
-                    )
-                    .strong(),
-                );
-                ui.label(
-                    RichText::new(self.current_file.display().to_string())
-                        .monospace()
-                        .small()
-                        .weak(),
-                );
-            });
-            ui.separator();
-
+        panel_frame().show(ui, |ui| {
             self.editor.set_diagnostics(self.diagnostics);
             let response = self.editor.show(ui);
-            // Normal path: TextEdit reported a change.
-            // Defensive path: the editor text differs from the document source
-            // text (e.g. egui TextEdit undo didn't fire changed()). Always sync
-            // so the document doesn't hold stale invalid source.
             if response.changed() || self.editor.text() != self.source_dirty.as_str() {
                 *self.source_dirty = self.editor.text().to_string();
                 self.actions.editor_changed = true;
@@ -403,6 +388,7 @@ impl WorkspaceViewer<'_> {
     // ─── Preview UI ──────────────────────────────────────────────────────────
 
     pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
+        panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
             // Minimal header
             ui.horizontal(|ui| {
@@ -1064,11 +1050,14 @@ impl WorkspaceViewer<'_> {
             // NOTE: errors are shown in the diagnostics banner above the canvas,
             // not as an overlay, to avoid duplicating the same message.
         });
+        });
     }
 
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
-        let current_time_s = self.preview.current_time_s;
-        inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode);
+        panel_frame().show(ui, |ui| {
+            let current_time_s = self.preview.current_time_s;
+            inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode);
+        });
     }
 }
 
@@ -1119,9 +1108,9 @@ fn render_actor_tree(
 
     // Background: selected gets a soft widget fill; hover gets surface fill
     if is_selected {
-        ui.painter().rect_filled(rect, 3.0, Color32::from_rgb(32, 36, 44));
+        ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(32, 36, 44));
     } else if response.hovered() {
-        ui.painter().rect_filled(rect, 3.0, Color32::from_rgb(24, 27, 33));
+        ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(24, 27, 33));
     }
 
     // Shape icon

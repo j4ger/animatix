@@ -11,9 +11,10 @@ use egui::{Color32, RichText, Stroke, Vec2};
 const LABEL_COLOR: Color32 = Color32::from_rgb(110, 118, 135);
 const VALUE_COLOR: Color32 = Color32::from_rgb(200, 206, 220);
 const ACCENT_COLOR: Color32 = Color32::from_rgb(137, 200, 235);
-const BORDER_COLOR: Color32 = Color32::from_rgb(55, 62, 75);
+const BORDER_COLOR: Color32 = Color32::from_rgb(40, 44, 52);
 const FIELD_BG: Color32 = Color32::from_rgb(24, 27, 33);
 const FIELD_BG_HOVER: Color32 = Color32::from_rgb(30, 34, 42);
+const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
 const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
 const ROW_HEIGHT: f32 = 20.0;
 const FIELD_HEIGHT: f32 = 18.0;
@@ -67,8 +68,8 @@ pub fn float_input(
     } else {
         FIELD_BG
     };
-    ui.painter().rect_filled(field_rect, 3.0, bg);
-    ui.painter().rect_stroke(field_rect, 3.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
+    ui.painter().rect_filled(field_rect, 4.0, bg);
+    ui.painter().rect_stroke(field_rect, 4.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
 
     // Drag-to-adjust on the field area
     let drag_response = ui.interact(field_rect, id.with("drag"), egui::Sense::drag());
@@ -212,8 +213,8 @@ fn vec2_single_field(
     } else {
         FIELD_BG
     };
-    ui.painter().rect_filled(field_rect, 3.0, bg);
-    ui.painter().rect_stroke(field_rect, 3.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
+    ui.painter().rect_filled(field_rect, 4.0, bg);
+    ui.painter().rect_stroke(field_rect, 4.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
 
     let mut text = format_num(value);
 
@@ -309,10 +310,10 @@ pub fn color_input(
         (rgba[2] * 255.0) as u8,
         (rgba[3] * 255.0) as u8,
     );
-    ui.painter().rect_filled(swatch_rect, 2.0, color);
+    ui.painter().rect_filled(swatch_rect, 4.0, color);
     ui.painter().rect_stroke(
         swatch_rect,
-        2.0,
+        4.0,
         Stroke::new(1.0, BORDER_COLOR),
         egui::StrokeKind::Outside,
     );
@@ -332,8 +333,8 @@ pub fn color_input(
     } else {
         FIELD_BG
     };
-    ui.painter().rect_filled(field_rect, 3.0, bg);
-    ui.painter().rect_stroke(field_rect, 3.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
+    ui.painter().rect_filled(field_rect, 4.0, bg);
+    ui.painter().rect_stroke(field_rect, 4.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
 
     let click_response = ui.interact(field_rect, id.with("click"), egui::Sense::click());
     if click_response.clicked() {
@@ -468,7 +469,7 @@ pub fn slider_input(
         egui::pos2(slider_left, slider_y - track_height / 2.0),
         egui::pos2(slider_right, slider_y + track_height / 2.0),
     );
-    ui.painter().rect_filled(track_rect, 2.0, Color32::from_rgb(40, 44, 52));
+    ui.painter().rect_filled(track_rect, 4.0, Color32::from_rgb(40, 44, 52));
 
     // Filled portion
     let fraction = ((value - min) / (max - min)).clamp(0.0, 1.0);
@@ -477,7 +478,7 @@ pub fn slider_input(
         track_rect.min,
         Vec2::new(filled_width, track_height),
     );
-    ui.painter().rect_filled(filled_rect, 2.0, Color32::from_rgb(84, 110, 255));
+    ui.painter().rect_filled(filled_rect, 4.0, Color32::from_rgb(84, 110, 255));
 
     // Thumb
     let thumb_x = slider_left + filled_width;
@@ -485,7 +486,7 @@ pub fn slider_input(
         egui::pos2(thumb_x, slider_y),
         Vec2::new(8.0, 12.0),
     );
-    ui.painter().rect_filled(thumb_rect, 2.0, Color32::from_rgb(200, 206, 220));
+    ui.painter().rect_filled(thumb_rect, 4.0, Color32::from_rgb(200, 206, 220));
 
     // Interactive area (wider than visible track for easier clicking)
     let interact_rect = egui::Rect::from_min_max(
@@ -556,8 +557,8 @@ pub fn text_input(
     } else {
         FIELD_BG
     };
-    ui.painter().rect_filled(field_rect, 3.0, bg);
-    ui.painter().rect_stroke(field_rect, 3.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
+    ui.painter().rect_filled(field_rect, 4.0, bg);
+    ui.painter().rect_stroke(field_rect, 4.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
 
     let click_response = ui.interact(field_rect, id.with("click"), egui::Sense::click());
     if click_response.clicked() {
@@ -643,8 +644,8 @@ pub fn enum_selector(
     } else {
         FIELD_BG
     };
-    ui.painter().rect_filled(field_rect, 3.0, bg);
-    ui.painter().rect_stroke(field_rect, 3.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
+    ui.painter().rect_filled(field_rect, 4.0, bg);
+    ui.painter().rect_stroke(field_rect, 4.0, Stroke::new(1.0, BORDER_COLOR), egui::StrokeKind::Outside);
 
     // Paint current value + dropdown arrow
     ui.painter().text(
@@ -728,4 +729,70 @@ pub fn readonly_row(ui: &mut egui::Ui, label: &str, value: &str, has_keyframes: 
 pub fn add_keyframe_button(ui: &mut egui::Ui) -> bool {
     ui.add(egui::Button::new(RichText::new("+KF").size(9.0).color(AMBER)))
         .clicked()
+}
+
+// ─── Pill Tab Bar ───────────────────────────────────────────────────────────
+
+/// Reusable pill-style segmented tab bar.
+///
+/// `tabs` is a slice of `(tab_value, icon, label)` tuples.
+/// Returns `Some(new_tab)` if a different tab was clicked, else `None`.
+///
+/// Visual: BG_SURFACE background, active tab gets a BG_WIDGET pill,
+/// inactive tabs show a subtle hover tint.
+pub fn pill_tab_bar<T: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    active_tab: T,
+    tabs: &[(T, &'static str, &'static str)],
+) -> Option<T> {
+    let available = ui.available_width();
+    let tab_h = 26.0;
+    let gap = 2.0;
+    let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
+
+    let bar_rect = ui
+        .allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover())
+        .0;
+    ui.painter().rect_filled(bar_rect, 4.0, FIELD_BG);
+
+    let mut clicked_tab = None;
+
+    for (idx, (tab, icon, label)) in tabs.iter().enumerate() {
+        let is_active = active_tab == *tab;
+        let x = bar_rect.min.x + idx as f32 * (tab_w + gap);
+        let tab_rect =
+            egui::Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
+
+        let response = ui.interact(tab_rect, ui.id().with(("pill_tab", idx)), egui::Sense::click());
+
+        if is_active {
+            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
+            ui.painter().rect_filled(pill, 4.0, BG_WIDGET);
+        } else if response.hovered() {
+            // Subtle hover tint on inactive tabs
+            let hover_bg = Color32::from_rgb(36, 40, 50);
+            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
+            ui.painter().rect_filled(pill, 4.0, hover_bg);
+        }
+
+        let text_color = if is_active {
+            VALUE_COLOR
+        } else {
+            LABEL_COLOR
+        };
+        let text = format!("{}  {}", icon, label);
+        ui.painter().text(
+            tab_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            text,
+            egui::TextStyle::Small.resolve(ui.style()),
+            text_color,
+        );
+
+        if response.clicked() {
+            clicked_tab = Some(*tab);
+        }
+    }
+
+    clicked_tab
 }
