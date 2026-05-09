@@ -1320,21 +1320,25 @@ fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<DiagnosticPhas
         .map(|summary| summary.phase)
 }
 
-/// Return a banner message for the first diagnostic, or a phase-specific fallback.
-/// For parse errors, returns the actual error message (truncated). For other phases,
-/// returns a static description.
+/// Return a banner message for the first diagnostic.
+///
+/// Priority:
+/// 1. First error message (any phase) — actual diagnostic text, truncated.
+/// 2. First warning message (any phase) — actual diagnostic text, truncated.
+/// 3. Static phase description as a last resort.
 fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
     if diagnostics.is_empty() {
         return None;
     }
 
-    // Show the first parse error message directly if available
-    let first_parse_error = diagnostics.iter().find(|d| {
-        d.phase == DiagnosticPhase::Parse && d.severity == animatix::diagnostics::DiagnosticSeverity::Error
-    });
-    if let Some(err) = first_parse_error {
+    // Show the first error or warning message directly, regardless of phase.
+    let first_message = diagnostics
+        .iter()
+        .find(|d| d.severity == animatix::diagnostics::DiagnosticSeverity::Error)
+        .or_else(|| diagnostics.first());
+
+    if let Some(err) = first_message {
         let msg = &err.message;
-        // Truncate to first line, max 80 chars
         let first_line = msg.lines().next().unwrap_or(msg);
         if first_line.len() > 80 {
             return Some(format!("{}...", &first_line[..80]));
@@ -1342,19 +1346,7 @@ fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
         return Some(first_line.to_string());
     }
 
-    // Fallback to phase-specific messages
-    match primary_diagnostic_phase(diagnostics) {
-        Some(DiagnosticPhase::Parse) => {
-            Some("Parse diagnostics need attention before trusting later build feedback.".to_string())
-        }
-        Some(DiagnosticPhase::Build) => {
-            Some("Build diagnostics reflect runtime contract issues in the current scene.".to_string())
-        }
-        Some(DiagnosticPhase::Render) => {
-            Some("Render diagnostics affect preview output rather than source parsing.".to_string())
-        }
-        None => None,
-    }
+    None
 }
 
 #[cfg(test)]
@@ -1497,21 +1489,21 @@ mod tests {
     }
 
     #[test]
-    fn diagnostics_banner_message_calls_out_build_when_no_parse_errors() {
-        let diagnostics = vec![Diagnostic::warning(
+    fn diagnostics_banner_message_shows_build_error_message() {
+        let diagnostics = vec![Diagnostic::error(
             DiagnosticCode::UnknownAction,
             DiagnosticPhase::Build,
-            "build warning",
+            "Unknown action 'fade-ind'",
         )];
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Build diagnostics reflect runtime contract issues in the current scene.".to_string())
+            Some("Unknown action 'fade-ind'".to_string())
         );
     }
 
     #[test]
-    fn diagnostics_banner_message_does_not_claim_parse_warnings_block_rebuild() {
+    fn diagnostics_banner_message_shows_warning_when_no_errors() {
         let diagnostics = vec![Diagnostic::warning(
             DiagnosticCode::InvalidConfigValue,
             DiagnosticPhase::Parse,
@@ -1520,12 +1512,33 @@ mod tests {
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Parse diagnostics need attention before trusting later build feedback.".to_string())
+            Some("parse warning".to_string())
         );
     }
 
     #[test]
-    fn diagnostics_banner_message_calls_out_render_diagnostics() {
+    fn diagnostics_banner_message_shows_first_error_over_warnings() {
+        let diagnostics = vec![
+            Diagnostic::warning(
+                DiagnosticCode::InvalidConfigValue,
+                DiagnosticPhase::Parse,
+                "parse warning",
+            ),
+            Diagnostic::error(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "Unknown action 'fade-ind'",
+            ),
+        ];
+
+        assert_eq!(
+            diagnostics_banner_message(&diagnostics),
+            Some("Unknown action 'fade-ind'".to_string())
+        );
+    }
+
+    #[test]
+    fn diagnostics_banner_message_shows_render_error_message() {
         let diagnostics = vec![Diagnostic::error(
             DiagnosticCode::RenderFailure,
             DiagnosticPhase::Render,
@@ -1534,7 +1547,7 @@ mod tests {
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Render diagnostics affect preview output rather than source parsing.".to_string())
+            Some("render failed".to_string())
         );
     }
 
