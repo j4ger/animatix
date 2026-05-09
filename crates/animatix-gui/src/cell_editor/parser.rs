@@ -158,7 +158,12 @@ fn collect_braced_body(lines: &[&str], open_line_idx: usize, first_segment: Stri
             return (body, line_idx);
         }
 
-        body.push('\n');
+        // Only add a newline separator when there is already body content.
+        // This prevents an extra leading newline when the first segment was
+        // empty (e.g. the opening `{` was on its own line).
+        if !body.is_empty() {
+            body.push('\n');
+        }
         segment = lines[line_idx].to_string();
     }
 }

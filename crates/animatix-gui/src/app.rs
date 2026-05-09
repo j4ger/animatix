@@ -285,6 +285,9 @@ impl GuiShell {
             && now >= deadline
         {
             self.pending_rebuild_at = None;
+            // Clear any stale error before rebuild so a successful rebuild
+            // doesn't leave an outdated error banner visible.
+            self.preview.error = None;
             let _ = self.rebuild();
         }
     }
@@ -522,6 +525,12 @@ impl GuiShell {
                 .set_source_text(self.editor.text().to_string());
             self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
             self.preview.status = "Editing source • rebuild scheduled".to_string();
+            // Clear any stale error from a previous failed rebuild so the user
+            // doesn't see an outdated error banner while typing.
+            self.preview.error = None;
+            // Also clear stale document diagnostics so the preview banner doesn't
+            // show an outdated parse error during the debounce window.
+            self.document.diagnostics.clear();
         }
         if actions.request_repaint {
             self.preview_dirty = true;
@@ -733,9 +742,7 @@ impl GuiShell {
         if stop_playback {
             self.preview.is_playing = false;
         }
-        self.render_diagnostics.clear();
-        self.preview.status = status;
-        self.preview.error = None;
+        self.clear_any_error(status);
         self.preview_dirty = true;
     }
 
@@ -768,6 +775,13 @@ impl GuiShell {
             self.preview.error = None;
             self.preview.status = status;
         }
+    }
+
+    /// Force-clear any active error state (parse or render).
+    fn clear_any_error(&mut self, status: String) {
+        self.render_diagnostics.clear();
+        self.preview.error = None;
+        self.preview.status = status;
     }
 
     fn save_persistence(&self) {

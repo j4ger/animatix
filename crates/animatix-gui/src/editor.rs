@@ -159,7 +159,7 @@ impl EditorBuffer {
 
     /// Compute a new keyframe cell to insert after `after_idx`.
     ///
-    /// Timestamp logic (from EDITOR_CELLS_PLAN.md Q3):
+    /// Timestamp logic:
     /// - Between two keyframes at T₁ and T₂: default to `#+(T₂−T₁)/2`.
     /// - After the last keyframe: `#+1s`.
     fn compute_insert_keyframe(&self, after_idx: usize) -> Cell {
@@ -218,6 +218,16 @@ impl EditorBuffer {
                 scrub_to_time = Some(t);
             };
             render_cell_editor(ui, cells, state, on_source_changed, on_scrub_to_time);
+        }
+
+        // Defensive: egui TextEdit handles Ctrl-Z internally and may not fire
+        // response.changed(). Reconstruct source from cells and compare with our
+        // cached text. If they diverge, something changed internally (undo, etc.)
+        // and we must sync.
+        let reconstructed = crate::cell_editor::cells_to_source(&self.cells);
+        if !source_changed && reconstructed != self.text {
+            source_changed = true;
+            new_source = reconstructed;
         }
 
         // Build response manually since render_cell_editor doesn't return one
@@ -297,8 +307,10 @@ impl EditorBuffer {
                 }
             }
 
-            // Mark response as changed
-            return ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+            // Mark response as changed so the workspace knows the source text was modified.
+            let mut r = ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+            r.mark_changed();
+            return r;
         }
 
         // Update cursor_line from focused cell even if not changed

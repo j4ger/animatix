@@ -259,7 +259,11 @@ impl WorkspaceViewer<'_> {
             ui.separator();
 
             let response = self.editor.show(ui);
-            if response.changed() {
+            // Normal path: TextEdit reported a change.
+            // Defensive path: the editor text differs from the document source
+            // text (e.g. egui TextEdit undo didn't fire changed()). Always sync
+            // so the document doesn't hold stale invalid source.
+            if response.changed() || self.editor.text() != self.source_dirty.as_str() {
                 *self.source_dirty = self.editor.text().to_string();
                 self.actions.editor_changed = true;
             }

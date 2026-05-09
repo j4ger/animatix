@@ -105,7 +105,9 @@ impl Cell {
             Self::Code { body, .. } => {
                 let mut out = String::with_capacity(body.len() + 1);
                 out.push_str(body);
-                out.push('\n');
+                if !body.ends_with('\n') {
+                    out.push('\n');
+                }
                 out
             }
             Self::Keyframe { timestamp, is_relative, body, attached_comment, .. } => {
@@ -127,12 +129,11 @@ impl Cell {
                 } else {
                     out.push_str(timestamp);
                 }
-                out.push_str(" {\n");
+                out.push('\n');
                 out.push_str(body);
                 if !body.ends_with('\n') {
                     out.push('\n');
                 }
-                out.push_str("}\n");
                 out
             }
         }

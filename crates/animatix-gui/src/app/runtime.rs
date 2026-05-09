@@ -187,7 +187,7 @@ impl AnimatixApp {
                 self.shell.preview_dirty = false;
                 self.shell.hit_regions = self.preview_surface.hit_regions().to_vec();
                 self.shell
-                    .clear_render_error(live_preview_status(&self.shell.preview));
+                    .clear_any_error(live_preview_status(&self.shell.preview));
             }
         } else if self.preview_texture_id.is_none()
             && self.preview_surface.dimensions().width > 0
@@ -204,7 +204,7 @@ impl AnimatixApp {
                 self.preview_texture_id = Some(texture_id);
             }
             self.shell
-                .clear_render_error(live_preview_status(&self.shell.preview));
+                .clear_any_error(live_preview_status(&self.shell.preview));
         }
 
         Ok(())
