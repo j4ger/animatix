@@ -145,7 +145,11 @@ fn render_code_cell(
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            let toggle = if expanded { "v" } else { ">" };
+                            let toggle = if expanded {
+                                egui_phosphor::regular::CARET_DOWN
+                            } else {
+                                egui_phosphor::regular::CARET_RIGHT
+                            };
                             if ui
                                 .small_button(toggle)
                                 .on_hover_text(if expanded { "Collapse" } else { "Expand" })
@@ -243,7 +247,7 @@ fn render_keyframe_cell(
                                 ui.horizontal(|ui| {
                                     // Play
                                     if ui
-                                        .small_button(">")
+                                        .small_button(egui_phosphor::regular::PLAY)
                                         .on_hover_text("Play from this keyframe")
                                         .clicked()
                                     {
@@ -266,7 +270,7 @@ fn render_keyframe_cell(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
                                             if ui
-                                                .small_button("x")
+                                                .small_button(egui_phosphor::regular::TRASH)
                                                 .on_hover_text("Delete keyframe")
                                                 .clicked()
                                             {
@@ -423,7 +427,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         ui.painter().text(
             center,
             egui::Align2::CENTER_CENTER,
-            "+",
+            egui_phosphor::regular::PLUS,
             egui::FontId::monospace(14.0),
             AMBER,
         );

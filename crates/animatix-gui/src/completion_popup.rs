@@ -186,13 +186,13 @@ impl CompletionPopup {
 
                 // Draw icon based on kind
                 let icon = match item.kind {
-                    CompletionKind::Keyword => "K",
-                    CompletionKind::Type => "T",
-                    CompletionKind::Property => "P",
-                    CompletionKind::Label => "L",
-                    CompletionKind::Action => "A",
-                    CompletionKind::Value => "V",
-                    CompletionKind::Snippet => "S",
+                    CompletionKind::Keyword => egui_phosphor::regular::HASH,
+                    CompletionKind::Type => egui_phosphor::regular::CUBE,
+                    CompletionKind::Property => egui_phosphor::regular::WRENCH,
+                    CompletionKind::Label => egui_phosphor::regular::TAG,
+                    CompletionKind::Action => egui_phosphor::regular::LIGHTNING,
+                    CompletionKind::Value => egui_phosphor::regular::HASH,
+                    CompletionKind::Snippet => egui_phosphor::regular::CODE,
                 };
                 let icon_color = match item.kind {
                     CompletionKind::Keyword => Color32::from_rgb(251, 73, 106),

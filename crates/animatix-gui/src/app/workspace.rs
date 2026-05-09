@@ -152,11 +152,19 @@ impl WorkspaceViewer<'_> {
                     let is_selected = !entry.is_dir && entry.path == self.current_file;
                     let label = if entry.is_dir {
                         let is_expanded = self.expanded_dirs.contains(&entry.path);
-                        let icon = if is_expanded { "📂" } else { "📁" };
+                        let icon = if is_expanded {
+                            egui_phosphor::regular::FOLDER_OPEN
+                        } else {
+                            egui_phosphor::regular::FOLDER
+                        };
                         format!("{} {}", icon, entry.name)
                     } else {
                         let is_amx = entry.path.extension().and_then(|e| e.to_str()) == Some("amx");
-                        let icon = if is_amx { "🎬" } else { "📄" };
+                        let icon = if is_amx {
+                            egui_phosphor::regular::FILM_STRIP
+                        } else {
+                            egui_phosphor::regular::FILE
+                        };
                         format!("{} {}", icon, entry.name)
                     };
 

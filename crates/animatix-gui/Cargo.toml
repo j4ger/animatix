@@ -12,6 +12,7 @@ egui = { version = "0.34", features = ["serde"] }
 egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
 egui_extras = { version = "0.34", features = ["syntect"] }
 egui_dock = { version = "0.19", features = ["serde"] }
+egui-phosphor = { version = "0.12", default-features = false, features = ["regular"] }
 kurbo = "0.13.0"
 pollster = "0.4.0"
 ron = "0.12.0"

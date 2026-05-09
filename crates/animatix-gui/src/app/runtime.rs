@@ -45,6 +45,11 @@ impl AnimatixApp {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         install_theme(&cc.egui_ctx);
 
+        // Register Phosphor icon font
+        let mut fonts = egui::FontDefinitions::default();
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        cc.egui_ctx.set_fonts(fonts);
+
         let preview_surface = PreviewSurface::new(device, queue);
         let shell = GuiShell::load(initial_path);
 

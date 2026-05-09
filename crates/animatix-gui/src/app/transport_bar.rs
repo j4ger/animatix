@@ -36,7 +36,7 @@ pub(super) fn transport_bar_ui(
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
                 // Play/Pause button
-                let play_label = if preview.is_playing { "⏸" } else { "▶" };
+                let play_label = if preview.is_playing { egui_phosphor::regular::PAUSE } else { egui_phosphor::regular::PLAY };
                 let play_btn = egui::Button::new(
                     RichText::new(play_label).size(16.0).color(
                         if preview.is_playing {
@@ -54,7 +54,7 @@ pub(super) fn transport_bar_ui(
                 }
 
                 // Prev keyframe
-                let prev_btn = egui::Button::new(RichText::new("⏮").size(13.0).color(Color32::from_rgb(150, 158, 175)))
+                let prev_btn = egui::Button::new(RichText::new(egui_phosphor::regular::SKIP_BACK).size(13.0).color(Color32::from_rgb(150, 158, 175)))
                     .fill(Color32::from_rgb(28, 31, 38))
                     .min_size(Vec2::new(28.0, 28.0));
                 if ui.add(prev_btn).on_hover_text("Previous keyframe (,)").clicked() {
@@ -62,7 +62,7 @@ pub(super) fn transport_bar_ui(
                 }
 
                 // Next keyframe
-                let next_btn = egui::Button::new(RichText::new("⏭").size(13.0).color(Color32::from_rgb(150, 158, 175)))
+                let next_btn = egui::Button::new(RichText::new(egui_phosphor::regular::SKIP_FORWARD).size(13.0).color(Color32::from_rgb(150, 158, 175)))
                     .fill(Color32::from_rgb(28, 31, 38))
                     .min_size(Vec2::new(28.0, 28.0));
                 if ui.add(next_btn).on_hover_text("Next keyframe (.)").clicked() {
@@ -73,7 +73,7 @@ pub(super) fn transport_bar_ui(
 
                 // Editor sync toggle
                 let sync_btn = egui::Button::new(
-                    RichText::new("🔗").size(12.0).color(
+                    RichText::new(egui_phosphor::regular::LINK).size(12.0).color(
                         if editor_sync_enabled {
                             Color32::from_rgb(84, 110, 255)
                         } else {
@@ -92,7 +92,7 @@ pub(super) fn transport_bar_ui(
 
                 // Keyframe mode toggle
                 let kf_btn = egui::Button::new(
-                    RichText::new(if keyframe_mode { "🔑" } else { "○" }).size(12.0).color(
+                    RichText::new(if keyframe_mode { egui_phosphor::regular::KEY } else { egui_phosphor::regular::CIRCLE }).size(12.0).color(
                         if keyframe_mode {
                             Color32::from_rgb(255, 196, 92)
                         } else {
@@ -185,19 +185,19 @@ pub(super) fn transport_bar_ui(
                 let warnings = diagnostics.iter().filter(|d| !d.is_error()).count();
 
                 let status_text = if diagnostics.is_empty() {
-                    "✓ Built".to_string()
+                    format!("{} Built", egui_phosphor::regular::CHECK)
                 } else if errors > 0 && warnings > 0 {
-                    format!("⚠ {} errors, {} warnings", errors, warnings)
+                    format!("{} {} errors, {} warnings", egui_phosphor::regular::WARNING, errors, warnings)
                 } else if errors > 1 {
-                    format!("⚠ {} errors", errors)
+                    format!("{} {} errors", egui_phosphor::regular::WARNING, errors)
                     } else if errors == 1 {
-                        "⚠ 1 error".to_string()
+                        format!("{} 1 error", egui_phosphor::regular::WARNING)
                 } else if warnings > 1 {
-                    format!("⚠ {} warnings", warnings)
+                    format!("{} {} warnings", egui_phosphor::regular::WARNING, warnings)
                 } else if warnings == 1 {
-                    "⚠ 1 warning".to_string()
+                    format!("{} 1 warning", egui_phosphor::regular::WARNING)
                 } else {
-                    "⚠ Diagnostics".to_string()
+                    format!("{} Diagnostics", egui_phosphor::regular::WARNING)
                 };
 
                 let status_color = if diagnostics.is_empty() {
@@ -220,7 +220,7 @@ pub(super) fn transport_bar_ui(
                         ui.strong(format!("{} diagnostic{}", diagnostics.len(), if diagnostics.len() == 1 { "" } else { "s" }));
                         ui.add_space(4.0);
                         for d in diagnostics.iter().take(10) {
-                            let prefix = if d.is_error() { "✗ " } else { "⚠ " };
+                            let prefix = if d.is_error() { format!("{} ", egui_phosphor::regular::X) } else { format!("{} ", egui_phosphor::regular::WARNING) };
                             let loc = if let (Some(l), Some(c)) = (d.location.line, d.location.column) {
                                 format!("line {l}, col {c}: ")
                             } else { String::new() };
