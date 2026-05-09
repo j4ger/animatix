@@ -43,7 +43,7 @@ pub fn render_cell_editor(
 
             let cell_response = match cell {
                 Cell::Code { .. } => {
-                    render_code_cell(ui, index, cell, &style, highlighted, &mut source_changed)
+                    render_code_cell(ui, index, cell, &style, highlighted, state, &mut source_changed)
                 }
                 Cell::Keyframe { .. } => render_keyframe_cell(
                     ui,
@@ -81,6 +81,7 @@ fn render_code_cell(
     cell: &mut Cell,
     style: &egui::Style,
     highlighted: bool,
+    state: &mut CellEditorState,
     source_changed: &mut bool,
 ) -> egui::Response {
     let expanded = cell.is_expanded();
@@ -92,8 +93,6 @@ fn render_code_cell(
         .show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    // Use ASCII "v" / ">" instead of Unicode geometric shapes
-                    // to avoid tofu blocks in egui's default font atlas.
                     let toggle = if expanded { "v" } else { ">" };
                     if ui
                         .small_button(toggle)
@@ -132,6 +131,7 @@ fn render_code_cell(
                     if response.changed() {
                         *source_changed = true;
                     }
+                    track_focus(index, &response, state);
                 }
             });
         })
@@ -150,7 +150,6 @@ fn render_keyframe_cell(
     on_scrub_to_time: &mut dyn FnMut(f64),
     source_changed: &mut bool,
 ) -> egui::Response {
-    let timestamp = cell.timestamp_text().unwrap_or("0s").to_string();
     let time_s = cell.time_s().unwrap_or(0.0);
     let bg = if highlighted {
         KEYFRAME_BG_HIGHLIGHT
@@ -158,8 +157,6 @@ fn render_keyframe_cell(
         KEYFRAME_BG
     };
 
-    // Amber left border implemented as a nested frame so the widget feels
-    // like a single cohesive card.
     Frame::new()
         .fill(AMBER)
         .inner_margin(Margin {
@@ -180,7 +177,7 @@ fn render_keyframe_cell(
                             .show(ui, |ui| {
                                 ui.set_min_height(26.0);
                                 ui.horizontal(|ui| {
-                                    // Play — use ASCII ">" to avoid tofu.
+                                    // Play
                                     if ui
                                         .small_button(">")
                                         .on_hover_text("Play from this keyframe")
@@ -191,48 +188,26 @@ fn render_keyframe_cell(
 
                                     ui.add_space(6.0);
 
-                                    // Timestamp label (no emoji, monospace, amber)
-                                    let ts_label = if timestamp.starts_with('+') {
-                                        timestamp.clone()
-                                    } else {
-                                        format!("#{}", timestamp)
-                                    };
-                                    ui.label(
-                                        RichText::new(ts_label)
-                                            .monospace()
-                                            .size(12.0)
-                                            .color(AMBER),
+                                    // Editable timestamp
+                                    render_timestamp_editor(
+                                        ui,
+                                        cell,
+                                        source_changed,
+                                        state,
+                                        index,
                                     );
 
-                                    // Right-aligned overflow menu
+                                    // Delete button (right-aligned)
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            ui.menu_button(
-                                                RichText::new("...")
-                                                    .size(12.0)
-                                                    .color(Color32::from_rgb(160, 160, 160)),
-                                                |ui| {
-                                                    ui.set_min_width(160.0);
-
-                                                    if ui.button("Delete").clicked() {
-                                                        state.pending_delete_cell = Some(index);
-                                                        ui.close();
-                                                    }
-                                                    if ui.button("Duplicate").clicked() {
-                                                        state.pending_duplicate_cell =
-                                                            Some(index);
-                                                        ui.close();
-                                                    }
-                                                    if ui.button("Toggle absolute / relative")
-                                                        .clicked()
-                                                    {
-                                                        cell.toggle_timestamp_type();
-                                                        *source_changed = true;
-                                                        ui.close();
-                                                    }
-                                                },
-                                            );
+                                            if ui
+                                                .small_button("x")
+                                                .on_hover_text("Delete keyframe")
+                                                .clicked()
+                                            {
+                                                state.pending_delete_cell = Some(index);
+                                            }
                                         },
                                     );
                                 });
@@ -263,6 +238,7 @@ fn render_keyframe_cell(
                                 if response.changed() {
                                     *source_changed = true;
                                 }
+                                track_focus(index, &response, state);
                             });
                     });
                 });
@@ -270,18 +246,83 @@ fn render_keyframe_cell(
         .response
 }
 
+// ── Timestamp inline editor ──────────────────────────────────────────────
+
+fn render_timestamp_editor(
+    ui: &mut egui::Ui,
+    cell: &mut Cell,
+    source_changed: &mut bool,
+    state: &mut CellEditorState,
+    cell_index: usize,
+) {
+    // We need the raw timestamp string to edit.
+    let (raw_ts, is_rel) = match cell {
+        Cell::Keyframe {
+            timestamp,
+            is_relative,
+            ..
+        } => (timestamp.clone(), *is_relative),
+        _ => return,
+    };
+
+    // Temporary editable buffer
+    let mut edited = raw_ts.clone();
+
+    // Small single-line text edit for the timestamp
+    let ts_response = ui.add(
+        egui::TextEdit::singleline(&mut edited)
+            .font(egui::FontId::monospace(12.0))
+            .desired_width(80.0)
+            .frame(Frame::NONE),
+    );
+
+    // Update the cell if the user changed the text
+    if ts_response.changed() {
+        // Normalize: if user typed without prefix, keep relative/abs status
+        let new_is_relative = if edited.starts_with('+') {
+            true
+        } else {
+            is_rel
+        };
+
+        if let Cell::Keyframe {
+            timestamp,
+            is_relative,
+            ..
+        } = cell
+        {
+            *timestamp = edited.trim().to_string();
+            *is_relative = new_is_relative;
+            *source_changed = true;
+        }
+    }
+
+    track_focus(cell_index, &ts_response, state);
+}
+
+// ── Focus tracking ───────────────────────────────────────────────────────
+
+/// Track when a TextEdit inside a cell gains focus so that clicking into
+/// another cell correctly updates `focused_cell`. This is necessary because
+/// the Frame container's `clicked()` does not fire when the inner TextEdit
+/// consumes the click.
+fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorState) {
+    if response.gained_focus() {
+        state.focused_cell = Some(index);
+    }
+}
+
 // ── Divider between cells ────────────────────────────────────────────────
 
 fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let available = ui.available_width();
-    let height = 22.0; // Taller hit-area for easier interaction
+    let height = 22.0;
     let (rect, response) =
         ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
 
     let hover = response.hovered();
     let center = rect.center();
 
-    // Background: completely invisible unless hovered
     if hover {
         ui.painter().rect_filled(
             rect,
@@ -290,7 +331,6 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         );
     }
 
-    // Line: subtle by default, brighter on hover, with inset margins
     let line_color = if hover { DIVIDER_LINE_HOVER } else { DIVIDER_LINE };
     let stroke = Stroke::new(if hover { 1.5 } else { 1.0 }, line_color);
     let y = center.y;
@@ -301,9 +341,6 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
             .line_segment([egui::pos2(left, y), egui::pos2(right, y)], stroke);
     }
 
-    // Hover-only "+" indicator: purely visual, painted, not a separate widget.
-    // The entire divider rect is clickable, so we avoid interaction-layer
-    // fights where a child widget steals hover from its parent.
     if hover {
         let btn_size = Vec2::new(22.0, 22.0);
         let btn_rect = egui::Rect::from_center_size(center, btn_size);

@@ -2,7 +2,7 @@ mod cell;
 mod parser;
 mod render;
 
-pub use cell::Cell;
+pub use cell::{Cell, format_duration_s};
 pub use parser::{cells_to_source, parse_cells};
 pub use render::render_cell_editor;
 
@@ -18,6 +18,9 @@ pub struct CellEditorState {
     pub pending_duplicate_cell: Option<usize>,
     /// Optional insert request: insert a new keyframe after this cell index.
     pub pending_insert_after: Option<usize>,
+    /// The cell that had focus on the previous frame. Used to detect when
+    /// the user moved focus away from a cell so we can auto-remove it if empty.
+    pub prev_focused_cell: Option<usize>,
 }
 
 impl Default for CellEditorState {
@@ -29,6 +32,7 @@ impl Default for CellEditorState {
             pending_delete_cell: None,
             pending_duplicate_cell: None,
             pending_insert_after: None,
+            prev_focused_cell: None,
         }
     }
 }

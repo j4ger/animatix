@@ -141,4 +141,67 @@ impl Cell {
     pub fn duplicate(&self) -> Self {
         self.clone()
     }
+
+    /// True when the cell has no meaningful content.
+    ///
+    /// A code cell is empty when its body is blank.
+    /// A keyframe cell is empty when its body is blank *and* it has no
+    /// attached comment (the timestamp alone is not enough to keep it).
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Code { body, .. } => body.trim().is_empty(),
+            Self::Keyframe { body, attached_comment, .. } => {
+                body.trim().is_empty() && attached_comment.is_none()
+            }
+        }
+    }
+
+    /// Return a cleaned display version of the timestamp, stripping unnecessary
+    /// trailing zeros (e.g. `1.0s` → `1s`, `1.500s` → `1.5s`).
+    pub fn display_timestamp(&self) -> Option<String> {
+        match self {
+            Self::Keyframe { timestamp, is_relative, .. } => {
+                let text = timestamp.trim_start_matches('+');
+                let seconds = parse_timestamp_seconds(text);
+                let formatted = format_duration_s(seconds);
+                if *is_relative {
+                    Some(format!("+{}", formatted))
+                } else {
+                    Some(formatted)
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Format a duration in seconds as a clean timestamp string.
+///
+/// Strips trailing zeros so both `1s` and `1.2230421s` look natural.
+pub fn format_duration_s(seconds: f64) -> String {
+    if seconds == 0.0 {
+        return "0s".to_string();
+    }
+
+    // Use high precision, then strip trailing zeros and possible trailing dot.
+    let s = format!("{:.10}", seconds.abs());
+    let s = s.trim_end_matches('0');
+    let s = s.trim_end_matches('.');
+
+    if seconds < 0.0 {
+        format!("-{}s", s)
+    } else {
+        format!("{}s", s)
+    }
+}
+
+fn parse_timestamp_seconds(timestamp: &str) -> f64 {
+    let raw = timestamp.trim_start_matches('+').trim();
+    if let Some(value) = raw.strip_suffix("ms") {
+        value.trim().parse::<f64>().unwrap_or(0.0) / 1000.0
+    } else if let Some(value) = raw.strip_suffix('s') {
+        value.trim().parse::<f64>().unwrap_or(0.0)
+    } else {
+        raw.parse::<f64>().unwrap_or(0.0)
+    }
 }

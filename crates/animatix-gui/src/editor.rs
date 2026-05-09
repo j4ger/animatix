@@ -163,6 +163,8 @@ impl EditorBuffer {
     /// - Between two keyframes at T₁ and T₂: default to `#+(T₂−T₁)/2`.
     /// - After the last keyframe: `#+1s`.
     fn compute_insert_keyframe(&self, after_idx: usize) -> Cell {
+        use crate::cell_editor::format_duration_s;
+
         let prev_time_s = self.cells[..=after_idx]
             .iter()
             .rev()
@@ -173,28 +175,19 @@ impl EditorBuffer {
             .iter()
             .find_map(|c| c.time_s());
 
-        let (timestamp, is_relative) = if let Some(next) = next_time_s {
+        let (timestamp, is_relative, new_time_s) = if let Some(next) = next_time_s {
             let delta = (next - prev_time_s) / 2.0;
-            // Round to 1 decimal place for cleanliness
-            let delta_rounded = (delta * 10.0).round() / 10.0;
-            if delta_rounded.fract() == 0.0 {
-                (format!("+{:.0}s", delta_rounded), true)
-            } else {
-                (format!("+{:.1}s", delta_rounded), true)
-            }
+            let ts = format!("+{}", format_duration_s(delta));
+            let t = prev_time_s + delta;
+            (ts, true, t)
         } else {
-            ("+1s".to_string(), true)
+            ("+1s".to_string(), true, prev_time_s + 1.0)
         };
 
         Cell::Keyframe {
             timestamp,
             is_relative,
-            time_s: prev_time_s
-                + if next_time_s.is_some() {
-                    (next_time_s.unwrap() - prev_time_s) / 2.0
-                } else {
-                    1.0
-                },
+            time_s: new_time_s,
             body: String::new(),
             attached_comment: None,
         }
@@ -235,7 +228,7 @@ impl EditorBuffer {
             self.pending_scrub_to_time = Some(time_s);
         }
 
-        // Handle structural edits (delete / duplicate) requested from the cell menu
+        // Handle structural edits (delete / duplicate / insert) requested from the cell menu
         let mut structurally_changed = false;
         if let Some(idx) = self.cell_state.pending_delete_cell.take() {
             if idx < self.cells.len() {
@@ -265,6 +258,27 @@ impl EditorBuffer {
                 self.cell_state.focused_cell = Some(insert_at);
             }
         }
+
+        // ── Auto-remove empty cells that lost focus ────────────────────────
+        // When focus moves from cell A to cell B (or leaves the editor),
+        // cell A is removed if it became empty while it was focused.
+        let prev = self.cell_state.prev_focused_cell;
+        let curr = self.cell_state.focused_cell;
+        if prev != curr {
+            if let Some(prev_idx) = prev {
+                if prev_idx < self.cells.len() && self.cells[prev_idx].is_empty() {
+                    self.cells.remove(prev_idx);
+                    structurally_changed = true;
+                    // Adjust current focus if it was after the removed cell
+                    if let Some(ref mut c) = self.cell_state.focused_cell {
+                        if *c > prev_idx {
+                            *c -= 1;
+                        }
+                    }
+                }
+            }
+        }
+        self.cell_state.prev_focused_cell = self.cell_state.focused_cell;
 
         if source_changed || structurally_changed {
             if structurally_changed {
