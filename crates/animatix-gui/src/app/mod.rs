@@ -175,6 +175,9 @@ struct GuiShell {
     keyframe_mode: bool,
     /// Time on the timeline corresponding to the editor cursor position (for bi-directional sync).
     cursor_time_s: Option<f64>,
+    /// Actor labels that the user has explicitly collapsed in the layer tree.
+    /// All actors are expanded by default.
+    collapsed_actors: HashSet<String>,
 }
 
 impl GuiShell {
@@ -255,6 +258,7 @@ impl GuiShell {
             editor_sync_enabled: true,
             keyframe_mode: false,
             cursor_time_s: None,
+            collapsed_actors: HashSet::new(),
         }
     }
 
@@ -371,22 +375,33 @@ impl GuiShell {
         let border_color = Color32::from_rgb(32, 36, 44);
         let text_primary = Color32::from_rgb(228, 232, 243);
         let text_secondary = Color32::from_rgb(150, 158, 175);
+        let text_muted = Color32::from_rgb(90, 96, 110);
 
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)
-            .inner_margin(egui::Margin::symmetric(12, 5))
+            .inner_margin(egui::Margin::symmetric(12, 6))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
 
-                ui.horizontal(|ui| {
+                ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
 
-                    // Tiny app mark — accent square
+                    // App mark
                     let (mark_rect, _response) =
-                        ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 4.0, Color32::from_rgb(84, 110, 255));
+                        ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().rect_filled(mark_rect, 3.0, Color32::from_rgb(84, 110, 255));
 
-                    // Filename tab
+                    ui.add(
+                        egui::Label::new(RichText::new("Animatix").size(12.0).color(text_muted))
+                            .selectable(false),
+                    );
+
+                    ui.add(
+                        egui::Label::new(RichText::new("·").size(12.0).color(text_muted))
+                            .selectable(false),
+                    );
+
+                    // Filename
                     let filename = self
                         .document
                         .file_path
@@ -394,47 +409,42 @@ impl GuiShell {
                         .and_then(|name| name.to_str())
                         .unwrap_or("Untitled");
 
-                    let dot_color = if self.document.is_dirty {
+                    let filename_text = if self.document.is_dirty {
+                        format!("{} ·", filename)
+                    } else {
+                        filename.to_string()
+                    };
+                    let filename_color = if self.document.is_dirty {
                         Color32::from_rgb(255, 196, 92)
                     } else {
-                        Color32::from_rgb(80, 200, 140)
+                        text_primary
                     };
 
-                    egui::Frame::new()
-                        .fill(Color32::from_rgb(24, 27, 33))
-                        .corner_radius(egui::CornerRadius::same(6))
-                        .inner_margin(egui::Margin::symmetric(8, 3))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(5.0, 0.0);
-                                ui.label(
-                                    RichText::new(egui_phosphor::regular::FILE)
-                                        .size(11.0)
-                                        .color(text_secondary),
-                                );
-                                ui.label(
-                                    RichText::new(filename)
-                                        .size(11.0)
-                                        .color(text_primary),
-                                );
-                                ui.label(RichText::new("●").size(6.0).color(dot_color));
-                            });
-                        });
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(filename_text).size(12.0).color(filename_color),
+                        )
+                        .selectable(false),
+                    );
 
                     // Right-aligned icon buttons
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
                         let icon_btn = |ui: &mut egui::Ui, icon: &str, tooltip: &str| -> bool {
-                            let btn = egui::Button::new(
-                                RichText::new(icon)
-                                    .size(14.0)
-                                    .color(text_secondary),
-                            )
-                            .fill(Color32::TRANSPARENT)
-                            .corner_radius(egui::CornerRadius::same(4))
-                            .min_size(Vec2::new(26.0, 26.0));
-                            ui.add(btn).on_hover_text(tooltip).clicked()
+                            let size = Vec2::new(28.0, 28.0);
+                            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+                            if response.hovered() {
+                                ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(32, 36, 44));
+                            }
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                icon,
+                                egui::TextStyle::Body.resolve(ui.style()),
+                                if response.hovered() { text_primary } else { text_secondary },
+                            );
+                            response.on_hover_text(tooltip).clicked()
                         };
 
                         if icon_btn(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)") {
@@ -489,6 +499,7 @@ impl GuiShell {
             drag_state: &mut self.drag_state,
             selection: &mut self.selection,
             keyframe_mode: self.keyframe_mode,
+            collapsed_actors: &mut self.collapsed_actors,
         };
 
         let mut behavior = WorkspaceBehavior { viewer };
@@ -1033,7 +1044,7 @@ fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
         .corner_radius(egui::CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(8, 4))
         .show(ui, |ui| {
-            ui.label(RichText::new(label).color(text).strong());
+            ui.add(egui::Label::new(RichText::new(label).color(text).strong()).selectable(false));
         });
 }
 

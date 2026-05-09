@@ -111,16 +111,22 @@ pub(super) fn inspector_ui(
                         if groups.is_empty() {
                             ui.vertical_centered(|ui| {
                                 ui.add_space(20.0);
-                                ui.label(
-                                    RichText::new(egui_phosphor::regular::SLIDERS)
-                                        .size(22.0)
-                                        .color(TEXT_MUTED),
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(egui_phosphor::regular::SLIDERS)
+                                            .size(22.0)
+                                            .color(TEXT_MUTED),
+                                    )
+                                    .selectable(false),
                                 );
                                 ui.add_space(6.0);
-                                ui.label(
-                                    RichText::new("No editable properties")
-                                        .size(11.0)
-                                        .color(TEXT_MUTED),
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new("No editable properties")
+                                            .size(11.0)
+                                            .color(TEXT_MUTED),
+                                    )
+                                    .selectable(false),
                                 );
                             });
                         }
@@ -140,22 +146,31 @@ pub(super) fn inspector_ui(
     } else {
         ui.vertical_centered(|ui| {
             ui.add_space(32.0);
-            ui.label(
-                RichText::new(egui_phosphor::regular::MAGNIFYING_GLASS)
-                    .size(28.0)
-                    .color(TEXT_MUTED),
+            ui.add(
+                egui::Label::new(
+                    RichText::new(egui_phosphor::regular::MAGNIFYING_GLASS)
+                        .size(28.0)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
             );
             ui.add_space(10.0);
-            ui.label(
-                RichText::new("Select an actor to inspect")
-                    .size(12.0)
-                    .color(TEXT_SECONDARY),
+            ui.add(
+                egui::Label::new(
+                    RichText::new("Select an actor to inspect")
+                        .size(12.0)
+                        .color(TEXT_SECONDARY),
+                )
+                .selectable(false),
             );
             ui.add_space(4.0);
-            ui.label(
-                RichText::new("Click an actor in the preview or Layers panel")
-                    .size(10.0)
-                    .color(TEXT_MUTED),
+            ui.add(
+                egui::Label::new(
+                    RichText::new("Click an actor in the preview or Layers panel")
+                        .size(10.0)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
             );
         });
     }
@@ -166,11 +181,11 @@ pub(super) fn inspector_ui(
 fn render_empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
     ui.vertical_centered(|ui| {
         ui.add_space(36.0);
-        ui.label(RichText::new(icon).size(28.0).color(TEXT_MUTED));
+        ui.add(egui::Label::new(RichText::new(icon).size(28.0).color(TEXT_MUTED)).selectable(false));
         ui.add_space(10.0);
-        ui.label(RichText::new(title).size(12.0).color(TEXT_SECONDARY));
+        ui.add(egui::Label::new(RichText::new(title).size(12.0).color(TEXT_SECONDARY)).selectable(false));
         ui.add_space(4.0);
-        ui.label(RichText::new(subtitle).size(10.0).color(TEXT_MUTED));
+        ui.add(egui::Label::new(RichText::new(subtitle).size(10.0).color(TEXT_MUTED)).selectable(false));
     });
 }
 
@@ -183,40 +198,48 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
         // Shape icon
         if let Some(shape_pt) = &track.shape_type {
             let shape = shape_pt.evaluate(current_time_ms);
-            ui.label(
-                RichText::new(shape_icon(shape))
-                    .size(14.0)
-                    .color(AMBER),
+            ui.add(
+                egui::Label::new(RichText::new(shape_icon(shape)).size(14.0).color(AMBER))
+                    .selectable(false),
             );
         }
 
         // Name
-        ui.label(
-            RichText::new(&track.label)
-                .strong()
-                .size(14.0)
-                .color(TEXT_PRIMARY),
+        ui.add(
+            egui::Label::new(
+                RichText::new(&track.label)
+                    .strong()
+                    .size(14.0)
+                    .color(TEXT_PRIMARY),
+            )
+            .selectable(false),
         );
 
         // Right side: shape type + first-seen tag
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
-                ui.label(
-                    RichText::new(format!(
-                        "t = {:.2}s",
-                        track.first_seen_ms as f64 / 1000.0
-                    ))
-                    .size(9.0)
-                    .color(TEXT_MUTED),
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!(
+                            "t = {:.2}s",
+                            track.first_seen_ms as f64 / 1000.0
+                        ))
+                        .size(9.0)
+                        .color(TEXT_MUTED),
+                    )
+                    .selectable(false),
                 );
             }
 
             if let Some(shape_pt) = &track.shape_type {
                 let shape = shape_pt.evaluate(current_time_ms);
-                ui.label(
-                    RichText::new(format!("{:?}", shape))
-                        .size(10.0)
-                        .color(TEXT_MUTED),
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{:?}", shape))
+                            .size(10.0)
+                            .color(TEXT_MUTED),
+                    )
+                    .selectable(false),
                 );
             }
         });

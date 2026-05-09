@@ -309,16 +309,18 @@ pub(super) fn render_property_group(
 
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                ui.label(
-                    RichText::new(group.icon)
-                        .size(10.0)
-                        .color(TEXT_MUTED),
+                ui.add(
+                    egui::Label::new(RichText::new(group.icon).size(10.0).color(TEXT_MUTED))
+                        .selectable(false),
                 );
-                ui.label(
-                    RichText::new(group.name.to_uppercase())
-                        .size(9.0)
-                        .color(TEXT_MUTED)
-                        .strong(),
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(group.name.to_uppercase())
+                            .size(9.0)
+                            .color(TEXT_MUTED)
+                            .strong(),
+                    )
+                    .selectable(false),
                 );
             });
 

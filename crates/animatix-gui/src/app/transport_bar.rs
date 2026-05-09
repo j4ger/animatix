@@ -181,10 +181,11 @@ pub(super) fn transport_bar_ui(
                     let status_response = ui
                         .horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                            ui.label(
-                                RichText::new(status_label)
-                                    .size(11.0)
-                                    .color(status_color),
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(status_label).size(11.0).color(status_color),
+                                )
+                                .selectable(false),
                             );
                         })
                         .response;
@@ -213,18 +214,24 @@ pub(super) fn transport_bar_ui(
                                     String::new()
                                 };
                                 let msg = d.message.lines().next().unwrap_or(&d.message);
-                                ui.label(
-                                    RichText::new(format!("{prefix}{loc}{msg}")).size(11.0),
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(format!("{prefix}{loc}{msg}")).size(11.0),
+                                    )
+                                    .selectable(false),
                                 );
                             }
                             if diagnostics.len() > 10 {
-                                ui.label(
-                                    RichText::new(format!(
-                                        "... and {} more",
-                                        diagnostics.len() - 10
-                                    ))
-                                    .size(11.0)
-                                    .weak(),
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(format!(
+                                            "... and {} more",
+                                            diagnostics.len() - 10
+                                        ))
+                                        .size(11.0)
+                                        .weak(),
+                                    )
+                                    .selectable(false),
                                 );
                             }
                         })
@@ -252,15 +259,18 @@ pub(super) fn transport_bar_ui(
                         .corner_radius(egui::CornerRadius::same(6))
                         .inner_margin(egui::Margin::symmetric(8, 3))
                         .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!(
-                                    "{:.2}s / {:.2}s",
-                                    preview.current_time_s,
-                                    preview.duration_s
-                                ))
-                                .monospace()
-                                .size(12.0)
-                                .color(text_primary),
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!(
+                                        "{:.2}s / {:.2}s",
+                                        preview.current_time_s,
+                                        preview.duration_s
+                                    ))
+                                    .monospace()
+                                    .size(12.0)
+                                    .color(text_primary),
+                                )
+                                .selectable(false),
                             );
                         })
                         .response

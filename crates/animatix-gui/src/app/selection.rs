@@ -151,10 +151,13 @@ pub(super) fn draw_context_menu(
                 .show(ui, |ui| {
                     ui.set_min_width(140.0);
 
-                    ui.label(
-                        RichText::new("Select actor")
-                            .small()
-                            .color(Color32::from_rgb(150, 158, 175)),
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new("Select actor")
+                                .small()
+                                .color(Color32::from_rgb(150, 158, 175)),
+                        )
+                        .selectable(false),
                     );
                     ui.separator();
 

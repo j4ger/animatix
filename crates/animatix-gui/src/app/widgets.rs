@@ -16,8 +16,144 @@ const FIELD_BG: Color32 = Color32::from_rgb(24, 27, 33);
 const FIELD_BG_HOVER: Color32 = Color32::from_rgb(30, 34, 42);
 const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
 const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
+const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
+const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
+const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
 const ROW_HEIGHT: f32 = 20.0;
 const FIELD_HEIGHT: f32 = 18.0;
+
+// ─── Tree Row ───────────────────────────────────────────────────────────────
+
+const TREE_ROW_HEIGHT: f32 = 22.0;
+const TREE_INDENT_PX: f32 = 14.0;
+const TREE_CHEVRON_WIDTH: f32 = 14.0;
+const TREE_ICON_WIDTH: f32 = 14.0;
+const TREE_GAP: f32 = 2.0;
+const TREE_HOVER_BG: Color32 = Color32::from_rgb(24, 27, 33);
+const TREE_SELECTED_BG: Color32 = Color32::from_rgb(32, 36, 44);
+const TREE_ACCENT: Color32 = Color32::from_rgb(84, 110, 255);
+
+/// Renders a single tree row in a VS Code–style sidebar.
+///
+/// Returns true if the row body was clicked (chevron clicks are excluded).
+pub fn tree_row(
+    ui: &mut egui::Ui,
+    row_id: egui::Id,
+    depth: usize,
+    has_children: bool,
+    is_expanded: bool,
+    is_selected: bool,
+    icon: Option<&'static str>,
+    label: &str,
+    label_color: Option<Color32>,
+    on_toggle: impl FnOnce(),
+) -> bool {
+    let available_width = ui.available_width();
+    let (row_rect, row_response) = ui.allocate_exact_size(
+        Vec2::new(available_width, TREE_ROW_HEIGHT),
+        egui::Sense::click(),
+    );
+
+    // ── Background (full-width, VS Code style) ─────────────────────────────
+    let bg = if is_selected {
+        TREE_SELECTED_BG
+    } else if row_response.hovered() {
+        TREE_HOVER_BG
+    } else {
+        Color32::TRANSPARENT
+    };
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(row_rect, 0.0, bg);
+    }
+
+    // ── Left accent border for selected rows ───────────────────────────────
+    if is_selected {
+        let accent_rect = egui::Rect::from_min_size(
+            row_rect.min,
+            Vec2::new(2.0, row_rect.height()),
+        );
+        ui.painter().rect_filled(accent_rect, 0.0, TREE_ACCENT);
+    }
+
+    let baseline_y = row_rect.center().y;
+    let mut cursor_x = row_rect.min.x + 4.0 + depth as f32 * TREE_INDENT_PX;
+
+    // ── Chevron ────────────────────────────────────────────────────────────
+    let chevron_rect = egui::Rect::from_min_size(
+        egui::pos2(cursor_x, row_rect.min.y),
+        Vec2::new(TREE_CHEVRON_WIDTH, TREE_ROW_HEIGHT),
+    );
+    let chevron_response =
+        ui.interact(chevron_rect, row_id.with("chevron"), egui::Sense::click());
+
+    if has_children {
+        let chevron_icon = if is_expanded {
+            egui_phosphor::regular::CARET_DOWN
+        } else {
+            egui_phosphor::regular::CARET_RIGHT
+        };
+        let chevron_color = if chevron_response.hovered() {
+            TEXT_SECONDARY
+        } else {
+            TEXT_MUTED
+        };
+        ui.painter().text(
+            egui::pos2(chevron_rect.center().x, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            chevron_icon,
+            egui::TextStyle::Small.resolve(ui.style()),
+            chevron_color,
+        );
+    }
+
+    if chevron_response.clicked() {
+        on_toggle();
+    }
+
+    cursor_x += TREE_CHEVRON_WIDTH;
+
+    // ── Icon ───────────────────────────────────────────────────────────────
+    if let Some(icon_str) = icon {
+        cursor_x += TREE_GAP;
+        let icon_rect = egui::Rect::from_min_size(
+            egui::pos2(cursor_x, row_rect.min.y),
+            Vec2::new(TREE_ICON_WIDTH, TREE_ROW_HEIGHT),
+        );
+        let default_icon_color = if is_selected { TEXT_PRIMARY } else { TEXT_MUTED };
+        let icon_color = label_color.unwrap_or(default_icon_color);
+        ui.painter().text(
+            egui::pos2(icon_rect.center().x, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            icon_str,
+            egui::TextStyle::Small.resolve(ui.style()),
+            icon_color,
+        );
+        cursor_x += TREE_ICON_WIDTH + TREE_GAP;
+    } else {
+        cursor_x += TREE_GAP * 2.0;
+    }
+
+    // ── Label (left-aligned, painter text — never centered) ────────────────
+    let label_color = label_color.unwrap_or_else(|| {
+        if is_selected {
+            TEXT_PRIMARY
+        } else {
+            TEXT_SECONDARY
+        }
+    });
+
+    let font_id = egui::TextStyle::Small.resolve(ui.style());
+    ui.painter().text(
+        egui::pos2(cursor_x, baseline_y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        font_id,
+        label_color,
+    );
+
+    // Return true if row body was clicked (excluding chevron)
+    row_response.clicked() && !chevron_response.clicked()
+}
 
 // ─── Float Input ────────────────────────────────────────────────────────────
 

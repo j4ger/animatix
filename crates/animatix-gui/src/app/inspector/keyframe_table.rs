@@ -22,16 +22,22 @@ pub(super) fn render_keyframe_table(
     if keyframes.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(20.0);
-            ui.label(
-                egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
-                    .size(22.0)
-                    .color(TEXT_MUTED),
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
+                        .size(22.0)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
             );
             ui.add_space(6.0);
-            ui.label(
-                egui::RichText::new("No keyframes — default values only")
-                    .size(10.0)
-                    .color(TEXT_MUTED),
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new("No keyframes — default values only")
+                        .size(10.0)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
             );
         });
         return;
@@ -39,11 +45,14 @@ pub(super) fn render_keyframe_table(
 
     // Header with count badge
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new("KEYFRAMES")
-                .size(9.0)
-                .color(TEXT_MUTED)
-                .strong(),
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new("KEYFRAMES")
+                    .size(9.0)
+                    .color(TEXT_MUTED)
+                    .strong(),
+            )
+            .selectable(false),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             egui::Frame::new()
@@ -51,10 +60,13 @@ pub(super) fn render_keyframe_table(
                 .corner_radius(egui::CornerRadius::same(8))
                 .inner_margin(egui::Margin::symmetric(6, 2))
                 .show(ui, |ui| {
-                    ui.label(
-                        egui::RichText::new(keyframes.len().to_string())
-                            .size(9.0)
-                            .color(TEXT_SECONDARY),
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(keyframes.len().to_string())
+                                .size(9.0)
+                                .color(TEXT_SECONDARY),
+                        )
+                        .selectable(false),
                     );
                 });
         });
