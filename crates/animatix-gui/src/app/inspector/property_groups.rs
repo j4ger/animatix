@@ -6,8 +6,20 @@ use crate::app::workspace::{PropertyEdit, PropertyValue, UiActions};
 
 use super::keyframe_table::format_num;
 
+// ─── Local Palette ──────────────────────────────────────────────────────────
+
+const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
+const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
+const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
+const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
+const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
+const BORDER_FOCUS: Color32 = Color32::from_rgb(84, 110, 255);
+
+// ─── Data Structures ────────────────────────────────────────────────────────
+
 pub(super) struct PropertyGroup {
     name: &'static str,
+    icon: &'static str,
     properties: Vec<PropertyEntry>,
 }
 
@@ -24,11 +36,17 @@ pub(super) enum PropertyDisplayValue {
     Text(String),
 }
 
+// ─── Group Builder ──────────────────────────────────────────────────────────
+
 pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
     let mut groups = Vec::new();
 
     // Transform group
-    let mut transform = PropertyGroup { name: "Transform", properties: Vec::new() };
+    let mut transform = PropertyGroup {
+        name: "Transform",
+        icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+        properties: Vec::new(),
+    };
     if let Some(pt) = &track.position {
         let v = pt.evaluate(time_ms);
         transform.properties.push(PropertyEntry {
@@ -66,7 +84,11 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     }
 
     // Shape group
-    let mut shape = PropertyGroup { name: "Shape", properties: Vec::new() };
+    let mut shape = PropertyGroup {
+        name: "Shape",
+        icon: egui_phosphor::regular::SHAPES,
+        properties: Vec::new(),
+    };
     if let Some(pt) = &track.shape_type {
         let v = pt.evaluate(time_ms);
         shape.properties.push(PropertyEntry {
@@ -112,7 +134,11 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     }
 
     // Style group
-    let mut style = PropertyGroup { name: "Style", properties: Vec::new() };
+    let mut style = PropertyGroup {
+        name: "Style",
+        icon: egui_phosphor::regular::PAINT_BRUSH,
+        properties: Vec::new(),
+    };
     if let Some(pt) = &track.color {
         let v = pt.evaluate(time_ms);
         style.properties.push(PropertyEntry {
@@ -166,10 +192,18 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     }
 
     // Content group
-    let mut content = PropertyGroup { name: "Content", properties: Vec::new() };
+    let mut content = PropertyGroup {
+        name: "Content",
+        icon: egui_phosphor::regular::TEXT_T,
+        properties: Vec::new(),
+    };
     if let Some(pt) = &track.text_content {
         let v = pt.evaluate(time_ms);
-        let display = if v.len() > 30 { format!("{}…", &v[..30]) } else { v.clone() };
+        let display = if v.len() > 30 {
+            format!("{}…", &v[..30])
+        } else {
+            v.clone()
+        };
         content.properties.push(PropertyEntry {
             name: "text_content".into(),
             value: PropertyDisplayValue::Text(display),
@@ -196,7 +230,11 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let v = pt.evaluate(time_ms);
         content.properties.push(PropertyEntry {
             name: "image".into(),
-            value: PropertyDisplayValue::Text(if v.is_some() { "loaded".into() } else { "none".into() }),
+            value: PropertyDisplayValue::Text(if v.is_some() {
+                "loaded".into()
+            } else {
+                "none".into()
+            }),
             has_keyframes: !pt.keyframes.is_empty(),
         });
     }
@@ -205,10 +243,14 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     }
 
     // Layout group
-    let mut layout = PropertyGroup { name: "Layout", properties: Vec::new() };
+    let mut layout = PropertyGroup {
+        name: "Layout",
+        icon: egui_phosphor::regular::GRID_FOUR,
+        properties: Vec::new(),
+    };
     if let Some(pt) = &track.size {
         let v = pt.evaluate(time_ms);
-        // The size track stores half‑extents; display full size.
+        // The size track stores half-extents; display full size.
         let display_w = v[0] * 2.0;
         let display_h = v[1] * 2.0;
         layout.properties.push(PropertyEntry {
@@ -240,6 +282,8 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     groups
 }
 
+// ─── Property Group Rendering ───────────────────────────────────────────────
+
 pub(super) fn render_property_group(
     ui: &mut egui::Ui,
     group: &PropertyGroup,
@@ -247,23 +291,49 @@ pub(super) fn render_property_group(
     actions: &mut UiActions,
     keyframe_mode: bool,
 ) {
-    let count = group.properties.len();
-    let header_text = format!("{}  ({})", group.name, count);
+    egui::Frame::new()
+        .fill(BG_SURFACE)
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::same(6))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
 
-    egui::CollapsingHeader::new(
-        RichText::new(&header_text)
-            .size(11.0)
-            .color(Color32::from_rgb(150, 158, 175))
-            .strong(),
-    )
-    .default_open(true)
-    .show(ui, |ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
-        for entry in &group.properties {
-            render_editable_property_row(ui, actor_label, entry, actions, keyframe_mode);
-        }
-    });
+            // Section header: thin accent line + uppercase name
+            let header_rect = ui.available_rect_before_wrap();
+            let line_rect = egui::Rect::from_min_size(
+                header_rect.min,
+                Vec2::new(24.0, 2.0),
+            );
+            ui.painter().rect_filled(line_rect, 1.0, BORDER_FOCUS);
+            ui.add_space(5.0);
+
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                ui.label(
+                    RichText::new(group.icon)
+                        .size(10.0)
+                        .color(TEXT_MUTED),
+                );
+                ui.label(
+                    RichText::new(group.name.to_uppercase())
+                        .size(9.0)
+                        .color(TEXT_MUTED)
+                        .strong(),
+                );
+            });
+
+            ui.add_space(5.0);
+
+            ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+            for entry in &group.properties {
+                render_editable_property_row(ui, actor_label, entry, actions, keyframe_mode);
+            }
+        });
+
+    ui.add_space(6.0);
 }
+
+// ─── Editable Property Row ──────────────────────────────────────────────────
 
 /// Renders a single editable property row, dispatching to the appropriate widget.
 pub(super) fn render_editable_property_row(
@@ -287,7 +357,7 @@ pub(super) fn render_editable_property_row(
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Vec2([new_x, new_y]),
-                create_keyframe: keyframe_mode,
+                    create_keyframe: keyframe_mode,
                 });
             }
         }
@@ -297,7 +367,7 @@ pub(super) fn render_editable_property_row(
                     actor: actor_label.to_string(),
                     property: name.clone(),
                     value: PropertyValue::Color(new_rgba),
-                create_keyframe: keyframe_mode,
+                    create_keyframe: keyframe_mode,
                 });
             }
         }
@@ -305,7 +375,8 @@ pub(super) fn render_editable_property_row(
             // Determine widget type based on property name
             match name.as_str() {
                 "opacity" | "fill_opacity" | "stroke_progress" => {
-                    let val: f32 = s.trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                    let val: f32 = s
+                        .trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
                         .parse()
                         .unwrap_or(0.0);
                     if let Some(new_val) = widgets::slider_input(ui, name, val, 0.0, 1.0, has_kf) {
@@ -313,7 +384,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -326,7 +397,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_deg.to_radians()),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -337,7 +408,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -348,7 +419,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -360,7 +431,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Float(new_val),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -371,15 +442,15 @@ pub(super) fn render_editable_property_row(
             match name.as_str() {
                 "shape_type" => {
                     let variants = &[
-                        "Rect", "Circle", "Line", "Ellipse", "Arc",
-                        "Polygon", "Path", "Arrow", "Graph", "Plot",
+                        "Rect", "Circle", "Line", "Ellipse", "Arc", "Polygon", "Path", "Arrow",
+                        "Graph", "Plot",
                     ];
                     if let Some(new_val) = widgets::enum_selector(ui, name, s, variants, has_kf) {
                         actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_val),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }
@@ -389,7 +460,7 @@ pub(super) fn render_editable_property_row(
                             actor: actor_label.to_string(),
                             property: name.clone(),
                             value: PropertyValue::Text(new_text),
-                        create_keyframe: keyframe_mode,
+                            create_keyframe: keyframe_mode,
                         });
                     }
                 }

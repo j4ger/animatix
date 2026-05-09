@@ -1,5 +1,5 @@
 use super::*;
-use animatix::timeline::{PlacementMode, PositionBinding, Timeline, TrackAccessor};
+use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, ShapeType, Timeline, TrackAccessor};
 use preview::ActorProps;
 
 /// Describes a property edit made in the inspector panel.
@@ -109,34 +109,8 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) keyframe_mode: bool,
 }
 
-impl TabViewer for WorkspaceViewer<'_> {
-    type Tab = WorkspaceTab;
-
-    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        match tab {
-            WorkspaceTab::Explorer => "Explorer".into(),
-            WorkspaceTab::Editor => "Editor".into(),
-            WorkspaceTab::Preview => "Preview".into(),
-            WorkspaceTab::Inspector => "Inspector".into(),
-        }
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        match tab {
-            WorkspaceTab::Explorer => self.explorer_ui(ui),
-            WorkspaceTab::Editor => self.editor_ui(ui),
-            WorkspaceTab::Preview => self.preview_ui(ui),
-            WorkspaceTab::Inspector => self.inspector_ui(ui),
-        }
-    }
-
-    fn closeable(&mut self, _tab: &mut Self::Tab) -> bool {
-        false
-    }
-}
-
 impl WorkspaceViewer<'_> {
-    fn explorer_ui(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn explorer_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.label(RichText::new("Workspace").strong());
             ui.label(
@@ -247,7 +221,98 @@ impl WorkspaceViewer<'_> {
         });
     }
 
-    fn editor_ui(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn layers_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(timeline) = self.timeline else {
+            ui.vertical_centered(|ui| {
+                ui.add_space(36.0);
+                ui.label(
+                    RichText::new(egui_phosphor::regular::FILM_STRIP)
+                        .size(28.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
+                );
+                ui.add_space(10.0);
+                ui.label(
+                    RichText::new("No timeline loaded")
+                        .size(12.0)
+                        .color(Color32::from_rgb(150, 158, 175)),
+                );
+            });
+            return;
+        };
+
+        let root_nodes = timeline.root_actor_labels();
+        if root_nodes.is_empty() {
+            ui.vertical_centered(|ui| {
+                ui.add_space(36.0);
+                ui.label(
+                    RichText::new(egui_phosphor::regular::FILM_STRIP)
+                        .size(28.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
+                );
+                ui.add_space(10.0);
+                ui.label(
+                    RichText::new("No actors in scene")
+                        .size(12.0)
+                        .color(Color32::from_rgb(150, 158, 175)),
+                );
+            });
+            return;
+        }
+
+        ui.vertical(|ui| {
+            // Header
+            let count = count_all_actors(timeline, &root_nodes);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                ui.label(
+                    RichText::new(egui_phosphor::regular::STACK)
+                        .size(10.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
+                );
+                ui.label(
+                    RichText::new("LAYERS")
+                        .size(9.0)
+                        .color(Color32::from_rgb(90, 96, 110))
+                        .strong(),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(32, 36, 44))
+                        .corner_radius(egui::CornerRadius::same(8))
+                        .inner_margin(egui::Margin::symmetric(6, 2))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(count.to_string())
+                                    .size(9.0)
+                                    .color(Color32::from_rgb(150, 158, 175)),
+                            );
+                        });
+                });
+            });
+
+            ui.add_space(2.0);
+            let sep = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
+            ui.painter().rect_filled(sep, 0.0, Color32::from_rgb(32, 36, 44));
+            ui.add_space(2.0);
+
+            // Tree
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    for root_label in root_nodes {
+                        render_actor_tree(
+                            ui,
+                            timeline,
+                            root_label,
+                            self.selected_actor,
+                            0,
+                        );
+                    }
+                });
+        });
+    }
+
+    pub(super) fn editor_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(
@@ -337,7 +402,7 @@ impl WorkspaceViewer<'_> {
 
     // ─── Preview UI ──────────────────────────────────────────────────────────
 
-    fn preview_ui(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             // Minimal header
             ui.horizontal(|ui| {
@@ -1001,8 +1066,138 @@ impl WorkspaceViewer<'_> {
         });
     }
 
-    fn inspector_ui(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         let current_time_s = self.preview.current_time_s;
         inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode);
+    }
+}
+
+// ─── Layer Tree Helpers ─────────────────────────────────────────────────────
+
+fn count_all_actors(timeline: &Timeline, root_nodes: &[String]) -> usize {
+    let mut count = 0;
+    for root in root_nodes {
+        count += 1;
+        if let Some(track) = timeline.get_track(root) {
+            count += count_children(timeline, &track.children);
+        }
+    }
+    count
+}
+
+fn count_children(timeline: &Timeline, children: &[String]) -> usize {
+    let mut count = 0;
+    for child in children {
+        count += 1;
+        if let Some(track) = timeline.get_track(child) {
+            count += count_children(timeline, &track.children);
+        }
+    }
+    count
+}
+
+fn render_actor_tree(
+    ui: &mut egui::Ui,
+    timeline: &Timeline,
+    label: &str,
+    selected_actor: &mut Option<String>,
+    depth: usize,
+) {
+    let Some(track) = timeline.get_track(label) else {
+        return;
+    };
+
+    let is_selected = selected_actor.as_deref() == Some(label);
+    let is_anonymous = label.starts_with("__anon");
+
+    let indent = depth as f32 * 14.0;
+    let height = 18.0;
+    let available = ui.available_width();
+
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
+
+    // Background: selected gets a soft widget fill; hover gets surface fill
+    if is_selected {
+        ui.painter().rect_filled(rect, 3.0, Color32::from_rgb(32, 36, 44));
+    } else if response.hovered() {
+        ui.painter().rect_filled(rect, 3.0, Color32::from_rgb(24, 27, 33));
+    }
+
+    // Shape icon
+    let icon = track
+        .shape_type
+        .as_ref()
+        .map(|pt| shape_icon(pt.evaluate(0)));
+    let icon_x = rect.min.x + indent + 6.0;
+
+    if let Some(icon_str) = icon {
+        let icon_color = if is_selected {
+            Color32::from_rgb(255, 196, 92)
+        } else {
+            Color32::from_rgb(90, 96, 110)
+        };
+        ui.painter().text(
+            egui::pos2(icon_x, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            icon_str,
+            egui::TextStyle::Small.resolve(ui.style()),
+            icon_color,
+        );
+    }
+
+    // Label
+    let label_x = if icon.is_some() {
+        icon_x + 18.0
+    } else {
+        icon_x + 4.0
+    };
+    let display_label = if is_anonymous {
+        format!("{} (anon)", label)
+    } else {
+        label.to_string()
+    };
+
+    let text_color = if is_selected {
+        Color32::from_rgb(228, 232, 243)
+    } else if is_anonymous {
+        Color32::from_rgb(90, 96, 110)
+    } else if response.hovered() {
+        Color32::from_rgb(228, 232, 243)
+    } else {
+        Color32::from_rgb(150, 158, 175)
+    };
+
+    let font = egui::TextStyle::Small.resolve(ui.style());
+    ui.painter().text(
+        egui::pos2(label_x, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        &display_label,
+        font,
+        text_color,
+    );
+
+    if response.clicked() {
+        *selected_actor = Some(label.to_string());
+    }
+
+    // Children
+    for child_label in &track.children {
+        render_actor_tree(ui, timeline, child_label, selected_actor, depth + 1);
+    }
+}
+
+fn shape_icon(shape: ShapeType) -> &'static str {
+    match shape {
+        ShapeType::Rect => egui_phosphor::regular::SQUARE,
+        ShapeType::Circle => egui_phosphor::regular::CIRCLE,
+        ShapeType::Line => egui_phosphor::regular::MINUS,
+        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE_NOTCH,
+        ShapeType::Arc => egui_phosphor::regular::ARROWS_CLOCKWISE,
+        ShapeType::Polygon => egui_phosphor::regular::HEXAGON,
+        ShapeType::Path => egui_phosphor::regular::PEN,
+        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
+        ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
+        ShapeType::Plot => egui_phosphor::regular::DOTS_THREE_OUTLINE,
     }
 }

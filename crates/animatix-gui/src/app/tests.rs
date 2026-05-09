@@ -1,33 +1,30 @@
     use super::{
-        GuiShell, WorkspaceTab, default_dock_state, diagnostics_banner_message,
+        GuiShell, WorkspaceTab, default_tree, diagnostics_banner_message,
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
-        primary_diagnostic_phase, ensure_workspace_tab_present,
+        primary_diagnostic_phase,
     };
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Color32;
     use egui::Vec2;
-    use egui_dock::DockState;
     use std::path::PathBuf;
 
     #[test]
-    fn default_workspace_has_four_tabs() {
-        let dock_state = default_dock_state();
-        let tabs: Vec<_> = dock_state.iter_all_tabs().map(|(_, tab)| *tab).collect();
-        assert_eq!(tabs.len(), 4);
+    fn default_workspace_has_five_panes() {
+        let tree = default_tree();
+        let tabs: Vec<_> = tree
+            .tiles
+            .iter()
+            .filter_map(|(_, tile)| match tile {
+                egui_tiles::Tile::Pane(tab) => Some(*tab),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(tabs.len(), 5);
         assert!(tabs.contains(&WorkspaceTab::Explorer));
+        assert!(tabs.contains(&WorkspaceTab::Layers));
         assert!(tabs.contains(&WorkspaceTab::Editor));
         assert!(tabs.contains(&WorkspaceTab::Preview));
-        assert!(tabs.contains(&WorkspaceTab::Inspector));
-    }
-
-    #[test]
-    fn ensure_workspace_tab_present_restores_missing_inspector_tab() {
-        let mut dock_state = DockState::new(vec![WorkspaceTab::Editor]);
-
-        ensure_workspace_tab_present(&mut dock_state, WorkspaceTab::Inspector);
-
-        let tabs: Vec<_> = dock_state.iter_all_tabs().map(|(_, tab)| *tab).collect();
         assert!(tabs.contains(&WorkspaceTab::Inspector));
     }
 

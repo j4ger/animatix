@@ -21,9 +21,9 @@ use animatix::timeline::SceneDimensions;
 use animatix::timeline::actions::get_action_signatures;
 use directories::ProjectDirs;
 use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2};
-use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
+use egui_tiles::{Behavior, SimplificationOptions, Tile, TileId, Tree, UiResponse};
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{default_dock_state, load_workspace_persistence, persistence_path};
+use persistence::{default_tree, load_workspace_persistence, persistence_path};
 use preview::fit_preview;
 use preview::DragState;
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,7 @@ pub use runtime::run_gui;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum WorkspaceTab {
     Explorer,
+    Layers,
     Editor,
     Preview,
     Inspector,
@@ -55,7 +56,7 @@ enum WorkspaceTab {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct WorkspacePersistence {
-    dock_state: DockState<WorkspaceTab>,
+    tree: Tree<WorkspaceTab>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,7 +149,7 @@ struct GuiShell {
     workspace_root: PathBuf,
     expanded_dirs: HashSet<PathBuf>,
     file_tree: Vec<FileTreeEntry>,
-    dock_state: DockState<WorkspaceTab>,
+    tree: Tree<WorkspaceTab>,
     preview: PreviewPaneState,
     preview_dirty: bool,
     pending_rebuild_at: Option<Instant>,
@@ -216,9 +217,7 @@ impl GuiShell {
         let expanded_dirs = HashSet::from([workspace_root.clone()]);
         let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
         let persistence_path = persistence_path();
-        let mut dock_state =
-            load_workspace_persistence(&persistence_path).unwrap_or_else(default_dock_state);
-        ensure_workspace_tab_present(&mut dock_state, WorkspaceTab::Inspector);
+        let tree = load_workspace_persistence(&persistence_path).unwrap_or_else(default_tree);
         let hot_reloader = HotReloader::new(&document.file_path).ok();
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
@@ -240,7 +239,7 @@ impl GuiShell {
             workspace_root,
             expanded_dirs,
             file_tree,
-            dock_state,
+            tree,
             preview,
             preview_dirty: true,
             pending_rebuild_at: None,
@@ -471,7 +470,7 @@ impl GuiShell {
 
         let scene_dimensions = self.document.scene_dimensions;
 
-        let mut viewer = WorkspaceViewer {
+        let viewer = WorkspaceViewer {
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
             expanded_dirs: &mut self.expanded_dirs,
@@ -491,9 +490,8 @@ impl GuiShell {
             keyframe_mode: self.keyframe_mode,
         };
 
-        DockArea::new(&mut self.dock_state)
-            .style(Style::from_egui(ui.style().as_ref()))
-            .show_inside(ui, &mut viewer);
+        let mut behavior = WorkspaceBehavior { viewer };
+        self.tree.ui(&mut behavior, ui);
     }
 
     fn handle_actions(&mut self, actions: UiActions) {
@@ -821,7 +819,7 @@ impl GuiShell {
             let _ = fs::create_dir_all(parent);
         }
         let persistence = WorkspacePersistence {
-            dock_state: self.dock_state.clone(),
+            tree: self.tree.clone(),
         };
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
@@ -866,48 +864,48 @@ impl GuiShell {
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        if let Some(tab_path) = find_workspace_tab(&self.dock_state, target) {
-            self.dock_state
-                .set_focused_node_and_surface(egui_dock::NodePath {
-                    surface: tab_path.surface,
-                    node: tab_path.node,
-                });
-            let _ = self.dock_state.set_active_tab(tab_path);
-            return;
-        }
-
-        self.dock_state.push_to_focused_leaf(target);
-
-        if let Some(tab_path) = find_workspace_tab(&self.dock_state, target) {
-            self.dock_state
-                .set_focused_node_and_surface(egui_dock::NodePath {
-                    surface: tab_path.surface,
-                    node: tab_path.node,
-                });
-            let _ = self.dock_state.set_active_tab(tab_path);
-        }
+        let _ = self.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
     }
 
 }
-fn ensure_workspace_tab_present(dock_state: &mut DockState<WorkspaceTab>, target: WorkspaceTab) {
-    if find_workspace_tab(dock_state, target).is_none() {
-        dock_state.push_to_focused_leaf(target);
-    }
+
+struct WorkspaceBehavior<'a> {
+    viewer: WorkspaceViewer<'a>,
 }
 
-fn find_workspace_tab(
-    dock_state: &DockState<WorkspaceTab>,
-    target: WorkspaceTab,
-) -> Option<egui_dock::TabPath> {
-    for (tab_path, tab) in dock_state.iter_all_tabs() {
-        if *tab != target {
-            continue;
+impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
+    fn pane_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        _tile_id: TileId,
+        pane: &mut WorkspaceTab,
+    ) -> UiResponse {
+        match pane {
+            WorkspaceTab::Explorer => self.viewer.explorer_ui(ui),
+            WorkspaceTab::Layers => self.viewer.layers_ui(ui),
+            WorkspaceTab::Editor => self.viewer.editor_ui(ui),
+            WorkspaceTab::Preview => self.viewer.preview_ui(ui),
+            WorkspaceTab::Inspector => self.viewer.inspector_ui(ui),
         }
-
-        return Some(tab_path);
+        UiResponse::None
     }
 
-    None
+    fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
+        match pane {
+            WorkspaceTab::Explorer => "Explorer".into(),
+            WorkspaceTab::Layers => "Layers".into(),
+            WorkspaceTab::Editor => "Editor".into(),
+            WorkspaceTab::Preview => "Preview".into(),
+            WorkspaceTab::Inspector => "Inspector".into(),
+        }
+    }
+
+    fn simplification_options(&self) -> SimplificationOptions {
+        SimplificationOptions {
+            all_panes_must_have_tabs: true,
+            ..Default::default()
+        }
+    }
 }
 
 fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
