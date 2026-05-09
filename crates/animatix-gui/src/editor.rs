@@ -157,6 +157,49 @@ impl EditorBuffer {
         None
     }
 
+    /// Compute a new keyframe cell to insert after `after_idx`.
+    ///
+    /// Timestamp logic (from EDITOR_CELLS_PLAN.md Q3):
+    /// - Between two keyframes at T₁ and T₂: default to `#+(T₂−T₁)/2`.
+    /// - After the last keyframe: `#+1s`.
+    fn compute_insert_keyframe(&self, after_idx: usize) -> Cell {
+        let prev_time_s = self.cells[..=after_idx]
+            .iter()
+            .rev()
+            .find_map(|c| c.time_s())
+            .unwrap_or(0.0);
+
+        let next_time_s = self.cells[after_idx + 1..]
+            .iter()
+            .find_map(|c| c.time_s());
+
+        let (timestamp, is_relative) = if let Some(next) = next_time_s {
+            let delta = (next - prev_time_s) / 2.0;
+            // Round to 1 decimal place for cleanliness
+            let delta_rounded = (delta * 10.0).round() / 10.0;
+            if delta_rounded.fract() == 0.0 {
+                (format!("+{:.0}s", delta_rounded), true)
+            } else {
+                (format!("+{:.1}s", delta_rounded), true)
+            }
+        } else {
+            ("+1s".to_string(), true)
+        };
+
+        Cell::Keyframe {
+            timestamp,
+            is_relative,
+            time_s: prev_time_s
+                + if next_time_s.is_some() {
+                    (next_time_s.unwrap() - prev_time_s) / 2.0
+                } else {
+                    1.0
+                },
+            body: String::new(),
+            attached_comment: None,
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> egui::Response {
         // Handle pending scroll by mapping line to cell
         if let Some(target_line) = self.pending_scroll_to_line.take() {
@@ -211,6 +254,15 @@ impl EditorBuffer {
                 let cloned = self.cells[idx].duplicate();
                 self.cells.insert(idx + 1, cloned);
                 structurally_changed = true;
+            }
+        }
+        if let Some(idx) = self.cell_state.pending_insert_after.take() {
+            let new_cell = self.compute_insert_keyframe(idx);
+            let insert_at = idx + 1;
+            if insert_at <= self.cells.len() {
+                self.cells.insert(insert_at, new_cell);
+                structurally_changed = true;
+                self.cell_state.focused_cell = Some(insert_at);
             }
         }
 

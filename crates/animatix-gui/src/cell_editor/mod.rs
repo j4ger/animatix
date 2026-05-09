@@ -16,6 +16,8 @@ pub struct CellEditorState {
     pub pending_delete_cell: Option<usize>,
     /// Optional duplicate request that the caller can apply to the backing cell list.
     pub pending_duplicate_cell: Option<usize>,
+    /// Optional insert request: insert a new keyframe after this cell index.
+    pub pending_insert_after: Option<usize>,
 }
 
 impl Default for CellEditorState {
@@ -26,6 +28,7 @@ impl Default for CellEditorState {
             highlighted_cell: None,
             pending_delete_cell: None,
             pending_duplicate_cell: None,
+            pending_insert_after: None,
         }
     }
 }

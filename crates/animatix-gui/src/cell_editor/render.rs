@@ -15,7 +15,7 @@ const CODE_BG: Color32 = Color32::from_rgb(22, 25, 32);
 const CODE_BG_HIGHLIGHT: Color32 = Color32::from_rgb(36, 40, 50);
 
 const DIVIDER_LINE: Color32 = Color32::from_rgb(38, 42, 50);
-const DIVIDER_LINE_HOVER: Color32 = Color32::from_rgb(100, 108, 122);
+const DIVIDER_LINE_HOVER: Color32 = Color32::from_rgb(80, 88, 102);
 
 // ── Public API ───────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ pub fn render_cell_editor(
 
         for (index, cell) in cells.iter_mut().enumerate() {
             if index > 0 {
-                divider(ui);
+                divider(ui, index - 1, state);
             }
 
             let highlighted =
@@ -92,8 +92,14 @@ fn render_code_cell(
         .show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    let toggle = if expanded { "▾" } else { "▸" };
-                    if ui.small_button(toggle).clicked() {
+                    // Use ASCII "v" / ">" instead of Unicode geometric shapes
+                    // to avoid tofu blocks in egui's default font atlas.
+                    let toggle = if expanded { "v" } else { ">" };
+                    if ui
+                        .small_button(toggle)
+                        .on_hover_text(if expanded { "Collapse" } else { "Expand" })
+                        .clicked()
+                    {
                         cell.set_expanded(!expanded);
                     }
                     ui.label(
@@ -174,9 +180,9 @@ fn render_keyframe_cell(
                             .show(ui, |ui| {
                                 ui.set_min_height(26.0);
                                 ui.horizontal(|ui| {
-                                    // Play
+                                    // Play — use ASCII ">" to avoid tofu.
                                     if ui
-                                        .small_button("▶")
+                                        .small_button(">")
                                         .on_hover_text("Play from this keyframe")
                                         .clicked()
                                     {
@@ -266,44 +272,58 @@ fn render_keyframe_cell(
 
 // ── Divider between cells ────────────────────────────────────────────────
 
-fn divider(ui: &mut egui::Ui) {
+fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let available = ui.available_width();
+    let height = 22.0; // Taller hit-area for easier interaction
     let (rect, response) =
-        ui.allocate_exact_size(Vec2::new(available, 8.0), egui::Sense::hover());
+        ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
 
     let hover = response.hovered();
+    let center = rect.center();
 
-    // Subtle pill-shaped hover backdrop
+    // Background: completely invisible unless hovered
     if hover {
         ui.painter().rect_filled(
-            rect.shrink(1.0),
-            3.0,
-            Color32::from_rgba_premultiplied(255, 196, 92, 12),
+            rect,
+            4.0,
+            Color32::from_rgba_premultiplied(255, 196, 92, 8),
         );
     }
 
+    // Line: subtle by default, brighter on hover, with inset margins
     let line_color = if hover { DIVIDER_LINE_HOVER } else { DIVIDER_LINE };
-    let stroke = if hover {
-        Stroke::new(2.0, line_color)
-    } else {
-        Stroke::new(1.0, line_color)
-    };
-
-    let y = rect.center().y;
-    let left = rect.left() + 12.0;
-    let right = rect.right() - 12.0;
+    let stroke = Stroke::new(if hover { 1.5 } else { 1.0 }, line_color);
+    let y = center.y;
+    let left = rect.left() + 24.0;
+    let right = rect.right() - 24.0;
     if left < right {
         ui.painter()
             .line_segment([egui::pos2(left, y), egui::pos2(right, y)], stroke);
     }
 
+    // Hover-only "+" indicator: purely visual, painted, not a separate widget.
+    // The entire divider rect is clickable, so we avoid interaction-layer
+    // fights where a child widget steals hover from its parent.
     if hover {
+        let btn_size = Vec2::new(22.0, 22.0);
+        let btn_rect = egui::Rect::from_center_size(center, btn_size);
+
+        let btn_bg = Color32::from_rgba_premultiplied(255, 196, 92, 25);
+        ui.painter().rect_filled(btn_rect, 11.0, btn_bg);
+
+        let btn_stroke = Stroke::new(1.0, Color32::from_rgba_premultiplied(255, 196, 92, 60));
+        ui.painter().rect_stroke(btn_rect, 11.0, btn_stroke, egui::StrokeKind::Middle);
+
         ui.painter().text(
-            rect.center(),
+            center,
             egui::Align2::CENTER_CENTER,
             "+",
-            egui::FontId::monospace(12.0),
+            egui::FontId::monospace(14.0),
             AMBER,
         );
+    }
+
+    if response.clicked() {
+        state.pending_insert_after = Some(after_index);
     }
 }
