@@ -3287,6 +3287,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
                     name: Some("strategy".to_string()),
                     value: Expr::Ident("match".to_string()),
                 }],
+                byte_span: None,
             }, None)],
             span: None,
         },
@@ -3338,6 +3339,7 @@ fn test_action_delay_starts_later() {
                         value: Expr::Ident("1s".to_string()),
                     },
                 ],
+                byte_span: None,
             }, None)],
             span: None,
         },
@@ -3385,6 +3387,7 @@ fn test_sequence_advances_statement_timing() {
                             name: None,
                             value: Expr::Ident("500ms".to_string()),
                         }],
+                        byte_span: None,
                     }, None),
                     Stmt::Assignment {
                         target: vec!["badge".to_string()],
@@ -3483,6 +3486,7 @@ fn test_stagger_offsets_statement_start_times() {
                 name: None,
                 value: Expr::Ident("200ms".to_string()),
             }],
+            byte_span: None,
         }, None)
     };
 

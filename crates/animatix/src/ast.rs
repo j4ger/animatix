@@ -38,6 +38,11 @@ impl Span {
 
     /// Convert a `ByteSpan` to a `Span` given the source text.
     pub fn from_byte_span(source: &str, byte_span: ByteSpan) -> Self {
+        Self::from_range(source, byte_span.start..byte_span.end)
+    }
+
+    /// Convert a byte-offset range to a `Span` given the source text.
+    pub fn from_range(source: &str, range: std::ops::Range<usize>) -> Self {
         let mut line = 1;
         let mut col = 1;
         let mut start_line = 1;
@@ -47,12 +52,12 @@ impl Span {
         let mut in_start = true;
 
         for (i, ch) in source.char_indices() {
-            if i == byte_span.start {
+            if i == range.start {
                 start_line = line;
                 start_col = col;
                 in_start = false;
             }
-            if i == byte_span.end {
+            if i == range.end {
                 end_line = line;
                 end_col = col;
                 break;
@@ -66,7 +71,7 @@ impl Span {
         }
 
         // Handle edge case where end is at EOF
-        if byte_span.end == source.len() {
+        if range.end == source.len() {
             end_line = line;
             end_col = col;
         }
@@ -190,6 +195,9 @@ pub struct Action {
     pub targets: Vec<String>,     // e.g., ["btn"], ["A", "B", "C"]
     pub args: Vec<Expr>,          // e.g., to (100, 100)
     pub modifiers: Vec<Modifier>, // e.g., [2s, ease: bounce]
+    /// Byte-offset span of the action declaration in the source text.
+    /// Used for diagnostic location reporting.
+    pub byte_span: Option<ByteSpan>,
 }
 
 // ----------------------------------------------------------------------------

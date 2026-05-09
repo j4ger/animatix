@@ -832,12 +832,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .clone()
             .then(ident.clone().repeated().collect::<Vec<_>>()) // Simplified targets
             .then(modifiers.clone())
-            .map(|((verb, targets), modifiers)| {
+            .map_with(|((verb, targets), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+                let span = extra.span();
                 Stmt::Action(Action {
                     verb,
                     targets,
                     args: vec![],
                     modifiers,
+                    byte_span: Some(ByteSpan { start: span.start, end: span.end }),
                 }, None)
             })
             .padded();

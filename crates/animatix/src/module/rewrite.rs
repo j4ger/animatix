@@ -163,6 +163,7 @@ pub(super) fn rewrite_stmt(
                 known_labels,
                 bindings,
             ),
+            byte_span: action.byte_span,
         }, None),
         Stmt::LetDecl { is_pub, name, value, .. } => Stmt::LetDecl {
             is_pub: *is_pub,

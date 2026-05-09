@@ -1797,8 +1797,8 @@ impl Timeline {
                 Stmt::Stagger { modifiers, body, .. } => {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 }
-                Stmt::Action(action, ..) => {
-                    process_action(action, time_ms, self, diagnostics);
+                Stmt::Action(action, span) => {
+                    process_action(action, time_ms, self, diagnostics, *span);
                 }
                 _ => {}
             }

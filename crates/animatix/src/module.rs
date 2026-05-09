@@ -14,6 +14,39 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Walk the AST and convert `Action.byte_span` into `Stmt::Action` line/col spans.
+fn set_action_spans(stmts: &mut [Stmt], source: &str) {
+    for stmt in stmts.iter_mut() {
+        if let Stmt::Action(action, span) = stmt {
+            if let Some(byte_span) = action.byte_span {
+                *span = Some(crate::ast::Span::from_byte_span(source, byte_span));
+            }
+        }
+        // Recurse into blocks — collect mutable bodies first to avoid borrow issues.
+        let mut bodies: Vec<&mut [Stmt]> = Vec::new();
+        match stmt {
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::LabeledAlways { body, .. } => bodies.push(body),
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                bodies.push(then_branch);
+                if let Some(else_body) = else_branch {
+                    bodies.push(else_body);
+                }
+            }
+            Stmt::ForLoop { body, .. } => bodies.push(body),
+            Stmt::ComponentDef(def, _) => bodies.push(&mut def.body),
+            _ => {}
+        }
+        for body in bodies {
+            set_action_spans(body, source);
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FileId(u32);
 
@@ -224,7 +257,10 @@ impl ModuleGraph {
             return Err(ModuleError::ParseErrors(errors));
         }
 
-        let statements = statements.unwrap_or_default();
+        let mut statements = statements.unwrap_or_default();
+
+        // Convert byte spans captured during parsing into line/col spans.
+        set_action_spans(&mut statements, &source);
 
         let imports = collect_imports(&statements);
 

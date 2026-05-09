@@ -207,6 +207,7 @@ fn test_sequence_parse() {
                         name: None,
                         value: Expr::Ident("500ms".to_string()),
                     }],
+                    byte_span: Some(ByteSpan { start: 11, end: 33 }),
                 }, None),
                 Stmt::Assignment {
                     target: vec!["badge".to_string()],
@@ -249,6 +250,7 @@ fn test_stagger_parse() {
                         name: None,
                         value: Expr::Ident("200ms".to_string()),
                     }],
+                    byte_span: Some(ByteSpan { start: 18, end: 40 }),
                 }, None),
                 Stmt::Assignment {
                     target: vec!["second".to_string()],
@@ -284,6 +286,7 @@ fn test_stagger_each_parse() {
                     name: None,
                     value: Expr::Ident("200ms".to_string()),
                 }],
+                byte_span: Some(ByteSpan { start: 24, end: 46 }),
             }, None)],
             span: None,
         }
@@ -1016,6 +1019,7 @@ fn test_action() {
                 name: None,
                 value: Expr::Ident("1s".to_string())
             }],
+            byte_span: Some(ByteSpan { start: 0, end: 18 }),
         }, None)
     );
 }
@@ -1207,6 +1211,7 @@ fn test_conditional() {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 12, end: 23 }),
             }, None)],
             else_branch: None,
             span: None,
@@ -1226,12 +1231,14 @@ fn test_conditional_with_else() {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 12, end: 24 }),
             }, None)],
             else_branch: Some(vec![Stmt::Action(Action {
                 verb: "fade-out".to_string(),
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 33, end: 46 }),
             }, None)]),
             span: None,
         }
@@ -1251,6 +1258,7 @@ fn test_for_loop() {
                 targets: vec!["item".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 22, end: 34 }),
             }, None)],
             span: None,
         }
@@ -1273,6 +1281,7 @@ fn test_for_loop_with_range() {
                     name: None,
                     value: Expr::Ident("0.1s".to_string()),
                 }],
+                byte_span: Some(ByteSpan { start: 21, end: 38 }),
             }, None)],
             span: None,
         }

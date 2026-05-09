@@ -303,6 +303,7 @@ mod tests {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: None,
             }, None),
         ];
 

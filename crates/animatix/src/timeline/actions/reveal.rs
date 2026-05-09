@@ -41,7 +41,7 @@ impl BuiltinAction for DrawIn {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -129,7 +129,7 @@ impl BuiltinAction for WipeOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -210,7 +210,7 @@ impl BuiltinAction for RevealOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -289,7 +289,7 @@ impl BuiltinAction for DrawOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -425,6 +425,7 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident(format!("{duration_s}s")),
             }],
+            byte_span: None,
         }, None)
     }
 
@@ -506,6 +507,7 @@ mod tests {
                             value: Expr::Ident("0s".to_string()),
                         },
                     ],
+                    byte_span: None,
                 }, None),
             ],
             span: None,

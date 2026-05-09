@@ -164,6 +164,15 @@ impl Diagnostic {
         self
     }
 
+    /// Attach source location from an AST span (line/col, no byte offsets).
+    pub fn with_ast_span(mut self, span: Option<crate::ast::Span>) -> Self {
+        if let Some(s) = span {
+            self.location.line = Some(s.start_line);
+            self.location.column = Some(s.start_col);
+        }
+        self
+    }
+
     /// Returns true if this diagnostic represents an error (not a warning).
     pub fn is_error(&self) -> bool {
         self.severity == DiagnosticSeverity::Error

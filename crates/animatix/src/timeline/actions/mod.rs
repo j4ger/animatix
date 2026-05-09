@@ -17,7 +17,11 @@ use registry::{ActionSignature, BuiltinAction};
 use reorder::Swap;
 use reveal::{DrawIn, DrawOut, RevealOut, WipeOut};
 
-fn push_unknown_action_diagnostic(action: &Action, diagnostics: &mut Vec<Diagnostic>) {
+fn push_unknown_action_diagnostic(
+    action: &Action,
+    diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
+) {
     diagnostics.push(
         Diagnostic::warning(
             DiagnosticCode::UnknownAction,
@@ -27,7 +31,8 @@ fn push_unknown_action_diagnostic(action: &Action, diagnostics: &mut Vec<Diagnos
                 action.verb
             ),
         )
-        .with_subject(&action.verb),
+        .with_subject(&action.verb)
+        .with_ast_span(span),
     );
 }
 
@@ -36,6 +41,7 @@ fn push_unsupported_action_target_diagnostic(
     target: &str,
     reason: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
 ) {
     diagnostics.push(
         Diagnostic::warning(
@@ -43,7 +49,8 @@ fn push_unsupported_action_target_diagnostic(
             DiagnosticPhase::Build,
             format!("Action '{verb}' does not support target '{target}': {reason}."),
         )
-        .with_subject(format!("{verb} {target}")),
+        .with_subject(format!("{verb} {target}"))
+        .with_ast_span(span),
     );
 }
 
@@ -52,6 +59,7 @@ pub(crate) fn ensure_target_exists(
     target: &str,
     verb: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
 ) -> bool {
     if timeline.tracks.contains_key(target) {
         return true;
@@ -62,6 +70,7 @@ pub(crate) fn ensure_target_exists(
         target,
         "the target is not declared yet",
         diagnostics,
+        span,
     );
     false
 }
@@ -71,6 +80,7 @@ pub(crate) fn ensure_vector_reveal_target(
     target: &str,
     verb: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
 ) -> bool {
     let Some(track) = timeline.tracks.get(target) else {
         push_unsupported_action_target_diagnostic(
@@ -78,6 +88,7 @@ pub(crate) fn ensure_vector_reveal_target(
             target,
             "the target is not declared yet",
             diagnostics,
+            span,
         );
         return false;
     };
@@ -88,6 +99,7 @@ pub(crate) fn ensure_vector_reveal_target(
             target,
             "image targets only support opacity-based actions right now",
             diagnostics,
+            span,
         );
         return false;
     }
@@ -98,6 +110,7 @@ pub(crate) fn ensure_vector_reveal_target(
             target,
             "text-like targets only support opacity-based actions right now",
             diagnostics,
+            span,
         );
         return false;
     }
@@ -114,6 +127,7 @@ pub(crate) fn ensure_vector_reveal_target(
             target,
             "the target resolves to a container/group node rather than a renderable leaf; vector reveal actions must target leaf actors with vector paths",
             diagnostics,
+            span,
         );
         return false;
     }
@@ -148,6 +162,7 @@ pub fn process_action(
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
 ) {
     let actions = get_builtin_actions();
     for builtin in actions {
@@ -157,7 +172,7 @@ pub fn process_action(
         }
     }
 
-    push_unknown_action_diagnostic(action, diagnostics);
+    push_unknown_action_diagnostic(action, diagnostics, span);
 }
 
 /// Exposes all action signatures for LSP/UI integration.
@@ -187,11 +202,12 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("1s".to_string()),
             }],
+            byte_span: None,
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
 
-        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(
             diagnostics
@@ -226,7 +242,7 @@ mod tests {
         timeline.tracks.insert("row".to_string(), track);
 
         let mut diagnostics = Vec::new();
-        let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics);
+        let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics, None);
 
         assert!(!ok);
         assert!(diagnostics.iter().any(|diagnostic| {
@@ -246,11 +262,12 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
 
-        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
         assert!(timeline.child_orders.is_empty());
@@ -266,11 +283,12 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
 
-        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
         assert!(timeline.child_orders.is_empty());
@@ -290,10 +308,11 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut diagnostics = Vec::new();
 
-        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
         assert!(timeline.child_orders.is_empty());
@@ -342,10 +361,11 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut diagnostics = Vec::new();
 
-        process_action(&action, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
         assert_eq!(timeline.child_orders.len(), 1);
@@ -398,9 +418,10 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut diagnostics = Vec::new();
-        process_action(&action1, 0.0, &mut timeline, &mut diagnostics);
+        process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
         assert!(diagnostics.is_empty());
 
         // Second swap: b,c at 200ms, would complete at 700ms — overlaps with first
@@ -412,9 +433,10 @@ mod tests {
                 name: None,
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
+            byte_span: None,
         };
         let mut diagnostics2 = Vec::new();
-        process_action(&action2, 200.0, &mut timeline, &mut diagnostics2);
+        process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
         // Only the first swap's keyframe should exist

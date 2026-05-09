@@ -232,7 +232,7 @@ impl BuiltinAction for Move {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -313,7 +313,7 @@ impl BuiltinAction for Shift {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -395,7 +395,7 @@ impl BuiltinAction for Rotate {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -474,7 +474,7 @@ impl BuiltinAction for Scale {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -544,6 +544,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
+            byte_span: None,
         }, None)
     }
 
@@ -562,6 +563,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
+            byte_span: None,
         }, None)
     }
 
@@ -580,6 +582,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
+            byte_span: None,
         }, None)
     }
 
@@ -598,6 +601,7 @@ mod tests {
                     value: Expr::Ident("1s".to_string()),
                 },
             ],
+            byte_span: None,
         }, None)
     }
 

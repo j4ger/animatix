@@ -83,7 +83,7 @@ impl BuiltinAction for Shake {
             .unwrap_or(8); // Default 8 oscillations
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -174,7 +174,7 @@ impl BuiltinAction for Pulse {
             .unwrap_or(0.2); // Default 20% scale increase
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -245,7 +245,7 @@ impl BuiltinAction for Bounce {
             .unwrap_or(50.0); // Default 50px bounce
 
         for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics) {
+            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
@@ -327,6 +327,7 @@ mod tests {
                     value: Expr::Ident("500ms".to_string()),
                 },
             ],
+            byte_span: None,
         }, None)
     }
 
@@ -366,6 +367,7 @@ mod tests {
                         name: None,
                         value: Expr::Ident("600ms".to_string()),
                     }],
+                    byte_span: None,
                 }, None),
             ],
             span: None,
