@@ -1,4 +1,5 @@
 use super::*;
+use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
 
 /// Renders the unified transport bar at the bottom of the window.
@@ -179,33 +180,82 @@ pub(super) fn transport_bar_ui(
 
                 dot_separator(ui, muted);
 
-                // Build status with counts
-                if has_error || !diagnostics.is_empty() {
-                    let errors = diagnostics.iter().filter(|d| {
-                        d.severity == animatix::diagnostics::DiagnosticSeverity::Error
-                    }).count();
-                    let warnings = diagnostics.iter().filter(|d| {
-                        d.severity == animatix::diagnostics::DiagnosticSeverity::Warning
-                    }).count();
+                // Build status: always render same widget structure for layout stability.
+                let errors = diagnostics.iter().filter(|d| d.is_error()).count();
+                let warnings = diagnostics.iter().filter(|d| !d.is_error()).count();
 
-                    let status_text = if errors > 0 && warnings > 0 {
-                        format!("⚠ {} errors, {} warnings", errors, warnings)
-                    } else if errors > 1 {
-                        format!("⚠ {} errors", errors)
+                let status_text = if diagnostics.is_empty() {
+                    "✓ Built".to_string()
+                } else if errors > 0 && warnings > 0 {
+                    format!("⚠ {} errors, {} warnings", errors, warnings)
+                } else if errors > 1 {
+                    format!("⚠ {} errors", errors)
                     } else if errors == 1 {
                         "⚠ 1 error".to_string()
-                    } else if warnings > 1 {
-                        format!("⚠ {} warnings", warnings)
-                    } else if warnings == 1 {
-                        "⚠ 1 warning".to_string()
-                    } else {
-                        "⚠ Diagnostics".to_string()
-                    };
-
-                    let color = if errors > 0 { error_color } else { warning_color };
-                    ui.label(RichText::new(status_text).size(11.0).color(color));
+                } else if warnings > 1 {
+                    format!("⚠ {} warnings", warnings)
+                } else if warnings == 1 {
+                    "⚠ 1 warning".to_string()
                 } else {
-                    ui.label(RichText::new("✓ Built").size(11.0).color(success));
+                    "⚠ Diagnostics".to_string()
+                };
+
+                let status_color = if diagnostics.is_empty() {
+                    success
+                } else if errors > 0 {
+                    error_color
+                } else {
+                    warning_color
+                };
+
+                // Status badge (clickable when there are diagnostics)
+                let status_response = ui.selectable_label(
+                    false,
+                    RichText::new(status_text).size(11.0).color(status_color),
+                );
+
+                // Tooltip with all diagnostics on hover
+                if !diagnostics.is_empty() {
+                    let status_response = status_response.on_hover_ui(|ui| {
+                        ui.strong(format!("{} diagnostic{}", diagnostics.len(), if diagnostics.len() == 1 { "" } else { "s" }));
+                        ui.add_space(4.0);
+                        for d in diagnostics.iter().take(10) {
+                            let prefix = if d.is_error() { "✗ " } else { "⚠ " };
+                            let loc = if let (Some(l), Some(c)) = (d.location.line, d.location.column) {
+                                format!("line {l}, col {c}: ")
+                            } else { String::new() };
+                            let msg = d.message.lines().next().unwrap_or(&d.message);
+                            ui.label(RichText::new(format!("{prefix}{loc}{msg}")).size(11.0));
+                        }
+                        if diagnostics.len() > 10 {
+                            ui.label(RichText::new(format!("... and {} more", diagnostics.len() - 10)).size(11.0).weak());
+                        }
+                    });
+
+                    // Click to jump to first diagnostic with a line number
+                    if status_response.clicked() {
+                        if let Some(first) = diagnostics.iter().find(|d| d.location.line.is_some()) {
+                            actions.scroll_to_line = first.location.line.map(|l| l.saturating_sub(1));
+                        }
+                    }
+                }
+
+                // Show first diagnostic message inline (truncated)
+                if let Some(first) = diagnostics.first() {
+                    let msg = first.message.lines().next().unwrap_or(&first.message);
+                    let truncated = if msg.len() > 50 {
+                        format!("{}...", &msg[..50])
+                    } else {
+                        msg.to_string()
+                    };
+                    ui.label(
+                        RichText::new(truncated)
+                            .size(11.0)
+                            .color(Color32::from_rgb(180, 180, 180)),
+                    );
+                } else {
+                    // Invisible placeholder so layout doesn't shift when diagnostics appear
+                    ui.label(RichText::new("").size(11.0));
                 }
 
                 // Right-aligned hints

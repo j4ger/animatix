@@ -11,6 +11,14 @@ pub use render::render_cell_editor;
 pub struct CellDiagnostic {
     pub line: usize,
     pub message: String,
+    pub severity: animatix::diagnostics::DiagnosticSeverity,
+    /// Which cell this diagnostic belongs to.
+    pub cell_index: usize,
+    /// Cell-body-relative position for token-level underlining.
+    pub rel_line: usize,
+    pub rel_col: usize,
+    pub rel_end_line: usize,
+    pub rel_end_col: usize,
 }
 
 /// Persistent state for the cell editor (scroll position, focused cell, etc.).
@@ -32,6 +40,8 @@ pub struct CellEditorState {
     pub diagnostics: Vec<CellDiagnostic>,
     /// Set of cell indices that have at least one diagnostic error.
     pub error_cells: std::collections::HashSet<usize>,
+    /// Set of cell indices that have at least one diagnostic warning (but no errors).
+    pub warning_cells: std::collections::HashSet<usize>,
 }
 
 impl Default for CellEditorState {
@@ -46,6 +56,7 @@ impl Default for CellEditorState {
             prev_focused_cell: None,
             diagnostics: Vec::new(),
             error_cells: std::collections::HashSet::new(),
+            warning_cells: std::collections::HashSet::new(),
         }
     }
 }

@@ -114,23 +114,62 @@ impl EditorBuffer {
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[animatix::diagnostics::Diagnostic]) {
-        self.cell_state.diagnostics = diagnostics
-            .iter()
-            .filter_map(|d| {
-                let line = d.location.line?;
-                Some(crate::cell_editor::CellDiagnostic {
-                    line: line.saturating_sub(1), // convert to 0-indexed
-                    message: d.message.clone(),
-                })
-            })
-            .collect();
+        use crate::cell_editor::CellDiagnostic;
 
-        // Map diagnostic lines to cell indices for quick lookup during render.
+        self.cell_state.diagnostics.clear();
         self.cell_state.error_cells.clear();
-        for diag in &self.cell_state.diagnostics {
-            if let Some(cell_idx) = self.cell_index_for_source_line(diag.line) {
-                self.cell_state.error_cells.insert(cell_idx);
+        self.cell_state.warning_cells.clear();
+
+        for d in diagnostics {
+            let Some(doc_line) = d.location.line else { continue };
+            let doc_line = doc_line.saturating_sub(1); // 0-indexed
+
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+
+            let cell = &self.cells[cell_idx];
+
+            // How many header lines before the editable body?
+            let header_lines = match cell {
+                crate::cell_editor::Cell::Code { .. } => 0,
+                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                    let comment_lines =
+                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
+                    comment_lines + 1 // +1 for the #timestamp line
+                }
+            };
+
+            let body_start_line = cell_start_line + header_lines;
+
+            // Track cell border color by severity.
+            match d.severity {
+                animatix::diagnostics::DiagnosticSeverity::Error => {
+                    self.cell_state.error_cells.insert(cell_idx);
+                }
+                animatix::diagnostics::DiagnosticSeverity::Warning => {
+                    self.cell_state.warning_cells.insert(cell_idx);
+                }
             }
+
+            // Skip diagnostics that sit on the cell header (not in the body text).
+            if doc_line < body_start_line {
+                continue;
+            }
+
+            let rel_line = doc_line - body_start_line;
+            let rel_col = d.location.column.map(|c| c.saturating_sub(1)).unwrap_or(0);
+            let rel_end_col = rel_col + 5; // approximate token width for underline
+
+            self.cell_state.diagnostics.push(CellDiagnostic {
+                line: doc_line,
+                message: d.message.clone(),
+                severity: d.severity,
+                cell_index: cell_idx,
+                rel_line,
+                rel_col,
+                rel_end_line: rel_line,
+                rel_end_col,
+            });
         }
     }
 

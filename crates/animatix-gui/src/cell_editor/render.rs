@@ -3,6 +3,45 @@ use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 use crate::cell_editor::{Cell, CellEditorState};
 use crate::highlighting::highlight_source;
 
+/// Build analyzer diagnostics for a specific cell (body-relative coordinates).
+fn cell_analyzer_diagnostics(
+    cell_index: usize,
+    state: &CellEditorState,
+) -> Vec<animatix_analyzer::Diagnostic> {
+    state
+        .diagnostics
+        .iter()
+        .filter(|d| d.cell_index == cell_index)
+        .map(|d| animatix_analyzer::Diagnostic {
+            severity: match d.severity {
+                animatix::diagnostics::DiagnosticSeverity::Error => {
+                    animatix_analyzer::DiagnosticSeverity::Error
+                }
+                animatix::diagnostics::DiagnosticSeverity::Warning => {
+                    animatix_analyzer::DiagnosticSeverity::Warning
+                }
+            },
+            line: d.rel_line,
+            col: d.rel_col,
+            end_line: d.rel_end_line,
+            end_col: d.rel_end_col,
+            message: d.message.clone(),
+            code: None,
+        })
+        .collect()
+}
+
+/// Choose a left-border color based on diagnostic severity for this cell.
+fn diagnostic_border_color(index: usize, state: &CellEditorState) -> Option<Color32> {
+    if state.error_cells.contains(&index) {
+        Some(Color32::from_rgb(255, 100, 100)) // red
+    } else if state.warning_cells.contains(&index) {
+        Some(Color32::from_rgb(255, 196, 92)) // amber
+    } else {
+        None
+    }
+}
+
 // ── Palette ──────────────────────────────────────────────────────────────
 
 const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
@@ -86,21 +125,19 @@ fn render_code_cell(
 ) -> egui::Response {
     let expanded = cell.is_expanded();
     let bg = if highlighted { CODE_BG_HIGHLIGHT } else { CODE_BG };
-    let has_error = state.error_cells.contains(&index);
-    let left_border_color = if has_error {
-        Color32::from_rgb(255, 100, 100)
-    } else {
-        bg
-    };
+    let border_color = diagnostic_border_color(index, state);
+    let cell_diags = cell_analyzer_diagnostics(index, state);
+
+    let diagnostic_margin = border_color.map(|_| Margin {
+        left: 2,
+        right: 0,
+        top: 0,
+        bottom: 0,
+    });
 
     Frame::new()
-        .fill(left_border_color)
-        .inner_margin(Margin {
-            left: 2,
-            right: 0,
-            top: 0,
-            bottom: 0,
-        })
+        .fill(border_color.unwrap_or(bg))
+        .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
         .show(ui, |ui| {
             Frame::new()
                 .fill(bg)
@@ -128,10 +165,16 @@ fn render_code_cell(
                             ui.add_space(4.0);
 
                             let layouter_style = style.clone();
+                            let cell_diags_ref = cell_diags.clone();
                             let mut layouter = move |ui: &egui::Ui,
                                                      buf: &dyn egui::TextBuffer,
                                                      wrap_width: f32| {
-                                let mut job = highlight_source(buf.as_str(), &layouter_style, &[], None);
+                                let mut job = highlight_source(
+                                    buf.as_str(),
+                                    &layouter_style,
+                                    &cell_diags_ref,
+                                    None,
+                                );
                                 job.wrap.max_width = wrap_width;
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
@@ -172,21 +215,20 @@ fn render_keyframe_cell(
     } else {
         KEYFRAME_BG
     };
-    let has_error = state.error_cells.contains(&index);
-    let left_border_color = if has_error {
-        Color32::from_rgb(255, 100, 100)
-    } else {
-        AMBER
-    };
+    let border_color = diagnostic_border_color(index, state);
+    let cell_diags = cell_analyzer_diagnostics(index, state);
+
+    // Only draw a diagnostic border when there is one.
+    let diagnostic_margin = border_color.map(|_| Margin {
+        left: 2,
+        right: 0,
+        top: 0,
+        bottom: 0,
+    });
 
     Frame::new()
-        .fill(left_border_color)
-        .inner_margin(Margin {
-            left: 2,
-            right: 0,
-            top: 0,
-            bottom: 0,
-        })
+        .fill(border_color.unwrap_or(bg))
+        .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
         .show(ui, |ui| {
             Frame::new()
                 .fill(bg)
@@ -241,11 +283,16 @@ fn render_keyframe_cell(
                             .inner_margin(Margin::symmetric(10, 8))
                             .show(ui, |ui| {
                                 let layouter_style = style.clone();
+                                let cell_diags_ref = cell_diags.clone();
                                 let mut layouter = move |ui: &egui::Ui,
                                                          buf: &dyn egui::TextBuffer,
                                                          wrap_width: f32| {
-                                    let mut job =
-                                        highlight_source(buf.as_str(), &layouter_style, &[], None);
+                                    let mut job = highlight_source(
+                                        buf.as_str(),
+                                        &layouter_style,
+                                        &cell_diags_ref,
+                                        None,
+                                    );
                                     job.wrap.max_width = wrap_width;
                                     ui.fonts_mut(|fonts| fonts.layout_job(job))
                                 };

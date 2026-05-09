@@ -241,31 +241,13 @@ fn apply_background_layers(
     deco_ranges: &[(usize, usize, Color32)],
     special_highlights: &[(usize, usize, Color32)],
 ) -> LayoutJob {
-    // Convert diagnostics to byte offsets with background colors
-    let diag_ranges: Vec<(usize, usize, Color32)> = diagnostics
+    // Diagnostic byte ranges for boundary splitting.
+    let diag_ranges: Vec<(usize, usize)> = diagnostics
         .iter()
         .filter_map(|d| {
             let start = line_col_to_byte(source, d.line, d.col);
             let end = line_col_to_byte(source, d.end_line, d.end_col);
-            if start < end {
-                let bg = match d.severity {
-                    animatix_analyzer::DiagnosticSeverity::Error => {
-                        Color32::from_rgba_premultiplied(255, 0, 0, 30)
-                    }
-                    animatix_analyzer::DiagnosticSeverity::Warning => {
-                        Color32::from_rgba_premultiplied(255, 255, 0, 30)
-                    }
-                    animatix_analyzer::DiagnosticSeverity::Info => {
-                        Color32::from_rgba_premultiplied(0, 100, 255, 30)
-                    }
-                    animatix_analyzer::DiagnosticSeverity::Hint => {
-                        Color32::from_rgba_premultiplied(0, 200, 100, 30)
-                    }
-                };
-                Some((start, end, bg))
-            } else {
-                None
-            }
+            if start < end { Some((start, end)) } else { None }
         })
         .collect();
 
@@ -276,7 +258,7 @@ fn apply_background_layers(
         boundaries.push(start);
         boundaries.push(end);
     }
-    for &(start, end, _) in &diag_ranges {
+    for &(start, end) in &diag_ranges {
         boundaries.push(start);
         boundaries.push(end);
     }
@@ -320,9 +302,24 @@ fn apply_background_layers(
 
         // Check if segment is covered by a diagnostic
         let mut bg_color: Option<Color32> = None;
-        for &(d_start, d_end, d_color) in &diag_ranges {
+        for d in diagnostics {
+            let d_start = line_col_to_byte(source, d.line, d.col);
+            let d_end = line_col_to_byte(source, d.end_line, d.end_col);
             if seg_start >= d_start && seg_end <= d_end {
-                bg_color = Some(d_color);
+                bg_color = Some(match d.severity {
+                    animatix_analyzer::DiagnosticSeverity::Error => {
+                        Color32::from_rgba_premultiplied(255, 60, 60, 55)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Warning => {
+                        Color32::from_rgba_premultiplied(255, 200, 80, 75)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Info => {
+                        Color32::from_rgba_premultiplied(80, 140, 255, 40)
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Hint => {
+                        Color32::from_rgba_premultiplied(80, 220, 140, 40)
+                    }
+                });
                 break;
             }
         }
