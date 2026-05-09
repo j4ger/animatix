@@ -150,6 +150,7 @@ pub(super) fn transport_bar_ui(
                 let muted = Color32::from_rgb(90, 96, 110);
                 let success = Color32::from_rgb(80, 200, 140);
                 let error_color = Color32::from_rgb(255, 100, 100);
+                let warning_color = Color32::from_rgb(255, 214, 102);
 
                 // Resolution
                 ui.label(
@@ -178,22 +179,31 @@ pub(super) fn transport_bar_ui(
 
                 dot_separator(ui, muted);
 
-                // Build status
-                if has_error {
-                    ui.label(
-                        RichText::new("⚠ Error")
-                            .size(11.0)
-                            .color(error_color),
-                    );
-                } else if !diagnostics.is_empty() {
-                    let has_errors = diagnostics.iter().any(|d| {
+                // Build status with counts
+                if has_error || !diagnostics.is_empty() {
+                    let errors = diagnostics.iter().filter(|d| {
                         d.severity == animatix::diagnostics::DiagnosticSeverity::Error
-                    });
-                    if has_errors {
-                        ui.label(RichText::new("⚠ Diagnostics").size(11.0).color(error_color));
+                    }).count();
+                    let warnings = diagnostics.iter().filter(|d| {
+                        d.severity == animatix::diagnostics::DiagnosticSeverity::Warning
+                    }).count();
+
+                    let status_text = if errors > 0 && warnings > 0 {
+                        format!("⚠ {} errors, {} warnings", errors, warnings)
+                    } else if errors > 1 {
+                        format!("⚠ {} errors", errors)
+                    } else if errors == 1 {
+                        "⚠ 1 error".to_string()
+                    } else if warnings > 1 {
+                        format!("⚠ {} warnings", warnings)
+                    } else if warnings == 1 {
+                        "⚠ 1 warning".to_string()
                     } else {
-                        ui.label(RichText::new("✓ Built").size(11.0).color(success));
-                    }
+                        "⚠ Diagnostics".to_string()
+                    };
+
+                    let color = if errors > 0 { error_color } else { warning_color };
+                    ui.label(RichText::new(status_text).size(11.0).color(color));
                 } else {
                     ui.label(RichText::new("✓ Built").size(11.0).color(success));
                 }

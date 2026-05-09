@@ -1305,7 +1305,8 @@ fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
     diagnostics.iter().any(|diagnostic| {
         diagnostic.phase == animatix::diagnostics::DiagnosticPhase::Parse
             && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
-            && diagnostic.code == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
+            && (diagnostic.code == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
+                || diagnostic.code == animatix::diagnostics::DiagnosticCode::ParseError)
     })
 }
 
@@ -1319,24 +1320,38 @@ fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<DiagnosticPhas
         .map(|summary| summary.phase)
 }
 
-fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<&'static str> {
-    match primary_diagnostic_phase(diagnostics) {
-        Some(DiagnosticPhase::Parse)
-            if diagnostics.iter().any(|diagnostic| {
-                diagnostic.phase == DiagnosticPhase::Parse
-                    && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
-            }) =>
-        {
-            Some("Parse errors are blocking rebuild. Fix parse issues first.")
+/// Return a banner message for the first diagnostic, or a phase-specific fallback.
+/// For parse errors, returns the actual error message (truncated). For other phases,
+/// returns a static description.
+fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
+    if diagnostics.is_empty() {
+        return None;
+    }
+
+    // Show the first parse error message directly if available
+    let first_parse_error = diagnostics.iter().find(|d| {
+        d.phase == DiagnosticPhase::Parse && d.severity == animatix::diagnostics::DiagnosticSeverity::Error
+    });
+    if let Some(err) = first_parse_error {
+        let msg = &err.message;
+        // Truncate to first line, max 80 chars
+        let first_line = msg.lines().next().unwrap_or(msg);
+        if first_line.len() > 80 {
+            return Some(format!("{}...", &first_line[..80]));
         }
+        return Some(first_line.to_string());
+    }
+
+    // Fallback to phase-specific messages
+    match primary_diagnostic_phase(diagnostics) {
         Some(DiagnosticPhase::Parse) => {
-            Some("Parse diagnostics need attention before trusting later build feedback.")
+            Some("Parse diagnostics need attention before trusting later build feedback.".to_string())
         }
         Some(DiagnosticPhase::Build) => {
-            Some("Build diagnostics reflect runtime contract issues in the current scene.")
+            Some("Build diagnostics reflect runtime contract issues in the current scene.".to_string())
         }
         Some(DiagnosticPhase::Render) => {
-            Some("Render diagnostics affect preview output rather than source parsing.")
+            Some("Render diagnostics affect preview output rather than source parsing.".to_string())
         }
         None => None,
     }
@@ -1468,16 +1483,16 @@ mod tests {
     }
 
     #[test]
-    fn diagnostics_banner_message_calls_out_parse_first() {
+    fn diagnostics_banner_message_shows_first_parse_error() {
         let diagnostics = vec![Diagnostic::error(
-            DiagnosticCode::SourceLoadFailure,
+            DiagnosticCode::ParseError,
             DiagnosticPhase::Parse,
-            "parse error",
+            "line 3, col 15: expected expression, found ','",
         )];
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Parse errors are blocking rebuild. Fix parse issues first.")
+            Some("line 3, col 15: expected expression, found ','".to_string())
         );
     }
 
@@ -1491,7 +1506,7 @@ mod tests {
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Build diagnostics reflect runtime contract issues in the current scene.")
+            Some("Build diagnostics reflect runtime contract issues in the current scene.".to_string())
         );
     }
 
@@ -1505,7 +1520,7 @@ mod tests {
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Parse diagnostics need attention before trusting later build feedback.")
+            Some("Parse diagnostics need attention before trusting later build feedback.".to_string())
         );
     }
 
@@ -1519,7 +1534,7 @@ mod tests {
 
         assert_eq!(
             diagnostics_banner_message(&diagnostics),
-            Some("Render diagnostics affect preview output rather than source parsing.")
+            Some("Render diagnostics affect preview output rather than source parsing.".to_string())
         );
     }
 

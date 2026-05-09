@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Range;
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,6 +37,7 @@ impl fmt::Display for DiagnosticPhase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticCode {
     SourceLoadFailure,
+    ParseError,
     RenderFailure,
     UnsupportedModifierKey,
     UnsupportedAssignmentProperty,
@@ -65,6 +67,7 @@ impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DiagnosticCode::SourceLoadFailure => write!(f, "source-load-failure"),
+            DiagnosticCode::ParseError => write!(f, "parse-error"),
             DiagnosticCode::RenderFailure => write!(f, "render-failure"),
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
@@ -102,6 +105,12 @@ impl fmt::Display for DiagnosticCode {
 pub struct DiagnosticLocation {
     pub path: Option<PathBuf>,
     pub subject: Option<String>,
+    /// 1-based line number where the error occurs.
+    pub line: Option<usize>,
+    /// 1-based column number where the error occurs.
+    pub column: Option<usize>,
+    /// Byte-offset range into the source text.
+    pub span: Option<Range<usize>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,6 +154,13 @@ impl Diagnostic {
 
     pub fn with_subject(mut self, subject: impl Into<String>) -> Self {
         self.location.subject = Some(subject.into());
+        self
+    }
+
+    pub fn with_location(mut self, line: usize, column: usize, span: Range<usize>) -> Self {
+        self.location.line = Some(line);
+        self.location.column = Some(column);
+        self.location.span = Some(span);
         self
     }
 

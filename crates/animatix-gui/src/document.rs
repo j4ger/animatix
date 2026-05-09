@@ -1,6 +1,6 @@
 use animatix::ast::{Expr, Stmt};
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix::module::{ModuleGraph, Namespace};
+use animatix::module::{ModuleError, ModuleGraph, Namespace};
 use animatix::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
 use std::collections::HashMap;
@@ -109,7 +109,8 @@ impl DocumentSession {
                 (raw_statements, expanded_statements, namespaces)
             }
             Err(err) => {
-                self.last_rebuild_error = Some(err.clone());
+                let err_string = err.to_string();
+                self.last_rebuild_error = Some(err_string.clone());
                 self.raw_statements = None;
                 self.expanded_statements = None;
                 self.source_index = None;
@@ -117,17 +118,10 @@ impl DocumentSession {
                 self.timeline = None;
                 self.timeline_index = TimelineIndex::default();
                 self.keyframe_lines = Vec::new();
-                self.diagnostics = vec![
-                    Diagnostic::error(
-                        DiagnosticCode::SourceLoadFailure,
-                        DiagnosticPhase::Parse,
-                        format!("Failed to load or parse source: {err}"),
-                    )
-                    .with_path(self.file_path.clone()),
-                ];
+                self.diagnostics = diagnostics_from_module_error(&err, &self.file_path);
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
-                return Err(err.to_string());
+                return Err(err_string);
             }
         };
 
@@ -154,11 +148,10 @@ impl DocumentSession {
 
     /// Load the program, returning (raw_statements, expanded_statements, namespaces).
     /// Raw statements are the parsed statements before component expansion.
-    fn load_program(&self) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>), String> {
+    fn load_program(&self) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>), ModuleError> {
         let mut graph = ModuleGraph::new();
         let program = graph
-            .load_program_with_source(&self.file_path, Some(&self.source_text))
-            .map_err(|err| err.to_string())?;
+            .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let raw_statements = program.statements.clone();
         let expanded_statements = program.expand_components();
         let namespaces = program.namespaces;
@@ -281,6 +274,33 @@ pub fn default_file_path() -> PathBuf {
         .nth(2)
         .unwrap_or_else(|| Path::new("."));
     repo_root.join("examples/showcase.amx")
+}
+
+/// Convert a `ModuleError` into a vector of `Diagnostic`s.
+/// Parse errors are preserved as individual diagnostics with location info.
+/// Other module errors become a single `SourceLoadFailure` diagnostic.
+fn diagnostics_from_module_error(err: &ModuleError, file_path: &Path) -> Vec<Diagnostic> {
+    match err {
+        ModuleError::ParseErrors(parse_errors) => parse_errors
+            .iter()
+            .map(|e| {
+                let mut msg = format!("line {}, col {}: {}", e.line, e.column, e.message);
+                if !e.context.is_empty() {
+                    msg.push_str("\n  ");
+                    msg.push_str(&e.context.join("\n  "));
+                }
+                Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg)
+                    .with_path(file_path)
+                    .with_location(e.line, e.column, e.span.clone())
+            })
+            .collect(),
+        _ => vec![Diagnostic::error(
+            DiagnosticCode::SourceLoadFailure,
+            DiagnosticPhase::Parse,
+            err.to_string(),
+        )
+        .with_path(file_path)],
+    }
 }
 
 #[cfg(test)]
@@ -606,12 +626,12 @@ scene: Rect, size: (100, 100)
             animatix::diagnostics::DiagnosticSeverity::Error
         );
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
-        assert_eq!(diagnostic.code, DiagnosticCode::SourceLoadFailure);
+        assert_eq!(diagnostic.code, DiagnosticCode::ParseError);
         assert!(
-            diagnostic
-                .message
-                .contains("Failed to load or parse source:")
+            diagnostic.message.contains("line ") && diagnostic.message.contains("col ")
         );
+        assert!(diagnostic.location.line.is_some());
+        assert!(diagnostic.location.column.is_some());
         assert_eq!(diagnostic.location.path.as_ref(), Some(&entry));
         assert!(document.last_rebuild_error.is_some());
         assert_eq!(document.duration_s, 0.1);
@@ -634,10 +654,9 @@ scene: Rect, size: (100, 100)
         assert!(document.timeline.is_none());
         assert_eq!(document.diagnostics.len(), 1);
         assert_eq!(document.diagnostics[0].phase, DiagnosticPhase::Parse);
-        assert_eq!(
-            document.diagnostics[0].code,
-            DiagnosticCode::SourceLoadFailure
-        );
+        assert_eq!(document.diagnostics[0].code, DiagnosticCode::ParseError);
+        assert!(document.diagnostics[0].location.line.is_some());
+        assert!(document.diagnostics[0].location.column.is_some());
         assert!(document.last_rebuild_error.is_some());
     }
 }

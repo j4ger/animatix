@@ -6,6 +6,13 @@ pub use cell::{Cell, format_duration_s};
 pub use parser::{cells_to_source, parse_cells};
 pub use render::render_cell_editor;
 
+/// A lightweight diagnostic attached to a cell for error display.
+#[derive(Debug, Clone)]
+pub struct CellDiagnostic {
+    pub line: usize,
+    pub message: String,
+}
+
 /// Persistent state for the cell editor (scroll position, focused cell, etc.).
 #[derive(Debug, Clone)]
 pub struct CellEditorState {
@@ -21,6 +28,10 @@ pub struct CellEditorState {
     /// The cell that had focus on the previous frame. Used to detect when
     /// the user moved focus away from a cell so we can auto-remove it if empty.
     pub prev_focused_cell: Option<usize>,
+    /// Diagnostics mapped to this cell's line range, for showing error indicators.
+    pub diagnostics: Vec<CellDiagnostic>,
+    /// Set of cell indices that have at least one diagnostic error.
+    pub error_cells: std::collections::HashSet<usize>,
 }
 
 impl Default for CellEditorState {
@@ -33,6 +44,8 @@ impl Default for CellEditorState {
             pending_duplicate_cell: None,
             pending_insert_after: None,
             prev_focused_cell: None,
+            diagnostics: Vec::new(),
+            error_cells: std::collections::HashSet::new(),
         }
     }
 }

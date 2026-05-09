@@ -86,54 +86,70 @@ fn render_code_cell(
 ) -> egui::Response {
     let expanded = cell.is_expanded();
     let bg = if highlighted { CODE_BG_HIGHLIGHT } else { CODE_BG };
+    let has_error = state.error_cells.contains(&index);
+    let left_border_color = if has_error {
+        Color32::from_rgb(255, 100, 100)
+    } else {
+        bg
+    };
 
     Frame::new()
-        .fill(bg)
-        .inner_margin(Margin::symmetric(10, 8))
+        .fill(left_border_color)
+        .inner_margin(Margin {
+            left: 2,
+            right: 0,
+            top: 0,
+            bottom: 0,
+        })
         .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    let toggle = if expanded { "v" } else { ">" };
-                    if ui
-                        .small_button(toggle)
-                        .on_hover_text(if expanded { "Collapse" } else { "Expand" })
-                        .clicked()
-                    {
-                        cell.set_expanded(!expanded);
-                    }
-                    ui.label(
-                        RichText::new(format!("Code {index}"))
-                            .monospace()
-                            .size(11.0)
-                            .color(Color32::from_rgb(140, 150, 170)),
-                    );
+            Frame::new()
+                .fill(bg)
+                .inner_margin(Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            let toggle = if expanded { "v" } else { ">" };
+                            if ui
+                                .small_button(toggle)
+                                .on_hover_text(if expanded { "Collapse" } else { "Expand" })
+                                .clicked()
+                            {
+                                cell.set_expanded(!expanded);
+                            }
+                            ui.label(
+                                RichText::new(format!("Code {index}"))
+                                    .monospace()
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(140, 150, 170)),
+                            );
+                        });
+
+                        if expanded {
+                            ui.add_space(4.0);
+
+                            let layouter_style = style.clone();
+                            let mut layouter = move |ui: &egui::Ui,
+                                                     buf: &dyn egui::TextBuffer,
+                                                     wrap_width: f32| {
+                                let mut job = highlight_source(buf.as_str(), &layouter_style, &[], None);
+                                job.wrap.max_width = wrap_width;
+                                ui.fonts_mut(|fonts| fonts.layout_job(job))
+                            };
+
+                            let response = ui.add(
+                                egui::TextEdit::multiline(cell.body_mut())
+                                    .code_editor()
+                                    .frame(Frame::NONE)
+                                    .desired_width(f32::INFINITY)
+                                    .layouter(&mut layouter),
+                            );
+                            if response.changed() {
+                                *source_changed = true;
+                            }
+                            track_focus(index, &response, state);
+                        }
+                    });
                 });
-
-                if expanded {
-                    ui.add_space(4.0);
-
-                    let layouter_style = style.clone();
-                    let mut layouter = move |ui: &egui::Ui,
-                                             buf: &dyn egui::TextBuffer,
-                                             wrap_width: f32| {
-                        let mut job = highlight_source(buf.as_str(), &layouter_style, &[], None);
-                        job.wrap.max_width = wrap_width;
-                        ui.fonts_mut(|fonts| fonts.layout_job(job))
-                    };
-
-                    let response = ui.add(
-                        egui::TextEdit::multiline(cell.body_mut())
-                            .code_editor()
-                            .frame(Frame::NONE)
-                            .desired_width(f32::INFINITY)
-                            .layouter(&mut layouter),
-                    );
-                    if response.changed() {
-                        *source_changed = true;
-                    }
-                    track_focus(index, &response, state);
-                }
-            });
         })
         .response
 }
@@ -156,9 +172,15 @@ fn render_keyframe_cell(
     } else {
         KEYFRAME_BG
     };
+    let has_error = state.error_cells.contains(&index);
+    let left_border_color = if has_error {
+        Color32::from_rgb(255, 100, 100)
+    } else {
+        AMBER
+    };
 
     Frame::new()
-        .fill(AMBER)
+        .fill(left_border_color)
         .inner_margin(Margin {
             left: 2,
             right: 0,

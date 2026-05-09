@@ -113,6 +113,27 @@ impl EditorBuffer {
         self.keyframe_times_s = times;
     }
 
+    pub fn set_diagnostics(&mut self, diagnostics: &[animatix::diagnostics::Diagnostic]) {
+        self.cell_state.diagnostics = diagnostics
+            .iter()
+            .filter_map(|d| {
+                let line = d.location.line?;
+                Some(crate::cell_editor::CellDiagnostic {
+                    line: line.saturating_sub(1), // convert to 0-indexed
+                    message: d.message.clone(),
+                })
+            })
+            .collect();
+
+        // Map diagnostic lines to cell indices for quick lookup during render.
+        self.cell_state.error_cells.clear();
+        for diag in &self.cell_state.diagnostics {
+            if let Some(cell_idx) = self.cell_index_for_source_line(diag.line) {
+                self.cell_state.error_cells.insert(cell_idx);
+            }
+        }
+    }
+
     pub fn scroll_to_line(&mut self, line: usize) {
         self.pending_scroll_to_line = Some(line);
     }

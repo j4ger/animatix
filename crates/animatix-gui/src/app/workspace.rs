@@ -258,6 +258,7 @@ impl WorkspaceViewer<'_> {
             });
             ui.separator();
 
+            self.editor.set_diagnostics(self.diagnostics);
             let response = self.editor.show(ui);
             // Normal path: TextEdit reported a change.
             // Defensive path: the editor text differs from the document source
@@ -347,7 +348,7 @@ impl WorkspaceViewer<'_> {
                 });
             });
 
-            // Diagnostics banner (compact)
+            // Diagnostics banner (compact) + expandable panel
             if !self.diagnostics.is_empty() {
                 if let Some(message) = diagnostics_banner_message(self.diagnostics) {
                     ui.add_space(2.0);
@@ -355,6 +356,43 @@ impl WorkspaceViewer<'_> {
                         diagnostics_summary_color(self.diagnostics),
                         RichText::new(message).small().strong(),
                     );
+                }
+
+                // Show individual diagnostics as clickable items when there are multiple
+                if self.diagnostics.len() > 1 {
+                    ui.add_space(2.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(80.0)
+                        .show(ui, |ui| {
+                            for (i, diagnostic) in self.diagnostics.iter().enumerate() {
+                                let prefix = match diagnostic.severity {
+                                    animatix::diagnostics::DiagnosticSeverity::Error => "✗ ",
+                                    animatix::diagnostics::DiagnosticSeverity::Warning => "⚠ ",
+                                };
+                                let location = if let (Some(line), Some(col)) =
+                                    (diagnostic.location.line, diagnostic.location.column)
+                                {
+                                    format!("line {line}, col {col}: ")
+                                } else {
+                                    String::new()
+                                };
+                                let msg = diagnostic.message.lines().next().unwrap_or(&diagnostic.message);
+                                let label =
+                                    format!("{prefix}{location}{msg}");
+                                let response = ui.selectable_label(
+                                    false,
+                                    RichText::new(label).size(10.0).color(Color32::from_rgb(200, 200, 200)),
+                                );
+                                if response.clicked() {
+                                    if let Some(line) = diagnostic.location.line {
+                                        self.editor.scroll_to_line(line.saturating_sub(1));
+                                    }
+                                }
+                                if i < self.diagnostics.len() - 1 {
+                                    ui.add_space(1.0);
+                                }
+                            }
+                        });
                 }
             }
 
@@ -993,21 +1031,8 @@ impl WorkspaceViewer<'_> {
                 );
             }
 
-            // Error display (compact, overlaid)
-            if let Some(error) = &self.preview.error {
-                let error_rect = egui::Rect::from_min_max(
-                    egui::pos2(preview_rect.min.x + 8.0, preview_rect.max.y - 28.0),
-                    egui::pos2(preview_rect.max.x - 8.0, preview_rect.max.y - 8.0),
-                );
-                ui.painter().rect_filled(error_rect, 4.0, Color32::from_rgba_unmultiplied(40, 10, 10, 200));
-                ui.painter().text(
-                    error_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    error,
-                    egui::TextStyle::Small.resolve(ui.style()),
-                    Color32::from_rgb(255, 136, 136),
-                );
-            }
+            // NOTE: errors are shown in the diagnostics banner above the canvas,
+            // not as an overlay, to avoid duplicating the same message.
         });
     }
 

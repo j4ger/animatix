@@ -28,6 +28,83 @@
 use crate::ast::*;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
+use std::ops::Range;
+
+/// A structured parse error with human-readable location and context.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParseError {
+    pub message: String,
+    pub span: Range<usize>,
+    pub line: usize,
+    pub column: usize,
+    pub expected: Vec<String>,
+    pub found: Option<String>,
+    pub context: Vec<String>,
+}
+
+impl ParseError {
+    /// Convert a chumsky `Rich` error into a structured `ParseError`.
+    pub fn from_rich(source: &str, err: &Rich<'_, char>) -> Self {
+        let span = err.span();
+        let start = span.start;
+        let end = span.end;
+        let (line, column) = byte_offset_to_line_col(source, start);
+
+        let mut message = String::new();
+        let mut expected = Vec::new();
+        let mut found = None;
+
+        match err.reason() {
+            chumsky::error::RichReason::ExpectedFound { expected: exp, found: f } => {
+                expected = exp.iter().map(|p| p.to_string()).collect();
+                found = f.as_ref().map(|c| c.to_string());
+                let expected_str = expected.join(", ");
+                match (expected_str.is_empty(), found.as_ref()) {
+                    (false, Some(f)) => message = format!("expected {expected_str}, found '{f}'"),
+                    (false, None) => message = format!("expected {expected_str}, found end of input"),
+                    (true, Some(f)) => message = format!("unexpected '{f}'"),
+                    (true, None) => message = "unexpected end of input".to_string(),
+                }
+            }
+            chumsky::error::RichReason::Custom(msg) => {
+                message = msg.clone();
+            }
+        }
+
+        let context: Vec<String> = err
+            .contexts()
+            .map(|(pattern, _)| pattern.to_string())
+            .collect();
+
+        Self {
+            message,
+            span: start..end,
+            line,
+            column,
+            expected,
+            found,
+            context,
+        }
+    }
+}
+
+/// Convert a byte offset into a 1-based (line, column) pair.
+fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
+    let mut line = 1usize;
+    let mut col = 1usize;
+    for (i, ch) in source.char_indices() {
+        if i >= offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+    }
+    (line, col)
+}
 
 pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
     let ident = text::ident()
@@ -314,7 +391,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(|(args, body)| Expr::Closure(args, Box::new(body)))
         .boxed();
 
-        choice((closure, conditional_expr, comparison)).boxed()
+        choice((closure, conditional_expr, comparison))
+            .labelled("expression")
+            .as_context()
+            .boxed()
     });
 
     // Property name can be simple ident or dotted (e.g., scene.background)
@@ -340,7 +420,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             value,
             value_span: Some(value_span),
             trailing_comment: comment,
-        });
+        })
+        .labelled("property");
 
     let modifier = choice((
         // named modifier: ease: bounce
@@ -507,6 +588,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     let config_stmt = text::keyword("config")
         .ignore_then(config_props)
         .map(|settings| Stmt::Config { settings, span: None })
+        .labelled("config")
         .padded();
 
     let stmt = recursive(|_stmt| {
@@ -540,6 +622,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .or_not(),
             )
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
+            .labelled("import")
             .padded();
 
         let assignment = dotted_ident
@@ -569,6 +652,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     })
                 }
             })
+            .labelled("assignment")
             .padded();
 
         let block_props = property
@@ -740,6 +824,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     span: None,
                 },
             )
+            .labelled("actor declaration")
+            .as_context()
             .padded();
 
         let action = ident
@@ -917,6 +1003,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             action,
             comment,
         ))
+        .labelled("statement")
         .boxed()
     });
 
@@ -931,6 +1018,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 Stmt::Keyframe { time: t, body, span: None }
             }
         })
+        .labelled("keyframe")
         .padded();
 
     // Top-level can be keyframes or standalone statements

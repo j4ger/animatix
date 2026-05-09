@@ -5,7 +5,7 @@ mod rewrite;
 use crate::ast::{
     Action, ComponentDef, Expr, Import, InlineItem, Modifier, ParamDef, Property, Stmt,
 };
-use crate::parser::parser;
+use crate::parser::{parser, ParseError};
 use chumsky::Parser;
 use discovery::{collect_component_defs, collect_imports, strip_imports};
 use expand::expand_statements;
@@ -101,7 +101,7 @@ struct LoadResult {
 #[derive(Debug)]
 pub enum ModuleError {
     FileNotFound(PathBuf),
-    ParseError(String),
+    ParseErrors(Vec<ParseError>),
     CycleDetected(Vec<PathBuf>),
     DuplicateComponent {
         name: String,
@@ -121,8 +121,12 @@ impl fmt::Display for ModuleError {
             ModuleError::FileNotFound(path) => {
                 write!(f, "File not found: {}", path.display())
             }
-            ModuleError::ParseError(msg) => {
-                write!(f, "Parse error: {}", msg)
+            ModuleError::ParseErrors(errors) => {
+                if errors.len() == 1 {
+                    write!(f, "Parse error: {}", errors[0].message)
+                } else {
+                    write!(f, "{} parse errors", errors.len())
+                }
             }
             ModuleError::CycleDetected(paths) => {
                 let cycle = paths
@@ -213,8 +217,11 @@ impl ModuleGraph {
         let (statements, parse_errors) = parser().parse(&source).into_output_errors();
 
         if !parse_errors.is_empty() {
-            let errors: Vec<String> = parse_errors.iter().map(|e| format!("{:?}", e)).collect();
-            return Err(ModuleError::ParseError(errors.join("\n")));
+            let errors: Vec<ParseError> = parse_errors
+                .iter()
+                .map(|e| ParseError::from_rich(&source, e))
+                .collect();
+            return Err(ModuleError::ParseErrors(errors));
         }
 
         let statements = statements.unwrap_or_default();
