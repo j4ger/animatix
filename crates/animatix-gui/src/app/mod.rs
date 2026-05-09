@@ -368,66 +368,97 @@ impl GuiShell {
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+        let toolbar_bg = Color32::from_rgb(12, 14, 18);
+        let border_color = Color32::from_rgb(32, 36, 44);
+        let text_primary = Color32::from_rgb(228, 232, 243);
+        let text_secondary = Color32::from_rgb(150, 158, 175);
 
-            // App title
-            ui.label(
-                RichText::new("animatix")
-                    .strong()
-                    .size(15.0)
-                    .color(Color32::from_rgb(228, 232, 243)),
-            );
+        let frame_response = egui::Frame::new()
+            .fill(toolbar_bg)
+            .inner_margin(egui::Margin::symmetric(12, 5))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
 
-            ui.separator();
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
 
-            // Filename
-            ui.label(
-                RichText::new(
-                    self.document
+                    // Tiny app mark — accent square
+                    let (mark_rect, _response) =
+                        ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                    ui.painter().rect_filled(mark_rect, 2.0, Color32::from_rgb(84, 110, 255));
+
+                    // Filename tab
+                    let filename = self
+                        .document
                         .file_path
                         .file_name()
                         .and_then(|name| name.to_str())
-                        .unwrap_or("Untitled"),
-                )
-                .size(11.0)
-                .color(Color32::from_rgb(150, 158, 175)),
-            );
+                        .unwrap_or("Untitled");
 
-            // Right-aligned controls
-            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                    let dot_color = if self.document.is_dirty {
+                        Color32::from_rgb(255, 196, 92)
+                    } else {
+                        Color32::from_rgb(80, 200, 140)
+                    };
 
-                // Status badge
-                if self.document.is_dirty {
-                    badge(
-                        ui,
-                        "Modified",
-                        Color32::from_rgb(120, 74, 26),
-                        Color32::from_rgb(255, 217, 153),
-                    );
-                } else {
-                    badge(
-                        ui,
-                        "Saved",
-                        Color32::from_rgb(32, 84, 54),
-                        Color32::from_rgb(188, 247, 214),
-                    );
-                }
+                    egui::Frame::new()
+                        .fill(Color32::from_rgb(24, 27, 33))
+                        .corner_radius(egui::CornerRadius::same(6))
+                        .inner_margin(egui::Margin::symmetric(8, 3))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = Vec2::new(5.0, 0.0);
+                                ui.label(
+                                    RichText::new(egui_phosphor::regular::FILE)
+                                        .size(11.0)
+                                        .color(text_secondary),
+                                );
+                                ui.label(
+                                    RichText::new(filename)
+                                        .size(11.0)
+                                        .color(text_primary),
+                                );
+                                ui.label(RichText::new("●").size(6.0).color(dot_color));
+                            });
+                        });
 
-                action_button(ui, "Inspector", false, || {
-                    actions.show_inspector = true;
-                });
-                action_button(ui, "Rebuild", false, || {
-                    actions.rebuild = true;
-                });
-                action_button(ui, "Save", true, || {
-                    actions.save = true;
+                    // Right-aligned icon buttons
+                    ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+
+                        let icon_btn = |ui: &mut egui::Ui, icon: &str, tooltip: &str| -> bool {
+                            let btn = egui::Button::new(
+                                RichText::new(icon)
+                                    .size(14.0)
+                                    .color(text_secondary),
+                            )
+                            .fill(Color32::TRANSPARENT)
+                            .min_size(Vec2::new(26.0, 26.0));
+                            ui.add(btn).on_hover_text(tooltip).clicked()
+                        };
+
+                        if icon_btn(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)") {
+                            actions.show_inspector = true;
+                        }
+                        if icon_btn(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, "Rebuild") {
+                            actions.rebuild = true;
+                        }
+                        if icon_btn(ui, egui_phosphor::regular::FLOPPY_DISK, "Save (⌘S)") {
+                            actions.save = true;
+                        }
+                    });
                 });
             });
-        });
-        ui.add_space(4.0);
+
+        // Subtle bottom hairline
+        let toolbar_rect = frame_response.response.rect;
+        ui.painter().line_segment(
+            [
+                egui::pos2(toolbar_rect.left(), toolbar_rect.bottom() - 1.0),
+                egui::pos2(toolbar_rect.right(), toolbar_rect.bottom() - 1.0),
+            ],
+            Stroke::new(1.0, border_color),
+        );
     }
 
     fn workspace_ui(
