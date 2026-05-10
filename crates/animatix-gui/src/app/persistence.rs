@@ -1,6 +1,25 @@
 use super::*;
-use egui_tiles::{Tile, Tiles, Tree};
+use egui_tiles::{Linear, LinearDir, Tile, Tiles, Tree};
 
+/// Default workspace layout.
+///
+/// ```text
+/// ┌──────────────────┬──────────────────────────┐
+/// │                  │      Preview (70%)       │
+/// │                  │                          │
+/// │    Editor        ├──────────────────────────┤
+/// │   (45%)          │ Sidebar │  Inspector     │
+/// │                  │  (40%)  │   (60%)        │
+/// │                  │  (30%)  │                │
+/// └──────────────────┴──────────────────────────┘
+///          (55%)
+/// ```
+///
+/// The preview is the star of the show — it gets the full width of the
+/// right half and the majority of its column height.  Editor is a tall
+/// column on the left.  Sidebar + Inspector share a compact strip at the
+/// bottom right, minimizing the dead space each had when they were full-height
+/// panels.
 pub(super) fn default_tree() -> Tree<WorkspaceTab> {
     let mut tiles = Tiles::default();
 
@@ -9,8 +28,26 @@ pub(super) fn default_tree() -> Tree<WorkspaceTab> {
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
     let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
 
-    let right_col = tiles.insert_vertical_tile(vec![preview, inspector]);
-    let root = tiles.insert_horizontal_tile(vec![sidebar, editor, right_col]);
+    // Bottom-right strip: sidebar + inspector side by side.
+    let bottom_row = tiles.insert_container(Linear::new_binary(
+        LinearDir::Horizontal,
+        [sidebar, inspector],
+        0.40, // sidebar gets 40 %, inspector 60 %
+    ));
+
+    // Right column: preview on top, sidebar/inspector strip below.
+    let right_col = tiles.insert_container(Linear::new_binary(
+        LinearDir::Vertical,
+        [preview, bottom_row],
+        0.70, // preview gets 70 % of the column height
+    ));
+
+    // Root: editor on the left, right column on the right.
+    let root = tiles.insert_container(Linear::new_binary(
+        LinearDir::Horizontal,
+        [editor, right_col],
+        0.45, // editor gets 45 %, right column 55 %
+    ));
 
     Tree::new("workspace", root, tiles)
 }

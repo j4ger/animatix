@@ -40,7 +40,7 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
             DiagnosticCode::UnsupportedStaggerStatement,
             DiagnosticPhase::Build,
             format!(
-                "Stagger blocks currently support only actions and assignments; '{kind}' is not supported in stagger v1b."
+                "Stagger blocks currently support only actions and assignments; '{kind}' is not supported."
             ),
         )
         .with_subject("stagger"),
@@ -257,7 +257,7 @@ pub(crate) fn parse_stagger_interval_ms(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
                 format!(
-                    "Unsupported modifier key '{other}' on stagger; only duration shorthand or 'each' are supported in stagger v1b."
+                    "Unsupported modifier key '{other}' on stagger; only duration shorthand or 'each' are supported."
                 ),
                 Some("stagger"),
             ),

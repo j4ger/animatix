@@ -1,6 +1,6 @@
 //! AST-based source editing for the GUI inspector.
 //!
-//! Replaces the old byte-span surgery model (`source_edit.rs`) with semantic
+//! Replaces the old byte-span surgery model with semantic
 //! edits applied directly to the AST. After mutation, the entire AST is
 //! re-serialized via [`animatix::to_source::stmts_to_source`].
 

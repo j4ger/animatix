@@ -28,14 +28,14 @@ impl GuiShell {
             false
         } else if let Some(ref mut stmts) = self.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
-            let source_edit = crate::source_edit_v2::SourceEdit::InsertKeyframe {
+            let source_edit = crate::source_edit::SourceEdit::InsertKeyframe {
                 actor: edit.actor.clone(),
                 property: edit.property.clone(),
                 value: expr,
                 time_s: self.preview.current_time_s,
                 prev_time_s,
             };
-            if crate::source_edit_v2::apply_edit(stmts, source_edit) {
+            if crate::source_edit::apply_edit(stmts, source_edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
                 self.document.source_text = new_source.clone();
                 self.editor.replace_text(new_source);
@@ -68,7 +68,7 @@ impl GuiShell {
     /// Handle a property edit from the inspector panel.
     ///
     /// Updates the in-memory timeline and persists the change back to the .amx source file
-    /// via AST mutation + full re-serialization (see [`crate::source_edit_v2`]).
+    /// via AST mutation + full re-serialization (see [`crate::source_edit`]).
     pub(crate) fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
         use workspace::PropertyValue;
 
@@ -107,22 +107,22 @@ impl GuiShell {
             let expr = animatix::ast::Expr::from(edit.value.clone());
 
             // Try SetProperty first (update existing property).
-            let set_edit = crate::source_edit_v2::SourceEdit::SetProperty {
+            let set_edit = crate::source_edit::SourceEdit::SetProperty {
                 actor: edit.actor.clone(),
                 property: edit.property.clone(),
                 value: expr.clone(),
             };
 
-            let applied = if crate::source_edit_v2::apply_edit(stmts, set_edit) {
+            let applied = if crate::source_edit::apply_edit(stmts, set_edit) {
                 true
             } else {
                 // Property doesn't exist yet — insert it.
-                let insert_edit = crate::source_edit_v2::SourceEdit::InsertProperty {
+                let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
                     actor: edit.actor.clone(),
                     property: edit.property.clone(),
                     value: expr,
                 };
-                crate::source_edit_v2::apply_edit(stmts, insert_edit)
+                crate::source_edit::apply_edit(stmts, insert_edit)
             };
 
             if applied {

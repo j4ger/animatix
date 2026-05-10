@@ -2,7 +2,7 @@
 //!
 //! Originally used for surgical source edits (byte-span replacement), this is
 //! now primarily for diagnostics, editor navigation, and go-to-definition.
-//! The GUI inspector uses [`crate::source_edit_v2`] (AST mutation +
+//! The GUI inspector uses [`crate::source_edit`] (AST mutation +
 //! re-serialization) for write-back instead.
 
 use std::collections::HashMap;
