@@ -186,7 +186,52 @@ fn insert_keyframe(
     };
 
     // Insert after the keyframe that contains prev_time_s, or at the end.
-    let insert_idx = find_keyframe_insertion_point(stmts, prev_time_s);
+    let mut insert_idx = find_keyframe_insertion_point(stmts, prev_time_s);
+
+    // If there are no keyframes before the insertion point and prev_time_s is ~0,
+    // wrap any leading top-level declarations in a #0s keyframe so they don't
+    // get shifted to a later time by the new relative keyframe.
+    if insert_idx == 0 && prev_time_s < 0.001 && !stmts.is_empty() {
+        let first_is_keyframe = matches!(
+            stmts[0],
+            Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }
+        );
+        if !first_is_keyframe {
+            let decl_end = stmts
+                .iter()
+                .position(|s| matches!(s, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }))
+                .unwrap_or(stmts.len());
+            if decl_end > 0 {
+                let decls: Vec<Stmt> = stmts.drain(0..decl_end).collect();
+                let zero_kf = Stmt::Keyframe {
+                    time: Time::Seconds(0.0),
+                    body: decls,
+                    span: None,
+                };
+                stmts.insert(0, zero_kf);
+                insert_idx = 1;
+            }
+        }
+    }
+
+    // If the next statement is a RelativeKeyframe, subtract delta_s from its
+    // offset so that subsequent keyframes keep their original absolute times.
+    if insert_idx < stmts.len() {
+        if let Stmt::RelativeKeyframe { offset: ref mut next_offset, .. } = stmts[insert_idx] {
+            let next_delta_s = time_to_seconds(next_offset);
+            let new_next_delta_s = next_delta_s - delta_s;
+            if new_next_delta_s >= 0.001 {
+                *next_offset = if new_next_delta_s < 1.0 {
+                    Time::Milliseconds((new_next_delta_s * 1000.0).round() as u64)
+                } else if new_next_delta_s == new_next_delta_s.floor() {
+                    Time::Seconds(new_next_delta_s)
+                } else {
+                    Time::Seconds(new_next_delta_s)
+                };
+            }
+        }
+    }
+
     stmts.insert(insert_idx, keyframe);
     true
 }
@@ -497,5 +542,83 @@ btn: Rect, size: (100, 200)"#);
         };
         // Should fail because "size" already exists
         assert!(!apply_edit(&mut stmts, edit));
+    }
+
+    #[test]
+    fn insert_keyframe_wraps_declarations_in_zero_keyframe() {
+        // No keyframes at all — inserting a relative keyframe must wrap the
+        // top-level declarations in #0s so they don't get shifted.
+        let mut stmts = parse(r#"btn: Rect, size: (100, 200)
+circle: Circle, radius: 50"#);
+
+        let edit = SourceEdit::InsertKeyframe {
+            actor: "btn".into(),
+            property: "position".into(),
+            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(0.0)]),
+            time_s: 0.5,
+            prev_time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // Should now be: #0s, #0s, #+500ms (parser wraps each top-level decl in #0s)
+        assert_eq!(stmts.len(), 3);
+
+        // First two statements are #0s wrapping each declaration (parser behavior)
+        if let Stmt::Keyframe { time, body, .. } = &stmts[0] {
+            assert_eq!(*time, Time::Seconds(0.0));
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected Keyframe at index 0, got {:?}", stmts[0]);
+        }
+        if let Stmt::Keyframe { time, body, .. } = &stmts[1] {
+            assert_eq!(*time, Time::Seconds(0.0));
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected Keyframe at index 1, got {:?}", stmts[1]);
+        }
+
+        // Third statement is the new relative keyframe
+        if let Stmt::RelativeKeyframe { offset, body, .. } = &stmts[2] {
+            assert_eq!(*offset, Time::Milliseconds(500));
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected RelativeKeyframe at index 2");
+        }
+    }
+
+    #[test]
+    fn insert_keyframe_adjusts_subsequent_relative_offset() {
+        // Inserting between #0s and #+1s should adjust the #+1s offset to #+500ms
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#+1s
+btn.color = red"#);
+
+        let edit = SourceEdit::InsertKeyframe {
+            actor: "btn".into(),
+            property: "position".into(),
+            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(0.0)]),
+            time_s: 0.5,
+            prev_time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // Should have 3 top-level statements
+        assert_eq!(stmts.len(), 3);
+
+        // New keyframe at index 1
+        if let Stmt::RelativeKeyframe { offset, .. } = &stmts[1] {
+            assert_eq!(*offset, Time::Milliseconds(500));
+        } else {
+            panic!("Expected RelativeKeyframe at index 1");
+        }
+
+        // Existing keyframe at index 2 — offset should be reduced
+        if let Stmt::RelativeKeyframe { offset, .. } = &stmts[2] {
+            assert_eq!(*offset, Time::Milliseconds(500));
+        } else {
+            panic!("Expected RelativeKeyframe at index 2");
+        }
     }
 }

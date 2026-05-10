@@ -11,29 +11,11 @@ impl GuiShell {
             }
         }
 
-        // Update in-memory timeline for live preview
+        // Update in-memory timeline for live preview (all properties, not just position/rotation)
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
                 let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                match &edit.value {
-                    workspace::PropertyValue::Vec2(v) => {
-                        if edit.property == "position" {
-                            let pt = track.position.get_or_insert_with(|| {
-                                animatix::timeline::PropertyTrack::new(*v)
-                            });
-                            pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
-                        }
-                    }
-                    workspace::PropertyValue::Float(v) => {
-                        if edit.property == "rotation" {
-                            let pt = track.rotation.get_or_insert_with(|| {
-                                animatix::timeline::PropertyTrack::new(*v)
-                            });
-                            pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
-                        }
-                    }
-                    _ => {}
-                }
+                apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
                 timeline.invalidate_frame_cache();
             }
         }
@@ -110,221 +92,8 @@ impl GuiShell {
         // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
-                match &edit.value {
-                    PropertyValue::Vec2(v) => {
-                        match edit.property.as_str() {
-                            "position" => {
-                                let pt = track.position.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                                // Add a keyframe for live preview — the renderer reads
-                                // keyframes via evaluate(), not default_value.
-                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                                pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
-                            }
-                            "size" => {
-                                // The size track stores half‑extents (w/2, h/2).
-                                // Drag sends full size; source writer writes full size;
-                                // parser halves on load.  Store half‑extents here too.
-                                let half = [v[0] / 2.0, v[1] / 2.0];
-                                let pt = track.size.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(half)
-                                });
-                                pt.default_value = half;
-                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                                pt.add_keyframe(time_ms, half, animatix::easing::Easing::Linear);
-                            }
-                            "line_from" => {
-                                let pt = track.line_from.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "line_to" => {
-                                let pt = track.line_to.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "arc_angles" => {
-                                let pt = track.arc_angles.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "motion_offset" => {
-                                let pt = track.motion_offset.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "offset" => {
-                                // "offset" is embedded inside PositionBinding::SceneAnchor.
-                                // Update the binding's offset field so the renderer
-                                // picks up the new position immediately.
-                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                                if let Some(ref mut pb_track) = track.position_binding {
-                                    let current = pb_track.evaluate(time_ms);
-                                    if let animatix::timeline::PositionBinding::SceneAnchor {
-                                        anchor, ..
-                                    } = current
-                                    {
-                                        let new_binding =
-                                            animatix::timeline::PositionBinding::SceneAnchor {
-                                                anchor,
-                                                offset: *v,
-                                            };
-                                        pb_track.default_value = new_binding;
-                                        pb_track.add_keyframe(
-                                            time_ms,
-                                            new_binding,
-                                            animatix::easing::Easing::Linear,
-                                        );
-                                    }
-                                }
-                            }
-                            "at" => {
-                                // "at" with Vec2 can mean either absolute position
-                                // or percent-based positioning.  Check the binding.
-                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                                let binding = track
-                                    .position_binding
-                                    .as_ref()
-                                    .map(|pb| pb.evaluate(time_ms));
-
-                                match binding {
-                                    Some(animatix::timeline::PositionBinding::ScenePercent {
-                                        ..
-                                    }) => {
-                                        // Percent-based: v is already [x_frac, y_frac]
-                                        if let Some(ref mut pb_track) = track.position_binding {
-                                            let new_binding =
-                                                animatix::timeline::PositionBinding::ScenePercent {
-                                                    x: v[0],
-                                                    y: v[1],
-                                                    offset: [0.0, 0.0],
-                                                };
-                                            pb_track.default_value = new_binding;
-                                            pb_track.add_keyframe(
-                                                time_ms,
-                                                new_binding,
-                                                animatix::easing::Easing::Linear,
-                                            );
-                                        }
-                                    }
-                                    _ => {
-                                        // Absolute: treat as regular position
-                                        let pt = track.position.get_or_insert_with(|| {
-                                            animatix::timeline::PropertyTrack::new(*v)
-                                        });
-                                        pt.default_value = *v;
-                                        pt.add_keyframe(
-                                            time_ms,
-                                            *v,
-                                            animatix::easing::Easing::Linear,
-                                        );
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    PropertyValue::Float(v) => {
-                        match edit.property.as_str() {
-                            "rotation" => {
-                                let pt = track.rotation.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                                pt.add_keyframe(time_ms, *v, animatix::easing::Easing::Linear);
-                            }
-                            "scale" => {
-                                let pt = track.scale.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "opacity" => {
-                                let pt = track.opacity.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "stroke_width" => {
-                                let pt = track.stroke_width.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "stroke_progress" => {
-                                let pt = track.stroke_progress.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "fill_opacity" => {
-                                let pt = track.fill_opacity.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            _ => {}
-                        }
-                    }
-                    PropertyValue::Color(v) => {
-                        match edit.property.as_str() {
-                            "color" => {
-                                let pt = track.color.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            "stroke_color" => {
-                                let pt = track.stroke_color.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(*v)
-                                });
-                                pt.default_value = *v;
-                            }
-                            _ => {}
-                        }
-                    }
-                    PropertyValue::Text(v) => {
-                        match edit.property.as_str() {
-                            "text_content" => {
-                                let pt = track.text_content.get_or_insert_with(|| {
-                                    animatix::timeline::PropertyTrack::new(v.clone())
-                                });
-                                pt.default_value = v.clone();
-                            }
-                            "shape_type" => {
-                                // Parse shape type from text
-                                use animatix::timeline::ShapeType;
-                                let shape = match v.as_str() {
-                                    "Rect" => Some(ShapeType::Rect),
-                                    "Circle" => Some(ShapeType::Circle),
-                                    "Line" => Some(ShapeType::Line),
-                                    "Ellipse" => Some(ShapeType::Ellipse),
-                                    "Arc" => Some(ShapeType::Arc),
-                                    "Polygon" => Some(ShapeType::Polygon),
-                                    "Path" => Some(ShapeType::Path),
-                                    "Arrow" => Some(ShapeType::Arrow),
-                                    "Graph" => Some(ShapeType::Graph),
-                                    "Plot" => Some(ShapeType::Plot),
-                                    _ => None,
-                                };
-                                if let Some(shape) = shape {
-                                    let pt = track.shape_type.get_or_insert_with(|| {
-                                        animatix::timeline::PropertyTrack::new(shape)
-                                    });
-                                    pt.default_value = shape;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
+                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
 
             // Invalidate the frame cache so the next evaluate() produces a fresh
@@ -386,5 +155,226 @@ impl GuiShell {
                 edit.actor, edit.property
             );
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Unified timeline update helper
+// ─────────────────────────────────────────────────────────────
+
+/// Apply a property edit to an in-memory `AnimationTrack`.
+///
+/// This helper centralises the per-property dispatch so both keyframe-mode
+/// and overwrite-mode edits stay consistent.  It always adds a keyframe at
+/// `time_ms` (in addition to updating `default_value`) so that the renderer's
+/// `evaluate()` immediately sees the new value.
+fn apply_property_edit_to_track(
+    track: &mut animatix::timeline::AnimationTrack,
+    property: &str,
+    value: &workspace::PropertyValue,
+    time_ms: u64,
+) {
+    use animatix::timeline::PropertyTrack;
+    use workspace::PropertyValue as PV;
+
+    let linear = animatix::easing::Easing::Linear;
+
+    match property {
+        // ── Vec2 properties ──
+        "position" => {
+            if let PV::Vec2(v) = value {
+                let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "size" => {
+            if let PV::Vec2(v) = value {
+                // The size track stores half‑extents (w/2, h/2).
+                let half = [v[0] / 2.0, v[1] / 2.0];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(half));
+                pt.default_value = half;
+                pt.add_keyframe(time_ms, half, linear);
+            }
+        }
+        "line_from" => {
+            if let PV::Vec2(v) = value {
+                let pt = track.line_from.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "line_to" => {
+            if let PV::Vec2(v) = value {
+                let pt = track.line_to.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "arc_angles" => {
+            if let PV::Vec2(v) = value {
+                let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "motion_offset" => {
+            if let PV::Vec2(v) = value {
+                let pt = track.motion_offset.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "offset" => {
+            if let PV::Vec2(v) = value {
+                if let Some(ref mut pb_track) = track.position_binding {
+                    let current = pb_track.evaluate(time_ms);
+                    if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current {
+                        let new_binding = animatix::timeline::PositionBinding::SceneAnchor {
+                            anchor,
+                            offset: *v,
+                        };
+                        pb_track.default_value = new_binding;
+                        pb_track.add_keyframe(time_ms, new_binding, linear);
+                    }
+                }
+            }
+        }
+        "at" => {
+            if let PV::Vec2(v) = value {
+                let binding = track
+                    .position_binding
+                    .as_ref()
+                    .map(|pb| pb.evaluate(time_ms));
+
+                match binding {
+                    Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
+                        if let Some(ref mut pb_track) = track.position_binding {
+                            let new_binding =
+                                animatix::timeline::PositionBinding::ScenePercent {
+                                    x: v[0],
+                                    y: v[1],
+                                    offset: [0.0, 0.0],
+                                };
+                            pb_track.default_value = new_binding;
+                            pb_track.add_keyframe(time_ms, new_binding, linear);
+                        }
+                    }
+                    _ => {
+                        let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
+                        pt.default_value = *v;
+                        pt.add_keyframe(time_ms, *v, linear);
+                    }
+                }
+            }
+        }
+
+        // ── Float properties ──
+        "rotation" => {
+            if let PV::Float(v) = value {
+                let pt = track.rotation.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "scale" => {
+            if let PV::Float(v) = value {
+                let pt = track.scale.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "opacity" => {
+            if let PV::Float(v) = value {
+                let pt = track.opacity.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "stroke_width" | "width" => {
+            if let PV::Float(v) = value {
+                let pt = track.stroke_width.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "stroke_progress" => {
+            if let PV::Float(v) = value {
+                let pt = track.stroke_progress.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "fill_opacity" => {
+            if let PV::Float(v) = value {
+                let pt = track.fill_opacity.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+
+        // ── Color properties ──
+        "color" => {
+            if let PV::Color(v) = value {
+                let pt = track.color.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "stroke_color" | "stroke" => {
+            if let PV::Color(v) = value {
+                let pt = track.stroke_color.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+
+        // ── Text / enum properties ──
+        "text_content" | "text" | "latex" | "math" | "code" => {
+            if let PV::Text(v) = value {
+                let pt = track.text_content.get_or_insert_with(|| PropertyTrack::new(v.clone()));
+                pt.default_value = v.clone();
+                pt.add_keyframe(time_ms, v.clone(), linear);
+            }
+        }
+        "font_family" => {
+            if let PV::Text(v) = value {
+                let pt = track.font_family.get_or_insert_with(|| PropertyTrack::new(v.clone()));
+                pt.default_value = v.clone();
+                pt.add_keyframe(time_ms, v.clone(), linear);
+            }
+        }
+        "font_size" => {
+            if let PV::Float(v) = value {
+                let pt = track.font_size.get_or_insert_with(|| PropertyTrack::new(*v));
+                pt.default_value = *v;
+                pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "shape_type" => {
+            if let PV::Text(v) = value {
+                use animatix::timeline::ShapeType;
+                let shape = match v.as_str() {
+                    "Rect" => Some(ShapeType::Rect),
+                    "Circle" => Some(ShapeType::Circle),
+                    "Line" => Some(ShapeType::Line),
+                    "Ellipse" => Some(ShapeType::Ellipse),
+                    "Arc" => Some(ShapeType::Arc),
+                    "Polygon" => Some(ShapeType::Polygon),
+                    "Path" => Some(ShapeType::Path),
+                    "Arrow" => Some(ShapeType::Arrow),
+                    "Graph" => Some(ShapeType::Graph),
+                    "Plot" => Some(ShapeType::Plot),
+                    _ => None,
+                };
+                if let Some(shape) = shape {
+                    let pt = track.shape_type.get_or_insert_with(|| PropertyTrack::new(shape));
+                    pt.default_value = shape;
+                    pt.add_keyframe(time_ms, shape, linear);
+                }
+            }
+        }
+
+        _ => {}
     }
 }
