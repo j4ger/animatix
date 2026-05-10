@@ -34,11 +34,7 @@ pub(super) enum PropertyKind {
 // ─── Group Builder (generic via registry) ─────────────────────────────────
 
 pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
-    let sub_kind = match track.kind {
-        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
-        _ => None,
-    };
-    let indices = allowed_property_indices(track.kind, sub_kind);
+    let indices = allowed_property_indices(track.kind);
 
     let mut geometry = Vec::new();
     let mut style = Vec::new();

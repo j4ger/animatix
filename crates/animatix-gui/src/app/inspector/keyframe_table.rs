@@ -25,11 +25,7 @@ struct TrackGroup {
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
 pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
-    let sub_kind = match track.kind {
-        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
-        _ => None,
-    };
-    let indices = allowed_property_indices(track.kind, sub_kind);
+    let indices = allowed_property_indices(track.kind);
     indices
         .iter()
         .filter_map(|&idx| {
@@ -65,11 +61,7 @@ pub(super) fn render_dope_sheet(
 
 /// Collect all keyframe times across all property tracks (for mini timeline).
 pub(super) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
-    let sub_kind = match track.kind {
-        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
-        _ => None,
-    };
-    let indices = allowed_property_indices(track.kind, sub_kind);
+    let indices = allowed_property_indices(track.kind);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {
@@ -290,11 +282,7 @@ fn render_track_row(
 // ─── Collection (generic via registry) ────────────────────────────────────
 
 fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
-    let sub_kind = match track.kind {
-        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
-        _ => None,
-    };
-    let indices = allowed_property_indices(track.kind, sub_kind);
+    let indices = allowed_property_indices(track.kind);
 
     let mut transform = Vec::new();
     let mut style = Vec::new();

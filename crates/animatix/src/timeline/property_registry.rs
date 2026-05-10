@@ -175,6 +175,54 @@ pub struct GroupMembership {
 // Property schema
 // ─────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────
+// Applicability — which actor kinds a property is valid for
+// ─────────────────────────────────────────────────────────────
+
+/// Declares which actor kinds a property applies to.
+///
+/// This eliminates the need for a separate `allowed_property_indices` match
+/// block.  When adding a new property, you specify its applicability right
+/// here in the registry entry.  The inspector and keyframe table use
+/// `schema.applicable.includes(kind)` to decide whether to show the property.
+#[derive(Clone, Copy, Debug)]
+pub enum Applicable {
+    /// Applies to every actor kind including Group.
+    Everything,
+    /// Applies to all actor kinds except Group (style / size properties).
+    EveryActorExceptGroup,
+    /// Applies to all shape kinds.
+    AllShapes,
+    /// Applies to all shapes except Line (fill-related properties).
+    AllShapesExceptLine,
+    /// Applies to specific shape kinds.
+    ShapeKinds(&'static [super::ShapeKind]),
+    /// Applies to specific non-shape actor kinds.
+    ActorKinds(&'static [super::ActorKindId]),
+    /// Never shown in the inspector (build-time only, aliases, compounds).
+    Never,
+}
+
+impl Applicable {
+    pub fn includes(self, kind: super::ActorKindId) -> bool {
+        use super::ActorKindId::*;
+        use super::ShapeKind;
+        match self {
+            Applicable::Everything => true,
+            Applicable::EveryActorExceptGroup => !matches!(kind, Group),
+            Applicable::AllShapes => matches!(kind, Shape(_)),
+            Applicable::AllShapesExceptLine => {
+                matches!(kind, Shape(sk) if sk != ShapeKind::Line)
+            }
+            Applicable::ShapeKinds(kinds) => {
+                matches!(kind, Shape(sk) if kinds.contains(&sk))
+            }
+            Applicable::ActorKinds(kinds) => kinds.contains(&kind),
+            Applicable::Never => false,
+        }
+    }
+}
+
 /// The complete description of one property in the system.
 ///
 /// This is pure data — no function pointers. All dispatch logic is driven
@@ -196,6 +244,9 @@ pub struct PropertySchema {
     /// For compound properties: which resolution group this belongs to.
     /// None for simple independent properties.
     pub group: Option<GroupMembership>,
+
+    /// Which actor kinds this property is applicable to.
+    pub applicable: Applicable,
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -207,54 +258,56 @@ pub struct PropertySchema {
 /// **Must be sorted by `.name`** for `lookup_property()` binary search.
 /// A `#[test]` below verifies this invariant.
 use PropertyFlags as F;
+use super::ActorKindId as A;
+use super::ShapeKind as S;
 
 pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
-    // ── Universal geometry ──
-    PropertySchema { name: "align",        value_type: ValueType::String,     flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
-    PropertySchema { name: "anchor",       value_type: ValueType::SceneAnchor,flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }) },
-    PropertySchema { name: "arc_angles",   value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_A,             field: ActorField::ArcAngles, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "at",           value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }) },
-    PropertySchema { name: "background_color", value_type: ValueType::Color,  flags: F::ASSIGNABLE_AI,             field: ActorField::Color, group: None },
-    PropertySchema { name: "code",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent, group: None },
-    PropertySchema { name: "color",        value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::Color, group: None },
-    PropertySchema { name: "cols",         value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
-    PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::empty(),                  field: ActorField::VectorShapeGroup, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "fill_opacity", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::FillOpacity, group: None },
-    PropertySchema { name: "font_family",  value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::FontFamily, group: None },
-    PropertySchema { name: "font_size",    value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::FontSize, group: None },
-    PropertySchema { name: "from",         value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::LineFrom, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "func",         value_type: ValueType::BuildTimeOnly, flags: F::empty(),               field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "gap",          value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
-    PropertySchema { name: "latex",        value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent, group: None },
-    PropertySchema { name: "math",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent, group: None },
-    PropertySchema { name: "max_depth",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "offset",       value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }) },
-    PropertySchema { name: "opacity",      value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Opacity, group: None },
-    PropertySchema { name: "points",       value_type: ValueType::PointList,  flags: F::ASSIGNABLE_A,             field: ActorField::Points, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "position",     value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::Position, group: None },
-    PropertySchema { name: "radius",       value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "radius_x",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "radius_y",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "resolution",   value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "rotation",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Rotation, group: None },
-    PropertySchema { name: "scale",        value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Scale, group: None },
-    PropertySchema { name: "sides",        value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "size",         value_type: ValueType::Vec2,       flags: F::ALL,                      field: ActorField::Size, group: None },
-    PropertySchema { name: "start_angle",  value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::ArcAngles, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "stroke",       value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor, group: None },
-    PropertySchema { name: "stroke_color", value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor, group: None },
-    PropertySchema { name: "stroke_progress",value_type: ValueType::F32,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeProgress, group: None },
-    PropertySchema { name: "stroke_width", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeWidth, group: None },
-    PropertySchema { name: "sweep_angle",  value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::ArcAngles, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "t_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "text",         value_type: ValueType::String,     flags: F::ASSIGNABLE_A,             field: ActorField::TextContent, group: None },
-    PropertySchema { name: "tip_length",   value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "tip_width",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "to",           value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::LineTo, group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }) },
-    PropertySchema { name: "tolerance",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "width",        value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::StrokeWidth, group: None },
-    PropertySchema { name: "x_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
-    PropertySchema { name: "y_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }) },
+    PropertySchema { name: "align",        value_type: ValueType::String,     flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]) },
+    PropertySchema { name: "anchor",       value_type: ValueType::SceneAnchor,flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), applicable: Applicable::Everything },
+    PropertySchema { name: "arc_angles",   value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_A,             field: ActorField::ArcAngles,          group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
+    PropertySchema { name: "at",           value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), applicable: Applicable::Everything },
+    PropertySchema { name: "background_color", value_type: ValueType::Color,  flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::Never },
+    PropertySchema { name: "code",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent,        group: None,                             applicable: Applicable::ActorKinds(&[A::Code]) },
+    PropertySchema { name: "color",        value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "cols",         value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Grid]) },
+    PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
+    PropertySchema { name: "fill_opacity", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::FillOpacity,        group: None,                             applicable: Applicable::AllShapesExceptLine },
+    PropertySchema { name: "font_family",  value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::FontFamily,          group: None,                             applicable: Applicable::ActorKinds(&[A::Text, A::Math, A::Code]) },
+    PropertySchema { name: "font_size",    value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::FontSize,            group: None,                             applicable: Applicable::ActorKinds(&[A::Text, A::Math, A::Code]) },
+    PropertySchema { name: "from",         value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::LineFrom,           group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Line, S::Arrow]) },
+    PropertySchema { name: "func",         value_type: ValueType::BuildTimeOnly, flags: F::empty(),               field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "gap",          value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]) },
+    PropertySchema { name: "latex",        value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent,        group: None,                             applicable: Applicable::Never },
+    PropertySchema { name: "math",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent,        group: None,                             applicable: Applicable::ActorKinds(&[A::Math]) },
+    PropertySchema { name: "max_depth",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "offset",       value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), applicable: Applicable::Everything },
+    PropertySchema { name: "opacity",      value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Opacity,            group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "points",       value_type: ValueType::PointList,  flags: F::ASSIGNABLE_A,             field: ActorField::Points,             group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
+    PropertySchema { name: "position",     value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::Position,           group: None,                             applicable: Applicable::Everything },
+    PropertySchema { name: "radius",       value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size,               group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Circle, S::Dot, S::RegularPolygon]) },
+    PropertySchema { name: "radius_x",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size,               group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Ellipse, S::Arc]) },
+    PropertySchema { name: "radius_y",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size,               group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Ellipse, S::Arc]) },
+    PropertySchema { name: "resolution",   value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "rotation",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Rotation,           group: None,                             applicable: Applicable::Everything },
+    PropertySchema { name: "scale",        value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Scale,              group: None,                             applicable: Applicable::Everything },
+    PropertySchema { name: "sides",        value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
+    PropertySchema { name: "size",         value_type: ValueType::Vec2,       flags: F::ALL,                      field: ActorField::Size,               group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "start_angle",  value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::ArcAngles,          group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Arc]) },
+    PropertySchema { name: "stroke",       value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor,        group: None,                             applicable: Applicable::AllShapes },
+    PropertySchema { name: "stroke_color", value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor,        group: None,                             applicable: Applicable::Never },
+    PropertySchema { name: "stroke_progress",value_type: ValueType::F32,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeProgress,     group: None,                             applicable: Applicable::AllShapes },
+    PropertySchema { name: "stroke_width", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeWidth,        group: None,                             applicable: Applicable::AllShapes },
+    PropertySchema { name: "sweep_angle",  value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::ArcAngles,          group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Arc]) },
+    PropertySchema { name: "t_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "text",         value_type: ValueType::String,     flags: F::ASSIGNABLE_A,             field: ActorField::TextContent,        group: None,                             applicable: Applicable::ActorKinds(&[A::Text]) },
+    PropertySchema { name: "tip_length",   value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Arrow]) },
+    PropertySchema { name: "tip_width",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Arrow]) },
+    PropertySchema { name: "to",           value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::LineTo,             group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Line, S::Arrow]) },
+    PropertySchema { name: "tolerance",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "url",          value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::ImageData,           group: None,                             applicable: Applicable::ActorKinds(&[A::Image, A::Svg]) },
+    PropertySchema { name: "width",        value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::StrokeWidth,        group: None,                             applicable: Applicable::Never },
+    PropertySchema { name: "x_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::Graph, A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
+    PropertySchema { name: "y_domain",     value_type: ValueType::Vec2,       flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::Graph, A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -278,119 +331,13 @@ pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
 
 /// Convenience: build a sorted set of allowed property indices for an actor kind.
 /// Returns indices into PROPERTY_REGISTRY.
-pub fn allowed_property_indices(
-    kind: super::ActorKindId,
-    sub_kind: Option<super::ShapeKind>,
-) -> Vec<usize> {
-    use super::ActorKindId::*;
-    use super::ShapeKind;
-
-    // Build a set of property names that are universally valid.
-    let mut names: Vec<&'static str> = Vec::new();
-
-    // Universal geometry
-    names.extend_from_slice(&["at", "anchor", "offset", "position", "rotation", "scale"]);
-
-    match kind {
-        Shape(sk) => {
-            // Base style — all shapes except Line support fill.
-            match sk {
-                ShapeKind::Line => {
-                    names.extend_from_slice(&["stroke", "stroke_width", "stroke_progress"]);
-                }
-                _ => {
-                    names.extend_from_slice(&[
-                        "color", "opacity", "fill_opacity",
-                        "stroke", "stroke_width", "stroke_progress",
-                    ]);
-                }
-            }
-
-            // Shape-specific geometry
-            match sk {
-                ShapeKind::Rect | ShapeKind::Square => {
-                    names.push("size");
-                }
-                ShapeKind::Circle | ShapeKind::Dot | ShapeKind::RegularPolygon => {
-                    names.push("radius");
-                }
-                ShapeKind::Ellipse => {
-                    names.extend_from_slice(&["radius_x", "radius_y"]);
-                }
-                ShapeKind::Arc => {
-                    names.extend_from_slice(&["radius_x", "radius_y", "start_angle", "sweep_angle"]);
-                }
-                ShapeKind::Line | ShapeKind::Arrow => {
-                    names.extend_from_slice(&["from", "to"]);
-                }
-                ShapeKind::Polygon => {
-                    // points is build-time only — not readable at runtime
-                }
-                ShapeKind::Path => {
-                    // commands is build-time only
-                }
-            }
-
-            // Arrow-only tip sizing
-            if sk == ShapeKind::Arrow {
-                names.extend_from_slice(&["tip_length", "tip_width"]);
-            }
-        }
-        Text | Math | Code => {
-            names.extend_from_slice(&["font_size", "font_family", "opacity"]);
-            if kind == Text {
-                names.push("text");
-            }
-            if kind == Math {
-                names.push("math");
-            }
-            if kind == Code {
-                names.push("code");
-            }
-            // Text actors do not support stroke — glyphs are filled only.
-        }
-        Image => {
-            names.extend_from_slice(&["url", "size"]);
-        }
-        Svg => {
-            names.extend_from_slice(&["url", "scale"]);
-        }
-        Graph => {
-            names.extend_from_slice(&["x_domain", "y_domain", "size", "color"]);
-        }
-        CartesianPlot | PolarPlot | ParametricPlot | ImplicitPlot => {
-            names.extend_from_slice(&[
-                "x_domain", "y_domain", "t_domain",
-                "func", "tolerance", "max_depth", "resolution",
-                "stroke", "stroke_color", "stroke_width",
-            ]);
-        }
-        Row | Col => {
-            names.extend_from_slice(&["gap", "align", "size"]);
-        }
-        Grid => {
-            names.extend_from_slice(&["gap", "align", "cols", "size"]);
-        }
-        Stack => {
-            names.extend_from_slice(&["size"]);
-        }
-        Group => {
-            // Group is transparent — no standard properties
-        }
-    }
-
-    // Resolve to indices
-    let mut indices: Vec<usize> = names
+pub fn allowed_property_indices(kind: super::ActorKindId) -> Vec<usize> {
+    PROPERTY_REGISTRY
         .iter()
-        .filter_map(|name| {
-            PROPERTY_REGISTRY
-                .binary_search_by_key(name, |s| s.name)
-                .ok()
-        })
-        .collect();
-    indices.sort_unstable();
-    indices.dedup();
-    indices
+        .enumerate()
+        .filter(|(_, schema)| schema.applicable.includes(kind))
+        .map(|(i, _)| i)
+        .collect()
 }
 
 // ─────────────────────────────────────────────────────────────

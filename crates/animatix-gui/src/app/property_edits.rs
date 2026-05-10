@@ -343,6 +343,24 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, angles, linear);
             }
         }
+        "tip_length" => {
+            if let PV::Float(v) = value {
+                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let size = [*v, current[1]];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                pt.default_value = size;
+                pt.add_keyframe(time_ms, size, linear);
+            }
+        }
+        "tip_width" => {
+            if let PV::Float(v) = value {
+                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let size = [current[0], *v];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                pt.default_value = size;
+                pt.add_keyframe(time_ms, size, linear);
+            }
+        }
         "stroke_progress" => {
             if let PV::Float(v) = value {
                 let pt = track.stroke_progress.get_or_insert_with(|| PropertyTrack::new(*v));
