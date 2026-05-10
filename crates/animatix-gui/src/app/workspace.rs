@@ -1,4 +1,6 @@
 use super::*;
+use crate::app::components;
+use crate::app::theme::*;
 use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, ShapeType, Timeline, TrackAccessor};
 use preview::ActorProps;
 
@@ -7,13 +9,6 @@ enum SidebarTab {
     Explorer,
     Layers,
 }
-
-const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
-const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
-const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
-const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
-const ACCENT_BLUE: Color32 = Color32::from_rgb(137, 200, 235);
 
 /// Describes a property edit made in the inspector panel.
 #[derive(Debug, Clone)]
@@ -1072,26 +1067,24 @@ fn render_actor_tree(
     // so that multiple anonymous actors don't share the same id.
     let row_id = ui.id().with(label);
     let label_owned = label.to_string();
-    let clicked = widgets::tree_row(
-        ui,
-        row_id,
-        depth,
-        has_children,
-        is_expanded,
-        is_selected,
-        icon,
-        display_label,
-        label_color,
-        || {
-            if collapsed_actors.contains(&label_owned) {
-                collapsed_actors.remove(&label_owned);
-            } else {
-                collapsed_actors.insert(label_owned.clone());
-            }
-        },
-    );
+    let response = components::Row::new(display_label)
+        .indent(depth as f32 * 14.0)
+        .selected(is_selected)
+        .icon(icon)
+        .label_color(label_color.unwrap_or(TEXT_SECONDARY))
+        .has_children(has_children)
+        .expanded(is_expanded)
+        .show(ui, row_id);
 
-    if clicked {
+    if response.chevron_clicked {
+        if collapsed_actors.contains(&label_owned) {
+            collapsed_actors.remove(&label_owned);
+        } else {
+            collapsed_actors.insert(label_owned.clone());
+        }
+    }
+
+    if response.row_clicked {
         *selected_actor = Some(label.to_string());
     }
 

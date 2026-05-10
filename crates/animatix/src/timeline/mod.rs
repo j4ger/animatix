@@ -50,8 +50,21 @@ mod plot;
 mod position;
 pub(crate) mod property_engine;
 pub(crate) mod property_groups;
-pub(crate) mod property_registry;
+pub mod property_registry;
 pub(crate) mod value_parser;
+
+// Re-export the generic property read API
+pub use property_engine::{
+    PropertyValue, read_property_value,
+    property_has_keyframes, property_has_keyframe_at,
+    property_keyframe_count, property_keyframe_times,
+};
+
+// Re-export property registry types for the GUI
+pub use property_registry::{
+    PropertySchema, ValueType, ActorField, PropertyFlags,
+    lookup_property, allowed_property_indices, PROPERTY_REGISTRY,
+};
 mod primitive;
 mod property_lookup;
 mod runtime;

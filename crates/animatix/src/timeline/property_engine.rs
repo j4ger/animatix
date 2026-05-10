@@ -333,6 +333,140 @@ fn write_string(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Read: ActorField + time_ms → PropertyValue
+// ─────────────────────────────────────────────────────────────
+
+/// Read the current value of a property from a track at the given time.
+/// Returns `None` if the property has no track (not set on this actor).
+pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
+    match field {
+        ActorField::Position => track.position.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::MotionOffset => track.motion_offset.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::Size => track.size.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::LayoutSize => track.layout_size.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::Rotation => track.rotation.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::Scale => track.scale.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::Color => track.color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        ActorField::Opacity => track.opacity.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::StrokeWidth => track.stroke_width.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::StrokeColor => track.stroke_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        ActorField::StrokeProgress => track.stroke_progress.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::FillOpacity => track.fill_opacity.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::ShapeType => track.shape_type.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate(time_ms)))),
+        ActorField::LineFrom => track.line_from.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::LineTo => track.line_to.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::ArcAngles => track.arc_angles.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::TextContent => track.text_content.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
+        ActorField::FontFamily => track.font_family.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
+        ActorField::FontSize => track.font_size.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        // Groups and unsupported fields
+        _ => None,
+    }
+}
+
+fn shape_type_to_u32(st: ShapeType) -> u32 {
+    match st {
+        ShapeType::Rect => 0,
+        ShapeType::Circle => 1,
+        ShapeType::Line => 2,
+        ShapeType::Ellipse => 3,
+        ShapeType::Arc => 4,
+        ShapeType::Polygon => 5,
+        ShapeType::Path => 6,
+        ShapeType::Arrow => 7,
+        ShapeType::Graph => 8,
+        ShapeType::Plot => 9,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Keyframe introspection
+// ─────────────────────────────────────────────────────────────
+
+/// Returns whether a property has any keyframes on the given track.
+pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool {
+    property_keyframe_count(track, field) > 0
+}
+
+/// Returns whether a property has a keyframe at exactly the given time.
+pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
+    match field {
+        ActorField::Position => track.position.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Size => track.size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::LayoutSize => track.layout_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Rotation => track.rotation.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Scale => track.scale.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Color => track.color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Opacity => track.opacity.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::ShapeType => track.shape_type.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::LineFrom => track.line_from.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::LineTo => track.line_to.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::TextContent => track.text_content.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::FontFamily => track.font_family.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::FontSize => track.font_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        _ => false,
+    }
+}
+
+/// Returns the number of keyframes for a property on the given track.
+pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
+    match field {
+        ActorField::Position => track.position.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Size => track.size.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::LayoutSize => track.layout_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Rotation => track.rotation.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Scale => track.scale.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Color => track.color.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Opacity => track.opacity.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::ShapeType => track.shape_type.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::LineFrom => track.line_from.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::LineTo => track.line_to.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::TextContent => track.text_content.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::FontFamily => track.font_family.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::FontSize => track.font_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        _ => 0,
+    }
+}
+
+/// Returns all keyframe times (in ms) for a property, sorted.
+pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
+    match field {
+        ActorField::Position => track.position.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Size => track.size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::LayoutSize => track.layout_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Rotation => track.rotation.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Scale => track.scale.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Color => track.color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Opacity => track.opacity.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::ShapeType => track.shape_type.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::LineFrom => track.line_from.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::LineTo => track.line_to.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::TextContent => track.text_content.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::FontFamily => track.font_family.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::FontSize => track.font_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        _ => Vec::new(),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Environment injection
 // ─────────────────────────────────────────────────────────────
 

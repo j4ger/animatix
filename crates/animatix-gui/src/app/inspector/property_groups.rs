@@ -1,288 +1,189 @@
-use animatix::timeline::AnimationTrack;
-use egui::{Color32, RichText, Vec2};
+use animatix::timeline::{
+    ActorField, AnimationTrack, PropertyValue, ShapeType, ValueType,
+    read_property_value, property_has_keyframes, property_has_keyframe_at,
+    allowed_property_indices, PROPERTY_REGISTRY,
+};
+use egui::{Color32, Vec2};
 
-use crate::app::widgets;
-use crate::app::workspace::{PropertyEdit, PropertyValue, UiActions};
+use crate::app::components;
+use crate::app::theme::*;
+use crate::app::workspace::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
 
-use super::keyframe_table::format_num;
-
-// ─── Local Palette ──────────────────────────────────────────────────────────
-
-const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
-const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
-const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
-const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
-const BORDER_FOCUS: Color32 = Color32::from_rgb(84, 110, 255);
-
-// ─── Data Structures ────────────────────────────────────────────────────────
+// ─── Data Structures ──────────────────────────────────────────────────────
 
 pub(super) struct PropertyGroup {
-    name: &'static str,
-    icon: &'static str,
-    properties: Vec<PropertyEntry>,
+    pub name: &'static str,
+    pub icon: &'static str,
+    pub properties: Vec<PropertyEntry>,
 }
 
 pub(super) struct PropertyEntry {
-    name: String,
-    value: PropertyDisplayValue,
-    has_keyframes: bool,
+    pub name: &'static str,
+    pub kind: PropertyKind,
+    pub has_keyframes: bool,
+    pub has_keyframe_at_current_time: bool,
 }
 
-pub(super) enum PropertyDisplayValue {
-    Scalar(String),
-    Vec2(String, String),
+pub(super) enum PropertyKind {
+    Vec2 { x: f32, y: f32 },
+    Float(f32),
     Color([f32; 4]),
     Text(String),
 }
 
-// ─── Group Builder ──────────────────────────────────────────────────────────
+// ─── Group Builder (generic via registry) ─────────────────────────────────
 
 pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
-    let mut groups = Vec::new();
-
-    // Transform group
-    let mut transform = PropertyGroup {
-        name: "Transform",
-        icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
-        properties: Vec::new(),
+    let sub_kind = match track.kind {
+        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
+        _ => None,
     };
-    if let Some(pt) = &track.position {
-        let v = pt.evaluate(time_ms);
-        transform.properties.push(PropertyEntry {
-            name: "position".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.motion_offset {
-        let v = pt.evaluate(time_ms);
-        transform.properties.push(PropertyEntry {
-            name: "motion_offset".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.rotation {
-        let v = pt.evaluate(time_ms);
-        transform.properties.push(PropertyEntry {
-            name: "rotation".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.1}°", v.to_degrees())),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.scale {
-        let v = pt.evaluate(time_ms);
-        transform.properties.push(PropertyEntry {
-            name: "scale".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if !transform.properties.is_empty() {
-        groups.push(transform);
-    }
+    let indices = allowed_property_indices(track.kind, sub_kind);
 
-    // Shape group
-    let mut shape = PropertyGroup {
-        name: "Shape",
-        icon: egui_phosphor::regular::SHAPES,
-        properties: Vec::new(),
-    };
-    if let Some(pt) = &track.shape_type {
-        let v = pt.evaluate(time_ms);
-        shape.properties.push(PropertyEntry {
-            name: "shape_type".into(),
-            value: PropertyDisplayValue::Text(format!("{v:?}")),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.line_from {
-        let v = pt.evaluate(time_ms);
-        shape.properties.push(PropertyEntry {
-            name: "line_from".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.line_to {
-        let v = pt.evaluate(time_ms);
-        shape.properties.push(PropertyEntry {
-            name: "line_to".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.arc_angles {
-        let v = pt.evaluate(time_ms);
-        shape.properties.push(PropertyEntry {
-            name: "arc_angles".into(),
-            value: PropertyDisplayValue::Vec2(format_num(v[0]), format_num(v[1])),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.points {
-        let v = pt.evaluate(time_ms);
-        shape.properties.push(PropertyEntry {
-            name: "points".into(),
-            value: PropertyDisplayValue::Text(format!("{} pts", v.len())),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if !shape.properties.is_empty() {
-        groups.push(shape);
-    }
+    let mut geometry = Vec::new();
+    let mut style = Vec::new();
+    let mut shape = Vec::new();
+    let mut text = Vec::new();
+    let mut media = Vec::new();
 
-    // Style group
-    let mut style = PropertyGroup {
-        name: "Style",
-        icon: egui_phosphor::regular::PAINT_BRUSH,
-        properties: Vec::new(),
-    };
-    if let Some(pt) = &track.color {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "color".into(),
-            value: PropertyDisplayValue::Color(v),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.opacity {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "opacity".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.stroke_width {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "stroke_width".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.1}", v)),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.stroke_color {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "stroke_color".into(),
-            value: PropertyDisplayValue::Color(v),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.stroke_progress {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "stroke_progress".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.fill_opacity {
-        let v = pt.evaluate(time_ms);
-        style.properties.push(PropertyEntry {
-            name: "fill_opacity".into(),
-            value: PropertyDisplayValue::Scalar(format!("{:.2}", v)),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if !style.properties.is_empty() {
-        groups.push(style);
-    }
+    for &idx in &indices {
+        let schema = &PROPERTY_REGISTRY[idx];
+        // Skip group-resolution fields and build-time-only properties
+        if schema.value_type == ValueType::BuildTimeOnly
+            || schema.value_type == ValueType::CommandList
+            || schema.value_type == ValueType::PointList
+            || matches!(
+                schema.field,
+                ActorField::PositionBindingGroup
+                    | ActorField::VectorShapeGroup
+                    | ActorField::PlotDomainGroup
+                    | ActorField::ContainerLayoutGroup
+            )
+        {
+            continue;
+        }
 
-    // Content group
-    let mut content = PropertyGroup {
-        name: "Content",
-        icon: egui_phosphor::regular::TEXT_T,
-        properties: Vec::new(),
-    };
-    if let Some(pt) = &track.text_content {
-        let v = pt.evaluate(time_ms);
-        let display = if v.len() > 30 {
-            format!("{}…", &v[..30])
-        } else {
-            v.clone()
+        let value = read_property_value(track, schema.field, time_ms);
+        let has_kf = property_has_keyframes(track, schema.field);
+        let has_kf_now = property_has_keyframe_at(track, schema.field, time_ms);
+
+        let Some(value) = value else { continue };
+        let kind = value_to_kind(value, schema.value_type, &schema.name);
+        let entry = PropertyEntry {
+            name: schema.name,
+            kind,
+            has_keyframes: has_kf,
+            has_keyframe_at_current_time: has_kf_now,
         };
-        content.properties.push(PropertyEntry {
-            name: "text_content".into(),
-            value: PropertyDisplayValue::Text(display),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.text_paths {
-        let v = pt.evaluate(time_ms);
-        content.properties.push(PropertyEntry {
-            name: "text_paths".into(),
-            value: PropertyDisplayValue::Text(format!("{} paths", v.len())),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.vector_paths {
-        let v = pt.evaluate(time_ms);
-        content.properties.push(PropertyEntry {
-            name: "vector_paths".into(),
-            value: PropertyDisplayValue::Text(format!("{} paths", v.len())),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if let Some(pt) = &track.image {
-        let v = pt.evaluate(time_ms);
-        content.properties.push(PropertyEntry {
-            name: "image".into(),
-            value: PropertyDisplayValue::Text(if v.is_some() {
-                "loaded".into()
-            } else {
-                "none".into()
-            }),
-            has_keyframes: !pt.keyframes.is_empty(),
-        });
-    }
-    if !content.properties.is_empty() {
-        groups.push(content);
+
+        match schema.field {
+            ActorField::Position
+            | ActorField::MotionOffset
+            | ActorField::Size
+            | ActorField::LayoutSize
+            | ActorField::Rotation
+            | ActorField::Scale
+            | ActorField::PlacementMode
+            | ActorField::PositionBinding => geometry.push(entry),
+            ActorField::Color
+            | ActorField::Opacity
+            | ActorField::StrokeWidth
+            | ActorField::StrokeColor
+            | ActorField::StrokeProgress
+            | ActorField::FillOpacity
+            | ActorField::MorphOptions => style.push(entry),
+            ActorField::ShapeType
+            | ActorField::LineFrom
+            | ActorField::LineTo
+            | ActorField::ArcAngles
+            | ActorField::Points
+            | ActorField::VectorPaths => shape.push(entry),
+            ActorField::TextContent
+            | ActorField::FontFamily
+            | ActorField::FontSize
+            | ActorField::TextPaths => text.push(entry),
+            ActorField::ImageData | ActorField::SvgPaths => media.push(entry),
+            _ => {}
+        }
     }
 
-    // Layout group
-    let mut layout = PropertyGroup {
-        name: "Layout",
-        icon: egui_phosphor::regular::GRID_FOUR,
-        properties: Vec::new(),
-    };
-    if let Some(pt) = &track.size {
-        let v = pt.evaluate(time_ms);
-        // The size track stores half-extents; display full size.
-        let display_w = v[0] * 2.0;
-        let display_h = v[1] * 2.0;
-        layout.properties.push(PropertyEntry {
-            name: "size".into(),
-            value: PropertyDisplayValue::Vec2(format_num(display_w), format_num(display_h)),
-            has_keyframes: !pt.keyframes.is_empty(),
+    let mut groups = Vec::new();
+    if !geometry.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Transform",
+            icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+            properties: geometry,
         });
     }
-    if let Some(pt) = &track.placement_mode {
-        let v = pt.evaluate(time_ms);
-        layout.properties.push(PropertyEntry {
-            name: "placement_mode".into(),
-            value: PropertyDisplayValue::Text(format!("{v:?}")),
-            has_keyframes: !pt.keyframes.is_empty(),
+    if !style.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Style",
+            icon: egui_phosphor::regular::PAINT_BRUSH,
+            properties: style,
         });
     }
-    if let Some(pt) = &track.position_binding {
-        let v = pt.evaluate(time_ms);
-        layout.properties.push(PropertyEntry {
-            name: "position_binding".into(),
-            value: PropertyDisplayValue::Text(format!("{v:?}")),
-            has_keyframes: !pt.keyframes.is_empty(),
+    if !shape.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Shape",
+            icon: egui_phosphor::regular::SHAPES,
+            properties: shape,
         });
     }
-    if !layout.properties.is_empty() {
-        groups.push(layout);
+    if !text.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Text",
+            icon: egui_phosphor::regular::TEXT_T,
+            properties: text,
+        });
+    }
+    if !media.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Media",
+            icon: egui_phosphor::regular::FILM_STRIP,
+            properties: media,
+        });
     }
 
     groups
 }
 
-// ─── Property Group Rendering ───────────────────────────────────────────────
+fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKind {
+    match (value, ty) {
+        (PropertyValue::Vec2(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
+        (PropertyValue::F32(v), _) => {
+            if name == "rotation" {
+                PropertyKind::Float(v.to_degrees())
+            } else {
+                PropertyKind::Float(v)
+            }
+        }
+        (PropertyValue::Color(v), _) => PropertyKind::Color(v),
+        (PropertyValue::String(v), _) => PropertyKind::Text(v),
+        (PropertyValue::Vec4(v), ValueType::Color) => PropertyKind::Color(v),
+        (PropertyValue::Vec4(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
+        (PropertyValue::U32(v), ValueType::ShapeType) => {
+            let st = u32_to_shape_type(v);
+            PropertyKind::Text(format!("{:?}", st))
+        }
+        (PropertyValue::U32(v), _) => PropertyKind::Float(v as f32),
+    }
+}
+
+fn u32_to_shape_type(v: u32) -> ShapeType {
+    match v {
+        0 => ShapeType::Rect,
+        1 => ShapeType::Circle,
+        2 => ShapeType::Line,
+        3 => ShapeType::Ellipse,
+        4 => ShapeType::Arc,
+        5 => ShapeType::Polygon,
+        6 => ShapeType::Path,
+        7 => ShapeType::Arrow,
+        _ => ShapeType::Rect,
+    }
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────
 
 pub(super) fn render_property_group(
     ui: &mut egui::Ui,
@@ -291,186 +192,248 @@ pub(super) fn render_property_group(
     actions: &mut UiActions,
     keyframe_mode: bool,
 ) {
-    egui::Frame::new()
-        .fill(BG_SURFACE)
-        .corner_radius(egui::CornerRadius::same(4))
-        .inner_margin(egui::Margin::same(6))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
+    let group_id = ui.id().with(("prop_group", group.name));
+    let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
 
-            // Section header: thin accent line + uppercase name
-            let header_rect = ui.available_rect_before_wrap();
-            let line_rect = egui::Rect::from_min_size(
-                header_rect.min,
-                Vec2::new(24.0, 2.0),
+    let header = components::Row::new(group.name)
+        .height(ROW_M)
+        .icon(Some(group.icon))
+        .has_children(true)
+        .expanded(expanded)
+        .right(|ui| {
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(group.properties.len().to_string())
+                        .size(FONT_SIZE_XS)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
             );
-            ui.painter().rect_filled(line_rect, 1.0, BORDER_FOCUS);
-            ui.add_space(5.0);
-
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                ui.add(
-                    egui::Label::new(RichText::new(group.icon).size(10.0).color(TEXT_MUTED))
-                        .selectable(false),
-                );
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(group.name.to_uppercase())
-                            .size(9.0)
-                            .color(TEXT_MUTED)
-                            .strong(),
-                    )
-                    .selectable(false),
-                );
-            });
-
-            ui.add_space(5.0);
-
-            ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
-            for entry in &group.properties {
-                render_editable_property_row(ui, actor_label, entry, actions, keyframe_mode);
-            }
         });
+    let response = header.show(ui, group_id.with("header"));
 
-    ui.add_space(6.0);
+    if response.row_clicked || response.chevron_clicked {
+        expanded = !expanded;
+        ui.data_mut(|d| d.insert_temp(group_id, expanded));
+    }
+
+    if expanded {
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+        for entry in &group.properties {
+            render_property_row(ui, actor_label, entry, actions, keyframe_mode);
+        }
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+    }
+    ui.add_space(SPACE_S);
 }
 
-// ─── Editable Property Row ──────────────────────────────────────────────────
-
-/// Renders a single editable property row, dispatching to the appropriate widget.
-pub(super) fn render_editable_property_row(
+fn render_property_row(
     ui: &mut egui::Ui,
     actor_label: &str,
     entry: &PropertyEntry,
     actions: &mut UiActions,
     keyframe_mode: bool,
 ) {
-    let name = &entry.name;
-    let has_kf = entry.has_keyframes;
+    let row_height = ROW_S;
+    let available = ui.available_width();
+    let (row_rect, _response) =
+        ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
-    match &entry.value {
-        PropertyDisplayValue::Vec2(x_str, y_str) => {
-            // Parse current values for the widget
-            let x: f32 = x_str.parse().unwrap_or(0.0);
-            let y: f32 = y_str.parse().unwrap_or(0.0);
+    if _response.hovered() {
+        ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+    }
 
-            if let Some((new_x, new_y)) = widgets::vec2_input(ui, name, x, y, has_kf) {
-                actions.property_edits.push(PropertyEdit {
-                    actor: actor_label.to_string(),
-                    property: name.clone(),
-                    value: PropertyValue::Vec2([new_x, new_y]),
-                    create_keyframe: keyframe_mode,
+    let label_x = row_rect.min.x + SPACE_L;
+    let baseline_y = row_rect.center().y;
+
+    // Keyframe dot
+    let dot_x = label_x;
+    if entry.has_keyframe_at_current_time {
+        let dot = egui::Rect::from_center_size(
+            egui::pos2(dot_x, baseline_y),
+            Vec2::new(5.0, 5.0),
+        );
+        ui.painter().rect_filled(dot, 1.5, AMBER);
+    } else if entry.has_keyframes {
+        let dot = egui::Rect::from_center_size(
+            egui::pos2(dot_x, baseline_y),
+            Vec2::new(4.0, 4.0),
+        );
+        ui.painter().rect_filled(dot, 2.0, TEXT_MUTED);
+    }
+
+    // Property label
+    ui.painter().text(
+        egui::pos2(label_x + 12.0, baseline_y),
+        egui::Align2::LEFT_CENTER,
+        entry.name,
+        egui::TextStyle::Small.resolve(ui.style()),
+        TEXT_SECONDARY,
+    );
+
+    // Input widget (right side)
+    let input_width = 110.0_f32.min(available * 0.45);
+    let input_rect = egui::Rect::from_min_size(
+        egui::pos2(row_rect.max.x - input_width - SPACE_S, row_rect.min.y + 1.0),
+        Vec2::new(input_width, row_height - 2.0),
+    );
+
+    match &entry.kind {
+        PropertyKind::Vec2 { x, y } => {
+            let mut nx = *x;
+            let mut ny = *y;
+            ui.allocate_ui_at_rect(input_rect, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                    let rx = ui.add(
+                        egui::DragValue::new(&mut nx)
+                            .speed(0.5)
+                            .max_decimals(1),
+                    );
+                    let ry = ui.add(
+                        egui::DragValue::new(&mut ny)
+                            .speed(0.5)
+                            .max_decimals(1),
+                    );
+                    if rx.changed() || ry.changed() {
+                        actions.property_edits.push(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Vec2([nx, ny]),
+                            create_keyframe: keyframe_mode,
+                        });
+                    }
                 });
-            }
+            });
         }
-        PropertyDisplayValue::Color(rgba) => {
-            if let Some(new_rgba) = widgets::color_input(ui, name, *rgba, has_kf) {
-                actions.property_edits.push(PropertyEdit {
-                    actor: actor_label.to_string(),
-                    property: name.clone(),
-                    value: PropertyValue::Color(new_rgba),
-                    create_keyframe: keyframe_mode,
+        PropertyKind::Float(v) => {
+            let mut nv = *v;
+            let is_angle = entry.name == "rotation";
+            let is_01 = matches!(
+                entry.name,
+                "opacity" | "fill_opacity" | "stroke_progress"
+            );
+            ui.allocate_ui_at_rect(input_rect, |ui| {
+                if is_01 {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                        let slider = ui.add(
+                            egui::Slider::new(&mut nv, 0.0..=1.0)
+                                .show_value(false)
+                                .trailing_fill(true),
+                        );
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(format!("{:.2}", nv))
+                                    .monospace()
+                                    .size(FONT_SIZE_XS)
+                                    .color(TEXT_PRIMARY),
+                            )
+                            .selectable(false),
+                        );
+                        if slider.changed() {
+                            actions.property_edits.push(PropertyEdit {
+                                actor: actor_label.to_string(),
+                                property: entry.name.to_string(),
+                                value: GuiPropertyValue::Float(nv),
+                                create_keyframe: keyframe_mode,
+                            });
+                        }
+                    });
+                } else {
+                    let response = ui.add(
+                        egui::DragValue::new(&mut nv)
+                            .speed(if is_angle { 0.5 } else { 0.1 })
+                            .suffix(if is_angle { "°" } else { "" })
+                            .max_decimals(if is_angle { 1 } else { 2 }),
+                    );
+                    if response.changed() {
+                        let out_val = if is_angle { nv.to_radians() } else { nv };
+                        actions.property_edits.push(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Float(out_val),
+                            create_keyframe: keyframe_mode,
+                        });
+                    }
+                }
+            });
+        }
+        PropertyKind::Color(rgba) => {
+            let mut color = Color32::from_rgba_premultiplied(
+                (rgba[0] * 255.0) as u8,
+                (rgba[1] * 255.0) as u8,
+                (rgba[2] * 255.0) as u8,
+                (rgba[3] * 255.0) as u8,
+            );
+            ui.allocate_ui_at_rect(input_rect, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                    let btn = ui.color_edit_button_srgba(&mut color);
+                    if btn.changed() {
+                        let [r, g, b, a] = color.to_array();
+                        actions.property_edits.push(PropertyEdit {
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Color([
+                                r as f32 / 255.0,
+                                g as f32 / 255.0,
+                                b as f32 / 255.0,
+                                a as f32 / 255.0,
+                            ]),
+                            create_keyframe: keyframe_mode,
+                        });
+                    }
                 });
-            }
+            });
         }
-        PropertyDisplayValue::Scalar(s) => {
-            // Determine widget type based on property name
-            match name.as_str() {
-                "opacity" | "fill_opacity" | "stroke_progress" => {
-                    let val: f32 = s
-                        .trim_end_matches(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                        .parse()
-                        .unwrap_or(0.0);
-                    if let Some(new_val) = widgets::slider_input(ui, name, val, 0.0, 1.0, has_kf) {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Float(new_val),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-                "rotation" => {
-                    // Rotation is stored in radians, displayed in degrees
-                    let val_deg: f32 = s.trim_end_matches('°').parse().unwrap_or(0.0);
-                    if let Some(new_deg) = widgets::float_input(ui, name, val_deg, "°", has_kf) {
-                        // Convert back to radians for the action
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Float(new_deg.to_radians()),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-                "scale" => {
-                    let val: f32 = s.parse().unwrap_or(1.0);
-                    if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Float(new_val),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-                "stroke_width" => {
-                    let val: f32 = s.parse().unwrap_or(0.0);
-                    if let Some(new_val) = widgets::float_input(ui, name, val, "px", has_kf) {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Float(new_val),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-                _ => {
-                    // Generic scalar: try float_input
-                    let val: f32 = s.parse().unwrap_or(0.0);
-                    if let Some(new_val) = widgets::float_input(ui, name, val, "", has_kf) {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Float(new_val),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-            }
-        }
-        PropertyDisplayValue::Text(s) => {
-            // Determine widget type based on property name
-            match name.as_str() {
-                "shape_type" => {
-                    let variants = &[
-                        "Rect", "Circle", "Line", "Ellipse", "Arc", "Polygon", "Path", "Arrow",
-                        "Graph", "Plot",
+        PropertyKind::Text(text) => {
+            let mut buf = text.clone();
+            ui.allocate_ui_at_rect(input_rect, |ui| {
+                if entry.name == "shape_type" {
+                    let variants = [
+                        "Rect", "Circle", "Line", "Ellipse", "Arc",
+                        "Polygon", "Path", "Arrow", "Graph", "Plot",
                     ];
-                    if let Some(new_val) = widgets::enum_selector(ui, name, s, variants, has_kf) {
+                    egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
+                        .selected_text(text.as_str())
+                        .width(input_width)
+                        .show_ui(ui, |ui| {
+                            for v in variants {
+                                if ui.selectable_label(v == text, v).clicked() {
+                                    actions.property_edits.push(PropertyEdit {
+                                        actor: actor_label.to_string(),
+                                        property: entry.name.to_string(),
+                                        value: GuiPropertyValue::Text(v.to_string()),
+                                        create_keyframe: keyframe_mode,
+                                    });
+                                }
+                            }
+                        });
+                } else if entry.name == "text_content" || entry.name == "text" {
+                    let edit = egui::TextEdit::singleline(&mut buf)
+                        .font(egui::TextStyle::Small)
+                        .desired_width(input_width);
+                    let response = ui.add(edit);
+                    if response.changed() {
                         actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Text(new_val),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Text(buf),
                             create_keyframe: keyframe_mode,
                         });
                     }
+                } else {
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(text.as_str())
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_MUTED),
+                        )
+                        .selectable(false),
+                    );
                 }
-                "text_content" => {
-                    if let Some(new_text) = widgets::text_input(ui, name, s, has_kf) {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: name.clone(),
-                            value: PropertyValue::Text(new_text),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
-                _ => {
-                    // Read-only fallback for complex types (points, paths, etc.)
-                    widgets::readonly_row(ui, name, s, has_kf);
-                }
-            }
+            });
         }
     }
 }

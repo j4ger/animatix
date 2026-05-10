@@ -208,7 +208,7 @@ pub struct PropertySchema {
 /// A `#[test]` below verifies this invariant.
 use PropertyFlags as F;
 
-pub(crate) static PROPERTY_REGISTRY: &[PropertySchema] = &[
+pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     // ── Universal geometry ──
     PropertySchema { name: "align",        value_type: ValueType::String,     flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }) },
     PropertySchema { name: "anchor",       value_type: ValueType::SceneAnchor,flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }) },
@@ -265,7 +265,7 @@ pub(crate) static PROPERTY_REGISTRY: &[PropertySchema] = &[
 ///
 /// Uses binary search over the sorted `PROPERTY_REGISTRY`.
 /// Returns `None` if no property with that name exists.
-pub(crate) fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
+pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
     PROPERTY_REGISTRY
         .binary_search_by_key(&name, |s| s.name)
         .ok()
@@ -278,7 +278,7 @@ pub(crate) fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
 
 /// Convenience: build a sorted set of allowed property indices for an actor kind.
 /// Returns indices into PROPERTY_REGISTRY.
-pub(crate) fn allowed_property_indices(
+pub fn allowed_property_indices(
     kind: super::ActorKindId,
     sub_kind: Option<super::ShapeKind>,
 ) -> Vec<usize> {

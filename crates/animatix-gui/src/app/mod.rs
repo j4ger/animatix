@@ -1,9 +1,11 @@
+mod components;
 mod file_tree;
 mod inspector;
 mod persistence;
 mod preview;
 mod runtime;
 mod selection;
+pub(crate) mod theme;
 pub(crate) mod transport_bar;
 pub(crate) mod widgets;
 mod property_edits;

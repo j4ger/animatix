@@ -1,38 +1,25 @@
 use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
 use egui::{Color32, Id, RichText, ScrollArea, Vec2};
 
-use super::widgets;
-use super::workspace::UiActions;
+use crate::app::components;
+use crate::app::theme::*;
+use crate::app::workspace::UiActions;
 
 mod property_groups;
 mod keyframe_table;
 
 use self::property_groups::*;
-use self::keyframe_table::*;
+use self::keyframe_table::{render_dope_sheet, collect_all_keyframe_times, count_keyframes};
 
-// ─── Palette (mirrors runtime.rs theme) ─────────────────────────────────────
+// ─── Main Entry Point ─────────────────────────────────────────────────────
 
-const BG_BASE: Color32 = Color32::from_rgb(12, 14, 18);
-const BG_PANEL: Color32 = Color32::from_rgb(18, 20, 24);
-const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
-const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
-const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
-const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
-const BORDER_FOCUS: Color32 = Color32::from_rgb(84, 110, 255);
-const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
-
-// ─── Inspector Tabs ─────────────────────────────────────────────────────────
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum InspectorTab {
-    Properties,
-    Keyframes,
-}
-
-// ─── Main Entry Point ───────────────────────────────────────────────────────
-
-/// Renders the actor inspector panel (properties only — actor tree is in Layers tab).
+/// Renders the unified actor inspector panel.
+///
+/// Layout (single scrollable panel, no tabs):
+///   1. Actor Header
+///   2. Active Properties (editable, native inputs)
+///   3. Mini Timeline
+///   4. Keyframes
 pub(super) fn inspector_ui(
     ui: &mut egui::Ui,
     timeline: Option<&Timeline>,
@@ -49,7 +36,7 @@ pub(super) fn inspector_ui(
     }
 
     let Some(timeline) = timeline else {
-        render_empty_state(
+        components::empty_state(
             ui,
             egui_phosphor::regular::FILM_STRIP,
             "No timeline loaded",
@@ -60,7 +47,7 @@ pub(super) fn inspector_ui(
 
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
-        render_empty_state(
+        components::empty_state(
             ui,
             egui_phosphor::regular::FILM_STRIP,
             "No actors in scene",
@@ -71,7 +58,7 @@ pub(super) fn inspector_ui(
 
     if let Some(sel) = selected_actor.as_ref() {
         let Some(track) = timeline.get_track(sel) else {
-            render_empty_state(
+            components::empty_state(
                 ui,
                 egui_phosphor::regular::WARNING,
                 "Actor not found",
@@ -84,20 +71,31 @@ pub(super) fn inspector_ui(
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 render_actor_header(ui, track, current_time_s);
-                ui.add_space(6.0);
+                ui.add_space(SPACE_M);
 
-                let tab_id = ui.id().with("inspector_tab");
-                let mut active_tab = ui
-                    .data(|d| d.get_temp::<InspectorTab>(tab_id))
-                    .unwrap_or(InspectorTab::Properties);
-
-                render_tab_bar(ui, &mut active_tab);
-                ui.add_space(6.0);
-
-                match active_tab {
-                    InspectorTab::Properties => {
-                        let current_time_ms = (current_time_s * 1000.0) as u64;
-                        let groups = build_property_groups(track, current_time_ms);
+                // ── Active Properties ──
+                components::card(ui, |ui| {
+                    components::section_header(
+                        ui,
+                        egui_phosphor::regular::WRENCH,
+                        "Properties",
+                        None,
+                    );
+                    let current_time_ms = (current_time_s * 1000.0) as u64;
+                    let groups = build_property_groups(track, current_time_ms);
+                    if groups.is_empty() {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(SPACE_M);
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new("No editable properties")
+                                        .size(FONT_SIZE_M)
+                                        .color(TEXT_MUTED),
+                                )
+                                .selectable(false),
+                            );
+                        });
+                    } else {
                         for group in &groups {
                             render_property_group(
                                 ui,
@@ -107,115 +105,88 @@ pub(super) fn inspector_ui(
                                 keyframe_mode,
                             );
                         }
-
-                        if groups.is_empty() {
-                            ui.vertical_centered(|ui| {
-                                ui.add_space(20.0);
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(egui_phosphor::regular::SLIDERS)
-                                            .size(22.0)
-                                            .color(TEXT_MUTED),
-                                    )
-                                    .selectable(false),
-                                );
-                                ui.add_space(6.0);
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new("No editable properties")
-                                            .size(11.0)
-                                            .color(TEXT_MUTED),
-                                    )
-                                    .selectable(false),
-                                );
-                            });
-                        }
                     }
-                    InspectorTab::Keyframes => {
-                        let keyframes = collect_keyframes(track);
-                        render_keyframe_table(
-                            ui,
-                            &keyframes,
-                            (current_time_s * 1000.0) as u64,
-                        );
-                    }
-                }
+                });
 
-                ui.data_mut(|d| d.insert_temp(tab_id, active_tab));
+                ui.add_space(SPACE_M);
+
+                // ── Mini Timeline ──
+                components::card(ui, |ui| {
+                    components::section_header(
+                        ui,
+                        egui_phosphor::regular::CLOCK,
+                        "Timeline",
+                        None,
+                    );
+                    let duration_s = timeline.duration_seconds().max(0.1);
+                    let all_kf = collect_all_keyframe_times(track);
+                    let strip = components::TimelineStrip {
+                        duration_s,
+                        current_time_s,
+                        keyframes: &all_kf,
+                        height: ROW_XS,
+                    };
+                    if let Some(scrub_t) = strip.show(ui, ui.id().with("mini_timeline")) {
+                        actions.scrub_to = Some(scrub_t);
+                    }
+                });
+
+                ui.add_space(SPACE_M);
+
+                // ── Keyframes ──
+                let kf_count = count_keyframes(track);
+                components::card(ui, |ui| {
+                    components::section_header(
+                        ui,
+                        egui_phosphor::regular::KEY,
+                        "Keyframes",
+                        Some(kf_count),
+                    );
+                    render_dope_sheet(
+                        ui,
+                        timeline,
+                        track,
+                        (current_time_s * 1000.0) as u64,
+                        actions,
+                    );
+                });
             });
     } else {
-        ui.vertical_centered(|ui| {
-            ui.add_space(32.0);
-            ui.add(
-                egui::Label::new(
-                    RichText::new(egui_phosphor::regular::MAGNIFYING_GLASS)
-                        .size(28.0)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-            ui.add_space(10.0);
-            ui.add(
-                egui::Label::new(
-                    RichText::new("Select an actor to inspect")
-                        .size(12.0)
-                        .color(TEXT_SECONDARY),
-                )
-                .selectable(false),
-            );
-            ui.add_space(4.0);
-            ui.add(
-                egui::Label::new(
-                    RichText::new("Click an actor in the preview or Layers panel")
-                        .size(10.0)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-        });
+        components::empty_state(
+            ui,
+            egui_phosphor::regular::MAGNIFYING_GLASS,
+            "Select an actor to inspect",
+            "Click an actor in the preview or Layers panel",
+        );
     }
 }
 
-// ─── Empty State ────────────────────────────────────────────────────────────
-
-fn render_empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(36.0);
-        ui.add(egui::Label::new(RichText::new(icon).size(28.0).color(TEXT_MUTED)).selectable(false));
-        ui.add_space(10.0);
-        ui.add(egui::Label::new(RichText::new(title).size(12.0).color(TEXT_SECONDARY)).selectable(false));
-        ui.add_space(4.0);
-        ui.add(egui::Label::new(RichText::new(subtitle).size(10.0).color(TEXT_MUTED)).selectable(false));
-    });
-}
-
-// ─── Actor Header ───────────────────────────────────────────────────────────
+// ─── Actor Header ─────────────────────────────────────────────────────────
 
 fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s: f64) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
 
     ui.horizontal(|ui| {
-        // Shape icon
         if let Some(shape_pt) = &track.shape_type {
             let shape = shape_pt.evaluate(current_time_ms);
             ui.add(
-                egui::Label::new(RichText::new(shape_icon(shape)).size(14.0).color(AMBER))
-                    .selectable(false),
+                egui::Label::new(
+                    RichText::new(shape_icon(shape)).size(FONT_SIZE_XL).color(AMBER),
+                )
+                .selectable(false),
             );
         }
 
-        // Name
         ui.add(
             egui::Label::new(
                 RichText::new(&track.label)
                     .strong()
-                    .size(14.0)
+                    .size(FONT_SIZE_XL)
                     .color(TEXT_PRIMARY),
             )
             .selectable(false),
         );
 
-        // Right side: shape type + first-seen tag
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
                 ui.add(
@@ -224,7 +195,7 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
                             "t = {:.2}s",
                             track.first_seen_ms as f64 / 1000.0
                         ))
-                        .size(9.0)
+                        .size(FONT_SIZE_XS)
                         .color(TEXT_MUTED),
                     )
                     .selectable(false),
@@ -236,7 +207,7 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!("{:?}", shape))
-                            .size(10.0)
+                            .size(FONT_SIZE_S)
                             .color(TEXT_MUTED),
                     )
                     .selectable(false),
@@ -244,18 +215,6 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
             }
         });
     });
-}
-
-// ─── Tab Bar ────────────────────────────────────────────────────────────────
-
-fn render_tab_bar(ui: &mut egui::Ui, active_tab: &mut InspectorTab) {
-    let tabs = [
-        (InspectorTab::Properties, egui_phosphor::regular::WRENCH, "Properties"),
-        (InspectorTab::Keyframes, egui_phosphor::regular::KEY, "Keyframes"),
-    ];
-    if let Some(new_tab) = widgets::pill_tab_bar(ui, *active_tab, &tabs) {
-        *active_tab = new_tab;
-    }
 }
 
 fn shape_icon(shape: ShapeType) -> &'static str {

@@ -1,233 +1,451 @@
-use std::collections::BTreeMap;
-
-use animatix::timeline::AnimationTrack;
+use animatix::timeline::{
+    ActorField, AnimationTrack, PropertyValue, ShapeType, Timeline,
+    property_has_keyframes, property_has_keyframe_at, property_keyframe_times,
+    read_property_value, allowed_property_indices, PROPERTY_REGISTRY,
+};
 use egui::{Color32, Vec2};
 
-// ─── Local Palette ──────────────────────────────────────────────────────────
+use crate::app::components;
+use crate::app::theme::*;
+use crate::app::workspace::UiActions;
 
-const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
-const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
-const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
-const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
-const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
+// ─── Data Structures ──────────────────────────────────────────────────────
 
-// ─── Compact Keyframe List ──────────────────────────────────────────────────
+struct PropertyTrackInfo {
+    name: &'static str,
+    keyframes: Vec<(u64, String)>, // time_ms, formatted_value
+}
 
-pub(super) fn render_keyframe_table(
+struct TrackGroup {
+    name: &'static str,
+    icon: &'static str,
+    tracks: Vec<PropertyTrackInfo>,
+}
+
+// ─── Public Entry Point ───────────────────────────────────────────────────
+
+pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
+    let sub_kind = match track.kind {
+        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
+        _ => None,
+    };
+    let indices = allowed_property_indices(track.kind, sub_kind);
+    indices
+        .iter()
+        .filter_map(|&idx| {
+            let schema = &PROPERTY_REGISTRY[idx];
+            if property_has_keyframes(track, schema.field) {
+                Some(property_keyframe_times(track, schema.field).len())
+            } else {
+                None
+            }
+        })
+        .sum()
+}
+
+pub(super) fn render_dope_sheet(
     ui: &mut egui::Ui,
-    keyframes: &[(f64, String, String, String)],
+    timeline: &Timeline,
+    track: &AnimationTrack,
     current_time_ms: u64,
+    actions: &mut UiActions,
 ) {
-    if keyframes.is_empty() {
-        ui.vertical_centered(|ui| {
-            ui.add_space(20.0);
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(22.0)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-            ui.add_space(6.0);
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new("No keyframes — default values only")
-                        .size(10.0)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-        });
+    let duration_s = timeline.duration_seconds().max(0.1);
+    let groups = collect_track_groups(track);
+
+    if groups.is_empty() {
+        render_empty_state(ui);
         return;
     }
 
-    // Header with count badge
-    ui.horizontal(|ui| {
+    for group in &groups {
+        render_track_group(ui, group, current_time_ms, duration_s, actions);
+    }
+}
+
+/// Collect all keyframe times across all property tracks (for mini timeline).
+pub(super) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
+    let sub_kind = match track.kind {
+        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
+        _ => None,
+    };
+    let indices = allowed_property_indices(track.kind, sub_kind);
+    let mut times = std::collections::BTreeSet::new();
+
+    for &idx in &indices {
+        let schema = &PROPERTY_REGISTRY[idx];
+        for t in property_keyframe_times(track, schema.field) {
+            times.insert(t);
+        }
+    }
+
+    times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────
+
+fn render_empty_state(ui: &mut egui::Ui) {
+    ui.vertical_centered(|ui| {
+        ui.add_space(SPACE_M * 3.0);
         ui.add(
             egui::Label::new(
-                egui::RichText::new("KEYFRAMES")
-                    .size(9.0)
-                    .color(TEXT_MUTED)
-                    .strong(),
+                egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
+                    .size(22.0)
+                    .color(TEXT_MUTED),
             )
             .selectable(false),
         );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            egui::Frame::new()
-                .fill(BG_WIDGET)
-                .corner_radius(egui::CornerRadius::same(8))
-                .inner_margin(egui::Margin::symmetric(6, 2))
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(keyframes.len().to_string())
-                                .size(9.0)
-                                .color(TEXT_SECONDARY),
-                        )
-                        .selectable(false),
-                    );
-                });
-        });
-    });
-
-    ui.add_space(4.0);
-    let sep = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
-    ui.painter().rect_filled(sep, 0.0, BG_WIDGET);
-    ui.add_space(2.0);
-
-    // Compact rows
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-
-    for (time_s, property, value, _easing) in keyframes {
-        let kf_time_ms = (*time_s * 1000.0) as u64;
-        let is_current = kf_time_ms == current_time_ms;
-
-        let row_height = 18.0;
-        let available = ui.available_width();
-        let (rect, response) =
-            ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
-
-        // Hover background
-        if response.hovered() && !is_current {
-            ui.painter().rect_filled(rect, 0.0, BG_SURFACE);
-        }
-
-        // Current indicator: amber dot
-        if is_current {
-            let dot = egui::Rect::from_center_size(
-                egui::pos2(rect.min.x + 6.0, rect.center().y),
-                Vec2::new(4.0, 4.0),
-            );
-            ui.painter().rect_filled(dot, 4.0, AMBER);
-        }
-
-        let text_color = if is_current { AMBER } else { TEXT_SECONDARY };
-        let font = egui::TextStyle::Small.resolve(ui.style());
-        let time_x = if is_current { 14.0 } else { 8.0 };
-
-        // Time
-        ui.painter().text(
-            egui::pos2(rect.min.x + time_x, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            &format!("{:.2}s", time_s),
-            font.clone(),
-            text_color,
-        );
-
-        // Property name
-        ui.painter().text(
-            egui::pos2(rect.min.x + 56.0, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            property,
-            font.clone(),
-            text_color,
-        );
-
-        // Value (truncated)
-        ui.painter().text(
-            egui::pos2(rect.max.x - 6.0, rect.center().y),
-            egui::Align2::RIGHT_CENTER,
-            truncate_value(value),
-            font,
-            if is_current { AMBER } else { TEXT_MUTED },
-        );
-    }
-}
-
-fn truncate_value(value: &str) -> String {
-    if value.len() > 24 {
-        format!("{}…", &value[..24])
-    } else {
-        value.to_string()
-    }
-}
-
-// ─── Utilities ──────────────────────────────────────────────────────────────
-
-pub(super) fn format_num(v: f32) -> String {
-    if v == v.floor() && v.abs() < 10000.0 {
-        format!("{:.0}", v)
-    } else {
-        format!("{:.1}", v)
-    }
-}
-
-pub(super) fn collect_keyframes(
-    track: &AnimationTrack,
-) -> Vec<(f64, String, String, String)> {
-    let mut all: Vec<(u64, &str, String)> = Vec::new();
-
-    fn push_keyframes_from<V: std::fmt::Debug, E>(
-        all: &mut Vec<(u64, &str, String)>,
-        name: &'static str,
-        keyframes: &BTreeMap<u64, (V, E)>,
-    ) {
-        for (&time_ms, (value, _)) in keyframes {
-            all.push((time_ms, name, format!("{value:?}")));
-        }
-    }
-
-    if let Some(pt) = &track.position {
-        push_keyframes_from(&mut all, "position", &pt.keyframes);
-    }
-    if let Some(pt) = &track.size {
-        push_keyframes_from(&mut all, "size", &pt.keyframes);
-    }
-    if let Some(pt) = &track.scale {
-        push_keyframes_from(&mut all, "scale", &pt.keyframes);
-    }
-    if let Some(pt) = &track.rotation {
-        push_keyframes_from(&mut all, "rotation", &pt.keyframes);
-    }
-    if let Some(pt) = &track.opacity {
-        push_keyframes_from(&mut all, "opacity", &pt.keyframes);
-    }
-    if let Some(pt) = &track.color {
-        push_keyframes_from(&mut all, "color", &pt.keyframes);
-    }
-    if let Some(pt) = &track.stroke_width {
-        push_keyframes_from(&mut all, "stroke_width", &pt.keyframes);
-    }
-    if let Some(pt) = &track.stroke_color {
-        push_keyframes_from(&mut all, "stroke_color", &pt.keyframes);
-    }
-    if let Some(pt) = &track.fill_opacity {
-        push_keyframes_from(&mut all, "fill_opacity", &pt.keyframes);
-    }
-    if let Some(pt) = &track.text_content {
-        push_keyframes_from(&mut all, "text_content", &pt.keyframes);
-    }
-    if let Some(pt) = &track.motion_offset {
-        push_keyframes_from(&mut all, "motion_offset", &pt.keyframes);
-    }
-    if let Some(pt) = &track.line_from {
-        push_keyframes_from(&mut all, "line_from", &pt.keyframes);
-    }
-    if let Some(pt) = &track.line_to {
-        push_keyframes_from(&mut all, "line_to", &pt.keyframes);
-    }
-    if let Some(pt) = &track.arc_angles {
-        push_keyframes_from(&mut all, "arc_angles", &pt.keyframes);
-    }
-    if let Some(pt) = &track.stroke_progress {
-        push_keyframes_from(&mut all, "stroke_progress", &pt.keyframes);
-    }
-    if let Some(pt) = &track.points {
-        push_keyframes_from(&mut all, "points", &pt.keyframes);
-    }
-
-    all.sort_by_key(|(time, _, _)| *time);
-
-    all.into_iter()
-        .map(|(time_ms, property, value)| {
-            (
-                time_ms as f64 / 1000.0,
-                property.to_string(),
-                value,
-                String::new(),
+        ui.add_space(SPACE_S);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new("No keyframes")
+                    .size(FONT_SIZE_S)
+                    .color(TEXT_MUTED),
             )
-        })
-        .collect()
+            .selectable(false),
+        );
+        ui.add_space(SPACE_XS);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new("Edit properties with keyframe mode enabled")
+                    .size(FONT_SIZE_XS)
+                    .color(TEXT_MUTED),
+            )
+            .selectable(false),
+        );
+    });
+}
+
+// ─── Track Group ──────────────────────────────────────────────────────────
+
+fn render_track_group(
+    ui: &mut egui::Ui,
+    group: &TrackGroup,
+    current_time_ms: u64,
+    duration_s: f64,
+    actions: &mut UiActions,
+) {
+    let group_id = ui.id().with(("kf_group", group.name));
+    let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
+
+    let kf_count: usize = group.tracks.iter().map(|t| t.keyframes.len()).sum();
+    let header = components::Row::new(group.name)
+        .height(ROW_M)
+        .icon(Some(group.icon))
+        .has_children(true)
+        .expanded(expanded)
+        .right(|ui| {
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(kf_count.to_string())
+                        .size(FONT_SIZE_XS)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
+            );
+        });
+    let response = header.show(ui, group_id.with("header"));
+
+    if response.row_clicked || response.chevron_clicked {
+        expanded = !expanded;
+        ui.data_mut(|d| d.insert_temp(group_id, expanded));
+    }
+
+    if expanded {
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
+        for track in &group.tracks {
+            render_track_row(ui, track, current_time_ms, duration_s, actions);
+        }
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+    }
+}
+
+// ─── Track Row ────────────────────────────────────────────────────────────
+
+fn render_track_row(
+    ui: &mut egui::Ui,
+    track: &PropertyTrackInfo,
+    current_time_ms: u64,
+    duration_s: f64,
+    actions: &mut UiActions,
+) {
+    let row_height = ROW_S;
+    let available = ui.available_width();
+    let (row_rect, response) =
+        ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
+
+    if response.hovered() {
+        ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+    }
+
+    let label_width = 90.0_f32.min(available * 0.35);
+    let timeline_left = row_rect.min.x + label_width;
+    let timeline_right = row_rect.max.x - SPACE_S;
+
+    // Property label
+    ui.painter().text(
+        egui::pos2(row_rect.min.x + SPACE_L, row_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        track.name,
+        egui::TextStyle::Small.resolve(ui.style()),
+        TEXT_SECONDARY,
+    );
+
+    // Timeline strip
+    let strip_rect = egui::Rect::from_min_max(
+        egui::pos2(timeline_left, row_rect.min.y + 3.0),
+        egui::pos2(timeline_right, row_rect.max.y - 3.0),
+    );
+    ui.painter().rect_filled(strip_rect, RADIUS_M, BG_WIDGET);
+    ui.painter().rect_stroke(
+        strip_rect,
+        RADIUS_M,
+        egui::Stroke::new(1.0, BORDER),
+        egui::StrokeKind::Outside,
+    );
+
+    // Second tick marks (subtle)
+    let sec_step = if duration_s > 20.0 { 5.0 } else { 1.0 };
+    let mut sec = sec_step;
+    while sec < duration_s {
+        let fraction = sec / duration_s;
+        let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
+        ui.painter().line_segment(
+            [
+                egui::pos2(x, strip_rect.top() + 2.0),
+                egui::pos2(x, strip_rect.bottom() - 2.0),
+            ],
+            egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 15)),
+        );
+        sec += sec_step;
+    }
+
+    // Click / drag on strip to scrub
+    let strip_response = ui.interact(
+        strip_rect,
+        ui.id().with(("strip", track.name)),
+        egui::Sense::click_and_drag(),
+    );
+    if (strip_response.clicked() || strip_response.dragged())
+        && strip_response.interact_pointer_pos().is_some()
+    {
+        let pos = strip_response.interact_pointer_pos().unwrap();
+        let fraction =
+            ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
+        let time_s = fraction * duration_s;
+        actions.scrub_to = Some(time_s);
+    }
+
+    // Current time indicator
+    let current_fraction =
+        ((current_time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
+    let playhead_x = egui::lerp(
+        strip_rect.left()..=strip_rect.right(),
+        current_fraction as f32,
+    );
+
+    // Keyframe diamonds
+    let diamond_size = 5.0;
+    for (time_ms, value) in &track.keyframes {
+        let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
+        let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
+        let center = egui::pos2(x, strip_rect.center().y);
+        let is_current = *time_ms == current_time_ms;
+
+        let size = if is_current { diamond_size + 1.5 } else { diamond_size };
+        components::keyframe_dot(&ui.painter(), center, size, is_current);
+
+        // Hover tooltip
+        let hover_rect =
+            egui::Rect::from_center_size(center, Vec2::splat(size + 6.0));
+        let diamond_response = ui.interact(
+            hover_rect,
+            ui.id().with(("kf", track.name, *time_ms)),
+            egui::Sense::hover(),
+        );
+        diamond_response.on_hover_ui(|ui| {
+            ui.horizontal(|ui| {
+                ui.strong(track.name);
+                ui.label(
+                    egui::RichText::new(format!("{:.2}s", *time_ms as f64 / 1000.0))
+                        .monospace()
+                        .color(AMBER),
+                );
+            });
+            ui.add_space(SPACE_XS);
+            ui.label(egui::RichText::new(format!("Value: {}", value)).size(FONT_SIZE_M));
+        });
+    }
+
+    // Playhead line (drawn on top of diamonds)
+    if playhead_x >= strip_rect.left() && playhead_x <= strip_rect.right() {
+        components::playhead(
+            &ui.painter(),
+            playhead_x,
+            strip_rect.top() - 1.0..strip_rect.bottom() + 1.0,
+        );
+    }
+}
+
+// ─── Collection (generic via registry) ────────────────────────────────────
+
+fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
+    let sub_kind = match track.kind {
+        animatix::timeline::ActorKindId::Shape(sk) => Some(sk),
+        _ => None,
+    };
+    let indices = allowed_property_indices(track.kind, sub_kind);
+
+    let mut transform = Vec::new();
+    let mut style = Vec::new();
+    let mut shape = Vec::new();
+    let mut text = Vec::new();
+    let mut media = Vec::new();
+
+    for &idx in &indices {
+        let schema = &PROPERTY_REGISTRY[idx];
+        if !property_has_keyframes(track, schema.field) {
+            continue;
+        }
+
+        let mut keyframes = Vec::new();
+        for time_ms in property_keyframe_times(track, schema.field) {
+            if let Some(value) = read_property_value(track, schema.field, time_ms) {
+                keyframes.push((time_ms, format_value(&value, schema.name)));
+            }
+        }
+        if keyframes.is_empty() {
+            continue;
+        }
+
+        let info = PropertyTrackInfo {
+            name: schema.name,
+            keyframes,
+        };
+
+        match schema.field {
+            ActorField::Position
+            | ActorField::MotionOffset
+            | ActorField::Size
+            | ActorField::LayoutSize
+            | ActorField::Rotation
+            | ActorField::Scale
+            | ActorField::PlacementMode
+            | ActorField::PositionBinding => transform.push(info),
+            ActorField::Color
+            | ActorField::Opacity
+            | ActorField::StrokeWidth
+            | ActorField::StrokeColor
+            | ActorField::StrokeProgress
+            | ActorField::FillOpacity
+            | ActorField::MorphOptions => style.push(info),
+            ActorField::ShapeType
+            | ActorField::LineFrom
+            | ActorField::LineTo
+            | ActorField::ArcAngles
+            | ActorField::Points
+            | ActorField::VectorPaths => shape.push(info),
+            ActorField::TextContent
+            | ActorField::FontFamily
+            | ActorField::FontSize
+            | ActorField::TextPaths => text.push(info),
+            ActorField::ImageData | ActorField::SvgPaths => media.push(info),
+            _ => {}
+        }
+    }
+
+    let mut groups = Vec::new();
+    if !transform.is_empty() {
+        groups.push(TrackGroup {
+            name: "Transform",
+            icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+            tracks: transform,
+        });
+    }
+    if !style.is_empty() {
+        groups.push(TrackGroup {
+            name: "Style",
+            icon: egui_phosphor::regular::PAINT_BRUSH,
+            tracks: style,
+        });
+    }
+    if !shape.is_empty() {
+        groups.push(TrackGroup {
+            name: "Shape",
+            icon: egui_phosphor::regular::SHAPES,
+            tracks: shape,
+        });
+    }
+    if !text.is_empty() {
+        groups.push(TrackGroup {
+            name: "Text",
+            icon: egui_phosphor::regular::TEXT_T,
+            tracks: text,
+        });
+    }
+    if !media.is_empty() {
+        groups.push(TrackGroup {
+            name: "Media",
+            icon: egui_phosphor::regular::FILM_STRIP,
+            tracks: media,
+        });
+    }
+
+    groups
+}
+
+fn format_value(value: &PropertyValue, name: &str) -> String {
+    match value {
+        PropertyValue::F32(v) => {
+            if name == "rotation" {
+                format!("{:.1}°", v.to_degrees())
+            } else if *v == v.floor() && v.abs() < 10000.0 {
+                format!("{:.0}", v)
+            } else {
+                format!("{:.2}", v)
+            }
+        }
+        PropertyValue::U32(v) => {
+            if name == "shape_type" {
+                let st = match *v {
+                    0 => ShapeType::Rect,
+                    1 => ShapeType::Circle,
+                    2 => ShapeType::Line,
+                    3 => ShapeType::Ellipse,
+                    4 => ShapeType::Arc,
+                    5 => ShapeType::Polygon,
+                    6 => ShapeType::Path,
+                    7 => ShapeType::Arrow,
+                    _ => ShapeType::Rect,
+                };
+                format!("{:?}", st)
+            } else {
+                v.to_string()
+            }
+        }
+        PropertyValue::Vec2(v) => format!("({:.1}, {:.1})", v[0], v[1]),
+        PropertyValue::Vec4(v) => {
+            let r = (v[0] * 255.0).round() as u8;
+            let g = (v[1] * 255.0).round() as u8;
+            let b = (v[2] * 255.0).round() as u8;
+            format!("#{:02x}{:02x}{:02x}", r, g, b)
+        }
+        PropertyValue::Color(v) => {
+            let r = (v[0] * 255.0).round() as u8;
+            let g = (v[1] * 255.0).round() as u8;
+            let b = (v[2] * 255.0).round() as u8;
+            if v[3] >= 0.999 {
+                format!("#{:02x}{:02x}{:02x}", r, g, b)
+            } else {
+                format!("rgba({},{},{},{:.2})", r, g, b, v[3])
+            }
+        }
+        PropertyValue::String(v) => {
+            if v.len() > 24 {
+                format!("{}…", &v[..24])
+            } else {
+                v.clone()
+            }
+        }
+    }
 }

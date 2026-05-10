@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::theme::*;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
 
@@ -20,24 +21,16 @@ pub(super) fn transport_bar_ui(
     keyframe_mode: bool,
     cursor_time_s: Option<f64>,
 ) {
-    let bg = Color32::from_rgb(12, 14, 18);
-    let border_color = Color32::from_rgb(32, 36, 44);
-    let muted = Color32::from_rgb(90, 96, 110);
-    let text_primary = Color32::from_rgb(228, 232, 243);
-    let accent = Color32::from_rgb(84, 110, 255);
-    let amber = Color32::from_rgb(255, 196, 92);
-    let success = Color32::from_rgb(80, 200, 140);
-    let error_color = Color32::from_rgb(255, 100, 100);
     let warning_color = Color32::from_rgb(255, 214, 102);
 
     let frame_response = egui::Frame::new()
-        .fill(bg)
-        .inner_margin(egui::Margin::symmetric(12, 6))
+        .fill(BG_BASE)
+        .inner_margin(egui::Margin::symmetric(SPACE_XL as i8, 6))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
 
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                 // Play / Pause
                 let play_icon = if preview.is_playing {
@@ -45,13 +38,13 @@ pub(super) fn transport_bar_ui(
                 } else {
                     egui_phosphor::regular::PLAY
                 };
-                let play_color = if preview.is_playing { accent } else { text_primary };
+                let play_color = if preview.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
                 let play_btn = egui::Button::new(
                     RichText::new(play_icon).size(16.0).color(play_color),
                 )
-                .fill(Color32::from_rgb(32, 36, 44))
-                .corner_radius(egui::CornerRadius::same(4))
-                .min_size(Vec2::new(30.0, 28.0));
+                .fill(BG_WIDGET)
+                .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                .min_size(Vec2::new(30.0, ROW_L));
                 if ui
                     .add(play_btn)
                     .on_hover_text("Play/Pause (Space)")
@@ -64,11 +57,11 @@ pub(super) fn transport_bar_ui(
                 let prev_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::SKIP_BACK)
                         .size(13.0)
-                        .color(muted),
+                        .color(TEXT_MUTED),
                 )
                 .fill(Color32::TRANSPARENT)
-                .corner_radius(egui::CornerRadius::same(4))
-                .min_size(Vec2::new(26.0, 28.0));
+                .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                .min_size(Vec2::new(26.0, ROW_L));
                 if ui
                     .add(prev_btn)
                     .on_hover_text("Previous keyframe (,)")
@@ -81,11 +74,11 @@ pub(super) fn transport_bar_ui(
                 let next_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::SKIP_FORWARD)
                         .size(13.0)
-                        .color(muted),
+                        .color(TEXT_MUTED),
                 )
                 .fill(Color32::TRANSPARENT)
-                .corner_radius(egui::CornerRadius::same(4))
-                .min_size(Vec2::new(26.0, 28.0));
+                .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                .min_size(Vec2::new(26.0, ROW_L));
                 if ui
                     .add(next_btn)
                     .on_hover_text("Next keyframe (.)")
@@ -94,18 +87,18 @@ pub(super) fn transport_bar_ui(
                     actions.next_keyframe = true;
                 }
 
-                ui.add_space(6.0);
+                ui.add_space(SPACE_M);
 
                 // Editor sync
-                let sync_color = if editor_sync_enabled { accent } else { muted };
+                let sync_color = if editor_sync_enabled { ACCENT_BLUE } else { TEXT_MUTED };
                 let sync_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::LINK)
-                        .size(12.0)
+                        .size(FONT_SIZE_L)
                         .color(sync_color),
                 )
                 .fill(Color32::TRANSPARENT)
-                .corner_radius(egui::CornerRadius::same(4))
-                .min_size(Vec2::new(26.0, 28.0));
+                .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                .min_size(Vec2::new(26.0, ROW_L));
                 if ui
                     .add(sync_btn)
                     .on_hover_text("Sync editor to timeline (S)")
@@ -120,13 +113,13 @@ pub(super) fn transport_bar_ui(
                 } else {
                     egui_phosphor::regular::CIRCLE
                 };
-                let kf_color = if keyframe_mode { amber } else { muted };
+                let kf_color = if keyframe_mode { AMBER } else { TEXT_MUTED };
                 let kf_btn = egui::Button::new(
-                    RichText::new(kf_icon).size(12.0).color(kf_color),
+                    RichText::new(kf_icon).size(FONT_SIZE_L).color(kf_color),
                 )
                 .fill(Color32::TRANSPARENT)
-                .corner_radius(egui::CornerRadius::same(4))
-                .min_size(Vec2::new(26.0, 28.0));
+                .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                .min_size(Vec2::new(26.0, ROW_L));
                 if ui
                     .add(kf_btn)
                     .on_hover_text("Keyframe mode: K — create timestamps on edit")
@@ -157,14 +150,14 @@ pub(super) fn transport_bar_ui(
 
                 // Right cluster: time, status (right-to-left so they hug the edge)
                 ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
+                    ui.spacing_mut().item_spacing = Vec2::new(SPACE_M, 0.0);
 
                     let errors = diagnostics.iter().filter(|d| d.is_error()).count();
                     let warnings = diagnostics.iter().filter(|d| !d.is_error()).count();
                     let status_color = if diagnostics.is_empty() {
-                        success
+                        GREEN
                     } else if errors > 0 {
-                        error_color
+                        RED
                     } else {
                         warning_color
                     };
@@ -180,10 +173,10 @@ pub(super) fn transport_bar_ui(
 
                     let status_response = ui
                         .horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(status_label).size(11.0).color(status_color),
+                                    RichText::new(status_label).size(FONT_SIZE_M).color(status_color),
                                 )
                                 .selectable(false),
                             );
@@ -199,7 +192,7 @@ pub(super) fn transport_bar_ui(
                                 diagnostics.len(),
                                 if diagnostics.len() == 1 { "" } else { "s" }
                             ));
-                            ui.add_space(4.0);
+                            ui.add_space(SPACE_S);
                             for d in diagnostics.iter().take(10) {
                                 let prefix = if d.is_error() {
                                     format!("{} ", egui_phosphor::regular::X)
@@ -216,7 +209,7 @@ pub(super) fn transport_bar_ui(
                                 let msg = d.message.lines().next().unwrap_or(&d.message);
                                 ui.add(
                                     egui::Label::new(
-                                        RichText::new(format!("{prefix}{loc}{msg}")).size(11.0),
+                                        RichText::new(format!("{prefix}{loc}{msg}")).size(FONT_SIZE_M),
                                     )
                                     .selectable(false),
                                 );
@@ -228,7 +221,7 @@ pub(super) fn transport_bar_ui(
                                             "... and {} more",
                                             diagnostics.len() - 10
                                         ))
-                                        .size(11.0)
+                                        .size(FONT_SIZE_M)
                                         .weak(),
                                     )
                                     .selectable(false),
@@ -255,8 +248,8 @@ pub(super) fn transport_bar_ui(
                         keyframe_count
                     );
                     egui::Frame::new()
-                        .fill(Color32::from_rgb(24, 27, 33))
-                        .corner_radius(egui::CornerRadius::same(6))
+                        .fill(BG_SURFACE)
+                        .corner_radius(egui::CornerRadius::same(RADIUS_L as u8))
                         .inner_margin(egui::Margin::symmetric(8, 3))
                         .show(ui, |ui| {
                             ui.add(
@@ -267,8 +260,8 @@ pub(super) fn transport_bar_ui(
                                         preview.duration_s
                                     ))
                                     .monospace()
-                                    .size(12.0)
-                                    .color(text_primary),
+                                    .size(FONT_SIZE_L)
+                                    .color(TEXT_PRIMARY),
                                 )
                                 .selectable(false),
                             );
@@ -286,7 +279,7 @@ pub(super) fn transport_bar_ui(
             egui::pos2(bar_rect.left(), bar_rect.top()),
             egui::pos2(bar_rect.right(), bar_rect.top()),
         ],
-        Stroke::new(1.0, border_color),
+        Stroke::new(1.0, BORDER),
     );
 }
 
@@ -300,21 +293,21 @@ fn paint_transport_scrubber(
     width: f32,
     cursor_time_s: Option<f64>,
 ) -> bool {
-    let height = 20.0;
+    let height = ROW_S;
     let desired_size = Vec2::new(width.max(120.0), height);
     let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
     let duration_s = duration_s.max(0.1);
     let painter = ui.painter_at(rect);
-    let track_rect = rect.shrink2(Vec2::new(4.0, 5.0));
+    let track_rect = rect.shrink2(Vec2::new(SPACE_S, 5.0));
     let fraction = super::preview::timeline_fraction(*current_time_s, duration_s);
     let playhead_x = egui::lerp(track_rect.left()..=track_rect.right(), fraction);
 
     // Track
-    painter.rect_filled(track_rect, 4.0, Color32::from_rgb(24, 27, 33));
+    painter.rect_filled(track_rect, RADIUS_M, BG_SURFACE);
     painter.rect_stroke(
         track_rect,
-        4.0,
-        Stroke::new(1.0, Color32::from_rgb(32, 36, 44)),
+        RADIUS_M,
+        Stroke::new(1.0, BORDER),
         egui::StrokeKind::Outside,
     );
 
@@ -323,12 +316,8 @@ fn paint_transport_scrubber(
         track_rect.min,
         egui::pos2(playhead_x.max(track_rect.left()), track_rect.bottom()),
     );
-    let played_color = if is_playing {
-        Color32::from_rgb(84, 110, 255)
-    } else {
-        Color32::from_rgb(50, 60, 100)
-    };
-    painter.rect_filled(played_rect, 4.0, played_color);
+    let played_color = if is_playing { ACCENT_BLUE } else { Color32::from_rgb(50, 60, 100) };
+    painter.rect_filled(played_rect, RADIUS_M, played_color);
 
     // Tick marks
     for tick in super::preview::timeline_tick_times(duration_s) {
@@ -356,7 +345,7 @@ fn paint_transport_scrubber(
                 egui::pos2(x, track_rect.top() + 2.0),
                 egui::pos2(x, track_rect.bottom() - 2.0),
             ],
-            Stroke::new(1.5, Color32::from_rgb(255, 196, 92)),
+            Stroke::new(1.5, AMBER),
         );
     }
 
@@ -389,7 +378,7 @@ fn paint_transport_scrubber(
             egui::pos2(playhead_x, track_rect.top() - 3.0),
             egui::pos2(playhead_x, track_rect.bottom() + 3.0),
         ],
-        Stroke::new(1.5, Color32::WHITE),
+        Stroke::new(1.5, TEXT_PRIMARY),
     );
 
     // Interaction
