@@ -3,6 +3,8 @@ use super::{
     evaluate_expr_with_lookup_diagnostic, resolve_position_binding_with_lookup_diagnostic,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
+use super::property_engine::{parse_property_value, write_property_field};
+use super::property_registry::lookup_property;
 use crate::ast::{Property, Stmt};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Value;
@@ -153,6 +155,13 @@ impl Timeline {
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string()));
 
+        // Ensure the track kind matches the declaration type.
+        track.kind = match actor_type {
+            "Svg" => super::ActorKindId::Svg,
+            "Image" => super::ActorKindId::Image,
+            _ => track.kind,
+        };
+
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
         if track.first_seen_ms == u64::MAX {
@@ -219,6 +228,26 @@ impl Timeline {
             apply_explicit_position_binding(track, time_ms as u64, binding, position);
         }
 
+        // Dispatch remaining (unhandled) properties through the generic engine so
+        // universal properties like rotation and opacity work on media actors.
+        for prop in props {
+            let already_handled = match prop.name.as_str() {
+                "url" | "size" => true,
+                "scale" if actor_type == "Svg" => true, // Pre-parse scale, not transform scale
+                "at" | "anchor" | "offset" => true,
+                _ => false,
+            };
+            if already_handled {
+                continue;
+            }
+            let prop_subject = format!("{}.{}", label, prop.name);
+            if let Some(schema) = lookup_property(&prop.name) {
+                if let Some(pv) = parse_property_value(schema.value_type, &prop.value, &eval_env, diagnostics, &prop_subject) {
+                    write_property_field(track, schema.field, pv, time_ms as u64, time_ms as u64, Easing::Linear, diagnostics);
+                }
+            }
+        }
+
         match actor_type {
             "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, time_ms as u64),
             "Image" => {
@@ -252,6 +281,7 @@ impl Timeline {
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                track.kind = super::ActorKindId::Svg;
 
                 // Record first declaration time so scene evaluation can hide
                 // actors before they are declared
@@ -294,6 +324,7 @@ impl Timeline {
                     .tracks
                     .entry(label_str.clone())
                     .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+                track.kind = super::ActorKindId::Image;
 
                 // Record first declaration time so scene evaluation can hide
                 // actors before they are declared

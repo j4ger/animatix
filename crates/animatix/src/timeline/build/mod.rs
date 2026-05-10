@@ -554,6 +554,7 @@ impl Timeline {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            track.kind = super::ActorKindId::from_type_name(ty);
 
             if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;
@@ -974,6 +975,7 @@ impl Timeline {
                         .tracks
                         .entry(label.clone())
                         .or_insert_with(|| AnimationTrack::new(label.clone()));
+                    track.kind = super::ActorKindId::from_type_name(ty);
 
                     // Record first declaration time so scene evaluation can hide
                     // actors before they are declared

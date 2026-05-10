@@ -4,6 +4,18 @@ use egui::{Color32, Pos2, Stroke, Vec2};
 
 // ─── Drag State ─────────────────────────────────────────────────────────────
 
+/// Which spatial property a scale drag should mutate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ResizeMode {
+    /// Change the explicit `size` property (Vec2). Used for shapes, images,
+    /// and containers where `size` directly controls geometry.
+    Size,
+    /// Change the transform `scale` property (F32, uniform). Used for actors
+    /// with auto-measured bounds (text, plots) where dragging handles should
+    /// scale the entire rendered block.
+    Scale,
+}
+
 /// Tracks the current drag interaction on the preview canvas.
 ///
 /// All manipulation is computed in the actor's **object-local** coordinate system
@@ -39,6 +51,10 @@ pub(super) enum DragState {
         constrain_axis: bool,
         /// Whether to preserve aspect ratio (Shift held).
         uniform_ratio: bool,
+        /// Which property to mutate (`size` vs `scale`).
+        resize_mode: ResizeMode,
+        /// Transform scale at drag start (only used when `resize_mode == Scale`).
+        start_scale: f32,
     },
     /// Dragging the rotation handle.
     Rotate {

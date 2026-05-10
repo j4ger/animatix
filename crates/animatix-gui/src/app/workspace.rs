@@ -456,6 +456,27 @@ impl WorkspaceViewer<'_> {
                             std::array::from_fn(|i| scene_to_screen(handle_world[i]));
                         if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
                             let anchor_local = preview::handle_anchor_local(idx, p.size);
+                            let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                            let (resize_mode, start_scale) = self
+                                .timeline
+                                .and_then(|t| t.get_track(&actor))
+                                .map(|tr| {
+                                    let mode = match tr.kind {
+                                        animatix::timeline::ActorKindId::Text
+                                        | animatix::timeline::ActorKindId::Math
+                                        | animatix::timeline::ActorKindId::Code
+                                        | animatix::timeline::ActorKindId::Graph
+                                        | animatix::timeline::ActorKindId::CartesianPlot
+                                        | animatix::timeline::ActorKindId::PolarPlot
+                                        | animatix::timeline::ActorKindId::ParametricPlot
+                                        | animatix::timeline::ActorKindId::ImplicitPlot => {
+                                            preview::ResizeMode::Scale
+                                        }
+                                        _ => preview::ResizeMode::Size,
+                                    };
+                                    (mode, tr.scale.get(time_ms, 1.0))
+                                })
+                                .unwrap_or((preview::ResizeMode::Size, 1.0));
                             *self.drag_state = DragState::Scale {
                                 actor,
                                 handle: idx,
@@ -466,6 +487,8 @@ impl WorkspaceViewer<'_> {
                                 anchor_local,
                                 constrain_axis: preview::handle_constrains_axis(idx),
                                 uniform_ratio: ui.input(|i| i.modifiers.shift),
+                                resize_mode,
+                                start_scale,
                             };
                             // Don't process other interactions
                             return;
@@ -630,6 +653,8 @@ impl WorkspaceViewer<'_> {
                         anchor_local,
                         constrain_axis,
                         uniform_ratio,
+                        resize_mode,
+                        start_scale,
                     } => {
                         // 1. Compute mouse delta in world space
                         let dx_world = (scene.x - start_scene.x) as f32;
@@ -665,36 +690,35 @@ impl WorkspaceViewer<'_> {
                             new_h = (start_size[1] + sign[1] * dy_local).max(min_size);
                         }
 
-                        // Uniform ratio (shift or stored from drag start)
-                        let uniform = shift || uniform_ratio;
+                        // For actors with auto-measured bounds (text, plots), all
+                        // handle drags act as uniform scale of the entire block.
+                        let force_uniform = resize_mode == preview::ResizeMode::Scale;
+                        let uniform = shift || uniform_ratio || force_uniform;
                         if uniform {
-                            if constrain_axis {
-                                // Edge midpoint: scale the free axis, then derive the
-                                // constrained axis from the original aspect ratio.
+                            // Use the dominant axis and scale both proportionally
+                            let scale_w = new_w / start_size[0].max(1.0);
+                            let scale_h = new_h / start_size[1].max(1.0);
+                            let s = if constrain_axis && !force_uniform {
+                                // Edge midpoint: scale the free axis, derive the other
+                                // from the original aspect ratio.
                                 let ratio = start_size[0] / start_size[1].max(1.0);
                                 if sign[0] == 0.0 {
-                                    // Dragging top/bottom edge — width derives from height
-                                    new_w = (new_h * ratio).max(min_size);
+                                    // Dragging top/bottom — width derives from height
+                                    scale_h
                                 } else {
-                                    // Dragging left/right edge — height derives from width
-                                    new_h = (new_w / ratio).max(min_size);
+                                    // Dragging left/right — height derives from width
+                                    scale_w
                                 }
                             } else {
-                                // Corner: use the dominant axis and scale both proportionally
-                                let scale_w = new_w / start_size[0].max(1.0);
-                                let scale_h = new_h / start_size[1].max(1.0);
-                                let s = scale_w.max(scale_h);
-                                new_w = (start_size[0] * s).max(min_size);
-                                new_h = (start_size[1] * s).max(min_size);
-                            }
+                                scale_w.max(scale_h)
+                            };
+                            new_w = (start_size[0] * s).max(min_size);
+                            new_h = (start_size[1] * s).max(min_size);
                         }
 
                         // 4. Adjust position to keep anchor fixed in world space
                         let cos_rot = start_rotation.cos();
                         let sin_rot = start_rotation.sin();
-                        // anchor_local is in local space based on start_size
-                        // but anchor_local in local coords is a fraction of size (e.g. (-0.5*w, -0.5*h))
-                        // After scaling, the anchor's local position changes.
                         let old_anchor_local = [anchor_local[0], anchor_local[1]];
                         let new_anchor_local = [
                             old_anchor_local[0] * new_w / start_size[0].max(1.0),
@@ -717,12 +741,24 @@ impl WorkspaceViewer<'_> {
                             - new_anchor_local[0] * sin_rot
                             - new_anchor_local[1] * cos_rot;
 
-                        self.actions.property_edits.push(PropertyEdit {
-                            actor: actor.clone(),
-                            property: "size".into(),
-                            value: PropertyValue::Vec2([new_w, new_h]),
-                        create_keyframe: self.keyframe_mode,
-                        });
+                        // Emit the appropriate property edit
+                        if resize_mode == preview::ResizeMode::Scale {
+                            let ratio = new_w / start_size[0].max(1.0);
+                            let new_scale = (start_scale * ratio).max(0.01);
+                            self.actions.property_edits.push(PropertyEdit {
+                                actor: actor.clone(),
+                                property: "scale".into(),
+                                value: PropertyValue::Float(new_scale),
+                                create_keyframe: self.keyframe_mode,
+                            });
+                        } else {
+                            self.actions.property_edits.push(PropertyEdit {
+                                actor: actor.clone(),
+                                property: "size".into(),
+                                value: PropertyValue::Vec2([new_w, new_h]),
+                                create_keyframe: self.keyframe_mode,
+                            });
+                        }
 
                         // Route the position adjustment through the same
                         // binding-aware logic as move-drag.

@@ -7,6 +7,8 @@ use super::{
     DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Stmt, Timeline,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
+use super::property_engine::{parse_property_value, write_property_field};
+use super::property_registry::lookup_property;
 use crate::ast::Property;
 
 #[derive(Clone, Copy)]
@@ -242,6 +244,14 @@ impl Timeline {
             .entry(label_str.clone())
             .or_insert_with(|| AnimationTrack::new(label_str.clone()));
 
+        // Ensure the track kind matches the declaration type so downstream
+        // code (inspector, drag handles) can dispatch correctly.
+        track.kind = match kind {
+            TextDeclarationKind::Text => super::ActorKindId::Text,
+            TextDeclarationKind::Math => super::ActorKindId::Math,
+            TextDeclarationKind::Code => super::ActorKindId::Code,
+        };
+
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
         if track.first_seen_ms == u64::MAX {
@@ -271,6 +281,26 @@ impl Timeline {
                 preserve_instant_delayed_value(&mut track.position, t_start_ms);
             }
             apply_explicit_position_binding(track, t_start_ms, binding, position);
+        }
+
+        // Dispatch remaining (unhandled) properties through the generic engine so
+        // universal properties like scale, rotation, and opacity actually work on
+        // text / math / code actors.
+        for prop in props {
+            let already_handled = match prop.name.as_str() {
+                name if kind.content_matches(name) => true,
+                "font_family" | "font_size" | "color" | "at" | "anchor" | "offset" => true,
+                _ => false,
+            };
+            if already_handled {
+                continue;
+            }
+            let prop_subject = format!("{}.{}", label_str, prop.name);
+            if let Some(schema) = lookup_property(&prop.name) {
+                if let Some(pv) = parse_property_value(schema.value_type, &prop.value, &eval_env, diagnostics, &prop_subject) {
+                    write_property_field(track, schema.field, pv, t_start_ms, t_end_ms, easing, diagnostics);
+                }
+            }
         }
 
         // Store font_family and font_size on the track so Phase-2 runtime recompilation

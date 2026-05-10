@@ -195,6 +195,10 @@ pub enum Applicable {
     AllShapes,
     /// Applies to all shapes except Line (fill-related properties).
     AllShapesExceptLine,
+    /// Applies to shapes and text/math/code (actors with fillable/colorable content).
+    AllDrawables,
+    /// Applies to shapes, image, plots, and containers (actors with meaningful bounds).
+    SizedActors,
     /// Applies to specific shape kinds.
     ShapeKinds(&'static [super::ShapeKind]),
     /// Applies to specific non-shape actor kinds.
@@ -213,6 +217,12 @@ impl Applicable {
             Applicable::AllShapes => matches!(kind, Shape(_)),
             Applicable::AllShapesExceptLine => {
                 matches!(kind, Shape(sk) if sk != ShapeKind::Line)
+            }
+            Applicable::AllDrawables => {
+                matches!(kind, Shape(_) | Text | Math | Code)
+            }
+            Applicable::SizedActors => {
+                matches!(kind, Shape(_) | Image | Graph | CartesianPlot | PolarPlot | ParametricPlot | ImplicitPlot | Row | Col | Grid | Stack)
             }
             Applicable::ShapeKinds(kinds) => {
                 matches!(kind, Shape(sk) if kinds.contains(&sk))
@@ -268,7 +278,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     PropertySchema { name: "at",           value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), applicable: Applicable::Everything },
     PropertySchema { name: "background_color", value_type: ValueType::Color,  flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::Never },
     PropertySchema { name: "code",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent,        group: None,                             applicable: Applicable::ActorKinds(&[A::Code]) },
-    PropertySchema { name: "color",        value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "color",        value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::AllDrawables },
     PropertySchema { name: "cols",         value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Grid]) },
     PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
     PropertySchema { name: "fill_opacity", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::FillOpacity,        group: None,                             applicable: Applicable::AllShapesExceptLine },
@@ -291,7 +301,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     PropertySchema { name: "rotation",     value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Rotation,           group: None,                             applicable: Applicable::Everything },
     PropertySchema { name: "scale",        value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Scale,              group: None,                             applicable: Applicable::Everything },
     PropertySchema { name: "sides",        value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
-    PropertySchema { name: "size",         value_type: ValueType::Vec2,       flags: F::ALL,                      field: ActorField::Size,               group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "size",         value_type: ValueType::Vec2,       flags: F::ALL,                      field: ActorField::Size,               group: None,                             applicable: Applicable::SizedActors },
     PropertySchema { name: "start_angle",  value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::ArcAngles,          group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Arc]) },
     PropertySchema { name: "stroke",       value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor,        group: None,                             applicable: Applicable::AllShapes },
     PropertySchema { name: "stroke_color", value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::StrokeColor,        group: None,                             applicable: Applicable::Never },
