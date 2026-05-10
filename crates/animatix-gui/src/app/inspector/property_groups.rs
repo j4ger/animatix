@@ -68,6 +68,7 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let has_kf_now = property_has_keyframe_at(track, schema.field, time_ms);
 
         let Some(value) = value else { continue };
+        let value = convert_for_display(value, schema.name, track.kind);
         let kind = value_to_kind(value, schema.value_type, &schema.name);
         let entry = PropertyEntry {
             name: schema.name,
@@ -145,6 +146,59 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     }
 
     groups
+}
+
+/// Convert a stored property value to a display value.
+///
+/// Several properties are stored on shared fields (e.g. `radius` is stored
+/// in the `size` Vec2 track) or use half-extent internally while the UI
+/// shows full dimensions.  This function normalises those cases.
+fn convert_for_display(
+    value: PropertyValue,
+    name: &str,
+    _kind: animatix::timeline::ActorKindId,
+) -> PropertyValue {
+    match name {
+        // Radius properties are stored as the x or y component of `size`.
+        "radius" | "radius_x" => {
+            if let PropertyValue::Vec2(v) = value {
+                PropertyValue::F32(v[0])
+            } else {
+                value
+            }
+        }
+        "radius_y" => {
+            if let PropertyValue::Vec2(v) = value {
+                PropertyValue::F32(v[1])
+            } else {
+                value
+            }
+        }
+        // `size` is stored as half-extents; the inspector shows full dimensions.
+        "size" => {
+            if let PropertyValue::Vec2(v) = value {
+                PropertyValue::Vec2([v[0] * 2.0, v[1] * 2.0])
+            } else {
+                value
+            }
+        }
+        // Angle properties are stored as components of `arc_angles`.
+        "start_angle" => {
+            if let PropertyValue::Vec2(v) = value {
+                PropertyValue::F32(v[0])
+            } else {
+                value
+            }
+        }
+        "sweep_angle" => {
+            if let PropertyValue::Vec2(v) = value {
+                PropertyValue::F32(v[1])
+            } else {
+                value
+            }
+        }
+        _ => value,
+    }
 }
 
 fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKind {

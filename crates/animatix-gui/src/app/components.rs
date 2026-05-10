@@ -219,32 +219,42 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
     ui.add_space(5.0);
 
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-        ui.add(
-            egui::Label::new(egui::RichText::new(icon).size(FONT_SIZE_S).color(TEXT_MUTED))
-                .selectable(false),
+    let available = ui.available_width();
+    let row_h = ROW_S;
+    let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+    let baseline_y = row_rect.center().y;
+    let mut cursor_x = row_rect.min.x;
+
+    // Icon
+    ui.painter().text(
+        egui::pos2(cursor_x + 7.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TEXT_MUTED,
+    );
+    cursor_x += 18.0;
+
+    // Title
+    ui.painter().text(
+        egui::pos2(cursor_x, baseline_y),
+        egui::Align2::LEFT_CENTER,
+        title.to_uppercase(),
+        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TEXT_MUTED,
+    );
+
+    // Count (right-aligned)
+    if let Some(n) = count {
+        ui.painter().text(
+            egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+            egui::Align2::RIGHT_CENTER,
+            n.to_string(),
+            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TEXT_MUTED,
         );
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new(title.to_uppercase())
-                    .size(FONT_SIZE_XS)
-                    .color(TEXT_MUTED)
-                    .strong(),
-            )
-            .selectable(false),
-        );
-        if let Some(n) = count {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(n.to_string())
-                        .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-        }
-    });
+    }
+
     ui.add_space(SPACE_S);
 }
 

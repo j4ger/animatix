@@ -210,6 +210,7 @@ fn render_code_cell(
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                             let toggle = if expanded {
                                 egui_phosphor::regular::CARET_DOWN
                             } else {
@@ -222,11 +223,13 @@ fn render_code_cell(
                             ) {
                                 cell.set_expanded(!expanded);
                             }
-                            ui.label(
-                                RichText::new(format!("Code {index}"))
-                                    .monospace()
-                                    .size(11.0)
-                                    .color(Color32::from_rgb(140, 150, 170)),
+                            ui.add(
+                                egui::Label::new(
+                                    RichText::new(format!("Code {index}"))
+                                        .size(11.0)
+                                        .color(Color32::from_rgb(140, 150, 170)),
+                                )
+                                .selectable(false),
                             );
                         });
 
@@ -309,6 +312,7 @@ fn render_keyframe_cell(
                             .show(ui, |ui| {
                                 ui.set_min_height(26.0);
                                 ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                                     // Play
                                     if ghost_icon_btn(
                                         ui,
@@ -317,8 +321,6 @@ fn render_keyframe_cell(
                                     ) {
                                         on_scrub_to_time(time_s);
                                     }
-
-                                    ui.add_space(6.0);
 
                                     // Editable timestamp
                                     render_timestamp_editor(

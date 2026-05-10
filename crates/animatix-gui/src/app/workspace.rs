@@ -352,34 +352,38 @@ impl WorkspaceViewer<'_> {
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
             // Minimal header
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::Label::new(
-                        RichText::new("Preview")
-                            .strong()
-                            .size(12.0)
-                            .color(Color32::from_rgb(150, 158, 175)),
-                    )
-                    .selectable(false),
-                );
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if self.preview.is_playing {
-                        badge(
-                            ui,
-                            "Playing",
-                            Color32::from_rgb(46, 106, 80),
-                            Color32::from_rgb(216, 249, 235),
-                        );
-                    } else {
-                        badge(
-                            ui,
-                            "Paused",
-                            Color32::from_rgb(40, 44, 52),
-                            Color32::from_rgb(150, 158, 175),
-                        );
-                    }
-                });
-            });
+            let header_avail = ui.available_width();
+            let header_h = ROW_S;
+            let (header_rect, _) = ui.allocate_exact_size(Vec2::new(header_avail, header_h), egui::Sense::hover());
+            let baseline_y = header_rect.center().y;
+
+            ui.painter().text(
+                egui::pos2(header_rect.min.x, baseline_y),
+                egui::Align2::LEFT_CENTER,
+                "Preview",
+                egui::FontId::new(12.0, egui::FontFamily::Proportional),
+                Color32::from_rgb(150, 158, 175),
+            );
+
+            // Status badge (right-aligned)
+            let (badge_label, badge_fill, badge_text) = if self.preview.is_playing {
+                ("Playing", Color32::from_rgb(46, 106, 80), Color32::from_rgb(216, 249, 235))
+            } else {
+                ("Paused", Color32::from_rgb(40, 44, 52), Color32::from_rgb(150, 158, 175))
+            };
+            let badge_w = badge_label.len() as f32 * 7.0 + 16.0;
+            let badge_rect = egui::Rect::from_min_size(
+                egui::pos2(header_rect.max.x - badge_w, header_rect.min.y + 2.0),
+                Vec2::new(badge_w, header_h - 4.0),
+            );
+            ui.painter().rect_filled(badge_rect, 6.0, badge_fill);
+            ui.painter().text(
+                badge_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                badge_label,
+                egui::FontId::new(11.0, egui::FontFamily::Proportional),
+                badge_text,
+            );
 
             ui.add_space(4.0);
 

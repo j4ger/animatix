@@ -1041,13 +1041,17 @@ fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl F
 }
 
 fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
-    egui::Frame::new()
-        .fill(fill)
-        .corner_radius(egui::CornerRadius::same(8))
-        .inner_margin(egui::Margin::symmetric(8, 4))
-        .show(ui, |ui| {
-            ui.add(egui::Label::new(RichText::new(label).color(text).strong()).selectable(false));
-        });
+    let badge_w = label.len() as f32 * 7.0 + 16.0;
+    let badge_h = 20.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(badge_w, badge_h), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::new(11.0, egui::FontFamily::Proportional),
+        text,
+    );
 }
 
 fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {

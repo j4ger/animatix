@@ -289,46 +289,65 @@ pub fn allowed_property_indices(
     let mut names: Vec<&'static str> = Vec::new();
 
     // Universal geometry
-    names.extend_from_slice(&["at", "anchor", "offset", "position", "rotation", "scale", "size"]);
-
-    // Universal style (most actors have these)
-    match kind {
-        Group => {}
-        _ => {
-            names.extend_from_slice(&["color", "opacity", "fill_opacity"]);
-        }
-    }
+    names.extend_from_slice(&["at", "anchor", "offset", "position", "rotation", "scale"]);
 
     match kind {
         Shape(sk) => {
-            names.extend_from_slice(&[
-                "radius", "radius_x", "radius_y",
-                "from", "to",
-                "start_angle", "sweep_angle", "arc_angles",
-                "points", "commands",
-                "stroke", "stroke_color", "stroke_width", "stroke_progress",
-                "sides", "tip_length", "tip_width",
-                "width", // → stroke_width alias
-            ]);
-            if sk == ShapeKind::Path {
-                names.push("commands");
+            // Base style — all shapes except Line support fill.
+            match sk {
+                ShapeKind::Line => {
+                    names.extend_from_slice(&["stroke", "stroke_width", "stroke_progress"]);
+                }
+                _ => {
+                    names.extend_from_slice(&[
+                        "color", "opacity", "fill_opacity",
+                        "stroke", "stroke_width", "stroke_progress",
+                    ]);
+                }
             }
+
+            // Shape-specific geometry
+            match sk {
+                ShapeKind::Rect | ShapeKind::Square => {
+                    names.push("size");
+                }
+                ShapeKind::Circle | ShapeKind::Dot | ShapeKind::RegularPolygon => {
+                    names.push("radius");
+                }
+                ShapeKind::Ellipse => {
+                    names.extend_from_slice(&["radius_x", "radius_y"]);
+                }
+                ShapeKind::Arc => {
+                    names.extend_from_slice(&["radius_x", "radius_y", "start_angle", "sweep_angle"]);
+                }
+                ShapeKind::Line | ShapeKind::Arrow => {
+                    names.extend_from_slice(&["from", "to"]);
+                }
+                ShapeKind::Polygon => {
+                    // points is build-time only — not readable at runtime
+                }
+                ShapeKind::Path => {
+                    // commands is build-time only
+                }
+            }
+
+            // Arrow-only tip sizing
             if sk == ShapeKind::Arrow {
                 names.extend_from_slice(&["tip_length", "tip_width"]);
             }
         }
         Text | Math | Code => {
-            names.extend_from_slice(&["font_size", "font_family"]);
+            names.extend_from_slice(&["font_size", "font_family", "opacity"]);
             if kind == Text {
                 names.push("text");
             }
             if kind == Math {
-                names.extend_from_slice(&["latex", "math"]);
+                names.push("math");
             }
             if kind == Code {
                 names.push("code");
             }
-            names.extend_from_slice(&["stroke", "stroke_color", "stroke_width", "stroke_progress"]);
+            // Text actors do not support stroke — glyphs are filled only.
         }
         Image => {
             names.extend_from_slice(&["url", "size"]);

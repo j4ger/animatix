@@ -1,5 +1,6 @@
 use super::*;
 use super::workspace;
+use animatix::timeline::TrackAccessor;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: workspace::PropertyEdit) {
@@ -296,6 +297,50 @@ fn apply_property_edit_to_track(
                 let pt = track.stroke_width.get_or_insert_with(|| PropertyTrack::new(*v));
                 pt.default_value = *v;
                 pt.add_keyframe(time_ms, *v, linear);
+            }
+        }
+        "radius" => {
+            if let PV::Float(v) = value {
+                let size = [*v, *v];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                pt.default_value = size;
+                pt.add_keyframe(time_ms, size, linear);
+            }
+        }
+        "radius_x" => {
+            if let PV::Float(v) = value {
+                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let size = [*v, current[1]];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                pt.default_value = size;
+                pt.add_keyframe(time_ms, size, linear);
+            }
+        }
+        "radius_y" => {
+            if let PV::Float(v) = value {
+                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let size = [current[0], *v];
+                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                pt.default_value = size;
+                pt.add_keyframe(time_ms, size, linear);
+            }
+        }
+        "start_angle" => {
+            if let PV::Float(v) = value {
+                let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+                let angles = [*v, current[1]];
+                let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
+                pt.default_value = angles;
+                pt.add_keyframe(time_ms, angles, linear);
+            }
+        }
+        "sweep_angle" => {
+            if let PV::Float(v) = value {
+                let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+                let angles = [current[0], *v];
+                let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
+                pt.default_value = angles;
+                pt.add_keyframe(time_ms, angles, linear);
             }
         }
         "stroke_progress" => {

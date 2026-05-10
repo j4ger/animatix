@@ -165,56 +165,60 @@ pub(super) fn inspector_ui(
 
 fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s: f64) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
+    let available = ui.available_width();
+    let row_h = ROW_L;
+    let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+    let baseline_y = row_rect.center().y;
+    let mut cursor_x = row_rect.min.x;
 
-    ui.horizontal(|ui| {
-        if let Some(shape_pt) = &track.shape_type {
-            let shape = shape_pt.evaluate(current_time_ms);
-            ui.add(
-                egui::Label::new(
-                    RichText::new(shape_icon(shape)).size(FONT_SIZE_XL).color(AMBER),
-                )
-                .selectable(false),
-            );
-        }
-
-        ui.add(
-            egui::Label::new(
-                RichText::new(&track.label)
-                    .strong()
-                    .size(FONT_SIZE_XL)
-                    .color(TEXT_PRIMARY),
-            )
-            .selectable(false),
+    // Shape icon
+    if let Some(shape_pt) = &track.shape_type {
+        let shape = shape_pt.evaluate(current_time_ms);
+        ui.painter().text(
+            egui::pos2(cursor_x + 10.0, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            shape_icon(shape),
+            egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+            AMBER,
         );
+        cursor_x += 22.0;
+    }
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!(
-                            "t = {:.2}s",
-                            track.first_seen_ms as f64 / 1000.0
-                        ))
-                        .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
-                    )
-                    .selectable(false),
-                );
-            }
+    // Actor label
+    ui.painter().text(
+        egui::pos2(cursor_x, baseline_y),
+        egui::Align2::LEFT_CENTER,
+        &track.label,
+        egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+        TEXT_PRIMARY,
+    );
 
-            if let Some(shape_pt) = &track.shape_type {
-                let shape = shape_pt.evaluate(current_time_ms);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!("{:?}", shape))
-                            .size(FONT_SIZE_S)
-                            .color(TEXT_MUTED),
-                    )
-                    .selectable(false),
-                );
-            }
-        });
-    });
+    // Right-aligned metadata (shape type + first seen time)
+    let mut right_x = row_rect.max.x - SPACE_S;
+    if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
+        let time_text = format!("t = {:.2}s", track.first_seen_ms as f64 / 1000.0);
+        ui.painter().text(
+            egui::pos2(right_x, baseline_y),
+            egui::Align2::RIGHT_CENTER,
+            time_text,
+            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TEXT_MUTED,
+        );
+        // Approximate width for positioning
+        right_x -= 60.0;
+    }
+
+    if let Some(shape_pt) = &track.shape_type {
+        let shape = shape_pt.evaluate(current_time_ms);
+        let shape_text = format!("{:?}", shape);
+        ui.painter().text(
+            egui::pos2(right_x, baseline_y),
+            egui::Align2::RIGHT_CENTER,
+            shape_text,
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TEXT_MUTED,
+        );
+    }
 }
 
 fn shape_icon(shape: ShapeType) -> &'static str {
