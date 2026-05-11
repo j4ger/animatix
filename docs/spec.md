@@ -177,7 +177,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Entrance:** `fade-in`, `draw-in`, `wipe-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
-- **Reorder:** `swap`
+- **Reorder:** `swap`, `reorder`
 
 **Rotation:** Two ways to rotate:
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor)
@@ -238,14 +238,29 @@ The GUI supports canvas drag-to-reorder for layout-managed children. Dragging a 
 
 The inspector also exposes up/down arrow buttons for each child when a container is selected.
 
-**Future: `reorder` action**
+**`reorder`**
 
-A planned runtime `reorder` action would allow explicit full-order specification (e.g. reversing a container), independent of swap history. Unlike `swap`, it could support overlapping transitions by capturing a snapshot of the current order at action start time.
+`reorder container [order: (childA, childB, childC), duration]` — Reorders all children of a container to a specified order. The `order` modifier is required and must be a tuple containing exactly the same labels as the container's current children (no additions or omissions). Requires `dynamic_layout: true`.
 
 ```animatix
-# Reverse a row
-reorder row [c, b, a] [500ms]
+config { dynamic_layout: true }
+
+row: Row, gap: 8 {
+  a: Rect, size: (30, 40)
+  b: Rect, size: (30, 80)
+  c: Rect, size: (30, 60)
+}
+
+# Reverse the row
+#2s
+reorder row [order: (c, b, a), 500ms, ease: ease-out]
+
+# Back to original order
+#3s
+reorder row [order: (a, b, c), 500ms, ease: ease-out]
 ```
+
+Overlapping reorders on the same container are disallowed and emit a diagnostic, same as `swap`.
 
 **Composition:**
 

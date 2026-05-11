@@ -726,4 +726,13 @@ btn: Rect, size: (100, 200) // half-extents"#;
         assert_eq!(prop.to_source(), "size: (100, 200)  // half-extents");
     }
 
+    #[test]
+    fn parse_reorder_demo() {
+        let source = include_str!("../../../examples/reorder_demo.amx");
+        let parsed = crate::parser::parser().parse(source).unwrap();
+        let serialized = stmts_to_source(&parsed);
+        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        assert_eq!(parsed.len(), reparsed.len());
+    }
+
 }

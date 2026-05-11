@@ -14,7 +14,7 @@ use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use motion::{Move, Rotate, Scale, Shift};
 use registry::{ActionSignature, BuiltinAction};
-use reorder::Swap;
+use reorder::{Reorder, Swap};
 use reveal::{DrawIn, DrawOut, RevealOut, WipeOut};
 
 fn push_unknown_action_diagnostic(
@@ -153,6 +153,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(Pulse),
         Box::new(Bounce),
         Box::new(Swap),
+        Box::new(Reorder),
     ]
 }
 
@@ -442,6 +443,198 @@ mod tests {
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
         // Only the first swap's keyframe should exist
+        let track = timeline.child_orders.get("row").unwrap();
+        assert_eq!(track.keyframes.len(), 1);
+    }
+
+    #[test]
+    fn reorder_action_requires_exactly_one_target() {
+        let action = Action {
+            verb: "reorder".to_string(),
+            targets: vec![],
+            args: vec![],
+            modifiers: vec![],
+            byte_span: None,
+        };
+        let mut timeline = Timeline::new();
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+
+        assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
+        assert!(timeline.child_orders.is_empty());
+    }
+
+    #[test]
+    fn reorder_action_requires_order_modifier() {
+        let mut timeline = Timeline::new();
+        timeline.tracks.insert("row".to_string(), AnimationTrack::new("row".to_string()));
+
+        let action = Action {
+            verb: "reorder".to_string(),
+            targets: vec!["row".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+            byte_span: None,
+        };
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+
+        assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
+        assert!(timeline.child_orders.is_empty());
+    }
+
+    #[test]
+    fn reorder_action_sets_child_order_keyframe() {
+        let mut timeline = Timeline::new();
+
+        // Set up container with children
+        let mut parent_track = AnimationTrack::new("row".to_string());
+        parent_track.children.push("a".to_string());
+        parent_track.children.push("b".to_string());
+        parent_track.children.push("c".to_string());
+        timeline.tracks.insert("row".to_string(), parent_track);
+
+        for label in ["a", "b", "c"] {
+            let mut child = AnimationTrack::new(label.to_string());
+            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            timeline.tracks.insert(label.to_string(), child);
+        }
+
+        timeline.container_metadata.insert(
+            "row".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                padding: 0.0,
+                align: "center".to_string(),
+                cols: None,
+                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                layout_children: vec![
+                    ContainerLayoutChild { label: "a".to_string() },
+                    ContainerLayoutChild { label: "b".to_string() },
+                    ContainerLayoutChild { label: "c".to_string() },
+                ],
+            },
+        );
+
+        let action = Action {
+            verb: "reorder".to_string(),
+            targets: vec!["row".to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("order".to_string()),
+                    value: crate::ast::Expr::Tuple(vec![
+                        crate::ast::Expr::Ident("c".to_string()),
+                        crate::ast::Expr::Ident("b".to_string()),
+                        crate::ast::Expr::Ident("a".to_string()),
+                    ]),
+                },
+                Modifier {
+                    name: None,
+                    value: crate::ast::Expr::Ident("500ms".to_string()),
+                },
+            ],
+            byte_span: None,
+        };
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
+        assert_eq!(timeline.child_orders.len(), 1);
+
+        let track = timeline.child_orders.get("row").unwrap();
+        assert_eq!(track.keyframes.len(), 1);
+        let (order, _) = track.keyframes.get(&500).unwrap();
+        assert_eq!(order, &vec!["c".to_string(), "b".to_string(), "a".to_string()]);
+    }
+
+    #[test]
+    fn reorder_action_detects_overlapping_reorders() {
+        let mut timeline = Timeline::new();
+
+        // Set up container with children
+        let mut parent_track = AnimationTrack::new("row".to_string());
+        parent_track.children.push("a".to_string());
+        parent_track.children.push("b".to_string());
+        timeline.tracks.insert("row".to_string(), parent_track);
+
+        for label in ["a", "b"] {
+            let mut child = AnimationTrack::new(label.to_string());
+            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            timeline.tracks.insert(label.to_string(), child);
+        }
+
+        timeline.container_metadata.insert(
+            "row".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                padding: 0.0,
+                align: "center".to_string(),
+                cols: None,
+                child_order: vec!["a".to_string(), "b".to_string()],
+                layout_children: vec![
+                    ContainerLayoutChild { label: "a".to_string() },
+                    ContainerLayoutChild { label: "b".to_string() },
+                ],
+            },
+        );
+
+        // First reorder at 0s, completes at 500ms
+        let action1 = Action {
+            verb: "reorder".to_string(),
+            targets: vec!["row".to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("order".to_string()),
+                    value: crate::ast::Expr::Tuple(vec![
+                        crate::ast::Expr::Ident("b".to_string()),
+                        crate::ast::Expr::Ident("a".to_string()),
+                    ]),
+                },
+                Modifier {
+                    name: None,
+                    value: crate::ast::Expr::Ident("500ms".to_string()),
+                },
+            ],
+            byte_span: None,
+        };
+        let mut diagnostics = Vec::new();
+        process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
+        assert!(diagnostics.is_empty());
+
+        // Second reorder at 200ms, would complete at 700ms — overlaps with first
+        let action2 = Action {
+            verb: "reorder".to_string(),
+            targets: vec!["row".to_string()],
+            args: vec![],
+            modifiers: vec![
+                Modifier {
+                    name: Some("order".to_string()),
+                    value: crate::ast::Expr::Tuple(vec![
+                        crate::ast::Expr::Ident("a".to_string()),
+                        crate::ast::Expr::Ident("b".to_string()),
+                    ]),
+                },
+                Modifier {
+                    name: None,
+                    value: crate::ast::Expr::Ident("500ms".to_string()),
+                },
+            ],
+            byte_span: None,
+        };
+        let mut diagnostics2 = Vec::new();
+        process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
+
+        assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
         let track = timeline.child_orders.get("row").unwrap();
         assert_eq!(track.keyframes.len(), 1);
     }

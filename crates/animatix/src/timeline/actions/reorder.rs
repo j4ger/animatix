@@ -1,9 +1,10 @@
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::Action;
+use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
+use crate::ast::{Action, Expr, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 pub struct Swap;
+pub struct Reorder;
 
 impl BuiltinAction for Swap {
     fn signature(&self) -> ActionSignature {
@@ -159,6 +160,182 @@ impl BuiltinAction for Swap {
         timeline
             .child_orders
             .entry(parent)
+            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order))
+            .add_keyframe(t_end_ms, new_order, easing);
+
+        // Invalidate frame cache so next evaluation picks up the new order
+        timeline.invalidate_frame_cache();
+    }
+}
+
+impl BuiltinAction for Reorder {
+    fn signature(&self) -> ActionSignature {
+        let mut modifiers = base_timing_params();
+        modifiers.push(ActionParam {
+            name: "order".to_string(),
+            description: "New child order as a tuple of labels (e.g. [order: (c, b, a)]).".to_string(),
+            type_info: "tuple of identifiers".to_string(),
+        });
+        ActionSignature {
+            name: "reorder".to_string(),
+            category: "Reorder".to_string(),
+            description: "Reorders all children of a container to a specified order.".to_string(),
+            params: vec![],
+            modifiers,
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Need exactly 1 target (the container)
+        if action.targets.len() != 1 {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidModifierValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Reorder action requires exactly 1 target (the container), got {}.",
+                        action.targets.len()
+                    ),
+                )
+                .with_subject(format!("{} {}", action.verb, action.targets.join(", "))),
+            );
+            return;
+        }
+
+        let container = &action.targets[0];
+
+        // Verify container exists
+        if !timeline.tracks.contains_key(container) {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::UnsupportedActionTarget,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Reorder action target '{}' is not declared yet.",
+                        container
+                    ),
+                )
+                .with_subject(container),
+            );
+            return;
+        }
+
+        // Parse the order modifier
+        let mut order_expr: Option<&Expr> = None;
+        for modifier in &action.modifiers {
+            if modifier.name.as_deref() == Some("order") {
+                order_expr = Some(&modifier.value);
+                break;
+            }
+        }
+
+        let new_order = match order_expr {
+            Some(Expr::Tuple(items)) => {
+                let mut labels = Vec::new();
+                for item in items {
+                    match item {
+                        Expr::Ident(label) | Expr::Str(label) => labels.push(label.clone()),
+                        _ => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidModifierValue,
+                                    DiagnosticPhase::Build,
+                                    "Reorder 'order' modifier must be a tuple of identifier labels (e.g. (c, b, a))."
+                                        .to_string(),
+                                )
+                                .with_subject(format!("{} {}", action.verb, container)),
+                            );
+                            return;
+                        }
+                    }
+                }
+                labels
+            }
+            _ => {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidModifierValue,
+                        DiagnosticPhase::Build,
+                        "Reorder action requires an 'order' modifier with a tuple of labels (e.g. [order: (c, b, a)])."
+                            .to_string(),
+                    )
+                    .with_subject(format!("{} {}", action.verb, container)),
+                );
+                return;
+            }
+        };
+
+        // Get current order to validate against
+        let current_order = timeline.get_child_order(container, time_ms as u64);
+
+        // Validate: the new order must contain exactly the same children
+        let current_set: std::collections::HashSet<_> = current_order.iter().collect();
+        let new_set: std::collections::HashSet<_> = new_order.iter().collect();
+
+        if current_set != new_set {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidModifierValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Reorder 'order' must contain exactly the same children as the container '{}'. Expected {:?}, got {:?}.",
+                        container, current_order, new_order
+                    ),
+                )
+                .with_subject(format!("{} {}", action.verb, container)),
+            );
+            return;
+        }
+
+        // Parse timing modifiers (excluding 'order')
+        let timing_modifiers: Vec<Modifier> = action
+            .modifiers
+            .iter()
+            .filter(|m| m.name.as_deref() != Some("order"))
+            .cloned()
+            .collect();
+
+        let parsed = parse_timing_modifiers(
+            &timing_modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        // Check for overlapping reorder on same container
+        if let Some(track) = timeline.child_orders.get(container) {
+            if let Some((&pending_time, _)) = track.keyframes.range(t_start_ms..).next() {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::ConflictingModifierKey,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Reorder action on '{}' overlaps with a pending reorder that completes at {}ms. Reorders on the same container must not overlap in time.",
+                            container, pending_time
+                        ),
+                    )
+                    .with_subject(format!("{} {}", action.verb, container)),
+                );
+                return;
+            }
+        }
+
+        // Set keyframe
+        timeline
+            .child_orders
+            .entry(container.clone())
             .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order))
             .add_keyframe(t_end_ms, new_order, easing);
 
