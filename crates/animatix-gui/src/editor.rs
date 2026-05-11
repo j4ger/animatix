@@ -177,6 +177,16 @@ impl EditorBuffer {
         self.pending_scroll_to_line = Some(line);
     }
 
+    /// Current focused cell index, if any.
+    pub fn focused_cell(&self) -> Option<usize> {
+        self.cell_state.focused_cell
+    }
+
+    /// Override the focused cell index.
+    pub fn set_focused_cell(&mut self, cell: Option<usize>) {
+        self.cell_state.focused_cell = cell;
+    }
+
     pub fn set_highlighted_line(&mut self, line: Option<usize>) {
         self.highlighted_line = line;
         // Map source line to cell index for cell-level highlighting

@@ -183,6 +183,8 @@ struct GuiShell {
     /// Actor labels that the user has explicitly collapsed in the layer tree.
     /// All actors are expanded by default.
     collapsed_actors: HashSet<String>,
+    /// Whether the bottom diagnostics panel is visible.
+    diagnostics_panel_visible: bool,
 }
 
 impl GuiShell {
@@ -265,6 +267,7 @@ impl GuiShell {
             keyframe_mode: false,
             cursor_time_s: None,
             collapsed_actors: HashSet::new(),
+            diagnostics_panel_visible: false,
         }
     }
 
@@ -327,7 +330,7 @@ impl GuiShell {
             .resizable(false)
             .show_inside(ui, |ui| self.toolbar_ui(ui, &mut actions));
 
-        // Transport bar at bottom (replaces status bar)
+        // Transport bar at the very bottom
         let keyframe_count = self
             .document
             .timeline
@@ -368,6 +371,23 @@ impl GuiShell {
                     self.cursor_time_s,
                 );
             });
+
+        // Diagnostics panel (above transport bar, collapsible)
+        if self.diagnostics_panel_visible && !diagnostics.is_empty() {
+            egui::Panel::bottom("diagnostics_panel")
+                .resizable(true)
+                .default_height(180.0)
+                .min_height(80.0)
+                .max_height(400.0)
+                .show_inside(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    if let Some(line) =
+                        components::diagnostics_list(ui, &diagnostics)
+                    {
+                        actions.scroll_to_line = Some(line);
+                    }
+                });
+        }
 
         // Central workspace — edge-to-edge tiles, no outer margin
         egui::CentralPanel::default()
@@ -535,6 +555,9 @@ impl GuiShell {
         }
         if actions.show_inspector {
             self.open_workspace_tab(WorkspaceTab::Inspector);
+        }
+        if actions.toggle_diagnostics_panel {
+            self.diagnostics_panel_visible = !self.diagnostics_panel_visible;
         }
         if actions.save {
             let _ = self.save();

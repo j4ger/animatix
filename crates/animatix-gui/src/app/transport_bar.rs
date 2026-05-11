@@ -154,39 +154,41 @@ pub(super) fn transport_bar_ui(
 
                     let errors = diagnostics.iter().filter(|d| d.is_error()).count();
                     let warnings = diagnostics.iter().filter(|d| !d.is_error()).count();
-                    let status_color = if diagnostics.is_empty() {
-                        GREEN
+
+                    // 1. Diagnostics badge (rightmost) — clickable button
+                    let badge_response = if diagnostics.is_empty() {
+                        components::icon_button_colored(
+                            ui,
+                            egui_phosphor::regular::CHECK,
+                            "Build successful",
+                            GREEN,
+                            GREEN,
+                        )
                     } else if errors > 0 {
-                        RED
+                        components::badge_button(
+                            ui,
+                            egui_phosphor::regular::X,
+                            errors,
+                            RED,
+                            RED,
+                            "Click to toggle diagnostics panel",
+                        )
                     } else {
-                        warning_color
+                        components::badge_button(
+                            ui,
+                            egui_phosphor::regular::WARNING,
+                            warnings,
+                            warning_color,
+                            warning_color,
+                            "Click to toggle diagnostics panel",
+                        )
                     };
 
-                    // 1. Build status (rightmost)
-                    let status_label = if diagnostics.is_empty() {
-                        egui_phosphor::regular::CHECK.to_string()
-                    } else if errors > 0 {
-                        format!("{} {}", egui_phosphor::regular::WARNING, errors)
+                    // Detailed tooltip for non-empty diagnostic sets
+                    let badge_response = if diagnostics.is_empty() {
+                        badge_response
                     } else {
-                        format!("{} {}", egui_phosphor::regular::WARNING, warnings)
-                    };
-
-                    let status_response = ui
-                        .horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new(status_label).size(FONT_SIZE_M).color(status_color),
-                                )
-                                .selectable(false),
-                            );
-                        })
-                        .response;
-
-                    let status_response = if diagnostics.is_empty() {
-                        status_response.on_hover_text("Build successful")
-                    } else {
-                        status_response.on_hover_ui(|ui| {
+                        badge_response.on_hover_ui(|ui| {
                             ui.strong(format!(
                                 "{} diagnostic{}",
                                 diagnostics.len(),
@@ -230,13 +232,8 @@ pub(super) fn transport_bar_ui(
                         })
                     };
 
-                    if !diagnostics.is_empty() && status_response.clicked() {
-                        if let Some(first) =
-                            diagnostics.iter().find(|d| d.location.line.is_some())
-                        {
-                            actions.scroll_to_line =
-                                first.location.line.map(|l| l.saturating_sub(1));
-                        }
+                    if badge_response.clicked() {
+                        actions.toggle_diagnostics_panel = true;
                     }
 
                     // 2. Time pill (left of status, closest to scrubber)

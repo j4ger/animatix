@@ -1,10 +1,28 @@
 //! High-level reusable UI components.
 //!
-//! Built on top of egui primitives, themed consistently.
+//! All components in this module are built on top of egui primitives and share
+//! the design tokens from [`crate::app::theme`].  When adding new UI, prefer
+//! these components over raw egui widgets so the interface stays uniform.
+//!
+//! # Component catalogue
+//!
+//! | Component | Purpose |
+//! |-----------|---------|
+//! | [`Row`] | Full-width interactive row (sidebar, property lists, trees) |
+//! | [`card`] | Styled container with surface background and rounded corners |
+//! | [`section_header`] | Collapsible section header with accent line and icon |
+//! | [`empty_state`] | Centered placeholder for empty panels |
+//! | [`field`] | Themed input frame for DragValue, Slider, TextEdit, etc. |
+//! | [`icon_button`] | Small square icon button with hover feedback |
+//! | [`keyframe_dot`] | Diamond-shaped keyframe marker |
+//! | [`playhead`] | Vertical amber playhead line |
+//! | [`TimelineStrip`] | Mini timeline scrubber with keyframe markers |
+//! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
 
-use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, Sense, Stroke, Vec2};
+use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, Vec2};
 
 use crate::app::theme::*;
+use animatix::diagnostics::{Diagnostic, DiagnosticPhase, DiagnosticSeverity};
 
 // ─── Row ──────────────────────────────────────────────────────────────────
 
@@ -309,6 +327,142 @@ pub fn field(ui: &mut egui::Ui, id: Id, add_contents: impl FnOnce(&mut egui::Ui)
     response.response
 }
 
+// ─── Icon Button ──────────────────────────────────────────────────────────
+
+/// A small square icon button with hover highlight.
+///
+/// Default size is 28×28 px with a subtle rounded background on hover.
+/// Returns the [`Response`] so callers can check `.clicked()`.
+///
+/// ```ignore
+/// if icon_button(ui, egui_phosphor::regular::PLAY, "Play").clicked() {
+///     // …
+/// }
+/// ```
+pub fn icon_button(
+    ui: &mut egui::Ui,
+    icon: &str,
+    tooltip: &str,
+) -> Response {
+    let size = Vec2::new(ROW_L, ROW_L);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    if response.hovered() || response.is_pointer_button_down_on() {
+        ui.painter().rect_filled(rect, RADIUS_M, BG_HOVER);
+    }
+
+    let icon_color = if response.hovered() {
+        TEXT_PRIMARY
+    } else {
+        TEXT_SECONDARY
+    };
+
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::TextStyle::Body.resolve(ui.style()),
+        icon_color,
+    );
+
+    if !tooltip.is_empty() {
+        return response.on_hover_text(tooltip);
+    }
+    response
+}
+
+/// Variant of [`icon_button`] that uses a custom icon color instead of the
+/// default muted → primary hover transition.
+pub fn icon_button_colored(
+    ui: &mut egui::Ui,
+    icon: &str,
+    tooltip: &str,
+    color: Color32,
+    hover_color: Color32,
+) -> Response {
+    let size = Vec2::new(ROW_L, ROW_L);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    if response.hovered() || response.is_pointer_button_down_on() {
+        ui.painter().rect_filled(rect, RADIUS_M, BG_HOVER);
+    }
+
+    let icon_color = if response.hovered() { hover_color } else { color };
+
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::TextStyle::Body.resolve(ui.style()),
+        icon_color,
+    );
+
+    if !tooltip.is_empty() {
+        return response.on_hover_text(tooltip);
+    }
+    response
+}
+
+/// A compact badge button showing an icon + count (e.g. "✕ 3").
+///
+/// Width expands automatically to fit the label.  Returns the [`Response`].
+///
+/// ```ignore
+/// if badge_button(ui, egui_phosphor::regular::X, 3, RED, TEXT_PRIMARY, "Errors").clicked() {
+///     // …
+/// }
+/// ```
+pub fn badge_button(
+    ui: &mut egui::Ui,
+    icon: &str,
+    count: usize,
+    color: Color32,
+    hover_color: Color32,
+    tooltip: &str,
+) -> Response {
+    let label = format!("{} {}", icon, count);
+    let galley = ui.painter().layout(
+        label.clone(),
+        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+        color,
+        f32::INFINITY,
+    );
+
+    let padding = Vec2::new(SPACE_M * 2.0, SPACE_S);
+    let size = Vec2::new(
+        galley.size().x + padding.x,
+        ROW_L.max(galley.size().y + padding.y),
+    );
+
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    // Background
+    let bg = if response.is_pointer_button_down_on() {
+        BG_ACTIVE
+    } else if response.hovered() {
+        BG_HOVER
+    } else {
+        BG_WIDGET
+    };
+    ui.painter().rect_filled(rect, RADIUS_M, bg);
+    ui.painter().rect_stroke(rect, RADIUS_M, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+
+    // Text
+    let text_color = if response.hovered() { hover_color } else { color };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+        text_color,
+    );
+
+    if !tooltip.is_empty() {
+        return response.on_hover_text(tooltip);
+    }
+    response
+}
+
 // ─── KeyframeDot ──────────────────────────────────────────────────────────
 
 /// Draws a diamond-shaped keyframe marker.
@@ -396,5 +550,205 @@ impl<'a> TimelineStrip<'a> {
         }
 
         None
+    }
+}
+
+// ─── Diagnostics List ─────────────────────────────────────────────────────
+
+/// Renders a scrollable card of diagnostic messages.
+///
+/// Returns the 0-indexed source line to scroll to if a diagnostic was clicked.
+pub fn diagnostics_list(
+    ui: &mut egui::Ui,
+    diagnostics: &[Diagnostic],
+) -> Option<usize> {
+    if diagnostics.is_empty() {
+        return None;
+    }
+
+    let mut scroll_to_line: Option<usize> = None;
+
+    card(ui, |ui| {
+        // Header with counts
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+
+            let error_count = diagnostics.iter().filter(|d| d.is_error()).count();
+            let warning_count = diagnostics.iter().filter(|d| !d.is_error()).count();
+
+            ui.add(
+                egui::Label::new(
+                    RichText::new(egui_phosphor::regular::WARNING_OCTAGON)
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_MUTED),
+                )
+                .selectable(false),
+            );
+
+            ui.add(
+                egui::Label::new(
+                    RichText::new("Diagnostics")
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_SECONDARY),
+                )
+                .selectable(false),
+            );
+
+            if error_count > 0 {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{} {}", egui_phosphor::regular::X, error_count))
+                            .size(FONT_SIZE_XS)
+                            .color(RED),
+                    )
+                    .selectable(false),
+                );
+            }
+            if warning_count > 0 {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!(
+                            "{} {}",
+                            egui_phosphor::regular::WARNING,
+                            warning_count
+                        ))
+                        .size(FONT_SIZE_XS)
+                        .color(AMBER),
+                    )
+                    .selectable(false),
+                );
+            }
+        });
+
+        ui.add_space(SPACE_S);
+
+        // Diagnostic rows
+        egui::ScrollArea::vertical()
+            .max_height(180.0)
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+                for (i, d) in diagnostics.iter().enumerate() {
+                    if let Some(line) =
+                        diagnostic_row(ui, d, i == diagnostics.len() - 1)
+                    {
+                        scroll_to_line = Some(line);
+                    }
+                }
+            });
+    });
+
+    scroll_to_line
+}
+
+/// Render a single diagnostic row. Returns the 0-indexed line to jump to if clicked.
+fn diagnostic_row(
+    ui: &mut egui::Ui,
+    diagnostic: &Diagnostic,
+    is_last: bool,
+) -> Option<usize> {
+    let available = ui.available_width();
+    let row_h = ROW_L;
+    let (row_rect, response) =
+        ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
+
+    // Severity-based accent
+    let accent_color = if diagnostic.is_error() { RED } else { AMBER };
+    let icon = if diagnostic.is_error() {
+        egui_phosphor::regular::X
+    } else {
+        egui_phosphor::regular::WARNING
+    };
+
+    // Background
+    let bg = if response.hovered() {
+        BG_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(row_rect, 0.0, bg);
+    }
+
+    // Left accent bar
+    let accent_rect = Rect::from_min_size(
+        row_rect.min,
+        Vec2::new(2.0, row_rect.height()),
+    );
+    ui.painter().rect_filled(accent_rect, 0.0, accent_color);
+
+    let baseline_y = row_rect.center().y;
+    let mut cursor_x = row_rect.min.x + SPACE_M + 2.0;
+
+    // Severity icon
+    ui.painter().text(
+        egui::pos2(cursor_x + 7.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        accent_color,
+    );
+    cursor_x += 18.0;
+
+    // Phase badge (small, right-aligned later)
+    let phase_str = phase_label(diagnostic.phase);
+    let phase_color = phase_color(diagnostic.phase);
+
+    // Message (clamped to available width)
+    let msg = diagnostic.message.lines().next().unwrap_or(&diagnostic.message);
+    let msg_max_width = row_rect.max.x - cursor_x - SPACE_L - 50.0;
+    let truncated = if msg.len() > 60 {
+        format!("{}...", &msg[..57])
+    } else {
+        msg.to_string()
+    };
+
+    ui.painter().text(
+        egui::pos2(cursor_x, baseline_y),
+        egui::Align2::LEFT_CENTER,
+        &truncated,
+        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+        TEXT_PRIMARY,
+    );
+
+    // Phase badge (right side)
+    ui.painter().text(
+        egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+        egui::Align2::RIGHT_CENTER,
+        phase_str,
+        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        phase_color,
+    );
+
+    // Bottom divider (subtle)
+    if !is_last {
+        ui.painter().line_segment(
+            [
+                egui::pos2(row_rect.min.x + SPACE_M, row_rect.bottom() - 0.5),
+                egui::pos2(row_rect.max.x - SPACE_S, row_rect.bottom() - 0.5),
+            ],
+            Stroke::new(1.0, BORDER),
+        );
+    }
+
+    if response.clicked() {
+        diagnostic.location.line.map(|l| l.saturating_sub(1))
+    } else {
+        None
+    }
+}
+
+fn phase_label(phase: DiagnosticPhase) -> &'static str {
+    match phase {
+        DiagnosticPhase::Parse => "parse",
+        DiagnosticPhase::Build => "build",
+        DiagnosticPhase::Render => "render",
+    }
+}
+
+fn phase_color(phase: DiagnosticPhase) -> Color32 {
+    match phase {
+        DiagnosticPhase::Parse => Color32::from_rgb(137, 180, 250),
+        DiagnosticPhase::Build => Color32::from_rgb(180, 190, 254),
+        DiagnosticPhase::Render => Color32::from_rgb(203, 166, 126),
     }
 }

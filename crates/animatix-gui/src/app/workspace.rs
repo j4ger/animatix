@@ -5,7 +5,7 @@ use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, ShapeTy
 use preview::ActorProps;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum SidebarTab {
+pub(crate) enum SidebarTab {
     Explorer,
     Layers,
 }
@@ -98,6 +98,8 @@ pub(super) struct UiActions {
     pub(super) inspector_input_drag_started: bool,
     /// True when an inspector DragValue/Slider drag ended this frame.
     pub(super) inspector_input_drag_ended: bool,
+    /// Toggle the bottom diagnostics panel visibility.
+    pub(super) toggle_diagnostics_panel: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
