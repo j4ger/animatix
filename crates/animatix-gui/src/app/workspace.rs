@@ -295,6 +295,9 @@ impl WorkspaceViewer<'_> {
             }
             if let Some(time_s) = self.editor.pending_scrub_to_time.take() {
                 self.actions.scrub_to = Some(time_s);
+                if !self.preview.is_playing {
+                    self.actions.toggle_playback = true;
+                }
             }
             if let Some(line) = self.actions.scroll_to_line.take() {
                 self.editor.scroll_to_line(line);

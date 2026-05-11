@@ -101,6 +101,7 @@ pub fn render_cell_editor(
 
             if cell_response.clicked() {
                 state.focused_cell = Some(index);
+                state.highlighted_cell = None;
             }
 
             if state.scroll_to_cell == Some(index) {
@@ -439,6 +440,7 @@ fn render_timestamp_editor(
 fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorState) {
     if response.gained_focus() {
         state.focused_cell = Some(index);
+        state.highlighted_cell = None;
     }
 }
 

@@ -181,6 +181,8 @@ impl EditorBuffer {
         self.highlighted_line = line;
         // Map source line to cell index for cell-level highlighting
         self.cell_state.highlighted_cell = line.and_then(|l| self.cell_index_for_source_line(l));
+        // Timeline sync takes precedence over manual cell focus
+        self.cell_state.focused_cell = None;
     }
 
     pub fn set_keyframe_lines(&mut self, lines: Vec<usize>) {

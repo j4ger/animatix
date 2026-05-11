@@ -287,6 +287,15 @@ impl GuiShell {
         if self.preview.is_playing {
             self.preview.tick(delta);
             self.preview_dirty = true;
+
+            if self.editor_sync_enabled {
+                if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s) {
+                    if self.editor.highlighted_line != Some(line) {
+                        self.editor.scroll_to_line(line);
+                        self.editor.set_highlighted_line(Some(line));
+                    }
+                }
+            }
         }
 
         if let Some(deadline) = self.pending_rebuild_at
@@ -536,6 +545,18 @@ impl GuiShell {
         if actions.rebuild {
             let _ = self.rebuild();
         }
+        if let Some(next_time) = actions.scrub_to {
+            self.preview.current_time_s = next_time;
+            self.preview.clamp_time();
+            self.preview.is_playing = false;
+            self.preview_dirty = true;
+            if self.editor_sync_enabled {
+                if let Some(line) = self.document.find_keyframe_line_at(next_time) {
+                    self.editor.scroll_to_line(line);
+                    self.editor.set_highlighted_line(Some(line));
+                }
+            }
+        }
         if actions.toggle_playback {
             self.preview.toggle_playback();
             self.preview_dirty = true;
@@ -555,18 +576,6 @@ impl GuiShell {
             } else {
                 "Keyframe mode OFF — edits overwrite defaults".to_string()
             };
-        }
-        if let Some(next_time) = actions.scrub_to {
-            self.preview.current_time_s = next_time;
-            self.preview.clamp_time();
-            self.preview.is_playing = false;
-            self.preview_dirty = true;
-            if self.editor_sync_enabled {
-                if let Some(line) = self.document.find_keyframe_line_at(next_time) {
-                    self.editor.scroll_to_line(line);
-                    self.editor.set_highlighted_line(Some(line));
-                }
-            }
         }
         if actions.editor_changed {
             self.document
