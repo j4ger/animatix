@@ -1,3 +1,4 @@
+use animatix::ast::Expr;
 use animatix::module::{ModuleError, ModuleGraph};
 use animatix::timeline::Timeline;
 use std::fs;
@@ -214,6 +215,64 @@ visible: Rect, size: (100, 100)
      let expanded_debug = format!("{expanded:#?}");
      assert!(!expanded_debug.contains("hidden"));
      assert!(expanded_debug.contains("visible"));
+ }
+
+ #[test]
+ fn load_program_resolves_reexports() {
+     let dir = temp_project_dir("reexports");
+     let entry = dir.join("scene.amx");
+     let theme = dir.join("theme.amx");
+     let colors = dir.join("colors.amx");
+
+     write_file(
+         &colors,
+         r#"
+ pub let primary = (0.38, 0.78, 1.0, 1.0)
+ pub let danger = (1.0, 0.2, 0.2, 1.0)
+ "#,
+     );
+
+     write_file(
+         &theme,
+         r#"
+ import "./colors.amx" as c
+ pub let accent = c.primary
+ pub let warning = c.danger
+ "#,
+     );
+
+     write_file(
+         &entry,
+         r#"
+ import "./theme.amx" as theme
+
+ panel: Rect, size: (200, 100), color: theme.accent
+ "#,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+
+     assert!(program.namespaces.contains_key("theme"));
+     let theme_ns = program.namespaces.get("theme").unwrap();
+     assert!(theme_ns.exports.contains_key("accent"));
+     assert!(theme_ns.exports.contains_key("warning"));
+
+     // Verify re-exported values are resolved (not just path expressions)
+     let accent_expr = theme_ns.exports.get("accent").unwrap();
+     match accent_expr {
+         Expr::Tuple(vals) => {
+             assert_eq!(vals.len(), 4);
+         }
+         other => panic!("Expected resolved tuple for accent, got: {:?}", other),
+     }
+
+     let warning_expr = theme_ns.exports.get("warning").unwrap();
+     match warning_expr {
+         Expr::Tuple(vals) => {
+             assert_eq!(vals.len(), 4);
+         }
+         other => panic!("Expected resolved tuple for warning, got: {:?}", other),
+     }
  }
 
  #[test]

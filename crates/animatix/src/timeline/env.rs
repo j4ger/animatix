@@ -42,6 +42,9 @@ pub enum Value {
     Vec3([f64; 3]),
     Vec4([f64; 4]),
     Color([f64; 4]),
+    List(Vec<Value>),
+    /// Object(type_name, fields) — constructed value with named fields
+    Object(String, HashMap<String, Value>),
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     Closure(Vec<String>, Box<crate::ast::Expr>),
 }
@@ -56,6 +59,8 @@ impl fmt::Debug for Value {
             Value::Vec3(v) => write!(f, "Vec3({:?})", v),
             Value::Vec4(v) => write!(f, "Vec4({:?})", v),
             Value::Color(c) => write!(f, "Color({:?})", c),
+            Value::List(items) => write!(f, "List({:?})", items),
+            Value::Object(name, fields) => write!(f, "{}({:?})", name, fields),
             Value::NativeFn(_) => write!(f, "<NativeFn>"),
             Value::Closure(args, _) => write!(f, "<Closure({:?})>", args),
         }
@@ -72,6 +77,10 @@ impl PartialEq for Value {
             (Value::Vec3(a), Value::Vec3(b)) => a == b,
             (Value::Vec4(a), Value::Vec4(b)) => a == b,
             (Value::Color(a), Value::Color(b)) => a == b,
+            (Value::List(a), Value::List(b)) => a == b,
+            (Value::Object(name_a, fields_a), Value::Object(name_b, fields_b)) => {
+                name_a == name_b && fields_a == fields_b
+            }
             // Native functions and closures cannot be compared for equality
             _ => false,
         }
@@ -125,6 +134,13 @@ impl Value {
         match self {
             Value::Color(c) => *c,
             _ => [0.0, 0.0, 0.0, 1.0],
+        }
+    }
+
+    pub fn as_list(&self) -> Vec<Value> {
+        match self {
+            Value::List(items) => items.clone(),
+            _ => Vec::new(),
         }
     }
 }

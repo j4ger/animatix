@@ -3561,6 +3561,201 @@ fn test_stagger_reports_unsupported_statements() {
 }
 
 #[test]
+fn test_nested_sequence_timing() {
+    // sequence {
+    //     fade-out badge [500ms]
+    //     sequence {
+    //         fade-in badge [300ms]
+    //         scale badge [to: 2, 200ms]
+    //     }
+    // }
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "badge".to_string(),
+                ty: "Circle".to_string(),
+                props: vec![Property {
+                    name: "radius".to_string(),
+                    value: Expr::Num(24.0),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::Sequence {
+                body: vec![
+                    Stmt::Action(animatix::ast::Action {
+                        verb: "fade-out".to_string(),
+                        targets: vec!["badge".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("500ms".to_string()),
+                        }],
+                        byte_span: None,
+                    }, None),
+                    Stmt::Sequence {
+                        body: vec![
+                            Stmt::Action(animatix::ast::Action {
+                                verb: "fade-in".to_string(),
+                                targets: vec!["badge".to_string()],
+                                args: vec![],
+                                modifiers: vec![Modifier {
+                                    name: None,
+                                    value: Expr::Ident("300ms".to_string()),
+                                }],
+                                byte_span: None,
+                            }, None),
+                            Stmt::Assignment {
+                                target: vec!["badge".to_string()],
+                                property: "scale".to_string(),
+                                value: Expr::Num(2.0),
+                                modifiers: vec![Modifier {
+                                    name: None,
+                                    value: Expr::Ident("200ms".to_string()),
+                                }],
+                                value_span: None,
+                                span: None,
+                            },
+                        ],
+                        span: None,
+                    },
+                ],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let track = report
+        .output
+        .tracks
+        .get("badge")
+        .expect("badge track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    // fade-out at 0-500ms
+    assert_eq!(track.opacity.evaluate(250), 0.5);
+    // fade-in at 500-800ms
+    assert_eq!(track.opacity.evaluate(650), 0.5);
+    // scale at 800-1000ms
+    assert!((track.scale.evaluate(800) - 1.0).abs() < 0.001);
+    assert!((track.scale.evaluate(1000) - 2.0).abs() < 0.001);
+}
+
+#[test]
+fn test_nested_stagger_timing() {
+    // stagger [100ms] {
+    //     fade-in a [200ms]
+    //     stagger [50ms] {
+    //         fade-in b [100ms]
+    //         fade-in c [100ms]
+    //     }
+    // }
+    let ast = vec![Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "a".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "b".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "c".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::Stagger {
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("100ms".to_string()),
+                }],
+                body: vec![
+                    Stmt::Action(animatix::ast::Action {
+                        verb: "fade-in".to_string(),
+                        targets: vec!["a".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("200ms".to_string()),
+                        }],
+                        byte_span: None,
+                    }, None),
+                    Stmt::Stagger {
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("50ms".to_string()),
+                        }],
+                        body: vec![
+                            Stmt::Action(animatix::ast::Action {
+                                verb: "fade-in".to_string(),
+                                targets: vec!["b".to_string()],
+                                args: vec![],
+                                modifiers: vec![Modifier {
+                                    name: None,
+                                    value: Expr::Ident("100ms".to_string()),
+                                }],
+                                byte_span: None,
+                            }, None),
+                            Stmt::Action(animatix::ast::Action {
+                                verb: "fade-in".to_string(),
+                                targets: vec!["c".to_string()],
+                                args: vec![],
+                                modifiers: vec![Modifier {
+                                    name: None,
+                                    value: Expr::Ident("100ms".to_string()),
+                                }],
+                                byte_span: None,
+                            }, None),
+                        ],
+                        span: None,
+                    },
+                ],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    assert!(report.diagnostics.is_empty());
+
+    let track_a = report.output.tracks.get("a").unwrap();
+    let track_b = report.output.tracks.get("b").unwrap();
+    let track_c = report.output.tracks.get("c").unwrap();
+
+    // a fades in at 0-200ms
+    assert_eq!(track_a.opacity.evaluate(100), 0.5);
+    // b fades in at 100+0=100ms to 200ms (nested stagger starts at 100ms)
+    assert_eq!(track_b.opacity.evaluate(150), 0.5);
+    // c fades in at 100+50=150ms to 250ms
+    assert_eq!(track_c.opacity.evaluate(200), 0.5);
+}
+
+#[test]
 fn test_rotation_assignment_animates_track() {
     let ast = vec![
         Stmt::Keyframe {

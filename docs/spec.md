@@ -17,11 +17,12 @@
 | Components | custom component actions | No | Planned | No | Yes | Reserved but rejected by parser |
 | Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/module_reuse_demo.amx`. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
+| Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
 | Expressions | closures | Yes | Runtime-real | Yes | Yes | Used by plotting/reactive examples |
-| Expressions | `Expr::Method` | AST-defined | Explicit error | Yes | Partial | Rejected at runtime |
-| Expressions | `Expr::Index` | AST-defined | Explicit error | Yes | Partial | Rejected at runtime |
-| Expressions | `Expr::Construct` | AST-defined | Explicit error | Yes | Partial | Rejected at runtime |
+| Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
+| Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
+| Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Arrow`, `Ellipse`, `Arc`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | See `examples/plotting_demo.amx` |
@@ -30,8 +31,8 @@
 | Morphing | `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | `strategy:fade` deferred |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
-| Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | v1a lowers at build time; nested seq/decls unsupported |
-| Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | v1b offsets by shared interval; nested stagger/decls unsupported |
+| Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
+| Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
 | Colorscheme | `Colorscheme "name" { ... }` | Yes | Runtime-real | Yes | Yes | Native AMX primitive with `extends` |
 | Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
 
@@ -416,10 +417,25 @@ pub let background = (0.04, 0.06, 0.09, 1.0)
 
 Non-`pub` `let` declarations remain local to the file.
 
+**Re-exports:** A module can re-export values from its own imports:
+
+```animatix
+// colors.amx
+pub let primary = (0.38, 0.78, 1.0, 1.0)
+
+// theme.amx
+import "./colors.amx" as c
+pub let accent = c.primary
+
+// scene.amx
+import "./theme.amx" as theme
+panel: Rect, color: theme.accent
+```
+
+Re-export chains are resolved transitively. Values are evaluated at build time in the importing scene's environment.
+
 **Current limitations:**
 - Namespace access is one level: `alias.export_name`
-- Re-exports (a module exporting values from its own imports) are not supported
-- Export values are evaluated at build time in the importing scene's environment
 - Property assignment for `text`/`latex`/`math`/`code` stores the value but does not trigger re-compilation of text paths at render time; infrastructure is in place but render-time font compilation is deferred.
 
 ---
@@ -530,14 +546,11 @@ spiral: PolarPlot, func: (t) => t, color: blue
 
 ---
 
-## 14. Namespacing & Access
+## 14. Expressions & Access
 
-**Imports:**
-```animatix
-import "./shared.amx"
-```
+### Dotted Paths
 
-**Dotted assignment targets** resolve to runtime actors; final segment = property name.
+**Assignment targets** resolve to runtime actors; final segment = property name.
 ```animatix
 left.badge.color = red
 right.frame.radius = 20
@@ -547,12 +560,60 @@ right.frame.radius = 20
 
 **Unresolved rhs paths** report build diagnostics; host property keeps its default/fallback value.
 
-**Future-facing:** Rich object-style traversal, index-based access, method-style query composition.
+### Index Access
+
+Values can be indexed by position:
+
+```animatix
+let items = (10, 20, 30)
+let first = items[0]    // 10
+
+let text = "hello"
+let ch = text[1]        // "e"
+
+let pos = (100, 200)
+let x = pos[0]          // 100
+```
+
+Supported: `List`, `Str` (char), `Vec2/3/4`, `Color`.
+
+### Method Calls
+
+Methods dispatch on the receiver's type:
+
+```animatix
+let text = "hello,world"
+let parts = text.split(",")     // List["hello", "world"]
+let n = text.length()           // 13
+
+let items = (1, 2, 3)
+let len = items.length()        // 3
+let second = items.get(1)       // 2
+
+let x = -42.5
+let y = x.abs()                 // 42.5
+```
+
+**String methods:** `length()`, `split(delim)`, `contains(substr)`, `trim()`, `starts_with(prefix)`, `ends_with(suffix)`
+**List methods:** `length()`, `get(index)`, `contains(item)`
+**Number methods:** `abs()`, `floor()`, `ceil()`, `round()`
+
+### Object Construction
+
+Named structs can be constructed with field syntax:
+
+```animatix
+let p = Point { x: 10, y: 20 }
+```
+
+Returns a `Value::Object` with typed fields. Field access is not yet implemented; objects are primarily used for reactive blocks and function returns.
 
 ---
 
 ## 15. Known Gaps & Limitations
 
+- **Custom Component Actions:** Reserved syntax (`action` inside `component` blocks) is not yet parsed or lowered. Invoking `pulse btn [200ms]` on a user-defined action is not supported.
+- **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
 - **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
 - **Asymmetrical Reveal/Exit Actions:** Standard fade-out or cross-fade behaviors on some primitives and containers remain incomplete or non-intuitive compared to entrance counterparts.
 - **Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.

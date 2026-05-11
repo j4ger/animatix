@@ -32,6 +32,24 @@ impl Timeline {
                 );
                 Some(parsed.delay_ms + parsed.duration_ms)
             }
+            Stmt::Sequence { body, .. } => {
+                // Total duration of a nested sequence is the sum of its children's durations
+                let mut total = 0.0;
+                for child in body {
+                    total += self.sequence_statement_span_ms(child)?;
+                }
+                Some(total)
+            }
+            Stmt::Stagger { modifiers, body, .. } => {
+                let interval_ms = parse_stagger_interval_ms(modifiers, &mut ignored_diagnostics)?;
+                if body.is_empty() {
+                    return Some(0.0);
+                }
+                // Total duration: (n-1) * interval + last_child_duration
+                let last_idx = body.len() - 1;
+                let last_span = self.sequence_statement_span_ms(&body[last_idx])?;
+                Some(interval_ms * last_idx as f64 + last_span)
+            }
             _ => None,
         }
     }

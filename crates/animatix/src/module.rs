@@ -116,6 +116,71 @@ fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<String, Expr
     }
 }
 
+/// Resolve re-export expressions by looking up paths that reference imported modules.
+///
+/// If a `pub let` value is `c.accent` and `c` is an aliased import, this resolves
+/// the path by looking up `accent` in `c`'s namespace exports.
+fn resolve_exports(
+    raw_exports: HashMap<String, Expr>,
+    import_namespaces: &HashMap<String, &Namespace>,
+) -> HashMap<String, Expr> {
+    let mut resolved = HashMap::with_capacity(raw_exports.len());
+    for (name, expr) in raw_exports {
+        let resolved_expr = resolve_reexport_expr(&expr, import_namespaces);
+        resolved.insert(name, resolved_expr);
+    }
+    resolved
+}
+
+fn resolve_reexport_expr(
+    expr: &Expr,
+    import_namespaces: &HashMap<String, &Namespace>,
+) -> Expr {
+    match expr {
+        Expr::Path(segments) if !segments.is_empty() => {
+            if let Some(ns) = import_namespaces.get(&segments[0]) {
+                // This is a re-export path like `c.accent`
+                // Try to resolve the remaining segments
+                resolve_path_in_namespace(ns, &segments[1..], import_namespaces)
+                    .unwrap_or_else(|| expr.clone())
+            } else {
+                expr.clone()
+            }
+        }
+        _ => expr.clone(),
+    }
+}
+
+fn resolve_path_in_namespace(
+    ns: &Namespace,
+    segments: &[String],
+    import_namespaces: &HashMap<String, &Namespace>,
+) -> Option<Expr> {
+    if segments.is_empty() {
+        return None;
+    }
+    if let Some(expr) = ns.exports.get(&segments[0]) {
+        if segments.len() == 1 {
+            // Fully resolved — but the value itself might be another re-export
+            Some(resolve_reexport_expr(expr, import_namespaces))
+        } else {
+            // More segments to resolve — only possible if the value is a namespace path
+            match expr {
+                Expr::Path(inner_segments) if !inner_segments.is_empty() => {
+                    if let Some(next_ns) = import_namespaces.get(&inner_segments[0]) {
+                        resolve_path_in_namespace(next_ns, &inner_segments[1..], import_namespaces)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        }
+    } else {
+        None
+    }
+}
+
 struct ParsedModule {
     path: PathBuf,
     statements: Vec<Stmt>,
@@ -379,7 +444,8 @@ impl ModuleGraph {
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
         let mut namespaces = HashMap::new();
-        // Only collect namespaces from the entry file's direct aliased imports
+        // Collect namespaces from the entry file's direct aliased imports,
+        // resolving re-exports transitively.
         if let Some(entry_module) = self.files.get(&entry_id) {
             for imp in &entry_module.imports {
                 if let Some(alias) = &imp.alias {
@@ -387,13 +453,12 @@ impl ModuleGraph {
                         entry_module.path.parent().unwrap_or(Path::new(".")),
                         &imp.path,
                     );
-                    if let Some(imported_module) = fs::canonicalize(&import_path)
+                    if let Some(import_id) = fs::canonicalize(&import_path)
                         .ok()
                         .and_then(|p| self.paths.get(&p).copied())
-                        .and_then(|import_id| self.files.get(&import_id))
                     {
-                        let exports = collect_pub_lets(&imported_module.statements);
-                        namespaces.insert(alias.clone(), Namespace { exports });
+                        let resolved_exports = self.collect_resolved_exports(import_id);
+                        namespaces.insert(alias.clone(), Namespace { exports: resolved_exports });
                     }
                 }
             }
@@ -404,6 +469,39 @@ impl ModuleGraph {
             components,
             namespaces,
         })
+    }
+
+    /// Collect resolved exports for a module, resolving re-export paths transitively.
+    fn collect_resolved_exports(&self, file_id: FileId) -> HashMap<String, Expr> {
+        let module = match self.files.get(&file_id) {
+            Some(m) => m,
+            None => return HashMap::new(),
+        };
+
+        // Recursively build namespaces for this module's aliased imports
+        let mut import_namespaces: HashMap<String, Namespace> = HashMap::new();
+        for imp in &module.imports {
+            if let Some(alias) = &imp.alias {
+                let import_path = Self::resolve_path(
+                    module.path.parent().unwrap_or(Path::new(".")),
+                    &imp.path,
+                );
+                if let Some(sub_id) = fs::canonicalize(&import_path)
+                    .ok()
+                    .and_then(|p| self.paths.get(&p).copied())
+                {
+                    let sub_exports = self.collect_resolved_exports(sub_id);
+                    import_namespaces.insert(alias.clone(), Namespace { exports: sub_exports });
+                }
+            }
+        }
+
+        let raw_exports = collect_pub_lets(&module.statements);
+        let import_refs: HashMap<String, &Namespace> = import_namespaces
+            .iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect();
+        resolve_exports(raw_exports, &import_refs)
     }
 
     fn flatten_recursive(

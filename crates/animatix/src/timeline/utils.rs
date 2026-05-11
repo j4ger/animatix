@@ -37,7 +37,10 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                 let w = evaluate_expr(&items[3], env)?.as_num();
                 Ok(Value::Vec4([x, y, z, w]))
             } else {
-                Ok(Value::Str(format!("{:?}", items)))
+                // Arbitrary-length tuples become lists
+                let values: Result<Vec<Value>, EvalError> =
+                    items.iter().map(|item| evaluate_expr(item, env)).collect();
+                Ok(Value::List(values?))
             }
         }
 
@@ -276,11 +279,85 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                 .ok_or_else(|| EvalError::UndefinedVariable(dotted))
         }
 
-        Expr::Method(_, name, _) => Err(EvalError::UnsupportedMethod(name.clone())),
+        Expr::Method(receiver, name, args) => {
+            let receiver_val = evaluate_expr(receiver, env)?;
+            evaluate_method(receiver_val, name, args, env)
+        }
 
-        Expr::Index(_, _) => Err(EvalError::UnsupportedIndex),
+        Expr::Index(container, index) => {
+            let container_val = evaluate_expr(container, env)?;
+            let index_val = evaluate_expr(index, env)?;
+            let idx = index_val.as_num() as usize;
+            match container_val {
+                Value::List(items) => items
+                    .get(idx)
+                    .cloned()
+                    .ok_or_else(|| EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for list of length {}",
+                        idx,
+                        items.len()
+                    ))),
+                Value::Str(s) => s
+                    .chars()
+                    .nth(idx)
+                    .map(|c| Value::Str(c.to_string()))
+                    .ok_or_else(|| EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for string of length {}",
+                        idx,
+                        s.len()
+                    ))),
+                Value::Vec2(v) => match idx {
+                    0 => Ok(Value::Num(v[0])),
+                    1 => Ok(Value::Num(v[1])),
+                    _ => Err(EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for Vec2",
+                        idx
+                    ))),
+                },
+                Value::Vec3(v) => match idx {
+                    0 => Ok(Value::Num(v[0])),
+                    1 => Ok(Value::Num(v[1])),
+                    2 => Ok(Value::Num(v[2])),
+                    _ => Err(EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for Vec3",
+                        idx
+                    ))),
+                },
+                Value::Vec4(v) => match idx {
+                    0 => Ok(Value::Num(v[0])),
+                    1 => Ok(Value::Num(v[1])),
+                    2 => Ok(Value::Num(v[2])),
+                    3 => Ok(Value::Num(v[3])),
+                    _ => Err(EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for Vec4",
+                        idx
+                    ))),
+                },
+                Value::Color(c) => match idx {
+                    0 => Ok(Value::Num(c[0])),
+                    1 => Ok(Value::Num(c[1])),
+                    2 => Ok(Value::Num(c[2])),
+                    3 => Ok(Value::Num(c[3])),
+                    _ => Err(EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for Color",
+                        idx
+                    ))),
+                },
+                other => Err(EvalError::TypeMismatch(format!(
+                    "Cannot index into {:?}",
+                    other
+                ))),
+            }
+        }
 
-        Expr::Construct(name, _) => Err(EvalError::UnsupportedConstruct(name.clone())),
+        Expr::Construct(name, properties) => {
+            let mut fields = std::collections::HashMap::new();
+            for prop in properties {
+                let value = evaluate_expr(&prop.value, env)?;
+                fields.insert(prop.name.clone(), value);
+            }
+            Ok(Value::Object(name.clone(), fields))
+        }
     }
 }
 
@@ -361,6 +438,145 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
     }
 }
 
+/// Evaluate a method call on a receiver value.
+fn evaluate_method(
+    receiver: Value,
+    name: &str,
+    args: &[Expr],
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    match (receiver, name) {
+        (Value::Str(s), "length") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "String.length() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(s.len() as f64))
+        }
+        (Value::Str(s), "split") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "String.split(delim) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let delim = evaluate_expr(&args[0], env)?.as_str();
+            let parts: Vec<Value> = s
+                .split(&delim)
+                .map(|part| Value::Str(part.to_string()))
+                .collect();
+            Ok(Value::List(parts))
+        }
+        (Value::Str(s), "contains") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "String.contains(substr) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let substr = evaluate_expr(&args[0], env)?.as_str();
+            Ok(Value::Num(if s.contains(&substr) { 1.0 } else { 0.0 }))
+        }
+        (Value::Str(s), "trim") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "String.trim() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Str(s.trim().to_string()))
+        }
+        (Value::Str(s), "starts_with") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "String.starts_with(prefix) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let prefix = evaluate_expr(&args[0], env)?.as_str();
+            Ok(Value::Num(if s.starts_with(&prefix) { 1.0 } else { 0.0 }))
+        }
+        (Value::Str(s), "ends_with") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "String.ends_with(suffix) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let suffix = evaluate_expr(&args[0], env)?.as_str();
+            Ok(Value::Num(if s.ends_with(&suffix) { 1.0 } else { 0.0 }))
+        }
+        (Value::List(items), "length") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "List.length() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(items.len() as f64))
+        }
+        (Value::List(items), "get") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "List.get(index) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let idx = evaluate_expr(&args[0], env)?.as_num() as usize;
+            items
+                .get(idx)
+                .cloned()
+                .ok_or_else(|| {
+                    EvalError::TypeMismatch(format!(
+                        "Index {} out of bounds for list of length {}",
+                        idx,
+                        items.len()
+                    ))
+                })
+        }
+        (Value::List(items), "contains") => {
+            if args.len() != 1 {
+                return Err(EvalError::TypeMismatch(
+                    "List.contains(item) takes exactly 1 argument".to_string(),
+                ));
+            }
+            let item = evaluate_expr(&args[0], env)?;
+            Ok(Value::Num(if items.contains(&item) { 1.0 } else { 0.0 }))
+        }
+        (Value::Num(n), "abs") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "Num.abs() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(n.abs()))
+        }
+        (Value::Num(n), "floor") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "Num.floor() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(n.floor()))
+        }
+        (Value::Num(n), "ceil") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "Num.ceil() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(n.ceil()))
+        }
+        (Value::Num(n), "round") => {
+            if !args.is_empty() {
+                return Err(EvalError::TypeMismatch(
+                    "Num.round() takes no arguments".to_string(),
+                ));
+            }
+            Ok(Value::Num(n.round()))
+        }
+        (receiver, name) => Err(EvalError::UnsupportedMethod(format!(
+            "{}.{}()",
+            format_value(&receiver),
+            name
+        ))),
+    }
+}
+
 /// Format a single Value into its display string.
 fn format_value(value: &Value) -> String {
     match value {
@@ -377,6 +593,8 @@ fn format_value(value: &Value) -> String {
         Value::Vec3(t) => format!("({}, {}, {})", t[0], t[1], t[2]),
         Value::Vec4(t) => format!("({}, {}, {}, {})", t[0], t[1], t[2], t[3]),
         Value::Color(c) => format!("rgba({}, {}, {}, {})", c[0], c[1], c[2], c[3]),
+        Value::List(items) => format!("{:?}", items),
+        Value::Object(name, fields) => format!("{}({:?})", name, fields),
         Value::NativeFn(_) => "<NativeFn>".to_string(),
         Value::Closure(args, _) => format!("<Closure({:?})>", args),
     }
@@ -457,7 +675,81 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_method_returns_explicit_error() {
+    fn test_evaluate_method_string_length() {
+        let mut env = Environment::new();
+        env.set("text", Value::Str("hello".to_string()));
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("text".to_string())),
+            "length".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 5.0);
+    }
+
+    #[test]
+    fn test_evaluate_method_string_split() {
+        let mut env = Environment::new();
+        env.set("text", Value::Str("a,b,c".to_string()));
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("text".to_string())),
+            "split".to_string(),
+            vec![Expr::Str(",".to_string())],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        let list = result.as_list();
+        assert_eq!(list.len(), 3);
+        assert_eq!(list[0].as_str(), "a");
+        assert_eq!(list[1].as_str(), "b");
+        assert_eq!(list[2].as_str(), "c");
+    }
+
+    #[test]
+    fn test_evaluate_method_list_length() {
+        let mut env = Environment::new();
+        env.set("items", Value::List(vec![Value::Num(1.0), Value::Num(2.0)]));
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("items".to_string())),
+            "length".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 2.0);
+    }
+
+    #[test]
+    fn test_evaluate_method_list_get() {
+        let mut env = Environment::new();
+        env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("items".to_string())),
+            "get".to_string(),
+            vec![Expr::Num(2.0)],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 30.0);
+    }
+
+    #[test]
+    fn test_evaluate_method_num_abs() {
+        let mut env = Environment::new();
+        env.set("x", Value::Num(-42.5));
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("x".to_string())),
+            "abs".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 42.5);
+    }
+
+    #[test]
+    fn test_evaluate_method_unsupported() {
         let env = Environment::new();
         let expr = Expr::Method(
             Box::new(Expr::Ident("graph".to_string())),
@@ -466,37 +758,91 @@ mod tests {
         );
 
         let result = evaluate_expr(&expr, &env);
-
-        assert!(matches!(
-            result,
-            Err(EvalError::UnsupportedMethod(name)) if name == "plot"
-        ));
+        assert!(result.is_err());
     }
 
     #[test]
-    fn test_evaluate_index_returns_explicit_error() {
-        let env = Environment::new();
+    fn test_evaluate_index_on_list() {
+        let mut env = Environment::new();
+        env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
         let expr = Expr::Index(
             Box::new(Expr::Ident("items".to_string())),
+            Box::new(Expr::Num(1.0)),
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 20.0);
+    }
+
+    #[test]
+    fn test_evaluate_index_on_vec2() {
+        let mut env = Environment::new();
+        env.set("pos", Value::Vec2([100.0, 200.0]));
+        let expr = Expr::Index(
+            Box::new(Expr::Ident("pos".to_string())),
             Box::new(Expr::Num(0.0)),
         );
 
-        let result = evaluate_expr(&expr, &env);
-
-        assert!(matches!(result, Err(EvalError::UnsupportedIndex)));
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 100.0);
     }
 
     #[test]
-    fn test_evaluate_construct_returns_explicit_error() {
-        let env = Environment::new();
-        let expr = Expr::Construct("Button".to_string(), vec![]);
+    fn test_evaluate_index_on_string() {
+        let mut env = Environment::new();
+        env.set("text", Value::Str("hello".to_string()));
+        let expr = Expr::Index(
+            Box::new(Expr::Ident("text".to_string())),
+            Box::new(Expr::Num(1.0)),
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_str(), "e");
+    }
+
+    #[test]
+    fn test_evaluate_index_out_of_bounds() {
+        let mut env = Environment::new();
+        env.set("items", Value::List(vec![Value::Num(10.0)]));
+        let expr = Expr::Index(
+            Box::new(Expr::Ident("items".to_string())),
+            Box::new(Expr::Num(5.0)),
+        );
 
         let result = evaluate_expr(&expr, &env);
+        assert!(result.is_err());
+    }
 
-        assert!(matches!(
-            result,
-            Err(EvalError::UnsupportedConstruct(name)) if name == "Button"
-        ));
+    #[test]
+    fn test_evaluate_construct_creates_object() {
+        let env = Environment::new();
+        let expr = Expr::Construct(
+            "Point".to_string(),
+            vec![
+                crate::ast::Property {
+                    name: "x".to_string(),
+                    value: Expr::Num(10.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                crate::ast::Property {
+                    name: "y".to_string(),
+                    value: Expr::Num(20.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        match result {
+            Value::Object(name, fields) => {
+                assert_eq!(name, "Point");
+                assert_eq!(fields.get("x").unwrap().as_num(), 10.0);
+                assert_eq!(fields.get("y").unwrap().as_num(), 20.0);
+            }
+            other => panic!("Expected Object, got: {:?}", other),
+        }
     }
 
     #[test]

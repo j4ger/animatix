@@ -376,6 +376,8 @@ pub(crate) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
             Value::Vec4(v) | Value::Color(v) => {
                 format!("({}, {}, {}, {})", v[0], v[1], v[2], v[3])
             }
+            Value::List(items) => format!("{:?}", items),
+            Value::Object(name, fields) => format!("{}({:?})", name, fields),
             Value::NativeFn(_) => "<NativeFn>".to_string(),
             Value::Closure(_, _) => "<Closure>".to_string(),
         };
@@ -598,7 +600,7 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
             values[2].as_num(),
             values[3].as_num(),
         ]),
-        _ => Value::Str(format!("{:?}", values)),
+        _ => Value::List(values),
     }
 }
 
