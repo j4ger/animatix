@@ -1,5 +1,6 @@
 mod discovery;
 mod expand;
+mod inline_actions;
 mod rewrite;
 
 use crate::ast::{
@@ -7,7 +8,7 @@ use crate::ast::{
 };
 use crate::parser::{parser, ParseError};
 use chumsky::Parser;
-use discovery::{collect_component_defs, collect_imports, strip_imports};
+use discovery::{collect_component_actions, collect_component_defs, collect_imports, strip_imports};
 use expand::expand_statements;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -69,7 +70,12 @@ pub struct ModuleGraph {
 pub struct ComponentEntry {
     pub definition: ComponentDef,
     pub source_path: PathBuf,
+    /// Custom action templates defined inside this component: action_name → body statements
+    pub actions: HashMap<String, Vec<Stmt>>,
 }
+
+/// Maps instance label → action_name → rewritten body statements
+pub type InstanceActionRegistry = HashMap<String, HashMap<String, Vec<Stmt>>>;
 
 #[derive(Clone, Debug, Default)]
 pub struct LoadedProgram {
@@ -80,7 +86,8 @@ pub struct LoadedProgram {
 
 impl LoadedProgram {
     pub fn expand_components(&self) -> Vec<Stmt> {
-        expand_statements(&self.statements, &self.components)
+        let (stmts, registry) = expand_statements(&self.statements, &self.components);
+        inline_actions::inline_custom_actions(stmts, &registry)
     }
 }
 
@@ -577,11 +584,13 @@ impl ModuleGraph {
                     });
                 }
 
+                let actions = collect_component_actions(&definition);
                 components.insert(
                     definition.name.clone(),
                     ComponentEntry {
                         definition,
                         source_path: module.path.clone(),
+                        actions,
                     },
                 );
             }

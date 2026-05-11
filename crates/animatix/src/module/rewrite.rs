@@ -539,6 +539,8 @@ fn rewrite_label_ref(
 ) -> String {
     if label == "scene" {
         label.to_string()
+    } else if label == "self" {
+        prefix.to_string()
     } else {
         rewrite_label(label, prefix, root_label, known_labels)
     }

@@ -1,74 +1,117 @@
 use super::{
-    ComponentEntry, Expr, HashMap, HashSet, InlineItem, ParamDef, Property, Stmt,
+    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, ParamDef,
+    Property, Stmt,
     rewrite::rewrite_stmt,
 };
 
 pub(super) fn expand_statements(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
-) -> Vec<Stmt> {
+) -> (Vec<Stmt>, InstanceActionRegistry) {
     let mut expanded = Vec::new();
+    let mut registry = InstanceActionRegistry::new();
     for stmt in statements {
-        expand_stmt_into(stmt, components, &mut expanded);
+        expand_stmt_into(stmt, components, &mut expanded, &mut registry);
     }
-    expanded
+    (expanded, registry)
 }
 
 fn expand_stmt_into(
     stmt: &Stmt,
     components: &HashMap<String, ComponentEntry>,
     output: &mut Vec<Stmt>,
+    registry: &mut InstanceActionRegistry,
 ) {
     match stmt {
-        Stmt::Keyframe { time, body, .. } => output.push(Stmt::Keyframe {
-            time: time.clone(),
-            body: expand_statements(body, components),
-            span: None,
-        }),
-        Stmt::RelativeKeyframe { offset, body, .. } => output.push(Stmt::RelativeKeyframe {
-            offset: offset.clone(),
-            body: expand_statements(body, components),
-            span: None,
-        }),
-        Stmt::Always { body, .. } => output.push(Stmt::Always {
-            body: expand_statements(body, components),
-            span: None,
-        }),
-        Stmt::LabeledAlways { label, body, .. } => output.push(Stmt::LabeledAlways {
-            label: label.clone(),
-            body: expand_statements(body, components),
-            span: None,
-        }),
+        Stmt::Keyframe { time, body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Keyframe {
+                time: time.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::RelativeKeyframe { offset, body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::RelativeKeyframe {
+                offset: offset.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::Always { body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Always {
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::LabeledAlways { label, body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::LabeledAlways {
+                label: label.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
             ..
-        } => output.push(Stmt::Conditional {
-            condition: condition.clone(),
-            then_branch: expand_statements(then_branch, components),
-            else_branch: else_branch
-                .as_ref()
-                .map(|branch| expand_statements(branch, components)),
-            span: None,
-        }),
+        } => {
+            let (then_expanded, then_registry) = expand_statements(then_branch, components);
+            merge_registry(registry, then_registry);
+            let else_expanded = else_branch.as_ref().map(|branch| {
+                let (expanded, sub_registry) = expand_statements(branch, components);
+                merge_registry(registry, sub_registry);
+                expanded
+            });
+            output.push(Stmt::Conditional {
+                condition: condition.clone(),
+                then_branch: then_expanded,
+                else_branch: else_expanded,
+                span: None,
+            });
+        }
         Stmt::ForLoop {
             var,
             iterable,
             body,
             ..
-        } => output.push(Stmt::ForLoop {
-            var: var.clone(),
-            iterable: iterable.clone(),
-            body: expand_statements(body, components),
-            span: None,
-        }),
-        Stmt::ComponentAction { name, params, body, .. } => output.push(Stmt::ComponentAction {
-            name: name.clone(),
-            params: params.clone(),
-            body: expand_statements(body, components),
-            span: None,
-        }),
+        } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::ForLoop {
+                var: var.clone(),
+                iterable: iterable.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::Sequence { body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Sequence {
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::Stagger { modifiers, body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Stagger {
+                modifiers: modifiers.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
+        // ComponentAction is NOT emitted into output; it's collected during instance expansion
+        Stmt::ComponentAction { .. } => {}
         Stmt::ComponentDef(..) => {}
         Stmt::ActorDecl {
             label,
@@ -79,14 +122,25 @@ fn expand_stmt_into(
             ..
         } => {
             if let Some(component) = components.get(ty) {
-                output.extend(expand_component_instance(
+                let (instance_stmts, instance_registry) = expand_component_instance(
                     label, props, children, component, components,
-                ));
+                );
+                merge_registry(registry, instance_registry);
+                output.extend(instance_stmts);
             } else {
                 output.push(stmt.clone());
             }
         }
         _ => output.push(stmt.clone()),
+    }
+}
+
+fn merge_registry(
+    target: &mut InstanceActionRegistry,
+    source: InstanceActionRegistry,
+) {
+    for (label, actions) in source {
+        target.insert(label, actions);
     }
 }
 
@@ -96,7 +150,7 @@ fn expand_component_instance(
     instance_children: &[InlineItem],
     component: &ComponentEntry,
     components: &HashMap<String, ComponentEntry>,
-) -> Vec<Stmt> {
+) -> (Vec<Stmt>, InstanceActionRegistry) {
     let bindings = component_bindings(&component.definition.params, instance_props);
     let root_label = first_labeled_stmt(&component.definition.body);
     let known_labels = collect_labels(&component.definition.body);
@@ -125,7 +179,24 @@ fn expand_component_instance(
         })
         .collect::<Vec<_>>();
 
-    expand_statements(&rewritten, components)
+    // Collect custom actions from rewritten statements
+    let mut instance_actions: HashMap<String, Vec<Stmt>> = HashMap::new();
+    let filtered: Vec<Stmt> = rewritten
+        .into_iter()
+        .filter_map(|stmt| match &stmt {
+            Stmt::ComponentAction { name, body, .. } => {
+                instance_actions.insert(name.clone(), body.clone());
+                None
+            }
+            _ => Some(stmt),
+        })
+        .collect();
+
+    let (expanded_stmts, mut registry) = expand_statements(&filtered, components);
+    if !instance_actions.is_empty() {
+        registry.insert(instance_label.to_string(), instance_actions);
+    }
+    (expanded_stmts, registry)
 }
 
 fn component_bindings(params: &[ParamDef], instance_props: &[Property]) -> HashMap<String, Expr> {

@@ -1,4 +1,5 @@
 use super::{ComponentDef, Import, Stmt};
+use std::collections::HashMap;
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<Import> {
     let mut imports = Vec::new();
@@ -94,4 +95,16 @@ fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<Component
         }
         _ => {}
     }
+}
+
+/// Collect custom action templates from a component definition body.
+/// Returns a map of action_name → body statements (unrewritten).
+pub(super) fn collect_component_actions(definition: &ComponentDef) -> HashMap<String, Vec<Stmt>> {
+    let mut actions = HashMap::new();
+    for stmt in &definition.body {
+        if let Stmt::ComponentAction { name, body, .. } = stmt {
+            actions.insert(name.clone(), body.clone());
+        }
+    }
+    actions
 }

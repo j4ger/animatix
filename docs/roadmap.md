@@ -38,32 +38,7 @@ When keyframe mode inserts a new keyframe within 50ms (`MERGE_WINDOW_S`) of an e
 
 ## 2. Known Limitations
 
-### 2.1 Custom Component Actions
 
-**Status:** Reserved syntax, rejected by parser.
-**Location:** `docs/spec.md` §12.
-
-Authors could define actions inside components:
-
-```animatix
-pub component Button(text: "OK") {
-    action pulse {
-        scale = 1.2 [100ms]
-        scale = 1.0 [100ms]
-    }
-    // ...
-}
-```
-
-Then invoke as:
-
-```animatix
-pulse btn [200ms]
-```
-
-**Effort:** High. Touches parser, module system, timeline build, and action registry.
-
----
 
 ### 2.2 Static Geometry
 
@@ -248,9 +223,8 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 6 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
 | 7 | Cross-file analyzer | Medium-High | Medium |
 | 8 | `strategy: fade` morph | High | Medium |
-| 9 | Custom component actions | High | High |
-| 10 | Green tree / trivia AST | Very High | Low (polish) |
+| 9 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-11*
+*Last updated: 2026-05-12*

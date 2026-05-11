@@ -267,16 +267,191 @@ visible: Rect, size: (100, 100)
      }
 
      let warning_expr = theme_ns.exports.get("warning").unwrap();
-     match warning_expr {
-         Expr::Tuple(vals) => {
-             assert_eq!(vals.len(), 4);
-         }
-         other => panic!("Expected resolved tuple for warning, got: {:?}", other),
-     }
- }
+      match warning_expr {
+          Expr::Tuple(vals) => {
+              assert_eq!(vals.len(), 4);
+          }
+          other => panic!("Expected resolved tuple for warning, got: {:?}", other),
+      }
+  }
 
- #[test]
- fn load_program_expands_component_with_slots() {
+  #[test]
+  fn load_program_custom_component_action_basic() {
+      let dir = temp_project_dir("custom_action");
+      let entry = dir.join("scene.amx");
+      let library = dir.join("button.amx");
+
+      write_file(
+          &library,
+          r#"
+pub component Button(text: "OK") {
+    action pulse {
+        self.scale = 1.2 [100ms]
+        self.scale = 1.0 [100ms]
+    }
+    frame: Rect, size: (100, 40)
+}
+"#,
+      );
+
+      write_file(
+          &entry,
+          r#"
+import "./button.amx"
+
+btn: Button, text: "Click"
+
+#0s
+pulse btn [200ms]
+"#,
+      );
+
+      let program = ModuleGraph::new().load_program(&entry).unwrap();
+      let expanded = program.expand_components();
+
+      // The custom action should be inlined: btn.scale assignments
+      let expanded_debug = format!("{expanded:#?}");
+      // Custom action should inline scale assignments on btn
+      assert!(
+          expanded_debug.contains("\"btn\""),
+          "Custom action should inline btn assignments, got: {}",
+          expanded_debug
+      );
+      assert!(
+          expanded_debug.contains("\"scale\""),
+          "Custom action should inline scale property, got: {}",
+          expanded_debug
+      );
+      // ComponentAction should NOT be in output
+      assert!(
+          !expanded_debug.contains("ComponentAction"),
+          "ComponentAction should be removed after inlining"
+      );
+      // pulse action invocation should be replaced
+      assert!(
+          !expanded_debug.contains("pulse"),
+          "pulse invocation should be replaced with inlined body"
+      );
+  }
+
+  #[test]
+  fn load_program_custom_component_action_self_keyword() {
+      let dir = temp_project_dir("custom_action_self");
+      let entry = dir.join("scene.amx");
+      let library = dir.join("card.amx");
+
+      write_file(
+          &library,
+          r#"
+pub component Card {
+    action glow {
+        self.frame.color = accent.primary [300ms]
+        self.frame.color = accent.secondary [300ms]
+    }
+    frame: Rect, size: (200, 120)
+}
+"#,
+      );
+
+      write_file(
+          &entry,
+          r#"
+import "./card.amx"
+
+card1: Card
+
+#0s
+glow card1 [500ms]
+"#,
+      );
+
+      let program = ModuleGraph::new().load_program(&entry).unwrap();
+      let expanded = program.expand_components();
+
+      let expanded_debug = format!("{expanded:#?}");
+      // self should rewrite to the instance label
+      assert!(
+          expanded_debug.contains("\"card1\""),
+          "self should rewrite to instance label: {}",
+          expanded_debug
+      );
+      assert!(
+          expanded_debug.contains("\"frame\""),
+          "self.frame should be rewritten: {}",
+          expanded_debug
+      );
+      assert!(
+          expanded_debug.contains("\"color\""),
+          "color property should exist: {}",
+          expanded_debug
+      );
+  }
+
+  #[test]
+  fn load_program_custom_component_action_inside_sequence() {
+      let dir = temp_project_dir("custom_action_sequence");
+      let entry = dir.join("scene.amx");
+      let library = dir.join("badge.amx");
+
+      write_file(
+          &library,
+          r#"
+pub component Badge {
+    action bounce {
+        self.scale = 1.5 [100ms]
+        self.scale = 1.0 [100ms]
+    }
+    icon: Circle, radius: 12
+}
+"#,
+      );
+
+      write_file(
+          &entry,
+          r#"
+import "./badge.amx"
+
+badge1: Badge
+
+#0s
+sequence {
+    bounce badge1 [200ms]
+    fade-in badge1 [300ms]
+}
+"#,
+      );
+
+      let program = ModuleGraph::new().load_program(&entry).unwrap();
+      let expanded = program.expand_components();
+
+      // Build timeline to verify sequence timing works with inlined actions
+      let timeline = animatix::timeline::Timeline::build(&expanded);
+      let track_names: Vec<_> = timeline.tracks.keys().collect();
+      assert!(
+          timeline.tracks.contains_key("badge1"),
+          "badge1 should exist. Tracks: {:?}",
+          track_names
+      );
+      let track = timeline.tracks.get("badge1").unwrap();
+      // bounce at 0-200ms (scale), fade-in at 200-500ms (opacity)
+      let scale = track.scale.as_ref().expect("scale should exist");
+      // At 100ms, first scale assignment is halfway: 1.0 → 1.5 = 1.25
+      assert!(
+          (scale.evaluate(100) - 1.25).abs() < 0.01,
+          "Scale should be 1.25 at 100ms, got {}",
+          scale.evaluate(100)
+      );
+      // At 250ms, fade-in should be active (opacity animating)
+      let opacity = track.opacity.as_ref().expect("opacity should exist");
+      assert!(
+          opacity.evaluate(250) > 0.3 && opacity.evaluate(250) < 0.7,
+          "Opacity should be fading in at 250ms, got {}",
+          opacity.evaluate(250)
+      );
+  }
+
+  #[test]
+  fn load_program_expands_component_with_slots() {
      let dir = temp_project_dir("slots_basic");
      let entry = dir.join("scene.amx");
      let library = dir.join("slides.amx");

@@ -14,7 +14,7 @@
 | Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/component_modules_demo.amx` |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
-| Components | custom component actions | No | Planned | No | Yes | Reserved but rejected by parser |
+| Components | custom component actions | Yes | Runtime-real | Yes | Yes | `action` blocks inside components; inlined at expansion time |
 | Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/module_reuse_demo.amx`. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
 | Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
@@ -466,7 +466,38 @@ btn: Button, text: "Submit"
 
 **Non-existent nested targets** report `UnknownTargetPath` diagnostics and are ignored (no orphaned tracks).
 
-**Future-facing:** Custom component actions (`action ...` syntax), richer namespace controls.
+### Custom Component Actions
+
+Define reusable action sequences inside a component:
+
+```animatix
+pub component Button(text: "OK") {
+    action pulse {
+        self.scale = 1.2 [100ms]
+        self.scale = 1.0 [100ms]
+    }
+    frame: Rect, size: (100, 40)
+}
+```
+
+Invoke on any instance:
+```animatix
+btn: Button, text: "Click"
+
+#0s
+pulse btn [200ms]
+```
+
+**Semantics:**
+- Custom actions are **inlined at component expansion time**. The invocation is replaced with the action's body statements.
+- Invocation modifiers **override** body modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
+- Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
+- Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
+
+**Limitations:**
+- No action parameters yet (MVP only supports fixed bodies)
+- Multi-target invocation (`pulse btn, icon`) is not supported
+- Actions cannot be defined at module scope (only inside components)
 
 ### 12.1 Slots
 
@@ -612,7 +643,6 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 
 ## 15. Known Gaps & Limitations
 
-- **Custom Component Actions:** Reserved syntax (`action` inside `component` blocks) is not yet parsed or lowered. Invoking `pulse btn [200ms]` on a user-defined action is not supported.
 - **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
 - **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
 - **Asymmetrical Reveal/Exit Actions:** Standard fade-out or cross-fade behaviors on some primitives and containers remain incomplete or non-intuitive compared to entrance counterparts.

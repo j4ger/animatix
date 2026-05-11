@@ -946,6 +946,23 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 default: default,
             });
 
+        let component_action_stmt = text::keyword("action")
+            .ignore_then(ident.clone())
+            .then(
+                _stmt
+                    .clone()
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|(name, body)| Stmt::ComponentAction {
+                name,
+                params: vec![],
+                body,
+                span: None,
+            })
+            .padded();
+
         let component_def = text::keyword("pub")
             .padded()
             .or_not()
@@ -999,6 +1016,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             for_stmt,
             sequence_stmt,
             stagger_stmt,
+            component_action_stmt,
             component_def,
             text_shorthand,
             actor_decl,
