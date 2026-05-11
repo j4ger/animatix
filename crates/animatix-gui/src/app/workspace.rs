@@ -94,6 +94,10 @@ pub(super) struct UiActions {
     pub(super) toggle_keyframe_mode: bool,
     /// Scroll editor to this 0-indexed line (set by clicking a diagnostic).
     pub(super) scroll_to_line: Option<usize>,
+    /// True when an inspector DragValue/Slider drag started this frame.
+    pub(super) inspector_input_drag_started: bool,
+    /// True when an inspector DragValue/Slider drag ended this frame.
+    pub(super) inspector_input_drag_ended: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {

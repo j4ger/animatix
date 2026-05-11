@@ -171,6 +171,9 @@ struct GuiShell {
     /// Whether we've already taken an undo snapshot for the current drag.
     /// One drag-start → drag-end counts as a single undo entry.
     drag_snapshot_taken: bool,
+    /// Whether an inspector input (DragValue, Slider, etc.) is currently
+    /// being dragged. Used to coalesce undo snapshots during inspector drags.
+    inspector_input_drag_active: bool,
     /// When true, scrubbing the timeline scrolls the editor to the corresponding keyframe.
     editor_sync_enabled: bool,
     /// When true, property edits create keyframes at current time instead of overwriting defaults.
@@ -257,6 +260,7 @@ impl GuiShell {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             drag_snapshot_taken: false,
+            inspector_input_drag_active: false,
             editor_sync_enabled: true,
             keyframe_mode: false,
             cursor_time_s: None,
@@ -630,6 +634,15 @@ impl GuiShell {
             {
                 self.selected_actor = Some(label);
             }
+            // Safety: changing the selected actor destroys inspector widgets,
+            // so any ongoing inspector drag is implicitly ended.
+            if self.inspector_input_drag_active {
+                self.inspector_input_drag_active = false;
+                self.drag_snapshot_taken = false;
+            }
+        }
+        if actions.inspector_input_drag_started {
+            self.inspector_input_drag_active = true;
         }
         for edit in actions.property_edits {
             self.handle_property_edit(edit);
@@ -640,6 +653,10 @@ impl GuiShell {
         // into the same undo entry.
         if actions.drag_ended {
             self.drag_state = DragState::None;
+            self.drag_snapshot_taken = false;
+        }
+        if actions.inspector_input_drag_ended {
+            self.inspector_input_drag_active = false;
             self.drag_snapshot_taken = false;
         }
         if actions.undo {
@@ -666,6 +683,7 @@ impl GuiShell {
                 self.undo_stack.clear();
                 self.redo_stack.clear();
                 self.drag_snapshot_taken = false;
+                self.inspector_input_drag_active = false;
                 if let Some(ref mut reloader) = self.hot_reloader {
                     let _ = reloader.update_watched_file(&self.document.file_path);
                 }

@@ -4,7 +4,7 @@ use animatix::timeline::TrackAccessor;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: workspace::PropertyEdit) {
-        let is_drag = !matches!(self.drag_state, DragState::None);
+        let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
         if !is_drag || !self.drag_snapshot_taken {
             self.snapshot();
             if is_drag {
@@ -82,7 +82,7 @@ impl GuiShell {
         // Take a snapshot for undo before making changes.
         // During a drag, only snapshot once (on the first edit) so that one
         // drag-start → drag-end counts as a single undo entry.
-        let is_drag = !matches!(self.drag_state, DragState::None);
+        let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
         if !is_drag || !self.drag_snapshot_taken {
             self.snapshot();
             if is_drag {

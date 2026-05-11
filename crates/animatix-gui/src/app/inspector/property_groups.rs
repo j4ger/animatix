@@ -345,6 +345,12 @@ fn render_property_row(
                             .speed(0.5)
                             .max_decimals(1),
                     );
+                    if rx.drag_started() || ry.drag_started() {
+                        actions.inspector_input_drag_started = true;
+                    }
+                    if rx.drag_stopped() || ry.drag_stopped() {
+                        actions.inspector_input_drag_ended = true;
+                    }
                     if rx.changed() || ry.changed() {
                         actions.property_edits.push(PropertyEdit {
                             actor: actor_label.to_string(),
@@ -381,6 +387,12 @@ fn render_property_row(
                             )
                             .selectable(false),
                         );
+                        if slider.drag_started() {
+                            actions.inspector_input_drag_started = true;
+                        }
+                        if slider.drag_stopped() {
+                            actions.inspector_input_drag_ended = true;
+                        }
                         if slider.changed() {
                             actions.property_edits.push(PropertyEdit {
                                 actor: actor_label.to_string(),
@@ -397,6 +409,12 @@ fn render_property_row(
                             .suffix(if is_angle { "°" } else { "" })
                             .max_decimals(if is_angle { 1 } else { 2 }),
                     );
+                    if response.drag_started() {
+                        actions.inspector_input_drag_started = true;
+                    }
+                    if response.drag_stopped() {
+                        actions.inspector_input_drag_ended = true;
+                    }
                     if response.changed() {
                         let out_val = if is_angle { nv.to_radians() } else { nv };
                         actions.property_edits.push(PropertyEdit {
