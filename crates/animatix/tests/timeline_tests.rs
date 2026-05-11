@@ -2287,6 +2287,7 @@ fn test_layout_uses_dedicated_layout_size_not_legacy_size() {
     let metadata = ContainerMetadata {
         layout_type: LayoutType::Row,
         gap: 0.0,
+        padding: 0.0,
         align: "center".to_string(),
         cols: None,
         child_order: vec!["left".to_string(), "right".to_string()],
@@ -2336,6 +2337,7 @@ fn test_layout_size_fallback_uses_unseeded_layout_size_even_if_legacy_size_exist
     let metadata = ContainerMetadata {
         layout_type: LayoutType::Row,
         gap: 0.0,
+        padding: 0.0,
         align: "center".to_string(),
         cols: None,
         child_order: vec!["fallback_child".to_string(), "measured_child".to_string()],

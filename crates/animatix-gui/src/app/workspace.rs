@@ -27,6 +27,7 @@ pub(crate) enum PropertyValue {
     Float(f32),
     Color([f32; 4]),
     Text(String),
+    StringList(Vec<String>),
 }
 
 impl From<PropertyValue> for animatix::ast::Expr {
@@ -67,6 +68,9 @@ impl From<PropertyValue> for animatix::ast::Expr {
                 }
             }
             PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
+            PropertyValue::StringList(items) => {
+                animatix::ast::Expr::Tuple(items.into_iter().map(animatix::ast::Expr::Ident).collect())
+            }
         }
     }
 }
@@ -311,12 +315,29 @@ impl WorkspaceViewer<'_> {
 
     /// Check whether the actor is currently layout-managed by a parent container
     /// (Row / Col / Grid / Stack).  Layout-managed actors have their position
-    /// computed by the layout engine, so direct drag-to-move is not meaningful.
+    /// computed by the layout engine, so drag-to-move is replaced by drag-to-reorder.
     fn is_layout_managed(&self, actor: &str) -> bool {
         let Some(t) = self.timeline else { return false };
-        let Some(track) = t.get_track(actor) else { return false };
         let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-        track.placement_mode.get(time_ms, PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged
+        preview::is_layout_managed(actor, t, time_ms)
+    }
+
+    fn find_layout_container(
+        &self,
+        actor_label: &str,
+    ) -> Option<(String, animatix::timeline::LayoutType, usize)> {
+        let timeline = self.timeline?;
+        for (container_label, metadata) in &timeline.container_metadata {
+            if let Some((idx, _)) = metadata
+                .layout_children
+                .iter()
+                .enumerate()
+                .find(|(_, child)| child.label == actor_label)
+            {
+                return Some((container_label.clone(), metadata.layout_type, idx));
+            }
+        }
+        None
     }
 
     /// Extract spatial properties of an actor from the timeline at the given time.
@@ -545,9 +566,21 @@ impl WorkspaceViewer<'_> {
                             .rev()
                             .any(|(label, bounds)| label == &actor && bounds.contains(scene))
                     {
-                        // Layout-managed actors have their position controlled by
-                        // the parent container's layout engine — block move drag.
+                        // Layout-managed actors reorder within their parent container.
                         if self.is_layout_managed(&actor) {
+                            if let Some((container, layout_type, source_index)) =
+                                self.find_layout_container(&actor)
+                            {
+                                *self.drag_state = DragState::Reorder {
+                                    actor,
+                                    container,
+                                    source_index,
+                                    target_index: source_index,
+                                    start_mouse: scene,
+                                    layout_type,
+                                };
+                                return;
+                            }
                             return;
                         }
 
@@ -844,6 +877,66 @@ impl WorkspaceViewer<'_> {
                         create_keyframe: self.keyframe_mode,
                         });
                     }
+                    DragState::Reorder {
+                        actor,
+                        container,
+                        source_index: _,
+                        target_index: _,
+                        start_mouse: _,
+                        layout_type,
+                    } => {
+                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                        if let Some(timeline) = self.timeline {
+                            let order = timeline.get_child_order(&container, time_ms);
+                            let siblings: Vec<String> = order.into_iter().filter(|l| l != &actor).collect();
+                            let positions: Vec<f32> = siblings
+                                .iter()
+                                .map(|label| {
+                                    self.hit_regions
+                                        .iter()
+                                        .find(|(l, _)| l == label)
+                                        .map(|(_, bounds)| {
+                                            if layout_type == animatix::timeline::LayoutType::Row {
+                                                (bounds.x0 + bounds.x1) as f32 / 2.0
+                                            } else {
+                                                (bounds.y0 + bounds.y1) as f32 / 2.0
+                                            }
+                                        })
+                                        .or_else(|| {
+                                            self.get_actor_props(label).map(|p| {
+                                                if layout_type == animatix::timeline::LayoutType::Row {
+                                                    p.position[0]
+                                                } else {
+                                                    p.position[1]
+                                                }
+                                            })
+                                        })
+                                        .unwrap_or(if layout_type == animatix::timeline::LayoutType::Row {
+                                            scene.x as f32
+                                        } else {
+                                            scene.y as f32
+                                        })
+                                })
+                                .collect();
+
+                            let mouse_coord = if layout_type == animatix::timeline::LayoutType::Row {
+                                scene.x as f32
+                            } else {
+                                scene.y as f32
+                            };
+
+                            let mut insert_at = positions.len();
+                            for (idx, coord) in positions.iter().enumerate() {
+                                if mouse_coord < *coord {
+                                    insert_at = idx;
+                                    break;
+                                }
+                            }
+                            if let DragState::Reorder { target_index, .. } = &mut *self.drag_state {
+                                *target_index = insert_at;
+                            }
+                        }
+                    }
                     DragState::None => {}
                 }
             }
@@ -856,6 +949,32 @@ impl WorkspaceViewer<'_> {
                     || pointer_released
                     || (!ui.input(|i| i.pointer.any_down()) && is_dragging))
             {
+                if let DragState::Reorder {
+                    actor,
+                    container,
+                    source_index,
+                    target_index,
+                    ..
+                } = self.drag_state.clone()
+                {
+                    if source_index != target_index {
+                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                        if let Some(timeline) = self.timeline {
+                            let mut new_order = timeline.get_child_order(&container, time_ms);
+                            if let Some(pos) = new_order.iter().position(|label| label == &actor) {
+                                let item = new_order.remove(pos);
+                                let insert_at = target_index.min(new_order.len());
+                                new_order.insert(insert_at, item);
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor: container,
+                                    property: "child_order".into(),
+                                    value: PropertyValue::StringList(new_order),
+                                    create_keyframe: self.keyframe_mode,
+                                });
+                            }
+                        }
+                    }
+                }
                 self.actions.drag_ended = true;
             }
 
@@ -985,12 +1104,7 @@ impl WorkspaceViewer<'_> {
                             .unwrap_or(false);
 
                         if is_over_selected {
-                            // Layout-managed actors can't be repositioned by drag
-                            if self.selected_actor.as_deref().map_or(false, |a| self.is_layout_managed(a)) {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
-                            } else {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                            }
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
                         } else if self.selection.hovered_actor.is_some() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
@@ -1063,6 +1177,41 @@ impl WorkspaceViewer<'_> {
                     self.scene_dimensions,
                     desired,
                 );
+                if let DragState::Reorder {
+                    actor: drag_actor,
+                    container,
+                    target_index,
+                    layout_type,
+                    ..
+                } = self.drag_state.clone()
+                {
+                    if &drag_actor == actor {
+                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                        if let Some(timeline) = self.timeline {
+                            let order = timeline.get_child_order(&container, time_ms);
+                            let siblings: Vec<(String, [f32; 2])> = order
+                                .into_iter()
+                                .filter(|label| label != actor)
+                                .filter_map(|label| {
+                                    self.get_actor_props(&label)
+                                        .map(|p| (label, p.position))
+                                })
+                                .collect();
+                            if let Some(props) = props.as_ref() {
+                                preview::draw_reorder_overlay(
+                                    ui.painter(),
+                                    props,
+                                    target_index,
+                                    &siblings,
+                                    preview_rect,
+                                    self.scene_dimensions,
+                                    desired,
+                                    layout_type == animatix::timeline::LayoutType::Row,
+                                );
+                            }
+                        }
+                    }
+                }
             }
 
             // NOTE: errors are shown in the diagnostics banner above the canvas,

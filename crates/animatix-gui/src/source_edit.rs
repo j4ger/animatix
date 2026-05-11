@@ -55,6 +55,11 @@ pub enum SourceEdit {
         /// Time of the previous keyframe (for relative offset calculation).
         prev_time_s: f64,
     },
+    /// Reorder a container's inline children by label.
+    ReorderContainerChildren {
+        container: String,
+        new_order: Vec<String>,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -75,6 +80,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             time_s,
             prev_time_s,
         } => insert_keyframe(stmts, &actor, &property, value, time_s, prev_time_s),
+        SourceEdit::ReorderContainerChildren { container, new_order } => {
+            reorder_container_children(stmts, &container, new_order)
+        }
     }
 }
 
@@ -267,6 +275,38 @@ fn time_to_seconds(t: &Time) -> f64 {
         Time::Seconds(s) => *s,
         Time::Milliseconds(ms) => *ms as f64 / 1000.0,
     }
+}
+
+fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Vec<String>) -> bool {
+    if let Some(actor_decl) = find_actor_decl_mut(stmts, container) {
+        if let Stmt::ActorDecl { children, .. } = actor_decl {
+            let mut labeled = std::collections::BTreeMap::<String, InlineItem>::new();
+            let mut remaining = Vec::new();
+
+            for item in children.drain(..) {
+                match &item {
+                    InlineItem::Labeled { label, .. } if new_order.iter().any(|l| l == label) => {
+                        labeled.insert(label.clone(), item);
+                    }
+                    _ => remaining.push(item),
+                }
+            }
+
+            let mut reordered = Vec::new();
+            for label in new_order {
+                if let Some(item) = labeled.remove(&label) {
+                    reordered.push(item);
+                }
+            }
+
+            reordered.extend(remaining);
+            reordered.extend(labeled.into_values());
+            *children = reordered;
+            return true;
+        }
+    }
+
+    false
 }
 
 // ---------------------------------------------------------------------------

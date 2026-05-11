@@ -12,6 +12,11 @@ impl GuiShell {
             }
         }
 
+        if edit.property == "child_order" {
+            self.apply_child_order_edit(edit);
+            return;
+        }
+
         // Update in-memory timeline for live preview (all properties, not just position/rotation)
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
@@ -90,6 +95,11 @@ impl GuiShell {
             }
         }
 
+        if edit.property == "child_order" {
+            self.apply_child_order_edit(edit);
+            return;
+        }
+
         // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
@@ -155,6 +165,57 @@ impl GuiShell {
                 "Edited {}.{} — visual only (no source span)",
                 edit.actor, edit.property
             );
+        }
+    }
+
+    fn apply_child_order_edit(&mut self, edit: workspace::PropertyEdit) {
+        use workspace::PropertyValue as PV;
+
+        let source_written = if let (Some(ref mut timeline), PV::StringList(order)) =
+            (self.document.timeline.as_mut(), edit.value.clone())
+        {
+            if let Some(metadata) = timeline.container_metadata.get_mut(&edit.actor) {
+                metadata.child_order = order.clone();
+                metadata.layout_children = order
+                    .iter()
+                    .filter_map(|label| {
+                        timeline.tracks.get(label).map(|_| animatix::timeline::ContainerLayoutChild {
+                            label: label.clone(),
+                        })
+                    })
+                    .collect();
+                timeline.invalidate_frame_cache();
+            }
+
+            if let Some(ref mut stmts) = self.document.raw_statements {
+                let applied = crate::source_edit::apply_edit(
+                    stmts,
+                    crate::source_edit::SourceEdit::ReorderContainerChildren {
+                        container: edit.actor.clone(),
+                        new_order: order,
+                    },
+                );
+                if applied {
+                    let new_source = animatix::to_source::stmts_to_source(stmts);
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                }
+                applied
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        self.preview_dirty = true;
+        if source_written {
+            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = format!("Edited {}.child_order — source updated", edit.actor);
+        } else {
+            self.preview.status = format!("Edited {}.child_order — visual only (no source span)", edit.actor);
         }
     }
 }

@@ -111,9 +111,9 @@ Animatix uses a **parent-driven layout system** with an explicit manual-placemen
 
 ### Container Types
 
-- **Row/Col**: Taffy-backed linear layout with `gap` and cross-axis `align`
-- **Grid**: Taffy-backed grid with explicit `cols` and `gap`
-- **Stack**: Special-cased; all admitted children share the same origin
+- **Row/Col**: Taffy-backed linear layout with `gap`, `padding`, and cross-axis `align`
+- **Grid**: Taffy-backed grid with explicit `cols`, `gap`, and `padding`
+- **Stack**: Special-cased; all admitted children share the same origin (supports `padding`)
 - **Group**: Scene-graph grouping only; no layout algorithm
 
 ### Layout Measurement
@@ -127,7 +127,16 @@ Children without seeded `layout_size` are excluded from layout admission. Legacy
 
 ### Dynamic Layout
 
-When `config { dynamic_layout: true }` is enabled, admitted children are re-sampled from `layout_size` per frame and positions are recomputed. Membership remains static (build-time admission only); `gap`, `align`, `cols` do not animate.
+When `config { dynamic_layout: true }` is enabled, admitted children are re-sampled from `layout_size` per frame and positions are recomputed. Membership remains static (build-time admission only); `gap`, `padding`, `align`, `cols` do not animate.
+
+### GUI Reorder Interaction
+
+The GUI supports canvas drag-to-reorder for layout-managed children:
+1. **Drag start** on a layout-managed child enters `Reorder` mode instead of `Move`
+2. **Mouse tracking** projects the cursor onto the container's main axis and computes an insertion index against sibling center positions
+3. **Visual feedback** shows a ghost at the original position and an accent-blue drop line at the insertion point
+4. **Drop** emits a `child_order` property edit targeting the container; the edit pipeline updates `ContainerMetadata` and persists the new order to source via AST mutation
+5. **Inspector** also exposes up/down arrow buttons for each child when a container is selected
 
 ---
 
@@ -258,7 +267,7 @@ Compound properties that need cross-property coordination:
 - **PositionBinding**: `at` + `anchor` + `offset` → resolved binding
 - **VectorShapeState**: `radius`, `sides`, `from`, `to`, `start_angle`, `sweep_angle`, `points`, `commands` → shape geometry
 - **PlotDomain**: `x_domain`, `y_domain`, `t_domain`, `func`, etc. → plot curve builder
-- **ContainerLayout**: `gap`, `align`, `cols` → container metadata
+- **ContainerLayout**: `gap`, `padding`, `align`, `cols` → container metadata
 
 ---
 

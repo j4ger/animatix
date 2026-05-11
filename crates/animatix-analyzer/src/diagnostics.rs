@@ -345,6 +345,7 @@ mod tests {
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: None,
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
@@ -365,6 +366,7 @@ mod tests {
                 targets: vec!["nonexistent".to_string()],
                 args: vec![],
                 modifiers: vec![],
+                byte_span: None,
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);

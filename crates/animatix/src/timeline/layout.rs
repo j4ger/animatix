@@ -12,7 +12,7 @@
 //!
 //! 2. **Container placement**: Containers (Row, Col, Grid, Stack) consume child
 //!    half-extents and place children deterministically based on declared order,
-//!    gap, and alignment. Placement is frozen at declaration time.
+//!    gap, padding, and alignment. Placement is frozen at declaration time.
 //!
 //! 3. **Authored `at` opts out**: A child with an authored `at` value is skipped
 //!    by container placement; the author takes full responsibility for its position.
@@ -53,6 +53,7 @@ fn compute_linear_layout(
     children: &[ChildExtent],
     is_row: bool,
     gap: f32,
+    padding: f32,
     align: &str,
 ) -> Vec<[f32; 2]> {
     let layout_type = if is_row {
@@ -61,7 +62,7 @@ fn compute_linear_layout(
         super::LayoutType::Col
     };
 
-    let results = compute_taffy_linear_layout(children, layout_type, gap, align);
+    let results = compute_taffy_linear_layout(children, layout_type, gap, padding, align);
     results.into_iter().map(|r| r.position).collect()
 }
 
@@ -70,9 +71,10 @@ fn compute_linear_layout(
 fn compute_grid_layout(
     children: &[ChildExtent],
     gap: f32,
+    padding: f32,
     cols: usize,
 ) -> Vec<[f32; 2]> {
-    let results = compute_taffy_grid_layout(children, gap, cols);
+    let results = compute_taffy_grid_layout(children, gap, padding, cols);
     results.into_iter().map(|r| r.position).collect()
 }
 
@@ -97,9 +99,14 @@ impl LayoutEngine {
         if is_stack {
             compute_stack_layout(children)
         } else if is_grid {
-            compute_grid_layout(children, metadata.gap, metadata.cols.unwrap_or(1).max(1))
+            compute_grid_layout(
+                children,
+                metadata.gap,
+                metadata.padding,
+                metadata.cols.unwrap_or(1).max(1),
+            )
         } else {
-            compute_linear_layout(children, is_row, metadata.gap, &metadata.align)
+            compute_linear_layout(children, is_row, metadata.gap, metadata.padding, &metadata.align)
         }
     }
 

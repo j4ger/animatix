@@ -5,7 +5,7 @@
 //! Every property in Animatix is described by a `PropertySchema` entry in the
 //! static `PROPERTY_REGISTRY`. Each schema specifies:
 //!
-//! - `name` — Canonical source-text name (`"color"`, `"radius"`, `"gap"`)
+//! - `name` — Canonical source-text name (`"color"`, `"radius"`, `"gap"`, `"padding"`)
 //! - `value_type` — Which rust type the property value carries
 //! - `flags` — Feature flags (ANIMATED, ASSIGNABLE, INJECTABLE, LAYOUT_AFFECTING)
 //! - `field` — Which `ActorField` storage location this maps to
@@ -292,6 +292,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     PropertySchema { name: "max_depth",    value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::PlotDomainGroup,     group: Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), applicable: Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]) },
     PropertySchema { name: "offset",       value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::PositionBindingGroup, group: Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), applicable: Applicable::Everything },
     PropertySchema { name: "opacity",      value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Opacity,            group: None,                             applicable: Applicable::EveryActorExceptGroup },
+    PropertySchema { name: "padding",      value_type: ValueType::F32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Row, A::Col, A::Grid, A::Stack]) },
     PropertySchema { name: "points",       value_type: ValueType::PointList,  flags: F::ASSIGNABLE_A,             field: ActorField::Points,             group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
     PropertySchema { name: "position",     value_type: ValueType::Vec2,       flags: F::ASSIGNABLE_AI,             field: ActorField::Position,           group: None,                             applicable: Applicable::Everything },
     PropertySchema { name: "radius",       value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::Size,               group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Circle, S::Dot, S::RegularPolygon]) },

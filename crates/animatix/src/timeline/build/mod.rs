@@ -18,6 +18,7 @@ impl Timeline {
         container_ty: &str,
         time_ms: u64,
         gap: f32,
+        padding: f32,
         align: Option<&str>,
         cols: Option<usize>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -34,6 +35,7 @@ impl Timeline {
             ContainerMetadata {
                 layout_type: LayoutType::from_container_ty(container_ty),
                 gap,
+                padding,
                 align: align.unwrap_or("center").to_string(),
                 cols,
                 child_order,
@@ -594,6 +596,7 @@ impl Timeline {
                     ty,
                     t_start_ms,
                     0.0,
+                    0.0,
                     Some("center"),
                     None,
                     diagnostics,
@@ -802,6 +805,7 @@ impl Timeline {
                     let mut stroke_progress = existing_track.stroke_progress.last(1.0);
                     let mut fill_opacity = existing_track.fill_opacity.last(1.0);
                     let mut gap = 0.0f32;
+                    let mut padding = 0.0f32;
                     let mut align: Option<String> = None;
                     let mut cols: Option<usize> = None;
                     let mut vector_shape_state =
@@ -904,6 +908,12 @@ impl Timeline {
                                     &prop.value, &eval_env, diagnostics, &prop_subject,
                                 ).unwrap_or(Value::Num(0.0));
                                 gap = v.as_num() as f32;
+                            }
+                            "padding" => {
+                                let v = evaluate_expr_with_lookup_diagnostic(
+                                    &prop.value, &eval_env, diagnostics, &prop_subject,
+                                ).unwrap_or(Value::Num(0.0));
+                                padding = v.as_num() as f32;
                             }
                             "align" => {
                                 if let Expr::Str(s) = &prop.value { align = Some(s.clone()); }
@@ -1110,8 +1120,9 @@ impl Timeline {
                         self.register_container_metadata_and_apply_layout(
                             label,
                             ty,
-                            t_start_ms,
+                            time_ms as u64,
                             gap,
+                            padding,
                             align.as_deref(),
                             cols,
                             diagnostics,

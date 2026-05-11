@@ -173,6 +173,7 @@ pub struct ContainerLayoutChild {
 pub struct ContainerMetadata {
     pub layout_type: LayoutType,
     pub gap: f32,
+    pub padding: f32,
     pub align: String,
     pub cols: Option<usize>,
     /// Raw authored child order snapshot for this container.

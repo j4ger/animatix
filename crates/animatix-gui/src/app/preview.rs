@@ -1,6 +1,6 @@
 use super::DEFAULT_PREVIEW_SIZE;
-use animatix::timeline::SceneDimensions;
-use egui::{Color32, Pos2, Stroke, Vec2};
+use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
+use egui::{Color32, FontId, Pos2, Stroke, Vec2};
 
 // ─── Drag State ─────────────────────────────────────────────────────────────
 
@@ -18,7 +18,10 @@ pub(super) enum ResizeMode {
 
 /// Tracks the current drag interaction on the preview canvas.
 ///
-/// All manipulation is computed in the actor's **object-local** coordinate system
+/// - `Move`, `Scale`, `Rotate` manipulate absolutely positioned actors.
+/// - `Reorder` reorders layout-managed children within their parent container.
+///
+/// All spatial manipulation is computed in the actor's **object-local** coordinate system
 /// (origin at actor center, pre-rotation axes) and then transformed to world space.
 #[derive(Debug, Clone)]
 pub(super) enum DragState {
@@ -66,6 +69,15 @@ pub(super) enum DragState {
         /// Actor centre in world space at drag start.
         center: [f32; 2],
     },
+    /// Dragging a layout-managed child to reorder within its container.
+    Reorder {
+        actor: String,
+        container: String,
+        source_index: usize,
+        target_index: usize,
+        start_mouse: kurbo::Point,
+        layout_type: animatix::timeline::LayoutType,
+    },
 }
 
 // ─── Actor Properties ───────────────────────────────────────────────────────
@@ -83,6 +95,13 @@ pub(super) const ROTATION_RADIUS: f32 = 4.0;
 const HANDLE_SIZE: f32 = 6.0;
 const HANDLE_HIT_RADIUS: f32 = 10.0;
 const SELECTION_COLOR: Color32 = Color32::from_rgb(84, 110, 255);
+
+pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
+    timeline
+        .get_track(actor)
+        .map(|t| t.placement_mode.get(time_ms, PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged)
+        .unwrap_or(false)
+}
 
 // ─── Handle Layout in Local Space ───────────────────────────────────────────
 
@@ -385,6 +404,86 @@ pub(super) fn draw_selection_overlay(
             Stroke::new(1.0, SELECTION_COLOR),
         );
     }
+}
+
+pub(super) fn draw_reorder_overlay(
+    painter: &egui::Painter,
+    props: &ActorProps,
+    target_index: usize,
+    sibling_positions: &[(String, [f32; 2])],
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: egui::Vec2,
+    is_row: bool,
+) {
+    let ghost_color = Color32::from_rgba_unmultiplied(84, 110, 255, 153);
+    let hw = props.size[0] / 2.0;
+    let hh = props.size[1] / 2.0;
+    let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    let world_corners: [kurbo::Point; 4] = std::array::from_fn(|i| {
+        local_to_world(local_corners[i], props.position, props.rotation)
+    });
+    let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
+        scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired)
+    });
+    for i in 0..4 {
+        let next = (i + 1) % 4;
+        painter.line_segment([screen_corners[i], screen_corners[next]], Stroke::new(1.5, ghost_color));
+    }
+
+    let coords: Vec<f32> = sibling_positions
+        .iter()
+        .map(|(_, pos)| if is_row { pos[0] } else { pos[1] })
+        .collect();
+    let insertion_coord = if coords.is_empty() {
+        if is_row { props.position[0] } else { props.position[1] }
+    } else if target_index == 0 {
+        if coords.len() == 1 {
+            coords[0]
+        } else {
+            coords[0] - (coords[1] - coords[0]) * 0.5
+        }
+    } else if target_index >= coords.len() {
+        if coords.len() == 1 {
+            coords[0]
+        } else {
+            let last = coords[coords.len() - 1];
+            let prev = coords[coords.len() - 2];
+            last + (last - prev) * 0.5
+        }
+    } else {
+        (coords[target_index - 1] + coords[target_index]) * 0.5
+    };
+
+    let accent = Color32::from_rgb(84, 110, 255);
+    let scale_x = desired.x as f64 / scene_dimensions.width as f64;
+    let scale_y = desired.y as f64 / scene_dimensions.height as f64;
+    if is_row {
+        let x = (preview_rect.min.x as f64 + insertion_coord as f64 * scale_x) as f32;
+        painter.line_segment(
+            [Pos2::new(x, preview_rect.top()), Pos2::new(x, preview_rect.bottom())],
+            Stroke::new(2.5, accent),
+        );
+    } else {
+        let y = (preview_rect.min.y as f64 + insertion_coord as f64 * scale_y) as f32;
+        painter.line_segment(
+            [Pos2::new(preview_rect.left(), y), Pos2::new(preview_rect.right(), y)],
+            Stroke::new(2.5, accent),
+        );
+    }
+
+    let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
+    let tooltip_text = "Reorder: drag to new position";
+    let galley = painter.layout_no_wrap(tooltip_text.to_owned(), FontId::proportional(12.0), Color32::WHITE);
+    let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
+    painter.rect_filled(tooltip_rect, 4.0, Color32::from_rgba_unmultiplied(24, 28, 36, 235));
+    painter.rect_stroke(
+        tooltip_rect,
+        4.0,
+        Stroke::new(1.0, accent),
+        egui::StrokeKind::Outside,
+    );
+    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, Color32::WHITE);
 }
 
 /// Returns the 8 scale handle centre positions for an axis-aligned rect (legacy fallback).

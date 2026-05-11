@@ -343,6 +343,7 @@ mod tests {
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: 8.0,
+                padding: 0.0,
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string()],
@@ -398,6 +399,7 @@ mod tests {
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: 8.0,
+                padding: 0.0,
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],

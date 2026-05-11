@@ -232,9 +232,15 @@ Overlapping swaps on the same container are disallowed and emit a diagnostic.
 
 **How it works:** The `swap` action writes a keyframe to a per-container `child_orders` track at `time + duration`. During evaluation, if the current time falls between two child-order keyframes, layout positions are computed for both orders and interpolated with easing. This produces smooth sliding motion without `motion_offset` hacks.
 
-**Future: `reorder`**
+**GUI Reorder (Implemented)**
 
-A planned `reorder` action would allow explicit full-order specification (e.g. reversing a container), independent of swap history. Unlike `swap`, it could support overlapping transitions by capturing a snapshot of the current order at action start time.
+The GUI supports canvas drag-to-reorder for layout-managed children. Dragging a child inside a Row/Col/Grid container projects the mouse onto the main axis and computes an insertion index. Visual feedback includes a ghost at the original position and an accent-blue drop line. On release, the new order is persisted to source via AST mutation of the container's `children` block.
+
+The inspector also exposes up/down arrow buttons for each child when a container is selected.
+
+**Future: `reorder` action**
+
+A planned runtime `reorder` action would allow explicit full-order specification (e.g. reversing a container), independent of swap history. Unlike `swap`, it could support overlapping transitions by capturing a snapshot of the current order at action start time.
 
 ```animatix
 # Reverse a row
@@ -304,15 +310,15 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`.
 
-- **Row/Col:** `gap` (spacing), `align` ("start" | "center" | "end")
-- **Grid:** `cols` + `gap`
-- **Stack:** Overlapping children around shared origin
+- **Row/Col:** `gap` (spacing), `padding` (inset), `align` ("start" | "center" | "end")
+- **Grid:** `cols` + `gap` + `padding`
+- **Stack:** Overlapping children around shared origin (supports `padding`)
 - **Group:** Non-layout grouping/transform inheritance
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
 ```animatix
-row: Row, gap: 12, align: "center" {
+row: Row, gap: 12, padding: 20, align: "center" {
   Rect, color: red
   Circle, color: blue
 }

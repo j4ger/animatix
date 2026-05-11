@@ -399,7 +399,7 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | `Expr::Index` (array access) | Medium | High |
-| 2 | `reorder` action | Medium | Medium-High |
+| 2 | `reorder` action (GUI drag-to-reorder done; runtime action pending) | Medium | Medium-High |
 | 3 | Module re-exports | Low-Medium | Medium |
 | 5 | Module re-exports | Low-Medium | Medium |
 | 6 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
@@ -414,7 +414,7 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 
 ---
 
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-11*
 
 ---
 
@@ -422,6 +422,8 @@ If you want to pick something up, here is a suggested order by effort-to-impact 
 
 | Date | Item | Notes |
 |------|------|-------|
+| 2026-05-11 | GUI flexbox child reordering | Canvas drag-to-reorder for layout-managed children with ghost overlay and drop indicators; inspector children panel with up/down buttons; AST mutation persists order to source |
+| 2026-05-11 | Container `padding` property | Added to `ContainerMetadata`, Taffy layout, build pipeline, property registry, and inspector |
 | 2026-05-08 | Font Selection — Phase 1 & 2 | Static font bundle + runtime text recompilation with `TextCompiler` cache |
 | 2026-05-08 | `font_family` / `font_size` property fix | Both were mapped to wrong fields (silently broken); now properly stored on `AnimationTrack` |
 | 2026-05-08 | Parser span capture + analyzer positions | `Span` added to all `Stmt` variants; `Analyzer::enrich_positions` populates real line/col from tree-sitter for LSP go-to-definition |

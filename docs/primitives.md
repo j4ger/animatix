@@ -374,6 +374,7 @@ Auto-layout-first model with declaration-time measure/place contract. Explicit `
 
 **Properties:**
 - `gap`: Number
+- `padding`: Number
 - `align`: `start | center | end`
 
 ## Col
@@ -381,6 +382,7 @@ Auto-layout-first model with declaration-time measure/place contract. Explicit `
 
 **Properties:**
 - `gap`: Number
+- `padding`: Number
 - `align`: `start | center | end`
 
 ## Group
@@ -396,6 +398,7 @@ Structured two-dimensional layout. Phase 1 supports `cols` and `gap` with determ
 **Properties:**
 - `cols`: Number
 - `gap`: Number
+- `padding`: Number
 
 ## Stack
 **Status:** Implemented in runtime auto-layout.
@@ -404,6 +407,7 @@ Layered composition. Overlaps layout-managed children around a shared origin.
 
 **Properties:**
 - `gap`: Number
+- `padding`: Number
 
 Root layout containers can omit `at` and default to `scene.center`. Scene-relative placement via `anchor: scene.*`, `offset`, and percentage-based `at` is supported.
 

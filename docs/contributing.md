@@ -136,6 +136,13 @@ Preview click → hit_regions → selected_actor → Inspector highlights
 Preview drag → PropertyEdit → handle_property_edit → source + timeline + invalidate
 ```
 
+Special-case edits (e.g. `child_order` on containers) bypass per-track dispatch and are handled directly in `handle_property_edit` / `handle_keyframe_edit` before the generic pipeline:
+```
+PropertyEdit { actor: container, property: "child_order", value: StringList }
+  → update ContainerMetadata.child_order + rebuild layout_children
+  → AST mutation: ReorderContainerChildren → reorder children block in source
+```
+
 ### Key State Objects
 
 - **DocumentSession**: file path, source text, dirty state, compiled AST, timeline, duration, scene dimensions

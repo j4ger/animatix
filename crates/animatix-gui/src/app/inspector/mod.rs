@@ -3,7 +3,7 @@ use egui::{Color32, Id, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
 use crate::app::theme::*;
-use crate::app::workspace::UiActions;
+use crate::app::workspace::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
 
 mod property_groups;
 mod keyframe_table;
@@ -109,6 +109,22 @@ pub(super) fn inspector_ui(
                 });
 
                 ui.add_space(SPACE_M);
+
+                // ── Container Children ──
+                if let Some(metadata) = timeline.container_metadata.get(sel) {
+                    components::card(ui, |ui| {
+                        components::section_header(
+                            ui,
+                            egui_phosphor::regular::ROWS,
+                            "Children",
+                            Some(metadata.layout_children.len()),
+                        );
+                        let time_ms = (current_time_s * 1000.0) as u64;
+                        let order = timeline.get_child_order(sel, time_ms);
+                        render_container_children(ui, sel, &order, actions, keyframe_mode);
+                    });
+                    ui.add_space(SPACE_M);
+                }
 
                 // ── Mini Timeline ──
                 components::card(ui, |ui| {
@@ -233,5 +249,119 @@ fn shape_icon(shape: ShapeType) -> &'static str {
         ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
         ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
         ShapeType::Plot => egui_phosphor::regular::DOTS_THREE_OUTLINE,
+    }
+}
+
+// ─── Container Children Reorder ───────────────────────────────────────────
+
+fn render_container_children(
+    ui: &mut egui::Ui,
+    container: &str,
+    order: &[String],
+    actions: &mut UiActions,
+    keyframe_mode: bool,
+) {
+    ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, SPACE_S);
+    for (i, label) in order.iter().enumerate() {
+        let row_id = ui.id().with(format!("child_{}", i));
+        let available = ui.available_width();
+        let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, ROW_M), egui::Sense::hover());
+
+        // Background
+        let bg = if ui.rect_contains_pointer(row_rect) {
+            BG_HOVER
+        } else {
+            Color32::TRANSPARENT
+        };
+        if bg != Color32::TRANSPARENT {
+            ui.painter().rect_filled(row_rect, RADIUS_M, bg);
+        }
+
+        let baseline_y = row_rect.center().y;
+        let mut cursor_x = row_rect.min.x + SPACE_M;
+
+        // Index badge
+        let badge = format!("{}", i + 1);
+        ui.painter().text(
+            egui::pos2(cursor_x + 8.0, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            badge,
+            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TEXT_MUTED,
+        );
+        cursor_x += 20.0;
+
+        // Label
+        ui.painter().text(
+            egui::pos2(cursor_x, baseline_y),
+            egui::Align2::LEFT_CENTER,
+            label,
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TEXT_SECONDARY,
+        );
+
+        // Up / Down buttons (right-aligned)
+        let btn_size = Vec2::new(ROW_S, ROW_S);
+        let btn_y = row_rect.min.y + (row_rect.height() - btn_size.y) * 0.5;
+        let mut btn_x = row_rect.max.x - SPACE_S - btn_size.x;
+
+        // Down button
+        let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
+        let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click());
+        let down_color = if i + 1 >= order.len() {
+            TEXT_DISABLED
+        } else if down_resp.hovered() {
+            TEXT_PRIMARY
+        } else {
+            TEXT_SECONDARY
+        };
+        ui.painter().text(
+            down_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            egui_phosphor::regular::CARET_DOWN,
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            down_color,
+        );
+        btn_x -= btn_size.x + SPACE_XS;
+
+        // Up button
+        let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
+        let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click());
+        let up_color = if i == 0 {
+            TEXT_DISABLED
+        } else if up_resp.hovered() {
+            TEXT_PRIMARY
+        } else {
+            TEXT_SECONDARY
+        };
+        ui.painter().text(
+            up_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            egui_phosphor::regular::CARET_UP,
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            up_color,
+        );
+
+        // Emit reorder on click
+        if up_resp.clicked() && i > 0 {
+            let mut new_order = order.to_vec();
+            new_order.swap(i, i - 1);
+            actions.property_edits.push(PropertyEdit {
+                actor: container.to_string(),
+                property: "child_order".into(),
+                value: GuiPropertyValue::StringList(new_order),
+                create_keyframe: keyframe_mode,
+            });
+        }
+        if down_resp.clicked() && i + 1 < order.len() {
+            let mut new_order = order.to_vec();
+            new_order.swap(i, i + 1);
+            actions.property_edits.push(PropertyEdit {
+                actor: container.to_string(),
+                property: "child_order".into(),
+                value: GuiPropertyValue::StringList(new_order),
+                create_keyframe: keyframe_mode,
+            });
+        }
     }
 }
