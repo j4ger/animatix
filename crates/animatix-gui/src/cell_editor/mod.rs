@@ -42,6 +42,11 @@ pub struct CellEditorState {
     pub error_cells: std::collections::HashSet<usize>,
     /// Set of cell indices that have at least one diagnostic warning (but no errors).
     pub warning_cells: std::collections::HashSet<usize>,
+    /// When set, focus this cell and place the cursor at the given char index
+    /// inside its body TextEdit. Consumed by the cell renderer on the next frame.
+    pub pending_cursor_cell: Option<usize>,
+    /// Char index within the cell body where the cursor should be placed.
+    pub pending_cursor_char: Option<usize>,
 }
 
 impl Default for CellEditorState {
@@ -57,6 +62,8 @@ impl Default for CellEditorState {
             diagnostics: Vec::new(),
             error_cells: std::collections::HashSet::new(),
             warning_cells: std::collections::HashSet::new(),
+            pending_cursor_cell: None,
+            pending_cursor_char: None,
         }
     }
 }

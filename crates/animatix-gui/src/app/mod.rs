@@ -381,10 +381,10 @@ impl GuiShell {
                 .max_height(400.0)
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    if let Some(line) =
+                    if let Some(target) =
                         components::diagnostics_list(ui, &diagnostics)
                     {
-                        actions.scroll_to_line = Some(line);
+                        self.editor.focus_diagnostic(target.line, target.column);
                     }
                 });
         }

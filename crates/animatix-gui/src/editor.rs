@@ -187,6 +187,56 @@ impl EditorBuffer {
         self.cell_state.focused_cell = cell;
     }
 
+    /// Focus the cell that contains `line` and place the cursor at the end
+    /// of the word/token that starts at `column`.
+    pub fn focus_diagnostic(&mut self, line: usize, column: usize) {
+        let cell_idx = self.cell_index_for_source_line(line);
+        let Some(idx) = cell_idx else { return };
+        let Some(cell_start_line) = self.source_line_for_cell(idx) else { return };
+
+        // Determine how many header lines precede the editable body.
+        let cell = &self.cells[idx];
+        let header_lines = match cell {
+            crate::cell_editor::Cell::Code { .. } => 0,
+            crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                let comment_lines =
+                    attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
+                comment_lines + 1 // +1 for the #timestamp line
+            }
+        };
+
+        let body_start_line = cell_start_line + header_lines;
+        let line_in_body = line.saturating_sub(body_start_line);
+        let col_0based = column;
+
+        let body = cell.body();
+        let mut char_idx = 0usize;
+        for (i, body_line) in body.lines().enumerate() {
+            if i == line_in_body {
+                char_idx += col_0based.min(body_line.chars().count());
+                break;
+            }
+            char_idx += body_line.chars().count() + 1; // +1 for '\n'
+        }
+
+        // Advance to the end of the current word/token so the user is
+        // positioned right after the problematic identifier/value.
+        let body_chars: Vec<char> = body.chars().collect();
+        // Skip any whitespace immediately after the start position.
+        while char_idx < body_chars.len() && body_chars[char_idx].is_whitespace() {
+            char_idx += 1;
+        }
+        // Consume the word/token.
+        while char_idx < body_chars.len() && !body_chars[char_idx].is_whitespace() {
+            char_idx += 1;
+        }
+
+        self.cell_state.focused_cell = Some(idx);
+        self.cell_state.scroll_to_cell = Some(idx);
+        self.cell_state.pending_cursor_cell = Some(idx);
+        self.cell_state.pending_cursor_char = Some(char_idx);
+    }
+
     pub fn set_highlighted_line(&mut self, line: Option<usize>) {
         self.highlighted_line = line;
         // Map source line to cell index for cell-level highlighting

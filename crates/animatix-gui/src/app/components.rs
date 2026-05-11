@@ -555,18 +555,27 @@ impl<'a> TimelineStrip<'a> {
 
 // ─── Diagnostics List ─────────────────────────────────────────────────────
 
+/// Where to place the cursor after clicking a diagnostic.
+#[derive(Clone, Copy, Debug)]
+pub struct DiagnosticTarget {
+    /// 0-indexed source line.
+    pub line: usize,
+    /// 0-indexed source column.
+    pub column: usize,
+}
+
 /// Renders a scrollable card of diagnostic messages.
 ///
-/// Returns the 0-indexed source line to scroll to if a diagnostic was clicked.
+/// Returns the target location if a diagnostic was clicked.
 pub fn diagnostics_list(
     ui: &mut egui::Ui,
     diagnostics: &[Diagnostic],
-) -> Option<usize> {
+) -> Option<DiagnosticTarget> {
     if diagnostics.is_empty() {
         return None;
     }
 
-    let mut scroll_to_line: Option<usize> = None;
+    let mut clicked_target: Option<DiagnosticTarget> = None;
 
     card(ui, |ui| {
         // Header with counts
@@ -628,24 +637,24 @@ pub fn diagnostics_list(
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
                 for (i, d) in diagnostics.iter().enumerate() {
-                    if let Some(line) =
+                    if let Some(target) =
                         diagnostic_row(ui, d, i == diagnostics.len() - 1)
                     {
-                        scroll_to_line = Some(line);
+                        clicked_target = Some(target);
                     }
                 }
             });
     });
 
-    scroll_to_line
+    clicked_target
 }
 
-/// Render a single diagnostic row. Returns the 0-indexed line to jump to if clicked.
+/// Render a single diagnostic row. Returns the target location if clicked.
 fn diagnostic_row(
     ui: &mut egui::Ui,
     diagnostic: &Diagnostic,
     is_last: bool,
-) -> Option<usize> {
+) -> Option<DiagnosticTarget> {
     let available = ui.available_width();
     let row_h = ROW_L;
     let (row_rect, response) =
@@ -691,22 +700,24 @@ fn diagnostic_row(
 
     // Phase badge (small, right-aligned later)
     let phase_str = phase_label(diagnostic.phase);
-    let phase_color = phase_color(diagnostic.phase);
 
-    // Message (clamped to available width)
+    // Compute how much width the phase badge needs (~40 px)
+    let phase_badge_w = 40.0_f32;
+    let msg_max_width = (row_rect.max.x - cursor_x - SPACE_L - phase_badge_w).max(20.0);
+
+    // Message — truncate to actual available width using egui's galley
     let msg = diagnostic.message.lines().next().unwrap_or(&diagnostic.message);
-    let msg_max_width = row_rect.max.x - cursor_x - SPACE_L - 50.0;
-    let truncated = if msg.len() > 60 {
-        format!("{}...", &msg[..57])
-    } else {
-        msg.to_string()
-    };
+    let font_id = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
+    let galley = ui.painter().layout(
+        msg.to_string(),
+        font_id.clone(),
+        TEXT_PRIMARY,
+        msg_max_width,
+    );
 
-    ui.painter().text(
-        egui::pos2(cursor_x, baseline_y),
-        egui::Align2::LEFT_CENTER,
-        &truncated,
-        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+    ui.painter().galley(
+        egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+        galley,
         TEXT_PRIMARY,
     );
 
@@ -716,7 +727,7 @@ fn diagnostic_row(
         egui::Align2::RIGHT_CENTER,
         phase_str,
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-        phase_color,
+        phase_color(diagnostic.phase),
     );
 
     // Bottom divider (subtle)
@@ -731,7 +742,9 @@ fn diagnostic_row(
     }
 
     if response.clicked() {
-        diagnostic.location.line.map(|l| l.saturating_sub(1))
+        let line = diagnostic.location.line.map(|l| l.saturating_sub(1))?;
+        let column = diagnostic.location.column.map(|c| c.saturating_sub(1)).unwrap_or(0);
+        Some(DiagnosticTarget { line, column })
     } else {
         None
     }

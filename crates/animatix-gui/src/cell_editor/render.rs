@@ -178,6 +178,27 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     )
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/// If a pending cursor is scheduled for `index`, write it into the egui
+/// `TextEditState` so the next render of that cell's body places the caret
+/// at the requested char index.
+///
+/// **Does not** consume `pending_cursor_cell`; the caller must request focus
+/// after the `TextEdit` is added and then clear the flag.
+fn apply_pending_cursor(ui: &mut egui::Ui, index: usize, state: &mut CellEditorState) {
+    if state.pending_cursor_cell == Some(index) {
+        if let Some(char_idx) = state.pending_cursor_char.take() {
+            let text_edit_id = ui.id().with(("cell_body", index));
+            let mut te_state = egui::text_edit::TextEditState::load(ui.ctx(), text_edit_id)
+                .unwrap_or_default();
+            use egui::text::{CCursor, CCursorRange};
+            te_state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
+            te_state.store(ui.ctx(), text_edit_id);
+        }
+    }
+}
+
 // ── Code cell ────────────────────────────────────────────────────────────
 
 fn render_code_cell(
@@ -237,6 +258,8 @@ fn render_code_cell(
                         if expanded {
                             ui.add_space(4.0);
 
+                            apply_pending_cursor(ui, index, state);
+
                             let layouter_style = style.clone();
                             let cell_diags_ref = cell_diags.clone();
                             let mut layouter = move |ui: &egui::Ui,
@@ -252,8 +275,10 @@ fn render_code_cell(
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
 
+                            let text_edit_id = ui.id().with(("cell_body", index));
                             let response = ui.add(
                                 egui::TextEdit::multiline(cell.body_mut())
+                                    .id(text_edit_id)
                                     .code_editor()
                                     .frame(Frame::NONE)
                                     .desired_width(f32::INFINITY)
@@ -261,6 +286,10 @@ fn render_code_cell(
                             );
                             if response.changed() {
                                 *source_changed = true;
+                            }
+                            if state.pending_cursor_cell == Some(index) {
+                                response.request_focus();
+                                state.pending_cursor_cell = None;
                             }
                             track_focus(index, &response, state);
                         }
@@ -368,8 +397,12 @@ fn render_keyframe_cell(
                                     ui.fonts_mut(|fonts| fonts.layout_job(job))
                                 };
 
+                                apply_pending_cursor(ui, index, state);
+
+                                let text_edit_id = ui.id().with(("cell_body", index));
                                 let response = ui.add(
                                     egui::TextEdit::multiline(cell.body_mut())
+                                        .id(text_edit_id)
                                         .code_editor()
                                         .frame(Frame::NONE)
                                         .desired_width(f32::INFINITY)
@@ -377,6 +410,10 @@ fn render_keyframe_cell(
                                 );
                                 if response.changed() {
                                     *source_changed = true;
+                                }
+                                if state.pending_cursor_cell == Some(index) {
+                                    response.request_focus();
+                                    state.pending_cursor_cell = None;
                                 }
                                 track_focus(index, &response, state);
                             });
