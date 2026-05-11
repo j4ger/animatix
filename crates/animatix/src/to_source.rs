@@ -7,9 +7,9 @@
 
 use crate::ast::*;
 
-/// Indent a multi-line string by `depth` levels of 4 spaces.
+/// Indent a multi-line string by `depth` levels of 2 spaces.
 fn indent(text: &str, depth: usize) -> String {
-    let pad = "    ".repeat(depth);
+    let pad = "  ".repeat(depth);
     text.lines()
         .map(|line| format!("{}{}", pad, line))
         .collect::<Vec<_>>()
@@ -274,8 +274,9 @@ impl ToSource for InlineItem {
                         .iter()
                         .map(|c| c.to_source())
                         .collect::<Vec<_>>()
-                        .join(", ");
-                    parts.push(format!(" {{ {} }}", children_str));
+                        .join("\n");
+                    let indented = indent(&children_str, 1);
+                    parts.push(format!(" {{\n{}\n}}", indented));
                 }
                 parts.join("")
             }
@@ -294,8 +295,9 @@ impl ToSource for InlineItem {
                         .iter()
                         .map(|c| c.to_source())
                         .collect::<Vec<_>>()
-                        .join(", ");
-                    parts.push(format!(" {{ {} }}", children_str));
+                        .join("\n");
+                    let indented = indent(&children_str, 1);
+                    parts.push(format!(" {{\n{}\n}}", indented));
                 }
                 parts.join("")
             }
@@ -305,8 +307,9 @@ impl ToSource for InlineItem {
                     .iter()
                     .map(|i| i.to_source())
                     .collect::<Vec<_>>()
-                    .join(", ");
-                format!("@{} {{ {} }}", slot_name, items_str)
+                    .join("\n");
+                let indented = indent(&items_str, 1);
+                format!("@{} {{\n{}\n}}", slot_name, indented)
             }
         }
     }
@@ -508,8 +511,9 @@ fn serialize_actor_like_stmt(
             .iter()
             .map(|c| c.to_source())
             .collect::<Vec<_>>()
-            .join(", ");
-        parts.push(format!(" {{ {} }}", children_str));
+            .join("\n");
+        let indented = indent(&children_str, 1);
+        parts.push(format!(" {{\n{}\n}}", indented));
     }
     parts.join("")
 }
@@ -721,4 +725,5 @@ btn: Rect, size: (100, 200) // half-extents"#;
         };
         assert_eq!(prop.to_source(), "size: (100, 200)  // half-extents");
     }
+
 }
