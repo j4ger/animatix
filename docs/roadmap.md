@@ -52,15 +52,7 @@ When keyframe mode inserts a new keyframe within 50ms (`MERGE_WINDOW_S`) of an e
 
 ---
 
-### 2.3 Missing Rotation on `Ellipse`
-
-**Status:** No dedicated rotation parameter.
-
-Basic shapes like `Ellipse` do not support a dedicated `angle` or `rotation` parameter for geometry rotation. Must use `rotate` action (visual transform) or `rotation` property (if available on the actor).
-
----
-
-### 2.4 Coordinate System Friction
+### 2.3 Coordinate System Friction
 
 **Status:** Design tension.
 

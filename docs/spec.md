@@ -181,8 +181,8 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Reorder:** `swap`, `reorder`
 
 **Rotation:** Two ways to rotate:
-- `rotate item [by: angle, duration]` - Visual transform (applies to actor)
-- `item.angle = value [duration]` - Geometry rotation (path generation)
+- `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
+- `item.rotation = value [duration]` - Property-based rotation
 
 Vector reveal actions (`draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
 
@@ -647,7 +647,7 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 - **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
 - **Asymmetrical Reveal/Exit Actions:** Standard fade-out or cross-fade behaviors on some primitives and containers remain incomplete or non-intuitive compared to entrance counterparts.
 - **Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.
-- **Missing Rotation:** Basic shapes like `Ellipse` do not currently support a dedicated rotation parameter, limiting fundamental shape manipulations without resorting to matrix actions.
+
 - **Coordinate System Friction:** `at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) often clash, requiring significant manual intervention when mixing them.
 
 ---
