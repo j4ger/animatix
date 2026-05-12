@@ -355,7 +355,7 @@ impl Timeline {
         track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     }
 
-    pub(super) fn process_text_actor_decl(
+    pub fn process_text_actor_decl(
         &mut self,
         actor_type: &str,
         label: &str,

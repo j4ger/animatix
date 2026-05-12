@@ -2,6 +2,7 @@ use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
 use egui::{Color32, Id, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
+use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
 use crate::app::panels::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
 
@@ -223,18 +224,15 @@ fn render_actor_header(
     let baseline_y = row_rect.center().y;
     let mut cursor_x = row_rect.min.x;
 
-    // Shape icon
-    if let Some(shape_pt) = &track.shape_type {
-        let shape = shape_pt.evaluate(current_time_ms);
-        ui.painter().text(
-            egui::pos2(cursor_x + 10.0, baseline_y),
-            egui::Align2::CENTER_CENTER,
-            shape_icon(shape),
-            egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-            AMBER,
-        );
-        cursor_x += 22.0;
-    }
+    // Actor icon
+    ui.painter().text(
+        egui::pos2(cursor_x + 10.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        actor_icon_str(track.kind),
+        egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+        AMBER,
+    );
+    cursor_x += 22.0;
 
     // Actor label (click to rename)
     let edit_id = ui.id().with("actor_name_edit");
@@ -305,20 +303,7 @@ fn render_actor_header(
     }
 }
 
-fn shape_icon(shape: ShapeType) -> &'static str {
-    match shape {
-        ShapeType::Rect => egui_phosphor::regular::SQUARE,
-        ShapeType::Circle => egui_phosphor::regular::CIRCLE,
-        ShapeType::Line => egui_phosphor::regular::MINUS,
-        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE_NOTCH,
-        ShapeType::Arc => egui_phosphor::regular::ARROWS_CLOCKWISE,
-        ShapeType::Polygon => egui_phosphor::regular::HEXAGON,
-        ShapeType::Path => egui_phosphor::regular::PEN,
-        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
-        ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
-        ShapeType::Plot => egui_phosphor::regular::DOTS_THREE_OUTLINE,
-    }
-}
+
 
 // ─── Container Children Reorder ───────────────────────────────────────────
 

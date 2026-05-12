@@ -74,6 +74,46 @@ pub enum ShapeKind {
     Dot, Square, RegularPolygon,
 }
 
+// ─────────────────────────────────────────────────────────────
+// Actor kind metadata registry
+// ─────────────────────────────────────────────────────────────
+
+/// High-level category for grouping actor kinds in UI palettes and docs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ActorCategory {
+    Shape,
+    Text,
+    Media,
+    Plot,
+    Container,
+}
+
+impl ActorCategory {
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Shape => "Shapes",
+            Self::Text => "Text",
+            Self::Media => "Media",
+            Self::Plot => "Plots",
+            Self::Container => "Containers",
+        }
+    }
+}
+
+pub use crate::primitives::ActorKindMeta;
+
+pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
+    crate::primitives::actor_kind_registry()
+}
+
+pub fn actor_kind_meta(kind: ActorKindId) -> &'static ActorKindMeta {
+    crate::primitives::actor_kind_meta(kind)
+}
+
+pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
+    crate::primitives::actor_kind_meta_by_name(name)
+}
+
 /// Extension trait for lazy property track access
 pub trait TrackAccessor<T: Interpolate + Clone> {
     fn get(&self, time_ms: u64, default: T) -> T;
@@ -583,4 +623,108 @@ fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: 
             },
         }
     }).collect()
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every ActorKindId variant must have a corresponding ActorKindMeta entry.
+    /// This test enumerates all variants and verifies they are in the registry.
+    #[test]
+    fn actor_kind_registry_is_complete() {
+        // Build a set of all registered kinds
+        let registered: std::collections::HashSet<ActorKindId> =
+            actor_kind_registry().iter().map(|m| m.kind).collect();
+
+        // Enumerate all ShapeKind variants
+        let shape_kinds = [
+            ShapeKind::Rect,
+            ShapeKind::Circle,
+            ShapeKind::Ellipse,
+            ShapeKind::Line,
+            ShapeKind::Arc,
+            ShapeKind::Polygon,
+            ShapeKind::Path,
+            ShapeKind::Arrow,
+            ShapeKind::Dot,
+            ShapeKind::Square,
+            ShapeKind::RegularPolygon,
+        ];
+
+        for sk in &shape_kinds {
+            let kind = ActorKindId::Shape(*sk);
+            assert!(
+                registered.contains(&kind),
+                "ActorKindMeta missing for ShapeKind::{:?}",
+                sk
+            );
+        }
+
+        // Non-shape kinds
+        let non_shapes = [
+            ActorKindId::Text,
+            ActorKindId::Math,
+            ActorKindId::Code,
+            ActorKindId::Image,
+            ActorKindId::Svg,
+            ActorKindId::Graph,
+            ActorKindId::CartesianPlot,
+            ActorKindId::PolarPlot,
+            ActorKindId::ParametricPlot,
+            ActorKindId::ImplicitPlot,
+            ActorKindId::Row,
+            ActorKindId::Col,
+            ActorKindId::Grid,
+            ActorKindId::Stack,
+            ActorKindId::Group,
+        ];
+
+        for kind in &non_shapes {
+            assert!(
+                registered.contains(kind),
+                "ActorKindMeta missing for {:?}",
+                kind
+            );
+        }
+    }
+
+    /// Every registry entry must have a non-empty type_name and display_name.
+    #[test]
+    fn actor_kind_meta_has_valid_fields() {
+        for meta in actor_kind_registry().iter() {
+            assert!(
+                !meta.type_name.is_empty(),
+                "ActorKindMeta for {:?} has empty type_name",
+                meta.kind
+            );
+            assert!(
+                !meta.display_name.is_empty(),
+                "ActorKindMeta for {:?} has empty display_name",
+                meta.kind
+            );
+            assert!(
+                !meta.icon_id.is_empty(),
+                "ActorKindMeta for {:?} has empty icon_id",
+                meta.kind
+            );
+        }
+    }
+
+    /// type_name must round-trip through from_type_name.
+    #[test]
+    fn actor_kind_type_name_roundtrips() {
+        for meta in actor_kind_registry().iter() {
+            let parsed = ActorKindId::from_type_name(meta.type_name);
+            assert_eq!(
+                parsed, meta.kind,
+                "ActorKindId::from_type_name({:?}) returned {:?}, expected {:?}",
+                meta.type_name, parsed, meta.kind
+            );
+        }
+    }
 }

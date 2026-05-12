@@ -134,15 +134,17 @@ Symbol table property entries don't capture default values yet.
 
 ## 5. Architecture / Cleanup Debt
 
-### 5.1 Property System — Post-Refactor Cleanup
+### 5.1 Primitive System — Completed
 
-The property system refactor (`c23117e`) replaced 7+ cross-file match blocks with a registry-driven engine. Some cleanup remains:
+✅ **Unified primitive architecture implemented** (`crates/animatix/src/primitives/`).
 
-- **Backward-compat accessors** on `AnimationTrack` (e.g. `track.position()` forwarding to `track.geometry.position`). These can be removed once all call sites use tiered paths.
-- **`PrimitiveDescriptor::for_actor_type()`** — replace with `ActorKindId` stored in `track.header.kind`.
-- **`VectorShapeState`** struct — if fully subsumed by `GroupHandlerId::VectorShapeState`, delete it.
+The `PRIMITIVES` array is now the single source of truth. `ActorKindMeta` registry, `PrimitiveDescriptor`, and `find_actor_kind()` all delegate to it. See [`primitive_architecture.md`](primitive_architecture.md) for details.
 
-**Effort:** Low. Mechanical removal.
+**Remaining cleanup:**
+- **`VectorShapePrimitive` trait** in `timeline/shapes/primitives.rs` — still used by the render pipeline. Can be absorbed into `Primitive::render()` once render dispatch is fully migrated.
+- **`ShapeType` enum** in `timeline/shapes/mod.rs` — still used in match arms. Consider unifying with `ShapeKind`.
+
+**Effort:** Low. Mechanical removal once render pipeline is ready.
 
 ---
 

@@ -135,7 +135,7 @@ fn seed_image_track(
 }
 
 impl Timeline {
-    pub(super) fn process_media_actor_decl(
+    pub fn process_media_actor_decl(
         &mut self,
         actor_type: &str,
         label: &str,

@@ -71,7 +71,7 @@ mod runtime;
 mod index;
 mod scene_eval;
 mod sequence;
-mod shapes;
+pub mod shapes;
 pub mod svg;
 mod timing;
 pub mod track;
@@ -104,14 +104,13 @@ use property_lookup::{
     for_iter_values, parse_color_in_env_with_lookup_diagnostic,
     set_lookup_color, set_lookup_vec2,
 };
-use shapes::{
+pub use shapes::{
     VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
     finalize_vector_shape_state, shape_type_for_actor,
     vector_shape_primitive_for_actor_type,
-    vector_shape_uses_custom_path,
+    vector_shape_uses_custom_path, ShapeType,
 };
-pub use shapes::ShapeType;
 pub use svg::parse_svg;
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
 use timing::{
@@ -120,9 +119,10 @@ use timing::{
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use track::{
-    ActorKindId, ShapeKind, ActorHeader, GeometryTier, StyleTier, ActorPayload,
+    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ActorHeader, GeometryTier, StyleTier, ActorPayload,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
 /// Extend a time_ms vector with keyframe times from a property track, if present.
 fn extend_track_times<T>(times: &mut Vec<u64>, track: &Option<PropertyTrack<T>>) {

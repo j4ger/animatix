@@ -128,6 +128,7 @@ Useful docs:
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution flow and validation expectations
 - [`docs/spec.md`](docs/spec.md) — language specification and status matrix
 - [`docs/architecture.md`](docs/architecture.md) — system architecture and design
+- [`docs/primitive_architecture.md`](docs/primitive_architecture.md) — unified primitive system design
 - [`docs/contributing.md`](docs/contributing.md) — development workflows and project structure
 - [`docs/roadmap.md`](docs/roadmap.md) — known gaps and planned features
 - [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme example

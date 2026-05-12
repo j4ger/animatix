@@ -1,6 +1,7 @@
 mod actions;
 mod components;
 mod file_tree;
+pub(crate) mod icons;
 mod panels;
 mod persistence;
 mod preview;

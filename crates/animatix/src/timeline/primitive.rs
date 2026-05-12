@@ -1,3 +1,6 @@
+use crate::primitives::{find_primitive, Primitive};
+use crate::timeline::ActorCategory;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveFamily {
     TextLike,
@@ -28,6 +31,88 @@ pub struct PrimitiveDescriptor {
 
 impl PrimitiveDescriptor {
     pub fn for_actor_type(actor_type: &str) -> Self {
+        if let Some(primitive) = find_primitive(actor_type) {
+            return match primitive.type_name() {
+                "Group" => Self {
+                    actor_type: "Group",
+                    family: PrimitiveFamily::Group,
+                    capabilities: PrimitiveCapabilities::default(),
+                },
+                "Graph" => Self {
+                    actor_type: "Graph",
+                    family: PrimitiveFamily::Plot,
+                    capabilities: PrimitiveCapabilities {
+                        plot_geometry: true,
+                        ..PrimitiveCapabilities::default()
+                    },
+                },
+                _ => match primitive.category() {
+                    ActorCategory::Shape => Self {
+                        actor_type: "VectorShape",
+                        family: PrimitiveFamily::VectorShape,
+                        capabilities: PrimitiveCapabilities {
+                            vector_paths: true,
+                            morphable_paths: true,
+                            vector_reveal_target: true,
+                            ..PrimitiveCapabilities::default()
+                        },
+                    },
+                    ActorCategory::Text => Self {
+                        actor_type: "TextLike",
+                        family: PrimitiveFamily::TextLike,
+                        capabilities: PrimitiveCapabilities {
+                            text_paths: true,
+                            morphable_paths: true,
+                            vector_reveal_target: true,
+                            ..PrimitiveCapabilities::default()
+                        },
+                    },
+                    ActorCategory::Media => {
+                        if primitive.type_name() == "Svg" {
+                            Self {
+                                actor_type: "Svg",
+                                family: PrimitiveFamily::Media,
+                                capabilities: PrimitiveCapabilities {
+                                    vector_paths: true,
+                                    morphable_paths: true,
+                                    vector_reveal_target: true,
+                                    ..PrimitiveCapabilities::default()
+                                },
+                            }
+                        } else {
+                            Self {
+                                actor_type: "Image",
+                                family: PrimitiveFamily::Media,
+                                capabilities: PrimitiveCapabilities {
+                                    image_payload: true,
+                                    ..PrimitiveCapabilities::default()
+                                },
+                            }
+                        }
+                    }
+                    ActorCategory::Plot => Self {
+                        actor_type: primitive.type_name(),
+                        family: PrimitiveFamily::Plot,
+                        capabilities: PrimitiveCapabilities {
+                            vector_paths: true,
+                            morphable_paths: true,
+                            vector_reveal_target: true,
+                            plot_geometry: true,
+                            ..PrimitiveCapabilities::default()
+                        },
+                    },
+                    ActorCategory::Container => Self {
+                        actor_type: "Container",
+                        family: PrimitiveFamily::Container,
+                        capabilities: PrimitiveCapabilities {
+                            layout_container: true,
+                            ..PrimitiveCapabilities::default()
+                        },
+                    },
+                },
+            };
+        }
+
         match actor_type {
             "Text" | "Math" | "Code" => Self {
                 actor_type: "TextLike",

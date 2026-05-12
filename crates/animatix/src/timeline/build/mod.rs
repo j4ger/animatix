@@ -494,7 +494,7 @@ impl Timeline {
     // === ActorKind Dispatch Methods ===
 
     /// Dispatch method for plot actor kinds (called from ActorKind trait impl)
-    pub(super) fn process_plot_actor_dispatch(
+    pub fn process_plot_actor_dispatch(
         &mut self,
         label: &str,
         ty: &str,

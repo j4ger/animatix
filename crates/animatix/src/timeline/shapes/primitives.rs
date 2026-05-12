@@ -10,7 +10,7 @@ use crate::timeline::property_lookup::{
 use crate::timeline::{Diagnostic, Environment};
 use crate::timeline::kurbo_shapes::KurboShape;
 
-pub(crate) trait VectorShapePrimitive: Sync {
+pub trait VectorShapePrimitive: Sync {
     fn shape_type(&self) -> ShapeType;
 
     fn apply_defaults(&self, _state: &mut VectorShapeState) {}
@@ -501,7 +501,7 @@ impl VectorShapePrimitive for PathPrimitive {
     }
 }
 
-pub(crate) fn vector_shape_primitive_for_actor_type(
+pub fn vector_shape_primitive_for_actor_type(
     ty: &str,
 ) -> Option<&'static dyn VectorShapePrimitive> {
     match ty {
@@ -520,7 +520,7 @@ pub(crate) fn vector_shape_primitive_for_actor_type(
     }
 }
 
-pub(crate) fn vector_shape_primitive_for_shape_type(
+pub fn vector_shape_primitive_for_shape_type(
     shape_type: ShapeType,
 ) -> Option<&'static dyn VectorShapePrimitive> {
     match shape_type {

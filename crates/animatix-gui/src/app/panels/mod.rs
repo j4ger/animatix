@@ -3,6 +3,7 @@ pub mod inspector;
 
 use crate::app::components;
 use crate::app::components::widgets;
+use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
 use crate::app::utils::*;
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
@@ -1284,11 +1285,8 @@ fn render_actor_tree(
             Some(TEXT_MUTED),
         )
     } else {
-        let shape_icon = track
-            .shape_type
-            .as_ref()
-            .map(|pt| shape_icon(pt.evaluate(0)));
-        (shape_icon, label, None)
+        let icon = Some(actor_icon_str(track.kind));
+        (icon, label, None)
     };
 
     // Use the unique actor label (not display_label) for the row id
@@ -1331,17 +1329,4 @@ fn render_actor_tree(
     }
 }
 
-fn shape_icon(shape: ShapeType) -> &'static str {
-    match shape {
-        ShapeType::Rect => egui_phosphor::regular::SQUARE,
-        ShapeType::Circle => egui_phosphor::regular::CIRCLE,
-        ShapeType::Line => egui_phosphor::regular::MINUS,
-        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE_NOTCH,
-        ShapeType::Arc => egui_phosphor::regular::ARROWS_CLOCKWISE,
-        ShapeType::Polygon => egui_phosphor::regular::HEXAGON,
-        ShapeType::Path => egui_phosphor::regular::PEN,
-        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
-        ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
-        ShapeType::Plot => egui_phosphor::regular::DOTS_THREE_OUTLINE,
-    }
-}
+

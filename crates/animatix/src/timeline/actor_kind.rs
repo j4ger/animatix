@@ -22,162 +22,22 @@ pub trait ActorKind {
 
 /// Look up an actor kind by name. Returns None if no handler is registered.
 pub fn find_actor_kind(ty: &str) -> Option<Box<dyn ActorKind + Send + Sync>> {
-    match ty {
-        "Text" => Some(Box::new(TextActorKind)),
-        "Math" => Some(Box::new(MathActorKind)),
-        "Code" => Some(Box::new(CodeActorKind)),
-        "Svg" => Some(Box::new(SvgActorKind)),
-        "Image" => Some(Box::new(ImageActorKind)),
-        "Graph" | "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => {
-            Some(Box::new(PlotActorKind))
-        }
-        // Note: Shape types (Circle, Rect, etc.) and container types (Row, Col, Grid, Stack, Group)
-        // are NOT handled via ActorKind dispatch - they fall through to the existing
-        // inline processing in process_body to avoid infinite recursion.
-        _ => None,
+    let primitive = crate::primitives::find_primitive(ty)?;
+    // Shapes and containers are handled inline by process_body, not via ActorKind dispatch
+    match primitive.category() {
+        crate::timeline::ActorCategory::Shape | crate::timeline::ActorCategory::Container => None,
+        _ => Some(Box::new(PrimitiveActorKind(primitive)) as Box<dyn ActorKind + Send + Sync>),
     }
 }
 
-// --- Built-in implementations ---
+struct PrimitiveActorKind(&'static dyn crate::primitives::Primitive);
 
-struct TextActorKind;
-impl ActorKind for TextActorKind {
+impl ActorKind for PrimitiveActorKind {
     fn build(
         &self,
         timeline: &mut Timeline,
         label: &str,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        timeline.process_text_actor_decl(
-            ty,
-            label,
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        );
-    }
-}
-
-struct MathActorKind;
-impl ActorKind for MathActorKind {
-    fn build(
-        &self,
-        timeline: &mut Timeline,
-        label: &str,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        timeline.process_text_actor_decl(
-            ty,
-            label,
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        );
-    }
-}
-
-struct CodeActorKind;
-impl ActorKind for CodeActorKind {
-    fn build(
-        &self,
-        timeline: &mut Timeline,
-        label: &str,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        timeline.process_text_actor_decl(
-            ty,
-            label,
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        );
-    }
-}
-
-struct SvgActorKind;
-impl ActorKind for SvgActorKind {
-    fn build(
-        &self,
-        timeline: &mut Timeline,
-        label: &str,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        timeline.process_media_actor_decl(
-            ty,
-            label,
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        );
-    }
-}
-
-struct ImageActorKind;
-impl ActorKind for ImageActorKind {
-    fn build(
-        &self,
-        timeline: &mut Timeline,
-        label: &str,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        timeline.process_media_actor_decl(
-            ty,
-            label,
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        );
-    }
-}
-
-/// Handles Graph, CartesianPlot, PolarPlot, ParametricPlot, ImplicitPlot
-struct PlotActorKind;
-impl ActorKind for PlotActorKind {
-    fn build(
-        &self,
-        timeline: &mut Timeline,
-        label: &str,
-        ty: &str,
+        _ty: &str,
         props: &[Property],
         modifiers: &[Modifier],
         children: &[InlineItem],
@@ -185,15 +45,14 @@ impl ActorKind for PlotActorKind {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        timeline.process_plot_actor_dispatch(
-            label,
-            ty,
-            props,
-            modifiers,
-            children,
+        let mut ctx = crate::primitives::BuildCtx {
+            timeline,
             time_ms,
             parent_label,
             diagnostics,
-        );
+        };
+        if let Err(mut diags) = self.0.build(&mut ctx, label, props, modifiers, children) {
+            diagnostics.append(&mut diags);
+        }
     }
 }

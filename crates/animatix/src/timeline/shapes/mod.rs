@@ -26,7 +26,7 @@ impl Interpolate for ShapeType {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct VectorShapeState {
+pub struct VectorShapeState {
     pub size: [f32; 2],
     pub line_from: [f32; 2],
     pub line_to: [f32; 2],
@@ -39,7 +39,7 @@ pub(crate) struct VectorShapeState {
 }
 
 impl VectorShapeState {
-    pub(crate) fn new(
+    pub fn new(
         size: [f32; 2],
         line_from: [f32; 2],
         line_to: [f32; 2],
@@ -60,15 +60,15 @@ impl VectorShapeState {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct VectorShapeStyle {
+pub struct VectorShapeStyle {
     pub color: [f32; 4],
     pub stroke_width: f32,
     pub stroke_color: [f32; 4],
     pub fill_opacity: f32,
 }
 mod primitives;
-pub(crate) use primitives::*;
-pub(crate) fn shape_type_for_actor(ty: &str) -> ShapeType {
+pub use primitives::*;
+pub fn shape_type_for_actor(ty: &str) -> ShapeType {
     if let Some(primitive) = vector_shape_primitive_for_actor_type(ty) {
         return primitive.shape_type();
     }
@@ -80,13 +80,13 @@ pub(crate) fn shape_type_for_actor(ty: &str) -> ShapeType {
     }
 }
 
-pub(crate) fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
+pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = vector_shape_primitive_for_actor_type(actor_type) {
         primitive.apply_defaults(state);
     }
 }
 
-pub(crate) fn apply_vector_shape_property(
+pub fn apply_vector_shape_property(
     actor_type: &str,
     name: &str,
     value: &Expr,
@@ -101,25 +101,25 @@ pub(crate) fn apply_vector_shape_property(
     false
 }
 
-pub(crate) fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
+pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = vector_shape_primitive_for_actor_type(actor_type) {
         primitive.finalize_state(actor_type, state);
     }
 }
 
-pub(crate) fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
+pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
     vector_shape_primitive_for_shape_type(shape_type)
         .map(VectorShapePrimitive::exposes_tip_size)
         .unwrap_or(false)
 }
 
-pub(crate) fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
+pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
     vector_shape_primitive_for_shape_type(shape_type)
         .map(VectorShapePrimitive::uses_custom_path)
         .unwrap_or(false)
 }
 
-pub(crate) fn build_vector_shape_vello_path(
+pub fn build_vector_shape_vello_path(
     shape_type: ShapeType,
     state: &VectorShapeState,
     style: VectorShapeStyle,
@@ -128,7 +128,7 @@ pub(crate) fn build_vector_shape_vello_path(
         .map(|primitive| primitive.build_vello_path(state, style))
 }
 
-pub(crate) fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
+pub fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
     let sides = sides.max(3);
     let radius = radius as f64;
     let angle_step = std::f64::consts::TAU / sides as f64;
@@ -140,7 +140,7 @@ pub(crate) fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -
         .collect()
 }
 
-pub(crate) fn build_arrow_path(
+pub fn build_arrow_path(
     line_from: [f32; 2],
     line_to: [f32; 2],
     tip_length: f32,
@@ -184,7 +184,7 @@ pub(crate) fn build_arrow_path(
     path
 }
 
-pub(crate) fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
+pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
     match expr {
         Expr::Tuple(items) => {
             let mut points = Vec::with_capacity(items.len());
@@ -198,7 +198,7 @@ pub(crate) fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Ve
     }
 }
 
-pub(crate) fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
+pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
     let Expr::Tuple(items) = expr else {
         return None;
     };
@@ -262,7 +262,7 @@ pub(crate) fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option
     Some(path)
 }
 
-pub(crate) fn build_shape(
+pub fn build_shape(
     shape_type: ShapeType,
     size: [f32; 2],
     line_from: [f32; 2],
@@ -310,7 +310,7 @@ pub(crate) fn build_shape(
     }
 }
 
-pub(crate) fn shape_fill_color(
+pub fn shape_fill_color(
     shape_type: ShapeType,
     color: [f32; 4],
     fill_opacity: f32,
@@ -333,7 +333,7 @@ pub(crate) fn shape_fill_color(
     ))
 }
 
-pub(crate) fn shape_stroke(
+pub fn shape_stroke(
     stroke_color: [f32; 4],
     stroke_width: f32,
 ) -> Option<(vello::peniko::Color, f32)> {
@@ -352,7 +352,7 @@ pub(crate) fn shape_stroke(
     ))
 }
 
-pub(crate) fn build_shape_vello_path(
+pub fn build_shape_vello_path(
     shape_type: ShapeType,
     size: [f32; 2],
     line_from: [f32; 2],
