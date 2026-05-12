@@ -1,3 +1,4 @@
+mod behavior;
 mod components;
 mod file_tree;
 mod inspector;
@@ -5,24 +6,24 @@ mod persistence;
 mod preview;
 mod runtime;
 mod selection;
+mod settings;
 pub(crate) mod theme;
 pub(crate) mod transport_bar;
+mod toolbar;
 pub(crate) mod widgets;
 mod property_edits;
 pub(crate) mod workspace;
+mod utils;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
-use animatix::diagnostics::{
-    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
-    diagnostics_summary_by_phase,
-};
+use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
-use egui::{Align, Color32, Pos2, Rect, RichText, Stroke, Vec2, Visuals};
-use egui_tiles::{Behavior, SimplificationOptions, Tile, TileId, Tree, UiResponse};
+use egui::{Color32, Pos2, RichText, Stroke, Vec2};
+use egui_tiles::{Tile, Tree};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path};
 use preview::fit_preview;
@@ -33,6 +34,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use workspace::{UiActions, WorkspaceViewer};
+use crate::app::theme::*;
+use crate::app::utils::*;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -185,6 +188,11 @@ struct GuiShell {
     collapsed_actors: HashSet<String>,
     /// Whether the bottom diagnostics panel is visible.
     diagnostics_panel_visible: bool,
+    /// Whether the settings dialog is currently open.
+    settings_open: bool,
+    /// Keyframe merge window in seconds. Edits within this window of the
+    /// previous keyframe are merged instead of creating a new timestamp.
+    keyframe_merge_window_s: f64,
 }
 
 impl GuiShell {
@@ -268,6 +276,8 @@ impl GuiShell {
             cursor_time_s: None,
             collapsed_actors: HashSet::new(),
             diagnostics_panel_visible: false,
+            settings_open: false,
+            keyframe_merge_window_s: 0.05,
         }
     }
 
@@ -403,107 +413,11 @@ impl GuiShell {
             .and_then(|line| self.document.timeline_index.time_s_for_line(line));
 
         self.handle_actions(actions);
-    }
 
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
-        let toolbar_bg = Color32::from_rgb(12, 14, 18);
-        let border_color = Color32::from_rgb(32, 36, 44);
-        let text_primary = Color32::from_rgb(228, 232, 243);
-        let text_secondary = Color32::from_rgb(150, 158, 175);
-        let text_muted = Color32::from_rgb(90, 96, 110);
-
-        let frame_response = egui::Frame::new()
-            .fill(toolbar_bg)
-            .inner_margin(egui::Margin::symmetric(12, 6))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-
-                ui.horizontal_centered(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
-
-                    // App mark
-                    let (mark_rect, _response) =
-                        ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 3.0, Color32::from_rgb(84, 110, 255));
-
-                    ui.add(
-                        egui::Label::new(RichText::new("Animatix").size(12.0).color(text_muted))
-                            .selectable(false),
-                    );
-
-                    ui.add(
-                        egui::Label::new(RichText::new("·").size(12.0).color(text_muted))
-                            .selectable(false),
-                    );
-
-                    // Filename
-                    let filename = self
-                        .document
-                        .file_path
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or("Untitled");
-
-                    let filename_text = if self.document.is_dirty {
-                        format!("{} ·", filename)
-                    } else {
-                        filename.to_string()
-                    };
-                    let filename_color = if self.document.is_dirty {
-                        Color32::from_rgb(255, 196, 92)
-                    } else {
-                        text_primary
-                    };
-
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(filename_text).size(12.0).color(filename_color),
-                        )
-                        .selectable(false),
-                    );
-
-                    // Right-aligned icon buttons
-                    ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-
-                        let icon_btn = |ui: &mut egui::Ui, icon: &str, tooltip: &str| -> bool {
-                            let size = Vec2::new(28.0, 28.0);
-                            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
-                            if response.hovered() {
-                                ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(32, 36, 44));
-                            }
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                icon,
-                                egui::TextStyle::Body.resolve(ui.style()),
-                                if response.hovered() { text_primary } else { text_secondary },
-                            );
-                            response.on_hover_text(tooltip).clicked()
-                        };
-
-                        if icon_btn(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)") {
-                            actions.show_inspector = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, "Rebuild") {
-                            actions.rebuild = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::FLOPPY_DISK, "Save (⌘S)") {
-                            actions.save = true;
-                        }
-                    });
-                });
-            });
-
-        // Subtle bottom hairline
-        let toolbar_rect = frame_response.response.rect;
-        ui.painter().line_segment(
-            [
-                egui::pos2(toolbar_rect.left(), toolbar_rect.bottom() - 1.0),
-                egui::pos2(toolbar_rect.right(), toolbar_rect.bottom() - 1.0),
-            ],
-            Stroke::new(1.0, border_color),
-        );
+        // Settings modal overlay (rendered on top of everything)
+        if self.settings_open {
+            self.settings_dialog_ui(ui);
+        }
     }
 
     fn workspace_ui(
@@ -537,7 +451,7 @@ impl GuiShell {
             collapsed_actors: &mut self.collapsed_actors,
         };
 
-        let mut behavior = WorkspaceBehavior { viewer };
+        let mut behavior = behavior::WorkspaceBehavior { viewer };
         self.tree.ui(&mut behavior, ui);
     }
 
@@ -937,230 +851,6 @@ impl GuiShell {
         let _ = self.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
     }
 
-}
-
-struct WorkspaceBehavior<'a> {
-    viewer: WorkspaceViewer<'a>,
-}
-
-impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
-    fn pane_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        _tile_id: TileId,
-        pane: &mut WorkspaceTab,
-    ) -> UiResponse {
-        match pane {
-            WorkspaceTab::Sidebar => self.viewer.sidebar_ui(ui),
-            WorkspaceTab::Editor => self.viewer.editor_ui(ui),
-            WorkspaceTab::Preview => self.viewer.preview_ui(ui),
-            WorkspaceTab::Inspector => self.viewer.inspector_ui(ui),
-        }
-        UiResponse::None
-    }
-
-    fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
-        match pane {
-            WorkspaceTab::Sidebar => "Sidebar".into(),
-            WorkspaceTab::Editor => "Editor".into(),
-            WorkspaceTab::Preview => "Preview".into(),
-            WorkspaceTab::Inspector => "Inspector".into(),
-        }
-    }
-
-    fn simplification_options(&self) -> SimplificationOptions {
-        SimplificationOptions {
-            all_panes_must_have_tabs: false,
-            ..Default::default()
-        }
-    }
-
-    // ─── Modern Minimal Tile Styling ───────────────────────────────────────
-
-    fn gap_width(&self, _style: &egui::Style) -> f32 {
-        1.0
-    }
-
-    fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
-        22.0
-    }
-
-    fn tab_bar_color(&self, visuals: &Visuals) -> Color32 {
-        visuals.extreme_bg_color
-    }
-
-    fn tab_bg_color(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
-        state: &egui_tiles::TabState,
-    ) -> Color32 {
-        if state.active {
-            visuals.panel_fill
-        } else {
-            Color32::TRANSPARENT
-        }
-    }
-
-    fn tab_outline_stroke(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
-        state: &egui_tiles::TabState,
-    ) -> Stroke {
-        if state.active {
-            Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
-        } else {
-            Stroke::NONE
-        }
-    }
-
-    fn tab_bar_hline_stroke(&self, visuals: &Visuals) -> Stroke {
-        Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
-    }
-
-    fn tab_text_color(
-        &self,
-        visuals: &Visuals,
-        _tiles: &egui_tiles::Tiles<WorkspaceTab>,
-        _tile_id: TileId,
-        state: &egui_tiles::TabState,
-    ) -> Color32 {
-        if state.active {
-            visuals.widgets.active.text_color()
-        } else {
-            visuals.widgets.noninteractive.text_color()
-        }
-    }
-
-    fn resize_stroke(
-        &self,
-        style: &egui::Style,
-        resize_state: egui_tiles::ResizeState,
-    ) -> Stroke {
-        match resize_state {
-            egui_tiles::ResizeState::Idle => {
-                Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color)
-            }
-            egui_tiles::ResizeState::Hovering => {
-                Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
-            }
-            egui_tiles::ResizeState::Dragging => {
-                Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
-            }
-        }
-    }
-
-    fn drag_preview_stroke(&self, _visuals: &Visuals) -> Stroke {
-        Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
-    }
-
-    fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
-        Color32::from_rgba_unmultiplied(84, 110, 255, 20)
-    }
-
-    fn paint_on_top_of_tile(
-        &self,
-        painter: &egui::Painter,
-        style: &egui::Style,
-        _tile_id: TileId,
-        rect: Rect,
-    ) {
-        // Subtle 1px border around each tile for definition
-        painter.rect_stroke(
-            rect,
-            4.0,
-            Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color),
-            egui::StrokeKind::Inside,
-        );
-    }
-}
-
-fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
-    let button = if primary {
-        egui::Button::new(label).fill(Color32::from_rgb(84, 110, 255))
-    } else {
-        egui::Button::new(label)
-    };
-
-    if ui.add(button).clicked() {
-        on_click();
-    }
-}
-
-fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
-    let badge_w = label.len() as f32 * 7.0 + 16.0;
-    let badge_h = 20.0;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(badge_w, badge_h), egui::Sense::hover());
-    ui.painter().rect_filled(rect, 6.0, fill);
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        egui::FontId::new(11.0, egui::FontFamily::Proportional),
-        text,
-    );
-}
-
-fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error)
-    {
-        Color32::from_rgb(255, 136, 136)
-    } else {
-        Color32::from_rgb(255, 214, 102)
-    }
-}
-
-fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
-    diagnostics.iter().any(|diagnostic| {
-        diagnostic.phase == animatix::diagnostics::DiagnosticPhase::Parse
-            && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
-            && (diagnostic.code == animatix::diagnostics::DiagnosticCode::SourceLoadFailure
-                || diagnostic.code == animatix::diagnostics::DiagnosticCode::ParseError)
-    })
-}
-
-fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<DiagnosticPhase> {
-    let summaries = diagnostics_summary_by_phase(diagnostics);
-
-    summaries
-        .iter()
-        .find(|summary| summary.errors > 0)
-        .or_else(|| summaries.first())
-        .map(|summary| summary.phase)
-}
-
-/// Return a banner message for the first diagnostic.
-///
-/// Priority:
-/// 1. First error message (any phase) — actual diagnostic text, truncated.
-/// 2. First warning message (any phase) — actual diagnostic text, truncated.
-/// 3. Static phase description as a last resort.
-fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
-    if diagnostics.is_empty() {
-        return None;
-    }
-
-    // Show the first error or warning message directly, regardless of phase.
-    let first_message = diagnostics
-        .iter()
-        .find(|d| d.severity == animatix::diagnostics::DiagnosticSeverity::Error)
-        .or_else(|| diagnostics.first());
-
-    if let Some(err) = first_message {
-        let msg = &err.message;
-        let first_line = msg.lines().next().unwrap_or(msg);
-        if first_line.len() > 80 {
-            return Some(format!("{}...", &first_line[..80]));
-        }
-        return Some(first_line.to_string());
-    }
-
-    None
 }
 
 #[cfg(test)]

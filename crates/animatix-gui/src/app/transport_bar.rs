@@ -2,6 +2,7 @@ use super::*;
 use crate::app::theme::*;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
+use egui::Align;
 
 /// Renders the unified transport bar at the bottom of the window.
 ///

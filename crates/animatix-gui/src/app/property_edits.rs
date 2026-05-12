@@ -27,10 +27,9 @@ impl GuiShell {
         }
 
         // Insert keyframe block into source via AST mutation.
-        const MERGE_WINDOW_S: f64 = 0.05;
         let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
         let delta_s = self.preview.current_time_s - prev_time_s;
-        let source_written = if delta_s < MERGE_WINDOW_S {
+        let source_written = if delta_s < self.keyframe_merge_window_s {
             false
         } else if let Some(ref mut stmts) = self.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
