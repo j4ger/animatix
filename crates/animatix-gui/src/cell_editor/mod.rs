@@ -6,6 +6,12 @@ pub use cell::{Cell, format_duration_s};
 pub use parser::{cells_to_source, parse_cells};
 pub use render::render_cell_editor;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CellType {
+    Keyframe,
+    Code,
+}
+
 /// A lightweight diagnostic attached to a cell for error display.
 #[derive(Debug, Clone)]
 pub struct CellDiagnostic {
@@ -33,6 +39,10 @@ pub struct CellEditorState {
     pub pending_duplicate_cell: Option<usize>,
     /// Optional insert request: insert a new keyframe after this cell index.
     pub pending_insert_after: Option<usize>,
+    /// Optional request to insert a code block after this cell index.
+    pub pending_insert_code_after: Option<usize>,
+    /// Optional request to append a cell at the very end.
+    pub pending_append_at_end: Option<CellType>,
     /// The cell that had focus on the previous frame. Used to detect when
     /// the user moved focus away from a cell so we can auto-remove it if empty.
     pub prev_focused_cell: Option<usize>,
@@ -58,6 +68,8 @@ impl Default for CellEditorState {
             pending_delete_cell: None,
             pending_duplicate_cell: None,
             pending_insert_after: None,
+            pending_insert_code_after: None,
+            pending_append_at_end: None,
             prev_focused_cell: None,
             diagnostics: Vec::new(),
             error_cells: std::collections::HashSet::new(),
@@ -67,5 +79,3 @@ impl Default for CellEditorState {
         }
     }
 }
-
-

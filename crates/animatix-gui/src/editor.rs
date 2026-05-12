@@ -6,7 +6,7 @@
 use egui::{Key, text::LayoutJob};
 use std::path::{Path, PathBuf};
 use animatix_analyzer::Analyzer;
-use crate::cell_editor::{Cell, CellEditorState, parse_cells, render_cell_editor};
+use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
 
 mod highlight {
@@ -391,6 +391,38 @@ impl EditorBuffer {
                 structurally_changed = true;
                 self.cell_state.focused_cell = Some(insert_at);
             }
+        }
+        if let Some(idx) = self.cell_state.pending_insert_code_after.take() {
+            let insert_at = idx + 1;
+            if insert_at <= self.cells.len() {
+                self.cells.insert(
+                    insert_at,
+                    Cell::Code {
+                        body: String::new(),
+                        expanded: true,
+                    },
+                );
+                structurally_changed = true;
+                self.cell_state.focused_cell = Some(insert_at);
+            }
+        }
+
+        ui.horizontal(|ui| {
+            if ui.button("+ Keyframe").clicked() {
+                self.cell_state.pending_append_at_end = Some(CellType::Keyframe);
+            }
+            if ui.button("+ Code").clicked() {
+                self.cell_state.pending_append_at_end = Some(CellType::Code);
+            }
+        });
+        if let Some(cell_type) = self.cell_state.pending_append_at_end.take() {
+            let new_cell = match cell_type {
+                CellType::Keyframe => self.compute_insert_keyframe(self.cells.len().saturating_sub(1)),
+                CellType::Code => Cell::Code { body: String::new(), expanded: true },
+            };
+            self.cells.push(new_cell);
+            structurally_changed = true;
+            self.cell_state.focused_cell = Some(self.cells.len() - 1);
         }
 
         // ── Auto-remove empty cells that lost focus ────────────────────────

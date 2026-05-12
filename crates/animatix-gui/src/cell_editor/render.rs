@@ -569,4 +569,15 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     if response.clicked() {
         state.pending_insert_after = Some(after_index);
     }
+
+    response.context_menu(|ui| {
+        if ui.button("Insert keyframe").clicked() {
+            state.pending_insert_after = Some(after_index);
+            ui.close();
+        }
+        if ui.button("Insert code block").clicked() {
+            state.pending_insert_code_after = Some(after_index);
+            ui.close();
+        }
+    });
 }

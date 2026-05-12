@@ -5,21 +5,20 @@ use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 ///
 /// ```text
 /// ┌──────────────────┬──────────────────────────┐
-/// │                  │      Preview (70%)       │
-/// │                  │                          │
+/// │                  │      Preview (~45%)      │
+/// │                  │   (aspect-ratio sized)   │
 /// │    Editor        ├──────────────────────────┤
 /// │   (45%)          │ Sidebar │  Inspector     │
-/// │                  │  (40%)  │   (60%)        │
-/// │                  │  (30%)  │                │
+/// │                  │  (35%)  │   (65%)        │
+/// │                  │       (~55%)             │
 /// └──────────────────┴──────────────────────────┘
 ///          (55%)
 /// ```
 ///
-/// The preview is the star of the show — it gets the full width of the
-/// right half and the majority of its column height.  Editor is a tall
-/// column on the left.  Sidebar + Inspector share a compact strip at the
-/// bottom right, minimizing the dead space each had when they were full-height
-/// panels.
+/// The preview maintains its aspect ratio via `fit_preview()` and does not
+/// expand to fill excess height. To avoid wasted space, the preview is given
+/// a modest slice (~45 %) and the sidebar + inspector strip below absorbs
+/// the remaining height. Editor is a tall column on the left.
 pub(super) fn default_tree() -> Tree<WorkspaceTab> {
     let mut tiles = Tiles::default();
 
@@ -32,14 +31,17 @@ pub(super) fn default_tree() -> Tree<WorkspaceTab> {
     let bottom_row = tiles.insert_container(Linear::new_binary(
         LinearDir::Horizontal,
         [sidebar, inspector],
-        0.40, // sidebar gets 40 %, inspector 60 %
+        0.35, // sidebar gets 35 %, inspector 65 %
     ));
 
     // Right column: preview on top, sidebar/inspector strip below.
+    // The preview maintains aspect ratio and doesn't expand to fill its
+    // allocation, so we give it just enough space (~45 %) and let the
+    // bottom row absorb the remaining usable height.
     let right_col = tiles.insert_container(Linear::new_binary(
         LinearDir::Vertical,
         [preview, bottom_row],
-        0.70, // preview gets 70 % of the column height
+        0.45, // preview gets 45 %; bottom row gets the rest
     ));
 
     // Root: editor on the left, right column on the right.
