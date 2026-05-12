@@ -3,7 +3,7 @@ use egui::{Color32, Id, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
 use crate::app::theme::*;
-use crate::app::workspace::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
+use crate::app::panels::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
 
 mod property_groups;
 mod keyframe_table;

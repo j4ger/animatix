@@ -4,32 +4,33 @@
 //! and right-click context menu for explicit selection.
 
 use super::*;
+use egui::{Color32, Pos2, RichText, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
 /// State for the selection system in the preview canvas.
 #[derive(Debug, Default)]
-pub(super) struct SelectionState {
+pub(crate) struct SelectionState {
     /// Actor currently hovered in preview (for hover highlight).
-    pub(super) hovered_actor: Option<String>,
+    pub(crate) hovered_actor: Option<String>,
     /// Actors under the last click position (for click cycling).
-    pub(super) click_candidates: Vec<String>,
+    pub(crate) click_candidates: Vec<String>,
     /// Current index into click_candidates for cycling.
-    pub(super) cycle_index: usize,
+    pub(crate) cycle_index: usize,
     /// Last click position in scene coordinates (to detect same-position clicks).
-    pub(super) last_click_scene: Option<kurbo::Point>,
+    pub(crate) last_click_scene: Option<kurbo::Point>,
     /// Whether the right-click context menu is open.
-    pub(super) context_menu_open: bool,
+    pub(crate) context_menu_open: bool,
     /// Position for the right-click context menu (screen coordinates).
-    pub(super) context_menu_pos: Option<Pos2>,
+    pub(crate) context_menu_pos: Option<Pos2>,
     /// Actors at the right-click position for the context menu.
-    pub(super) context_menu_actors: Vec<String>,
+    pub(crate) context_menu_actors: Vec<String>,
 }
 
 // ─── Helper Functions ───────────────────────────────────────────────────────
 
 /// Returns all actors at the given scene point, ordered from topmost (last rendered) to bottommost.
-pub(super) fn actors_at_point(
+pub(crate) fn actors_at_point(
     hit_regions: &[(String, kurbo::Rect)],
     point: kurbo::Point,
 ) -> Vec<String> {
@@ -51,7 +52,7 @@ pub(super) fn is_same_position(a: kurbo::Point, b: kurbo::Point, tolerance: f64)
 // ─── Selection Logic ────────────────────────────────────────────────────────
 
 /// Update hover state based on current pointer position.
-pub(super) fn update_hover(
+pub(crate) fn update_hover(
     selection: &mut SelectionState,
     hit_regions: &[(String, kurbo::Rect)],
     pointer_pos: Option<Pos2>,
@@ -73,7 +74,7 @@ pub(super) fn update_hover(
 }
 
 /// Handle right-click to open context menu.
-pub(super) fn handle_right_click(
+pub(crate) fn handle_right_click(
     selection: &mut SelectionState,
     hit_regions: &[(String, kurbo::Rect)],
     click_pos: Pos2,
@@ -90,7 +91,7 @@ pub(super) fn handle_right_click(
 
 /// Handle left-click with cycling support.
 /// Returns the actor to select, or None to deselect.
-pub(super) fn handle_click(
+pub(crate) fn handle_click(
     selection: &mut SelectionState,
     hit_regions: &[(String, kurbo::Rect)],
     click_pos: Pos2,
@@ -129,7 +130,7 @@ pub(super) fn handle_click(
 /// Draw the right-click context menu for actor selection.
 /// Returns the selected actor (if any), whether to close the menu,
 /// and the screen-space rect of the menu for outside-click detection.
-pub(super) fn draw_context_menu(
+pub(crate) fn draw_context_menu(
     ui: &mut egui::Ui,
     selection: &SelectionState,
     current_selected: &Option<String>,
@@ -226,7 +227,7 @@ pub(super) fn draw_context_menu(
 // ─── Hover Overlay Drawing ──────────────────────────────────────────────────
 
 /// Draw hover highlight for the actor under the cursor.
-pub(super) fn draw_hover_highlight(
+pub(crate) fn draw_hover_highlight(
     painter: &egui::Painter,
     hovered_actor: &str,
     hover_rect: egui::Rect,
@@ -291,7 +292,7 @@ pub(super) fn draw_hover_highlight(
 // ─── Cycle Indicator Drawing ────────────────────────────────────────────────
 
 /// Draw the cycle indicator showing "2/5" near the cursor.
-pub(super) fn draw_cycle_indicator(
+pub(crate) fn draw_cycle_indicator(
     painter: &egui::Painter,
     mouse_pos: Pos2,
     cycle_index: usize,

@@ -1,8 +1,18 @@
-use super::*;
+pub mod behavior;
+pub mod inspector;
+
 use crate::app::components;
+use crate::app::components::widgets;
 use crate::app::theme::*;
-use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, ShapeType, Timeline, TrackAccessor};
-use preview::ActorProps;
+use crate::app::utils::*;
+use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
+use crate::app::{FileTreeEntry, PreviewPaneState};
+use crate::editor::EditorBuffer;
+use animatix::diagnostics::Diagnostic;
+use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, TrackAccessor};
+use egui::{Color32, Pos2, RichText, Stroke, Vec2};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {

@@ -7,7 +7,7 @@ use egui::{Color32, Vec2};
 
 use crate::app::components;
 use crate::app::theme::*;
-use crate::app::workspace::UiActions;
+use crate::app::panels::UiActions;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 

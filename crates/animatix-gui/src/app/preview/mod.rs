@@ -1,3 +1,5 @@
+pub mod selection;
+
 use super::DEFAULT_PREVIEW_SIZE;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, FontId, Pos2, Stroke, Vec2};

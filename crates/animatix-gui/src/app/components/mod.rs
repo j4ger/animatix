@@ -1,9 +1,8 @@
 //! High-level reusable UI components.
 //!
 //! All components in this module are built on top of egui primitives and share
-//! the design tokens from [`crate::app::theme`].  When adding new UI, prefer
-//! these components over raw egui widgets so the interface stays uniform.
-//!
+//! the design tokens from [`crate::app::theme`].
+
 //! # Component catalogue
 //!
 //! | Component | Purpose |
@@ -18,6 +17,8 @@
 //! | [`playhead`] | Vertical amber playhead line |
 //! | [`TimelineStrip`] | Mini timeline scrubber with keyframe markers |
 //! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
+
+pub mod widgets;
 
 use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, Vec2};
 

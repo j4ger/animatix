@@ -1,11 +1,11 @@
 use egui::{Align, Color32, RichText, Stroke, Vec2};
 
 use crate::app::theme::*;
-use crate::app::workspace::UiActions;
+use crate::app::panels::UiActions;
 use crate::app::GuiShell;
 
 impl GuiShell {
-    pub(super) fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
+    pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
         let toolbar_bg = Color32::from_rgb(12, 14, 18);
         let border_color = Color32::from_rgb(32, 36, 44);
         let text_primary = Color32::from_rgb(228, 232, 243);

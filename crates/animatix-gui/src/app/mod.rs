@@ -1,18 +1,12 @@
-mod behavior;
+mod actions;
 mod components;
 mod file_tree;
-mod inspector;
+mod panels;
 mod persistence;
 mod preview;
 mod runtime;
-mod selection;
-mod settings;
+mod shell;
 pub(crate) mod theme;
-pub(crate) mod transport_bar;
-mod toolbar;
-pub(crate) mod widgets;
-mod property_edits;
-pub(crate) mod workspace;
 mod utils;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
@@ -33,7 +27,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use workspace::{UiActions, WorkspaceViewer};
+use crate::app::panels::{UiActions, WorkspaceViewer};
 use crate::app::theme::*;
 use crate::app::utils::*;
 
@@ -166,7 +160,7 @@ struct GuiShell {
     /// Current drag interaction state on the preview canvas.
     drag_state: DragState,
     /// Selection system state (hover, cycling, context menu).
-    selection: selection::SelectionState,
+    selection: crate::app::preview::selection::SelectionState,
     /// Undo stack for property edits (source text snapshots).
     undo_stack: Vec<String>,
     /// Redo stack for property edits (source text snapshots).
@@ -266,7 +260,7 @@ impl GuiShell {
             selected_actor: None,
             hit_regions: Vec::new(),
             drag_state: DragState::None,
-            selection: selection::SelectionState::default(),
+            selection: crate::app::preview::selection::SelectionState::default(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             drag_snapshot_taken: false,
@@ -365,7 +359,7 @@ impl GuiShell {
         egui::Panel::bottom("transport_bar")
             .resizable(false)
             .show_inside(ui, |ui| {
-                transport_bar::transport_bar_ui(
+                shell::transport_bar::transport_bar_ui(
                     ui,
                     &mut self.preview,
                     self.document.scene_dimensions,
@@ -451,7 +445,7 @@ impl GuiShell {
             collapsed_actors: &mut self.collapsed_actors,
         };
 
-        let mut behavior = behavior::WorkspaceBehavior { viewer };
+        let mut behavior = panels::behavior::WorkspaceBehavior { viewer };
         self.tree.ui(&mut behavior, ui);
     }
 

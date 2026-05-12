@@ -4,7 +4,7 @@ use crate::app::theme::*;
 use crate::app::GuiShell;
 
 impl GuiShell {
-    pub(super) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().screen_rect();
 
         // Dark semi-transparent backdrop

@@ -3,8 +3,8 @@ use egui_tiles::{Behavior, SimplificationOptions, Tile, TileId, UiResponse};
 
 use crate::app::{WorkspaceTab, WorkspaceViewer};
 
-pub(super) struct WorkspaceBehavior<'a> {
-    pub(super) viewer: WorkspaceViewer<'a>,
+pub(crate) struct WorkspaceBehavior<'a> {
+    pub(crate) viewer: WorkspaceViewer<'a>,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {

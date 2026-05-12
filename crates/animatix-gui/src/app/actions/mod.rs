@@ -1,9 +1,9 @@
 use super::*;
-use super::workspace;
+use super::panels;
 use animatix::timeline::TrackAccessor;
 
 impl GuiShell {
-    pub(crate) fn handle_keyframe_edit(&mut self, edit: workspace::PropertyEdit) {
+    pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
         let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
         if !is_drag || !self.drag_snapshot_taken {
             self.snapshot();
@@ -74,8 +74,8 @@ impl GuiShell {
     ///
     /// Updates the in-memory timeline and persists the change back to the .amx source file
     /// via AST mutation + full re-serialization (see [`crate::source_edit`]).
-    pub(crate) fn handle_property_edit(&mut self, edit: workspace::PropertyEdit) {
-        use workspace::PropertyValue;
+    pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
+        use crate::app::panels::PropertyValue;
 
         // ── Keyframe mode: insert a new timestamp instead of overwriting ──────
         if edit.create_keyframe {
@@ -167,8 +167,8 @@ impl GuiShell {
         }
     }
 
-    fn apply_child_order_edit(&mut self, edit: workspace::PropertyEdit) {
-        use workspace::PropertyValue as PV;
+    fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
+        use crate::app::panels::PropertyValue as PV;
 
         let source_written = if let (Some(ref mut timeline), PV::StringList(order)) =
             (self.document.timeline.as_mut(), edit.value.clone())
@@ -232,11 +232,11 @@ impl GuiShell {
 fn apply_property_edit_to_track(
     track: &mut animatix::timeline::AnimationTrack,
     property: &str,
-    value: &workspace::PropertyValue,
+    value: &panels::PropertyValue,
     time_ms: u64,
 ) {
     use animatix::timeline::PropertyTrack;
-    use workspace::PropertyValue as PV;
+    use crate::app::panels::PropertyValue as PV;
 
     let linear = animatix::easing::Easing::Linear;
 

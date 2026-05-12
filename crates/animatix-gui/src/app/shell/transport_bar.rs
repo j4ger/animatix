@@ -1,13 +1,14 @@
-use super::*;
+use crate::app::panels::UiActions;
 use crate::app::theme::*;
+use crate::app::PreviewPaneState;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
-use egui::Align;
+use egui::{Align, Color32, RichText, Stroke, Vec2};
 
 /// Renders the unified transport bar at the bottom of the window.
 ///
 /// Single-row layout: transport controls, scrubber, time, status.
-pub(super) fn transport_bar_ui(
+pub(crate) fn transport_bar_ui(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
     scene_dimensions: SceneDimensions,
@@ -158,7 +159,7 @@ pub(super) fn transport_bar_ui(
 
                     // 1. Diagnostics badge (rightmost) — clickable button
                     let badge_response = if diagnostics.is_empty() {
-                        components::icon_button_colored(
+                        crate::app::components::icon_button_colored(
                             ui,
                             egui_phosphor::regular::CHECK,
                             "Build successful",
@@ -166,7 +167,7 @@ pub(super) fn transport_bar_ui(
                             GREEN,
                         )
                     } else if errors > 0 {
-                        components::badge_button(
+                        crate::app::components::badge_button(
                             ui,
                             egui_phosphor::regular::X,
                             errors,
@@ -175,7 +176,7 @@ pub(super) fn transport_bar_ui(
                             "Click to toggle diagnostics panel",
                         )
                     } else {
-                        components::badge_button(
+                        crate::app::components::badge_button(
                             ui,
                             egui_phosphor::regular::WARNING,
                             warnings,
@@ -297,7 +298,7 @@ fn paint_transport_scrubber(
     let duration_s = duration_s.max(0.1);
     let painter = ui.painter_at(rect);
     let track_rect = rect.shrink2(Vec2::new(SPACE_S, 5.0));
-    let fraction = super::preview::timeline_fraction(*current_time_s, duration_s);
+    let fraction = crate::app::preview::timeline_fraction(*current_time_s, duration_s);
     let playhead_x = egui::lerp(track_rect.left()..=track_rect.right(), fraction);
 
     // Track
@@ -318,10 +319,10 @@ fn paint_transport_scrubber(
     painter.rect_filled(played_rect, RADIUS_M, played_color);
 
     // Tick marks
-    for tick in super::preview::timeline_tick_times(duration_s) {
+    for tick in crate::app::preview::timeline_tick_times(duration_s) {
         let x = egui::lerp(
             track_rect.left()..=track_rect.right(),
-            super::preview::timeline_fraction(tick, duration_s),
+            crate::app::preview::timeline_fraction(tick, duration_s),
         );
         painter.line_segment(
             [
@@ -336,7 +337,7 @@ fn paint_transport_scrubber(
     for marker in markers_s {
         let x = egui::lerp(
             track_rect.left()..=track_rect.right(),
-            super::preview::timeline_fraction(*marker, duration_s),
+            crate::app::preview::timeline_fraction(*marker, duration_s),
         );
         painter.line_segment(
             [
@@ -350,7 +351,7 @@ fn paint_transport_scrubber(
     // Cursor indicator (editor → timeline sync)
     if let Some(cursor_t) = cursor_time_s {
         if cursor_t >= 0.0 && cursor_t <= duration_s {
-            let cursor_fraction = super::preview::timeline_fraction(cursor_t, duration_s);
+            let cursor_fraction = crate::app::preview::timeline_fraction(cursor_t, duration_s);
             let cursor_x = egui::lerp(track_rect.left()..=track_rect.right(), cursor_fraction);
             let top = track_rect.top() - 4.0;
             let y = track_rect.top() - 1.0;
@@ -381,7 +382,7 @@ fn paint_transport_scrubber(
 
     // Interaction
     if (response.clicked() || response.dragged()) && response.interact_pointer_pos().is_some() {
-        *current_time_s = super::preview::time_from_pointer_x(
+        *current_time_s = crate::app::preview::time_from_pointer_x(
             track_rect,
             response.interact_pointer_pos().unwrap().x,
             duration_s,
