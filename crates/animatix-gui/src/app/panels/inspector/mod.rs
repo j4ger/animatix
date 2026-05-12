@@ -27,6 +27,7 @@ pub(super) fn inspector_ui(
     current_time_s: f64,
     actions: &mut UiActions,
     keyframe_mode: bool,
+    scene_dimensions: animatix::timeline::SceneDimensions,
 ) {
     let should_reset = selected_actor
         .as_ref()
@@ -47,12 +48,42 @@ pub(super) fn inspector_ui(
 
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
-        components::empty_state(
-            ui,
-            egui_phosphor::regular::FILM_STRIP,
-            "No actors in scene",
-            "Add shapes or text to populate the stage",
-        );
+        ui.vertical_centered(|ui| {
+            ui.add_space(36.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(egui_phosphor::regular::FILM_STRIP)
+                        .size(28.0)
+                        .color(Color32::from_rgb(90, 96, 110)),
+                )
+                .selectable(false),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Label::new(
+                    RichText::new("No actors in scene")
+                        .size(12.0)
+                        .color(Color32::from_rgb(150, 158, 175)),
+                )
+                .selectable(false),
+            );
+            ui.add_space(12.0);
+            if ui
+                .button(
+                    RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
+                        .size(12.0)
+                        .color(ACCENT_BLUE),
+                )
+                .clicked()
+            {
+                let label = format!("rect1");
+                let pos = [
+                    scene_dimensions.width as f32 / 2.0,
+                    scene_dimensions.height as f32 / 2.0,
+                ];
+                actions.create_actor = Some(("Rect".into(), label, pos));
+            }
+        });
         return;
     }
 
@@ -70,7 +101,7 @@ pub(super) fn inspector_ui(
         ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
-                render_actor_header(ui, track, current_time_s);
+                render_actor_header(ui, track, current_time_s, actions);
                 ui.add_space(SPACE_M);
 
                 // ── Active Properties ──
@@ -179,7 +210,12 @@ pub(super) fn inspector_ui(
 
 // ─── Actor Header ─────────────────────────────────────────────────────────
 
-fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s: f64) {
+fn render_actor_header(
+    ui: &mut egui::Ui,
+    track: &AnimationTrack,
+    current_time_s: f64,
+    actions: &mut UiActions,
+) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
     let row_h = ROW_L;
@@ -200,14 +236,46 @@ fn render_actor_header(ui: &mut egui::Ui, track: &AnimationTrack, current_time_s
         cursor_x += 22.0;
     }
 
-    // Actor label
-    ui.painter().text(
-        egui::pos2(cursor_x, baseline_y),
-        egui::Align2::LEFT_CENTER,
-        &track.label,
-        egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-        TEXT_PRIMARY,
-    );
+    // Actor label (click to rename)
+    let edit_id = ui.id().with("actor_name_edit");
+    let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
+    let mut edit_buffer: String = ui.data(|d| d.get_temp(edit_id.with("buf"))).unwrap_or_else(|| track.label.clone());
+
+    if is_editing {
+        let response = ui.add(
+            egui::TextEdit::singleline(&mut edit_buffer)
+                .font(egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional))
+                .text_color(TEXT_PRIMARY)
+                .desired_width(120.0),
+        );
+        if response.lost_focus() {
+            ui.data_mut(|d| d.insert_temp(edit_id, false));
+            if edit_buffer != track.label && !edit_buffer.is_empty() {
+                actions.rename_actor = Some((track.label.clone(), edit_buffer.clone()));
+            }
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            ui.data_mut(|d| d.insert_temp(edit_id, false));
+            edit_buffer = track.label.clone();
+        }
+        ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
+    } else {
+        let label_response = ui.add(
+            egui::Label::new(
+                RichText::new(&track.label)
+                    .size(FONT_SIZE_XL)
+                    .color(TEXT_PRIMARY),
+            )
+            .selectable(false)
+            .sense(egui::Sense::click()),
+        );
+        if label_response.clicked() {
+            ui.data_mut(|d| {
+                d.insert_temp(edit_id, true);
+                d.insert_temp(edit_id.with("buf"), track.label.clone());
+            });
+        }
+    }
 
     // Right-aligned metadata (shape type + first seen time)
     let mut right_x = row_rect.max.x - SPACE_S;

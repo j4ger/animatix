@@ -114,6 +114,10 @@ pub(super) struct UiActions {
     pub(super) inspector_input_drag_ended: bool,
     /// Toggle the bottom diagnostics panel visibility.
     pub(super) toggle_diagnostics_panel: bool,
+    /// Create a new actor: (type, label, position_in_scene)
+    pub(super) create_actor: Option<(String, String, [f32; 2])>,
+    /// Rename an actor: (old_label, new_label)
+    pub(super) rename_actor: Option<(String, String)>,
 }
 
 pub(super) struct WorkspaceViewer<'a> {
@@ -281,6 +285,22 @@ impl WorkspaceViewer<'_> {
                     )
                     .selectable(false),
                 );
+                ui.add_space(12.0);
+                if ui
+                    .button(
+                        RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
+                            .size(12.0)
+                            .color(ACCENT_BLUE),
+                    )
+                    .clicked()
+                {
+                    let label = format!("rect1");
+                    let pos = [
+                        self.scene_dimensions.width as f32 / 2.0,
+                        self.scene_dimensions.height as f32 / 2.0,
+                    ];
+                    self.actions.create_actor = Some(("Rect".into(), label, pos));
+                }
             });
             return;
         }
@@ -1233,7 +1253,7 @@ impl WorkspaceViewer<'_> {
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
             let current_time_s = self.preview.current_time_s;
-            inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode);
+            inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions);
         });
     }
 }

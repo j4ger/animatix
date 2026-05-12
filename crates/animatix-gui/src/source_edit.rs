@@ -60,6 +60,19 @@ pub enum SourceEdit {
         container: String,
         new_order: Vec<String>,
     },
+    /// Insert a new actor declaration into the scene.
+    InsertActor {
+        ty: String,
+        label: String,
+        props: Vec<Property>,
+        container: Option<String>,
+        time_s: f64,
+    },
+    /// Rename an actor (and all references to it) throughout the AST.
+    RenameActor {
+        old_label: String,
+        new_label: String,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -82,6 +95,20 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         } => insert_keyframe(stmts, &actor, &property, value, time_s, prev_time_s),
         SourceEdit::ReorderContainerChildren { container, new_order } => {
             reorder_container_children(stmts, &container, new_order)
+        }
+        SourceEdit::InsertActor {
+            ty,
+            label,
+            props,
+            container,
+            time_s,
+        } => insert_actor(stmts, &ty, &label, props, container.as_deref(), time_s),
+        SourceEdit::RenameActor {
+            old_label,
+            new_label,
+        } => {
+            rename_all_references(stmts, &old_label, &new_label);
+            true
         }
     }
 }
@@ -277,6 +304,44 @@ fn time_to_seconds(t: &Time) -> f64 {
     }
 }
 
+fn insert_actor(
+    stmts: &mut Vec<Stmt>,
+    ty: &str,
+    label: &str,
+    props: Vec<Property>,
+    container: Option<&str>,
+    _time_s: f64,
+) -> bool {
+    if let Some(container_label) = container {
+        // Insert as a child of the specified container
+        if let Some(actor_decl) = find_actor_decl_mut(stmts, container_label) {
+            if let Stmt::ActorDecl { children, .. } = actor_decl {
+                children.push(InlineItem::Labeled {
+                    label: label.into(),
+                    ty: ty.into(),
+                    props: props.clone(),
+                    modifiers: vec![],
+                    children: vec![],
+                });
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Insert at top-level
+    stmts.push(Stmt::ActorDecl {
+        is_pub: false,
+        label: label.into(),
+        ty: ty.into(),
+        props,
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    });
+    true
+}
+
 fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Vec<String>) -> bool {
     if let Some(actor_decl) = find_actor_decl_mut(stmts, container) {
         if let Stmt::ActorDecl { children, .. } = actor_decl {
@@ -449,6 +514,97 @@ fn find_inline_item_mut<'a>(
         }
     }
     None
+}
+
+// ---------------------------------------------------------------------------
+// Rename
+// ---------------------------------------------------------------------------
+
+/// Rename all references to `old_label` into `new_label` throughout the AST.
+fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
+    for stmt in stmts.iter_mut() {
+        rename_in_stmt(stmt, old_label, new_label);
+    }
+}
+
+fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
+    match stmt {
+        // Actor declarations
+        Stmt::ActorDecl { label, children, .. } => {
+            if label == old_label {
+                *label = new_label.into();
+            }
+            rename_in_inline_items(children, old_label, new_label);
+        }
+        Stmt::Text { label, .. }
+        | Stmt::Math { label, .. }
+        | Stmt::Code { label, .. }
+        | Stmt::Svg { label, .. }
+        | Stmt::Image { label, .. } => {
+            if let Some(l) = label {
+                if l == old_label {
+                    *l = new_label.into();
+                }
+            }
+        }
+        // Assignments: target = [..., "actor"] ; property = "prop"
+        Stmt::Assignment { target, .. } => {
+            if let Some(last) = target.last_mut() {
+                if last == old_label {
+                    *last = new_label.into();
+                }
+            }
+        }
+        // Action: action.verb targets
+        Stmt::Action(action, _) => {
+            for t in action.targets.iter_mut() {
+                if t == old_label {
+                    *t = new_label.into();
+                }
+            }
+        }
+        // Containers / bodies
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::LabeledAlways { body, .. }
+        | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+        | Stmt::ComponentAction { body, .. } => {
+            rename_all_references(body, old_label, new_label);
+        }
+        Stmt::Conditional { then_branch, else_branch, .. } => {
+            rename_all_references(then_branch, old_label, new_label);
+            if let Some(else_b) = else_branch {
+                rename_all_references(else_b, old_label, new_label);
+            }
+        }
+        Stmt::ForLoop { body, .. } => {
+            rename_all_references(body, old_label, new_label);
+        }
+        _ => {}
+    }
+}
+
+fn rename_in_inline_items(items: &mut [InlineItem], old_label: &str, new_label: &str) {
+    for item in items.iter_mut() {
+        match item {
+            InlineItem::Labeled { label, children, .. } => {
+                if label == old_label {
+                    *label = new_label.into();
+                }
+                rename_in_inline_items(children, old_label, new_label);
+            }
+            InlineItem::Anonymous { children, .. } => {
+                rename_in_inline_items(children, old_label, new_label);
+            }
+            InlineItem::SlotFill { items: slot_items, .. } => {
+                rename_in_inline_items(slot_items, old_label, new_label);
+            }
+            _ => {}
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -660,5 +816,164 @@ btn.color = red"#);
         } else {
             panic!("Expected RelativeKeyframe at index 2");
         }
+    }
+
+    #[test]
+    fn insert_actor_top_level() {
+        let mut stmts = parse(r#"btn: Rect, size: (100, 200)"#);
+        let edit = SourceEdit::InsertActor {
+            ty: "Circle".into(),
+            label: "circle1".into(),
+            props: vec![
+                Property {
+                    name: "at".into(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            container: None,
+            time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // Should have 2 statements now
+        assert_eq!(stmts.len(), 2);
+
+        // Second statement should be the new actor
+        if let Stmt::ActorDecl { label, ty, .. } = &stmts[1] {
+            assert_eq!(label, "circle1");
+            assert_eq!(ty, "Circle");
+        } else {
+            panic!("Expected ActorDecl at index 1");
+        }
+    }
+
+    #[test]
+    fn insert_actor_into_container() {
+        let mut stmts = parse(r#"row1: Row, gap: 8 {
+  btn: Rect, size: (100, 200)
+}"#);
+        let edit = SourceEdit::InsertActor {
+            ty: "Circle".into(),
+            label: "circle1".into(),
+            props: vec![
+                Property {
+                    name: "at".into(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            container: Some("row1".into()),
+            time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // Find the container and verify it has the new child
+        let container = find_actor_decl_mut(&mut stmts, "row1").unwrap();
+        if let Stmt::ActorDecl { children, .. } = container {
+            assert_eq!(children.len(), 2);
+            if let InlineItem::Labeled { label, ty, .. } = &children[1] {
+                assert_eq!(label, "circle1");
+                assert_eq!(ty, "Circle");
+            } else {
+                panic!("Expected Labeled child at index 1");
+            }
+        } else {
+            panic!("Expected ActorDecl for row1");
+        }
+    }
+
+    #[test]
+    fn rename_actor_and_references() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#1s
+btn.color = blue
+btn.position = (200, 100)"#);
+
+        let edit = SourceEdit::RenameActor {
+            old_label: "btn".into(),
+            new_label: "my_box".into(),
+        };
+        apply_edit(&mut stmts, edit);
+
+        // Actor decl should be renamed
+        let actor = find_actor_decl_mut(&mut stmts, "my_box").unwrap();
+        if let Stmt::ActorDecl { label, .. } = actor {
+            assert_eq!(label, "my_box");
+        } else {
+            panic!("Expected ActorDecl");
+        }
+
+        // Old name should not exist
+        assert!(find_actor_decl_mut(&mut stmts, "btn").is_none());
+
+        // Assignments should be renamed (search recursively through keyframes)
+        let mut found_color = false;
+        let mut found_position = false;
+        fn walk(stmts: &[Stmt], found_color: &mut bool, found_position: &mut bool) {
+            for stmt in stmts {
+                match stmt {
+                    Stmt::Assignment { target, property, .. } => {
+                        if target.last() == Some(&"my_box".to_string()) {
+                            if property == "color" {
+                                *found_color = true;
+                            }
+                            if property == "position" {
+                                *found_position = true;
+                            }
+                        }
+                        assert!(
+                            target.last() != Some(&"btn".to_string()),
+                            "Old reference 'btn' should have been renamed"
+                        );
+                    }
+                    Stmt::Keyframe { body, .. }
+                    | Stmt::RelativeKeyframe { body, .. }
+                    | Stmt::Sequence { body, .. }
+                    | Stmt::Stagger { body, .. }
+                    | Stmt::Always { body, .. }
+                    | Stmt::LabeledAlways { body, .. }
+                    | Stmt::ComponentAction { body, .. } => {
+                        walk(body, found_color, found_position);
+                    }
+                    Stmt::ComponentDef(ComponentDef { body, .. }, _) => {
+                        walk(body, found_color, found_position);
+                    }
+                    Stmt::Conditional { then_branch, else_branch, .. } => {
+                        walk(then_branch, found_color, found_position);
+                        if let Some(else_b) = else_branch {
+                            walk(else_b, found_color, found_position);
+                        }
+                    }
+                    Stmt::ForLoop { body, .. } => {
+                        walk(body, found_color, found_position);
+                    }
+                    Stmt::ActorDecl { children, .. } => {
+                        walk_inline(children, found_color, found_position);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        fn walk_inline(items: &[InlineItem], found_color: &mut bool, found_position: &mut bool) {
+            for item in items {
+                match item {
+                    InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
+                        walk_inline(children, found_color, found_position);
+                    }
+                    InlineItem::SlotFill { items: slot_items, .. } => {
+                        walk_inline(slot_items, found_color, found_position);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        walk(&stmts, &mut found_color, &mut found_position);
+        assert!(found_color, "Color assignment should reference my_box");
+        assert!(found_position, "Position assignment should reference my_box");
     }
 }

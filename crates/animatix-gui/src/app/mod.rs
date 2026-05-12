@@ -581,6 +581,12 @@ impl GuiShell {
                 self.drag_snapshot_taken = false;
             }
         }
+        if let Some((ty, label, position)) = actions.create_actor {
+            self.handle_create_actor(&ty, &label, position);
+        }
+        if let Some((old_label, new_label)) = actions.rename_actor {
+            self.handle_rename_actor(&old_label, &new_label);
+        }
         if actions.inspector_input_drag_started {
             self.inspector_input_drag_active = true;
         }
@@ -845,6 +851,23 @@ impl GuiShell {
         let _ = self.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
     }
 
+    /// Generate a unique label for a new actor of the given type.
+    fn unique_label(&self, ty: &str) -> String {
+        let base = ty.to_lowercase();
+        let existing: std::collections::HashSet<String> = self
+            .document
+            .timeline
+            .as_ref()
+            .map(|t| t.tracks.keys().cloned().collect())
+            .unwrap_or_default();
+        for i in 1.. {
+            let candidate = format!("{}{}", base, i);
+            if !existing.contains(&candidate) {
+                return candidate;
+            }
+        }
+        format!("{}{}", base, existing.len() + 1)
+    }
 }
 
 #[cfg(test)]

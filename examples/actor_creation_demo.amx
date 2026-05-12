@@ -1,0 +1,10 @@
+// Actor Creation Demo
+// Open this file in the Animatix GUI and click the "+" button
+// in the toolbar to create new actors visually.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+// The scene starts empty — use the toolbar '+' button or
+// the 'Add Actor' buttons in the inspector/layers panels
+// to create actors from the GUI.

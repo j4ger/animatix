@@ -82,6 +82,42 @@ impl GuiShell {
                             response.on_hover_text(tooltip).clicked()
                         };
 
+                        // Add actor palette
+                        ui.menu_button(egui_phosphor::regular::PLUS, |ui| {
+                            ui.set_min_width(140.0);
+                            ui.label(RichText::new("Add Actor").size(11.0).color(text_muted));
+                            ui.separator();
+
+                            let mut actor_item = |ui: &mut egui::Ui, icon: &str, name: &str, ty: &str| {
+                                let response = ui.button(
+                                    RichText::new(format!("{}  {}", icon, name))
+                                        .size(12.0)
+                                        .color(text_secondary),
+                                );
+                                if response.clicked() {
+                                    let label = self.unique_label(ty);
+                                    let pos = [
+                                        self.document.scene_dimensions.width as f32 / 2.0,
+                                        self.document.scene_dimensions.height as f32 / 2.0,
+                                    ];
+                                    actions.create_actor = Some((ty.into(), label, pos));
+                                    ui.close_menu();
+                                }
+                                response
+                            };
+
+                            ui.label(RichText::new("Shapes").size(10.0).color(text_muted));
+                            actor_item(ui, "□", "Rectangle", "Rect");
+                            actor_item(ui, "○", "Circle", "Circle");
+                            ui.separator();
+                            ui.label(RichText::new("Text").size(10.0).color(text_muted));
+                            actor_item(ui, "T", "Text", "Text");
+                            ui.separator();
+                            ui.label(RichText::new("Containers").size(10.0).color(text_muted));
+                            actor_item(ui, "≡", "Row", "Row");
+                            actor_item(ui, "▌", "Column", "Col");
+                        });
+
                         if icon_btn(ui, egui_phosphor::regular::GEAR, "Settings") {
                             self.settings_open = true;
                         }

@@ -501,3 +501,188 @@ fn apply_property_edit_to_track(
         _ => {}
     }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Actor Creation
+// ─────────────────────────────────────────────────────────────
+
+impl GuiShell {
+    /// Create a new actor from the GUI.
+    ///
+    /// Generates default properties, inserts into source, auto-selects,
+    /// and schedules a rebuild.
+    pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
+        use animatix::ast::{Expr, Property};
+
+        self.snapshot();
+
+        let mut props = default_props_for_actor(ty, position, self.document.scene_dimensions);
+
+        // If a container is selected, offer to insert inside it
+        let container = self.selected_actor.clone().filter(|sel| {
+            self.document
+                .timeline
+                .as_ref()
+                .is_some_and(|t| {
+                    t.get_track(sel)
+                        .is_some_and(|tr| {
+                            matches!(
+                                tr.kind,
+                                animatix::timeline::ActorKindId::Row
+                                    | animatix::timeline::ActorKindId::Col
+                                    | animatix::timeline::ActorKindId::Grid
+                                    | animatix::timeline::ActorKindId::Stack
+                                    | animatix::timeline::ActorKindId::Group
+                            )
+                        })
+                })
+        });
+
+        if let Some(ref mut stmts) = self.document.raw_statements {
+            let edit = crate::source_edit::SourceEdit::InsertActor {
+                ty: ty.into(),
+                label: label.into(),
+                props,
+                container: container.clone(),
+                time_s: self.preview.current_time_s,
+            };
+
+            if crate::source_edit::apply_edit(stmts, edit) {
+                let new_source = animatix::to_source::stmts_to_source(stmts);
+                self.document.source_text = new_source.clone();
+                self.editor.replace_text(new_source);
+                self.document.is_dirty = true;
+                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+                self.preview.status = format!("Created {} ({}) at ({:.0}, {:.0})", label, ty, position[0], position[1]);
+            } else {
+                self.preview.status = format!("Failed to create {} — source edit failed", label);
+                return;
+            }
+        } else {
+            self.preview.status = "Failed to create actor — no AST available".to_string();
+            return;
+        }
+
+        // Auto-select the new actor
+        self.selected_actor = Some(label.into());
+        self.preview_dirty = true;
+    }
+
+    /// Rename an actor and all references to it.
+    pub(crate) fn handle_rename_actor(&mut self, old_label: &str, new_label: &str) {
+        if old_label == new_label {
+            return;
+        }
+        if new_label.is_empty() {
+            self.preview.status = "Rename failed — label cannot be empty".to_string();
+            return;
+        }
+        // Check uniqueness
+        if let Some(ref timeline) = self.document.timeline {
+            if timeline.has_actor(new_label) {
+                self.preview.status = format!("Rename failed — '{}' already exists", new_label);
+                return;
+            }
+        }
+
+        self.snapshot();
+
+        if let Some(ref mut stmts) = self.document.raw_statements {
+            let edit = crate::source_edit::SourceEdit::RenameActor {
+                old_label: old_label.into(),
+                new_label: new_label.into(),
+            };
+            crate::source_edit::apply_edit(stmts, edit);
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = format!("Renamed {} → {}", old_label, new_label);
+        } else {
+            self.preview.status = "Rename failed — no AST available".to_string();
+            return;
+        }
+
+        // Update selection to the new name
+        if self.selected_actor.as_deref() == Some(old_label) {
+            self.selected_actor = Some(new_label.into());
+        }
+        self.preview_dirty = true;
+    }
+}
+
+/// Generate default properties for a new actor.
+fn default_props_for_actor(
+    ty: &str,
+    position: [f32; 2],
+    scene_dimensions: animatix::timeline::SceneDimensions,
+) -> Vec<animatix::ast::Property> {
+    use animatix::ast::{Expr, Property};
+
+    let mut props = vec![
+        Property {
+            name: "at".into(),
+            value: Expr::Tuple(vec![
+                Expr::Num(position[0] as f64),
+                Expr::Num(position[1] as f64),
+            ]),
+            value_span: None,
+            trailing_comment: None,
+        },
+    ];
+
+    // Add color default
+    props.push(Property {
+        name: "color".into(),
+        value: Expr::Ident("accent.primary".into()),
+        value_span: None,
+        trailing_comment: None,
+    });
+
+    match ty {
+        "Rect" => {
+            props.push(Property {
+                name: "size".into(),
+                value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        "Circle" => {
+            props.push(Property {
+                name: "size".into(),
+                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(80.0)]),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        "Text" => {
+            props.push(Property {
+                name: "text".into(),
+                value: Expr::Str("Text".into()),
+                value_span: None,
+                trailing_comment: None,
+            });
+            props.push(Property {
+                name: "font_size".into(),
+                value: Expr::Num(24.0),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        "Row" | "Col" => {
+            props.push(Property {
+                name: "gap".into(),
+                value: Expr::Num(8.0),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        _ => {}
+    }
+
+    props
+}
