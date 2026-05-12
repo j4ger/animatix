@@ -169,6 +169,7 @@ pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> 
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn set_lookup_scalar(env: &mut Environment, key: &str, value: f64) {
     env.set(key, Value::Num(value));
 }

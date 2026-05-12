@@ -4,10 +4,12 @@
 //! `animatix` crate) to concrete egui_phosphor icons.  All UI code
 //! should call `actor_icon()` rather than maintaining its own mapping.
 
+#![allow(dead_code)]
+
 use animatix::timeline::{ActorCategory, ActorKindId, ActorKindMeta, ShapeType};
 
 // Re-export the language-level metadata so callers don't need a second import.
-pub use animatix::primitives::{actor_kind_meta, actor_kind_meta_by_name, actor_kind_registry};
+pub use animatix::primitives::{actor_kind_meta, actor_kind_registry};
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 

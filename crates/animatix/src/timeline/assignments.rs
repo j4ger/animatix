@@ -167,7 +167,7 @@ impl Timeline {
 
         // ── Generic engine for all other properties ──
 
-        let track_label = &track.label.clone();
+        let _track_label = &track.label.clone();
 
         // Special handling for size-like properties (also write to layout_size)
         let is_size_property = matches!(property, "size" | "radius" | "radius_x" | "radius_y" | "tip_length" | "tip_width");
@@ -345,7 +345,7 @@ fn rebuild_vector_paths(
     track: &mut AnimationTrack,
     t_end_ms: u64,
     easing: Easing,
-    diagnostics: &mut Vec<Diagnostic>,
+    _diagnostics: &mut Vec<Diagnostic>,
 ) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, std::f32::consts::PI];
@@ -357,7 +357,7 @@ fn rebuild_vector_paths(
     let stroke_width = track.stroke_width.last(2.0);
     let stroke_color = track.stroke_color.last([1.0, 1.0, 1.0, 1.0]);
     let fill_opacity = track.fill_opacity.last(1.0);
-    let shape_type = track.shape_type.last(ShapeType::Rect);
+    let _shape_type = track.shape_type.last(ShapeType::Rect);
 
     // Build vector shape state and compute paths
     let mut vector_shape_state = VectorShapeState::new(size, line_from, line_to, arc_angles);

@@ -1,6 +1,6 @@
 use animatix::timeline::{
     ActorField, AnimationTrack, PropertyValue, ShapeType, ValueType,
-    read_property_value, property_has_keyframes, property_has_keyframe_at,
+    read_property_value, property_has_keyframes,
     allowed_property_indices, PROPERTY_REGISTRY,
 };
 use egui::{Color32, Vec2};
@@ -61,7 +61,7 @@ pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
 
         let value = read_property_value(track, schema.field, time_ms);
         let has_kf = property_has_keyframes(track, schema.field);
-        let has_kf_now = property_has_keyframe_at(track, schema.field, time_ms);
+        let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
 
         let Some(value) = value else { continue };
         let value = convert_for_display(value, schema.name, track.kind);
@@ -332,7 +332,7 @@ fn render_property_row(
         PropertyKind::Vec2 { x, y } => {
             let mut nx = *x;
             let mut ny = *y;
-            ui.allocate_ui_at_rect(input_rect, |ui| {
+            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
                     let rx = ui.add(
@@ -369,7 +369,7 @@ fn render_property_row(
                 entry.name,
                 "opacity" | "fill_opacity" | "stroke_progress"
             );
-            ui.allocate_ui_at_rect(input_rect, |ui| {
+            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
                 if is_01 {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
@@ -434,7 +434,7 @@ fn render_property_row(
                 (rgba[2] * 255.0) as u8,
                 (rgba[3] * 255.0) as u8,
             );
-            ui.allocate_ui_at_rect(input_rect, |ui| {
+            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                     let btn = ui.color_edit_button_srgba(&mut color);
@@ -457,7 +457,7 @@ fn render_property_row(
         }
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
-            ui.allocate_ui_at_rect(input_rect, |ui| {
+            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
                 if entry.name == "shape_type" {
                     let variants = [
                         "Rect", "Circle", "Line", "Ellipse", "Arc",

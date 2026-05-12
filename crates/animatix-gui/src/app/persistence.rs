@@ -1,5 +1,5 @@
 use super::*;
-use egui_tiles::{Linear, LinearDir, Tile, Tiles, Tree};
+use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 
 /// Default workspace layout.
 ///

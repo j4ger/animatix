@@ -49,7 +49,6 @@ pub mod morph;
 mod plot;
 mod position;
 pub(crate) mod property_engine;
-pub(crate) mod property_groups;
 pub mod property_registry;
 pub(crate) mod value_parser;
 
@@ -66,7 +65,7 @@ pub use property_registry::{
     lookup_property, allowed_property_indices, PROPERTY_REGISTRY,
 };
 mod primitive;
-mod property_lookup;
+pub(crate) mod property_lookup;
 mod runtime;
 mod index;
 mod scene_eval;
@@ -104,11 +103,14 @@ use property_lookup::{
     for_iter_values, parse_color_in_env_with_lookup_diagnostic,
     set_lookup_color, set_lookup_vec2,
 };
+pub(crate) use property_lookup::{
+    evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
+    parse_numeric_vec2_with_lookup_diagnostic as lookup_parse_numeric_vec2_with_lookup_diagnostic,
+};
 pub use shapes::{
     VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
     finalize_vector_shape_state, shape_type_for_actor,
-    vector_shape_primitive_for_actor_type,
     vector_shape_uses_custom_path, ShapeType,
 };
 pub use svg::parse_svg;

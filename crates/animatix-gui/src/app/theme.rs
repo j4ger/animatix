@@ -2,6 +2,8 @@
 //!
 //! All UI modules import from here. No local palette constants allowed.
 
+#![allow(dead_code)]
+
 use egui::Color32;
 
 // ── Backgrounds ──

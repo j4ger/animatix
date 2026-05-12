@@ -1,5 +1,5 @@
 use egui::{Color32, Rect, Stroke, Visuals};
-use egui_tiles::{Behavior, SimplificationOptions, Tile, TileId, UiResponse};
+use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::{WorkspaceTab, WorkspaceViewer};
 

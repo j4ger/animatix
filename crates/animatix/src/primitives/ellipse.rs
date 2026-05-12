@@ -2,6 +2,10 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Environment, Value,
+};
 
 pub struct EllipsePrimitive;
 pub const ELLIPSE: EllipsePrimitive = EllipsePrimitive;
@@ -14,7 +18,7 @@ impl Primitive for EllipsePrimitive {
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse) }
 
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property], modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
         Ok(())
     }
@@ -35,6 +39,43 @@ impl Primitive for EllipsePrimitive {
             Property { name: "size".into(), value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]), value_span: None, trailing_comment: None },
             Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
         ]
+    }
+
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    fn uses_custom_path(&self) -> bool { false }
+
+    fn exposes_tip_size(&self) -> bool { false }
+
+    fn supports_fill(&self) -> bool { true }
+
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        match name {
+            "radius_x" => {
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.size[0] as f64));
+                state.size[0] = v.as_num() as f32;
+                true
+            }
+            "radius_y" => {
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.size[1] as f64));
+                state.size[1] = v.as_num() as f32;
+                true
+            }
+            _ => false,
+        }
     }
 }
 

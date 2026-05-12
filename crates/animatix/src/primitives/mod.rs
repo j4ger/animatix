@@ -40,8 +40,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::timeline::{
-    ActorCategory, ActorKindId, AnimationTrack, SceneDimensions, Timeline,
-    VectorShapeState, VectorShapeStyle, VelloPath,
+    ActorCategory, ActorKindId, Environment, SceneDimensions, Timeline, VectorShapeState,
+    VectorShapeStyle, VelloPath,
 };
 
 // ── Re-export all primitive modules ──────────────────────────────────────
@@ -135,6 +135,38 @@ pub trait Primitive: Send + Sync {
     fn render(&self, _ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
         None
     }
+
+    // ── Build-time shape state (for vector shapes) ──
+
+    /// Apply primitive-specific defaults to the shape state.
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    /// Apply a single property to the shape state.
+    /// Returns `true` if the property was handled.
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        _name: &str,
+        _value: &Expr,
+        _env: &Environment,
+        _diagnostics: &mut Vec<Diagnostic>,
+        _subject: &str,
+        _state: &mut VectorShapeState,
+    ) -> bool {
+        false
+    }
+
+    /// Finalize the shape state after all properties have been applied.
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    /// Returns true if this shape uses a custom path (Polygon, Path).
+    fn uses_custom_path(&self) -> bool { false }
+
+    /// Returns true if this shape exposes tip size properties (Arrow).
+    fn exposes_tip_size(&self) -> bool { false }
+
+    /// Returns true if this shape supports fill (most shapes; Line and Arc do not).
+    fn supports_fill(&self) -> bool { true }
 
     // ── GUI defaults ──
 

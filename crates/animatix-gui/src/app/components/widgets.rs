@@ -4,7 +4,7 @@
 //! widgets wrapped in `components::Field`. This module now only holds
 //! primitives that egui doesn't provide out of the box.
 
-use egui::{Color32, CornerRadius, Margin, Stroke, Vec2};
+use egui::{Color32, Vec2};
 
 use crate::app::theme::*;
 

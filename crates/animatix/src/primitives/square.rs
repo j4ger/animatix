@@ -2,6 +2,10 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Environment, Value,
+};
 
 pub struct SquarePrimitive;
 pub const SQUARE: SquarePrimitive = SquarePrimitive;
@@ -14,7 +18,7 @@ impl Primitive for SquarePrimitive {
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Square) }
 
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property], modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
         Ok(())
     }
@@ -36,6 +40,34 @@ impl Primitive for SquarePrimitive {
             Property { name: "size".into(), value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]), value_span: None, trailing_comment: None },
             Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
         ]
+    }
+
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    fn uses_custom_path(&self) -> bool { false }
+
+    fn exposes_tip_size(&self) -> bool { false }
+
+    fn supports_fill(&self) -> bool { true }
+
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        if name != "side" { return false; }
+        let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Num(state.size[0] as f64 * 2.0));
+        let side = v.as_num() as f32;
+        state.size = [side / 2.0, side / 2.0];
+        true
     }
 }
 

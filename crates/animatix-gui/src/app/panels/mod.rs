@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod behavior;
 pub mod inspector;
 
@@ -5,12 +7,11 @@ use crate::app::components;
 use crate::app::components::widgets;
 use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
-use crate::app::utils::*;
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
-use animatix::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, TrackAccessor};
+use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, RichText, Stroke, Vec2};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -774,7 +775,7 @@ impl WorkspaceViewer<'_> {
                             let s = if constrain_axis && !force_uniform {
                                 // Edge midpoint: scale the free axis, derive the other
                                 // from the original aspect ratio.
-                                let ratio = start_size[0] / start_size[1].max(1.0);
+                                let _ratio = start_size[0] / start_size[1].max(1.0);
                                 if sign[0] == 0.0 {
                                     // Dragging top/bottom — width derives from height
                                     scale_h
@@ -1328,5 +1329,3 @@ fn render_actor_tree(
         }
     }
 }
-
-

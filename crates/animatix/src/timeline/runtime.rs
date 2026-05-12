@@ -2,7 +2,7 @@ use super::modifier_runtime::{ir, vm};
 use super::{
     Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
     assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color,
-    set_lookup_vec2, TrackAccessor,
+    set_lookup_vec2,
 };
 
 impl Timeline {

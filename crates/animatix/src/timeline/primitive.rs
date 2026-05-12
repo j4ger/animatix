@@ -1,4 +1,4 @@
-use crate::primitives::{find_primitive, Primitive};
+use crate::primitives::find_primitive;
 use crate::timeline::ActorCategory;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

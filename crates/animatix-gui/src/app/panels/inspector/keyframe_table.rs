@@ -1,6 +1,6 @@
 use animatix::timeline::{
     ActorField, AnimationTrack, PropertyValue, ShapeType, Timeline,
-    property_has_keyframes, property_has_keyframe_at, property_keyframe_times,
+    property_has_keyframes, property_keyframe_times,
     read_property_value, allowed_property_indices, PROPERTY_REGISTRY,
 };
 use egui::{Color32, Vec2};

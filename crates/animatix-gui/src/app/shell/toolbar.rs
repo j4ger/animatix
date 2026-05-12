@@ -3,7 +3,6 @@ use egui::{Align, Color32, RichText, Stroke, Vec2};
 use crate::app::icons::{actor_icon, actor_palette};
 use animatix::timeline::ActorCategory;
 use crate::app::panels::UiActions;
-use crate::app::theme::*;
 use crate::app::GuiShell;
 
 impl GuiShell {
@@ -119,7 +118,7 @@ impl GuiShell {
                                         self.document.scene_dimensions.height as f32 / 2.0,
                                     ];
                                     actions.create_actor = Some((ty.into(), label, pos));
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             }
 
@@ -165,7 +164,7 @@ impl GuiShell {
                                                 ];
                                                 actions.create_actor =
                                                     Some((ty.into(), label, pos));
-                                                ui.close_menu();
+                                                ui.close();
                                             }
                                         }
                                     },

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod actions;
 mod components;
 mod file_tree;
@@ -17,10 +19,11 @@ use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
-use egui::{Color32, Pos2, RichText, Stroke, Vec2};
+use egui::{Color32, Stroke, Vec2};
 use egui_tiles::{Tile, Tree};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path};
+#[cfg(test)]
 use preview::fit_preview;
 use preview::DragState;
 use serde::{Deserialize, Serialize};
@@ -29,7 +32,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use crate::app::panels::{UiActions, WorkspaceViewer};
-use crate::app::theme::*;
 use crate::app::utils::*;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
@@ -381,9 +383,9 @@ impl GuiShell {
         if self.diagnostics_panel_visible && !diagnostics.is_empty() {
             egui::Panel::bottom("diagnostics_panel")
                 .resizable(true)
-                .default_height(180.0)
-                .min_height(80.0)
-                .max_height(400.0)
+                .default_size(180.0)
+                .min_size(80.0)
+                .max_size(400.0)
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if let Some(target) =

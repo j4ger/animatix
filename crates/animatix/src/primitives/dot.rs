@@ -1,7 +1,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::VectorShapeState;
+use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VelloPath};
 
 pub struct DotPrimitive;
 pub const DOT: DotPrimitive = DotPrimitive;
@@ -14,7 +15,7 @@ impl Primitive for DotPrimitive {
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Dot) }
 
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property], modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
         Ok(())
     }
@@ -35,6 +36,17 @@ impl Primitive for DotPrimitive {
             Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
         ]
     }
+
+    fn apply_defaults(&self, state: &mut VectorShapeState) {
+        if state.size == [50.0, 50.0] {
+            state.size = [6.0, 6.0];
+            state.regular_polygon_radius = 6.0;
+        }
+    }
+
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    fn supports_fill(&self) -> bool { true }
 }
 
 impl DotPrimitive {

@@ -1,4 +1,4 @@
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;

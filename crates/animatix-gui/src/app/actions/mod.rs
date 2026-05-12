@@ -75,8 +75,6 @@ impl GuiShell {
     /// Updates the in-memory timeline and persists the change back to the .amx source file
     /// via AST mutation + full re-serialization (see [`crate::source_edit`]).
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
-        use crate::app::panels::PropertyValue;
-
         // ── Keyframe mode: insert a new timestamp instead of overwriting ──────
         if edit.create_keyframe {
             self.handle_keyframe_edit(edit);
@@ -512,11 +510,9 @@ impl GuiShell {
     /// Generates default properties, inserts into source, auto-selects,
     /// and schedules a rebuild.
     pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
-        use animatix::ast::{Expr, Property};
-
         self.snapshot();
 
-        let mut props = default_props_for_actor(ty, position, self.document.scene_dimensions);
+        let props = default_props_for_actor(ty, position, self.document.scene_dimensions);
 
         // If a container is selected, offer to insert inside it
         let container = self.selected_actor.clone().filter(|sel| {
@@ -618,7 +614,7 @@ impl GuiShell {
 fn default_props_for_actor(
     ty: &str,
     position: [f32; 2],
-    scene_dimensions: animatix::timeline::SceneDimensions,
+    _scene_dimensions: animatix::timeline::SceneDimensions,
 ) -> Vec<animatix::ast::Property> {
     use animatix::ast::{Expr, Property};
 

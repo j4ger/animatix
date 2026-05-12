@@ -1,5 +1,5 @@
-use animatix::timeline::{AnimationTrack, ShapeType, Timeline};
-use egui::{Color32, Id, RichText, ScrollArea, Vec2};
+use animatix::timeline::{AnimationTrack, Timeline};
+use egui::{Color32, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
 use crate::app::icons::actor_icon_str;
@@ -222,7 +222,7 @@ fn render_actor_header(
     let row_h = ROW_L;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
     let baseline_y = row_rect.center().y;
-    let mut cursor_x = row_rect.min.x;
+    let cursor_x = row_rect.min.x;
 
     // Actor icon
     ui.painter().text(
@@ -232,8 +232,6 @@ fn render_actor_header(
         egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
         AMBER,
     );
-    cursor_x += 22.0;
-
     // Actor label (click to rename)
     let edit_id = ui.id().with("actor_name_edit");
     let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod selection;
 
 use super::DEFAULT_PREVIEW_SIZE;

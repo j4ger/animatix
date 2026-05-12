@@ -18,12 +18,14 @@
 //! | [`TimelineStrip`] | Mini timeline scrubber with keyframe markers |
 //! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
 
+#![allow(dead_code)]
+
 pub mod widgets;
 
-use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, Vec2};
+use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};
 
 use crate::app::theme::*;
-use animatix::diagnostics::{Diagnostic, DiagnosticPhase, DiagnosticSeverity};
+use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
 
 // ─── Row ──────────────────────────────────────────────────────────────────
 
@@ -196,15 +198,13 @@ impl<'a> Row<'a> {
         // Right content
         if let Some(right) = self.right {
             let right_x = row_rect.max.x - SPACE_S;
-            ui.allocate_ui_at_rect(
-                Rect::from_min_size(
-                    egui::pos2(cursor_x + SPACE_L, row_rect.min.y),
-                    Vec2::new((right_x - cursor_x - SPACE_L).max(20.0), self.height),
-                ),
-                |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
-                },
+            let right_rect = Rect::from_min_size(
+                egui::pos2(cursor_x + SPACE_L, row_rect.min.y),
+                Vec2::new((right_x - cursor_x - SPACE_L).max(20.0), self.height),
             );
+            ui.scope_builder(UiBuilder::new().max_rect(right_rect), |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+            });
         }
 
         RowResponse {
@@ -314,7 +314,7 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 ///     ui.add(egui::DragValue::new(&mut val));
 /// });
 /// ```
-pub fn field(ui: &mut egui::Ui, id: Id, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
+pub fn field(ui: &mut egui::Ui, _id: Id, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     let frame = egui::Frame::new()
         .fill(BG_WIDGET)
         .stroke(Stroke::new(1.0, BORDER))
@@ -505,7 +505,7 @@ pub struct TimelineStrip<'a> {
 }
 
 impl<'a> TimelineStrip<'a> {
-    pub fn show(self, ui: &mut egui::Ui, id: Id) -> Option<f64> {
+    pub fn show(self, ui: &mut egui::Ui, _id: Id) -> Option<f64> {
         let desired = Vec2::new(ui.available_width(), self.height);
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);

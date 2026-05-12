@@ -797,7 +797,7 @@ impl Timeline {
                     let mut line_to = existing_track.line_to.last([50.0, 0.0]);
                     let mut arc_angles = existing_track.arc_angles.last(default_arc);
                     let mut color = existing_track.color.last([1.0, 1.0, 1.0, 1.0]);
-                    let vector_shape = vector_shape_primitive_for_actor_type(ty);
+                    let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
                     let shape_type = shape_type_for_actor(ty);
                     let opacity = existing_track.opacity.last(1.0);
                     let mut stroke_width = existing_track.stroke_width.last(2.0);

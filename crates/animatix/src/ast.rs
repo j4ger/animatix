@@ -49,13 +49,13 @@ impl Span {
         let mut start_col = 1;
         let mut end_line = 1;
         let mut end_col = 1;
-        let mut in_start = true;
+        let mut _in_start = true;
 
         for (i, ch) in source.char_indices() {
             if i == range.start {
                 start_line = line;
                 start_col = col;
-                in_start = false;
+                _in_start = false;
             }
             if i == range.end {
                 end_line = line;

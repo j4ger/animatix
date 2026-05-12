@@ -1,11 +1,12 @@
 use egui::{Color32, Stroke, Vec2};
 
 use crate::app::theme::*;
+
 use crate::app::GuiShell;
 
 impl GuiShell {
     pub(crate) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().screen_rect();
+        let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
         ui.painter().rect_filled(
@@ -113,7 +114,7 @@ impl GuiShell {
             egui::pos2(content_rect.left(), cursor_y),
             Vec2::new(120.0, 28.0),
         );
-        ui.allocate_ui_at_rect(value_rect, |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(value_rect), |ui| {
             ui.style_mut().spacing.item_spacing = Vec2::new(4.0, 0.0);
             ui.add(
                 egui::DragValue::new(&mut value_ms)

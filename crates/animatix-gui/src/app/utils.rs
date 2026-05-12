@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use egui::{Color32, Vec2};
 
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_summary_by_phase};

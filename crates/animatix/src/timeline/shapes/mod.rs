@@ -67,10 +67,23 @@ pub struct VectorShapeStyle {
     pub fill_opacity: f32,
 }
 mod primitives;
+#[allow(unused_imports)]
 pub use primitives::*;
 pub fn shape_type_for_actor(ty: &str) -> ShapeType {
-    if let Some(primitive) = vector_shape_primitive_for_actor_type(ty) {
-        return primitive.shape_type();
+    if let Some(primitive) = crate::primitives::find_primitive(ty) {
+        if primitive.is_shape() {
+            return match ty {
+                "Rect" | "Square" => ShapeType::Rect,
+                "Circle" | "Dot" => ShapeType::Circle,
+                "Line" => ShapeType::Line,
+                "Ellipse" => ShapeType::Ellipse,
+                "Arc" => ShapeType::Arc,
+                "Polygon" | "RegularPolygon" => ShapeType::Polygon,
+                "Path" => ShapeType::Path,
+                "Arrow" => ShapeType::Arrow,
+                _ => ShapeType::Rect,
+            };
+        }
     }
 
     match ty {
@@ -81,7 +94,7 @@ pub fn shape_type_for_actor(ty: &str) -> ShapeType {
 }
 
 pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
-    if let Some(primitive) = vector_shape_primitive_for_actor_type(actor_type) {
+    if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.apply_defaults(state);
     }
 }
@@ -95,28 +108,27 @@ pub fn apply_vector_shape_property(
     subject: &str,
     state: &mut VectorShapeState,
 ) -> bool {
-    if let Some(primitive) = vector_shape_primitive_for_actor_type(actor_type) {
+    if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         return primitive.apply_property(actor_type, name, value, env, diagnostics, subject, state);
     }
     false
 }
 
 pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
-    if let Some(primitive) = vector_shape_primitive_for_actor_type(actor_type) {
+    if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.finalize_state(actor_type, state);
     }
 }
 
 pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
-    vector_shape_primitive_for_shape_type(shape_type)
-        .map(VectorShapePrimitive::exposes_tip_size)
-        .unwrap_or(false)
+    match shape_type {
+        ShapeType::Arrow => true,
+        _ => false,
+    }
 }
 
 pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
-    vector_shape_primitive_for_shape_type(shape_type)
-        .map(VectorShapePrimitive::uses_custom_path)
-        .unwrap_or(false)
+    matches!(shape_type, ShapeType::Polygon | ShapeType::Path)
 }
 
 pub fn build_vector_shape_vello_path(
@@ -124,8 +136,28 @@ pub fn build_vector_shape_vello_path(
     state: &VectorShapeState,
     style: VectorShapeStyle,
 ) -> Option<VelloPath> {
-    vector_shape_primitive_for_shape_type(shape_type)
-        .map(|primitive| primitive.build_vello_path(state, style))
+    // Map shape type back to a primitive type name for lookup
+    let type_name = match shape_type {
+        ShapeType::Rect => "Rect",
+        ShapeType::Circle => "Circle",
+        ShapeType::Line => "Line",
+        ShapeType::Ellipse => "Ellipse",
+        ShapeType::Arc => "Arc",
+        ShapeType::Polygon => "Polygon",
+        ShapeType::Path => "Path",
+        ShapeType::Arrow => "Arrow",
+        _ => return None,
+    };
+    crate::primitives::find_primitive(type_name)
+        .and_then(|primitive| {
+            primitive.render(&crate::primitives::RenderCtx {
+                state,
+                style,
+                time_ms: 0,
+            })
+        })
+        .map(|paths| paths.into_iter().next())
+        .flatten()
 }
 
 pub fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
@@ -269,14 +301,6 @@ pub fn build_shape(
     line_to: [f32; 2],
     arc_angles: [f32; 2],
 ) -> KurboShape {
-    let state = VectorShapeState::new(size, line_from, line_to, arc_angles);
-    if let Some(primitive) = vector_shape_primitive_for_shape_type(shape_type) {
-        let path = primitive.build_path(&state);
-        if matches!(shape_type, ShapeType::Arrow | ShapeType::Polygon | ShapeType::Path) {
-            return KurboShape::Path { path };
-        }
-    }
-
     match shape_type {
         ShapeType::Circle => KurboShape::Circle {
             center: kurbo::Point::new(0.0, 0.0),
@@ -319,10 +343,9 @@ pub fn shape_fill_color(
         return None;
     }
 
-    if let Some(primitive) = vector_shape_primitive_for_shape_type(shape_type)
-        && !primitive.supports_fill()
-    {
-        return None;
+    match shape_type {
+        ShapeType::Line | ShapeType::Arc => return None,
+        _ => {}
     }
 
     Some(vello::peniko::Color::from_rgba8(

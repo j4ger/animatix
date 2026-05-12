@@ -1,7 +1,10 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{Environment, VectorShapeState, Value};
+use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::shapes::{parse_point_list_expr, regular_polygon_points};
+use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VelloPath};
 
 pub struct RegularPolygonPrimitive;
 pub const REGULAR_POLYGON: RegularPolygonPrimitive = RegularPolygonPrimitive;
@@ -14,7 +17,7 @@ impl Primitive for RegularPolygonPrimitive {
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::RegularPolygon) }
 
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property], modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
         Ok(())
     }
@@ -41,6 +44,54 @@ impl Primitive for RegularPolygonPrimitive {
             Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
         ]
     }
+
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    fn finalize_state(&self, _actor_type: &str, state: &mut VectorShapeState) {
+        if state.custom_path.is_none() {
+            state.custom_path = Some(
+                KurboShape::Polygon {
+                    points: regular_polygon_points(
+                        state.regular_polygon_sides,
+                        state.regular_polygon_radius,
+                        state.rotation,
+                    ),
+                }
+                .to_path_default(),
+            );
+        }
+    }
+
+    fn supports_fill(&self) -> bool { true }
+
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        match name {
+            "points" => {
+                if let Some(points) = parse_point_list_expr(value, env) {
+                    state.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
+                }
+                true
+            }
+            "sides" => {
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.regular_polygon_sides as f64));
+                state.regular_polygon_sides = v.as_num().round().max(3.0) as usize;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn uses_custom_path(&self) -> bool { true }
 }
 
 impl RegularPolygonPrimitive {

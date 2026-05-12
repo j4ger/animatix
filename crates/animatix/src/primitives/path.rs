@@ -1,7 +1,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{Environment, VectorShapeState};
+use crate::timeline::shapes::parse_path_commands_expr;
+use crate::timeline::{SceneDimensions, VelloPath};
 
 pub struct PathPrimitive;
 pub const PATH: PathPrimitive = PathPrimitive;
@@ -14,7 +16,7 @@ impl Primitive for PathPrimitive {
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Path) }
 
-    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property], modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
         Ok(())
     }
@@ -41,6 +43,29 @@ impl Primitive for PathPrimitive {
             Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
         ]
     }
+
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    fn supports_fill(&self) -> bool { true }
+
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        _diagnostics: &mut Vec<Diagnostic>,
+        _subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        if name != "commands" { return false; }
+        state.custom_path = parse_path_commands_expr(value, env);
+        true
+    }
+
+    fn uses_custom_path(&self) -> bool { true }
 }
 
 impl PathPrimitive {

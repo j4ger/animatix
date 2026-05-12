@@ -35,10 +35,10 @@ impl Primitive for RectPrimitive {
 
     fn build(
         &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+        _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
         // Build handled by legacy dispatch
@@ -78,6 +78,16 @@ impl Primitive for RectPrimitive {
             },
         ]
     }
+
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+
+    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+
+    fn uses_custom_path(&self) -> bool { false }
+
+    fn exposes_tip_size(&self) -> bool { false }
+
+    fn supports_fill(&self) -> bool { true }
 }
 
 impl RectPrimitive {

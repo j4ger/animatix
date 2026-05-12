@@ -1,6 +1,8 @@
 //! Code editor with cell-based notebook UI, tree-sitter syntax highlighting,
 //! line numbers, and auto-complete.
 
+#![allow(dead_code)]
+
 use egui::{Key, text::LayoutJob};
 use std::path::{Path, PathBuf};
 use animatix_analyzer::Analyzer;

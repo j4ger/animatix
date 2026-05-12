@@ -50,7 +50,7 @@ impl ParseError {
         let end = span.end;
         let (line, column) = byte_offset_to_line_col(source, start);
 
-        let mut message = String::new();
+        let mut _message = String::new();
         let mut expected = Vec::new();
         let mut found = None;
 
@@ -60,14 +60,14 @@ impl ParseError {
                 found = f.as_ref().map(|c| c.to_string());
                 let expected_str = expected.join(", ");
                 match (expected_str.is_empty(), found.as_ref()) {
-                    (false, Some(f)) => message = format!("expected {expected_str}, found '{f}'"),
-                    (false, None) => message = format!("expected {expected_str}, found end of input"),
-                    (true, Some(f)) => message = format!("unexpected '{f}'"),
-                    (true, None) => message = "unexpected end of input".to_string(),
+                    (false, Some(f)) => _message = format!("expected {expected_str}, found '{f}'"),
+                    (false, None) => _message = format!("expected {expected_str}, found end of input"),
+                    (true, Some(f)) => _message = format!("unexpected '{f}'"),
+                    (true, None) => _message = "unexpected end of input".to_string(),
                 }
             }
             chumsky::error::RichReason::Custom(msg) => {
-                message = msg.clone();
+                _message = msg.clone();
             }
         }
 
@@ -77,7 +77,7 @@ impl ParseError {
             .collect();
 
         Self {
-            message,
+            message: _message,
             span: start..end,
             line,
             column,
