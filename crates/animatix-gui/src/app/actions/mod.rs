@@ -367,7 +367,7 @@ fn apply_property_edit_to_track(
         }
         "radius_x" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.default_value = size;
@@ -376,7 +376,7 @@ fn apply_property_edit_to_track(
         }
         "radius_y" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.default_value = size;
@@ -403,7 +403,7 @@ fn apply_property_edit_to_track(
         }
         "tip_length" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.default_value = size;
@@ -412,7 +412,7 @@ fn apply_property_edit_to_track(
         }
         "tip_width" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, [50.0, 50.0]);
+                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.default_value = size;
@@ -475,19 +475,7 @@ fn apply_property_edit_to_track(
         "shape_type" => {
             if let PV::Text(v) = value {
                 use animatix::timeline::ShapeType;
-                let shape = match v.as_str() {
-                    "Rect" => Some(ShapeType::Rect),
-                    "Circle" => Some(ShapeType::Circle),
-                    "Line" => Some(ShapeType::Line),
-                    "Ellipse" => Some(ShapeType::Ellipse),
-                    "Arc" => Some(ShapeType::Arc),
-                    "Polygon" => Some(ShapeType::Polygon),
-                    "Path" => Some(ShapeType::Path),
-                    "Arrow" => Some(ShapeType::Arrow),
-                    "Graph" => Some(ShapeType::Graph),
-                    "Plot" => Some(ShapeType::Plot),
-                    _ => None,
-                };
+                let shape = v.parse::<ShapeType>().ok();
                 if let Some(shape) = shape {
                     let pt = track.shape_type.get_or_insert_with(|| PropertyTrack::new(shape));
                     pt.default_value = shape;
@@ -613,72 +601,26 @@ impl GuiShell {
 /// Generate default properties for a new actor.
 fn default_props_for_actor(
     ty: &str,
-    position: [f32; 2],
+    _position: [f32; 2],
     _scene_dimensions: animatix::timeline::SceneDimensions,
 ) -> Vec<animatix::ast::Property> {
     use animatix::ast::{Expr, Property};
+    let scene = animatix::timeline::SceneDimensions {
+        width: _scene_dimensions.width,
+        height: _scene_dimensions.height,
+    };
 
-    let mut props = vec![
-        Property {
+    if let Some(primitive) = animatix::primitives::find_primitive(ty) {
+        primitive.default_props(&scene)
+    } else {
+        vec![Property {
             name: "at".into(),
             value: Expr::Tuple(vec![
-                Expr::Num(position[0] as f64),
-                Expr::Num(position[1] as f64),
+                Expr::Num(scene.width as f64 / 2.0),
+                Expr::Num(scene.height as f64 / 2.0),
             ]),
             value_span: None,
             trailing_comment: None,
-        },
-    ];
-
-    // Add color default
-    props.push(Property {
-        name: "color".into(),
-        value: Expr::Ident("accent.primary".into()),
-        value_span: None,
-        trailing_comment: None,
-    });
-
-    match ty {
-        "Rect" => {
-            props.push(Property {
-                name: "size".into(),
-                value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]),
-                value_span: None,
-                trailing_comment: None,
-            });
-        }
-        "Circle" => {
-            props.push(Property {
-                name: "size".into(),
-                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(80.0)]),
-                value_span: None,
-                trailing_comment: None,
-            });
-        }
-        "Text" => {
-            props.push(Property {
-                name: "text".into(),
-                value: Expr::Str("Text".into()),
-                value_span: None,
-                trailing_comment: None,
-            });
-            props.push(Property {
-                name: "font_size".into(),
-                value: Expr::Num(24.0),
-                value_span: None,
-                trailing_comment: None,
-            });
-        }
-        "Row" | "Col" => {
-            props.push(Property {
-                name: "gap".into(),
-                value: Expr::Num(8.0),
-                value_span: None,
-                trailing_comment: None,
-            });
-        }
-        _ => {}
+        }]
     }
-
-    props
 }

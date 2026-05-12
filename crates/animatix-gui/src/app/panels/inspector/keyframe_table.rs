@@ -395,18 +395,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
         }
         PropertyValue::U32(v) => {
             if name == "shape_type" {
-                let st = match *v {
-                    0 => ShapeType::Rect,
-                    1 => ShapeType::Circle,
-                    2 => ShapeType::Line,
-                    3 => ShapeType::Ellipse,
-                    4 => ShapeType::Arc,
-                    5 => ShapeType::Polygon,
-                    6 => ShapeType::Path,
-                    7 => ShapeType::Arrow,
-                    _ => ShapeType::Rect,
-                };
-                format!("{:?}", st)
+                ShapeType::from(*v).to_string()
             } else {
                 v.to_string()
             }

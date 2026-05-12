@@ -276,7 +276,7 @@ impl Timeline {
         let mut y_domain = [-10.0, 10.0];
         let mut t_domain = [0.0, std::f64::consts::TAU];
         let mut func = None;
-        let mut initial_size = [50.0, 50.0];
+        let mut initial_size = DEFAULT_LAYOUT_HALF_SIZE;
         let mut tolerance = 0.5;
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
@@ -413,10 +413,10 @@ impl Timeline {
         let line_from = existing_track.line_from.last([-50.0, 0.0]);
         let line_to = existing_track.line_to.last([50.0, 0.0]);
         let arc_angles = existing_track.arc_angles.last(default_arc);
-        let color = existing_track.color.last([1.0, 1.0, 1.0, 1.0]);
+        let color = existing_track.color.last(DEFAULT_WHITE);
         let shape_type = shape_type_for_actor(ty);
         let stroke_width = existing_track.stroke_width.last(2.0);
-        let stroke_color = existing_track.stroke_color.last([1.0, 1.0, 1.0, 1.0]);
+        let stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
         let stroke_progress = existing_track.stroke_progress.last(1.0);
         let fill_opacity = 0.0f32;
 

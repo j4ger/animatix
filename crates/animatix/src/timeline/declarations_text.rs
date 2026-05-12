@@ -5,7 +5,7 @@ use super::{
     preserve_instant_delayed_value, push_modifier_diagnostic,
     resolve_position_binding_with_lookup_diagnostic, AnimationTrack, Diagnostic, DiagnosticCode,
     DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Stmt, Timeline,
-    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
@@ -228,14 +228,16 @@ impl Timeline {
                 TextDeclarationKind::Math => "Math",
                 TextDeclarationKind::Code => "Code",
             };
-            if let Some(scheme_color) = self.get_default_color(primitive_type, "color") {
-                initial_track_color = Some(scheme_color);
-                color = typst::visualize::Color::from_u8(
-                    (scheme_color[0] * 255.0) as u8,
-                    (scheme_color[1] * 255.0) as u8,
-                    (scheme_color[2] * 255.0) as u8,
-                    (scheme_color[3] * 255.0) as u8,
-                );
+            if let Some(primitive) = crate::primitives::find_primitive(primitive_type) {
+                if let Some(scheme_color) = self.get_default_color(primitive, "color") {
+                    initial_track_color = Some(scheme_color);
+                    color = typst::visualize::Color::from_u8(
+                        (scheme_color[0] * 255.0) as u8,
+                        (scheme_color[1] * 255.0) as u8,
+                        (scheme_color[2] * 255.0) as u8,
+                        (scheme_color[3] * 255.0) as u8,
+                    );
+                }
             }
         }
 
@@ -264,7 +266,7 @@ impl Timeline {
             }
             track
                 .color
-                .ensure([1.0, 1.0, 1.0, 1.0])
+                .ensure(DEFAULT_WHITE)
                 .add_keyframe(t_start_ms, track_color, Easing::Linear);
         }
 

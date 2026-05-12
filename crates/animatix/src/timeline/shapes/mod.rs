@@ -19,6 +19,67 @@ pub enum ShapeType {
     Plot = 9,
 }
 
+impl ShapeType {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Rect => "Rect",
+            Self::Circle => "Circle",
+            Self::Line => "Line",
+            Self::Ellipse => "Ellipse",
+            Self::Arc => "Arc",
+            Self::Polygon => "Polygon",
+            Self::Path => "Path",
+            Self::Arrow => "Arrow",
+            Self::Graph => "Graph",
+            Self::Plot => "Plot",
+        }
+    }
+}
+
+impl std::str::FromStr for ShapeType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Rect" => Ok(Self::Rect),
+            "Circle" => Ok(Self::Circle),
+            "Line" => Ok(Self::Line),
+            "Ellipse" => Ok(Self::Ellipse),
+            "Arc" => Ok(Self::Arc),
+            "Polygon" => Ok(Self::Polygon),
+            "Path" => Ok(Self::Path),
+            "Arrow" => Ok(Self::Arrow),
+            "Graph" => Ok(Self::Graph),
+            "Plot" => Ok(Self::Plot),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Display for ShapeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl From<u32> for ShapeType {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Rect,
+            1 => Self::Circle,
+            2 => Self::Line,
+            3 => Self::Ellipse,
+            4 => Self::Arc,
+            5 => Self::Polygon,
+            6 => Self::Path,
+            7 => Self::Arrow,
+            8 => Self::Graph,
+            9 => Self::Plot,
+            _ => Self::Rect,
+        }
+    }
+}
+
 impl Interpolate for ShapeType {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { *self } else { *other }

@@ -6,7 +6,7 @@ use super::{
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_unknown_target_path_diagnostic,
     resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
-    DEFAULT_LAYOUT_HALF_SIZE,
+    DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::timeline::property_engine::{
@@ -353,9 +353,9 @@ fn rebuild_vector_paths(
     let line_from = track.line_from.last([-50.0, 0.0]);
     let line_to = track.line_to.last([50.0, 0.0]);
     let arc_angles = track.arc_angles.last(default_arc);
-    let color = track.color.last([1.0, 1.0, 1.0, 1.0]);
+    let color = track.color.last(DEFAULT_WHITE);
     let stroke_width = track.stroke_width.last(2.0);
-    let stroke_color = track.stroke_color.last([1.0, 1.0, 1.0, 1.0]);
+    let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.fill_opacity.last(1.0);
     let _shape_type = track.shape_type.last(ShapeType::Rect);
 

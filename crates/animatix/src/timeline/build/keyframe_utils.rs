@@ -12,11 +12,11 @@ pub(super) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_line_from = track.line_from.get(t_start_ms, [-50.0, 0.0]);
     let start_line_to = track.line_to.get(t_start_ms, [50.0, 0.0]);
     let start_arc_angles = track.arc_angles.get(t_start_ms, default_arc);
-    let start_color = track.color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+    let start_color = track.color.get(t_start_ms, DEFAULT_WHITE);
     let start_shape_type = track.shape_type.get(t_start_ms, ShapeType::Rect);
     let start_opacity = track.opacity.get(t_start_ms, 1.0);
     let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
-    let start_stroke_color = track.stroke_color.get(t_start_ms, [1.0, 1.0, 1.0, 1.0]);
+    let start_stroke_color = track.stroke_color.get(t_start_ms, DEFAULT_WHITE);
     let start_stroke_progress = track.stroke_progress.get(t_start_ms, 1.0);
     let start_fill_opacity = track.fill_opacity.get(t_start_ms, 1.0);
 
@@ -49,7 +49,7 @@ pub(super) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
     track
         .color
-        .ensure([1.0, 1.0, 1.0, 1.0])
+        .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_color, Easing::Linear);
     track
         .shape_type
@@ -65,7 +65,7 @@ pub(super) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .add_keyframe(t_start_ms, start_stroke_width, Easing::Linear);
     track
         .stroke_color
-        .ensure([1.0, 1.0, 1.0, 1.0])
+        .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_stroke_color, Easing::Linear);
     track
         .stroke_progress
@@ -147,7 +147,7 @@ pub(super) fn insert_end_keyframes(
         .add_keyframe(t_end_ms, arc_angles, easing);
     track
         .color
-        .ensure([1.0, 1.0, 1.0, 1.0])
+        .ensure(DEFAULT_WHITE)
         .add_keyframe(t_end_ms, color, easing);
     track
         .shape_type
@@ -163,7 +163,7 @@ pub(super) fn insert_end_keyframes(
         .add_keyframe(t_end_ms, stroke_width, easing);
     track
         .stroke_color
-        .ensure([1.0, 1.0, 1.0, 1.0])
+        .ensure(DEFAULT_WHITE)
         .add_keyframe(t_end_ms, stroke_color, easing);
     track
         .stroke_progress

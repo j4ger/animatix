@@ -55,6 +55,14 @@ impl Primitive for ArcPrimitive {
 
     fn supports_fill(&self) -> bool { false }
 
+    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+        match property {
+            "stroke" | "stroke_color" => Some("stroke.default"),
+            "color" => None,
+            _ => None,
+        }
+    }
+
     fn apply_property(
         &self,
         _actor_type: &str,

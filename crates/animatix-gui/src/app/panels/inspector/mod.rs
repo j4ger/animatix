@@ -12,6 +12,16 @@ mod keyframe_table;
 use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, collect_all_keyframe_times, count_keyframes};
 
+fn default_actor_type() -> &'static str {
+    animatix::primitives::actor_kind_registry()
+        .iter()
+        .find(|meta| {
+            meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced
+        })
+        .map(|meta| meta.type_name)
+        .unwrap_or("Rect")
+}
+
 // ─── Main Entry Point ─────────────────────────────────────────────────────
 
 /// Renders the unified actor inspector panel.
@@ -82,7 +92,7 @@ pub(super) fn inspector_ui(
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
                 ];
-                actions.create_actor = Some(("Rect".into(), label, pos));
+                actions.create_actor = Some((default_actor_type().into(), label, pos));
             }
         });
         return;

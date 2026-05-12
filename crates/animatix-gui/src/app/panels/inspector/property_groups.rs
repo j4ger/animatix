@@ -212,24 +212,9 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::Vec4(v), ValueType::Color) => PropertyKind::Color(v),
         (PropertyValue::Vec4(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
         (PropertyValue::U32(v), ValueType::ShapeType) => {
-            let st = u32_to_shape_type(v);
-            PropertyKind::Text(format!("{:?}", st))
+            PropertyKind::Text(ShapeType::from(v).to_string())
         }
         (PropertyValue::U32(v), _) => PropertyKind::Float(v as f32),
-    }
-}
-
-fn u32_to_shape_type(v: u32) -> ShapeType {
-    match v {
-        0 => ShapeType::Rect,
-        1 => ShapeType::Circle,
-        2 => ShapeType::Line,
-        3 => ShapeType::Ellipse,
-        4 => ShapeType::Arc,
-        5 => ShapeType::Polygon,
-        6 => ShapeType::Path,
-        7 => ShapeType::Arrow,
-        _ => ShapeType::Rect,
     }
 }
 
@@ -459,10 +444,14 @@ fn render_property_row(
             let mut buf = text.clone();
             ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
                 if entry.name == "shape_type" {
-                    let variants = [
-                        "Rect", "Circle", "Line", "Ellipse", "Arc",
-                        "Polygon", "Path", "Arrow", "Graph", "Plot",
-                    ];
+                    let variants: Vec<&str> = [
+                        ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
+                        ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
+                        ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
+                    ]
+                    .iter()
+                    .map(|st| st.as_str())
+                    .collect();
                     egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
                         .selected_text(text.as_str())
                         .width(input_width)

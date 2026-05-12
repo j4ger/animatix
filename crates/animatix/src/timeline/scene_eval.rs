@@ -1,11 +1,22 @@
 use super::{
-    DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
+    AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
-    vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use crate::renderer::text::TextKind;
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
+
+#[derive(Clone, Copy)]
+struct NodeTransform {
+    position: [f32; 2],
+    half_size: [f32; 2],
+    opacity: f32,
+    rotation: f64,
+    scale: f64,
+    motion_offset: [f32; 2],
+    local_transform: kurbo::Affine,
+}
 
 fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
     Some(match acc {
@@ -57,6 +68,169 @@ fn transform_rect_bbox(transform: &kurbo::Affine, rect: kurbo::Rect) -> kurbo::R
     let x1 = p0.x.max(p1.x).max(p2.x).max(p3.x);
     let y1 = p0.y.max(p1.y).max(p2.y).max(p3.y);
     kurbo::Rect::new(x0, y0, x1, y1)
+}
+
+impl Timeline {
+    /// Evaluate position, size, and transform for a node.
+    fn evaluate_node_transform(
+        &self,
+        track: &AnimationTrack,
+        time_ms: u64,
+        parent_opacity: f32,
+        parent_transform: kurbo::Affine,
+        scene_dimensions: SceneDimensions,
+        layout_position: Option<[f32; 2]>,
+    ) -> NodeTransform {
+        let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+        let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
+        if let Some(layout_pos) = layout_position {
+            if placement_mode == PlacementMode::LayoutManaged {
+                base_position = layout_pos;
+            }
+        }
+
+        let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
+        let position = resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
+        let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
+        let rotation = track.rotation.get(time_ms, 0.0) as f64;
+        let scale = track.scale.get(time_ms, 1.0) as f64;
+        let opacity = track.opacity.get(time_ms, 1.0);
+        let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+
+        let local_transform = parent_transform
+            * kurbo::Affine::translate((
+                position[0] as f64 + motion_offset[0] as f64,
+                position[1] as f64 + motion_offset[1] as f64,
+            ))
+            * kurbo::Affine::rotate(rotation)
+            * kurbo::Affine::scale(scale);
+
+        NodeTransform {
+            position,
+            half_size,
+            opacity: opacity * parent_opacity,
+            rotation,
+            scale,
+            motion_offset,
+            local_transform,
+        }
+    }
+
+    /// Build vector paths for a shape actor.
+    fn build_shape_vector_paths(
+        &self,
+        track: &AnimationTrack,
+        time_ms: u64,
+        half_size: [f32; 2],
+        line_from: [f32; 2],
+        line_to: [f32; 2],
+        arc_angles: [f32; 2],
+        color: [f32; 4],
+        stroke_width: f32,
+        stroke_color: [f32; 4],
+        fill_opacity: f32,
+        shape_type: ShapeType,
+        vector_paths: &mut Vec<VelloPath>,
+    ) {
+        if vector_paths.is_empty() || matches!(shape_type, ShapeType::Graph | ShapeType::Plot) {
+            return;
+        }
+
+        let mut vector_shape_state = VectorShapeState::new(half_size, line_from, line_to, arc_angles);
+        vector_shape_state.rotation = track.rotation.get(time_ms, 0.0);
+        vector_shape_state.points = track.points.get(time_ms, Vec::new());
+        if vector_shape_uses_custom_path(shape_type) {
+            vector_shape_state.custom_path = vector_paths.first().map(|vp| vp.path.clone());
+        }
+        if let Some(path) = build_vector_shape_vello_path(
+            shape_type,
+            &vector_shape_state,
+            VectorShapeStyle {
+                color,
+                stroke_width,
+                stroke_color,
+                fill_opacity,
+            },
+        ) {
+            *vector_paths = vec![path];
+        }
+    }
+
+    fn evaluate_text_node(
+        &self,
+        track: &AnimationTrack,
+        time_ms: u64,
+        node_overrides: Option<&std::collections::HashMap<String, Value>>,
+        _local_transform: &kurbo::Affine,
+        _opacity: f32,
+        _scene: &mut vello::Scene,
+        _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    ) -> Vec<TextPath> {
+        let mut content = track.text_content.get(time_ms, String::new());
+        let mut font_family = track.font_family.get(time_ms, String::new());
+        let default_font_size = match track.kind {
+            super::ActorKindId::Code => 24.0,
+            _ => 48.0,
+        };
+        let mut font_size = track.font_size.get(time_ms, default_font_size);
+        let mut color = track.color.get(time_ms, DEFAULT_WHITE);
+
+        if let Some(ov) = node_overrides {
+            if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")) {
+                content = s.clone();
+            }
+            if let Some(Value::Str(s)) = ov.get("font_family") {
+                font_family = s.clone();
+            }
+            if let Some(Value::Num(n)) = ov.get("font_size") {
+                font_size = *n as f32;
+            }
+            if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
+                color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+            }
+        }
+
+        if !content.is_empty() {
+            let kind = match track.kind {
+                super::ActorKindId::Text => TextKind::Text,
+                super::ActorKindId::Math => TextKind::Math,
+                super::ActorKindId::Code => TextKind::Code,
+                _ => TextKind::Text,
+            };
+            self.text_compiler
+                .borrow_mut()
+                .compile(&content, &font_family, font_size, color, kind)
+        } else {
+            track.evaluate_text_paths(time_ms)
+        }
+    }
+
+    /// Add debug bounds and hit regions for a node.
+    fn add_node_debug_overlays(
+        &self,
+        track: &AnimationTrack,
+        half_size: [f32; 2],
+        local_transform: &kurbo::Affine,
+        scene: &mut vello::Scene,
+        vector_paths: &[VelloPath],
+        text_paths: &[TextPath],
+        has_image: bool,
+    ) -> Option<kurbo::Rect> {
+        let local_bounds = node_local_bounds(
+            vector_paths,
+            text_paths,
+            &track.svg_paths,
+            has_image.then_some(half_size),
+        );
+
+        if let Some(bounds) = local_bounds {
+            let stroke = vello::kurbo::Stroke::new(1.25);
+            let debug_color = vello::peniko::Color::from_rgba8(255, 214, 102, 220);
+            scene.stroke(&stroke, *local_transform, debug_color, None, &bounds);
+        }
+
+        local_bounds
+    }
 }
 
 impl Timeline {
@@ -137,62 +311,40 @@ impl Timeline {
                 return;
             }
 
-            let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
-            let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
-
-            // If dynamic layout is enabled and this node has a computed layout position
-            if self.dynamic_layout {
-                if let Some(layout_pos) = layout_positions.get(node_label) {
-                    if placement_mode == PlacementMode::LayoutManaged {
-                        base_position = *layout_pos;
-                    }
-                }
-            }
-            let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
-            let mut position =
-                resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
-            let mut rotation = track.rotation.get(time_ms, 0.0) as f64;
-            let mut scale = track.scale.get(time_ms, 1.0) as f64;
-            let mut opacity = track.opacity.get(time_ms, 1.0);
-
-            let points = track.points.get(time_ms, Vec::new());
             let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
-            let mut half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let layout_pos = if self.dynamic_layout {
+                layout_positions.get(node_label).copied()
+            } else {
+                None
+            };
+            let node_overrides = overrides.get(node_label);
+            let node_transform = self.evaluate_node_transform(
+                track,
+                time_ms,
+                parent_opacity,
+                parent_transform,
+                scene_dimensions,
+                layout_pos,
+            );
+            let _position = node_transform.position;
+            let half_size = node_transform.half_size;
+            let opacity = node_transform.opacity;
+            let _rotation = node_transform.rotation;
+            let _scale = node_transform.scale;
+            let _motion_offset = node_transform.motion_offset;
+            let local_transform = node_transform.local_transform;
+
+            let _points = track.points.get(time_ms, Vec::new());
             let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
             let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
             let mut arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-            let mut color = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let mut color = track.color.get(time_ms, DEFAULT_WHITE);
             let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
-            let mut stroke_color = track.stroke_color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
             let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
 
-            if let Some(node_overrides) = overrides.get(node_label) {
-                if let Some(Value::Vec2(pos)) = node_overrides.get("at") {
-                    position = [pos[0] as f32, pos[1] as f32];
-                }
-                if let Some(Value::Num(op)) = node_overrides.get("opacity") {
-                    opacity = *op as f32;
-                }
-                if let Some(Value::Vec2(size)) = node_overrides.get("size") {
-                    half_size = [size[0] as f32 / 2.0, size[1] as f32 / 2.0];
-                }
-                if let Some(Value::Num(tip_length)) = node_overrides.get("tip_length") {
-                    half_size[0] = *tip_length as f32;
-                }
-                if let Some(Value::Num(tip_width)) = node_overrides.get("tip_width") {
-                    half_size[1] = *tip_width as f32;
-                }
-                if let Some(Value::Num(radius)) = node_overrides.get("radius") {
-                    half_size = [*radius as f32, *radius as f32];
-                }
-                if let Some(Value::Num(radius_x)) = node_overrides.get("radius_x") {
-                    half_size[0] = *radius_x as f32;
-                }
-                if let Some(Value::Num(radius_y)) = node_overrides.get("radius_y") {
-                    half_size[1] = *radius_y as f32;
-                }
+            if let Some(node_overrides) = node_overrides {
                 if let Some(Value::Vec2(from)) = node_overrides.get("from") {
                     line_from = [from[0] as f32, from[1] as f32];
                 }
@@ -223,98 +375,37 @@ impl Timeline {
                 if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
                     fill_opacity = *opacity as f32;
                 }
-                if let Some(Value::Num(angle)) = node_overrides.get("rotation") {
-                    rotation = *angle;
-                }
-                if let Some(Value::Num(factor)) = node_overrides.get("scale") {
-                    scale = *factor;
-                }
             }
 
             // ── Runtime text recompilation (Phase 2) ──
             // If text content has changed since build time (e.g. via `always` blocks),
             // recompile glyph paths on-demand using the TextCompiler cache.
-            let text_paths = {
-                let node_overrides = overrides.get(node_label);
-                let mut content = track.text_content.get(time_ms, String::new());
-                let mut font_family = track.font_family.get(time_ms, String::new());
-                let default_font_size = match track.kind {
-                    super::ActorKindId::Code => 24.0,
-                    _ => 48.0,
-                };
-                let mut font_size = track.font_size.get(time_ms, default_font_size);
-                let mut color = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let text_paths = self.evaluate_text_node(
+                track,
+                time_ms,
+                node_overrides,
+                &local_transform,
+                opacity,
+                scene,
+                &mut Vec::new(),
+            );
 
-                // Apply overrides from always/reactive blocks
-                if let Some(ov) = node_overrides {
-                    if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")) {
-                        content = s.clone();
-                    }
-                    if let Some(Value::Str(s)) = ov.get("font_family") {
-                        font_family = s.clone();
-                    }
-                    if let Some(Value::Num(n)) = ov.get("font_size") {
-                        font_size = *n as f32;
-                    }
-                    if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
-                        color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-                    }
-                }
+            self.build_shape_vector_paths(
+                track,
+                time_ms,
+                half_size,
+                line_from,
+                line_to,
+                arc_angles,
+                color,
+                stroke_width,
+                stroke_color,
+                fill_opacity,
+                shape_type,
+                &mut vector_paths,
+            );
 
-                if !content.is_empty() {
-                    let kind = match track.kind {
-                        super::ActorKindId::Text => TextKind::Text,
-                        super::ActorKindId::Math => TextKind::Math,
-                        super::ActorKindId::Code => TextKind::Code,
-                        _ => TextKind::Text,
-                    };
-                    self.text_compiler.borrow_mut().compile(
-                        &content,
-                        &font_family,
-                        font_size,
-                        color,
-                        kind,
-                    )
-                } else {
-                    track.evaluate_text_paths(time_ms)
-                }
-            };
-
-            if !vector_paths.is_empty() {
-                vector_paths = if matches!(shape_type, ShapeType::Graph | ShapeType::Plot) {
-                    vector_paths
-                } else {
-                    let mut vector_shape_state =
-                        VectorShapeState::new(half_size, line_from, line_to, arc_angles);
-                    vector_shape_state.rotation = rotation as f32;
-                    vector_shape_state.points = points.clone();
-                    if vector_shape_uses_custom_path(shape_type) {
-                        vector_shape_state.custom_path =
-                            vector_paths.first().map(|vp| vp.path.clone());
-                    }
-                    build_vector_shape_vello_path(
-                        shape_type,
-                        &vector_shape_state,
-                        VectorShapeStyle {
-                            color,
-                            stroke_width,
-                            stroke_color,
-                            fill_opacity,
-                        },
-                    )
-                    .map(|path| vec![path])
-                    .unwrap_or(vector_paths)
-                };
-            }
-
-            let local_opacity = opacity * parent_opacity;
-            let local_transform = parent_transform
-                * kurbo::Affine::translate((
-                    position[0] as f64 + motion_offset[0] as f64,
-                    position[1] as f64 + motion_offset[1] as f64,
-                ))
-                * kurbo::Affine::rotate(rotation)
-                * kurbo::Affine::scale(scale);
+            let local_opacity = opacity;
             let image = track.image.get(time_ms, None);
             let has_image = image.is_some();
 
@@ -411,26 +502,20 @@ impl Timeline {
                 scene.draw_image(&brush, image_transform);
             }
 
-            if debug_options.draw_bounds
-                && let Some(local_bounds) = node_local_bounds(
+            if debug_options.draw_bounds {
+                let _ = self.add_node_debug_overlays(
+                    track,
+                    half_size,
+                    &local_transform,
+                    scene,
                     &vector_paths,
                     &text_paths,
-                    &track.svg_paths,
-                    has_image.then_some(half_size),
-                )
-            {
-                let stroke = vello::kurbo::Stroke::new(1.25);
-                let debug_color = vello::peniko::Color::from_rgba8(255, 214, 102, 220);
-                scene.stroke(&stroke, local_transform, debug_color, None, &local_bounds);
+                    has_image,
+                );
             }
 
             // Collect world-space hit region for click-to-select
-            let lb = node_local_bounds(
-                &vector_paths,
-                &text_paths,
-                &track.svg_paths,
-                has_image.then_some(half_size),
-            );
+            let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
             let world_bounds = if let Some(local_bounds) = lb {
                 transform_rect_bbox(&local_transform, local_bounds)
             } else {

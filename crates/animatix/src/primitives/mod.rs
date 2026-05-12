@@ -168,6 +168,34 @@ pub trait Primitive: Send + Sync {
     /// Returns true if this shape supports fill (most shapes; Line and Arc do not).
     fn supports_fill(&self) -> bool { true }
 
+    /// Returns the colorscheme key for default color lookup.
+    /// For example, "Text" returns "text.primary", shapes return "accent.primary".
+    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+        match property {
+            "color" => match self.category() {
+                ActorCategory::Text => Some("text.primary"),
+                ActorCategory::Shape | ActorCategory::Plot => Some("surface.primary"),
+                ActorCategory::Media => Some("text.primary"),
+                ActorCategory::Container => None,
+            },
+            "stroke" | "stroke_color" => match self.category() {
+                ActorCategory::Shape => Some("stroke.default"),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// How the GUI should resize this actor.
+    fn resize_mode(&self) -> crate::timeline::ResizeMode {
+        match self.category() {
+            ActorCategory::Text | ActorCategory::Media | ActorCategory::Plot => {
+                crate::timeline::ResizeMode::Scale
+            }
+            _ => crate::timeline::ResizeMode::Size,
+        }
+    }
+
     // ── GUI defaults ──
 
     /// Default properties used when creating this actor from the GUI.

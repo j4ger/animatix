@@ -121,9 +121,9 @@ use timing::{
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use track::{
-    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ActorHeader, GeometryTier, StyleTier, ActorPayload,
+    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode, ActorHeader, GeometryTier, StyleTier, ActorPayload,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
-    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
 /// Extend a time_ms vector with keyframe times from a property track, if present.
@@ -553,8 +553,8 @@ impl Timeline {
 
     /// Returns the appropriate default color for a primitive type and property,
     /// based on the current colorscheme.
-    pub fn get_default_color(&self, primitive_type: &str, property: &str) -> Option<[f32; 4]> {
-        self.colorscheme.default_color_for_primitive(primitive_type, property)
+    pub fn get_default_color(&self, primitive: &dyn crate::primitives::Primitive, property: &str) -> Option<[f32; 4]> {
+        self.colorscheme.default_color_for_primitive(primitive, property)
     }
 
     /// Compute the world-space affine transform for a given actor at the given time.

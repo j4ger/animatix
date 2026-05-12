@@ -48,6 +48,14 @@ impl Primitive for ArrowPrimitive {
         }
     }
 
+    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+        match property {
+            "color" => Some("accent.primary"),
+            "stroke" | "stroke_color" => Some("stroke.default"),
+            _ => None,
+        }
+    }
+
     fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
     fn supports_fill(&self) -> bool { true }

@@ -7,6 +7,7 @@ use crate::timeline::shapes::ShapeType;
 use std::collections::BTreeMap;
 
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
+pub const DEFAULT_WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
 // ─────────────────────────────────────────────────────────────
 // Actor kind identification
@@ -180,6 +181,12 @@ impl Interpolate for u32 {
 pub enum PlacementMode {
     LayoutManaged,
     Manual,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResizeMode {
+    Size,
+    Scale,
 }
 
 impl Interpolate for PlacementMode {

@@ -39,7 +39,7 @@ use crate::easing::Easing;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
-    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 
 // Sibling module imports (accessible via super:: because we're a child of timeline)
@@ -158,10 +158,10 @@ pub(crate) fn write_property_field(
         }
 
         // ── Style tier ──
-        ActorField::Color => write_vec4(&mut track.color, value, t_start_ms, t_end_ms, easing, [1.0, 1.0, 1.0, 1.0], has_duration, has_delay),
+        ActorField::Color => write_vec4(&mut track.color, value, t_start_ms, t_end_ms, easing, DEFAULT_WHITE, has_duration, has_delay),
         ActorField::Opacity => write_f32(&mut track.opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
         ActorField::StrokeWidth => write_f32(&mut track.stroke_width, value, t_start_ms, t_end_ms, easing, 2.0, has_duration, has_delay),
-        ActorField::StrokeColor => write_vec4(&mut track.stroke_color, value, t_start_ms, t_end_ms, easing, [1.0, 1.0, 1.0, 1.0], has_duration, has_delay),
+        ActorField::StrokeColor => write_vec4(&mut track.stroke_color, value, t_start_ms, t_end_ms, easing, DEFAULT_WHITE, has_duration, has_delay),
         ActorField::StrokeProgress => write_f32(&mut track.stroke_progress, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
         ActorField::FillOpacity => write_f32(&mut track.fill_opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
         ActorField::MorphOptions => {
@@ -180,6 +180,8 @@ pub(crate) fn write_property_field(
                     5 => ShapeType::Polygon,
                     6 => ShapeType::Path,
                     7 => ShapeType::Arrow,
+                    8 => ShapeType::Graph,
+                    9 => ShapeType::Plot,
                     _ => ShapeType::Rect,
                 };
                 write_shape_type(&mut track.shape_type, st, t_start_ms, t_end_ms, easing, ShapeType::Rect, has_duration, has_delay);
@@ -492,9 +494,9 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, label, "scale",   &track.scale, time_ms, 1.0);
 
     // Style
-    inject_color_env(env, label, "color",           &track.color, time_ms, [1.0, 1.0, 1.0, 1.0]);
+    inject_color_env(env, label, "color",           &track.color, time_ms, DEFAULT_WHITE);
     inject_scalar_env(env, label, "opacity",        &track.opacity, time_ms, 1.0);
-    inject_color_env(env, label, "stroke_color",    &track.stroke_color, time_ms, [1.0, 1.0, 1.0, 1.0]);
+    inject_color_env(env, label, "stroke_color",    &track.stroke_color, time_ms, DEFAULT_WHITE);
     inject_scalar_env(env, label, "stroke_width",   &track.stroke_width, time_ms, 2.0);
     inject_scalar_env(env, label, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
     inject_scalar_env(env, label, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
