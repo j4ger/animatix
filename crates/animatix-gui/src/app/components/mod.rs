@@ -20,6 +20,7 @@
 
 #![allow(dead_code)]
 
+pub mod context_menu;
 pub mod widgets;
 
 use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};

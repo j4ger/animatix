@@ -105,7 +105,10 @@ crates/
 │           ├── inspector.rs     # Actor property inspector
 │           ├── preview.rs       # Preview pane
 │           ├── workspace.rs     # Dock layout management
-│           └── selection.rs     # Click-to-select
+│           ├── selection.rs     # Click-to-select
+│           └── components/      # Reusable UI components
+│               ├── context_menu.rs  # Unified right-click / floating menus
+│               └── widgets.rs       # Low-level primitives (tree rows, tabs)
 │
 └── tree-sitter-animatix/  # Tree-sitter grammar
     ├── grammar.js

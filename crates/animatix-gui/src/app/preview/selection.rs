@@ -4,7 +4,8 @@
 //! and right-click context menu for explicit selection.
 
 use super::*;
-use egui::{Color32, Pos2, RichText, Vec2};
+use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
+use egui::{Color32, Pos2, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
@@ -137,91 +138,41 @@ pub(crate) fn draw_context_menu(
 ) -> (Option<String>, bool, Option<egui::Rect>) {
     let menu_pos = selection.context_menu_pos.unwrap_or_default();
     let actors = &selection.context_menu_actors;
-    let mut selected_from_menu = None;
-    let mut close_menu = false;
 
-    let inner = egui::Area::new(egui::Id::new("selection_context_menu"))
-        .fixed_pos(menu_pos)
-        .order(egui::Order::Foreground)
-        .show(ui.ctx(), |ui| {
-            egui::Frame::new()
-                .fill(Color32::from_rgb(30, 33, 40))
-                .stroke(Stroke::new(1.0, Color32::from_rgb(60, 65, 75)))
-                .corner_radius(4.0)
-                .inner_margin(4.0)
-                .show(ui, |ui| {
-                    ui.set_min_width(140.0);
+    let entries: Vec<MenuEntry> = std::iter::once(MenuEntry::header("Select actor"))
+        .chain(std::iter::once(MenuEntry::separator()))
+        .chain(actors.iter().enumerate().map(|(i, actor)| {
+            let is_selected = current_selected.as_ref() == Some(actor);
+            let prefix = if i < 9 {
+                format!("{}.", i + 1)
+            } else {
+                "  ".to_string()
+            };
+            let label = format!("{} {}", prefix, actor);
+            MenuEntry::Item {
+                icon: None,
+                label,
+                shortcut: None,
+                checked: is_selected,
+                enabled: true,
+            }
+        }))
+        .collect();
 
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new("Select actor")
-                                .small()
-                                .color(Color32::from_rgb(150, 158, 175)),
-                        )
-                        .selectable(false),
-                    );
-                    ui.separator();
+    let (clicked_idx, menu_rect) = render_floating_menu(
+        ui.ctx(),
+        egui::Id::new("selection_context_menu"),
+        menu_pos,
+        &entries,
+    );
 
-                    // Calculate max text width to prevent wrapping
-                    let max_actor_len = actors.iter().map(|a| a.len()).max().unwrap_or(10);
-                    let min_width = (max_actor_len as f32 * 7.0 + 16.0).max(140.0);
-                    let item_height = 22.0;
+    let selected = clicked_idx.and_then(|idx| {
+        // Subtract 2 for header + separator
+        actors.get(idx.saturating_sub(2)).cloned()
+    });
+    let close = selected.is_some();
 
-                    for (i, actor) in actors.iter().enumerate() {
-                        let is_selected = current_selected.as_ref() == Some(actor);
-
-                        // Build text with index prefix
-                        let prefix = if i < 9 {
-                            format!("{}.", i + 1)
-                        } else {
-                            "  ".to_string()
-                        };
-                        let text = format!("{} {}", prefix, actor);
-
-                        // Allocate space and sense clicks
-                        let (rect, response) = ui.allocate_at_least(
-                            Vec2::new(min_width, item_height),
-                            egui::Sense::click(),
-                        );
-
-                        // Background color based on state
-                        let bg_color = if is_selected {
-                            Color32::from_rgb(84, 110, 255)
-                        } else if response.hovered() {
-                            Color32::from_rgb(50, 55, 68)
-                        } else {
-                            Color32::TRANSPARENT
-                        };
-
-                        if bg_color != Color32::TRANSPARENT {
-                            ui.painter().rect_filled(rect, 2.0, bg_color);
-                        }
-
-                        // Text color based on state
-                        let text_color = if is_selected || response.hovered() {
-                            Color32::WHITE
-                        } else {
-                            Color32::from_rgb(200, 200, 210)
-                        };
-
-                        let font_id = egui::TextStyle::Small.resolve(ui.style());
-                        ui.painter().text(
-                            rect.left_center() + Vec2::new(8.0, 0.0),
-                            egui::Align2::LEFT_CENTER,
-                            text,
-                            font_id,
-                            text_color,
-                        );
-
-                        if response.clicked() {
-                            selected_from_menu = Some(actor.clone());
-                            close_menu = true;
-                        }
-                    }
-                });
-        });
-
-    (selected_from_menu, close_menu, Some(inner.response.rect))
+    (selected, close, Some(menu_rect))
 }
 
 // ─── Hover Overlay Drawing ──────────────────────────────────────────────────

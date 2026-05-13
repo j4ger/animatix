@@ -570,13 +570,19 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         state.pending_insert_after = Some(after_index);
     }
 
+    use crate::app::components::context_menu::{render_menu, MenuEntry};
+
     response.context_menu(|ui| {
-        if ui.button("Insert keyframe").clicked() {
-            state.pending_insert_after = Some(after_index);
-            ui.close();
-        }
-        if ui.button("Insert code block").clicked() {
-            state.pending_insert_code_after = Some(after_index);
+        let entries = vec![
+            MenuEntry::item_with_icon(egui_phosphor::regular::FILM_STRIP, "Insert keyframe"),
+            MenuEntry::item_with_icon(egui_phosphor::regular::CODE, "Insert code block"),
+        ];
+        if let Some(idx) = render_menu(ui, &entries) {
+            match idx {
+                0 => state.pending_insert_after = Some(after_index),
+                1 => state.pending_insert_code_after = Some(after_index),
+                _ => {}
+            }
             ui.close();
         }
     });

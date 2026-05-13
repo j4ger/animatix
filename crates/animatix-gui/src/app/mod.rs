@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 mod actions;
-mod components;
+pub(crate) mod components;
 mod file_tree;
 pub(crate) mod icons;
 mod panels;
