@@ -589,8 +589,9 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_video_timeline_with_debug(
+                    animatix::renderer::render_video_timeline_with_settings(
                         timeline, state.width, state.height, state.fps, duration, &output_path, debug,
+                        animatix::renderer::ExportSettings::default(),
                     )
                 }
                 ExportFormat::Gif => {
@@ -600,8 +601,9 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_gif_timeline_with_debug(
+                    animatix::renderer::render_gif_timeline_with_settings(
                         timeline, state.width, state.height, state.fps, duration, &output_path, debug,
+                        animatix::renderer::ExportSettings::default(),
                     )
                 }
             };

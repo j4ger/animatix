@@ -97,6 +97,18 @@ enum Commands {
         /// Draw per-node content bounding boxes for debugging
         #[arg(long)]
         debug_bounds: bool,
+
+        /// Maximum render threads (auto or a number)
+        #[arg(short = 'j', long, default_value = "auto")]
+        threads: renderer::MaxRenderThreads,
+
+        /// Video codec: auto, libx264, h264_nvenc, h264_vaapi
+        #[arg(long, default_value = "auto")]
+        codec: renderer::VideoCodec,
+
+        /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+        #[arg(long, default_value = "medium")]
+        preset: renderer::H264Preset,
     },
     /// Render a scene to an animated GIF file
     Gif {
@@ -130,6 +142,10 @@ enum Commands {
         /// Draw per-node content bounding boxes for debugging
         #[arg(long)]
         debug_bounds: bool,
+
+        /// Maximum render threads (auto or a number)
+        #[arg(short = 'j', long, default_value = "auto")]
+        threads: renderer::MaxRenderThreads,
     },
     /// Parse an .amx file and print build diagnostics
     Check {
@@ -193,6 +209,7 @@ fn main() {
             hold,
             output,
             debug_bounds,
+            threads,
         } => {
             println!("Rendering Animatix GIF: {}", input.display());
             let (timeline, _) = load_and_build(&input);
@@ -202,7 +219,7 @@ fn main() {
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            if let Err(e) = renderer::render_gif_timeline_with_debug(
+            if let Err(e) = renderer::render_gif_timeline_with_settings(
                 timeline,
                 width,
                 height,
@@ -211,6 +228,10 @@ fn main() {
                 &output_file,
                 DebugRenderOptions {
                     draw_bounds: debug_bounds,
+                },
+                renderer::ExportSettings {
+                    max_render_threads: threads,
+                    ..Default::default()
                 },
             ) {
                 eprintln!("Error: {e}");
@@ -227,6 +248,9 @@ fn main() {
             hold,
             output,
             debug_bounds,
+            threads,
+            codec,
+            preset,
         } => {
             println!("Rendering Animatix video: {}", input.display());
             let (timeline, _) = load_and_build(&input);
@@ -236,7 +260,7 @@ fn main() {
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            if let Err(e) = renderer::render_video_timeline_with_debug(
+            if let Err(e) = renderer::render_video_timeline_with_settings(
                 timeline,
                 width,
                 height,
@@ -245,6 +269,11 @@ fn main() {
                 &output_file,
                 DebugRenderOptions {
                     draw_bounds: debug_bounds,
+                },
+                renderer::ExportSettings {
+                    max_render_threads: threads,
+                    video_codec: codec,
+                    h264_preset: preset,
                 },
             ) {
                 eprintln!("Error: {e}");
