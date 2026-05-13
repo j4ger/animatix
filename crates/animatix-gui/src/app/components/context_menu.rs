@@ -34,10 +34,9 @@ use crate::app::theme::*;
 const MENU_MIN_WIDTH: f32 = 140.0;
 const MENU_ITEM_HEIGHT: f32 = ROW_M; // 24.0
 const MENU_ICON_WIDTH: f32 = 16.0;
-const MENU_ICON_GAP: f32 = SPACE_S; // 4.0
-const MENU_TEXT_LEFT: f32 = SPACE_M + MENU_ICON_WIDTH + MENU_ICON_GAP; // 6 + 16 + 4 = 26
-const MENU_SHORTCUT_GAP: f32 = SPACE_L; // 8.0
+const MENU_ICON_GAP: f32 = SPACE_S;  // 4.0
 const MENU_CHECK_WIDTH: f32 = 14.0;
+const MENU_SHORTCUT_GAP: f32 = SPACE_L; // 8.0
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
 
@@ -122,6 +121,44 @@ pub struct MenuItemResponse {
     pub rect: Rect,
 }
 
+// ─── Layout analysis ────────────────────────────────────────────────────────
+
+/// How much left padding a menu needs based on which columns are used.
+struct MenuLayout {
+    check_col: bool,
+    icon_col: bool,
+    text_left: f32,
+}
+
+impl MenuLayout {
+    fn from_entries(entries: &[MenuEntry]) -> Self {
+        let mut check_col = false;
+        let mut icon_col = false;
+        for entry in entries {
+            if let MenuEntry::Item { checked, icon, .. } = entry {
+                if *checked && icon.is_none() {
+                    check_col = true;
+                }
+                if icon.is_some() {
+                    icon_col = true;
+                }
+            }
+        }
+        let mut text_left = SPACE_M;
+        if check_col {
+            text_left += MENU_CHECK_WIDTH + MENU_ICON_GAP;
+        }
+        if icon_col {
+            text_left += MENU_ICON_WIDTH + MENU_ICON_GAP;
+        }
+        Self {
+            check_col,
+            icon_col,
+            text_left,
+        }
+    }
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /// Render a context menu inside an existing UI container (e.g. within
@@ -131,13 +168,14 @@ pub struct MenuItemResponse {
 pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
     ui.set_min_width(MENU_MIN_WIDTH);
 
+    let layout = MenuLayout::from_entries(entries);
     let mut clicked_index = None;
     let mut content_width = MENU_MIN_WIDTH;
 
-    // First pass: measure content width so everything aligns
+    // First pass: measure content width
     for entry in entries {
-        if let MenuEntry::Item { icon, label, shortcut, .. } = entry {
-            let mut needed = MENU_TEXT_LEFT;
+        if let MenuEntry::Item { label, shortcut, .. } = entry {
+            let mut needed = layout.text_left;
             // Label
             let label_galley = ui.painter().layout(
                 label.to_string(),
@@ -155,10 +193,6 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                     f32::INFINITY,
                 );
                 needed += MENU_SHORTCUT_GAP + sc_galley.size().x;
-            }
-            // Checkmark
-            if icon.is_some() {
-                needed += SPACE_S;
             }
             content_width = content_width.max(needed + SPACE_M * 2.0);
         }
@@ -181,6 +215,7 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                     *checked,
                     *enabled,
                     content_width,
+                    &layout,
                 );
                 if response.clicked && clicked_index.is_none() {
                     clicked_index = Some(i);
@@ -245,6 +280,7 @@ fn render_menu_item(
     checked: bool,
     enabled: bool,
     content_width: f32,
+    layout: &MenuLayout,
 ) -> MenuItemResponse {
     let (rect, response) = ui.allocate_exact_size(
         Vec2::new(content_width, MENU_ITEM_HEIGHT),
@@ -269,36 +305,40 @@ fn render_menu_item(
     let baseline_y = rect.center().y;
     let mut cursor_x = rect.min.x + SPACE_M;
 
-    // ── Checkmark (for checked items without an icon) ──
-    if checked && icon.is_none() {
-        ui.painter().text(
-            egui::pos2(cursor_x + MENU_CHECK_WIDTH / 2.0, baseline_y),
-            Align2::CENTER_CENTER,
-            egui_phosphor::regular::CHECK,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-            TEXT_PRIMARY,
-        );
+    // ── Checkmark column ──
+    if layout.check_col {
+        if checked && icon.is_none() {
+            ui.painter().text(
+                egui::pos2(cursor_x + MENU_CHECK_WIDTH / 2.0, baseline_y),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::CHECK,
+                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                TEXT_PRIMARY,
+            );
+        }
+        cursor_x += MENU_CHECK_WIDTH + MENU_ICON_GAP;
     }
-    cursor_x += MENU_CHECK_WIDTH + MENU_ICON_GAP;
 
-    // ── Icon ──
-    if let Some(icon_str) = icon {
-        let icon_color = if enabled {
-            if checked || response.hovered() {
-                TEXT_PRIMARY
+    // ── Icon column ──
+    if layout.icon_col {
+        if let Some(icon_str) = icon {
+            let icon_color = if enabled {
+                if checked || response.hovered() {
+                    TEXT_PRIMARY
+                } else {
+                    TEXT_SECONDARY
+                }
             } else {
-                TEXT_SECONDARY
-            }
-        } else {
-            TEXT_DISABLED
-        };
-        ui.painter().text(
-            egui::pos2(cursor_x + MENU_ICON_WIDTH / 2.0, baseline_y),
-            Align2::CENTER_CENTER,
-            icon_str,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-            icon_color,
-        );
+                TEXT_DISABLED
+            };
+            ui.painter().text(
+                egui::pos2(cursor_x + MENU_ICON_WIDTH / 2.0, baseline_y),
+                Align2::CENTER_CENTER,
+                icon_str,
+                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                icon_color,
+            );
+        }
         cursor_x += MENU_ICON_WIDTH + MENU_ICON_GAP;
     }
 

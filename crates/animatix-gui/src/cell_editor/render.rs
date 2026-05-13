@@ -253,6 +253,20 @@ fn render_code_cell(
                                 )
                                 .selectable(false),
                             );
+
+                            // Delete button (right-aligned)
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ghost_icon_btn(
+                                        ui,
+                                        egui_phosphor::regular::TRASH,
+                                        "Delete code block",
+                                    ) {
+                                        state.pending_delete_cell = Some(index);
+                                    }
+                                },
+                            );
                         });
 
                         if expanded {
