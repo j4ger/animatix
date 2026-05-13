@@ -1,4 +1,4 @@
-use egui::{Color32, Stroke, Vec2};
+use egui::{Color32, RichText, Stroke, Vec2};
 
 use crate::app::theme::*;
 
@@ -138,6 +138,42 @@ impl GuiShell {
         ui.painter().galley(
             egui::pos2(content_rect.left(), cursor_y),
             desc_galley,
+            TEXT_MUTED,
+        );
+        cursor_y += 50.0;
+        cursor_y += 50.0;
+
+        // ── Debug bounds toggle ──
+        let toggle_rect = egui::Rect::from_min_size(
+            egui::pos2(content_rect.left(), cursor_y),
+            Vec2::new(content_rect.width(), 28.0),
+        );
+        ui.scope_builder(egui::UiBuilder::new().max_rect(toggle_rect), |ui| {
+            ui.horizontal(|ui| {
+                let mut debug = self.debug_bounds;
+                ui.checkbox(
+                    &mut debug,
+                    RichText::new("Draw debug bounding boxes")
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_SECONDARY),
+                );
+                self.debug_bounds = debug;
+            });
+        });
+
+        cursor_y += 32.0;
+
+        let desc2 = "Shows per-actor content bounding boxes on the preview canvas\nand in exported output.";
+        let desc2_font = egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional);
+        let desc2_galley = ui.painter().layout(
+            desc2.to_string(),
+            desc2_font,
+            TEXT_MUTED,
+            content_rect.width(),
+        );
+        ui.painter().galley(
+            egui::pos2(content_rect.left(), cursor_y),
+            desc2_galley,
             TEXT_MUTED,
         );
     }

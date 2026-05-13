@@ -1,5 +1,5 @@
 use animatix::renderer::core::RendererCore;
-use animatix::timeline::{SceneDimensions, Timeline};
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use kurbo::Rect;
 
 pub struct PreviewSurface {
@@ -95,6 +95,7 @@ impl PreviewSurface {
         queue: &wgpu::Queue,
         timeline: &Timeline,
         time_s: f64,
+        debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
         let render_view = self
             .render_view
@@ -109,7 +110,7 @@ impl PreviewSurface {
             .as_ref()
             .ok_or_else(|| "Preview texture is not initialized".to_string())?;
 
-        let scene = timeline.evaluate(time_s, self.dimensions);
+        let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options);
         self.hit_regions = timeline.hit_regions();
         self.renderer.render_vello_scene(
             device,

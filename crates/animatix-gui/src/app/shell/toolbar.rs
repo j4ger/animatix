@@ -175,6 +175,9 @@ impl GuiShell {
                         if icon_btn(ui, egui_phosphor::regular::GEAR, "Settings") {
                             self.settings_open = true;
                         }
+                        if icon_btn(ui, egui_phosphor::regular::EXPORT, "Export") {
+                            actions.open_export_dialog = true;
+                        }
                         if icon_btn(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)") {
                             actions.show_inspector = true;
                         }

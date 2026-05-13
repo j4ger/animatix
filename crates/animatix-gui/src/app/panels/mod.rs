@@ -130,6 +130,8 @@ pub(super) struct UiActions {
     pub(super) create_actor: Option<(String, String, [f32; 2])>,
     /// Rename an actor: (old_label, new_label)
     pub(super) rename_actor: Option<(String, String)>,
+    /// Open the export dialog.
+    pub(super) open_export_dialog: bool,
 }
 
 pub(super) struct WorkspaceViewer<'a> {

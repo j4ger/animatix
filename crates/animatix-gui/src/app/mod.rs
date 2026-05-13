@@ -17,6 +17,7 @@ use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
+use animatix::renderer::video::ExportError;
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
@@ -187,6 +188,16 @@ struct GuiShell {
     diagnostics_panel_visible: bool,
     /// Whether the settings dialog is currently open.
     settings_open: bool,
+    /// Whether the export dialog is currently open.
+    export_dialog_open: bool,
+    /// State for the export dialog (format, resolution, etc.).
+    export_state: crate::app::shell::export_dialog::ExportDialogState,
+    /// Current export operation status.
+    export_status: crate::app::shell::export_dialog::ExportStatus,
+    /// Handle to the background export thread.
+    export_thread: Option<std::thread::JoinHandle<(Result<(), ExportError>, PathBuf)>>,
+    /// Draw debug bounding boxes on preview and exports.
+    debug_bounds: bool,
     /// Keyframe merge window in seconds. Edits within this window of the
     /// previous keyframe are merged instead of creating a new timestamp.
     keyframe_merge_window_s: f64,
@@ -274,6 +285,11 @@ impl GuiShell {
             collapsed_actors: HashSet::new(),
             diagnostics_panel_visible: false,
             settings_open: false,
+            export_dialog_open: false,
+            export_state: crate::app::shell::export_dialog::ExportDialogState::default(),
+            export_status: crate::app::shell::export_dialog::ExportStatus::Idle,
+            export_thread: None,
+            debug_bounds: false,
             keyframe_merge_window_s: 0.05,
         }
     }
@@ -293,6 +309,9 @@ impl GuiShell {
 
         // Check for hot reload
         self.check_hot_reload(now);
+
+        // Poll background export status
+        self.poll_export_status();
 
         if self.preview.is_playing {
             self.preview.tick(delta);
@@ -415,6 +434,11 @@ impl GuiShell {
         if self.settings_open {
             self.settings_dialog_ui(ui);
         }
+
+        // Export dialog overlay
+        if self.export_dialog_open {
+            self.export_dialog_ui(ui);
+        }
     }
 
     fn workspace_ui(
@@ -466,6 +490,12 @@ impl GuiShell {
         }
         if actions.show_inspector {
             self.open_workspace_tab(WorkspaceTab::Inspector);
+        }
+        if actions.open_export_dialog {
+            self.export_dialog_open = true;
+            if self.export_state.output_path.is_empty() {
+                self.update_default_export_filename();
+            }
         }
         if actions.toggle_diagnostics_panel {
             self.diagnostics_panel_visible = !self.diagnostics_panel_visible;

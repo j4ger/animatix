@@ -157,11 +157,15 @@ impl AnimatixApp {
 
         if self.shell.preview_dirty {
             if let Some(timeline) = self.shell.document.timeline.as_ref() {
+                let debug = animatix::timeline::DebugRenderOptions {
+                    draw_bounds: self.shell.debug_bounds,
+                };
                 if let Err(error) = self.preview_surface.render(
                     device,
                     queue,
                     timeline,
                     self.shell.preview.current_time_s,
+                    debug,
                 ) {
                     self.shell.set_render_error(error);
                     return Ok(());
