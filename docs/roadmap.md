@@ -132,9 +132,46 @@ Symbol table property entries don't capture default values yet.
 
 ---
 
-## 5. Architecture / Cleanup Debt
+## 5. Error Handling & Robustness
 
-### 5.1 Primitive System — Completed
+### 5.1 Panic Audit — In Progress
+
+**Status:** ~151 unwrap/expect + ~21 panic in `animatix` core; ~27 unwrap/expect in `animatix-gui`.
+**Location:** Across renderer, action system, parser internals, document I/O.
+
+**Recently fixed:** `crates/animatix/src/renderer/video.rs` — all 8 export functions now return `Result<(), ExportError>` with typed error variants (`RendererCreation`, `FrameRender`, `VideoEncode`, `GifEncode`, `ImageEncode`, `ImageSave`, `InvalidPath`, `ThreadPanicked`).
+
+**Remaining hotspots (by severity):**
+
+| Area | Count | Severity | Notes |
+|------|-------|----------|-------|
+| Action system (`timeline/actions/*.rs`) | 34 | Medium | `.expect("validated target track")` — internal invariants that should hold but could fail on corrupted timeline data |
+| Renderer pipeline (`renderer/core.rs`, `text.rs`, `window.rs`) | 12 | High | GPU adapter failure, surface creation, typst compilation — all crash the app |
+| Parser internals (`parser.rs`) | 10 | Medium | `panic!` on unexpected AST node types in helper functions |
+| Source serialization (`to_source.rs`) | 2 | Low | `panic!` on expected Keyframe node |
+| Morph system (`morph.rs`) | 2 | Medium | `panic!` on unexpected path command types |
+| Module/primitives/utils | 3 | Low | Internal invariant violations |
+| GUI document I/O (`document.rs`) | 10 | High | `fs::write`, `fs::read_to_string`, `create_dir_all` — crash on permission denied / disk full |
+| GUI source editing (`source_edit.rs`) | 10 | Low | Mostly in test code |
+| GUI UI interaction | 3 | Medium | `.unwrap()` on `interact_pointer_pos()` — could panic on edge-case input |
+| GUI runtime/highlighting | 4 | Low | Tree-sitter setup, app startup |
+
+**Cleanup plan:**
+
+1. **Renderer pipeline** — Convert `RendererCore::new`, `OffscreenRenderer::new`, `run_timeline_with_options` to return `Result`. Surface creation and Vello init should propagate errors.
+2. **Action system** — Replace `.expect("validated target track")` with `Result`-based dispatch. Actions already go through a central registry; the registry can return `Result` instead of panicking.
+3. **GUI document I/O** — Convert `DocumentSession::save_to_disk`, `load`, `reload_from_disk` to return `Result` with typed errors (`IoError`, `ParseError`, `BuildError`).
+4. **Parser internals** — Replace `panic!` in AST traversal helpers with `Result` or `Option` returns. Most callers can propagate gracefully.
+5. **Morph system** — Replace `panic!` with `Result` that propagates up to `Timeline::build` diagnostics.
+
+**Effort:** Medium. The export renderer refactor took ~1 hour and touched ~500 lines. A full audit would take ~1-2 days.
+**Impact:** High. Every panic is a potential user-facing crash.
+
+---
+
+## 6. Architecture / Cleanup Debt
+
+### 6.1 Primitive System — Completed
 
 ✅ **Unified primitive architecture implemented** (`crates/animatix/src/primitives/`).
 
@@ -175,7 +212,7 @@ Current `rand()` is not a deterministic function of time. Scenes depending on fr
 
 ---
 
-## 6. Long-Term / Speculative
+## 7. Long-Term / Speculative
 
 ### 6.1 FFI / Web Canvas Integration
 
@@ -205,20 +242,21 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 7. Quick Reference: Priority Order
+## 8. Quick Reference: Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Keyframe merge in keyframe mode | Low | Medium |
-| 2 | LSP diagnostics publishing | Low | Medium |
-| 3 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
-| 4 | Analyzer default serialization | Low | Low |
-| 5 | Randomness determinism | Low-Medium | Medium |
-| 6 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 7 | Cross-file analyzer | Medium-High | Medium |
-| 8 | `strategy: fade` morph | High | Medium |
-| 9 | Green tree / trivia AST | Very High | Low (polish) |
+| 1 | Panic audit & error handling (renderer pipeline, GUI I/O) | Medium | High |
+| 2 | Keyframe merge in keyframe mode | Low | Medium |
+| 3 | LSP diagnostics publishing | Low | Medium |
+| 4 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
+| 5 | Analyzer default serialization | Low | Low |
+| 6 | Randomness determinism | Low-Medium | Medium |
+| 7 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 8 | Cross-file analyzer | Medium-High | Medium |
+| 9 | `strategy: fade` morph | High | Medium |
+| 10 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-12*
+*Last updated: 2026-05-13*

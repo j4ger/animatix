@@ -202,7 +202,7 @@ fn main() {
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            renderer::render_gif_timeline_with_debug(
+            if let Err(e) = renderer::render_gif_timeline_with_debug(
                 timeline,
                 width,
                 height,
@@ -212,7 +212,10 @@ fn main() {
                 DebugRenderOptions {
                     draw_bounds: debug_bounds,
                 },
-            );
+            ) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
         }
 
         Commands::Video {
@@ -233,7 +236,7 @@ fn main() {
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            renderer::render_video_timeline_with_debug(
+            if let Err(e) = renderer::render_video_timeline_with_debug(
                 timeline,
                 width,
                 height,
@@ -243,7 +246,10 @@ fn main() {
                 DebugRenderOptions {
                     draw_bounds: debug_bounds,
                 },
-            );
+            ) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
         }
 
         Commands::Ast {
@@ -301,7 +307,7 @@ fn main() {
                 width, height, time, output_file.display()
             );
             let (timeline, _) = load_and_build(&input);
-            renderer::render_image_timeline_with_debug(
+            if let Err(e) = renderer::render_image_timeline_with_debug(
                 timeline,
                 width,
                 height,
@@ -310,7 +316,10 @@ fn main() {
                 DebugRenderOptions {
                     draw_bounds: debug_bounds,
                 },
-            );
+            ) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
         }
 
         Commands::Check { file } => {

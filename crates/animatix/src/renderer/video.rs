@@ -8,6 +8,49 @@ use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use std::ffi::CString;
 
+#[derive(Debug)]
+pub enum ExportError {
+    RendererCreation(String),
+    FrameRender { frame: usize, message: String },
+    ImageEncode(String),
+    ImageSave(std::io::Error),
+    VideoEncode(String),
+    GifEncode(String),
+    InvalidPath(std::ffi::NulError),
+    ThreadPanicked,
+}
+
+impl std::fmt::Display for ExportError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RendererCreation(msg) => write!(f, "Failed to create renderer: {msg}"),
+            Self::FrameRender { frame, message } => {
+                write!(f, "Failed to render frame {frame}: {message}")
+            }
+            Self::ImageEncode(msg) => write!(f, "Image encoding error: {msg}"),
+            Self::ImageSave(err) => write!(f, "Failed to save image: {err}"),
+            Self::VideoEncode(msg) => write!(f, "Video encoding error: {msg}"),
+            Self::GifEncode(msg) => write!(f, "GIF encoding error: {msg}"),
+            Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
+            Self::ThreadPanicked => write!(f, "Render thread panicked"),
+        }
+    }
+}
+
+impl std::error::Error for ExportError {}
+
+impl From<std::io::Error> for ExportError {
+    fn from(err: std::io::Error) -> Self {
+        Self::ImageSave(err)
+    }
+}
+
+impl From<std::ffi::NulError> for ExportError {
+    fn from(err: std::ffi::NulError) -> Self {
+        Self::InvalidPath(err)
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Parallel frame rendering helper
 // ----------------------------------------------------------------------------
@@ -23,9 +66,9 @@ fn render_frames_in_parallel(
     fps: u32,
     total_frames: u32,
     debug_options: DebugRenderOptions,
-) -> Vec<RenderedFrame> {
+) -> Result<Vec<RenderedFrame>, ExportError> {
     if total_frames == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let num_cpus = std::thread::available_parallelism()
@@ -44,9 +87,7 @@ fn render_frames_in_parallel(
     // on some drivers, so we stagger creation here.
     let mut renderers = Vec::with_capacity(num_chunks);
     for _ in 0..num_chunks {
-        renderers.push(
-            OffscreenRenderer::new().expect("Failed to create offscreen renderer"),
-        );
+        renderers.push(OffscreenRenderer::new().map_err(ExportError::RendererCreation)?);
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
@@ -55,7 +96,7 @@ fn render_frames_in_parallel(
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let timeline = timeline.clone();
 
-        handles.push(std::thread::spawn(move || {
+        handles.push(std::thread::spawn(move || -> Result<Vec<RenderedFrame>, ExportError> {
             let mut renderer = renderer;
             (start..end)
                 .map(|frame| {
@@ -67,19 +108,19 @@ fn render_frames_in_parallel(
                             SceneDimensions { width, height },
                             debug_options,
                         )
-                        .expect("Failed to render offscreen frame")
+                        .map_err(|e| ExportError::FrameRender { frame, message: e })
                 })
-                .collect::<Vec<_>>()
+                .collect::<Result<Vec<_>, _>>()
         }));
     }
 
     let chunks: Vec<Vec<RenderedFrame>> = handles
         .into_iter()
-        .map(|h| h.join().expect("Render thread panicked"))
-        .collect();
+        .map(|h| h.join().map_err(|_| ExportError::ThreadPanicked)?)
+        .collect::<Result<Vec<_>, _>>()?;
 
     // Flatten while preserving frame order.
-    chunks.into_iter().flatten().collect()
+    Ok(chunks.into_iter().flatten().collect())
 }
 
 // ----------------------------------------------------------------------------
@@ -91,7 +132,7 @@ pub fn render_video(
     fps: u32,
     duration: f32,
     output_file: &std::path::Path,
-) {
+) -> Result<(), ExportError> {
     pollster::block_on(render_video_async(
         Timeline::build(ast),
         width,
@@ -100,7 +141,7 @@ pub fn render_video(
         duration,
         output_file,
         DebugRenderOptions::default(),
-    ));
+    ))
 }
 
 async fn render_video_async(
@@ -111,7 +152,7 @@ async fn render_video_async(
     duration: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
+) -> Result<(), ExportError> {
     let total_frames = (duration * fps as f32).ceil() as u32;
 
     // ------------------------------------------------------------------------
@@ -124,17 +165,23 @@ async fn render_video_async(
         fps,
         total_frames,
         debug_options,
-    );
+    )?;
 
     // ------------------------------------------------------------------------
     // 2. Sequential video encoding
     // ------------------------------------------------------------------------
     println!("\nEncoding {} frames to video...", frames.len());
 
-    let filename = CString::new(output_file.to_str().unwrap()).unwrap();
-    let mut format_context = AVFormatContextOutput::create(&filename).unwrap();
+    let filename = CString::new(
+        output_file
+            .to_str()
+            .ok_or_else(|| ExportError::VideoEncode("Invalid output path".into()))?,
+    )?;
+    let mut format_context =
+        AVFormatContextOutput::create(&filename).map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    let encoder = AVCodec::find_encoder_by_name(&CString::new("libx264").unwrap()).unwrap();
+    let encoder = AVCodec::find_encoder_by_name(&CString::new("libx264")?)
+        .ok_or_else(|| ExportError::VideoEncode("Failed to find libx264 encoder".into()))?;
     let mut encode_context = AVCodecContext::new(&encoder);
 
     encode_context.set_width(width as i32);
@@ -154,7 +201,9 @@ async fn render_video_async(
             .set_flags(encode_context.flags | rsmpeg::ffi::AV_CODEC_FLAG_GLOBAL_HEADER as i32);
     }
 
-    encode_context.open(None).unwrap();
+    encode_context
+        .open(None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
     let stream_index;
     {
@@ -164,7 +213,9 @@ async fn render_video_async(
         stream_index = stream.index;
     }
 
-    format_context.write_header(&mut None).unwrap();
+    format_context
+        .write_header(&mut None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
     let stream_time_base = format_context.streams()[stream_index as usize].time_base;
 
@@ -180,13 +231,15 @@ async fn render_video_async(
         None,
         None,
     )
-    .unwrap();
+    .ok_or_else(|| ExportError::VideoEncode("Failed to create SWS context".into()))?;
 
     let mut yuv_frame = AVFrame::new();
     yuv_frame.set_format(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
     yuv_frame.set_width(width as i32);
     yuv_frame.set_height(height as i32);
-    yuv_frame.alloc_buffer().unwrap();
+    yuv_frame
+        .alloc_buffer()
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
     for (frame, scene_frame) in frames.into_iter().enumerate() {
         let mut rgba_frame = AVFrame::new();
@@ -200,50 +253,60 @@ async fn render_video_async(
                     width as i32,
                     height as i32,
                 )
-                .unwrap();
+                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
         }
 
         sws_context
             .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
-            .unwrap();
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
         yuv_frame.set_pts(frame as i64);
 
-        encode_context.send_frame(Some(&yuv_frame)).unwrap();
+        encode_context
+            .send_frame(Some(&yuv_frame))
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
         loop {
             match encode_context.receive_packet() {
                 Ok(mut packet) => {
                     packet.rescale_ts(encode_context.time_base, stream_time_base);
                     packet.set_stream_index(stream_index);
-                    format_context.interleaved_write_frame(&mut packet).unwrap();
+                    format_context
+                        .interleaved_write_frame(&mut packet)
+                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
                 }
-                Err(RsmpegError::EncoderDrainError)
-                | Err(RsmpegError::EncoderFlushedError) => {
+                Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
                     break;
                 }
-                Err(e) => panic!("Encoding error: {:?}", e),
+                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
             }
         }
 
         use std::io::Write;
         print!("\rEncoding frame {}/{}", frame + 1, total_frames);
-        std::io::stdout().flush().unwrap();
+        std::io::stdout().flush()?;
     }
 
-    encode_context.send_frame(None).unwrap();
+    encode_context
+        .send_frame(None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
     loop {
         match encode_context.receive_packet() {
             Ok(mut packet) => {
                 packet.rescale_ts(encode_context.time_base, stream_time_base);
                 packet.set_stream_index(stream_index);
-                format_context.interleaved_write_frame(&mut packet).unwrap();
+                format_context
+                    .interleaved_write_frame(&mut packet)
+                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
             }
             Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
-            Err(e) => panic!("Encoding error: {:?}", e),
+            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
         }
     }
-    format_context.write_trailer().unwrap();
+    format_context
+        .write_trailer()
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
     println!("\nRender complete!");
+    Ok(())
 }
 
 pub fn render_image(
@@ -252,7 +315,7 @@ pub fn render_image(
     height: u32,
     time: f32,
     output_file: &std::path::Path,
-) {
+) -> Result<(), ExportError> {
     pollster::block_on(render_image_async(
         Timeline::build(ast),
         width,
@@ -260,7 +323,7 @@ pub fn render_image(
         time,
         output_file,
         DebugRenderOptions::default(),
-    ));
+    ))
 }
 
 async fn render_image_async(
@@ -270,8 +333,8 @@ async fn render_image_async(
     time: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
-    let mut renderer = OffscreenRenderer::new().expect("Failed to create offscreen renderer");
+) -> Result<(), ExportError> {
+    let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
     let frame = renderer
         .render_timeline_with_debug(
             &timeline,
@@ -279,10 +342,12 @@ async fn render_image_async(
             SceneDimensions { width, height },
             debug_options,
         )
-        .expect("Failed to render offscreen frame");
+        .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?;
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
-        .expect("Failed to create image buffer from offscreen frame");
-    img.save(output_file).unwrap();
+        .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
+    img.save(output_file)
+        .map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
+    Ok(())
 }
 
 pub fn render_video_timeline(
@@ -292,7 +357,7 @@ pub fn render_video_timeline(
     fps: u32,
     duration: f32,
     output_file: &std::path::Path,
-) {
+) -> Result<(), ExportError> {
     render_video_timeline_with_debug(
         timeline,
         width,
@@ -301,7 +366,7 @@ pub fn render_video_timeline(
         duration,
         output_file,
         DebugRenderOptions::default(),
-    );
+    )
 }
 
 pub fn render_video_timeline_with_debug(
@@ -312,7 +377,7 @@ pub fn render_video_timeline_with_debug(
     duration: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
+) -> Result<(), ExportError> {
     pollster::block_on(render_video_async(
         timeline,
         width,
@@ -321,7 +386,7 @@ pub fn render_video_timeline_with_debug(
         duration,
         output_file,
         debug_options,
-    ));
+    ))
 }
 
 pub fn render_image_timeline(
@@ -330,7 +395,7 @@ pub fn render_image_timeline(
     height: u32,
     time: f32,
     output_file: &std::path::Path,
-) {
+) -> Result<(), ExportError> {
     render_image_timeline_with_debug(
         timeline,
         width,
@@ -338,7 +403,7 @@ pub fn render_image_timeline(
         time,
         output_file,
         DebugRenderOptions::default(),
-    );
+    )
 }
 
 pub fn render_image_timeline_with_debug(
@@ -348,7 +413,7 @@ pub fn render_image_timeline_with_debug(
     time: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
+) -> Result<(), ExportError> {
     pollster::block_on(render_image_async(
         timeline,
         width,
@@ -356,7 +421,7 @@ pub fn render_image_timeline_with_debug(
         time,
         output_file,
         debug_options,
-    ));
+    ))
 }
 
 pub fn render_gif_timeline(
@@ -366,7 +431,7 @@ pub fn render_gif_timeline(
     fps: u32,
     duration: f32,
     output_file: &std::path::Path,
-) {
+) -> Result<(), ExportError> {
     render_gif_timeline_with_debug(
         timeline,
         width,
@@ -375,7 +440,7 @@ pub fn render_gif_timeline(
         duration,
         output_file,
         DebugRenderOptions::default(),
-    );
+    )
 }
 
 pub fn render_gif_timeline_with_debug(
@@ -386,7 +451,7 @@ pub fn render_gif_timeline_with_debug(
     duration: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
+) -> Result<(), ExportError> {
     pollster::block_on(render_gif_async(
         timeline,
         width,
@@ -395,7 +460,7 @@ pub fn render_gif_timeline_with_debug(
         duration,
         output_file,
         debug_options,
-    ));
+    ))
 }
 
 async fn render_gif_async(
@@ -406,7 +471,7 @@ async fn render_gif_async(
     duration: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
-) {
+) -> Result<(), ExportError> {
     use image::codecs::gif::{GifEncoder, Repeat};
 
     let total_frames = (duration * fps as f32).ceil() as u32;
@@ -422,18 +487,18 @@ async fn render_gif_async(
         fps,
         total_frames,
         debug_options,
-    );
+    )?;
 
     // ------------------------------------------------------------------------
     // 2. Sequential GIF encoding
     // ------------------------------------------------------------------------
     println!("\nEncoding {} frames to GIF...", frames.len());
 
-    let output = std::fs::File::create(output_file).expect("Failed to create GIF file");
+    let output = std::fs::File::create(output_file)?;
     let mut encoder = GifEncoder::new(output);
     encoder
         .set_repeat(Repeat::Infinite)
-        .expect("Failed to set GIF repeat");
+        .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
 
     for (frame, scene_frame) in frames.into_iter().enumerate() {
         let img = image::RgbaImage::from_raw(
@@ -441,7 +506,7 @@ async fn render_gif_async(
             scene_frame.height,
             scene_frame.rgba,
         )
-        .expect("Failed to create image buffer from offscreen frame");
+        .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
 
         encoder
             .encode_frame(image::Frame::from_parts(
@@ -452,12 +517,13 @@ async fn render_gif_async(
                     frame_duration_ms as u64,
                 )),
             ))
-            .expect("Failed to encode GIF frame");
+            .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
 
         use std::io::Write;
         print!("\rEncoding GIF frame {}/{}", frame + 1, total_frames);
-        std::io::stdout().flush().unwrap();
+        std::io::stdout().flush()?;
     }
 
     println!("\nGIF render complete!");
+    Ok(())
 }
