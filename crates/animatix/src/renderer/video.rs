@@ -7,6 +7,7 @@ use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
 use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use std::ffi::CString;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 #[derive(Debug)]
 pub enum ExportError {
@@ -18,6 +19,7 @@ pub enum ExportError {
     GifEncode(String),
     InvalidPath(std::ffi::NulError),
     ThreadPanicked,
+    Cancelled,
 }
 
 impl std::fmt::Display for ExportError {
@@ -33,6 +35,7 @@ impl std::fmt::Display for ExportError {
             Self::GifEncode(msg) => write!(f, "GIF encoding error: {msg}"),
             Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
             Self::ThreadPanicked => write!(f, "Render thread panicked"),
+            Self::Cancelled => write!(f, "Export cancelled by user"),
         }
     }
 }
@@ -299,6 +302,8 @@ fn render_frames_streaming<F>(
     total_frames: u32,
     num_threads: usize,
     debug_options: DebugRenderOptions,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
     mut process_frame: F,
 ) -> Result<(), ExportError>
 where
@@ -366,8 +371,14 @@ where
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         for frame in start..end {
+            if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+                return Err(ExportError::Cancelled);
+            }
             let rendered = receiver.recv().map_err(|_| ExportError::ThreadPanicked)?;
             process_frame(frame, rendered)?;
+            if let Some(p) = progress {
+                p.fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
 
@@ -399,6 +410,8 @@ pub fn render_video(
         output_file,
         DebugRenderOptions::default(),
         ExportSettings::default(),
+        None,
+        None,
     ))
 }
 
@@ -411,6 +424,8 @@ async fn render_video_async(
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
     let total_frames = (duration * fps as f32).ceil() as u32;
 
@@ -513,6 +528,8 @@ async fn render_video_async(
         total_frames,
         num_threads,
         debug_options,
+        progress,
+        cancel,
         |frame, scene_frame| {
             let mut rgba_frame = AVFrame::new();
             let data_ptr = scene_frame.rgba.as_ptr() as *mut u8;
@@ -597,6 +614,8 @@ pub fn render_image(
         time,
         output_file,
         DebugRenderOptions::default(),
+        None,
+        None,
     ))
 }
 
@@ -607,7 +626,12 @@ async fn render_image_async(
     time: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
+    _progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
+    if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+        return Err(ExportError::Cancelled);
+    }
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
     let frame = renderer
         .render_timeline_with_debug(
@@ -661,6 +685,8 @@ pub fn render_video_timeline_with_debug(
         output_file,
         debug_options,
         ExportSettings::default(),
+        None,
+        None,
     ))
 }
 
@@ -675,7 +701,24 @@ pub fn render_video_timeline_with_settings(
     settings: ExportSettings,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_video_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings,
+        timeline, width, height, fps, duration, output_file, debug_options, settings, None, None,
+    ))
+}
+
+pub fn render_video_timeline_with_progress(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_video_async(
+        timeline, width, height, fps, duration, output_file, debug_options, settings, progress, cancel,
     ))
 }
 
@@ -705,12 +748,22 @@ pub fn render_image_timeline_with_debug(
     debug_options: DebugRenderOptions,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_image_async(
-        timeline,
-        width,
-        height,
-        time,
-        output_file,
-        debug_options,
+        timeline, width, height, time, output_file, debug_options, None, None,
+    ))
+}
+
+pub fn render_image_timeline_with_progress(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    time: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_image_async(
+        timeline, width, height, time, output_file, debug_options, progress, cancel,
     ))
 }
 
@@ -751,6 +804,8 @@ pub fn render_gif_timeline_with_debug(
         output_file,
         debug_options,
         ExportSettings::default(),
+        None,
+        None,
     ))
 }
 
@@ -765,7 +820,24 @@ pub fn render_gif_timeline_with_settings(
     settings: ExportSettings,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_gif_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings,
+        timeline, width, height, fps, duration, output_file, debug_options, settings, None, None,
+    ))
+}
+
+pub fn render_gif_timeline_with_progress(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_gif_async(
+        timeline, width, height, fps, duration, output_file, debug_options, settings, progress, cancel,
     ))
 }
 
@@ -778,6 +850,8 @@ async fn render_gif_async(
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
     settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
     use image::codecs::gif::{GifEncoder, Repeat};
 
@@ -806,6 +880,8 @@ async fn render_gif_async(
         total_frames,
         num_threads,
         debug_options,
+        progress,
+        cancel,
         |frame, scene_frame| {
             let img = image::RgbaImage::from_raw(
                 scene_frame.width,

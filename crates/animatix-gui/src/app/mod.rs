@@ -31,6 +31,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::time::{Duration, Instant};
 use crate::app::panels::{UiActions, WorkspaceViewer};
 use crate::app::utils::*;
@@ -196,6 +198,14 @@ struct GuiShell {
     export_status: crate::app::shell::export_dialog::ExportStatus,
     /// Handle to the background export thread.
     export_thread: Option<std::thread::JoinHandle<(Result<(), ExportError>, PathBuf)>>,
+    /// Shared progress counter for the active export (frames completed).
+    export_progress: Arc<AtomicU32>,
+    /// Shared cancellation flag for the active export.
+    export_cancelled: Arc<AtomicBool>,
+    /// When the current export started (for elapsed-time display).
+    export_start_time: Option<Instant>,
+    /// Total frames expected for the current export.
+    export_total_frames: u32,
     /// Draw debug bounding boxes on preview and exports.
     debug_bounds: bool,
     /// Keyframe merge window in seconds. Edits within this window of the
@@ -289,6 +299,10 @@ impl GuiShell {
             export_state: crate::app::shell::export_dialog::ExportDialogState::default(),
             export_status: crate::app::shell::export_dialog::ExportStatus::Idle,
             export_thread: None,
+            export_progress: Arc::new(AtomicU32::new(0)),
+            export_cancelled: Arc::new(AtomicBool::new(false)),
+            export_start_time: None,
+            export_total_frames: 0,
             debug_bounds: false,
             keyframe_merge_window_s: 0.05,
         }

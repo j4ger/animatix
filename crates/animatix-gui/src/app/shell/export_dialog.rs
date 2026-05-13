@@ -1,5 +1,6 @@
 use egui::{Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::app::theme::*;
 use crate::app::components::widgets::pill_tab_bar;
@@ -87,9 +88,17 @@ impl GuiShell {
             self.export_dialog_open = false;
         }
 
-        // ── Centered dialog ──
-        let dialog_w = 440.0;
-        let dialog_h = if is_running { 200.0 } else { 440.0 };
+        // ── Responsive centered dialog ──
+        let min_w = 360.0;
+        let max_w = 560.0;
+        let min_h = if is_running { 180.0 } else { 380.0 };
+        let max_h = if is_running { 260.0 } else { 580.0 };
+        let dialog_w = (screen_rect.width() * 0.45).clamp(min_w, max_w);
+        let dialog_h = if is_running {
+            (screen_rect.height() * 0.28).clamp(min_h, max_h)
+        } else {
+            (screen_rect.height() * 0.55).clamp(min_h, max_h)
+        };
         let dialog_rect = egui::Rect::from_center_size(
             screen_rect.center(),
             Vec2::new(dialog_w, dialog_h),
@@ -209,9 +218,12 @@ impl GuiShell {
         ui: &mut egui::Ui,
         dialog_rect: egui::Rect,
     ) {
+        // Keep spinner animating
+        ui.ctx().request_repaint();
+
         let content_rect = dialog_rect.shrink(SPACE_XL);
         let center_y = content_rect.center().y;
-        let spinner_center = egui::pos2(content_rect.center().x, center_y - 30.0);
+        let spinner_center = egui::pos2(content_rect.center().x, center_y - 36.0);
 
         // Animated spinner ring
         let time = ui.ctx().input(|i| i.time);
@@ -233,7 +245,7 @@ impl GuiShell {
 
         // Status text
         ui.painter().text(
-            egui::pos2(content_rect.center().x, center_y + 10.0),
+            egui::pos2(content_rect.center().x, center_y + 4.0),
             egui::Align2::CENTER_CENTER,
             "Exporting…",
             egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
@@ -247,12 +259,64 @@ impl GuiShell {
             ExportFormat::Gif => "Rendering GIF frames",
         };
         ui.painter().text(
-            egui::pos2(content_rect.center().x, center_y + 32.0),
+            egui::pos2(content_rect.center().x, center_y + 26.0),
             egui::Align2::CENTER_CENTER,
             format_label,
             egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
             TEXT_MUTED,
         );
+
+        // Progress bar + frame count
+        let progress = self.export_progress.load(std::sync::atomic::Ordering::Relaxed);
+        let total = self.export_total_frames.max(1);
+        let pct = (progress as f32 / total as f32).clamp(0.0, 1.0);
+
+        let bar_w = content_rect.width().min(280.0);
+        let bar_h = 6.0;
+        let bar_y = center_y + 50.0;
+        let bar_rect = egui::Rect::from_center_size(
+            egui::pos2(content_rect.center().x, bar_y),
+            Vec2::new(bar_w, bar_h),
+        );
+        // Track
+        ui.painter().rect_filled(bar_rect, bar_h * 0.5, BG_WIDGET);
+        // Fill
+        if pct > 0.0 {
+            let fill_rect = egui::Rect::from_min_size(
+                bar_rect.min,
+                Vec2::new(bar_w * pct, bar_h),
+            );
+            ui.painter().rect_filled(fill_rect, bar_h * 0.5, AMBER);
+        }
+
+        // Frame count / percentage text
+        let progress_text = if self.export_state.format == ExportFormat::Image {
+            "Frame 1/1".to_string()
+        } else {
+            format!("Frame {}/{}  ({:.0}%)", progress.min(total), total, pct * 100.0)
+        };
+        ui.painter().text(
+            egui::pos2(content_rect.center().x, bar_y + 14.0),
+            egui::Align2::CENTER_TOP,
+            progress_text,
+            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TEXT_MUTED,
+        );
+
+        // Elapsed time
+        if let Some(start) = self.export_start_time {
+            let elapsed = start.elapsed().as_secs_f32();
+            let mins = (elapsed / 60.0) as u32;
+            let secs = (elapsed % 60.0) as u32;
+            let time_str = format!("Elapsed: {:02}:{:02}", mins, secs);
+            ui.painter().text(
+                egui::pos2(content_rect.center().x, bar_y + 28.0),
+                egui::Align2::CENTER_TOP,
+                time_str,
+                egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                TEXT_MUTED,
+            );
+        }
 
         // Cancel button
         let btn_size = Vec2::new(100.0, 32.0);
@@ -272,10 +336,9 @@ impl GuiShell {
             if btn_resp.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY },
         );
         if btn_resp.clicked() {
+            self.export_cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.export_status = ExportStatus::Idle;
             self.export_dialog_open = false;
-            // Note: the export thread continues in background;
-            // we just stop showing the dialog. Future work: add
-            // cancellation token to renderer.
         }
     }
 
@@ -460,11 +523,17 @@ impl GuiShell {
                     } else {
                         path_str
                     };
-                    ui.label(
-                        RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
-                            .size(FONT_SIZE_S)
-                            .color(GREEN),
+                    let resp = ui.add(
+                        egui::Label::new(
+                            RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
+                                .size(FONT_SIZE_S)
+                                .color(GREEN),
+                        )
+                        .selectable(false),
                     );
+                    if resp.interact(egui::Sense::click()).clicked() {
+                        self.export_status = ExportStatus::Idle;
+                    }
                 }
                 ExportStatus::Failed(err) => {
                     let truncated = if err.len() > 40 {
@@ -472,11 +541,17 @@ impl GuiShell {
                     } else {
                         err.clone()
                     };
-                    ui.label(
-                        RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
-                            .size(FONT_SIZE_S)
-                            .color(RED),
+                    let resp = ui.add(
+                        egui::Label::new(
+                            RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
+                                .size(FONT_SIZE_S)
+                                .color(RED),
+                        )
+                        .selectable(false),
                     );
+                    if resp.interact(egui::Sense::click()).clicked() {
+                        self.export_status = ExportStatus::Idle;
+                    }
                 }
                 ExportStatus::Running => {}
             }
@@ -565,22 +640,87 @@ impl GuiShell {
             PathBuf::from(&state.output_path)
         };
 
+        // ── Margin-case validation ──
+        if state.width == 0 || state.height == 0 {
+            self.export_status = ExportStatus::Failed("Resolution must be > 0".into());
+            return;
+        }
+        if state.width > 8192 || state.height > 8192 {
+            self.export_status = ExportStatus::Failed("Resolution exceeds 8192px limit".into());
+            return;
+        }
+        match state.format {
+            ExportFormat::Video | ExportFormat::Gif => {
+                if state.fps == 0 {
+                    self.export_status = ExportStatus::Failed("FPS must be > 0".into());
+                    return;
+                }
+                let duration = if state.auto_duration {
+                    let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                    d.max(0.5)
+                } else {
+                    state.duration_s
+                };
+                if duration <= 0.0 {
+                    self.export_status = ExportStatus::Failed("Duration must be > 0".into());
+                    return;
+                }
+            }
+            _ => {}
+        }
+        if output_path.as_os_str().is_empty() {
+            self.export_status = ExportStatus::Failed("Output path is empty".into());
+            return;
+        }
+        if let Some(parent) = output_path.parent() {
+            if !parent.exists() {
+                self.export_status = ExportStatus::Failed(
+                    format!("Directory does not exist: {}", parent.display()),
+                );
+                return;
+            }
+        }
+
         let debug = animatix::timeline::DebugRenderOptions {
             draw_bounds: self.debug_bounds,
         };
 
+        // Reset progress / cancel state
+        self.export_progress.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.export_cancelled.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.export_start_time = Some(std::time::Instant::now());
         self.export_status = ExportStatus::Running;
 
+        // Compute total frames for progress display
+        self.export_total_frames = match state.format {
+            ExportFormat::Image => 1,
+            ExportFormat::Video | ExportFormat::Gif => {
+                let duration = if state.auto_duration {
+                    let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                    d.max(0.5)
+                } else {
+                    state.duration_s
+                };
+                (duration * state.fps as f32).ceil() as u32
+            }
+        };
+
         let result_path = output_path.clone();
+        let progress = Arc::clone(&self.export_progress);
+        let cancel = Arc::clone(&self.export_cancelled);
         let handle = std::thread::spawn(move || {
+            let progress_ref = Some(progress.as_ref());
+            let cancel_ref = Some(cancel.as_ref());
             let result = match state.format {
-                ExportFormat::Image => animatix::renderer::render_image_timeline_with_debug(
+                ExportFormat::Image => animatix::renderer::render_image_timeline_with_progress(
                     timeline,
                     state.width,
                     state.height,
                     state.time_s,
                     &output_path,
                     debug,
+                    progress_ref,
+                    cancel_ref,
                 ),
                 ExportFormat::Video => {
                     let duration = if state.auto_duration {
@@ -589,9 +729,12 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_video_timeline_with_settings(
-                        timeline, state.width, state.height, state.fps, duration, &output_path, debug,
+                    animatix::renderer::render_video_timeline_with_progress(
+                        timeline, state.width, state.height, state.fps, duration,
+                        &output_path, debug,
                         animatix::renderer::ExportSettings::default(),
+                        progress_ref,
+                        cancel_ref,
                     )
                 }
                 ExportFormat::Gif => {
@@ -601,9 +744,12 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_gif_timeline_with_settings(
-                        timeline, state.width, state.height, state.fps, duration, &output_path, debug,
+                    animatix::renderer::render_gif_timeline_with_progress(
+                        timeline, state.width, state.height, state.fps, duration,
+                        &output_path, debug,
                         animatix::renderer::ExportSettings::default(),
+                        progress_ref,
+                        cancel_ref,
                     )
                 }
             };
@@ -619,6 +765,9 @@ impl GuiShell {
                 match handle.join() {
                     Ok((Ok(()), path)) => {
                         self.export_status = ExportStatus::Complete { path };
+                    }
+                    Ok((Err(animatix::renderer::video::ExportError::Cancelled), _)) => {
+                        self.export_status = ExportStatus::Idle;
                     }
                     Ok((Err(e), _)) => {
                         self.export_status = ExportStatus::Failed(e.to_string());
