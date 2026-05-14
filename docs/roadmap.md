@@ -7,40 +7,15 @@
 
 ## How to Read This Document
 
-- **Planned** — Design is clear; waiting for implementation.
 - **Gap** — Known limitation in the current runtime.
 - **Deferred** — Infrastructure exists; blocked on time or needs focused implementation.
 - **TODO** — Inline code marker (`// TODO:`) tracking a local fix.
 
 ---
 
-## 1. Planned Features
+## 1. Known Limitations
 
-### 1.1 Keyframe Merge in Keyframe Mode
-
-**TODO:** `crates/animatix-gui/src/app/property_edits.rs:30`
-
-When keyframe mode inserts a new keyframe within 50ms (`MERGE_WINDOW_S`) of an existing one, it skips insertion. It should **merge** with the existing keyframe instead.
-
-**Effort:** Low.
-
----
-
-### 1.2 LSP Diagnostics Publishing
-
-**Status:** Analyzer produces diagnostics. LSP server implementation incomplete; diagnostics are not yet published to the client.
-
-**Gap:** Semantic diagnostics (unknown labels, actions, properties) are produced by the analyzer but the LSP connection layer does not yet forward them.
-
-**Effort:** Low. The `Analyzer::diagnostics()` method exists; needs wiring in the LSP server loop.
-
----
-
-## 2. Known Limitations
-
-
-
-### 2.2 Static Geometry
+### 1.1 Static Geometry
 
 **Status:** Declaration-time only.
 
@@ -52,7 +27,7 @@ When keyframe mode inserts a new keyframe within 50ms (`MERGE_WINDOW_S`) of an e
 
 ---
 
-### 2.3 Coordinate System Friction
+### 1.2 Coordinate System Friction
 
 **Status:** Design tension.
 
@@ -60,7 +35,7 @@ When keyframe mode inserts a new keyframe within 50ms (`MERGE_WINDOW_S`) of an e
 
 ---
 
-### 2.5 Asymmetrical Reveal/Exit Actions
+### 1.3 Asymmetrical Reveal/Exit Actions
 
 **Status:** Partial.
 
@@ -68,7 +43,7 @@ Some fade-out behaviors are incomplete or non-intuitive compared to entrance cou
 
 ---
 
-### 2.6 Re-Declaration for Morphing/Media
+### 1.4 Re-Declaration for Morphing/Media
 
 **Status:** Requires full re-declaration.
 
@@ -76,9 +51,9 @@ Morphing text or updating SVG/Image sources requires re-declaring the entire obj
 
 ---
 
-## 3. Deferred Features
+## 2. Deferred Features
 
-### 3.1 Font Selection — Phase 3: System Font Discovery
+### 2.1 Font Selection — Phase 3: System Font Discovery
 
 **Status:** Phases 1 & 2 done. Phase 3 deferred.
 **Location:** `crates/animatix/src/renderer/text.rs`, `crates/animatix/src/timeline/scene_eval.rs`.
@@ -90,7 +65,7 @@ Access all installed system fonts via `font-kit` / `fontconfig`. Removes the cur
 
 ---
 
-### 3.2 `strategy: fade` Morph
+### 2.2 `strategy: fade` Morph
 
 **Status:** Deferred — requires compositing architecture change.
 **Location:** `crates/animatix/src/timeline/morph.rs`.
@@ -103,9 +78,9 @@ Current morphing (`auto`, `match`, `path_arc`, `stretch`) interpolates paths bet
 
 ---
 
-## 4. Analyzer / LSP Improvements
+## 3. Analyzer / LSP Improvements
 
-### 4.1 Cross-File Analysis
+### 3.1 Cross-File Analysis
 
 **Status:** Phase 7 of analyzer design — not started.
 **Location:** `docs/contributing.md` §Analyzer Architecture.
@@ -119,7 +94,7 @@ Current morphing (`auto`, `match`, `path_arc`, `stretch`) interpolates paths bet
 
 ---
 
-### 4.2 Analyzer Default Serialization
+### 3.2 Analyzer Default Serialization
 
 **TODO:** `crates/animatix-analyzer/src/symbol_table.rs:271`
 ```rust
@@ -132,14 +107,12 @@ Symbol table property entries don't capture default values yet.
 
 ---
 
-## 5. Error Handling & Robustness
+## 4. Error Handling & Robustness
 
-### 5.1 Panic Audit — In Progress
+### 4.1 Panic Audit — In Progress
 
 **Status:** ~151 unwrap/expect + ~21 panic in `animatix` core; ~27 unwrap/expect in `animatix-gui`.
 **Location:** Across renderer, action system, parser internals, document I/O.
-
-**Recently fixed:** `crates/animatix/src/renderer/video.rs` — all 8 export functions now return `Result<(), ExportError>` with typed error variants (`RendererCreation`, `FrameRender`, `VideoEncode`, `GifEncode`, `ImageEncode`, `ImageSave`, `InvalidPath`, `ThreadPanicked`).
 
 **Remaining hotspots (by severity):**
 
@@ -169,23 +142,9 @@ Symbol table property entries don't capture default values yet.
 
 ---
 
-## 6. Architecture / Cleanup Debt
+## 5. Architecture / Cleanup Debt
 
-### 6.1 Primitive System — Completed
-
-✅ **Unified primitive architecture implemented** (`crates/animatix/src/primitives/`).
-
-The `PRIMITIVES` array is now the single source of truth. `ActorKindMeta` registry, `PrimitiveDescriptor`, and `find_actor_kind()` all delegate to it. See [`primitive_architecture.md`](primitive_architecture.md) for details.
-
-**Remaining cleanup:**
-- **`VectorShapePrimitive` trait** in `timeline/shapes/primitives.rs` — still used by the render pipeline. Can be absorbed into `Primitive::render()` once render dispatch is fully migrated.
-- **`ShapeType` enum** in `timeline/shapes/mod.rs` — still used in match arms. Consider unifying with `ShapeKind`.
-
-**Effort:** Low. Mechanical removal once render pipeline is ready.
-
----
-
-### 5.2 Dynamic Layout — Post-Migration Cleanup
+### 5.1 Dynamic Layout — Post-Migration Cleanup
 
 **Location:** `docs/architecture.md` §Layout System.
 
@@ -197,7 +156,7 @@ The `PRIMITIVES` array is now the single source of truth. `ActorKindMeta` regist
 
 ---
 
-### 5.3 Randomness Determinism
+### 5.2 Randomness Determinism
 
 **Status:** Documented caveat.
 **Location:** `docs/architecture.md` §Reactive System.
@@ -212,7 +171,7 @@ Current `rand()` is not a deterministic function of time. Scenes depending on fr
 
 ---
 
-## 7. Long-Term / Speculative
+## 6. Long-Term / Speculative
 
 ### 6.1 FFI / Web Canvas Integration
 
@@ -242,21 +201,19 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 8. Quick Reference: Priority Order
+## 7. Quick Reference: Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | Panic audit & error handling (renderer pipeline, GUI I/O) | Medium | High |
-| 2 | Keyframe merge in keyframe mode | Low | Medium |
-| 3 | LSP diagnostics publishing | Low | Medium |
-| 4 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
-| 5 | Analyzer default serialization | Low | Low |
-| 6 | Randomness determinism | Low-Medium | Medium |
-| 7 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 8 | Cross-file analyzer | Medium-High | Medium |
-| 9 | `strategy: fade` morph | High | Medium |
-| 10 | Green tree / trivia AST | Very High | Low (polish) |
+| 2 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
+| 3 | Analyzer default serialization | Low | Low |
+| 4 | Randomness determinism | Low-Medium | Medium |
+| 5 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 6 | Cross-file analyzer | Medium-High | Medium |
+| 7 | `strategy: fade` morph | High | Medium |
+| 8 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-13*
+*Last updated: 2026-05-14*

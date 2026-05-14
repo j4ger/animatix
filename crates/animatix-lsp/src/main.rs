@@ -38,6 +38,45 @@ impl Backend {
         let analyzer = analyzers.entry(uri).or_insert_with(|| Analyzer::new(&text));
         analyzer.update(&text);
     }
+
+    /// Publish diagnostics for a document to the LSP client.
+    async fn publish_diagnostics(&self, uri: &str) {
+        let analyzer = self.get_analyzer(uri).await;
+        let diagnostics = analyzer.diagnostics();
+
+        let lsp_diagnostics: Vec<Diagnostic> = diagnostics
+            .into_iter()
+            .map(|d| {
+                let severity = match d.severity {
+                    animatix_analyzer::DiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
+                    animatix_analyzer::DiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
+                    animatix_analyzer::DiagnosticSeverity::Info => {
+                        DiagnosticSeverity::INFORMATION
+                    }
+                    animatix_analyzer::DiagnosticSeverity::Hint => DiagnosticSeverity::HINT,
+                };
+
+                Diagnostic {
+                    range: Range {
+                        start: Position::new(d.line as u32, d.col as u32),
+                        end: Position::new(d.end_line as u32, d.end_col as u32),
+                    },
+                    severity: Some(severity),
+                    code: d.code.map(NumberOrString::String),
+                    source: Some("animatix".to_string()),
+                    message: d.message,
+                    related_information: None,
+                    tags: None,
+                    code_description: None,
+                    data: None,
+                }
+            })
+            .collect();
+
+        if let Ok(url) = Url::parse(uri) {
+            self.client.publish_diagnostics(url, lsp_diagnostics, None).await;
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -79,13 +118,15 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
         let text = params.text_document.text;
-        self.update_analyzer(uri, text).await;
+        self.update_analyzer(uri.clone(), text).await;
+        self.publish_diagnostics(&uri).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
         if let Some(change) = params.content_changes.into_iter().next() {
-            self.update_analyzer(uri, change.text).await;
+            self.update_analyzer(uri.clone(), change.text).await;
+            self.publish_diagnostics(&uri).await;
         }
     }
 

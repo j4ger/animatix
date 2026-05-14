@@ -29,17 +29,25 @@ impl GuiShell {
         // Insert keyframe block into source via AST mutation.
         let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
         let delta_s = self.preview.current_time_s - prev_time_s;
-        let source_written = if delta_s < self.keyframe_merge_window_s {
-            false
-        } else if let Some(ref mut stmts) = self.document.raw_statements {
+        let source_written = if let Some(ref mut stmts) = self.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
-            let source_edit = crate::source_edit::SourceEdit::InsertKeyframe {
-                actor: edit.actor.clone(),
-                property: edit.property.clone(),
-                value: expr,
-                time_s: self.preview.current_time_s,
-                prev_time_s,
+            let source_edit = if delta_s < self.keyframe_merge_window_s {
+                crate::source_edit::SourceEdit::MergeKeyframe {
+                    actor: edit.actor.clone(),
+                    property: edit.property.clone(),
+                    value: expr,
+                    time_s: prev_time_s,
+                }
+            } else {
+                crate::source_edit::SourceEdit::InsertKeyframe {
+                    actor: edit.actor.clone(),
+                    property: edit.property.clone(),
+                    value: expr,
+                    time_s: self.preview.current_time_s,
+                    prev_time_s,
+                }
             };
+
             if crate::source_edit::apply_edit(stmts, source_edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
                 self.document.source_text = new_source.clone();
@@ -58,10 +66,17 @@ impl GuiShell {
         self.preview_dirty = true;
         if source_written {
             self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
-            self.preview.status = format!(
-                "Keyframe {}.{} @ {:.2}s",
-                edit.actor, edit.property, self.preview.current_time_s
-            );
+            if delta_s < self.keyframe_merge_window_s {
+                self.preview.status = format!(
+                    "Merged {}.{} @ {:.2}s",
+                    edit.actor, edit.property, prev_time_s
+                );
+            } else {
+                self.preview.status = format!(
+                    "Keyframe {}.{} @ {:.2}s",
+                    edit.actor, edit.property, self.preview.current_time_s
+                );
+            }
         } else {
             self.preview.status = format!(
                 "Keyframe {}.{} @ {:.2}s — visual only",

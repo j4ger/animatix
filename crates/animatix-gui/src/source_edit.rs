@@ -55,6 +55,14 @@ pub enum SourceEdit {
         /// Time of the previous keyframe (for relative offset calculation).
         prev_time_s: f64,
     },
+    /// Update a property value inside an existing keyframe.
+    MergeKeyframe {
+        actor: String,
+        property: String,
+        value: Expr,
+        /// Absolute time of the keyframe to update (in seconds).
+        time_s: f64,
+    },
     /// Reorder a container's inline children by label.
     ReorderContainerChildren {
         container: String,
@@ -93,6 +101,12 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             time_s,
             prev_time_s,
         } => insert_keyframe(stmts, &actor, &property, value, time_s, prev_time_s),
+        SourceEdit::MergeKeyframe {
+            actor,
+            property,
+            value,
+            time_s,
+        } => merge_keyframe(stmts, &actor, &property, value, time_s),
         SourceEdit::ReorderContainerChildren { container, new_order } => {
             reorder_container_children(stmts, &container, new_order)
         }
@@ -169,6 +183,84 @@ fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr)
             Stmt::Svg { .. } | Stmt::Image { .. } => {
                 // These use fixed prop schemas; insertion not supported.
                 return false;
+            }
+            _ => {}
+        }
+    }
+
+    false
+}
+
+// ---------------------------------------------------------------------------
+// MergeKeyframe
+// ---------------------------------------------------------------------------
+
+fn merge_keyframe(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    value: Expr,
+    time_s: f64,
+) -> bool {
+    let source_prop = canonical_to_source(property);
+    let mut current_time = 0.0f64;
+
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            Stmt::Keyframe { time, body, .. } => {
+                current_time = time_to_seconds(time);
+                if (current_time - time_s).abs() < 0.001 {
+                    return update_assignment(body, actor, source_prop, value);
+                }
+            }
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                current_time += time_to_seconds(offset);
+                if (current_time - time_s).abs() < 0.001 {
+                    return update_assignment(body, actor, source_prop, value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    false
+}
+
+fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr) -> bool {
+    for stmt in body.iter_mut() {
+        match stmt {
+            Stmt::Assignment { target, property: prop, value: val, .. }
+                if target.iter().any(|t| t == actor) && prop == property =>
+            {
+                *val = value;
+                return true;
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::LabeledAlways { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. } => {
+                if update_assignment(body, actor, property, value.clone()) {
+                    return true;
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if update_assignment(then_branch, actor, property, value.clone()) {
+                    return true;
+                }
+                if let Some(else_b) = else_branch {
+                    if update_assignment(else_b, actor, property, value.clone()) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if update_assignment(body, actor, property, value.clone()) {
+                    return true;
+                }
             }
             _ => {}
         }
@@ -815,6 +907,64 @@ btn.color = red"#);
             assert_eq!(*offset, Time::Milliseconds(500));
         } else {
             panic!("Expected RelativeKeyframe at index 2");
+        }
+    }
+
+    #[test]
+    fn merge_keyframe_updates_existing_assignment() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#1s
+btn.color = red
+btn.position = (10, 20)"#);
+
+        let edit = SourceEdit::MergeKeyframe {
+            actor: "btn".into(),
+            property: "color".into(),
+            value: Expr::Ident("blue".into()),
+            time_s: 1.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        let mut found = false;
+        if let Stmt::Keyframe { body, .. } = &stmts[1] {
+            for stmt in body {
+                if let Stmt::Assignment { property, value, .. } = stmt {
+                    if property == "color" {
+                        assert_eq!(*value, Expr::Ident("blue".into()));
+                        found = true;
+                    }
+                }
+            }
+        }
+        assert!(found);
+    }
+
+    #[test]
+    fn merge_keyframe_uses_relative_time() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#+500ms
+btn.color = red"#);
+
+        let edit = SourceEdit::MergeKeyframe {
+            actor: "btn".into(),
+            property: "color".into(),
+            value: Expr::Ident("green".into()),
+            time_s: 0.5,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        if let Stmt::RelativeKeyframe { body, .. } = &stmts[1] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert_eq!(*value, Expr::Ident("green".into()));
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected RelativeKeyframe");
         }
     }
 
