@@ -131,6 +131,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "pause",
                 "resume",
                 "action",
+                "play",
             ];
             if reserved.contains(&ident) {
                 Err(Rich::custom(
@@ -1027,23 +1028,49 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .boxed()
     });
 
-    let keyframe = just('#')
-        .ignore_then(just('+').or_not())
-        .then(time.clone())
-        .then(stmt.clone().repeated().collect::<Vec<_>>())
-        .map(|((is_relative, t), body)| {
-            if is_relative.is_some() {
-                Stmt::RelativeKeyframe { offset: t, body, span: None }
-            } else {
-                Stmt::Keyframe { time: t, body, span: None }
-            }
-        })
-        .labelled("keyframe")
-        .padded();
+        // `play SceneName [modifier, ...]` — scene-level transition statement
+        let play_stmt = text::keyword("play")
+            .padded()
+            .ignore_then(ident.clone())
+            .then(modifiers.clone())
+            .map(|(scene_name, mods)| {
+                let transition = parse_transition_from_modifiers(&mods);
+                Stmt::Play { scene_name, transition, span: None }
+            })
+            .labelled("play statement")
+            .padded();
 
-    // Top-level can be keyframes or standalone statements
+        // `# SceneName` — scene declaration (only at top level, not inside containers)
+        let scene_decl = just('#')
+            .ignore_then(ident.clone().padded())
+            .map(|name| Stmt::Scene {
+                name,
+                config: vec![],
+                body: vec![],
+                span: None,
+            })
+            .labelled("scene declaration")
+            .padded();
+
+        let keyframe = just('#')
+            .ignore_then(just('+').or_not())
+            .then(time.clone())
+            .then(stmt.clone().repeated().collect::<Vec<_>>())
+            .map(|((is_relative, t), body)| {
+                if is_relative.is_some() {
+                    Stmt::RelativeKeyframe { offset: t, body, span: None }
+                } else {
+                    Stmt::Keyframe { time: t, body, span: None }
+                }
+            })
+            .labelled("keyframe")
+            .padded();
+
+    // Top-level: scenes, keyframes, play, config, or standalone statements
     choice((
         keyframe,
+        scene_decl,
+        play_stmt,
         config_stmt,
         stmt.map(|s| Stmt::Keyframe {
             time: Time::Seconds(0.0), // default timeline wrapper
@@ -1053,7 +1080,122 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     ))
     .repeated()
     .collect::<Vec<_>>()
+    .map(group_scenes)
     .boxed()
+}
+
+/// After parsing, group flat statements into scenes.
+///
+/// If any `Stmt::Scene` markers exist in the parsed output:
+///   - Everything before the first scene is the shared prelude.
+///   - Each scene marker starts a new scene; its body accumulates
+///     all subsequent statements until the next scene marker or EOF.
+///   - A `config { ... }` immediately after a scene marker is absorbed
+///     as that scene's config.
+///   - `play` statements belong to the current scene's body.
+///
+/// If no scene markers exist, the output is returned unmodified
+/// (single-scene file, backward compatible).
+pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
+    let has_scenes = flat.iter().any(|s| matches!(s, Stmt::Scene { .. }));
+    if !has_scenes {
+        return flat;
+    }
+
+    let mut result: Vec<Stmt> = Vec::new();
+    let mut current_scene: Option<Stmt> = None;
+
+    for stmt in flat {
+        match stmt {
+            Stmt::Scene { name, config: _, body: _, span } => {
+                // Finish previous scene if any
+                if let Some(scene) = current_scene.take() {
+                    result.push(scene);
+                }
+                current_scene = Some(Stmt::Scene { name, config: vec![], body: vec![], span });
+            }
+            Stmt::Config { .. } => {
+                if let Some(Stmt::Scene { ref mut config, ref body, .. }) = current_scene {
+                    // Absorb config into the scene only if both config and body
+                    // are still empty (config must be the first thing after the scene name).
+                    if config.is_empty() && body.is_empty() {
+                        if let Stmt::Config { settings, .. } = stmt {
+                            *config = settings;
+                            continue;
+                        }
+                    }
+                }
+                // Otherwise treat as part of the body
+                if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
+                    body.push(stmt);
+                } else {
+                    // Prelude config — keep in result
+                    result.push(stmt);
+                }
+            }
+            other => {
+                if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
+                    body.push(other);
+                } else {
+                    // Prelude statements (imports, pub lets, etc.)
+                    result.push(other);
+                }
+            }
+        }
+    }
+
+    // Push the last scene
+    if let Some(scene) = current_scene {
+        result.push(scene);
+    }
+
+    result
+}
+
+/// Convert play statement modifiers into a `Transition` descriptor.
+///
+/// Modifiers format: `[fade, 300ms]` or `[wipe-left, 200ms]`.
+/// The first bare identifier (not a time) is the transition type.
+/// The first time literal is the duration.
+fn parse_transition_from_modifiers(modifiers: &[Modifier]) -> Option<crate::ast::Transition> {
+    let mut transition_type: Option<crate::ast::TransitionType> = None;
+    let mut duration_ms: u64 = 0;
+
+    for m in modifiers {
+        match (&m.name, &m.value) {
+            (None, Expr::Ident(name)) if transition_type.is_none() => {
+                transition_type = match name.as_str() {
+                    "cut" => Some(crate::ast::TransitionType::Cut),
+                    "fade" => Some(crate::ast::TransitionType::Fade),
+                    "wipe-left" => Some(crate::ast::TransitionType::WipeLeft),
+                    "wipe-right" => Some(crate::ast::TransitionType::WipeRight),
+                    "wipe-up" => Some(crate::ast::TransitionType::WipeUp),
+                    "wipe-down" => Some(crate::ast::TransitionType::WipeDown),
+                    _ => None,
+                };
+            }
+            (None, Expr::Ident(name)) if name.ends_with("ms") => {
+                if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {
+                    if duration_ms == 0 {
+                        duration_ms = ms;
+                    }
+                }
+            }
+            (None, Expr::Ident(name)) if name.ends_with('s') && !name.starts_with(|c: char| c.is_alphabetic()) => {
+                if let Ok(s) = name.trim_end_matches('s').parse::<f64>() {
+                    if duration_ms == 0 {
+                        duration_ms = (s * 1000.0) as u64;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    transition_type.map(|tt| crate::ast::Transition {
+        transition_type: tt,
+        duration_ms,
+    })
 }
 
 #[cfg(test)]

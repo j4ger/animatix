@@ -1,0 +1,69 @@
+// Multi-Scene Composition Demo
+//
+// Three scenes with explicit `play` transitions.
+// Export: animatix video examples/multi_scene_demo.amx --width 1280 --height 720
+
+config { resolution: (1280, 720), colorscheme: "editorial-dark" }
+
+# Intro
+#0s
+welcome: Text, text: "Multi-Scene Composition", font_size: 56, anchor: scene.center, at: scene.center
+sub: Text, text: "Introducing the multi-scene workflow", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, 60)
+
+#0.3s
+fade-in welcome [600ms, ease: ease-out]
+#0.7s
+fade-in sub [500ms, ease: ease-out]
+#1.8s
+fade-out sub [400ms]
+#2.0s
+fade-out welcome [300ms]
+
+play Diagram [fade, 300ms]
+
+# Diagram
+#0s
+a: Rect, size: (180, 90), color: accent.primary, anchor: scene.center, at: scene.center, offset: (-300, 0)
+b: Rect, size: (180, 90), color: accent.success, anchor: scene.center, at: scene.center
+c: Rect, size: (180, 90), color: accent.warning, anchor: scene.center, at: scene.center, offset: (300, 0)
+
+la: Text, text: "Scene A", font_size: 16, anchor: a, at: a, offset: (0, 70)
+lb: Text, text: "Scene B", font_size: 16, anchor: b, at: b, offset: (0, 70)
+lc: Text, text: "Scene C", font_size: 16, anchor: c, at: c, offset: (0, 70)
+
+#0.2s
+fade-in a [400ms, ease: ease-out]
+#0.4s
+fade-in b [400ms, ease: ease-out]
+#0.6s
+fade-in c [400ms, ease: ease-out]
+#1.0s
+fade-in la [300ms]
+fade-in lb [300ms, delay: 100ms]
+fade-in lc [300ms, delay: 200ms]
+#2.5s
+scale a [by: 1.15, 500ms, ease: ease-in-out]
+scale b [by: 1.15, 500ms, ease: ease-in-out]
+scale c [by: 1.15, 500ms, ease: ease-in-out]
+#3.5s
+fade-out a [300ms]
+fade-out b [300ms, delay: 100ms]
+fade-out c [300ms, delay: 200ms]
+fade-out la [300ms]
+fade-out lb [300ms]
+fade-out lc [300ms]
+
+play Outro [wipe-left, 400ms]
+
+# Outro
+#0s
+ending: Text, text: "Thank You", font_size: 48, anchor: scene.center, at: scene.center
+note: Text, text: "Export with: animatix video file.amx", font_size: 18, anchor: scene.center, at: scene.center, offset: (0, 55)
+
+#0.3s
+fade-in ending [500ms, ease: ease-out]
+#0.8s
+fade-in note [400ms, ease: ease-out]
+#2.0s
+fade-out ending [300ms]
+fade-out note [300ms, delay: 100ms]

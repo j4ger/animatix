@@ -41,6 +41,26 @@ Morphing text or updating SVG/Image sources requires re-declaring the entire obj
 
 ## 2. Deferred Features
 
+### 2.0 Multi-Scene Composition — GUI Phases
+
+**Status:** Core engine shipped (Phases 1–3). GUI and transitions deferred (Phases 4–8).
+**Location:** `crates/animatix/src/composition.rs`, `crates/animatix/src/renderer/video.rs`, `docs/multi-scene-composition-design.md`.
+
+Shipped:
+- Phase 1: `# SceneName` / `play` syntax in parser, AST, serializer
+- Phase 2: `Composition` engine with per-scene timeline building, edge resolution, cycle detection, `BuildTarget` routing
+- Phase 3: CLI export (`render_video_composition`, `render_gif_composition`, `render_image_composition`); auto-routing in `main.rs`
+- Examples: `multi_scene_mini.amx`, `multi_scene_demo.amx`, `multi_scene_educational.amx`
+
+**Still deferred:**
+- **Phase 4 — GUI Scene List Panel**: `app/panels/scene_list.rs`, select/add/reorder/rename scenes
+- **Phase 5 — GUI Composition Timeline**: Scene blocks on scrubber, boundary interactions, transition editing
+- **Phase 6 — GUI Source Write-Back**: `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `RenameScene` edits
+- **Phase 7 — Transition Blending**: Dual offscreen render + texture compositing for fade/wipe transitions
+- **Phase 8 — Cross-File Scenes**: `module.SceneName` resolution, project explorer with referenced scene files
+
+**Effort:** Medium for GUI (Phases 4–6, ~1 week each). High for transitions (Phase 7, ~1 week). Medium for cross-file (Phase 8, ~0.5 week).
+
 ### 2.1 Source-Level Animated Geometry — Partial
 
 **Status:** `Polygon.points` now animatable at source level. `Path.commands` and GUI inspector support deferred.
@@ -209,14 +229,16 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | Panic audit & error handling (renderer pipeline, GUI I/O) | Medium | High |
-| 2 | Property system cleanup (remove accessors) | Low | Low (cleanup) |
+| 2 | Multi-Scene GUI (scene list, composition timeline, write-back) | Medium | High |
 | 3 | Analyzer default serialization | Low | Low |
 | 4 | Randomness determinism | Low-Medium | Medium |
 | 5 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 6 | Cross-file analyzer | Medium-High | Medium |
-| 7 | `strategy: fade` morph | High | Medium |
-| 8 | Green tree / trivia AST | Very High | Low (polish) |
+| 6 | Multi-Scene transition blending (Phase 7) | High | Medium |
+| 7 | Cross-file analyzer | Medium-High | Medium |
+| 8 | `strategy: fade` morph | High | Medium |
+| 9 | Multi-Scene cross-file scenes (Phase 8) | Medium | Medium |
+| 10 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-14*
+*Last updated: 2026-05-15*

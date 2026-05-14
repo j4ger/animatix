@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod composition;
 pub mod diagnostics;
 pub mod easing;
 pub mod ir;

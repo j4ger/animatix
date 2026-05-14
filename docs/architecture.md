@@ -6,7 +6,8 @@ Animatix is a layout-first animation system with three core components:
 
 1. **Parser** (Chumsky-based) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
-3. **Renderers** (Vello/WGPU, PPM, Frame sequences) — Rasterizes evaluated scenes
+3. **Composition** — Orchestrates multi-scene timelines with transitions
+4. **Renderers** (Vello/WGPU, PPM, Frame sequences) — Rasterizes evaluated scenes
 
 ---
 
@@ -32,11 +33,19 @@ The `ModuleGraph` manages file dependencies: tracks `import` declarations, resol
 
 ### Timeline Compilation
 
-`Timeline::build_with_diagnostics(...)` is the main compilation entry:
-1. **Module Expansion** (`module/expand.rs`): Inlines component instances
-2. **IR Compilation** (`timeline/modifier_runtime/`): Compiles `always` blocks to bytecode
-3. **Track Building** (`timeline/build.rs`): Creates `AnimationTrack` entries per actor
-4. **Layout Resolution** (`timeline/layout.rs`): Computes container placements
+`Timeline::build_with_diagnostics(...)` is the main compilation entry for single-scene files. For multi-scene files, `Composition::build(...)` orchestrates per-scene timelines.
+
+### Composition (Multi-Scene)
+
+The `Composition` type in `composition.rs` manages multiple scenes:
+
+- **Build**: Extracts scenes from AST, builds per-scene `Timeline` instances, resolves `play` edges
+- **Time mapping**: `Composition::evaluate(global_time_s)` → `(scene_name, local_time_s, transition_blend)`
+- **Edge resolution**: Follows explicit `play` edges; falls back to declaration order
+- **Cycle detection**: Reports diagnostics on `play` edge cycles
+- **Routing**: `BuildTarget` enum automatically detects single vs multi-scene and dispatches
+
+See [`multi-scene-composition-design.md`](multi-scene-composition-design.md) for the full design.
 
 ---
 
@@ -368,6 +377,7 @@ crates/
 │   └── src/
 │       ├── ast.rs         # AST types
 │       ├── parser.rs      # Chumsky parser
+│       ├── composition.rs # Multi-scene composition engine
 │       ├── diagnostics.rs # Diagnostic types
 │       ├── module.rs      # Module system
 │       ├── source_index.rs# Source location mapping

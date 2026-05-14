@@ -201,6 +201,27 @@ pub struct Action {
 }
 
 // ----------------------------------------------------------------------------
+// 2b. Transition Types (Multi-Scene Composition)
+// ----------------------------------------------------------------------------
+
+/// Scene transition descriptor for the `play` statement.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Transition {
+    pub transition_type: TransitionType,
+    pub duration_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransitionType {
+    Cut,
+    Fade,
+    WipeLeft,
+    WipeRight,
+    WipeUp,
+    WipeDown,
+}
+
+// ----------------------------------------------------------------------------
 // 3. Supporting Types
 // ----------------------------------------------------------------------------
 // Enums and structs used throughout the AST for specific domains.
@@ -464,6 +485,22 @@ pub enum Stmt {
     Config {
         settings: Vec<Property>,
         
+        span: Option<Span>,
+    },
+
+    // === Multi-Scene Composition ===
+    /// Scene declaration: # SceneName
+    Scene {
+        name: String,
+        config: Vec<Property>,
+        body: Vec<Stmt>,
+        span: Option<Span>,
+    },
+
+    /// Play statement: play SceneName [transition, duration]
+    Play {
+        scene_name: String,
+        transition: Option<Transition>,
         span: Option<Span>,
     },
 

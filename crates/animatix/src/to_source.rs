@@ -256,6 +256,29 @@ impl ToSource for ComponentDef {
     }
 }
 
+impl ToSource for TransitionType {
+    fn to_source(&self) -> String {
+        match self {
+            TransitionType::Cut => "cut".into(),
+            TransitionType::Fade => "fade".into(),
+            TransitionType::WipeLeft => "wipe-left".into(),
+            TransitionType::WipeRight => "wipe-right".into(),
+            TransitionType::WipeUp => "wipe-up".into(),
+            TransitionType::WipeDown => "wipe-down".into(),
+        }
+    }
+}
+
+impl ToSource for Transition {
+    fn to_source(&self) -> String {
+        let mut parts = vec![self.transition_type.to_source()];
+        if self.duration_ms > 0 {
+            parts.push(format!("{}ms", self.duration_ms));
+        }
+        parts.join(", ")
+    }
+}
+
 impl ToSource for InlineItem {
     fn to_source(&self) -> String {
         match self {
@@ -478,6 +501,33 @@ impl ToSource for Stmt {
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("config {{ {} }}", inner)
+            }
+            Stmt::Scene { name, config, body, .. } => {
+                let mut parts = vec![format!("# {}", name)];
+                if !config.is_empty() {
+                    let inner = config
+                        .iter()
+                        .map(|s| s.to_source())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    parts.push(format!("config {{ {} }}", inner));
+                }
+                if !body.is_empty() {
+                    let body_str = body
+                        .iter()
+                        .map(|s| s.to_source())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    parts.push(body_str);
+                }
+                parts.join("\n")
+            }
+            Stmt::Play { scene_name, transition, .. } => {
+                let mut s = format!("play {}", scene_name);
+                if let Some(t) = transition {
+                    s.push_str(&format!(" [{}]", t.to_source()));
+                }
+                s
             }
             Stmt::Comment(text, ..) => format!("//{}", text),
         }

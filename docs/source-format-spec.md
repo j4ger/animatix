@@ -207,7 +207,45 @@ config { resolution: (1280, 720), dynamic_layout: true }
 
 ---
 
-## 12. Formatting Fit in the Write-Back Pipeline
+## 12. Scene Declarations and Play Statements
+
+### Scene Declaration
+
+```amx
+# SceneName
+#0s
+stmt1
+stmt2
+#1s
+stmt3
+
+play NextScene [fade, 300ms]
+```
+
+Rules:
+- `# SceneName` on its own line.
+- Scene body statements each on their own line, **not indented** (same as keyframe blocks).
+- `config { ... }` may appear immediately after the scene name if scoped to that scene.
+- `play` appears at the scene body level on its own line.
+- A blank line separates consecutive scene declarations.
+
+### Play Statement
+
+```amx
+play SceneName
+play SceneName [fade, 300ms]
+play SceneName [wipe-left, 200ms]
+```
+
+Rules:
+- `play` keyword followed by the target scene name, then optional modifiers in `[...]`.
+- Modifiers follow the same comma-separated bracket syntax as all other statements.
+- First bare time literal = transition duration; first bare identifier = transition type.
+- Default transition: `cut` with `0ms` duration.
+
+---
+
+## 13. Formatting Fit in the Write-Back Pipeline
 
 The GUI inspector mutates the AST via `source_edit::apply_edit`, then the entire file is re-serialized. Formatting is applied at the **serialization layer only** (`animatix::to_source`). No formatting state is carried through the edit; the serializer is the single source of truth for layout.
 

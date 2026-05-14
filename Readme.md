@@ -8,6 +8,8 @@ The GUI shell now includes basic transport shortcuts (`Space` to play/pause, `�
 
 ## Quick Example
 
+Single-scene:
+
 ```animatix
 // examples/showcase.amx
 #0s
@@ -25,6 +27,33 @@ stage: Row, anchor: scene.bottom, offset: (0, -120), gap: 180, align: "center" {
 #1.5s
 orb.radius = 120 [1s, ease: ease-in-out]
 orb.color = (0.25, 1.0, 0.65, 1.0) [1s, ease: ease-in-out]
+```
+
+Multi-scene:
+
+```animatix
+// examples/multi_scene_mini.amx
+# One
+#0s
+a: Text, text: "Scene 1", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in a [300ms]
+#1.5s
+fade-out a [200ms]
+play Two [fade, 200ms]
+
+# Two
+#0s
+b: Text, text: "Scene 2", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in b [300ms]
+play Three [wipe-left, 200ms]
+
+# Three
+#0s
+c: Text, text: "Scene 3", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in c [300ms]
 ```
 
 ## Quick Start
@@ -60,6 +89,10 @@ cargo run --bin animatix -- video examples/showcase.amx --width 1920 --height 10
 
 # Render an animated GIF (great for web sharing)
 cargo run --bin animatix -- gif examples/showcase.amx --fps 15 --duration 5 --output showcase.gif
+
+# Multi-scene composition export
+cargo run --bin animatix -- video examples/multi_scene_demo.amx --width 1280 --height 720
+cargo run --bin animatix -- gif examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
 ```
 
 If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphics dependencies used by the repo.
@@ -71,6 +104,7 @@ If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphic
 - Containers: `Row`, `Col`, `Grid`, `Stack`, and `Group`
 - Reactive authoring: stateless `always` and compile-time `for`
 - Components: imported `pub component` instantiation, parameter binding, dotted assignment targets, and rhs property lookup
+- **Multi-Scene Composition**: `# SceneName` scene declarations, `play` transitions, per-scene timelines, CLI export with auto-routing via `BuildTarget`
 - Tooling: CLI renderer, egui-based GUI shell in `crates/animatix-gui`, and `tree-sitter-animatix` for editor integration
 
 For the exact implemented language surface, see [`docs/spec.md`](docs/spec.md) and [`docs/primitives.md`](docs/primitives.md).
@@ -102,6 +136,9 @@ Runnable demos live in [`examples/`](examples/):
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access
 - `reactive_runtime.amx` — the current stateless reactive model
+- `multi_scene_mini.amx` — minimal multi-scene composition (3 scenes, fade/wipe)
+- `multi_scene_demo.amx` — multi-scene feature showcase (3 scenes with animated boxes)
+- `multi_scene_educational.amx` — multi-scene concept explainer (4 scenes)
 
 For the full curated list, see [`examples/README.md`](examples/README.md).
 
@@ -131,6 +168,7 @@ Useful docs:
 - [`docs/primitive_architecture.md`](docs/primitive_architecture.md) — unified primitive system design
 - [`docs/contributing.md`](docs/contributing.md) — development workflows and project structure
 - [`docs/roadmap.md`](docs/roadmap.md) — known gaps and planned features
+- [`docs/multi-scene-composition-design.md`](docs/multi-scene-composition-design.md) — multi-scene design and implementation plan
 - [`examples/colorscheme_demo.amx`](examples/colorscheme_demo.amx) — built-in colorscheme example
 - [`tree-sitter-animatix/README.md`](tree-sitter-animatix/README.md) — editor grammar scope and sync rules
 

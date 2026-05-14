@@ -1,0 +1,113 @@
+// Multi-Scene Educational Demo — Concept Explainer
+//
+// A 3-scene animated explainer showing the concept of derivatives.
+// Demonstrates per-scene config, shared prelude, and cross-scene continuity.
+//
+// Export: animatix video examples/multi_scene_educational.amx --width 1280 --height 720
+
+config { resolution: (1280, 720), colorscheme: "editorial-dark" }
+
+// Shared prelude — visible to all scenes
+pub let accent_color = accent.primary
+
+# Intro
+config { colorscheme: "editorial-dark" }
+
+#0s
+title: Text, text: "Understanding Derivatives", font_size: 52, anchor: scene.center, at: scene.center
+subtitle: Text, text: "An Animatix Multi-Scene Explainer", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, 55)
+
+#0.3s
+fade-in title [600ms, ease: ease-out]
+
+#0.8s
+fade-in subtitle [500ms, ease: ease-out]
+
+#1.8s
+fade-out title [400ms]
+fade-out subtitle [300ms, delay: 100ms]
+
+play Concept [fade, 300ms]
+
+# Concept
+config { colorscheme: "editorial-dark" }
+
+#0s
+header: Text, text: "What is a Derivative?", font_size: 36, anchor: scene.top, at: scene.top, offset: (0, 80)
+body_text: Text, text: "A derivative measures how a function changes", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, -80)
+body_text2: Text, text: "as its input changes.", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, -45)
+
+// Visual: curve and tangent line
+curve: Rect, size: (500, 300), color: accent.primary, anchor: scene.center, at: scene.center, offset: (0, 120)
+tangent: Rect, size: (300, 4), color: accent.warning, anchor: curve, at: curve, offset: (0, 0)
+
+#0.3s
+fade-in header [400ms, ease: ease-out]
+
+#0.7s
+fade-in body_text [400ms, ease: ease-out]
+
+#1.0s
+fade-in body_text2 [300ms, ease: ease-out]
+
+#1.5s
+fade-in curve [500ms, ease: ease-out]
+
+#2.0s
+fade-in tangent [400ms, ease: ease-out]
+rotate tangent [by: 0.5, 1s, ease: ease-in-out]
+
+#3.0s
+fade-out header [300ms]
+fade-out body_text [300ms]
+fade-out body_text2 [300ms, delay: 100ms]
+fade-out curve [400ms, delay: 200ms]
+fade-out tangent [400ms, delay: 200ms]
+
+play Applications [wipe-left, 400ms]
+
+# Applications
+config { colorscheme: "editorial-dark" }
+
+#0s
+header2: Text, text: "Real-World Applications", font_size: 36, anchor: scene.top, at: scene.top, offset: (0, 80)
+app1: Text, text: "Physics: velocity & acceleration", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, -40)
+app2: Text, text: "Economics: marginal cost & revenue", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, 10)
+app3: Text, text: "ML: gradient descent optimization", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, 60)
+
+#0.3s
+fade-in header2 [400ms, ease: ease-out]
+
+#0.8s
+fade-in app1 [400ms, ease: ease-out]
+
+#1.2s
+fade-in app2 [400ms, ease: ease-out]
+
+#1.6s
+fade-in app3 [400ms, ease: ease-out]
+
+#2.8s
+fade-out header2 [300ms]
+fade-out app1 [300ms]
+fade-out app2 [300ms, delay: 100ms]
+fade-out app3 [300ms, delay: 200ms]
+
+play Outro [fade, 300ms]
+
+# Outro
+config { colorscheme: "editorial-dark" }
+
+#0s
+closing: Text, text: "Thanks for Watching!", font_size: 42, anchor: scene.center, at: scene.center
+cta: Text, text: "Build your own animated explainers with Animatix", font_size: 20, anchor: scene.center, at: scene.center, offset: (0, 55)
+
+#0.3s
+fade-in closing [500ms, ease: ease-out]
+
+#0.8s
+fade-in cta [400ms, ease: ease-out]
+
+#2.0s
+fade-out closing [300ms]
+fade-out cta [300ms, delay: 100ms]

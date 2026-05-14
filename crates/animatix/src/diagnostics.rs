@@ -61,6 +61,10 @@ pub enum DiagnosticCode {
     EmptyAutoColorPool,
     ModuleExportEvalError,
     ModifierCompilationError,
+    // Multi-scene composition
+    DuplicateSceneName,
+    PlayTargetNotFound,
+    PlayCycleDetected,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -97,6 +101,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::EmptyAutoColorPool => write!(f, "empty-auto-color-pool"),
             DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
             DiagnosticCode::ModifierCompilationError => write!(f, "modifier-compilation-error"),
+            DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
+            DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
+            DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
         }
     }
 }

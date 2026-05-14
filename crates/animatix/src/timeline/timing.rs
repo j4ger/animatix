@@ -28,6 +28,8 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::ComponentAction { .. } => "component action",
         Stmt::Config { .. } => "config block",
         Stmt::Comment(..) => "comment",
+        Stmt::Scene { .. } => "scene declaration",
+        Stmt::Play { .. } => "play statement",
     }
 }
 

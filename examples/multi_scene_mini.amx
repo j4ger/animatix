@@ -1,0 +1,34 @@
+// Minimal Multi-Scene Test
+//
+// Three short scenes with explicit transitions.
+// Quickly verify the multi-scene pipeline works.
+//
+// Export: animatix video examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
+
+config { resolution: (640, 360), colorscheme: "editorial-dark" }
+
+# One
+#0s
+a: Text, text: "Scene 1", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in a [300ms]
+#1.5s
+fade-out a [200ms]
+play Two [fade, 200ms]
+
+# Two
+#0s
+b: Text, text: "Scene 2", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in b [300ms]
+#1.5s
+fade-out b [200ms]
+play Three [wipe-left, 200ms]
+
+# Three
+#0s
+c: Text, text: "Scene 3", font_size: 36, anchor: scene.center, at: scene.center
+#0.3s
+fade-in c [300ms]
+#1.5s
+fade-out c [200ms]

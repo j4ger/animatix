@@ -265,6 +265,21 @@ pub(super) fn rewrite_stmt(
             span: None,
         },
         Stmt::Comment(comment, ..) => Stmt::Comment(comment.clone(), None),
+        // Multi-scene composition statements: pass through unchanged
+        Stmt::Scene { name, config, body, span } => Stmt::Scene {
+            name: name.clone(),
+            config: rewrite_properties(config, prefix, root_label, known_labels, bindings),
+            body: body
+                .iter()
+                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                .collect(),
+            span: *span,
+        },
+        Stmt::Play { scene_name, transition, span } => Stmt::Play {
+            scene_name: scene_name.clone(),
+            transition: transition.clone(),
+            span: *span,
+        },
     }
 }
 

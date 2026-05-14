@@ -1,7 +1,30 @@
 # Multi-Scene Composition System — Final Design & Implementation Plan
 
-> Status: Final Design Document  
-> Last updated: 2026-05-14
+> Status: **Partially Implemented** (Phases 1–3 shipped)  
+> Last updated: 2026-05-15
+
+---
+
+## Implementation Status
+
+| Phase | Status | Date | Notes |
+|-------|--------|------|-------|
+| 1 — Core Parser & AST | ✅ Shipped | 2026-05-15 | `ast.rs` variants, `parser.rs` scene/play parsing, `to_source.rs` serialization, `group_scenes()` post-processing |
+| 2 — Composition Engine | ✅ Shipped | 2026-05-15 | `composition.rs` module, `Composition::build()`, time mapping, edge cycle detection, `BuildTarget` routing |
+| 3 — CLI Export | ✅ Shipped | 2026-05-15 | `render_video_composition`, `render_gif_composition`, `render_image_composition`; CLI auto-routing via `BuildTarget` |
+| 4 — GUI Scene List | ⬜ Pending | — | Scene list panel, active scene selection, DocumentSession changes |
+| 5 — GUI Composition Timeline | ⬜ Pending | — | Scene blocks on scrubber, boundary interactions, transition editing |
+| 6 — GUI Source Write-Back | ⬜ Pending | — | `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `RenameScene` edits |
+| 7 — Transitions | ⬜ Pending | — | Dual offscreen render, texture blending, export/GUI transition compositing |
+| 8 — Cross-File Scenes | ⬜ Pending | — | Qualified scene names, import scene references |
+
+### Shipped Example Files
+
+| File | Scenes | Description |
+|---|---|---|
+| `examples/multi_scene_mini.amx` | 3 | Quick test: `One → Two → Three` with fade/wipe |
+| `examples/multi_scene_demo.amx` | 3 | Feature showcase: `Intro → Diagram → Outro` |
+| `examples/multi_scene_educational.amx` | 4 | Concept explainer: `Intro → Concept → Applications → Outro` |
 
 ---
 

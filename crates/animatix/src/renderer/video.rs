@@ -1,5 +1,6 @@
 use super::offscreen::{OffscreenRenderer, RenderedFrame};
 use crate::ast::Stmt;
+use crate::composition::Composition;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
@@ -384,6 +385,133 @@ where
 
     // Threads should have finished because we drained every receiver, but join
     // to be safe and to propagate any panics.
+    for handle in handles {
+        handle.join().map_err(|_| ExportError::ThreadPanicked)??;
+    }
+
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Multi-Scene Composition Streaming Renderer
+// ----------------------------------------------------------------------------
+
+/// Like `render_frames_streaming` but evaluates a `Composition` instead of a
+/// single `Timeline`. At each global time step, resolves the active scene and
+/// its local time, then renders that scene's timeline.
+///
+/// In Phase 1 (hard cuts only), a single scene is rendered per frame. Transition
+/// blending (two-scene composite) will be added in Phase 7.
+fn render_frames_streaming_composition<F>(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    total_frames: u32,
+    num_threads: usize,
+    debug_options: DebugRenderOptions,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+    mut process_frame: F,
+) -> Result<(), ExportError>
+where
+    F: FnMut(usize, RenderedFrame) -> Result<(), ExportError>,
+{
+    if total_frames == 0 {
+        return Ok(());
+    }
+    if !composition.has_scenes() {
+        return Err(ExportError::FrameRender {
+            frame: 0,
+            message: "Composition has no scenes to render".into(),
+        });
+    }
+
+    let num_threads = num_threads.max(1);
+    let chunk_size = ((total_frames as usize + num_threads - 1) / num_threads).max(1);
+    let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
+
+    println!(
+        "Rendering {} scene(s) over {} frames using {} thread(s) ({} frame(s) per chunk)...",
+        composition.scenes.len(),
+        total_frames,
+        num_chunks,
+        chunk_size
+    );
+
+    // Create one renderer per chunk on the main thread.
+    let mut renderers = Vec::with_capacity(num_chunks);
+    for _ in 0..num_chunks {
+        renderers.push(OffscreenRenderer::new().map_err(ExportError::RendererCreation)?);
+    }
+
+    const CHANNEL_CAPACITY: usize = 2;
+    let mut senders = Vec::with_capacity(num_chunks);
+    let mut receivers = Vec::with_capacity(num_chunks);
+    for _ in 0..num_chunks {
+        let (tx, rx) = std::sync::mpsc::sync_channel(CHANNEL_CAPACITY);
+        senders.push(tx);
+        receivers.push(rx);
+    }
+
+    let mut handles = Vec::with_capacity(num_chunks);
+    for (chunk_idx, (renderer, sender)) in
+        renderers.into_iter().zip(senders.into_iter()).enumerate()
+    {
+        let start = chunk_idx * chunk_size;
+        let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
+        let composition = composition.clone();
+
+        handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
+            let mut renderer = renderer;
+            let dims = SceneDimensions { width, height };
+            for frame in start..end {
+                let global_time = (frame as f64) / (fps as f64);
+                let (scene_name, local_time_s, _transition) =
+                    composition.evaluate(global_time);
+
+                // Phase 1: hard cuts — render single active scene
+                // Phase 7: transition blending will composite two scenes here
+                let scene_timeline = composition
+                    .scenes
+                    .get(&scene_name)
+                    .ok_or_else(|| ExportError::FrameRender {
+                        frame,
+                        message: format!("Scene '{}' not found in composition", scene_name),
+                    })?;
+
+                let rendered = renderer
+                    .render_timeline_with_debug(
+                        &scene_timeline.timeline,
+                        local_time_s,
+                        dims,
+                        debug_options,
+                    )
+                    .map_err(|e| ExportError::FrameRender { frame, message: e })?;
+                sender
+                    .send(rendered)
+                    .map_err(|_| ExportError::ThreadPanicked)?;
+            }
+            Ok(())
+        }));
+    }
+
+    // Consume chunks in strict sequential order.
+    for (chunk_idx, receiver) in receivers.into_iter().enumerate() {
+        let start = chunk_idx * chunk_size;
+        let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
+        for frame in start..end {
+            if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+                return Err(ExportError::Cancelled);
+            }
+            let rendered = receiver.recv().map_err(|_| ExportError::ThreadPanicked)?;
+            process_frame(frame, rendered)?;
+            if let Some(p) = progress {
+                p.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
     for handle in handles {
         handle.join().map_err(|_| ExportError::ThreadPanicked)??;
     }
@@ -909,5 +1037,479 @@ async fn render_gif_async(
     )?;
 
     println!("\nGIF render complete!");
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Multi-Scene Composition Export — Public API
+// ----------------------------------------------------------------------------
+
+/// Render a multi-scene composition to a video file.
+pub fn render_video_composition(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+) -> Result<(), ExportError> {
+    render_video_composition_with_settings(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        DebugRenderOptions::default(),
+        ExportSettings::default(),
+    )
+}
+
+/// Render a multi-scene composition to a video file with full settings.
+pub fn render_video_composition_with_settings(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_video_composition_async(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        None,
+        None,
+    ))
+}
+
+/// Render a multi-scene composition to a video file with progress/cancel support.
+pub fn render_video_composition_with_progress(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_video_composition_async(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        progress,
+        cancel,
+    ))
+}
+
+async fn render_video_composition_async(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    let total_frames = (duration * fps as f32).ceil() as u32;
+
+    println!("\nEncoding {} frames to video...", total_frames);
+
+    let filename = CString::new(
+        output_file
+            .to_str()
+            .ok_or_else(|| ExportError::VideoEncode("Invalid output path".into()))?,
+    )?;
+    let mut format_context = AVFormatContextOutput::create(&filename)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    let (encoder, is_hw_encoder) = select_video_encoder(&settings)?;
+    let mut encode_context = AVCodecContext::new(&encoder);
+
+    encode_context.set_width(width as i32);
+    encode_context.set_height(height as i32);
+    encode_context.set_time_base(AVRational {
+        num: 1,
+        den: fps as i32,
+    });
+    encode_context.set_framerate(AVRational {
+        num: fps as i32,
+        den: 1,
+    });
+    encode_context.set_pix_fmt(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
+
+    if format_context.oformat().flags & rsmpeg::ffi::AVFMT_GLOBALHEADER as i32 != 0 {
+        encode_context.set_flags(
+            encode_context.flags | rsmpeg::ffi::AV_CODEC_FLAG_GLOBAL_HEADER as i32,
+        );
+    }
+
+    let dict = if !is_hw_encoder {
+        Some(AVDictionary::new(
+            &CString::new("preset")?,
+            &CString::new(settings.h264_preset.as_str())?,
+            0,
+        ))
+    } else {
+        None
+    };
+
+    encode_context
+        .open(dict)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    let stream_index;
+    {
+        let mut stream = format_context.new_stream();
+        stream.set_time_base(encode_context.time_base);
+        stream.set_codecpar(encode_context.extract_codecpar());
+        stream_index = stream.index;
+    }
+
+    format_context
+        .write_header(&mut None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    let stream_time_base = format_context.streams()[stream_index as usize].time_base;
+
+    let mut sws_context = SwsContext::get_context(
+        width as i32,
+        height as i32,
+        rsmpeg::ffi::AV_PIX_FMT_RGBA,
+        width as i32,
+        height as i32,
+        rsmpeg::ffi::AV_PIX_FMT_YUV420P,
+        rsmpeg::ffi::SWS_FAST_BILINEAR,
+        None,
+        None,
+        None,
+    )
+    .ok_or_else(|| ExportError::VideoEncode("Failed to create SWS context".into()))?;
+
+    let mut yuv_frame = AVFrame::new();
+    yuv_frame.set_format(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
+    yuv_frame.set_width(width as i32);
+    yuv_frame.set_height(height as i32);
+    yuv_frame
+        .alloc_buffer()
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    let num_threads =
+        adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
+    println!("Using {num_threads} render thread(s) (adaptive).");
+
+    render_frames_streaming_composition(
+        composition,
+        width,
+        height,
+        fps,
+        total_frames,
+        num_threads,
+        debug_options,
+        progress,
+        cancel,
+        |frame, scene_frame| {
+            let mut rgba_frame = AVFrame::new();
+            let data_ptr = scene_frame.rgba.as_ptr() as *mut u8;
+
+            unsafe {
+                rgba_frame
+                    .fill_arrays(
+                        data_ptr,
+                        rsmpeg::ffi::AV_PIX_FMT_RGBA,
+                        width as i32,
+                        height as i32,
+                    )
+                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+            }
+
+            sws_context
+                .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
+                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+            yuv_frame.set_pts(frame as i64);
+
+            encode_context
+                .send_frame(Some(&yuv_frame))
+                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+            loop {
+                match encode_context.receive_packet() {
+                    Ok(mut packet) => {
+                        packet.rescale_ts(encode_context.time_base, stream_time_base);
+                        packet.set_stream_index(stream_index);
+                        format_context
+                            .interleaved_write_frame(&mut packet)
+                            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+                    }
+                    Err(RsmpegError::EncoderDrainError)
+                    | Err(RsmpegError::EncoderFlushedError) => {
+                        break;
+                    }
+                    Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+                }
+            }
+
+            use std::io::Write;
+            print!("\rEncoding frame {}/{}", frame + 1, total_frames);
+            std::io::stdout().flush()?;
+            Ok(())
+        },
+    )?;
+
+    encode_context
+        .send_frame(None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    loop {
+        match encode_context.receive_packet() {
+            Ok(mut packet) => {
+                packet.rescale_ts(encode_context.time_base, stream_time_base);
+                packet.set_stream_index(stream_index);
+                format_context
+                    .interleaved_write_frame(&mut packet)
+                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+            }
+            Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
+            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+        }
+    }
+    format_context
+        .write_trailer()
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    println!("\nRender complete!");
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Multi-Scene Composition GIF Export
+// ----------------------------------------------------------------------------
+
+/// Render a multi-scene composition to an animated GIF file.
+pub fn render_gif_composition(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+) -> Result<(), ExportError> {
+    render_gif_composition_with_settings(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        DebugRenderOptions::default(),
+        ExportSettings::default(),
+    )
+}
+
+/// Render a multi-scene composition to GIF with full settings.
+pub fn render_gif_composition_with_settings(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_gif_composition_async(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        None,
+        None,
+    ))
+}
+
+/// Render a multi-scene composition to GIF with progress/cancel support.
+pub fn render_gif_composition_with_progress(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_gif_composition_async(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        progress,
+        cancel,
+    ))
+}
+
+async fn render_gif_composition_async(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    use image::codecs::gif::{GifEncoder, Repeat};
+
+    let total_frames = (duration * fps as f32).ceil() as u32;
+    let frame_duration_ms = (1000 / fps) as u16;
+
+    println!("\nEncoding {} frames to GIF...", total_frames);
+
+    let output = std::fs::File::create(output_file)?;
+    let mut encoder = GifEncoder::new(output);
+    encoder
+        .set_repeat(Repeat::Infinite)
+        .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
+
+    let num_threads = adaptive_thread_count(width, height, total_frames, true, false, &settings);
+    println!("Using {num_threads} render thread(s) (adaptive).");
+
+    render_frames_streaming_composition(
+        composition,
+        width,
+        height,
+        fps,
+        total_frames,
+        num_threads,
+        debug_options,
+        progress,
+        cancel,
+        |frame, scene_frame| {
+            let img = image::RgbaImage::from_raw(
+                scene_frame.width,
+                scene_frame.height,
+                scene_frame.rgba,
+            )
+            .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
+
+            encoder
+                .encode_frame(image::Frame::from_parts(
+                    img,
+                    0,
+                    0,
+                    image::Delay::from_saturating_duration(std::time::Duration::from_millis(
+                        frame_duration_ms as u64,
+                    )),
+                ))
+                .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
+
+            use std::io::Write;
+            print!("\rEncoding GIF frame {}/{}", frame + 1, total_frames);
+            std::io::stdout().flush()?;
+            Ok(())
+        },
+    )?;
+
+    println!("\nGIF render complete!");
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Multi-Scene Composition Image (single frame) Export
+// ----------------------------------------------------------------------------
+
+/// Render a single frame from a multi-scene composition to a PNG image.
+pub fn render_image_composition(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    time: f32,
+    output_file: &std::path::Path,
+) -> Result<(), ExportError> {
+    pollster::block_on(render_image_composition_async(
+        composition,
+        width,
+        height,
+        time,
+        output_file,
+        DebugRenderOptions::default(),
+        None,
+        None,
+    ))
+}
+
+async fn render_image_composition_async(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    time: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    _progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+        return Err(ExportError::Cancelled);
+    }
+
+    if !composition.has_scenes() {
+        return Err(ExportError::FrameRender {
+            frame: 0,
+            message: "Composition has no scenes to render".into(),
+        });
+    }
+
+    let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
+    let (scene_name, local_time_s, _transition) = composition.evaluate(time as f64);
+
+    let scene = composition
+        .scenes
+        .get(&scene_name)
+        .ok_or_else(|| ExportError::FrameRender {
+            frame: 0,
+            message: format!("Scene '{}' not found in composition", scene_name),
+        })?;
+
+    let frame = renderer
+        .render_timeline_with_debug(
+            &scene.timeline,
+            local_time_s,
+            SceneDimensions { width, height },
+            debug_options,
+        )
+        .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?;
+
+    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
+        .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
+    img.save(output_file)
+        .map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     Ok(())
 }

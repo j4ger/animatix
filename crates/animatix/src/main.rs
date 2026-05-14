@@ -1,7 +1,8 @@
+use animatix::composition::BuildTarget;
 use animatix::diagnostics::format_diagnostic;
 use animatix::module::ModuleGraph;
 use animatix::renderer;
-use animatix::timeline::{DebugRenderOptions, Timeline};
+use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand};
 use std::path::PathBuf;
 
@@ -158,9 +159,10 @@ enum Commands {
 // Shared helpers
 // ----------------------------------------------------------------------------
 
-/// Loads an Animatix program from disk, expands components, and builds a Timeline.
+/// Loads an Animatix program from disk, expands components, and builds the
+/// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
-fn load_and_build(input: &PathBuf) -> (Timeline, Vec<animatix::diagnostics::Diagnostic>) {
+fn load_and_build(input: &PathBuf) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
     let (ast, namespaces) = match ModuleGraph::new().load_program(input) {
         Ok(program) => (program.expand_components(), program.namespaces),
         Err(e) => {
@@ -169,17 +171,15 @@ fn load_and_build(input: &PathBuf) -> (Timeline, Vec<animatix::diagnostics::Diag
         }
     };
 
-    let report = Timeline::build_with_diagnostics(&ast, &namespaces);
+    let report = BuildTarget::from_ast(&ast, &namespaces);
     print_build_diagnostics(&report.diagnostics);
     (report.output, report.diagnostics)
 }
 
-/// Resolves export duration.
-/// - If `duration` is `Some`, uses that value directly.
-/// - Otherwise, computes `timeline.duration_seconds() + hold`, floored at `min_duration`.
-fn resolve_duration(duration: Option<f32>, timeline: &Timeline, hold: f32, min_duration: f32) -> f32 {
+/// Resolves export duration for a `BuildTarget` (single or multi-scene).
+fn resolve_duration(duration: Option<f32>, target: &BuildTarget, hold: f32, min_duration: f32) -> f32 {
     duration.unwrap_or_else(|| {
-        let d = timeline.duration_seconds() as f32 + hold.max(0.0);
+        let d = target.duration_s() as f32 + hold.max(0.0);
         d.max(min_duration)
     })
 }
@@ -212,28 +212,46 @@ fn main() {
             threads,
         } => {
             println!("Rendering Animatix GIF: {}", input.display());
-            let (timeline, _) = load_and_build(&input);
-            let effective_duration = resolve_duration(duration, &timeline, hold, 0.5);
+            let (target, _) = load_and_build(&input);
+            let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("gif"));
             println!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            if let Err(e) = renderer::render_gif_timeline_with_settings(
-                timeline,
-                width,
-                height,
-                fps,
-                effective_duration,
-                &output_file,
-                DebugRenderOptions {
-                    draw_bounds: debug_bounds,
-                },
-                renderer::ExportSettings {
-                    max_render_threads: threads,
-                    ..Default::default()
-                },
-            ) {
+            let result = match &target {
+                BuildTarget::MultiScene(comp) => renderer::render_gif_composition_with_settings(
+                    comp,
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        draw_bounds: debug_bounds,
+                    },
+                    renderer::ExportSettings {
+                        max_render_threads: threads,
+                        ..Default::default()
+                    },
+                ),
+                BuildTarget::SingleScene(timeline) => renderer::render_gif_timeline_with_settings(
+                    timeline.clone(),
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        draw_bounds: debug_bounds,
+                    },
+                    renderer::ExportSettings {
+                        max_render_threads: threads,
+                        ..Default::default()
+                    },
+                ),
+            };
+            if let Err(e) = result {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
             }
@@ -253,29 +271,50 @@ fn main() {
             preset,
         } => {
             println!("Rendering Animatix video: {}", input.display());
-            let (timeline, _) = load_and_build(&input);
-            let effective_duration = resolve_duration(duration, &timeline, hold, 0.5);
+            let (target, _) = load_and_build(&input);
+            let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
             println!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
-            if let Err(e) = renderer::render_video_timeline_with_settings(
-                timeline,
-                width,
-                height,
-                fps,
-                effective_duration,
-                &output_file,
-                DebugRenderOptions {
-                    draw_bounds: debug_bounds,
-                },
-                renderer::ExportSettings {
-                    max_render_threads: threads,
-                    video_codec: codec,
-                    h264_preset: preset,
-                },
-            ) {
+            let result = match &target {
+                BuildTarget::MultiScene(comp) => renderer::render_video_composition_with_settings(
+                    comp,
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        draw_bounds: debug_bounds,
+                    },
+                    renderer::ExportSettings {
+                        max_render_threads: threads,
+                        video_codec: codec,
+                        h264_preset: preset,
+                    },
+                ),
+                BuildTarget::SingleScene(timeline) => {
+                    renderer::render_video_timeline_with_settings(
+                        timeline.clone(),
+                        width,
+                        height,
+                        fps,
+                        effective_duration,
+                        &output_file,
+                        DebugRenderOptions {
+                            draw_bounds: debug_bounds,
+                        },
+                        renderer::ExportSettings {
+                            max_render_threads: threads,
+                            video_codec: codec,
+                            h264_preset: preset,
+                        },
+                    )
+                }
+            };
+            if let Err(e) = result {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
             }
@@ -310,14 +349,39 @@ fn main() {
             debug_bounds,
         } => {
             println!("Rendering Animatix file: {}", input.display());
-            let (timeline, _) = load_and_build(&input);
-            renderer::run_timeline_with_options(
-                timeline,
-                r#loop,
-                DebugRenderOptions {
-                    draw_bounds: debug_bounds,
-                },
-            );
+            let (target, _) = load_and_build(&input);
+            match target {
+                BuildTarget::MultiScene(comp) => {
+                    // Live preview shows the first scene for multi-scene compositions.
+                    // The full composition timeline is available in the GUI.
+                    if let Some(first_scene) = comp.scenes.values().next() {
+                        println!(
+                            "Multi-scene composition ({} scenes). Previewing first scene: '{}'.",
+                            comp.scenes.len(),
+                            first_scene.name
+                        );
+                        renderer::run_timeline_with_options(
+                            first_scene.timeline.clone(),
+                            r#loop,
+                            DebugRenderOptions {
+                                draw_bounds: debug_bounds,
+                            },
+                        );
+                    } else {
+                        eprintln!("Error: Composition has no scenes.");
+                        std::process::exit(1);
+                    }
+                }
+                BuildTarget::SingleScene(timeline) => {
+                    renderer::run_timeline_with_options(
+                        timeline,
+                        r#loop,
+                        DebugRenderOptions {
+                            draw_bounds: debug_bounds,
+                        },
+                    );
+                }
+            }
         }
 
         Commands::Image {
@@ -335,17 +399,27 @@ fn main() {
                 "Output image: {}x{} at {}s -> {}",
                 width, height, time, output_file.display()
             );
-            let (timeline, _) = load_and_build(&input);
-            if let Err(e) = renderer::render_image_timeline_with_debug(
-                timeline,
-                width,
-                height,
-                time,
-                &output_file,
-                DebugRenderOptions {
-                    draw_bounds: debug_bounds,
-                },
-            ) {
+            let (target, _) = load_and_build(&input);
+            let result = match &target {
+                BuildTarget::MultiScene(comp) => renderer::render_image_composition(
+                    comp,
+                    width,
+                    height,
+                    time,
+                    &output_file,
+                ),
+                BuildTarget::SingleScene(timeline) => renderer::render_image_timeline_with_debug(
+                    timeline.clone(),
+                    width,
+                    height,
+                    time,
+                    &output_file,
+                    DebugRenderOptions {
+                        draw_bounds: debug_bounds,
+                    },
+                ),
+            };
+            if let Err(e) = result {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
             }
@@ -369,12 +443,13 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let report = Timeline::build_with_diagnostics(&ast, &namespaces);
+            let report = BuildTarget::from_ast(&ast, &namespaces);
+            let diagnostics = report.diagnostics;
 
-            if report.diagnostics.is_empty() {
+            if diagnostics.is_empty() {
                 println!("{}: OK (no diagnostics)", file);
             } else {
-                for diag in &report.diagnostics {
+                for diag in &diagnostics {
                     let prefix = match diag.phase {
                         animatix::diagnostics::DiagnosticPhase::Parse => "[parse]",
                         animatix::diagnostics::DiagnosticPhase::Build => "[build]",
@@ -386,7 +461,7 @@ fn main() {
                         println!("  subject: {subject}");
                     }
                 }
-                if report.diagnostics.iter().any(|d| d.is_error()) {
+                if diagnostics.iter().any(|d| d.is_error()) {
                     std::process::exit(1);
                 }
             }

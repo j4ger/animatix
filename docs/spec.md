@@ -35,6 +35,12 @@
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
 | Colorscheme | `Colorscheme "name" { ... }` | Yes | Runtime-real | Yes | Yes | Native AMX primitive with `extends` |
 | Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
+| Multi-Scene | `# SceneName` scene declarations | Yes | Runtime-real | Yes | Yes | Top-level scene markers; `group_scenes()` post-processing |
+| Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
+| Multi-Scene | `Composition::build()` / `BuildTarget` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
+| Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
+| Multi-Scene | GUI scene list / composition timeline | — | Pending | No | Planned | Phase 4–6 of implementation plan |
+| Multi-Scene | Transition blending (dual render) | — | Pending | No | Planned | Phase 7; hard cuts only in Phase 1
 
 **Key:** Parser=Yes (syntax accepted), Runtime-real (end-to-end execution), Tests=Yes (automated evidence exists).
 
@@ -52,7 +58,8 @@
 |--------|-----|---------|
 | `let` | Variable/actor declaration | `let x = 0` |
 | `:` | Actor binding + scene placement | `btn: Button, text: "OK"` |
-| `#` | Keyframe (absolute `#0s` or relative `#+1s`) | `#2.5s`, `#+1s` |
+| `#` | Keyframe (absolute `#0s` or relative `#+1s`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `# Intro` |
+| `play` | Scene transition statement | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
 | `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
 | `[ ]` | Statement modifiers (duration, delay, ease) | `[2s, ease: bounce]` |
@@ -684,3 +691,99 @@ animatix gif examples/swap_demo.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
+
+### Multi-Scene Composition
+
+Multi-scene compositions support the same export flags. Duration is auto-detected from the composition's global timeline (`Composition::global_duration_s`) rather than a single timeline.
+
+```bash
+# Export a multi-scene composition
+animatix video examples/multi_scene_demo.amx --width 1280 --height 720
+
+# GIF export with quick preview settings
+animatix gif examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
+```
+
+---
+
+## 17. Multi-Scene Composition
+
+> **Status:** Phases 1–3 shipped (parser, composition engine, CLI export). Phases 4–8 pending (GUI, transitions, cross-file scenes).  
+> **Design doc:** [`docs/multi-scene-composition-design.md`](multi-scene-composition-design.md)
+
+### Scene Declarations
+
+Scenes are declared using `# SceneName` at the top level:
+
+```animatix
+# Intro
+#0s
+title: Text, text: "Welcome"
+#1s
+fade-in title [500ms]
+```
+
+### Transitions
+
+The `play` statement defines the successor scene and transition:
+
+```animatix
+# Intro
+#0s
+title: Text, text: "Welcome"
+#1s
+fade-in title [500ms]
+
+play Diagram [fade, 300ms]
+
+# Diagram
+#0s
+graph: Rect, size: (400, 400)
+```
+
+**Supported transitions (hard cuts in Phase 1):** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`. Transition blending (dual offscreen render) is deferred to Phase 7.
+
+### Per-Scene Configuration
+
+A scene may contain its own `config` block after the scene declaration:
+
+```animatix
+# Intro
+config { colorscheme: "editorial-dark" }
+#0s
+title: Text, text: "Welcome"
+```
+
+### Shared Prelude
+
+Top-level statements before the first scene (imports, `pub let`, file-level `config`) are shared across all scenes:
+
+```animatix
+import "./theme.amx" as theme
+pub let accent = theme.accent
+
+config { resolution: (1280, 720) }
+
+# Intro
+#0s
+title: Text, text: "Welcome", color: accent
+
+# Diagram
+#0s
+graph: Rect, size: (400, 400)
+```
+
+### Backward Compatibility
+
+Files without `# SceneName` declarations are single-scene files — all existing syntax, semantics, and behavior are preserved exactly. The parser produces the same AST as before; the timeline builder follows the existing single-timeline path.
+
+### CLI Export
+
+Multi-scene compositions are automatically detected and routed via `BuildTarget`. All export commands (`video`, `gif`, `image`) work identically for both single-scene and multi-scene files.
+
+### Current Limitations
+
+- **Hard cuts only** — transition blending (Phase 7) is not yet implemented; scene changes are instantaneous cuts.
+- **Live preview** (`animatix render`) shows only the first scene for multi-scene files.
+- **GUI** does not yet show the scene list panel or composition timeline (Phases 4–6).
+- **Tree-sitter grammar** has not been updated for `# SceneName` or `play` syntax.
