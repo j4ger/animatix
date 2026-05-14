@@ -324,21 +324,21 @@ impl WorkspaceViewer<'_> {
     fn layers_content_ui(&mut self, ui: &mut egui::Ui) {
         let Some(timeline) = self.timeline else {
             ui.vertical_centered(|ui| {
-                ui.add_space(36.0);
+                ui.add_space(SPACE_XL * 3.0);
                 ui.add(
                     egui::Label::new(
                         RichText::new(egui_phosphor::regular::FILM_STRIP)
-                            .size(28.0)
-                            .color(Color32::from_rgb(90, 96, 110)),
+                            .size(ROW_L)
+                            .color(TEXT_MUTED),
                     )
                     .selectable(false),
                 );
-                ui.add_space(10.0);
+                ui.add_space(SPACE_M);
                 ui.add(
                     egui::Label::new(
                         RichText::new("No timeline loaded")
-                            .size(12.0)
-                            .color(Color32::from_rgb(150, 158, 175)),
+                            .size(FONT_SIZE_L)
+                            .color(TEXT_SECONDARY),
                     )
                     .selectable(false),
                 );
@@ -349,21 +349,21 @@ impl WorkspaceViewer<'_> {
         let root_nodes = timeline.root_actor_labels();
         if root_nodes.is_empty() {
             ui.vertical_centered(|ui| {
-                ui.add_space(36.0);
+                ui.add_space(SPACE_XL * 3.0);
                 ui.add(
                     egui::Label::new(
                         RichText::new(egui_phosphor::regular::FILM_STRIP)
-                            .size(28.0)
-                            .color(Color32::from_rgb(90, 96, 110)),
+                            .size(ROW_L)
+                            .color(TEXT_MUTED),
                     )
                     .selectable(false),
                 );
-                ui.add_space(10.0);
+                ui.add_space(SPACE_M);
                 ui.add(
                     egui::Label::new(
                         RichText::new("No actors in scene")
-                            .size(12.0)
-                            .color(Color32::from_rgb(150, 158, 175)),
+                            .size(FONT_SIZE_L)
+                            .color(TEXT_SECONDARY),
                     )
                     .selectable(false),
                 );
@@ -1059,7 +1059,7 @@ impl WorkspaceViewer<'_> {
                     egui::Align2::CENTER_CENTER,
                     "Preview initializing…",
                     egui::TextStyle::Body.resolve(ui.style()),
-                    Color32::from_rgb(90, 96, 110),
+                    TEXT_MUTED,
                 );
             }
         }
@@ -1125,6 +1125,8 @@ impl WorkspaceViewer<'_> {
     }
 
     pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
+        const PLAYING_TEXT: Color32 = Color32::from_rgb(216, 249, 235);
+
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
             let header_avail = ui.available_width();
@@ -1136,30 +1138,30 @@ impl WorkspaceViewer<'_> {
                 egui::pos2(header_rect.min.x, baseline_y),
                 egui::Align2::LEFT_CENTER,
                 "Preview",
-                egui::FontId::new(12.0, egui::FontFamily::Proportional),
-                Color32::from_rgb(150, 158, 175),
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                TEXT_SECONDARY,
             );
 
             let (badge_label, badge_fill, badge_text) = if self.preview.is_playing {
-                ("Playing", Color32::from_rgb(46, 106, 80), Color32::from_rgb(216, 249, 235))
+                ("Playing", GREEN, PLAYING_TEXT)
             } else {
-                ("Paused", Color32::from_rgb(40, 44, 52), Color32::from_rgb(150, 158, 175))
+                ("Paused", BORDER, TEXT_SECONDARY)
             };
             let badge_w = badge_label.len() as f32 * 7.0 + 16.0;
             let badge_rect = egui::Rect::from_min_size(
                 egui::pos2(header_rect.max.x - badge_w, header_rect.min.y + 2.0),
                 Vec2::new(badge_w, header_h - 4.0),
             );
-            ui.painter().rect_filled(badge_rect, 6.0, badge_fill);
+            ui.painter().rect_filled(badge_rect, RADIUS_L, badge_fill);
             ui.painter().text(
                 badge_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 badge_label,
-                egui::FontId::new(11.0, egui::FontFamily::Proportional),
+                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
                 badge_text,
             );
 
-            ui.add_space(4.0);
+            ui.add_space(SPACE_S);
 
             let available = ui.available_size_before_wrap();
             let desired = fit_preview(
@@ -1169,11 +1171,11 @@ impl WorkspaceViewer<'_> {
             let (preview_rect, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
             ui.painter().rect_stroke(
                 preview_rect,
-                6.0,
-                Stroke::new(1.0, Color32::from_rgb(40, 44, 52)),
+                RADIUS_L,
+                Stroke::new(1.0, BORDER),
                 egui::StrokeKind::Outside,
             );
-            ui.painter().rect_filled(preview_rect, 6.0, Color32::from_rgb(12, 14, 18));
+            ui.painter().rect_filled(preview_rect, RADIUS_L, BG_BASE);
 
             let is_dragging = !matches!(self.drag_state, DragState::None);
             if self.handle_preview_drag(ui, preview_rect, &response) {

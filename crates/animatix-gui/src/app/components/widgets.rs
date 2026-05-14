@@ -168,7 +168,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
             let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
             ui.painter().rect_filled(pill, RADIUS_M, BG_SURFACE);
         } else if response.hovered() {
-            let hover_bg = Color32::from_rgb(36, 40, 50);
+            let hover_bg = BG_WIDGET;
             let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
             ui.painter().rect_filled(pill, RADIUS_M, hover_bg);
         }

@@ -40,16 +40,16 @@ impl GuiShell {
         );
 
         // Dialog background
-        ui.painter().rect_filled(dialog_rect, 8.0, BG_BASE);
+        ui.painter().rect_filled(dialog_rect, RADIUS_XL, BG_BASE);
         ui.painter().rect_stroke(
             dialog_rect,
-            8.0,
+            RADIUS_XL,
             Stroke::new(1.0, BORDER),
             egui::StrokeKind::Inside,
         );
 
         // Content area with margin
-        let content_rect = dialog_rect.shrink(24.0);
+        let content_rect = dialog_rect.shrink(SPACE_XL * 2.0);
         let mut cursor_y = content_rect.top();
 
         // Title row
@@ -62,7 +62,7 @@ impl GuiShell {
         );
 
         // Close button (X)
-        let close_size = Vec2::new(28.0, 28.0);
+        let close_size = Vec2::new(ROW_L, ROW_L);
         let close_rect =
             egui::Rect::from_min_size(egui::pos2(content_rect.right() - close_size.x, cursor_y), close_size);
         let close_resp = ui.interact(close_rect, ui.id().with("settings_close"), egui::Sense::click());
@@ -82,7 +82,7 @@ impl GuiShell {
             self.settings_open = false;
         }
 
-        cursor_y += 44.0;
+        cursor_y += ROW_L + SPACE_L;
 
         // Divider
         ui.painter().line_segment(
@@ -92,7 +92,7 @@ impl GuiShell {
             ],
             Stroke::new(1.0, BORDER),
         );
-        cursor_y += 20.0;
+        cursor_y += SPACE_L;
 
         // ── Keyframe merge window setting ──
         let label = "Keyframe merge window";
@@ -108,7 +108,7 @@ impl GuiShell {
             galley,
             TEXT_SECONDARY,
         );
-        cursor_y += 22.0;
+        cursor_y += ROW_S + SPACE_XS;
 
         let mut value_ms = (self.keyframe_merge_window_s * 1000.0) as f32;
         let value_rect = egui::Rect::from_min_size(
@@ -127,7 +127,7 @@ impl GuiShell {
             });
         });
         self.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
-        cursor_y += 36.0;
+        cursor_y += ROW_M + SPACE_M;
 
         // Description
         let desc = "Edits within this window of the previous keyframe are merged\ninstead of creating a new timestamp.";
@@ -143,13 +143,12 @@ impl GuiShell {
             desc_galley,
             TEXT_MUTED,
         );
-        cursor_y += 50.0;
-        cursor_y += 50.0;
+        cursor_y += SPACE_XL * 2.0 + SPACE_S;
 
         // ── Debug bounds toggle ──
         let toggle_rect = egui::Rect::from_min_size(
             egui::pos2(content_rect.left(), cursor_y),
-            Vec2::new(content_rect.width(), 28.0),
+            Vec2::new(content_rect.width(), ROW_M),
         );
         ui.scope_builder(egui::UiBuilder::new().max_rect(toggle_rect), |ui| {
             ui.horizontal(|ui| {
@@ -164,7 +163,7 @@ impl GuiShell {
             });
         });
 
-        cursor_y += 32.0;
+        cursor_y += ROW_M + SPACE_M;
 
         let desc2 = "Shows per-actor content bounding boxes on the preview canvas\nand in exported output.";
         let desc2_font = egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional);

@@ -60,29 +60,29 @@ pub(super) fn inspector_ui(
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(36.0);
+            ui.add_space(SPACE_XL * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(28.0)
-                        .color(Color32::from_rgb(90, 96, 110)),
+                        .size(ROW_L)
+                        .color(TEXT_MUTED),
                 )
                 .selectable(false),
             );
-            ui.add_space(10.0);
+            ui.add_space(SPACE_M);
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
-                        .size(12.0)
-                        .color(Color32::from_rgb(150, 158, 175)),
+                        .size(FONT_SIZE_L)
+                        .color(TEXT_SECONDARY),
                 )
                 .selectable(false),
             );
-            ui.add_space(12.0);
+            ui.add_space(SPACE_L);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                        .size(12.0)
+                        .size(FONT_SIZE_L)
                         .color(ACCENT_BLUE),
                 )
                 .clicked()

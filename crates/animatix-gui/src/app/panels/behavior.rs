@@ -2,6 +2,7 @@ use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::{WorkspaceTab, WorkspaceViewer};
+use crate::app::theme::*;
 
 pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) viewer: WorkspaceViewer<'a>,
@@ -109,20 +110,20 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color)
             }
             egui_tiles::ResizeState::Hovering => {
-                Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
+                Stroke::new(1.0, ACCENT_BLUE)
             }
             egui_tiles::ResizeState::Dragging => {
-                Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
+                Stroke::new(1.0, ACCENT_BLUE)
             }
         }
     }
 
     fn drag_preview_stroke(&self, _visuals: &Visuals) -> Stroke {
-        Stroke::new(1.0, Color32::from_rgb(84, 110, 255))
+        Stroke::new(1.0, ACCENT_BLUE)
     }
 
     fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
-        Color32::from_rgba_unmultiplied(84, 110, 255, 20)
+        Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 20)
     }
 
     fn paint_on_top_of_tile(
@@ -135,7 +136,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         // Subtle 1px border around each tile for definition
         painter.rect_stroke(
             rect,
-            4.0,
+            RADIUS_M,
             Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color),
             egui::StrokeKind::Inside,
         );

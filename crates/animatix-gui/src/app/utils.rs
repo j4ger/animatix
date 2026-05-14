@@ -2,11 +2,15 @@
 
 use egui::{Color32, Vec2};
 
+use crate::app::theme::*;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_summary_by_phase};
+
+const DIAGNOSTIC_RED: Color32 = Color32::from_rgb(255, 136, 136);
+const DIAGNOSTIC_AMBER: Color32 = Color32::from_rgb(255, 214, 102);
 
 pub(super) fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
     let button = if primary {
-        egui::Button::new(label).fill(Color32::from_rgb(84, 110, 255))
+        egui::Button::new(label).fill(ACCENT_BLUE)
     } else {
         egui::Button::new(label)
     };
@@ -18,14 +22,14 @@ pub(super) fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_cl
 
 pub(super) fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
     let badge_w = label.len() as f32 * 7.0 + 16.0;
-    let badge_h = 20.0;
+    let badge_h = ROW_S;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(badge_w, badge_h), egui::Sense::hover());
-    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().rect_filled(rect, RADIUS_L, fill);
     ui.painter().text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         label,
-        egui::FontId::new(11.0, egui::FontFamily::Proportional),
+        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
         text,
     );
 }
@@ -35,9 +39,9 @@ pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
         .iter()
         .any(|diagnostic| diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error)
     {
-        Color32::from_rgb(255, 136, 136)
+        DIAGNOSTIC_RED
     } else {
-        Color32::from_rgb(255, 214, 102)
+        DIAGNOSTIC_AMBER
     }
 }
 

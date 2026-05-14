@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
+use crate::app::theme::*;
 use egui::{Color32, Pos2, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ pub(crate) fn draw_hover_highlight(
     hover_rect: egui::Rect,
 ) {
     // Subtle dashed outline for hover
-    let hover_color = Color32::from_rgba_unmultiplied(84, 110, 255, 80);
+    let hover_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 80);
     let dash_len = 4.0;
     let gap_len = 3.0;
     let corners = [
@@ -220,23 +221,27 @@ pub(crate) fn draw_hover_highlight(
     let galley = painter.layout_no_wrap(
         hovered_actor.to_string(),
         egui::TextStyle::Small.resolve(painter.ctx().global_style().as_ref()),
-        Color32::WHITE,
+        TEXT_PRIMARY,
     );
     let tooltip_size = galley.size();
     let tooltip_rect =
         egui::Rect::from_center_size(tooltip_pos, tooltip_size + Vec2::new(8.0, 4.0));
 
-    painter.rect_filled(tooltip_rect, 3.0, Color32::from_rgba_unmultiplied(30, 33, 40, 220));
+    painter.rect_filled(
+        tooltip_rect,
+        RADIUS_M,
+        Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220),
+    );
     painter.rect_stroke(
         tooltip_rect,
-        3.0,
-        Stroke::new(1.0, Color32::from_rgb(60, 65, 75)),
+        RADIUS_M,
+        Stroke::new(1.0, BORDER),
         egui::StrokeKind::Outside,
     );
     painter.galley(
         tooltip_rect.left_center() + Vec2::new(4.0, -tooltip_size.y / 2.0),
         galley,
-        Color32::WHITE,
+        TEXT_PRIMARY,
     );
 }
 
@@ -259,15 +264,19 @@ pub(crate) fn draw_cycle_indicator(
     let galley = painter.layout_no_wrap(
         indicator_text,
         egui::TextStyle::Small.resolve(painter.ctx().global_style().as_ref()),
-        Color32::WHITE,
+        TEXT_PRIMARY,
     );
     let size = galley.size();
     let rect = egui::Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
 
-    painter.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(84, 110, 255, 200));
+    painter.rect_filled(
+        rect,
+        RADIUS_M,
+        Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 200),
+    );
     painter.galley(
         rect.left_center() + Vec2::new(3.0, -size.y / 2.0),
         galley,
-        Color32::WHITE,
+        TEXT_PRIMARY,
     );
 }

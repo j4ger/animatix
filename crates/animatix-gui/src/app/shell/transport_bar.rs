@@ -23,7 +23,7 @@ pub(crate) fn transport_bar_ui(
     keyframe_mode: bool,
     cursor_time_s: Option<f64>,
 ) {
-    let warning_color = Color32::from_rgb(255, 214, 102);
+    let warning_color = AMBER;
 
     let frame_response = egui::Frame::new()
         .fill(BG_BASE)
@@ -42,11 +42,11 @@ pub(crate) fn transport_bar_ui(
                 };
                 let play_color = if preview.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
                 let play_btn = egui::Button::new(
-                    RichText::new(play_icon).size(16.0).color(play_color),
+                    RichText::new(play_icon).size(FONT_SIZE_XL).color(play_color),
                 )
                 .fill(BG_WIDGET)
                 .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
-                .min_size(Vec2::new(30.0, ROW_L));
+                .min_size(Vec2::new(ROW_M + SPACE_S, ROW_L));
                 if ui
                     .add(play_btn)
                     .on_hover_text("Play/Pause (Space)")
@@ -315,7 +315,7 @@ fn paint_transport_scrubber(
         track_rect.min,
         egui::pos2(playhead_x.max(track_rect.left()), track_rect.bottom()),
     );
-    let played_color = if is_playing { ACCENT_BLUE } else { Color32::from_rgb(50, 60, 100) };
+    let played_color = if is_playing { ACCENT_BLUE } else { BG_WIDGET };
     painter.rect_filled(played_rect, RADIUS_M, played_color);
 
     // Tick marks
@@ -329,7 +329,7 @@ fn paint_transport_scrubber(
                 egui::pos2(x, track_rect.top() + 3.0),
                 egui::pos2(x, track_rect.bottom() - 3.0),
             ],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 12)),
         );
     }
 
@@ -355,7 +355,7 @@ fn paint_transport_scrubber(
             let cursor_x = egui::lerp(track_rect.left()..=track_rect.right(), cursor_fraction);
             let top = track_rect.top() - 4.0;
             let y = track_rect.top() - 1.0;
-            let color = Color32::from_rgb(100, 220, 255);
+            let color = ACCENT_CYAN;
             painter.line_segment(
                 [egui::pos2(cursor_x, top), egui::pos2(cursor_x - 3.0, y)],
                 Stroke::new(1.0, color),

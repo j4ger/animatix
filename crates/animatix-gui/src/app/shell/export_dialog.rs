@@ -158,7 +158,7 @@ impl GuiShell {
                 self.export_dialog_open = false;
             }
 
-            cursor_y += 44.0;
+            cursor_y += ROW_L + SPACE_L;
 
             // Divider
             ui.painter().line_segment(
@@ -178,7 +178,7 @@ impl GuiShell {
             ];
             let tab_rect = egui::Rect::from_min_size(
                 egui::pos2(content_rect.left(), cursor_y),
-                Vec2::new(content_rect.width(), 30.0),
+                Vec2::new(content_rect.width(), ROW_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
                 if let Some(new_fmt) = pill_tab_bar(ui, self.export_state.format, &tabs) {
@@ -188,7 +188,7 @@ impl GuiShell {
                     }
                 }
             });
-            cursor_y += 38.0;
+            cursor_y += ROW_M + SPACE_M;
 
             // ── Settings content ──
             let settings_rect = egui::Rect::from_min_size(
@@ -201,10 +201,10 @@ impl GuiShell {
             });
 
             // ── Status / action bar ──
-            cursor_y = content_rect.bottom() - 44.0;
+            cursor_y = content_rect.bottom() - (ROW_L + SPACE_L);
             let action_rect = egui::Rect::from_min_size(
                 egui::pos2(content_rect.left(), cursor_y),
-                Vec2::new(content_rect.width(), 40.0),
+                Vec2::new(content_rect.width(), ROW_L + SPACE_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(action_rect), |ui| {
                 self.render_export_action_bar(ui);
@@ -320,7 +320,7 @@ impl GuiShell {
         }
 
         // Cancel button
-        let btn_size = Vec2::new(100.0, 32.0);
+        let btn_size = Vec2::new(100.0, ROW_M);
         let btn_rect = egui::Rect::from_center_size(
             egui::pos2(content_rect.center().x, content_rect.bottom() - 20.0),
             btn_size,
@@ -651,7 +651,7 @@ impl GuiShell {
                     ExportFormat::Video => "Export Video",
                     ExportFormat::Gif => "Export GIF",
                 };
-                let btn_size = Vec2::new(120.0, 32.0);
+                let btn_size = Vec2::new(120.0, ROW_M);
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
 
                 let btn_bg = if btn_resp.hovered() {

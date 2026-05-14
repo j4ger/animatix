@@ -3,6 +3,7 @@
 pub mod selection;
 
 use super::DEFAULT_PREVIEW_SIZE;
+use crate::app::theme::*;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, FontId, Pos2, Stroke, Vec2};
 
@@ -98,7 +99,7 @@ pub(super) const ROTATION_OFFSET: f32 = 20.0;
 pub(super) const ROTATION_RADIUS: f32 = 4.0;
 const HANDLE_SIZE: f32 = 6.0;
 const HANDLE_HIT_RADIUS: f32 = 10.0;
-const SELECTION_COLOR: Color32 = Color32::from_rgb(84, 110, 255);
+const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
     timeline
@@ -247,7 +248,7 @@ pub(super) fn draw_selection_overlay(
     let stroke = if is_dragging {
         Stroke::new(
             1.5,
-            Color32::from_rgba_unmultiplied(84, 110, 255, 140),
+            Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140),
         )
     } else {
         Stroke::new(1.5, SELECTION_COLOR)
@@ -284,7 +285,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_color = Color32::from_rgba_unmultiplied(255, 255, 255, 80);
+            let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
             let dash_stroke = Stroke::new(1.0, dash_color);
             for i in 0..4 {
                 let start = screen_corners[i];
@@ -316,7 +317,7 @@ pub(super) fn draw_selection_overlay(
         for pos in &handle_screen {
             let handle_rect =
                 egui::Rect::from_center_size(*pos, Vec2::new(HANDLE_SIZE, HANDLE_SIZE));
-            painter.rect_filled(handle_rect, 1.0, Color32::WHITE);
+            painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
@@ -338,7 +339,7 @@ pub(super) fn draw_selection_overlay(
             [top_center_screen, rot_screen],
             Stroke::new(1.0, SELECTION_COLOR),
         );
-        painter.circle_filled(rot_screen, ROTATION_RADIUS, Color32::WHITE);
+        painter.circle_filled(rot_screen, ROTATION_RADIUS, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_screen,
             ROTATION_RADIUS,
@@ -353,7 +354,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_color = Color32::from_rgba_unmultiplied(255, 255, 255, 80);
+            let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
             let dash_stroke = Stroke::new(1.0, dash_color);
             let corners = [
                 sel_rect.left_top(),
@@ -388,7 +389,7 @@ pub(super) fn draw_selection_overlay(
         for pos in &handle_positions {
             let handle_rect =
                 egui::Rect::from_center_size(*pos, Vec2::new(HANDLE_SIZE, HANDLE_SIZE));
-            painter.rect_filled(handle_rect, 1.0, Color32::WHITE);
+            painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
@@ -401,7 +402,7 @@ pub(super) fn draw_selection_overlay(
         let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
         let rot_center = Pos2::new(top_center.x, top_center.y - ROTATION_OFFSET);
         painter.line_segment([top_center, rot_center], Stroke::new(1.0, SELECTION_COLOR));
-        painter.circle_filled(rot_center, ROTATION_RADIUS, Color32::WHITE);
+        painter.circle_filled(rot_center, ROTATION_RADIUS, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_center,
             ROTATION_RADIUS,
@@ -420,7 +421,7 @@ pub(super) fn draw_reorder_overlay(
     desired: egui::Vec2,
     is_row: bool,
 ) {
-    let ghost_color = Color32::from_rgba_unmultiplied(84, 110, 255, 153);
+    let ghost_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 153);
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
@@ -459,7 +460,7 @@ pub(super) fn draw_reorder_overlay(
         (coords[target_index - 1] + coords[target_index]) * 0.5
     };
 
-    let accent = Color32::from_rgb(84, 110, 255);
+    let accent = ACCENT_BLUE;
     let scale_x = desired.x as f64 / scene_dimensions.width as f64;
     let scale_y = desired.y as f64 / scene_dimensions.height as f64;
     if is_row {
@@ -478,16 +479,16 @@ pub(super) fn draw_reorder_overlay(
 
     let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
     let tooltip_text = "Reorder: drag to new position";
-    let galley = painter.layout_no_wrap(tooltip_text.to_owned(), FontId::proportional(12.0), Color32::WHITE);
+    let galley = painter.layout_no_wrap(tooltip_text.to_owned(), FontId::proportional(12.0), TEXT_PRIMARY);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
-    painter.rect_filled(tooltip_rect, 4.0, Color32::from_rgba_unmultiplied(24, 28, 36, 235));
+    painter.rect_filled(tooltip_rect, 4.0, Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 235));
     painter.rect_stroke(
         tooltip_rect,
         4.0,
         Stroke::new(1.0, accent),
         egui::StrokeKind::Outside,
     );
-    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, Color32::WHITE);
+    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, TEXT_PRIMARY);
 }
 
 /// Returns the 8 scale handle centre positions for an axis-aligned rect (legacy fallback).

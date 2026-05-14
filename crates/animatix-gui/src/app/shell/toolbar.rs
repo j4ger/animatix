@@ -1,17 +1,19 @@
-use egui::{Align, Color32, RichText, Stroke, Vec2};
+use egui::{Align, RichText, Stroke, Vec2};
 
+use crate::app::components;
 use crate::app::icons::{actor_icon, actor_palette};
+use crate::app::theme::*;
 use animatix::timeline::ActorCategory;
 use crate::app::panels::UiActions;
 use crate::app::GuiShell;
 
 impl GuiShell {
     pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
-        let toolbar_bg = Color32::from_rgb(12, 14, 18);
-        let border_color = Color32::from_rgb(32, 36, 44);
-        let text_primary = Color32::from_rgb(228, 232, 243);
-        let text_secondary = Color32::from_rgb(150, 158, 175);
-        let text_muted = Color32::from_rgb(90, 96, 110);
+        let toolbar_bg = BG_BASE;
+        let border_color = BG_WIDGET;
+        let text_primary = TEXT_PRIMARY;
+        let text_secondary = TEXT_SECONDARY;
+        let text_muted = TEXT_MUTED;
 
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)
@@ -25,15 +27,15 @@ impl GuiShell {
                     // App mark
                     let (mark_rect, _response) =
                         ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 3.0, Color32::from_rgb(84, 110, 255));
+                    ui.painter().rect_filled(mark_rect, 3.0, ACCENT_BLUE);
 
                     ui.add(
-                        egui::Label::new(RichText::new("Animatix").size(12.0).color(text_muted))
+                        egui::Label::new(RichText::new("Animatix").size(FONT_SIZE_L).color(text_muted))
                             .selectable(false),
                     );
 
                     ui.add(
-                        egui::Label::new(RichText::new("·").size(12.0).color(text_muted))
+                        egui::Label::new(RichText::new("·").size(FONT_SIZE_L).color(text_muted))
                             .selectable(false),
                     );
 
@@ -51,14 +53,14 @@ impl GuiShell {
                         filename.to_string()
                     };
                     let filename_color = if self.document.is_dirty {
-                        Color32::from_rgb(255, 196, 92)
+                        AMBER
                     } else {
                         text_primary
                     };
 
                     ui.add(
                         egui::Label::new(
-                            RichText::new(filename_text).size(12.0).color(filename_color),
+                            RichText::new(filename_text).size(FONT_SIZE_L).color(filename_color),
                         )
                         .selectable(false),
                     );
@@ -67,26 +69,26 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
-                        let icon_btn = |ui: &mut egui::Ui, icon: &str, tooltip: &str| -> bool {
-                            let size = Vec2::new(28.0, 28.0);
-                            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
-                            if response.hovered() {
-                                ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(32, 36, 44));
-                            }
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                icon,
-                                egui::TextStyle::Body.resolve(ui.style()),
-                                if response.hovered() { text_primary } else { text_secondary },
-                            );
-                            response.on_hover_text(tooltip).clicked()
-                        };
+                        if components::icon_button(ui, egui_phosphor::regular::GEAR, "Settings").clicked() {
+                            self.settings_open = true;
+                        }
+                        if components::icon_button(ui, egui_phosphor::regular::EXPORT, "Export").clicked() {
+                            actions.open_export_dialog = true;
+                        }
+                        if components::icon_button(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)").clicked() {
+                            actions.show_inspector = true;
+                        }
+                        if components::icon_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, "Rebuild").clicked() {
+                            actions.rebuild = true;
+                        }
+                        if components::icon_button(ui, egui_phosphor::regular::FLOPPY_DISK, "Save (⌘S)").clicked() {
+                            actions.save = true;
+                        }
 
                         // Add actor palette
                         ui.menu_button(egui_phosphor::regular::PLUS, |ui| {
                             ui.set_min_width(180.0);
-                            ui.label(RichText::new("Add Actor").size(11.0).color(text_muted));
+                            ui.label(RichText::new("Add Actor").size(FONT_SIZE_M).color(text_muted));
                             ui.separator();
 
                             let palette = actor_palette();
@@ -98,7 +100,7 @@ impl GuiShell {
                                     }
                                     ui.label(
                                         RichText::new(meta.category.label())
-                                            .size(10.0)
+                                            .size(FONT_SIZE_S)
                                             .color(text_muted),
                                     );
                                     last_category = Some(meta.category);
@@ -108,7 +110,7 @@ impl GuiShell {
                                 let ty = meta.type_name;
                                 let response = ui.button(
                                     RichText::new(format!("{}  {}", icon_meta.icon, icon_meta.label))
-                                        .size(12.0)
+                                        .size(FONT_SIZE_L)
                                         .color(text_secondary),
                                 );
                                 if response.clicked() {
@@ -127,7 +129,7 @@ impl GuiShell {
                             if !advanced.is_empty() {
                                 ui.separator();
                                 ui.menu_button(
-                                    RichText::new("More shapes…").size(12.0).color(text_secondary),
+                                    RichText::new("More shapes…").size(FONT_SIZE_L).color(text_secondary),
                                     |ui| {
                                         let mut last_cat: Option<ActorCategory> = None;
                                         for meta in advanced {
@@ -137,7 +139,7 @@ impl GuiShell {
                                                 }
                                                 ui.label(
                                                     RichText::new(meta.category.label())
-                                                        .size(10.0)
+                                                        .size(FONT_SIZE_S)
                                                         .color(text_muted),
                                                 );
                                                 last_cat = Some(meta.category);
@@ -150,7 +152,7 @@ impl GuiShell {
                                                         "{}  {}",
                                                         icon_meta.icon, icon_meta.label
                                                     ))
-                                                    .size(12.0)
+                                                    .size(FONT_SIZE_L)
                                                     .color(text_secondary),
                                                 )
                                                 .clicked()
@@ -171,22 +173,6 @@ impl GuiShell {
                                 );
                             }
                         });
-
-                        if icon_btn(ui, egui_phosphor::regular::GEAR, "Settings") {
-                            self.settings_open = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::EXPORT, "Export") {
-                            actions.open_export_dialog = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)") {
-                            actions.show_inspector = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, "Rebuild") {
-                            actions.rebuild = true;
-                        }
-                        if icon_btn(ui, egui_phosphor::regular::FLOPPY_DISK, "Save (⌘S)") {
-                            actions.save = true;
-                        }
                     });
                 });
             });

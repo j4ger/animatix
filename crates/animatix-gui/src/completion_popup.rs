@@ -1,6 +1,8 @@
 //! Completion popup widget for the code editor.
 
 use egui::{self, Color32, FontId, FontFamily, Key, Rect, Pos2, Vec2, Stroke, CornerRadius};
+
+use crate::app::theme::*;
 use animatix_analyzer::{CompletionItem, CompletionKind};
 
 /// State for the completion popup.
@@ -137,7 +139,7 @@ impl CompletionPopup {
         }
 
         // Popup dimensions
-        let item_height = 24.0;
+        let item_height = ROW_M;
         let popup_width = 280.0;
         let visible_count = filtered.len().min(self.max_visible);
         let popup_height = visible_count as f32 * item_height;
@@ -150,6 +152,7 @@ impl CompletionPopup {
 
         // Draw popup background
         let popup_rect = Rect::from_min_size(popup_pos, Vec2::new(popup_width, popup_height));
+        // Semantic completion colors are intentionally hardcoded to match syntax highlighting.
         let bg_color = if ui.visuals().dark_mode {
             Color32::from_rgb(40, 44, 52)
         } else {
@@ -161,8 +164,8 @@ impl CompletionPopup {
             Color32::from_rgb(200, 200, 200)
         };
 
-        ui.painter().rect_filled(popup_rect, CornerRadius::same(4), bg_color);
-        ui.painter().rect_stroke(popup_rect, CornerRadius::same(4), Stroke::new(1.0, border_color), egui::StrokeKind::Outside);
+        ui.painter().rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
+        ui.painter().rect_stroke(popup_rect, CornerRadius::same(RADIUS_M as u8), Stroke::new(1.0, border_color), egui::StrokeKind::Outside);
 
         // Render items
         let mut item_rect = Rect::from_min_size(
@@ -176,12 +179,13 @@ impl CompletionPopup {
 
                 // Highlight selected item
                 if is_selected {
+                    // Semantic completion colors are intentionally hardcoded to match syntax highlighting.
                     let highlight_color = if ui.visuals().dark_mode {
                         Color32::from_rgb(60, 65, 75)
                     } else {
                         Color32::from_rgb(220, 230, 240)
                     };
-                    ui.painter().rect_filled(item_rect, CornerRadius::same(2), highlight_color);
+                    ui.painter().rect_filled(item_rect, CornerRadius::same(RADIUS_S as u8), highlight_color);
                 }
 
                 // Draw icon based on kind
