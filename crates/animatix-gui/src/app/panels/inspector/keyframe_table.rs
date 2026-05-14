@@ -424,5 +424,6 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
                 v.clone()
             }
         }
+        PropertyValue::PointList(v) => format!("[{} pts]", v.len()),
     }
 }

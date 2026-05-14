@@ -215,6 +215,9 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
             PropertyKind::Text(ShapeType::from(v).to_string())
         }
         (PropertyValue::U32(v), _) => PropertyKind::Float(v as f32),
+        (PropertyValue::PointList(v), _) => {
+            PropertyKind::Text(format!("[{} pts]", v.len()))
+        }
     }
 }
 

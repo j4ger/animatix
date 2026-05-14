@@ -15,19 +15,7 @@
 
 ## 1. Known Limitations
 
-### 1.1 Static Geometry
-
-**Status:** Declaration-time only.
-
-`Polygon.points` and `Path.commands` are set at declaration time and cannot be animated dynamically frame-by-frame.
-
-**Impact:** Cannot morph a polygon by changing its point set over time.
-
-**Workaround:** Re-declare the entire actor at a new keyframe (triggers path morphing).
-
----
-
-### 1.2 Coordinate System Friction
+### 1.1 Coordinate System Friction
 
 **Status:** Design tension.
 
@@ -35,7 +23,7 @@
 
 ---
 
-### 1.3 Asymmetrical Reveal/Exit Actions
+### 1.2 Asymmetrical Reveal/Exit Actions
 
 **Status:** Partial.
 
@@ -43,7 +31,7 @@ Some fade-out behaviors are incomplete or non-intuitive compared to entrance cou
 
 ---
 
-### 1.4 Re-Declaration for Morphing/Media
+### 1.3 Re-Declaration for Morphing/Media
 
 **Status:** Requires full re-declaration.
 
@@ -53,7 +41,22 @@ Morphing text or updating SVG/Image sources requires re-declaring the entire obj
 
 ## 2. Deferred Features
 
-### 2.1 Font Selection — Phase 3: System Font Discovery
+### 2.1 Source-Level Animated Geometry — Partial
+
+**Status:** `Polygon.points` now animatable at source level. `Path.commands` and GUI inspector support deferred.
+**Location:** `crates/animatix/src/timeline/property_engine.rs`, `crates/animatix-gui/src/app/panels/inspector/`.
+
+`poly.points = [[0,0], [100,0], [50,100]]` inside keyframe blocks now works and triggers path morphing automatically. The track storage (`PropertyTrack<Vec<[f32; 2]>>`), frame-time evaluation, and assignment engine were already wired; only the parser → property engine bridge was missing.
+
+**Still deferred:**
+- **`Path.commands`** — requires a new `commands: Option<PropertyTrack<String>>` field on `AnimationTrack` and on-the-fly parsing from command strings to `BezPath` at evaluation time. The current `vector_paths` field stores pre-built `VelloPath` and has no raw-command fallback.
+- **GUI inspector editing** — no widget exists for editing variable-length lists of `Vec2` points. The inspector currently displays `"[N pts]"` as a read-only label.
+
+**Effort:** Low for `commands` (similar bridge work, plus a track field). High for GUI (custom multi-point editor).
+
+---
+
+### 2.2 Font Selection — Phase 3: System Font Discovery
 
 **Status:** Phases 1 & 2 done. Phase 3 deferred.
 **Location:** `crates/animatix/src/renderer/text.rs`, `crates/animatix/src/timeline/scene_eval.rs`.
@@ -65,7 +68,7 @@ Access all installed system fonts via `font-kit` / `fontconfig`. Removes the cur
 
 ---
 
-### 2.2 `strategy: fade` Morph
+### 2.3 `strategy: fade` Morph
 
 **Status:** Deferred — requires compositing architecture change.
 **Location:** `crates/animatix/src/timeline/morph.rs`.

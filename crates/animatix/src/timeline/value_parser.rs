@@ -16,6 +16,7 @@ pub enum PropertyValue {
     U32(u32),
     Vec2([f32; 2]),
     Vec4([f32; 4]),
+    PointList(Vec<[f32; 2]>),
     Color([f32; 4]),
     String(String),
 }

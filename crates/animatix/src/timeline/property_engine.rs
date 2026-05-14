@@ -59,6 +59,7 @@ pub enum PropertyValue {
     U32(u32),
     Vec2([f32; 2]),
     Vec4([f32; 4]),
+    PointList(Vec<[f32; 2]>),
     Color([f32; 4]),
     String(String),
 }
@@ -109,13 +110,36 @@ pub(crate) fn parse_property_value(
             let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
             Some(PropertyValue::String(v.as_str()))
         }
+        ValueType::PointList => {
+            // Expect an Expr::Tuple of Expr::Tuple[Expr::Num, Expr::Num]
+            if let Expr::Tuple(items) = expr {
+                let mut points = Vec::with_capacity(items.len());
+                for item in items {
+                    if let Expr::Tuple(pair) = item {
+                        if pair.len() == 2 {
+                            if let (Expr::Num(x), Expr::Num(y)) = (&pair[0], &pair[1]) {
+                                points.push([*x as f32, *y as f32]);
+                            } else {
+                                return None;
+                            }
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                Some(PropertyValue::PointList(points))
+            } else {
+                None
+            }
+        }
         // These types require context-specific handling (group resolution)
         ValueType::ShapeType
         | ValueType::PlacementMode
         | ValueType::SceneAnchor
         | ValueType::PositionBinding
         | ValueType::MorphOptions
-        | ValueType::PointList
         | ValueType::CommandList
         | ValueType::BuildTimeOnly => None,
     }
@@ -190,9 +214,7 @@ pub(crate) fn write_property_field(
         ActorField::LineFrom => write_vec2(&mut track.line_from, value, t_start_ms, t_end_ms, easing, [-50.0, 0.0], has_duration, has_delay),
         ActorField::LineTo => write_vec2(&mut track.line_to, value, t_start_ms, t_end_ms, easing, [50.0, 0.0], has_duration, has_delay),
         ActorField::ArcAngles => write_vec2(&mut track.arc_angles, value, t_start_ms, t_end_ms, easing, [0.0, std::f32::consts::PI], has_duration, has_delay),
-        ActorField::Points => {
-            // Points is handled via group resolution (vector shape state)
-        }
+        ActorField::Points => write_point_list(&mut track.points, value, t_start_ms, t_end_ms, easing, Vec::new(), has_duration, has_delay),
         ActorField::VectorPaths => {
             // Vector paths are generated from shape state, not parsed directly
         }
@@ -289,6 +311,26 @@ fn write_vec4(
     if has_duration {
         let start_val = field.get(t_start_ms, default);
         field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+fn write_point_list(
+    field: &mut Option<PropertyTrack<Vec<[f32; 2]>>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: Vec<[f32; 2]>,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::PointList(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else if has_delay {
         preserve_instant_delayed_value(field, t_start_ms);
     }
