@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::app::theme::*;
+use crate::app::components;
 use crate::app::components::widgets::pill_tab_bar;
 use crate::app::GuiShell;
 
@@ -345,158 +346,245 @@ impl GuiShell {
     // ─── Settings Form ────────────────────────────────────────────────────────
 
     fn render_export_settings(&mut self, ui: &mut egui::Ui) {
-        // Resolution row with label aligned left
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Resolution").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-            ui.add_space(SPACE_L);
+        let format = self.export_state.format;
+        let scene_dims = self.document.scene_dimensions;
+        let timeline_duration = self.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
+        let max_time = self.preview.duration_s as f32;
+        let current_time = self.preview.current_time_s as f32;
 
-            let mut w = self.export_state.width as f32;
-            ui.add(egui::DragValue::new(&mut w).speed(10.0).range(1.0..=8192.0).prefix("W: "));
-            self.export_state.width = w as u32;
+        // Scope mutable borrows so we can call &self methods afterward.
+        {
+            let width = &mut self.export_state.width;
+            let height = &mut self.export_state.height;
+            let time_s = &mut self.export_state.time_s;
+            let fps = &mut self.export_state.fps;
+            let auto_duration = &mut self.export_state.auto_duration;
+            let hold_s = &mut self.export_state.hold_s;
+            let duration_s = &mut self.export_state.duration_s;
+            let output_path = &mut self.export_state.output_path;
 
-            ui.add_space(SPACE_S);
+            // ── Resolution row ──
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Resolution").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                ui.add_space(SPACE_L);
 
-            let mut h = self.export_state.height as f32;
-            ui.add(egui::DragValue::new(&mut h).speed(10.0).range(1.0..=8192.0).prefix("H: "));
-            self.export_state.height = h as u32;
-
-            ui.add_space(SPACE_S);
-
-            // Use scene dimensions button
-            let scene_w = self.document.scene_dimensions.width;
-            let scene_h = self.document.scene_dimensions.height;
-            if scene_w > 0 && scene_h > 0 {
-                let resp = ui.add(
-                    egui::Label::new(
-                        RichText::new(format!("{} Scene", egui_phosphor::regular::ARROWS_IN))
-                            .size(FONT_SIZE_S)
-                            .color(ACCENT_BLUE),
-                    )
-                    .selectable(false),
+                let mut w_f32 = *width as f32;
+                ui.allocate_ui_with_layout(
+                    Vec2::new(80.0, ROW_M),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut w_f32)
+                                    .speed(10.0)
+                                    .range(1.0..=8192.0)
+                                    .prefix("W: "),
+                            );
+                        });
+                    },
                 );
-                if resp.interact(egui::Sense::click()).clicked() {
-                    self.export_state.width = scene_w;
-                    self.export_state.height = scene_h;
-                }
-            }
-        });
+                *width = w_f32 as u32;
 
-        ui.add_space(SPACE_XS);
+                ui.add_space(SPACE_S);
 
-        // Format-specific settings
-        match self.export_state.format {
-            ExportFormat::Image => {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Time").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                    ui.add_space(SPACE_L + 18.0); // align with resolution inputs
-                    let mut t = self.export_state.time_s;
-                    let max_time = self.preview.duration_s as f32;
-                    ui.add(
-                        egui::DragValue::new(&mut t)
-                            .speed(0.1)
-                            .range(0.0..=max_time)
-                            .suffix(" s"),
-                    );
-                    self.export_state.time_s = t;
+                let mut h_f32 = *height as f32;
+                ui.allocate_ui_with_layout(
+                    Vec2::new(80.0, ROW_M),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut h_f32)
+                                    .speed(10.0)
+                                    .range(1.0..=8192.0)
+                                    .prefix("H: "),
+                            );
+                        });
+                    },
+                );
+                *height = h_f32 as u32;
 
-                    ui.add_space(SPACE_S);
+                ui.add_space(SPACE_S);
 
-                    let current_time = self.preview.current_time_s as f32;
+                if scene_dims.width > 0 && scene_dims.height > 0 {
                     let resp = ui.add(
                         egui::Label::new(
-                            RichText::new(format!("{} Current", egui_phosphor::regular::CLOCK))
+                            RichText::new(format!("{} Scene", egui_phosphor::regular::ARROWS_IN))
                                 .size(FONT_SIZE_S)
                                 .color(ACCENT_BLUE),
                         )
                         .selectable(false),
                     );
                     if resp.interact(egui::Sense::click()).clicked() {
-                        self.export_state.time_s = current_time;
+                        *width = scene_dims.width;
+                        *height = scene_dims.height;
                     }
-                });
-            }
-            ExportFormat::Video | ExportFormat::Gif => {
-                // FPS
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("FPS").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                    ui.add_space(SPACE_L + 24.0);
-                    let mut fps = self.export_state.fps as f32;
-                    ui.add(
-                        egui::DragValue::new(&mut fps)
-                            .speed(1.0)
-                            .range(1.0..=120.0)
-                            .suffix(" fps"),
-                    );
-                    self.export_state.fps = fps as u32;
-                });
+                }
+            });
 
-                // Duration mode
-                let auto_prev = self.export_state.auto_duration;
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Duration").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                    ui.add_space(SPACE_L + 2.0);
+            ui.add_space(SPACE_XS);
 
-                    ui.checkbox(
-                        &mut self.export_state.auto_duration,
-                        RichText::new("Auto").size(FONT_SIZE_S),
-                    );
+            // ── Format-specific settings ──
+            match format {
+                ExportFormat::Image => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Time").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                        ui.add_space(SPACE_L + 18.0);
 
-                    if self.export_state.auto_duration {
-                        ui.add_space(SPACE_S);
-                        ui.label(RichText::new("Hold:").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                        let mut hold = self.export_state.hold_s;
-                        ui.add(
-                            egui::DragValue::new(&mut hold)
-                                .speed(0.1)
-                                .range(0.0..=10.0)
-                                .suffix(" s"),
+                        let mut t = *time_s;
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(100.0, ROW_M),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                components::field(ui, |ui| {
+                                    ui.add(
+                                        egui::DragValue::new(&mut t)
+                                            .speed(0.1)
+                                            .range(0.0..=max_time)
+                                            .suffix(" s"),
+                                    );
+                                });
+                            },
                         );
-                        self.export_state.hold_s = hold;
-                    } else {
+                        *time_s = t;
+
                         ui.add_space(SPACE_S);
-                        let mut dur = self.export_state.duration_s;
-                        ui.add(
-                            egui::DragValue::new(&mut dur)
-                                .speed(0.5)
-                                .range(0.1..=3600.0)
-                                .suffix(" s"),
+
+                        let resp = ui.add(
+                            egui::Label::new(
+                                RichText::new(format!("{} Current", egui_phosphor::regular::CLOCK))
+                                    .size(FONT_SIZE_S)
+                                    .color(ACCENT_BLUE),
+                            )
+                            .selectable(false),
                         );
-                        self.export_state.duration_s = dur;
+                        if resp.interact(egui::Sense::click()).clicked() {
+                            *time_s = current_time;
+                        }
+                    });
+                }
+                ExportFormat::Video | ExportFormat::Gif => {
+                    // FPS
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("FPS").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                        ui.add_space(SPACE_L + 24.0);
+
+                        let mut fps_f32 = *fps as f32;
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(70.0, ROW_M),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                components::field(ui, |ui| {
+                                    ui.add(
+                                        egui::DragValue::new(&mut fps_f32)
+                                            .speed(1.0)
+                                            .range(1.0..=120.0)
+                                            .suffix(" fps"),
+                                    );
+                                });
+                            },
+                        );
+                        *fps = fps_f32 as u32;
+                    });
+
+                    // Duration mode
+                    let auto_prev = *auto_duration;
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Duration").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                        ui.add_space(SPACE_L + 2.0);
+
+                        ui.checkbox(auto_duration, RichText::new("Auto").size(FONT_SIZE_S));
+
+                        if *auto_duration {
+                            ui.add_space(SPACE_S);
+                            ui.label(RichText::new("Hold:").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+
+                            let mut hold = *hold_s;
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(90.0, ROW_M),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    components::field(ui, |ui| {
+                                        ui.add(
+                                            egui::DragValue::new(&mut hold)
+                                                .speed(0.1)
+                                                .range(0.0..=10.0)
+                                                .suffix(" s"),
+                                        );
+                                    });
+                                },
+                            );
+                            *hold_s = hold;
+                        } else {
+                            ui.add_space(SPACE_S);
+
+                            let mut dur = *duration_s;
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(90.0, ROW_M),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    components::field(ui, |ui| {
+                                        ui.add(
+                                            egui::DragValue::new(&mut dur)
+                                                .speed(0.5)
+                                                .range(0.1..=3600.0)
+                                                .suffix(" s"),
+                                        );
+                                    });
+                                },
+                            );
+                            *duration_s = dur;
+                        }
+                    });
+
+                    if !auto_prev && *auto_duration {
+                        // Just switched to auto
+                    } else if auto_prev && !*auto_duration {
+                        let auto_dur = if let Some(dur) = timeline_duration {
+                            (dur + hold_s.max(0.0)).max(0.5)
+                        } else {
+                            duration_s.max(0.5)
+                        };
+                        *duration_s = auto_dur;
                     }
-                });
 
-                if !auto_prev && self.export_state.auto_duration {
-                    // Just switched to auto
-                } else if auto_prev && !self.export_state.auto_duration {
-                    let auto_dur = self.resolve_auto_duration();
-                    self.export_state.duration_s = auto_dur;
-                }
-
-                if self.export_state.auto_duration {
-                    let auto_dur = self.resolve_auto_duration();
-                    ui.label(
-                        RichText::new(format!("Effective duration: {:.2}s", auto_dur))
-                            .size(FONT_SIZE_XS)
-                            .color(TEXT_MUTED),
-                    );
+                    if *auto_duration {
+                        let auto_dur = if let Some(dur) = timeline_duration {
+                            (dur + hold_s.max(0.0)).max(0.5)
+                        } else {
+                            duration_s.max(0.5)
+                        };
+                        ui.label(
+                            RichText::new(format!("Effective duration: {:.2}s", auto_dur))
+                                .size(FONT_SIZE_XS)
+                                .color(TEXT_MUTED),
+                        );
+                    }
                 }
             }
+
+            ui.add_space(SPACE_S);
+
+            // ── Output path ──
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Output").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                ui.add_space(SPACE_L + 14.0);
+
+                let path_width = ui.available_width();
+                ui.allocate_ui_with_layout(
+                    Vec2::new(path_width, ROW_M),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(output_path)
+                                    .hint_text("output filename…"),
+                            );
+                        });
+                    },
+                );
+            });
         }
-
-        ui.add_space(SPACE_S);
-
-        // Output path
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Output").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-            ui.add_space(SPACE_L + 14.0);
-
-            let path_width = ui.available_width();
-            ui.add_sized(
-                Vec2::new(path_width, ROW_L),
-                egui::TextEdit::singleline(&mut self.export_state.output_path)
-                    .hint_text("output filename…"),
-            );
-        });
 
         // Default filename hint
         if self.export_state.output_path.is_empty() {

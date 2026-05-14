@@ -309,23 +309,45 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 
 /// Wraps native egui widgets in our themed input frame.
 ///
+/// Provides a consistent visual container with vertical centering,
+/// uniform padding, and our surface border styling. Use this for
+/// every DragValue, Slider, TextEdit, ComboBox, etc. in the
+/// inspector and settings panels.
+///
 /// Usage:
 /// ```ignore
-/// Field(ui, id, |ui| {
+/// field(ui, |ui| {
 ///     ui.add(egui::DragValue::new(&mut val));
 /// });
 /// ```
-pub fn field(ui: &mut egui::Ui, _id: Id, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
+pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     let frame = egui::Frame::new()
         .fill(BG_WIDGET)
-        .stroke(Stroke::new(1.0, BORDER))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::symmetric(SPACE_S as i8, 1));
+        .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_XS as i8));
 
     let response = frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
-        add_contents(ui)
+        ui.with_layout(
+            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+            add_contents,
+        )
     });
+
+    // Hover border effect
+    let is_hovered = ui.rect_contains_pointer(response.response.rect);
+    let stroke = if is_hovered {
+        Stroke::new(1.0, BORDER_HOVER)
+    } else {
+        Stroke::new(1.0, BORDER)
+    };
+    ui.painter().rect_stroke(
+        response.response.rect,
+        CornerRadius::same(RADIUS_M as u8),
+        stroke,
+        egui::StrokeKind::Inside,
+    );
+
     response.response
 }
 

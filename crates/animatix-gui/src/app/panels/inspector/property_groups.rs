@@ -309,8 +309,8 @@ fn render_property_row(
     // Input widget (right side)
     let input_width = 110.0_f32.min(available * 0.45);
     let input_rect = egui::Rect::from_min_size(
-        egui::pos2(row_rect.max.x - input_width - SPACE_S, row_rect.min.y + 1.0),
-        Vec2::new(input_width, row_height - 2.0),
+        egui::pos2(row_rect.max.x - input_width - SPACE_S, row_rect.min.y),
+        Vec2::new(input_width, row_height),
     );
 
     match &entry.kind {
@@ -318,32 +318,34 @@ fn render_property_row(
             let mut nx = *x;
             let mut ny = *y;
             ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                    let rx = ui.add(
-                        egui::DragValue::new(&mut nx)
-                            .speed(0.5)
-                            .max_decimals(1),
-                    );
-                    let ry = ui.add(
-                        egui::DragValue::new(&mut ny)
-                            .speed(0.5)
-                            .max_decimals(1),
-                    );
-                    if rx.drag_started() || ry.drag_started() {
-                        actions.inspector_input_drag_started = true;
-                    }
-                    if rx.drag_stopped() || ry.drag_stopped() {
-                        actions.inspector_input_drag_ended = true;
-                    }
-                    if rx.changed() || ry.changed() {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: entry.name.to_string(),
-                            value: GuiPropertyValue::Vec2([nx, ny]),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
+                components::field(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                        let rx = ui.add(
+                            egui::DragValue::new(&mut nx)
+                                .speed(0.5)
+                                .max_decimals(1),
+                        );
+                        let ry = ui.add(
+                            egui::DragValue::new(&mut ny)
+                                .speed(0.5)
+                                .max_decimals(1),
+                        );
+                        if rx.drag_started() || ry.drag_started() {
+                            actions.inspector_input_drag_started = true;
+                        }
+                        if rx.drag_stopped() || ry.drag_stopped() {
+                            actions.inspector_input_drag_ended = true;
+                        }
+                        if rx.changed() || ry.changed() {
+                            actions.property_edits.push(PropertyEdit {
+                                actor: actor_label.to_string(),
+                                property: entry.name.to_string(),
+                                value: GuiPropertyValue::Vec2([nx, ny]),
+                                create_keyframe: keyframe_mode,
+                            });
+                        }
+                    });
                 });
             });
         }
@@ -355,61 +357,63 @@ fn render_property_row(
                 "opacity" | "fill_opacity" | "stroke_progress"
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                if is_01 {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                        let slider = ui.add(
-                            egui::Slider::new(&mut nv, 0.0..=1.0)
-                                .show_value(false)
-                                .trailing_fill(true),
+                components::field(ui, |ui| {
+                    if is_01 {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                            let slider = ui.add(
+                                egui::Slider::new(&mut nv, 0.0..=1.0)
+                                    .show_value(false)
+                                    .trailing_fill(true),
+                            );
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(format!("{:.2}", nv))
+                                        .monospace()
+                                        .size(FONT_SIZE_XS)
+                                        .color(TEXT_PRIMARY),
+                                )
+                                .selectable(false),
+                            );
+                            if slider.drag_started() {
+                                actions.inspector_input_drag_started = true;
+                            }
+                            if slider.drag_stopped() {
+                                actions.inspector_input_drag_ended = true;
+                            }
+                            if slider.changed() {
+                                actions.property_edits.push(PropertyEdit {
+                                    actor: actor_label.to_string(),
+                                    property: entry.name.to_string(),
+                                    value: GuiPropertyValue::Float(nv),
+                                    create_keyframe: keyframe_mode,
+                                });
+                            }
+                        });
+                    } else {
+                        let response = ui.add(
+                            egui::DragValue::new(&mut nv)
+                                .speed(if is_angle { 0.5 } else { 0.1 })
+                                .suffix(if is_angle { "°" } else { "" })
+                                .max_decimals(if is_angle { 1 } else { 2 }),
                         );
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(format!("{:.2}", nv))
-                                    .monospace()
-                                    .size(FONT_SIZE_XS)
-                                    .color(TEXT_PRIMARY),
-                            )
-                            .selectable(false),
-                        );
-                        if slider.drag_started() {
+                        if response.drag_started() {
                             actions.inspector_input_drag_started = true;
                         }
-                        if slider.drag_stopped() {
+                        if response.drag_stopped() {
                             actions.inspector_input_drag_ended = true;
                         }
-                        if slider.changed() {
+                        if response.changed() {
+                            let out_val = if is_angle { nv.to_radians() } else { nv };
                             actions.property_edits.push(PropertyEdit {
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
-                                value: GuiPropertyValue::Float(nv),
+                                value: GuiPropertyValue::Float(out_val),
                                 create_keyframe: keyframe_mode,
                             });
                         }
-                    });
-                } else {
-                    let response = ui.add(
-                        egui::DragValue::new(&mut nv)
-                            .speed(if is_angle { 0.5 } else { 0.1 })
-                            .suffix(if is_angle { "°" } else { "" })
-                            .max_decimals(if is_angle { 1 } else { 2 }),
-                    );
-                    if response.drag_started() {
-                        actions.inspector_input_drag_started = true;
                     }
-                    if response.drag_stopped() {
-                        actions.inspector_input_drag_ended = true;
-                    }
-                    if response.changed() {
-                        let out_val = if is_angle { nv.to_radians() } else { nv };
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: entry.name.to_string(),
-                            value: GuiPropertyValue::Float(out_val),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
-                }
+                });
             });
         }
         PropertyKind::Color(rgba) => {
@@ -420,76 +424,80 @@ fn render_property_row(
                 (rgba[3] * 255.0) as u8,
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                    let btn = ui.color_edit_button_srgba(&mut color);
-                    if btn.changed() {
-                        let [r, g, b, a] = color.to_array();
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: entry.name.to_string(),
-                            value: GuiPropertyValue::Color([
-                                r as f32 / 255.0,
-                                g as f32 / 255.0,
-                                b as f32 / 255.0,
-                                a as f32 / 255.0,
-                            ]),
-                            create_keyframe: keyframe_mode,
-                        });
-                    }
+                components::field(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                        let btn = ui.color_edit_button_srgba(&mut color);
+                        if btn.changed() {
+                            let [r, g, b, a] = color.to_array();
+                            actions.property_edits.push(PropertyEdit {
+                                actor: actor_label.to_string(),
+                                property: entry.name.to_string(),
+                                value: GuiPropertyValue::Color([
+                                    r as f32 / 255.0,
+                                    g as f32 / 255.0,
+                                    b as f32 / 255.0,
+                                    a as f32 / 255.0,
+                                ]),
+                                create_keyframe: keyframe_mode,
+                            });
+                        }
+                    });
                 });
             });
         }
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                if entry.name == "shape_type" {
-                    let variants: Vec<&str> = [
-                        ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
-                        ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
-                        ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
-                    ]
-                    .iter()
-                    .map(|st| st.as_str())
-                    .collect();
-                    egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
-                        .selected_text(text.as_str())
-                        .width(input_width)
-                        .show_ui(ui, |ui| {
-                            for v in variants {
-                                if ui.selectable_label(v == text, v).clicked() {
-                                    actions.property_edits.push(PropertyEdit {
-                                        actor: actor_label.to_string(),
-                                        property: entry.name.to_string(),
-                                        value: GuiPropertyValue::Text(v.to_string()),
-                                        create_keyframe: keyframe_mode,
-                                    });
+                components::field(ui, |ui| {
+                    if entry.name == "shape_type" {
+                        let variants: Vec<&str> = [
+                            ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
+                            ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
+                            ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
+                        ]
+                        .iter()
+                        .map(|st| st.as_str())
+                        .collect();
+                        egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
+                            .selected_text(text.as_str())
+                            .width(input_width)
+                            .show_ui(ui, |ui| {
+                                for v in variants {
+                                    if ui.selectable_label(v == text, v).clicked() {
+                                        actions.property_edits.push(PropertyEdit {
+                                            actor: actor_label.to_string(),
+                                            property: entry.name.to_string(),
+                                            value: GuiPropertyValue::Text(v.to_string()),
+                                            create_keyframe: keyframe_mode,
+                                        });
+                                    }
                                 }
-                            }
-                        });
-                } else if entry.name == "text_content" || entry.name == "text" {
-                    let edit = egui::TextEdit::singleline(&mut buf)
-                        .font(egui::TextStyle::Small)
-                        .desired_width(input_width);
-                    let response = ui.add(edit);
-                    if response.changed() {
-                        actions.property_edits.push(PropertyEdit {
-                            actor: actor_label.to_string(),
-                            property: entry.name.to_string(),
-                            value: GuiPropertyValue::Text(buf),
-                            create_keyframe: keyframe_mode,
-                        });
+                            });
+                    } else if entry.name == "text_content" || entry.name == "text" {
+                        let edit = egui::TextEdit::singleline(&mut buf)
+                            .font(egui::TextStyle::Small)
+                            .desired_width(input_width);
+                        let response = ui.add(edit);
+                        if response.changed() {
+                            actions.property_edits.push(PropertyEdit {
+                                actor: actor_label.to_string(),
+                                property: entry.name.to_string(),
+                                value: GuiPropertyValue::Text(buf),
+                                create_keyframe: keyframe_mode,
+                            });
+                        }
+                    } else {
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(text.as_str())
+                                    .size(FONT_SIZE_M)
+                                    .color(TEXT_MUTED),
+                            )
+                            .selectable(false),
+                        );
                     }
-                } else {
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(text.as_str())
-                                .size(FONT_SIZE_M)
-                                .color(TEXT_MUTED),
-                        )
-                        .selectable(false),
-                    );
-                }
+                });
             });
         }
     }

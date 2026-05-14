@@ -1,5 +1,6 @@
 use egui::{Color32, RichText, Stroke, Vec2};
 
+use crate::app::components;
 use crate::app::theme::*;
 
 use crate::app::GuiShell;
@@ -112,19 +113,21 @@ impl GuiShell {
         let mut value_ms = (self.keyframe_merge_window_s * 1000.0) as f32;
         let value_rect = egui::Rect::from_min_size(
             egui::pos2(content_rect.left(), cursor_y),
-            Vec2::new(120.0, 28.0),
+            Vec2::new(120.0, ROW_M),
         );
         ui.scope_builder(egui::UiBuilder::new().max_rect(value_rect), |ui| {
-            ui.style_mut().spacing.item_spacing = Vec2::new(4.0, 0.0);
-            ui.add(
-                egui::DragValue::new(&mut value_ms)
-                    .speed(1.0)
-                    .range(0.0..=500.0)
-                    .suffix(" ms"),
-            );
+            components::field(ui, |ui| {
+                ui.style_mut().spacing.item_spacing = Vec2::new(4.0, 0.0);
+                ui.add(
+                    egui::DragValue::new(&mut value_ms)
+                        .speed(1.0)
+                        .range(0.0..=500.0)
+                        .suffix(" ms"),
+                );
+            });
         });
         self.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
-        cursor_y += 40.0;
+        cursor_y += 36.0;
 
         // Description
         let desc = "Edits within this window of the previous keyframe are merged\ninstead of creating a new timestamp.";
