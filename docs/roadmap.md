@@ -46,13 +46,13 @@
 
 ### 1.3 Re-Declaration for Morphing/Media
 
-**Status:** Partially resolved.
+**Status:** Resolved.
 
-- **Image `url` assignment:** Now works. `photo.url = "new.png"` loads the new image at the assignment time.
-- **SVG `url` assignment:** Now works. `icon.url = "new.svg"` parses and reloads the SVG paths.
-- **Text/Math/Code content:** Still requires re-declaration for full path regeneration. Property assignment updates the text content track but does not regenerate typst-rendered paths at runtime.
+- **Image `url` assignment:** Works. `photo.url = "new.png"` loads the new image at assignment time.
+- **SVG `url` assignment:** Works. `icon.url = "new.svg"` parses and reloads the SVG paths.
+- **Text/Math/Code content:** Works. `title.text = "new text"` now recompiles typst-rendered glyph paths at runtime via `TextCompiler`, and updates `size`/`layout_size` to match the new text dimensions.
 
-**Location:** `crates/animatix/src/timeline/assignments.rs`.
+**Location:** `crates/animatix/src/timeline/assignments.rs` (`recompile_text_at_assignment`).
 
 ---
 

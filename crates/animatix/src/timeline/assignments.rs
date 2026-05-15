@@ -109,7 +109,7 @@ impl Timeline {
             return;
         }
 
-        // Text content assignment — handled specially because it can't regenerate paths at runtime
+        // Text / math / code content assignment — recompiles glyph paths at runtime
         if matches!(property, "text" | "latex" | "math" | "code") {
             let target_text = evaluate_expr_with_lookup_diagnostic(
                 value, &eval_env, diagnostics, &assignment_subject,
@@ -117,13 +117,15 @@ impl Timeline {
             .unwrap_or(Value::Str(String::new()))
             .as_str()
             .to_string();
-            if duration_ms > 0.0 {
-                let start_val = track.text_content.get(t_start_ms, String::new());
-                track.text_content.ensure(String::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
-            } else if instant_delayed {
-                preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
-            }
-            track.text_content.ensure(String::new()).add_keyframe(t_end_ms, target_text, easing);
+            recompile_text_at_assignment(
+                track,
+                target_text,
+                t_start_ms,
+                t_end_ms,
+                easing,
+                instant_delayed,
+                duration_ms,
+            );
             return;
         }
 
@@ -356,6 +358,60 @@ fn handle_arc_angle_assignment(
 
     // Rebuild vector paths after angle change
     rebuild_vector_paths(track, t_end_ms, easing, diagnostics);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper: text / math / code assignments → text paths
+// ─────────────────────────────────────────────────────────────
+
+fn recompile_text_at_assignment(
+    track: &mut AnimationTrack,
+    target_text: String,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    instant_delayed: bool,
+    duration_ms: f64,
+) {
+    if duration_ms > 0.0 {
+        let start_val = track.text_content.get(t_start_ms, String::new());
+        track.text_content.ensure(String::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if instant_delayed {
+        preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
+    }
+    track.text_content.ensure(String::new()).add_keyframe(t_end_ms, target_text.clone(), easing);
+
+    let text_kind = match track.kind {
+        super::ActorKindId::Text => crate::renderer::text::TextKind::Text,
+        super::ActorKindId::Math => crate::renderer::text::TextKind::Math,
+        super::ActorKindId::Code => crate::renderer::text::TextKind::Code,
+        _ => return,
+    };
+
+    let font_family = track.font_family.get(t_end_ms, String::new());
+    let font_size = track.font_size.get(t_end_ms, 48.0);
+    let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
+
+    let mut compiler = crate::renderer::text::TextCompiler::new();
+    let new_paths = compiler.compile(&target_text, &font_family, font_size, color, text_kind);
+    let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+
+    if duration_ms > 0.0 {
+        let start_val = track.evaluate_text_paths(t_start_ms);
+        track.text_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let start_layout_size = track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_start_ms, start_size, Easing::Linear);
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_start_ms, start_layout_size, Easing::Linear);
+    } else if instant_delayed {
+        preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+        preserve_instant_delayed_value(&mut track.size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
+    }
+
+    track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+    track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+    track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
 }
 
 // ─────────────────────────────────────────────────────────────
