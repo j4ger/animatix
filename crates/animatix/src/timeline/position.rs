@@ -4,7 +4,7 @@ use super::{
     SceneAnchor, SceneDimensions,
 };
 use crate::ast::Expr;
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 
@@ -50,24 +50,80 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
         .and_then(|expr| parse_numeric_vec2_with_lookup_diagnostic(expr, env, diagnostics, subject))
         .unwrap_or([0.0, 0.0]);
 
+    // ── Conflict detection ──
+    // Warn when both `at` and `anchor` specify a position; `anchor` takes precedence.
+    let at_resolves = at_expr.map(|expr| {
+        parse_scene_anchor(expr).is_some()
+            || parse_percent_vec2(expr).is_some()
+            || parse_numeric_vec2_with_lookup_diagnostic(expr, env, diagnostics, subject).is_some()
+    }).unwrap_or(false);
+
+    if anchor_expr.is_some() && at_resolves {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::ConflictingPositionBinding,
+                DiagnosticPhase::Build,
+                format!(
+                    "`at` and `anchor` both specify position for '{subject}'; `anchor` takes precedence."
+                ),
+            )
+            .with_subject(subject),
+        );
+    }
+
     if let Some(anchor_expr) = anchor_expr {
         if let Some(anchor) = parse_scene_anchor(anchor_expr) {
             return Some((PositionBinding::SceneAnchor { anchor, offset }, None));
+        }
+        if let Some([x, y]) = parse_percent_vec2(anchor_expr) {
+            return Some((PositionBinding::ScenePercent { x, y, offset }, None));
         }
     }
 
     if let Some(at_expr) = at_expr {
         if let Some(anchor) = parse_scene_anchor(at_expr) {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::DeprecatedAtAnchor,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Using `at` for scene anchors on '{subject}' is deprecated; use `anchor` instead."
+                    ),
+                )
+                .with_subject(subject),
+            );
             return Some((PositionBinding::SceneAnchor { anchor, offset }, None));
         }
 
         if let Some([x, y]) = parse_percent_vec2(at_expr) {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::DeprecatedAtAnchor,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Using `at` for percentage placement on '{subject}' is deprecated; use `anchor` with percentages instead."
+                    ),
+                )
+                .with_subject(subject),
+            );
             return Some((PositionBinding::ScenePercent { x, y, offset }, None));
         }
 
         if let Some(position) =
             parse_numeric_vec2_with_lookup_diagnostic(at_expr, env, diagnostics, subject)
         {
+            if offset != [0.0, 0.0] {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::IgnoredOffset,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "`offset` has no effect with absolute `at` on '{subject}'; the value is ignored."
+                        ),
+                    )
+                    .with_subject(subject),
+                );
+            }
             return Some((PositionBinding::Absolute, Some(position)));
         }
     }
@@ -210,5 +266,224 @@ pub(crate) fn apply_explicit_position_binding(
             .position
             .ensure([0.0, 0.0])
             .add_keyframe(time_ms, position, Easing::Linear);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Expr;
+    use crate::diagnostics::{DiagnosticCode, DiagnosticPhase, DiagnosticSeverity};
+    use crate::timeline::Environment;
+
+    fn has_warning_with_code(diagnostics: &[Diagnostic], code: DiagnosticCode) -> bool {
+        diagnostics.iter().any(|d| {
+            d.code == code
+                && matches!(d.severity, DiagnosticSeverity::Warning)
+                && matches!(d.phase, DiagnosticPhase::Build)
+        })
+    }
+
+    #[test]
+    fn conflicting_at_and_anchor_emits_warning() {
+        let at = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
+        let anchor = Expr::Path(vec!["scene".to_string(), "center".to_string()]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            Some(&anchor),
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some(), "Should resolve a binding");
+        assert!(
+            has_warning_with_code(&diagnostics, DiagnosticCode::ConflictingPositionBinding),
+            "Should emit ConflictingPositionBinding warning"
+        );
+        // anchor takes precedence
+        assert!(
+            matches!(result.unwrap().0, PositionBinding::SceneAnchor { .. }),
+            "Anchor should take precedence"
+        );
+    }
+
+    #[test]
+    fn deprecated_at_with_scene_anchor_emits_warning() {
+        let at = Expr::Path(vec!["scene".to_string(), "top".to_string()]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            None,
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
+            "Should emit DeprecatedAtAnchor warning for at: scene.top"
+        );
+    }
+
+    #[test]
+    fn deprecated_at_with_percent_emits_warning() {
+        let at = Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(60.0)]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            None,
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
+            "Should emit DeprecatedAtAnchor warning for at: (50%, 60%)"
+        );
+    }
+
+    #[test]
+    fn ignored_offset_with_absolute_at_emits_warning() {
+        let at = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
+        let offset = Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            None,
+            Some(&offset),
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            has_warning_with_code(&diagnostics, DiagnosticCode::IgnoredOffset),
+            "Should emit IgnoredOffset warning when offset is used with absolute at"
+        );
+        // offset should be ignored, position should be (100, 200)
+        assert_eq!(result.unwrap().1, Some([100.0, 200.0]));
+    }
+
+    #[test]
+    fn absolute_at_without_offset_no_warning() {
+        let at = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            None,
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            diagnostics.is_empty(),
+            "Should not emit any warnings for absolute at without offset"
+        );
+    }
+
+    #[test]
+    fn anchor_with_percent_no_warning() {
+        let anchor = Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(60.0)]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            None,
+            Some(&anchor),
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            diagnostics.is_empty(),
+            "Should not emit any warnings for anchor with percentages"
+        );
+        assert!(
+            matches!(result.unwrap().0, PositionBinding::ScenePercent { x: 0.5, y: 0.6, offset: [0.0, 0.0] }),
+            "Anchor should accept percentage tuples"
+        );
+    }
+
+    #[test]
+    fn anchor_with_offset_no_warning() {
+        let anchor = Expr::Path(vec!["scene".to_string(), "center".to_string()]);
+        let offset = Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            None,
+            Some(&anchor),
+            Some(&offset),
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            diagnostics.is_empty(),
+            "Should not emit any warnings for anchor with offset"
+        );
+        assert!(
+            matches!(result.unwrap().0, PositionBinding::SceneAnchor { anchor: SceneAnchor::Center, offset: [10.0, 20.0] }),
+            "Offset should be applied to anchor binding"
+        );
+    }
+
+    #[test]
+    fn conflicting_at_and_anchor_only_emits_conflict_not_deprecated() {
+        let at = Expr::Path(vec!["scene".to_string(), "center".to_string()]);
+        let anchor = Expr::Path(vec!["scene".to_string(), "top".to_string()]);
+        let mut diagnostics = Vec::new();
+        let env = Environment::new();
+
+        let result = resolve_position_binding_with_lookup_diagnostic(
+            Some(&at),
+            Some(&anchor),
+            None,
+            &env,
+            &mut diagnostics,
+            "test_actor",
+        );
+
+        assert!(result.is_some());
+        assert!(
+            has_warning_with_code(&diagnostics, DiagnosticCode::ConflictingPositionBinding),
+            "Should emit ConflictingPositionBinding warning"
+        );
+        assert!(
+            !has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
+            "Should NOT emit DeprecatedAtAnchor when conflict is already reported"
+        );
+        assert!(
+            matches!(result.unwrap().0, PositionBinding::SceneAnchor { anchor: SceneAnchor::Top, .. }),
+            "Anchor should take precedence"
+        );
     }
 }

@@ -22,7 +22,7 @@ toolbar: Row, anchor: scene.top, offset: (0, 100), gap: 20, align: "center" {
   t3: Circle, radius: 18, color: accent.success
 }
 
-overlay: Stack, at: (82%, 76%) {
+overlay: Stack, anchor: (82%, 76%) {
   plate: Rect, size: (260, 100), color: (0.10, 0.14, 0.22, 1.0)
   ring: Circle, radius: 28, color: accent.warning
   core: Circle, radius: 14, color: text.primary

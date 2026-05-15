@@ -61,6 +61,10 @@ pub enum DiagnosticCode {
     EmptyAutoColorPool,
     ModuleExportEvalError,
     ModifierCompilationError,
+    // Coordinate system friction
+    ConflictingPositionBinding,
+    IgnoredOffset,
+    DeprecatedAtAnchor,
     // Multi-scene composition
     DuplicateSceneName,
     PlayTargetNotFound,
@@ -101,6 +105,11 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::EmptyAutoColorPool => write!(f, "empty-auto-color-pool"),
             DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
             DiagnosticCode::ModifierCompilationError => write!(f, "modifier-compilation-error"),
+            DiagnosticCode::ConflictingPositionBinding => {
+                write!(f, "conflicting-position-binding")
+            }
+            DiagnosticCode::IgnoredOffset => write!(f, "ignored-offset"),
+            DiagnosticCode::DeprecatedAtAnchor => write!(f, "deprecated-at-anchor"),
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),

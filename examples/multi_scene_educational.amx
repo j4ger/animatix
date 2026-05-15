@@ -14,8 +14,8 @@ pub let accent_color = accent.primary
 config { colorscheme: "editorial-dark" }
 
 #0s
-title: Text, text: "Understanding Derivatives", font_size: 52, anchor: scene.center, at: scene.center
-subtitle: Text, text: "An Animatix Multi-Scene Explainer", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, 55)
+title: Text, text: "Understanding Derivatives", font_size: 52, anchor: scene.center
+subtitle: Text, text: "An Animatix Multi-Scene Explainer", font_size: 22, anchor: scene.center, offset: (0, 55)
 
 #0.3s
 fade-in title [600ms, ease: ease-out]
@@ -33,12 +33,12 @@ play Concept [fade, 300ms]
 config { colorscheme: "editorial-dark" }
 
 #0s
-header: Text, text: "What is a Derivative?", font_size: 36, anchor: scene.top, at: scene.top, offset: (0, 80)
-body_text: Text, text: "A derivative measures how a function changes", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, -80)
-body_text2: Text, text: "as its input changes.", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, -45)
+header: Text, text: "What is a Derivative?", font_size: 36, anchor: scene.top, offset: (0, 80)
+body_text: Text, text: "A derivative measures how a function changes", font_size: 22, anchor: scene.center, offset: (0, -80)
+body_text2: Text, text: "as its input changes.", font_size: 22, anchor: scene.center, offset: (0, -45)
 
 // Visual: curve and tangent line
-curve: Rect, size: (500, 300), color: accent.primary, anchor: scene.center, at: scene.center, offset: (0, 120)
+curve: Rect, size: (500, 300), color: accent.primary, anchor: scene.center, offset: (0, 120)
 tangent: Rect, size: (300, 4), color: accent.warning, anchor: curve, at: curve, offset: (0, 0)
 
 #0.3s
@@ -70,10 +70,10 @@ play Applications [wipe-left, 400ms]
 config { colorscheme: "editorial-dark" }
 
 #0s
-header2: Text, text: "Real-World Applications", font_size: 36, anchor: scene.top, at: scene.top, offset: (0, 80)
-app1: Text, text: "Physics: velocity & acceleration", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, -40)
-app2: Text, text: "Economics: marginal cost & revenue", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, 10)
-app3: Text, text: "ML: gradient descent optimization", font_size: 22, anchor: scene.center, at: scene.center, offset: (-150, 60)
+header2: Text, text: "Real-World Applications", font_size: 36, anchor: scene.top, offset: (0, 80)
+app1: Text, text: "Physics: velocity & acceleration", font_size: 22, anchor: scene.center, offset: (-150, -40)
+app2: Text, text: "Economics: marginal cost & revenue", font_size: 22, anchor: scene.center, offset: (-150, 10)
+app3: Text, text: "ML: gradient descent optimization", font_size: 22, anchor: scene.center, offset: (-150, 60)
 
 #0.3s
 fade-in header2 [400ms, ease: ease-out]
@@ -99,8 +99,8 @@ play Outro [fade, 300ms]
 config { colorscheme: "editorial-dark" }
 
 #0s
-closing: Text, text: "Thanks for Watching!", font_size: 42, anchor: scene.center, at: scene.center
-cta: Text, text: "Build your own animated explainers with Animatix", font_size: 20, anchor: scene.center, at: scene.center, offset: (0, 55)
+closing: Text, text: "Thanks for Watching!", font_size: 42, anchor: scene.center
+cta: Text, text: "Build your own animated explainers with Animatix", font_size: 20, anchor: scene.center, offset: (0, 55)
 
 #0.3s
 fade-in closing [500ms, ease: ease-out]

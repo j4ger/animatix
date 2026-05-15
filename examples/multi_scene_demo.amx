@@ -7,8 +7,8 @@ config { resolution: (1280, 720), colorscheme: "editorial-dark" }
 
 # Intro
 #0s
-welcome: Text, text: "Multi-Scene Composition", font_size: 56, anchor: scene.center, at: scene.center
-sub: Text, text: "Introducing the multi-scene workflow", font_size: 22, anchor: scene.center, at: scene.center, offset: (0, 60)
+welcome: Text, text: "Multi-Scene Composition", font_size: 56, anchor: scene.center
+sub: Text, text: "Introducing the multi-scene workflow", font_size: 22, anchor: scene.center, offset: (0, 60)
 
 #0.3s
 fade-in welcome [600ms, ease: ease-out]
@@ -23,9 +23,9 @@ play Diagram [fade, 300ms]
 
 # Diagram
 #0s
-a: Rect, size: (180, 90), color: accent.primary, anchor: scene.center, at: scene.center, offset: (-300, 0)
-b: Rect, size: (180, 90), color: accent.success, anchor: scene.center, at: scene.center
-c: Rect, size: (180, 90), color: accent.warning, anchor: scene.center, at: scene.center, offset: (300, 0)
+a: Rect, size: (180, 90), color: accent.primary, anchor: scene.center, offset: (-300, 0)
+b: Rect, size: (180, 90), color: accent.success, anchor: scene.center
+c: Rect, size: (180, 90), color: accent.warning, anchor: scene.center, offset: (300, 0)
 
 la: Text, text: "Scene A", font_size: 16, anchor: a, at: a, offset: (0, 70)
 lb: Text, text: "Scene B", font_size: 16, anchor: b, at: b, offset: (0, 70)
@@ -57,8 +57,8 @@ play Outro [wipe-left, 400ms]
 
 # Outro
 #0s
-ending: Text, text: "Thank You", font_size: 48, anchor: scene.center, at: scene.center
-note: Text, text: "Export with: animatix video file.amx", font_size: 18, anchor: scene.center, at: scene.center, offset: (0, 55)
+ending: Text, text: "Thank You", font_size: 48, anchor: scene.center
+note: Text, text: "Export with: animatix video file.amx", font_size: 18, anchor: scene.center, offset: (0, 55)
 
 #0.3s
 fade-in ending [500ms, ease: ease-out]

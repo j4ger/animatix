@@ -9,7 +9,7 @@ config { resolution: (640, 360), colorscheme: "editorial-dark" }
 
 # One
 #0s
-a: Text, text: "Scene 1", font_size: 36, anchor: scene.center, at: scene.center
+a: Text, text: "Scene 1", font_size: 36, anchor: scene.center
 #0.3s
 fade-in a [300ms]
 #1.5s
@@ -18,7 +18,7 @@ play Two [fade, 200ms]
 
 # Two
 #0s
-b: Text, text: "Scene 2", font_size: 36, anchor: scene.center, at: scene.center
+b: Text, text: "Scene 2", font_size: 36, anchor: scene.center
 #0.3s
 fade-in b [300ms]
 #1.5s
@@ -27,7 +27,7 @@ play Three [wipe-left, 200ms]
 
 # Three
 #0s
-c: Text, text: "Scene 3", font_size: 36, anchor: scene.center, at: scene.center
+c: Text, text: "Scene 3", font_size: 36, anchor: scene.center
 #0.3s
 fade-in c [300ms]
 #1.5s
