@@ -27,7 +27,7 @@ pub(crate) fn push_unknown_lookup_path_diagnostic(
             DiagnosticCode::UnknownLookupPath,
             DiagnosticPhase::Build,
             format!(
-                "Lookup path '{lookup_key}' does not resolve to a sampled actor/scene property; keeping the current fallback/default value instead.{hint}"
+                "Lookup path '{lookup_key}' does not resolve to a known property; using the default value instead.{hint}"
             ),
         )
         .with_subject(subject),
@@ -125,7 +125,7 @@ pub(crate) fn parse_color_in_env_with_lookup_diagnostic(
                     DiagnosticCode::UnknownColorReference,
                     DiagnosticPhase::Build,
                     format!(
-                        "Color value '{lookup_key}' on '{}.{}' does not resolve to a named color, colorscheme alias, or runtime color value; keeping the existing/default color instead.{hint}",
+                        "Color value '{lookup_key}' on '{}.{}' does not resolve to a known color; using the default color instead.{hint}",
                         label, property_name
                     ),
                 )

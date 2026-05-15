@@ -70,7 +70,7 @@ impl Timeline {
                         DiagnosticCode::UnsupportedSequenceStatement,
                         DiagnosticPhase::Build,
                         format!(
-                            "Sequence blocks currently support only actions and assignments; '{}' is not supported.",
+                            "Sequence blocks support only actions and assignments; '{}' is not supported.",
                             sequence_stmt_kind(stmt)
                         ),
                     )

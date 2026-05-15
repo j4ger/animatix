@@ -42,7 +42,7 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
             DiagnosticCode::UnsupportedStaggerStatement,
             DiagnosticPhase::Build,
             format!(
-                "Stagger blocks currently support only actions and assignments; '{kind}' is not supported."
+                "Stagger blocks support only actions and assignments; '{kind}' is not supported."
             ),
         )
         .with_subject("stagger"),
@@ -402,7 +402,7 @@ pub(crate) fn parse_timing_modifiers(
                                 diagnostics,
                                 DiagnosticCode::InvalidModifierValue,
                                 format!(
-                                    "Unsupported strategy value 'fade' on {}; cross-fade remains deferred until the runtime has a richer transition/compositing model.",
+                                    "Strategy 'fade' is not supported on {}; use 'auto' or 'match' instead.",
                                     host.display_name()
                                 ),
                                 subject,
@@ -534,7 +534,7 @@ pub(crate) fn parse_timing_modifiers(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
                 format!(
-                    "Unsupported modifier key '{name}' on {}; this host currently supports positional duration shorthand, named delay, and named ease.",
+                    "Unsupported modifier key '{name}' on {}; supported modifiers are duration shorthand, delay, and ease.",
                     host.display_name()
                 ),
                 subject,

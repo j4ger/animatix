@@ -235,13 +235,20 @@ pub(crate) fn write_property_field(
         | ActorField::VectorShapeGroup
         | ActorField::PlotDomainGroup
         | ActorField::ContainerLayoutGroup => {
+            let field_name = match field {
+                ActorField::PositionBindingGroup => "position",
+                ActorField::VectorShapeGroup => "shape",
+                ActorField::PlotDomainGroup => "plot domain",
+                ActorField::ContainerLayoutGroup => "layout",
+                _ => unreachable!(),
+            };
             diagnostics.push(
                 Diagnostic::warning(
                     DiagnosticCode::InvalidModifierValue,
                     DiagnosticPhase::Build,
                     format!(
-                        "Property field '{:?}' requires group resolution and cannot be written directly.",
-                        field
+                        "Cannot set '{}' directly; use its individual properties instead.",
+                        field_name
                     ),
                 )
             );

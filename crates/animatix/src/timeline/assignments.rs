@@ -139,7 +139,7 @@ impl Timeline {
                     diagnostics.push(Diagnostic::warning(
                         DiagnosticCode::UnsupportedMediaAssignment,
                         DiagnosticPhase::Build,
-                        "Svg url assignments are not supported yet; redeclare the Svg actor at a keyframe instead.".to_string(),
+                        "Svg url assignments are not supported; redeclare the Svg actor at a keyframe instead.".to_string(),
                     ).with_subject(&assignment_subject).with_path(&target_url));
                     return;
                 }

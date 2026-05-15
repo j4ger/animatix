@@ -51,7 +51,7 @@ impl BuiltinAction for Swap {
                         DiagnosticCode::UnsupportedActionTarget,
                         DiagnosticPhase::Build,
                         format!(
-                            "Swap action target '{}' is not declared yet.",
+                            "Swap action target '{}' is not declared.",
                             target
                         ),
                     )
@@ -217,7 +217,7 @@ impl BuiltinAction for Reorder {
                     DiagnosticCode::UnsupportedActionTarget,
                     DiagnosticPhase::Build,
                     format!(
-                        "Reorder action target '{}' is not declared yet.",
+                        "Reorder action target '{}' is not declared.",
                         container
                     ),
                 )

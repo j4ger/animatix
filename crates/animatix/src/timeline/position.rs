@@ -82,30 +82,10 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
 
     if let Some(at_expr) = at_expr {
         if let Some(anchor) = parse_scene_anchor(at_expr) {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::DeprecatedAtAnchor,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Using `at` for scene anchors on '{subject}' is deprecated; use `anchor` instead."
-                    ),
-                )
-                .with_subject(subject),
-            );
             return Some((PositionBinding::SceneAnchor { anchor, offset }, None));
         }
 
         if let Some([x, y]) = parse_percent_vec2(at_expr) {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::DeprecatedAtAnchor,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Using `at` for percentage placement on '{subject}' is deprecated; use `anchor` with percentages instead."
-                    ),
-                )
-                .with_subject(subject),
-            );
             return Some((PositionBinding::ScenePercent { x, y, offset }, None));
         }
 
@@ -313,50 +293,6 @@ mod tests {
     }
 
     #[test]
-    fn deprecated_at_with_scene_anchor_emits_warning() {
-        let at = Expr::Path(vec!["scene".to_string(), "top".to_string()]);
-        let mut diagnostics = Vec::new();
-        let env = Environment::new();
-
-        let result = resolve_position_binding_with_lookup_diagnostic(
-            Some(&at),
-            None,
-            None,
-            &env,
-            &mut diagnostics,
-            "test_actor",
-        );
-
-        assert!(result.is_some());
-        assert!(
-            has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
-            "Should emit DeprecatedAtAnchor warning for at: scene.top"
-        );
-    }
-
-    #[test]
-    fn deprecated_at_with_percent_emits_warning() {
-        let at = Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(60.0)]);
-        let mut diagnostics = Vec::new();
-        let env = Environment::new();
-
-        let result = resolve_position_binding_with_lookup_diagnostic(
-            Some(&at),
-            None,
-            None,
-            &env,
-            &mut diagnostics,
-            "test_actor",
-        );
-
-        assert!(result.is_some());
-        assert!(
-            has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
-            "Should emit DeprecatedAtAnchor warning for at: (50%, 60%)"
-        );
-    }
-
-    #[test]
     fn ignored_offset_with_absolute_at_emits_warning() {
         let at = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
         let offset = Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]);
@@ -456,34 +392,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn conflicting_at_and_anchor_only_emits_conflict_not_deprecated() {
-        let at = Expr::Path(vec!["scene".to_string(), "center".to_string()]);
-        let anchor = Expr::Path(vec!["scene".to_string(), "top".to_string()]);
-        let mut diagnostics = Vec::new();
-        let env = Environment::new();
-
-        let result = resolve_position_binding_with_lookup_diagnostic(
-            Some(&at),
-            Some(&anchor),
-            None,
-            &env,
-            &mut diagnostics,
-            "test_actor",
-        );
-
-        assert!(result.is_some());
-        assert!(
-            has_warning_with_code(&diagnostics, DiagnosticCode::ConflictingPositionBinding),
-            "Should emit ConflictingPositionBinding warning"
-        );
-        assert!(
-            !has_warning_with_code(&diagnostics, DiagnosticCode::DeprecatedAtAnchor),
-            "Should NOT emit DeprecatedAtAnchor when conflict is already reported"
-        );
-        assert!(
-            matches!(result.unwrap().0, PositionBinding::SceneAnchor { anchor: SceneAnchor::Top, .. }),
-            "Anchor should take precedence"
-        );
-    }
 }

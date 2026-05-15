@@ -39,7 +39,7 @@ fn push_unsupported_media_modifier_diagnostics(
                 DiagnosticCode::UnsupportedModifierKey,
                 DiagnosticPhase::Build,
                 format!(
-                    "Unsupported modifier key '{modifier_name}' on {actor_type} actor declaration '{label}'; media declarations currently keep an instant-only contract."
+                    "'{modifier_name}' is not supported on {actor_type} declarations like '{label}'."
                 ),
             )
             .with_subject(label),

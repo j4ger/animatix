@@ -10,6 +10,7 @@
 - **Gap** — Known limitation in the current runtime.
 - **Deferred** — Infrastructure exists; blocked on time or needs focused implementation.
 - **TODO** — Inline code marker (`// TODO:`) tracking a local fix.
+- **Resolved** — Addressed; kept for historical context.
 
 ---
 
@@ -17,9 +18,13 @@
 
 ### 1.1 Coordinate System Friction
 
-**Status:** Design tension.
+**Status:** Resolved.
 
-`at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) often clash when mixed, requiring manual intervention.
+`at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) previously clashed silently when mixed. Build-time diagnostics now warn about:
+- Both `at` and `anchor` specified on the same actor (`conflicting-position-binding`)
+- `offset` used with absolute `at` where it has no effect (`ignored-offset`)
+
+**Location:** `crates/animatix/src/timeline/position.rs`.
 
 ---
 
@@ -165,6 +170,26 @@ Symbol table property entries don't capture default values yet.
 
 ---
 
+### 4.2 Diagnostics Quality
+
+**Status:** Partial. Language cleaned; deduplication implemented; source spans remain deferred.
+**Location:** `crates/animatix/src/diagnostics.rs`, across all `Diagnostic::warning/error` call sites.
+
+Completed:
+- Removed POC-inappropriate language ("currently", "not supported yet", "remains deferred", internal jargon like "IR" / "AST fallback").
+- Implemented automatic deduplication in `BuildReport::new` based on `(code, message, subject)` fingerprint.
+- Removed two unused diagnostic codes (`ColorschemeLoadFailure`, `EmptyAutoColorPool`).
+
+Remaining gaps:
+- **Source spans:** Most diagnostics lack line/column info. `with_ast_span()` exists but is rarely populated. The parser has byte spans; these need to flow through `BuildReport` to the CLI / GUI.
+- **Severity classification:** Some warnings should be errors. Need a pass to reclassify by user-actionability.
+- **Actionability:** A few diagnostics still describe internal state (e.g., "using default") without telling the user *which* default or *why*.
+
+**Effort:** Low-Medium. ~2-4 hours for severity audit + span plumbing.
+**Impact:** Medium. Clean diagnostics are the primary user feedback channel.
+
+---
+
 ## 5. Architecture / Cleanup Debt
 
 ### 5.1 Dynamic Layout — Post-Migration Cleanup
@@ -230,14 +255,13 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 |----------|------|--------|--------|
 | 1 | Panic audit & error handling (renderer pipeline, GUI I/O) | Medium | High |
 | 2 | Multi-Scene GUI (scene list, composition timeline, write-back) | Medium | High |
-| 3 | Analyzer default serialization | Low | Low |
-| 4 | Randomness determinism | Low-Medium | Medium |
-| 5 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 6 | Multi-Scene transition blending (Phase 7) | High | Medium |
-| 7 | Cross-file analyzer | Medium-High | Medium |
-| 8 | `strategy: fade` morph | High | Medium |
-| 9 | Multi-Scene cross-file scenes (Phase 8) | Medium | Medium |
-| 10 | Green tree / trivia AST | Very High | Low (polish) |
+| 3 | Randomness determinism | Low-Medium | Medium |
+| 4 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 5 | Multi-Scene transition blending (Phase 7) | High | Medium |
+| 6 | Cross-file analyzer | Medium-High | Medium |
+| 7 | `strategy: fade` morph | High | Medium |
+| 8 | Multi-Scene cross-file scenes (Phase 8) | Medium | Medium |
+| 9 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 

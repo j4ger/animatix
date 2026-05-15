@@ -34,7 +34,7 @@ impl fmt::Display for DiagnosticPhase {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DiagnosticCode {
     SourceLoadFailure,
     ParseError,
@@ -55,16 +55,13 @@ pub enum DiagnosticCode {
     MediaLoadFailure,
     LayoutSizeFallback,
     UnsupportedMediaAssignment,
-    ColorschemeLoadFailure,
     InvalidColorschemeData,
     ColorschemeInheritanceCycle,
-    EmptyAutoColorPool,
     ModuleExportEvalError,
     ModifierCompilationError,
     // Coordinate system friction
     ConflictingPositionBinding,
     IgnoredOffset,
-    DeprecatedAtAnchor,
     // Multi-scene composition
     DuplicateSceneName,
     PlayTargetNotFound,
@@ -99,17 +96,14 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::MediaLoadFailure => write!(f, "media-load-failure"),
             DiagnosticCode::LayoutSizeFallback => write!(f, "layout-size-fallback"),
             DiagnosticCode::UnsupportedMediaAssignment => write!(f, "unsupported-media-assignment"),
-            DiagnosticCode::ColorschemeLoadFailure => write!(f, "colorscheme-load-failure"),
             DiagnosticCode::InvalidColorschemeData => write!(f, "invalid-colorscheme-data"),
             DiagnosticCode::ColorschemeInheritanceCycle => write!(f, "colorscheme-inheritance-cycle"),
-            DiagnosticCode::EmptyAutoColorPool => write!(f, "empty-auto-color-pool"),
             DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
             DiagnosticCode::ModifierCompilationError => write!(f, "modifier-compilation-error"),
             DiagnosticCode::ConflictingPositionBinding => {
                 write!(f, "conflicting-position-binding")
             }
             DiagnosticCode::IgnoredOffset => write!(f, "ignored-offset"),
-            DiagnosticCode::DeprecatedAtAnchor => write!(f, "deprecated-at-anchor"),
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
@@ -202,7 +196,18 @@ pub struct BuildReport<T> {
 }
 
 impl<T> BuildReport<T> {
-    pub fn new(output: T, diagnostics: Vec<Diagnostic>) -> Self {
+    pub fn new(output: T, mut diagnostics: Vec<Diagnostic>) -> Self {
+        // Deduplicate: keep only the first occurrence of each
+        // (code, message, subject) combination.
+        let mut seen = std::collections::HashSet::new();
+        diagnostics.retain(|d| {
+            let key = (
+                d.code,
+                d.message.clone(),
+                d.location.subject.clone(),
+            );
+            seen.insert(key)
+        });
         Self {
             output,
             diagnostics,
@@ -426,5 +431,61 @@ mod tests {
     #[test]
     fn diagnostics_phase_summary_handles_empty_input() {
         assert_eq!(diagnostics_phase_summary(&[]), "No diagnostics");
+    }
+
+    #[test]
+    fn build_report_deduplicates_identical_diagnostics() {
+        let diagnostics = vec![
+            Diagnostic::warning(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "Unknown action 'spin'",
+            )
+            .with_subject("spin"),
+            Diagnostic::warning(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "Unknown action 'spin'",
+            )
+            .with_subject("spin"),
+            Diagnostic::warning(
+                DiagnosticCode::UnknownAction,
+                DiagnosticPhase::Build,
+                "Unknown action 'pulse'",
+            )
+            .with_subject("pulse"),
+        ];
+
+        let report: BuildReport<()> = BuildReport::new((), diagnostics);
+        assert_eq!(report.diagnostics.len(), 2);
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "Unknown action 'spin'"));
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "Unknown action 'pulse'"));
+    }
+
+    #[test]
+    fn build_report_keeps_different_subjects() {
+        let diagnostics = vec![
+            Diagnostic::warning(
+                DiagnosticCode::ConflictingPositionBinding,
+                DiagnosticPhase::Build,
+                "`at` and `anchor` both specify position for 'a'",
+            )
+            .with_subject("a"),
+            Diagnostic::warning(
+                DiagnosticCode::ConflictingPositionBinding,
+                DiagnosticPhase::Build,
+                "`at` and `anchor` both specify position for 'b'",
+            )
+            .with_subject("b"),
+        ];
+
+        let report: BuildReport<()> = BuildReport::new((), diagnostics);
+        assert_eq!(report.diagnostics.len(), 2);
     }
 }

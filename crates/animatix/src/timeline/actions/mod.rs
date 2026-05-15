@@ -27,7 +27,7 @@ fn push_unknown_action_diagnostic(
             DiagnosticCode::UnknownAction,
             DiagnosticPhase::Build,
             format!(
-                "Unknown action '{}'; no built-in action is currently registered for it.",
+                "Unknown action '{}'; no built-in action matches this name.",
                 action.verb
             ),
         )

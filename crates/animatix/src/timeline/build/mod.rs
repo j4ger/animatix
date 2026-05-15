@@ -149,7 +149,7 @@ impl Timeline {
                 diagnostics.push(Diagnostic::warning(
                     DiagnosticCode::ModifierCompilationError,
                     DiagnosticPhase::Build,
-                    format!("Failed to compile always blocks to IR: {}; using AST fallback.", e),
+                    format!("Always-block optimization failed: {}. Animation will still work, but may be slower.", e),
                 ));
             }
         }
@@ -913,7 +913,7 @@ impl Timeline {
                             color = actor_color;
                             if primitive.is_plot_curve() { stroke_color = actor_color; }
                         } else {
-                            diagnostics.push(Diagnostic::warning(DiagnosticCode::UnknownColorReference, DiagnosticPhase::Build, format!("Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.", label)).with_subject(&prop_subject));
+                            diagnostics.push(Diagnostic::warning(DiagnosticCode::UnknownColorReference, DiagnosticPhase::Build, format!("Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead.", label)).with_subject(&prop_subject));
                         }
                     } else if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(label, "color", &prop.value, &eval_env, diagnostics, &prop_subject) {
                         color = resolved_color;

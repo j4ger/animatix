@@ -185,7 +185,7 @@ impl Timeline {
                                     DiagnosticCode::UnknownColorReference,
                                     DiagnosticPhase::Build,
                                     format!(
-                                        "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; keeping the existing/default color instead.",
+                                        "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead.",
                                         label_str
                                     ),
                                 )
