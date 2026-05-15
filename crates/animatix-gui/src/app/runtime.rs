@@ -95,9 +95,8 @@ impl AnimatixApp {
             let keyframes = self
                 .shell
                 .document
-                .timeline
-                .as_ref()
-                .map(timeline_keyframe_times_s)
+                .active_timeline()
+                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
             self.shell.preview.go_to_previous_keyframe(&keyframes);
             self.shell.preview.status = format!(
@@ -111,9 +110,8 @@ impl AnimatixApp {
             let keyframes = self
                 .shell
                 .document
-                .timeline
-                .as_ref()
-                .map(timeline_keyframe_times_s)
+                .active_timeline()
+                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
             self.shell.preview.go_to_next_keyframe(&keyframes);
             self.shell.preview.status = format!(
@@ -157,48 +155,65 @@ impl AnimatixApp {
         self.preview_surface.set_dimensions(device, dimensions);
 
         if self.shell.preview_dirty {
-            if let Some(timeline) = self.shell.document.timeline.as_ref() {
-                let debug = animatix::timeline::DebugRenderOptions {
-                    draw_bounds: self.shell.debug_bounds,
-                };
-                if let Err(error) = self.preview_surface.render(
+            let debug = animatix::timeline::DebugRenderOptions {
+                draw_bounds: self.shell.debug_bounds,
+            };
+
+            let render_result = if let Some(composition) = self.shell.document.composition.as_ref()
+            {
+                self.preview_surface.render_composition(
+                    device,
+                    queue,
+                    composition,
+                    self.shell.preview.current_time_s,
+                    debug,
+                )
+            } else if let Some(timeline) = self.shell.document.timeline.as_ref() {
+                self.preview_surface.render(
                     device,
                     queue,
                     timeline,
                     self.shell.preview.current_time_s,
                     debug,
-                ) {
-                    self.shell.set_render_error(error);
-                    return Ok(());
-                }
+                )
+            } else {
+                Ok(())
+            };
 
-                // Register or update the texture with egui
-                if let Some(sample_view) = self.preview_surface.sample_view() {
-                    let mut renderer = render_state.renderer.write();
-                    let texture_id = match self.preview_texture_id {
-                        Some(id) => {
-                            renderer.update_egui_texture_from_wgpu_texture(
-                                device,
-                                sample_view,
-                                wgpu::FilterMode::Linear,
-                                id,
-                            );
-                            id
-                        }
-                        None => renderer.register_native_texture(
+            if let Err(error) = render_result {
+                self.shell.set_render_error(error);
+                return Ok(());
+            }
+
+            // Register or update the texture with egui
+            if let Some(sample_view) = self.preview_surface.sample_view() {
+                let mut renderer = render_state.renderer.write();
+                let texture_id = match self.preview_texture_id {
+                    Some(id) => {
+                        renderer.update_egui_texture_from_wgpu_texture(
                             device,
                             sample_view,
                             wgpu::FilterMode::Linear,
-                        ),
-                    };
-                    self.preview_texture_id = Some(texture_id);
-                }
-
-                self.shell.preview_dirty = false;
-                self.shell.hit_regions = self.preview_surface.hit_regions().to_vec();
-                self.shell
-                    .clear_any_error(live_preview_status(&self.shell.preview));
+                            id,
+                        );
+                        id
+                    }
+                    None => renderer.register_native_texture(
+                        device,
+                        sample_view,
+                        wgpu::FilterMode::Linear,
+                    ),
+                };
+                self.preview_texture_id = Some(texture_id);
             }
+
+            self.shell.preview_dirty = false;
+            self.shell.hit_regions = self.preview_surface.hit_regions().to_vec();
+            self.shell
+                .clear_any_error(live_preview_status(
+                    &self.shell.preview,
+                    self.shell.document.active_scene.as_deref(),
+                ));
         } else if self.preview_texture_id.is_none()
             && self.preview_surface.dimensions().width > 0
             && self.preview_surface.dimensions().height > 0
@@ -214,7 +229,10 @@ impl AnimatixApp {
                 self.preview_texture_id = Some(texture_id);
             }
             self.shell
-                .clear_any_error(live_preview_status(&self.shell.preview));
+                .clear_any_error(live_preview_status(
+                    &self.shell.preview,
+                    self.shell.document.active_scene.as_deref(),
+                ));
         }
 
         Ok(())
@@ -253,11 +271,18 @@ impl eframe::App for AnimatixApp {
     }
 }
 
-fn live_preview_status(preview: &PreviewPaneState) -> String {
-    format!(
-        "Live preview \u{2022} t = {:.2}s / {:.2}s",
-        preview.current_time_s, preview.duration_s
-    )
+fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -> String {
+    if let Some(scene) = active_scene {
+        format!(
+            "{} \u{2022} t = {:.2}s / {:.2}s",
+            scene, preview.current_time_s, preview.duration_s
+        )
+    } else {
+        format!(
+            "Live preview \u{2022} t = {:.2}s / {:.2}s",
+            preview.current_time_s, preview.duration_s
+        )
+    }
 }
 
 fn install_theme(ctx: &egui::Context) {

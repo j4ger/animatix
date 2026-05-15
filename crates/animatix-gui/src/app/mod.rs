@@ -341,6 +341,8 @@ impl GuiShell {
             }
         }
 
+        self.sync_active_scene_from_time();
+
         if let Some(deadline) = self.pending_rebuild_at
             && now >= deadline
         {
@@ -373,21 +375,18 @@ impl GuiShell {
         // Transport bar at the very bottom
         let keyframe_count = self
             .document
-            .timeline
-            .as_ref()
+            .active_timeline()
             .map(|t| t.keyframe_times_s().len())
             .unwrap_or(0);
         let actor_count = self
             .document
-            .timeline
-            .as_ref()
+            .active_timeline()
             .map(|t| t.tracks.len())
             .unwrap_or(0);
         let timeline_markers = self
             .document
-            .timeline
-            .as_ref()
-            .map(timeline_keyframe_times_s)
+            .active_timeline()
+            .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
             .unwrap_or_default();
         let has_error = self.preview.error.is_some();
         let diagnostics = self.combined_diagnostics();
@@ -409,6 +408,8 @@ impl GuiShell {
                     self.editor_sync_enabled,
                     self.keyframe_mode,
                     self.cursor_time_s,
+                    self.document.composition.as_ref(),
+                    self.document.active_scene.as_deref(),
                 );
             });
 
@@ -466,6 +467,10 @@ impl GuiShell {
         let scene_dimensions = self.document.scene_dimensions;
 
         let viewer = WorkspaceViewer {
+            scene_names: self.document.scene_names(),
+            import_aliases: self.document.import_aliases(),
+            active_scene: self.document.active_scene.clone(),
+            is_composition: self.document.is_composition(),
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
             expanded_dirs: &mut self.expanded_dirs,
@@ -528,6 +533,7 @@ impl GuiShell {
             self.preview.clamp_time();
             self.preview.is_playing = false;
             self.preview_dirty = true;
+            self.sync_active_scene_from_time();
             if self.editor_sync_enabled {
                 if let Some(line) = self.document.find_keyframe_line_at(next_time) {
                     self.editor.scroll_to_line(line);
@@ -573,9 +579,8 @@ impl GuiShell {
         if actions.prev_keyframe {
             let keyframes = self
                 .document
-                .timeline
-                .as_ref()
-                .map(timeline_keyframe_times_s)
+                .active_timeline()
+                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
             self.preview.go_to_previous_keyframe(&keyframes);
             self.preview.status = format!(
@@ -594,9 +599,8 @@ impl GuiShell {
         if actions.next_keyframe {
             let keyframes = self
                 .document
-                .timeline
-                .as_ref()
-                .map(timeline_keyframe_times_s)
+                .active_timeline()
+                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
             self.preview.go_to_next_keyframe(&keyframes);
             self.preview.status = format!(
@@ -612,11 +616,38 @@ impl GuiShell {
                 }
             }
         }
+        if actions.prev_scene || actions.next_scene {
+            if let Some(composition) = self.document.composition.as_ref() {
+                let current_idx = self
+                    .document
+                    .active_scene
+                    .as_deref()
+                    .and_then(|name| composition.declaration_order.iter().position(|n| n == name))
+                    .unwrap_or(0);
+                let target_idx = if actions.prev_scene {
+                    current_idx.saturating_sub(1)
+                } else {
+                    (current_idx + 1).min(composition.declaration_order.len().saturating_sub(1))
+                };
+                if let Some(target_name) = composition.declaration_order.get(target_idx) {
+                    self.document.active_scene = Some(target_name.clone());
+                    if let Some(start) = composition.scene_start_times.get(target_name) {
+                        self.preview.current_time_s = *start;
+                        self.preview.clamp_time();
+                        self.preview.is_playing = false;
+                        self.preview_dirty = true;
+                        self.preview.status = format!(
+                            "Scene {} • t = {:.2}s / {:.2}s",
+                            target_name, self.preview.current_time_s, self.preview.duration_s
+                        );
+                    }
+                }
+            }
+        }
         if let Some(label) = actions.select_actor {
             if self
                 .document
-                .timeline
-                .as_ref()
+                .active_timeline()
                 .is_some_and(|t| t.has_actor(&label))
             {
                 self.selected_actor = Some(label);
@@ -626,6 +657,78 @@ impl GuiShell {
             if self.inspector_input_drag_active {
                 self.inspector_input_drag_active = false;
                 self.drag_snapshot_taken = false;
+            }
+        }
+        if let Some(scene) = actions.select_scene {
+            if self
+                .document
+                .composition
+                .as_ref()
+                .is_some_and(|composition| composition.scenes.contains_key(&scene))
+            {
+                self.document.active_scene = Some(scene);
+            }
+        }
+        if actions.add_scene {
+            let existing: std::collections::HashSet<String> =
+                self.document.scene_names().into_iter().collect();
+            if let Some(ref mut stmts) = self.document.raw_statements {
+                let mut i = 1;
+                let new_name = loop {
+                    let candidate = format!("Scene{}", i);
+                    if !existing.contains(&candidate) {
+                        break candidate;
+                    }
+                    i += 1;
+                };
+
+                let edit = crate::source_edit::SourceEdit::AddScene {
+                    name: new_name.clone(),
+                };
+                if crate::source_edit::apply_edit(stmts, edit) {
+                    let new_source = animatix::to_source::stmts_to_source(stmts);
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                    self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                    self.preview.status = format!("Added scene {}", new_name);
+                }
+            }
+        }
+        if let Some((old_name, new_name)) = actions.rename_scene {
+            if old_name != new_name && !new_name.is_empty() {
+                if let Some(ref mut stmts) = self.document.raw_statements {
+                    let edit = crate::source_edit::SourceEdit::RenameScene {
+                        old_name,
+                        new_name: new_name.clone(),
+                    };
+                    if crate::source_edit::apply_edit(stmts, edit) {
+                        let new_source = animatix::to_source::stmts_to_source(stmts);
+                        self.document.source_text = new_source.clone();
+                        self.editor.replace_text(new_source);
+                        self.document.is_dirty = true;
+                        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                        self.preview.status = format!("Renamed scene to {}", new_name);
+                    }
+                }
+            }
+        }
+        if let Some(new_order) = actions.reorder_scenes {
+            if let Some(ref mut stmts) = self.document.raw_statements {
+                let edit = crate::source_edit::SourceEdit::ReorderScenes {
+                    new_order: new_order.clone(),
+                };
+                if crate::source_edit::apply_edit(stmts, edit) {
+                    let new_source = animatix::to_source::stmts_to_source(stmts);
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                    self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                    self.preview.status = "Reordered scenes".to_string();
+                }
             }
         }
         if let Some((ty, label, position)) = actions.create_actor {
@@ -799,6 +902,13 @@ impl GuiShell {
         }
         self.clear_any_error(status);
         self.preview_dirty = true;
+    }
+
+    fn sync_active_scene_from_time(&mut self) {
+        if let Some(composition) = self.document.composition.as_ref() {
+            let (scene, _, _) = composition.evaluate(self.preview.current_time_s);
+            self.document.active_scene = (!scene.is_empty()).then_some(scene);
+        }
     }
 
     fn set_status(&mut self, status: String, error: Option<String>) {

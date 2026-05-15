@@ -30,6 +30,7 @@ use std::path::{Path, PathBuf};
 pub(crate) enum SidebarTab {
     Explorer,
     Layers,
+    Scenes,
 }
 
 /// Describes a property edit made in the inspector panel.
@@ -111,7 +112,13 @@ pub(super) struct UiActions {
     pub(super) request_repaint: bool,
     pub(super) prev_keyframe: bool,
     pub(super) next_keyframe: bool,
+    pub(super) prev_scene: bool,
+    pub(super) next_scene: bool,
     pub(super) select_actor: Option<String>,
+    pub(super) select_scene: Option<String>,
+    pub(super) add_scene: bool,
+    pub(super) rename_scene: Option<(String, String)>,
+    pub(super) reorder_scenes: Option<Vec<String>>,
     pub(super) property_edits: Vec<PropertyEdit>,
     pub(super) drag_ended: bool,
     pub(super) undo: bool,
@@ -135,6 +142,10 @@ pub(super) struct UiActions {
 }
 
 pub(super) struct WorkspaceViewer<'a> {
+    pub(super) scene_names: Vec<String>,
+    pub(super) import_aliases: Vec<String>,
+    pub(super) active_scene: Option<String>,
+    pub(super) is_composition: bool,
     pub(super) current_file: &'a Path,
     pub(super) workspace_root: &'a Path,
     pub(super) expanded_dirs: &'a mut HashSet<PathBuf>,
@@ -168,6 +179,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let tabs = [
         (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
+        (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
     ];
     if let Some(new_tab) = widgets::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
@@ -259,6 +271,7 @@ impl WorkspaceViewer<'_> {
                 |ui| match active_tab {
                     SidebarTab::Explorer => self.explorer_content_ui(ui),
                     SidebarTab::Layers => self.layers_content_ui(ui),
+                    SidebarTab::Scenes => self.scenes_content_ui(ui),
                 },
             );
 
@@ -401,6 +414,102 @@ impl WorkspaceViewer<'_> {
                     );
                 }
             });
+    }
+
+    fn scenes_content_ui(&mut self, ui: &mut egui::Ui) {
+        if !self.is_composition {
+            ui.vertical_centered(|ui| {
+                ui.add_space(SPACE_XL * 3.0);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(egui_phosphor::regular::FILM_STRIP)
+                            .size(ROW_L)
+                            .color(TEXT_MUTED),
+                    )
+                    .selectable(false),
+                );
+                ui.add_space(SPACE_M);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new("No scenes — this is a single-scene file")
+                            .size(FONT_SIZE_M)
+                            .color(TEXT_SECONDARY),
+                    )
+                    .selectable(false),
+                );
+            });
+            return;
+        }
+
+        ui.vertical(|ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
+
+                for scene_name in self.scene_names.clone() {
+                    let is_active = self.active_scene.as_deref() == Some(scene_name.as_str());
+                    let row_id = ui.id().with(&scene_name);
+                    let edit_id = row_id.with("scene_name_edit");
+                    let mut is_editing = ui.data(|d| d.get_temp::<bool>(edit_id)).unwrap_or(false);
+                    let mut edit_buffer = ui
+                        .data(|d| d.get_temp::<String>(edit_id.with("buf")))
+                        .unwrap_or_else(|| scene_name.clone());
+
+                    if is_editing {
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut edit_buffer)
+                                .desired_width(ui.available_width())
+                                .font(egui::TextStyle::Body),
+                        );
+                        let commit = response.lost_focus()
+                            || ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if commit {
+                            ui.data_mut(|d| d.insert_temp(edit_id, false));
+                            if edit_buffer != scene_name && !edit_buffer.is_empty() {
+                                self.actions.rename_scene = Some((scene_name.clone(), edit_buffer.clone()));
+                            }
+                            is_editing = false;
+                        }
+                        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                            ui.data_mut(|d| d.insert_temp(edit_id, false));
+                            edit_buffer = scene_name.clone();
+                            is_editing = false;
+                        }
+                        ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
+                    } else {
+                        let response = components::Row::new(&scene_name)
+                            .selected(is_active)
+                            .show(ui, row_id);
+
+                        if response.row_double_clicked || response.row_secondary_clicked {
+                            ui.data_mut(|d| {
+                                d.insert_temp(edit_id, true);
+                                d.insert_temp(edit_id.with("buf"), scene_name.clone());
+                            });
+                        } else if response.row_clicked {
+                            self.actions.select_scene = Some(scene_name);
+                        }
+                    }
+                }
+            });
+
+            if !self.import_aliases.is_empty() {
+                ui.add_space(16.0);
+                ui.label(RichText::new("Imports").size(FONT_SIZE_S).color(TEXT_MUTED));
+                ui.separator();
+
+                for alias in &self.import_aliases {
+                    let row_id = ui.id().with(format!("import_{}", alias));
+                    let _response = components::Row::new(alias)
+                        .icon(Some(egui_phosphor::regular::FILE_ARROW_DOWN))
+                        .show(ui, row_id);
+                }
+            }
+
+            ui.add_space(8.0);
+            if ui.button("+ Add Scene").clicked() {
+                self.actions.add_scene = true;
+            }
+        });
     }
 
     pub(super) fn editor_ui(&mut self, ui: &mut egui::Ui) {

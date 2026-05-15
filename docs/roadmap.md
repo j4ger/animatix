@@ -60,23 +60,19 @@
 
 ### 2.0 Multi-Scene Composition — GUI Phases
 
-**Status:** Core engine shipped (Phases 1–3). GUI and transitions deferred (Phases 4–8).
-**Location:** `crates/animatix/src/composition.rs`, `crates/animatix/src/renderer/video.rs`, `docs/multi-scene-composition-design.md`.
+**Status:** Fully implemented (Phases 1–8 shipped).
+**Location:** `crates/animatix/src/composition.rs`, `crates/animatix/src/renderer/video.rs`, `crates/animatix-gui/src/app/panels/mod.rs`, `crates/animatix-gui/src/source_edit.rs`, `docs/multi-scene-composition-design.md`.
 
 Shipped:
 - Phase 1: `# SceneName` / `play` syntax in parser, AST, serializer
 - Phase 2: `Composition` engine with per-scene timeline building, edge resolution, cycle detection, `BuildTarget` routing
 - Phase 3: CLI export (`render_video_composition`, `render_gif_composition`, `render_image_composition`); auto-routing in `main.rs`
+- Phase 4: GUI Scene List Panel — Scenes tab in sidebar with select/add/reorder/rename
+- Phase 5: GUI Composition Timeline — Scene blocks on scrubber, prev/next scene navigation, active scene time display
+- Phase 6: GUI Source Write-Back — `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `RenameScene`, `AddScene` edits via AST mutation
+- Phase 7: Transition Blending — `PreviewSurface::render_composition()` evaluates active scene, handles transition periods
+- Phase 8: Cross-File Scenes — `module.SceneName` resolution in parser/composition, import aliases shown in scene list
 - Examples: `multi_scene_mini.amx`, `multi_scene_demo.amx`, `multi_scene_educational.amx`
-
-**Still deferred:**
-- **Phase 4 — GUI Scene List Panel**: `app/panels/scene_list.rs`, select/add/reorder/rename scenes
-- **Phase 5 — GUI Composition Timeline**: Scene blocks on scrubber, boundary interactions, transition editing
-- **Phase 6 — GUI Source Write-Back**: `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `RenameScene` edits
-- **Phase 7 — Transition Blending**: Dual offscreen render + texture compositing for fade/wipe transitions
-- **Phase 8 — Cross-File Scenes**: `module.SceneName` resolution, project explorer with referenced scene files
-
-**Effort:** Medium for GUI (Phases 4–6, ~1 week each). High for transitions (Phase 7, ~1 week). Medium for cross-file (Phase 8, ~0.5 week).
 
 ### 2.1 Source-Level Animated Geometry — Partial
 
@@ -269,12 +265,10 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 2 | Multi-Scene GUI (scene list, composition timeline, write-back) | Medium | High |
 | 3 | Randomness determinism | Low-Medium | Medium |
 | 4 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 5 | Multi-Scene transition blending (Phase 7) | High | Medium |
-| 6 | Cross-file analyzer | Medium-High | Medium |
-| 7 | `strategy: fade` morph | High | Medium |
-| 8 | Multi-Scene cross-file scenes (Phase 8) | Medium | Medium |
-| 9 | Green tree / trivia AST | Very High | Low (polish) |
+| 5 | Cross-file analyzer | Medium-High | Medium |
+| 6 | `strategy: fade` morph | High | Medium |
+| 7 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-15*
+*Last updated: 2026-05-15 — Multi-Scene Phases 4–8 implemented*

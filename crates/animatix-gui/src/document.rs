@@ -1,5 +1,6 @@
 use animatix::ast::{Expr, Stmt};
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix::composition::{BuildTarget, Composition};
 use animatix::module::{ModuleError, ModuleGraph, Namespace};
 use animatix::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
@@ -15,6 +16,8 @@ pub struct DocumentSession {
     pub namespaces: HashMap<String, Namespace>,
     pub source_index: Option<SourceIndex>,
     pub timeline: Option<Timeline>,
+    pub composition: Option<Composition>,
+    pub active_scene: Option<String>,
     pub diagnostics: Vec<Diagnostic>,
     pub last_rebuild_error: Option<String>,
     pub is_dirty: bool,
@@ -40,6 +43,8 @@ impl DocumentSession {
             namespaces: HashMap::new(),
             source_index: None,
             timeline: None,
+            composition: None,
+            active_scene: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
             is_dirty: false,
@@ -62,6 +67,8 @@ impl DocumentSession {
             namespaces: HashMap::new(),
             source_index: None,
             timeline: None,
+            composition: None,
+            active_scene: None,
             diagnostics: Vec::new(),
             last_rebuild_error: None,
             is_dirty: false,
@@ -116,6 +123,8 @@ impl DocumentSession {
                 self.source_index = None;
                 self.namespaces = HashMap::new();
                 self.timeline = None;
+                self.composition = None;
+                self.active_scene = None;
                 self.timeline_index = TimelineIndex::default();
                 self.keyframe_lines = Vec::new();
                 self.diagnostics = diagnostics_from_module_error(&err, &self.file_path);
@@ -128,16 +137,33 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&raw_statements);
 
-        let report = Timeline::build_with_diagnostics(&expanded_statements, &namespaces);
+        let report = BuildTarget::from_ast(&expanded_statements, &namespaces);
         self.last_rebuild_error = None;
-        self.duration_s = timeline_duration_seconds(&report.output).max(0.1);
+        self.duration_s = report.output.duration_s().max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);
         self.raw_statements = Some(raw_statements);
         self.expanded_statements = Some(expanded_statements);
         self.source_index = Some(source_index);
         self.namespaces = namespaces;
         self.diagnostics = report.diagnostics;
-        self.timeline = Some(report.output);
+        match report.output {
+            BuildTarget::SingleScene(timeline) => {
+                self.timeline = Some(timeline);
+                self.composition = None;
+                self.active_scene = None;
+            }
+            BuildTarget::MultiScene(composition) => {
+                if self
+                    .active_scene
+                    .as_ref()
+                    .is_none_or(|scene| !composition.scenes.contains_key(scene))
+                {
+                    self.active_scene = composition.declaration_order.first().cloned();
+                }
+                self.timeline = None;
+                self.composition = Some(composition);
+            }
+        }
 
         // Build timeline index from source text (bi-directional sync)
         self.timeline_index = TimelineIndex::build(&self.source_text);
@@ -157,17 +183,31 @@ impl DocumentSession {
         let namespaces = program.namespaces;
         Ok((raw_statements, expanded_statements, namespaces))
     }
+
+    pub fn raw_program_statements(&self) -> Option<&[Stmt]> {
+        self.raw_statements.as_deref()
+    }
 }
 
 impl DocumentSession {
     /// Find the 0-indexed source line of the keyframe whose absolute time
     /// is closest to and ≤ `time_s`. Returns `None` if no keyframe exists.
     pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
+        let _ = self.active_timeline()?;
         self.timeline_index.line_for_time((time_s * 1000.0) as u64)
     }
 
     /// Find the absolute time of the keyframe immediately before `time_s`.
     pub fn prev_keyframe_time(&self, time_s: f64) -> f64 {
+        let keyframes = timeline_keyframe_times_s(self.active_timeline(), self.composition.as_ref(), self.active_scene.as_deref());
+        if !keyframes.is_empty() {
+            return keyframes
+                .into_iter()
+                .rev()
+                .find(|t| *t <= time_s)
+                .unwrap_or(0.0);
+        }
+
         self.timeline_index
             .prev_keyframe_time((time_s * 1000.0) as u64)
             .map(|ms| ms as f64 / 1000.0)
@@ -180,6 +220,43 @@ impl DocumentSession {
     pub fn rescan_keyframe_lines(&mut self) {
         self.timeline_index = TimelineIndex::build(&self.source_text);
         self.keyframe_lines = self.timeline_index.keyframes.iter().map(|(_, line)| *line).collect();
+    }
+
+    pub fn is_composition(&self) -> bool {
+        self.composition.is_some()
+    }
+
+    pub fn active_timeline(&self) -> Option<&Timeline> {
+        if let Some(timeline) = self.timeline.as_ref() {
+            return Some(timeline);
+        }
+
+        let composition = self.composition.as_ref()?;
+        let active_scene = self
+            .active_scene
+            .as_deref()
+            .and_then(|name| composition.scenes.get(name))
+            .or_else(|| {
+                composition
+                    .declaration_order
+                    .first()
+                    .and_then(|name| composition.scenes.get(name))
+            });
+
+        active_scene.map(|scene| &scene.timeline)
+    }
+
+    pub fn scene_names(&self) -> Vec<String> {
+        self.composition
+            .as_ref()
+            .map(|composition| composition.declaration_order.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn import_aliases(&self) -> Vec<String> {
+        let mut aliases = self.namespaces.keys().cloned().collect::<Vec<_>>();
+        aliases.sort();
+        aliases
     }
 }
 
@@ -254,18 +331,41 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
     max_ms
 }
 
-pub fn timeline_duration_seconds(timeline: &Timeline) -> f64 {
-    timeline
-        .tracks
-        .values()
-        .map(track_max_ms)
-        .max()
-        .unwrap_or(0) as f64
-        / 1000.0
+pub fn timeline_duration_seconds(
+    timeline: Option<&Timeline>,
+    composition: Option<&Composition>,
+) -> f64 {
+    if let Some(timeline) = timeline {
+        timeline
+            .tracks
+            .values()
+            .map(track_max_ms)
+            .max()
+            .unwrap_or(0) as f64
+            / 1000.0
+    } else {
+        composition.map(|c| c.global_duration_s).unwrap_or(0.0)
+    }
 }
 
-pub fn timeline_keyframe_times_s(timeline: &Timeline) -> Vec<f64> {
-    timeline.keyframe_times_s()
+pub fn timeline_keyframe_times_s(
+    timeline: Option<&Timeline>,
+    composition: Option<&Composition>,
+    active_scene: Option<&str>,
+) -> Vec<f64> {
+    if let Some(timeline) = timeline {
+        timeline.keyframe_times_s()
+    } else if let Some(composition) = composition {
+        let scene_name = active_scene
+            .and_then(|name| composition.scenes.get(name).map(|_| name))
+            .or_else(|| composition.declaration_order.first().map(|name| name.as_str()));
+        scene_name
+            .and_then(|name| composition.scenes.get(name))
+            .map(|scene| scene.timeline.keyframe_times_s())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn default_file_path() -> PathBuf {
@@ -370,7 +470,7 @@ mod tests {
         ];
 
         let timeline = Timeline::build(&ast);
-        assert_eq!(timeline_duration_seconds(&timeline), 2.0);
+        assert_eq!(timeline_duration_seconds(Some(&timeline), None), 2.0);
     }
 
     #[test]
@@ -461,7 +561,7 @@ mod tests {
         ];
 
         let timeline = Timeline::build(&ast);
-        let times = timeline_keyframe_times_s(&timeline);
+        let times = timeline_keyframe_times_s(Some(&timeline), None, None);
         // Verify the user-visible keyframe times exist (in ms resolution)
         assert!(times.contains(&0.0), "missing 0.0, got {times:?}");
         assert!(times.contains(&1.0), "missing 1.0, got {times:?}");
@@ -524,6 +624,34 @@ card: MetricCard, title: "Latency"
         let expanded_debug = format!("{expanded:#?}");
         assert!(expanded_debug.contains("card.title_text"));
         assert!(!expanded_debug.contains("MetricCard"));
+    }
+
+    #[test]
+    fn rebuild_supports_multi_scene_compositions() {
+        let dir = temp_project_dir("document_rebuild_composition");
+        let entry = dir.join("scene.amx");
+
+        write_file(
+            &entry,
+            r#"
+# Intro
+#0s
+title: Text, text: "Welcome"
+
+# Diagram
+#0s
+graph: Rect, size: (400, 400)
+"#,
+        );
+
+        let document = DocumentSession::load(entry).expect("document should rebuild");
+        assert!(document.is_composition());
+        assert!(document.timeline.is_none());
+        assert!(document.composition.is_some());
+        assert_eq!(document.active_scene.as_deref(), Some("Intro"));
+        assert_eq!(document.scene_names(), vec!["Intro".to_string(), "Diagram".to_string()]);
+        assert!(document.active_timeline().is_some());
+        assert!(document.duration_s > 0.0);
     }
 
     #[test]

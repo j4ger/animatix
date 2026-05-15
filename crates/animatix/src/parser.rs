@@ -1028,10 +1028,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .boxed()
     });
 
+        let scene_ref = dotted_ident
+            .clone()
+            .map(|parts: Vec<String>| parts.join("."));
+
         // `play SceneName [modifier, ...]` — scene-level transition statement
         let play_stmt = text::keyword("play")
             .padded()
-            .ignore_then(ident.clone())
+            .ignore_then(scene_ref)
             .then(modifiers.clone())
             .map(|(scene_name, mods)| {
                 let transition = parse_transition_from_modifiers(&mods);

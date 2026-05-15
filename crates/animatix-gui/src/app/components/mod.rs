@@ -34,6 +34,8 @@ use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
 pub struct RowResponse {
     pub row_clicked: bool,
     pub chevron_clicked: bool,
+    pub row_double_clicked: bool,
+    pub row_secondary_clicked: bool,
     pub row_rect: Rect,
 }
 
@@ -211,6 +213,8 @@ impl<'a> Row<'a> {
         RowResponse {
             row_clicked: row_response.clicked() && !chevron_response.clicked(),
             chevron_clicked: chevron_response.clicked(),
+            row_double_clicked: row_response.double_clicked(),
+            row_secondary_clicked: row_response.secondary_clicked(),
             row_rect,
         }
     }

@@ -348,6 +348,14 @@ fn test_config_parse() {
 }
 
 #[test]
+fn test_qualified_play_parse() {
+    match &parse_program("play module.SceneName [fade, 300ms]")[0] {
+        Stmt::Play { scene_name, .. } => assert_eq!(scene_name, "module.SceneName"),
+        other => panic!("Expected play statement, got {:?}", other),
+    }
+}
+
+#[test]
 fn test_actor_decl_colorscheme_alias_parse() {
     assert_eq!(
         parse_single_stmt("badge: Circle, color: auto, stroke: stroke.default"),

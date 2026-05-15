@@ -1,4 +1,5 @@
 use animatix::renderer::core::RendererCore;
+use animatix::composition::Composition;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use kurbo::Rect;
 
@@ -144,6 +145,33 @@ impl PreviewSurface {
             },
         );
         queue.submit(std::iter::once(encoder.finish()));
+
+        Ok(())
+    }
+
+    pub fn render_composition(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        composition: &Composition,
+        global_time_s: f64,
+        debug_options: DebugRenderOptions,
+    ) -> Result<(), String> {
+        let (scene_name, local_time_s, transition_blend) = composition.evaluate(global_time_s);
+
+        if let Some(blend) = transition_blend {
+            // Transition blending is a future enhancement; for now we render the
+            // "from" scene so composition playback remains functional.
+            if let Some(scene) = composition.scenes.get(&blend.from_scene) {
+                self.render(device, queue, &scene.timeline, local_time_s, debug_options)?;
+            } else {
+                self.hit_regions.clear();
+            }
+        } else if let Some(scene) = composition.scenes.get(&scene_name) {
+            self.render(device, queue, &scene.timeline, local_time_s, debug_options)?;
+        } else {
+            self.hit_regions.clear();
+        }
 
         Ok(())
     }

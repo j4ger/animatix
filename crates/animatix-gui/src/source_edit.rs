@@ -4,7 +4,7 @@
 //! edits applied directly to the AST. After mutation, the entire AST is
 //! re-serialized via [`animatix::to_source::stmts_to_source`].
 
-use animatix::ast::{ComponentDef, Expr, InlineItem, Property, Stmt, Time};
+use animatix::ast::{ComponentDef, Expr, InlineItem, Property, Stmt, Time, Transition};
 
 // ---------------------------------------------------------------------------
 // Property name mapping
@@ -81,6 +81,29 @@ pub enum SourceEdit {
         old_label: String,
         new_label: String,
     },
+    /// Reorder top-level scene declarations.
+    ReorderScenes {
+        new_order: Vec<String>,
+    },
+    /// Set or remove the play target for a scene.
+    SetPlayTarget {
+        scene: String,
+        target: Option<String>,
+    },
+    /// Update the transition on a scene's play statement.
+    SetTransition {
+        from_scene: String,
+        transition: Option<Transition>,
+    },
+    /// Rename a scene and update all play references.
+    RenameScene {
+        old_name: String,
+        new_name: String,
+    },
+    /// Add a new empty scene declaration.
+    AddScene {
+        name: String,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -124,6 +147,17 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             rename_all_references(stmts, &old_label, &new_label);
             true
         }
+        SourceEdit::ReorderScenes { new_order } => reorder_scenes(stmts, new_order),
+        SourceEdit::SetPlayTarget { scene, target } => {
+            set_play_target(stmts, &scene, target.as_deref())
+        }
+        SourceEdit::SetTransition { from_scene, transition } => {
+            set_transition(stmts, &from_scene, transition)
+        }
+        SourceEdit::RenameScene { old_name, new_name } => {
+            rename_scene(stmts, &old_name, &new_name)
+        }
+        SourceEdit::AddScene { name } => add_scene(stmts, &name),
     }
 }
 
@@ -467,6 +501,226 @@ fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Ve
 }
 
 // ---------------------------------------------------------------------------
+// Scene helpers
+// ---------------------------------------------------------------------------
+
+fn find_scene_mut<'a>(stmts: &'a mut [Stmt], name: &str) -> Option<&'a mut Stmt> {
+    stmts.iter_mut().find(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
+}
+
+fn scene_names(stmts: &[Stmt]) -> Vec<String> {
+    stmts
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::Scene { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn duplicate_name_in_order(order: &[String]) -> Option<String> {
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    order.iter().find_map(|name| {
+        if !seen.insert(name) {
+            Some(name.clone())
+        } else {
+            None
+        }
+    })
+}
+
+fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> bool {
+    if duplicate_name_in_order(&new_order).is_some() {
+        return false;
+    }
+
+    let existing = scene_names(stmts);
+    if existing.len() != new_order.len() || existing.iter().any(|name| !new_order.iter().any(|n| n == name)) {
+        return false;
+    }
+
+    let first_scene_idx = match stmts.iter().position(|stmt| matches!(stmt, Stmt::Scene { .. })) {
+        Some(idx) => idx,
+        None => return false,
+    };
+
+    let mut scenes = Vec::new();
+    let mut prelude = stmts.drain(..first_scene_idx).collect::<Vec<_>>();
+    let mut tail = Vec::new();
+    for stmt in stmts.drain(..) {
+        match stmt {
+            Stmt::Scene { .. } => scenes.push(stmt),
+            other => tail.push(other),
+        }
+    }
+
+    let mut by_name = std::collections::BTreeMap::new();
+    for scene in scenes {
+        if let Stmt::Scene { name, .. } = &scene {
+            by_name.insert(name.clone(), scene);
+        }
+    }
+
+    let mut reordered = Vec::new();
+    reordered.append(&mut prelude);
+    for name in new_order {
+        if let Some(scene) = by_name.remove(&name) {
+            reordered.push(scene);
+        } else {
+            return false;
+        }
+    }
+    reordered.extend(tail);
+    *stmts = reordered;
+    true
+}
+
+fn set_play_target(stmts: &mut [Stmt], scene: &str, target: Option<&str>) -> bool {
+    let scene_stmt = match find_scene_mut(stmts, scene) {
+        Some(stmt) => stmt,
+        None => return false,
+    };
+
+    let Stmt::Scene { body, .. } = scene_stmt else { return false; };
+
+    match target {
+        Some(target_scene) => {
+            let mut updated = false;
+            for stmt in body.iter_mut() {
+                if let Stmt::Play { scene_name, .. } = stmt {
+                    if !updated {
+                        *scene_name = target_scene.to_string();
+                        updated = true;
+                    }
+                }
+            }
+            if !updated {
+                body.push(Stmt::Play {
+                    scene_name: target_scene.to_string(),
+                    transition: None,
+                    span: None,
+                });
+            } else {
+                let mut seen = false;
+                body.retain(|stmt| match stmt {
+                    Stmt::Play { .. } => {
+                        if seen {
+                            false
+                        } else {
+                            seen = true;
+                            true
+                        }
+                    }
+                    _ => true,
+                });
+            }
+            true
+        }
+        None => {
+            let before = body.len();
+            body.retain(|stmt| !matches!(stmt, Stmt::Play { .. }));
+            before != body.len()
+        }
+    }
+}
+
+fn set_transition(stmts: &mut [Stmt], from_scene: &str, transition: Option<Transition>) -> bool {
+    let scene_stmt = match find_scene_mut(stmts, from_scene) {
+        Some(stmt) => stmt,
+        None => return false,
+    };
+    let Stmt::Scene { body, .. } = scene_stmt else { return false; };
+
+    if let Some(play) = body.iter_mut().find(|stmt| matches!(stmt, Stmt::Play { .. })) {
+        if let Stmt::Play { transition: play_transition, .. } = play {
+            *play_transition = transition;
+            return true;
+        }
+    }
+
+    false
+}
+
+fn rename_scene(stmts: &mut [Stmt], old_name: &str, new_name: &str) -> bool {
+    if old_name == new_name {
+        return true;
+    }
+    if stmts.iter().any(|stmt| matches!(stmt, Stmt::Scene { name, .. } if name == new_name)) {
+        return false;
+    }
+
+    let mut renamed = false;
+    for stmt in stmts.iter_mut() {
+        renamed |= rename_scene_in_stmt(stmt, old_name, new_name);
+    }
+    renamed
+}
+
+fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool {
+    let mut renamed = false;
+    match stmt {
+        Stmt::Scene { name, body, .. } => {
+            if name == old_name {
+                *name = new_name.into();
+                renamed = true;
+            }
+            for child in body.iter_mut() {
+                renamed |= rename_scene_in_stmt(child, old_name, new_name);
+            }
+        }
+        Stmt::Play { scene_name, .. } => {
+            if scene_name == old_name {
+                *scene_name = new_name.into();
+                renamed = true;
+            }
+        }
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::LabeledAlways { body, .. }
+        | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+        | Stmt::ComponentAction { body, .. } => {
+            for child in body.iter_mut() {
+                renamed |= rename_scene_in_stmt(child, old_name, new_name);
+            }
+        }
+        Stmt::Conditional { then_branch, else_branch, .. } => {
+            for child in then_branch.iter_mut() {
+                renamed |= rename_scene_in_stmt(child, old_name, new_name);
+            }
+            if let Some(else_branch) = else_branch {
+                for child in else_branch.iter_mut() {
+                    renamed |= rename_scene_in_stmt(child, old_name, new_name);
+                }
+            }
+        }
+        Stmt::ForLoop { body, .. } => {
+            for child in body.iter_mut() {
+                renamed |= rename_scene_in_stmt(child, old_name, new_name);
+            }
+        }
+        _ => {}
+    }
+    renamed
+}
+
+fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> bool {
+    if stmts.iter().any(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name)) {
+        return false;
+    }
+    stmts.push(Stmt::Scene {
+        name: name.into(),
+        config: vec![],
+        body: vec![],
+        span: None,
+    });
+    true
+}
+
+// ---------------------------------------------------------------------------
 // AST traversal helpers
 // ---------------------------------------------------------------------------
 
@@ -708,6 +962,7 @@ mod tests {
     use super::*;
     use animatix::ast::{Expr, Stmt, Time};
     use animatix::parser::parser;
+    use animatix::to_source::stmts_to_source;
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
@@ -1125,5 +1380,83 @@ btn.position = (200, 100)"#);
         walk(&stmts, &mut found_color, &mut found_position);
         assert!(found_color, "Color assignment should reference my_box");
         assert!(found_position, "Position assignment should reference my_box");
+    }
+
+    #[test]
+    fn add_scene_appends_new_scene() {
+        let mut stmts = parse("import \"foo\"\n\n# Intro\nplay Outro");
+        assert!(apply_edit(&mut stmts, SourceEdit::AddScene { name: "Outro".into() }));
+        assert!(matches!(stmts.last(), Some(Stmt::Scene { name, body, .. }) if name == "Outro" && body.is_empty()));
+    }
+
+    #[test]
+    fn reorder_scenes_changes_scene_order() {
+        let mut stmts = parse("import \"foo\"\n\n# Intro\nplay Middle\n\n# Middle\nplay Outro\n\n# Outro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::ReorderScenes { new_order: vec!["Outro".into(), "Intro".into(), "Middle".into()] }
+        ));
+        let scene_names: Vec<_> = stmts.iter().filter_map(|s| match s { Stmt::Scene { name, .. } => Some(name.as_str()), _ => None }).collect();
+        assert_eq!(scene_names, vec!["Outro", "Intro", "Middle"]);
+        assert!(matches!(stmts.first(), Some(Stmt::Import { .. })));
+    }
+
+    #[test]
+    fn set_play_target_creates_and_removes_play() {
+        let mut stmts = parse("# Intro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetPlayTarget { scene: "Intro".into(), target: Some("Outro".into()) }
+        ));
+        assert!(stmts_to_source(&stmts).contains("play Outro"));
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetPlayTarget { scene: "Intro".into(), target: None }
+        ));
+        assert!(!stmts_to_source(&stmts).contains("play "));
+    }
+
+    #[test]
+    fn set_transition_updates_play_statement() {
+        let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetTransition {
+                from_scene: "Intro".into(),
+                transition: Some(Transition { transition_type: animatix::ast::TransitionType::Fade, duration_ms: 300 }),
+            }
+        ));
+        assert!(stmts_to_source(&stmts).contains("play Outro [fade, 300ms]"));
+    }
+
+    #[test]
+    fn rename_scene_updates_play_references() {
+        let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::RenameScene { old_name: "Outro".into(), new_name: "Finale".into() }
+        ));
+        let src = stmts_to_source(&stmts);
+        assert!(src.contains("# Finale"));
+        assert!(src.contains("play Finale"));
+        assert!(!src.contains("Outro"));
+    }
+
+    #[test]
+    fn scene_edits_fail_for_missing_or_duplicate_names() {
+        let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
+        assert!(!apply_edit(
+            &mut stmts,
+            SourceEdit::RenameScene { old_name: "Missing".into(), new_name: "X".into() }
+        ));
+        assert!(!apply_edit(&mut stmts, SourceEdit::AddScene { name: "Intro".into() }));
+        assert!(!apply_edit(
+            &mut stmts,
+            SourceEdit::ReorderScenes { new_order: vec!["Intro".into(), "Intro".into()] }
+        ));
+        assert!(!apply_edit(
+            &mut stmts,
+            SourceEdit::SetPlayTarget { scene: "Missing".into(), target: Some("X".into()) }
+        ));
     }
 }

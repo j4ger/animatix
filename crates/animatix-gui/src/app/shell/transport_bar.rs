@@ -1,9 +1,10 @@
 use crate::app::panels::UiActions;
 use crate::app::theme::*;
 use crate::app::PreviewPaneState;
+use animatix::composition::Composition;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
-use egui::{Align, Color32, RichText, Stroke, Vec2};
+use egui::{Align, Align2, Color32, FontId, RichText, Stroke, Vec2};
 
 /// Renders the unified transport bar at the bottom of the window.
 ///
@@ -22,6 +23,8 @@ pub(crate) fn transport_bar_ui(
     editor_sync_enabled: bool,
     keyframe_mode: bool,
     cursor_time_s: Option<f64>,
+    composition: Option<&Composition>,
+    active_scene: Option<&str>,
 ) {
     let warning_color = AMBER;
 
@@ -89,6 +92,41 @@ pub(crate) fn transport_bar_ui(
                     actions.next_keyframe = true;
                 }
 
+                if composition.is_some() {
+                    // Scene navigation
+                    let prev_scene_btn = egui::Button::new(
+                        RichText::new(egui_phosphor::regular::CARET_LEFT)
+                            .size(13.0)
+                            .color(TEXT_MUTED),
+                    )
+                    .fill(Color32::TRANSPARENT)
+                    .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                    .min_size(Vec2::new(26.0, ROW_L));
+                    if ui
+                        .add(prev_scene_btn)
+                        .on_hover_text("Previous scene")
+                        .clicked()
+                    {
+                        actions.prev_scene = true;
+                    }
+
+                    let next_scene_btn = egui::Button::new(
+                        RichText::new(egui_phosphor::regular::CARET_RIGHT)
+                            .size(13.0)
+                            .color(TEXT_MUTED),
+                    )
+                    .fill(Color32::TRANSPARENT)
+                    .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+                    .min_size(Vec2::new(26.0, ROW_L));
+                    if ui
+                        .add(next_scene_btn)
+                        .on_hover_text("Next scene")
+                        .clicked()
+                    {
+                        actions.next_scene = true;
+                    }
+                }
+
                 ui.add_space(SPACE_M);
 
                 // Editor sync
@@ -144,6 +182,7 @@ pub(crate) fn transport_bar_ui(
                     preview.is_playing,
                     scrubber_width.max(120.0),
                     cursor_time_s,
+                    composition,
                 ) {
                     actions.scrub_to = Some(scrub);
                 }
@@ -246,6 +285,21 @@ pub(crate) fn transport_bar_ui(
                         actor_count,
                         keyframe_count
                     );
+                    let active_scene_label = if let Some(composition) = composition {
+                        active_scene
+                            .map(str::to_owned)
+                            .or_else(|| {
+                                let (scene, _, _) = composition.evaluate(preview.current_time_s);
+                                (!scene.is_empty()).then_some(scene)
+                            })
+                    } else {
+                        None
+                    };
+                    let time_text = if let Some(scene) = active_scene_label.as_deref() {
+                        format!("{scene} • {:.2}s / {:.2}s", preview.current_time_s, preview.duration_s)
+                    } else {
+                        format!("{:.2}s / {:.2}s", preview.current_time_s, preview.duration_s)
+                    };
                     egui::Frame::new()
                         .fill(BG_SURFACE)
                         .corner_radius(egui::CornerRadius::same(RADIUS_L as u8))
@@ -253,11 +307,7 @@ pub(crate) fn transport_bar_ui(
                         .show(ui, |ui| {
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(format!(
-                                        "{:.2}s / {:.2}s",
-                                        preview.current_time_s,
-                                        preview.duration_s
-                                    ))
+                                    RichText::new(time_text)
                                     .monospace()
                                     .size(FONT_SIZE_L)
                                     .color(TEXT_PRIMARY),
@@ -291,6 +341,7 @@ fn paint_transport_scrubber(
     is_playing: bool,
     width: f32,
     cursor_time_s: Option<f64>,
+    composition: Option<&Composition>,
 ) -> bool {
     let height = ROW_S;
     let desired_size = Vec2::new(width.max(120.0), height);
@@ -303,6 +354,48 @@ fn paint_transport_scrubber(
 
     // Track
     painter.rect_filled(track_rect, RADIUS_M, BG_SURFACE);
+
+    if let Some(composition) = composition {
+        let palette = [
+            Color32::from_rgba_unmultiplied(92, 140, 255, 60),
+            Color32::from_rgba_unmultiplied(145, 104, 255, 60),
+            Color32::from_rgba_unmultiplied(84, 191, 123, 60),
+            Color32::from_rgba_unmultiplied(245, 179, 78, 60),
+            Color32::from_rgba_unmultiplied(233, 108, 122, 60),
+        ];
+        let label_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 180);
+        let total = duration_s.max(0.1);
+
+        for (idx, scene_name) in composition.declaration_order.iter().enumerate() {
+            let Some(scene) = composition.scenes.get(scene_name) else { continue; };
+            let Some(start_s) = composition.scene_start_times.get(scene_name).copied() else { continue; };
+            let end_s = (start_s + scene.duration_s).min(total);
+            if end_s <= start_s {
+                continue;
+            }
+
+            let left = egui::lerp(track_rect.left()..=track_rect.right(), (start_s / total).clamp(0.0, 1.0) as f32);
+            let right = egui::lerp(track_rect.left()..=track_rect.right(), (end_s / total).clamp(0.0, 1.0) as f32);
+            let scene_rect = egui::Rect::from_min_max(
+                egui::pos2(left, track_rect.top()),
+                egui::pos2(right, track_rect.bottom()),
+            );
+            let color = palette[idx % palette.len()];
+            painter.rect_filled(scene_rect, 0.0, color);
+
+            let scene_width = scene_rect.width();
+            if scene_width > 28.0 {
+                painter.text(
+                    scene_rect.center(),
+                    Align2::CENTER_CENTER,
+                    scene_name,
+                    FontId::monospace(9.0),
+                    label_color,
+                );
+            }
+        }
+    }
+
     painter.rect_stroke(
         track_rect,
         RADIUS_M,

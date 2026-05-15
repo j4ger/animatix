@@ -12,7 +12,7 @@ use crate::ast::{Property, Span, Stmt, Transition, TransitionType};
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
 use crate::module::Namespace;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 // ---------------------------------------------------------------------------
 // Composition Data Structures
@@ -47,6 +47,50 @@ pub struct Composition {
     pub global_duration_s: f64,
     /// scene_name → start time in the global timeline.
     pub scene_start_times: BTreeMap<String, f64>,
+}
+
+fn validate_play_target(
+    target: &str,
+    scenes: &BTreeMap<String, CompositionScene>,
+    namespaces: &HashMap<String, Namespace>,
+    diagnostics: &mut Vec<Diagnostic>,
+    source_scene: &str,
+) -> bool {
+    if target.contains('.') {
+        let parts: Vec<&str> = target.split('.').collect();
+        if parts.len() == 2 {
+            let module_alias = parts[0];
+            if namespaces.contains_key(module_alias) {
+                return true;
+            }
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::PlayTargetNotFound,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Scene '{}' plays non-existent module/scene '{}'.",
+                        source_scene, target
+                    ),
+                )
+                .with_subject(source_scene),
+            );
+            return false;
+        }
+    }
+
+    if scenes.contains_key(target) {
+        true
+    } else {
+        diagnostics.push(
+            Diagnostic::error(
+                DiagnosticCode::PlayTargetNotFound,
+                DiagnosticPhase::Build,
+                format!("Scene '{}' plays non-existent scene '{}'.", source_scene, target),
+            )
+            .with_subject(source_scene),
+        );
+        false
+    }
 }
 
 /// Per-frame evaluation result in global time space.
@@ -212,20 +256,7 @@ impl Composition {
         // 2. Resolve play edges from stored play_targets
         for name in &declaration_order {
             if let Some((target, transition)) = play_targets.get(name) {
-                // Validate target exists
-                if !scenes.contains_key(target) {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::PlayTargetNotFound,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Scene '{}' plays non-existent scene '{}'.",
-                                name, target
-                            ),
-                        )
-                        .with_subject(name),
-                    );
-                }
+                let _ = validate_play_target(target, &scenes, namespaces, &mut diagnostics, name);
                 edges.insert(
                     name.clone(),
                     SceneEdge {
@@ -240,7 +271,12 @@ impl Composition {
         }
 
         // 3. Compute walk order (following edges, with cycle detection)
-        let walk_order = Self::compute_walk_order(&declaration_order, &edges, &mut diagnostics);
+        let walk_order = Self::compute_walk_order(
+            &declaration_order,
+            &edges,
+            &scenes,
+            &mut diagnostics,
+        );
 
         // 4. Compute global timeline
         let mut scene_start_times: BTreeMap<String, f64> = BTreeMap::new();
@@ -410,6 +446,7 @@ impl Composition {
     fn compute_walk_order(
         declaration_order: &[String],
         edges: &BTreeMap<String, SceneEdge>,
+        scenes: &BTreeMap<String, CompositionScene>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Vec<String> {
         if edges.is_empty() {
@@ -447,7 +484,11 @@ impl Composition {
             visited.insert(current.clone());
 
             if let Some(edge) = edges.get(&current) {
-                current = edge.to_scene.clone();
+                if scenes.contains_key(&edge.to_scene) {
+                    current = edge.to_scene.clone();
+                } else {
+                    break;
+                }
             } else {
                 // No explicit edge — check if there's a next scene in declaration order
                 // that hasn't been visited yet.
@@ -583,6 +624,48 @@ mod tests {
             .iter()
             .any(|d| matches!(d.code, DiagnosticCode::PlayTargetNotFound));
         assert!(has_play_error, "Expected PlayTargetNotFound diagnostic");
+    }
+
+    #[test]
+    fn test_qualified_play_target_uses_namespace_alias() {
+        let source = concat!(
+            "# Intro\n",
+            "#0s\n",
+            "title: Text, text: \"Welcome\"\n",
+            "play module.SceneName [fade, 300ms]\n",
+        );
+        let parsed = parser().parse(source).unwrap();
+        let mut namespaces = std::collections::HashMap::new();
+        namespaces.insert("module".to_string(), Namespace::default());
+
+        let report = Composition::build(&parsed, &namespaces);
+        let comp = &report.output;
+        let edge = comp.edges.get("Intro").unwrap();
+        assert_eq!(edge.to_scene, "module.SceneName");
+        assert!(
+            !report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code, DiagnosticCode::PlayTargetNotFound))
+        );
+    }
+
+    #[test]
+    fn test_qualified_play_target_requires_namespace_alias() {
+        let source = concat!(
+            "# Intro\n",
+            "#0s\n",
+            "title: Text, text: \"Welcome\"\n",
+            "play module.SceneName\n",
+        );
+        let parsed = parser().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code, DiagnosticCode::PlayTargetNotFound))
+        );
     }
 
     #[test]
