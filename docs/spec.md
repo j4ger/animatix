@@ -29,7 +29,7 @@
 | Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | `strategy:fade` deferred |
-| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap` | Yes | Runtime-real | Yes | Yes | Currently registered built-ins |
+| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
@@ -182,7 +182,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 
 **Built-in Actions:**
 - **Motion:** `move`, `shift`, `rotate`, `scale`
-- **Entrance:** `fade-in`, `draw-in`, `wipe-in`
+- **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
 - **Reorder:** `swap`, `reorder`
@@ -191,7 +191,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
 - `item.rotation = value [duration]` - Property-based rotation
 
-Vector reveal actions (`draw-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
+Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
 
 **Effects actions** add emphasis and attention animations:
 - `shake [intensity: N]` - Rapid oscillating horizontal motion
@@ -652,10 +652,7 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 
 - **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
 - **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
-- **Asymmetrical Reveal/Exit Actions:** Standard fade-out or cross-fade behaviors on some primitives and containers remain incomplete or non-intuitive compared to entrance counterparts.
 - **Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.
-
-- **Coordinate System Friction:** `at` (absolute coordinates) and `anchor`/`offset` (layout-based coordinates) often clash, requiring significant manual intervention when mixing them.
 
 ---
 

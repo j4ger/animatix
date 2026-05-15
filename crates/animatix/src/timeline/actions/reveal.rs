@@ -11,7 +11,7 @@ impl BuiltinAction for DrawIn {
     fn signature(&self) -> ActionSignature {
         ActionSignature {
             name: "draw-in".to_string(),
-            category: "Reveal".to_string(),
+            category: "Entrance".to_string(),
             description:
                 "Draws in vector targets by animating stroke progress first, then revealing fill at the end."
                     .to_string(),
@@ -89,6 +89,96 @@ impl BuiltinAction for DrawIn {
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_end_ms, 1.0, easing);
+        }
+    }
+}
+
+pub struct RevealIn;
+
+impl BuiltinAction for RevealIn {
+    fn signature(&self) -> ActionSignature {
+        ActionSignature {
+            name: "reveal-in".to_string(),
+            category: "Entrance".to_string(),
+            description:
+                "Reveals vector targets by drawing stroke progress first, then popping fill at the end."
+                    .to_string(),
+            params: vec![],
+            modifiers: base_timing_params(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let parsed = parse_timing_modifiers(
+            &action.modifiers,
+            ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let duration_ms = parsed.duration_ms;
+        let delay_ms = parsed.delay_ms;
+        let easing = parsed.easing;
+
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+
+        for target in &action.targets {
+            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+                continue;
+            }
+
+            let track = timeline
+                .tracks
+                .get_mut(target)
+                .expect("validated target track");
+
+            let has_prior_stroke = track.stroke_progress.as_ref().map(|t| t.keyframes.keys().any(|&k| k < t_start_ms)).unwrap_or(false);
+            let start_stroke = if has_prior_stroke { track.stroke_progress.get(t_start_ms, 1.0) } else { 0.0 };
+
+            if duration_ms > 0.0 {
+                track
+                    .stroke_progress
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
+                track
+                    .fill_opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                if t_end_ms > t_start_ms {
+                    track
+                        .fill_opacity
+                        .ensure(1.0)
+                        .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
+                }
+            } else if delay_ms > 0.0 && t_start_ms > 0 {
+                let guard_time = t_start_ms.saturating_sub(1);
+                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
+                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
+                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                    track
+                        .stroke_progress
+                        .ensure(1.0)
+                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
+                }
+                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                    track
+                        .fill_opacity
+                        .ensure(1.0)
+                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
+                }
+            }
+
+            track
+                .fill_opacity
+                .ensure(1.0)
+                .add_keyframe(t_end_ms, 1.0, Easing::Linear);
+            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
         }
     }
 }
@@ -584,5 +674,38 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
         );
+    }
+
+    #[test]
+    fn reveal_in_draws_stroke_then_pops_fill() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("shape"), action_stmt("reveal-in", "shape", 1.0)],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.fill_opacity.get(0, 1.0), 0.0);
+        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.fill_opacity.get(500, 1.0), 0.0);
+        assert_eq!(track.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(track.fill_opacity.get(1000, 1.0), 1.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_is_entrance_category() {
+        let sig = DrawIn.signature();
+        assert_eq!(sig.category, "Entrance");
+    }
+
+    #[test]
+    fn reveal_in_is_entrance_category() {
+        let sig = RevealIn.signature();
+        assert_eq!(sig.category, "Entrance");
     }
 }

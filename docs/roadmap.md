@@ -30,9 +30,17 @@
 
 ### 1.2 Asymmetrical Reveal/Exit Actions
 
-**Status:** Partial.
+**Status:** Resolved.
 
-Some fade-out behaviors are incomplete or non-intuitive compared to entrance counterparts (`fade-in` vs `fade-out`, `draw-in` vs `draw-out`).
+- Added missing `reveal-in` entrance action (mirror of `reveal-out`).
+- Fixed `draw-in` category from `"Reveal"` to `"Entrance"` for consistency.
+- All entrance/exit pairs are now symmetrical:
+  - `fade-in` ↔ `fade-out`
+  - `wipe-in` ↔ `wipe-out`
+  - `draw-in` ↔ `draw-out`
+  - `reveal-in` ↔ `reveal-out`
+
+**Location:** `crates/animatix/src/timeline/actions/reveal.rs`, `crates/animatix/src/timeline/actions/mod.rs`.
 
 ---
 
