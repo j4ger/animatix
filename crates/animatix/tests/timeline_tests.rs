@@ -2441,7 +2441,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
 }
 
 #[test]
-fn test_svg_url_assignment_reports_unsupported_media_assignment() {
+fn test_svg_url_assignment_succeeds() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -2471,7 +2471,8 @@ fn test_svg_url_assignment_reports_unsupported_media_assignment() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.iter().any(|diagnostic| {
+    // Should NOT emit UnsupportedMediaAssignment
+    assert!(!report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnsupportedMediaAssignment
             && diagnostic.location.subject.as_deref() == Some("icon.url")
     }));

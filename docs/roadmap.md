@@ -46,9 +46,13 @@
 
 ### 1.3 Re-Declaration for Morphing/Media
 
-**Status:** Requires full re-declaration.
+**Status:** Partially resolved.
 
-Morphing text or updating SVG/Image sources requires re-declaring the entire object at a new keyframe. Standard property assignment (`img.url = "new.svg"`) does not trigger media reload.
+- **Image `url` assignment:** Now works. `photo.url = "new.png"` loads the new image at the assignment time.
+- **SVG `url` assignment:** Now works. `icon.url = "new.svg"` parses and reloads the SVG paths.
+- **Text/Math/Code content:** Still requires re-declaration for full path regeneration. Property assignment updates the text content track but does not regenerate typst-rendered paths at runtime.
+
+**Location:** `crates/animatix/src/timeline/assignments.rs`.
 
 ---
 

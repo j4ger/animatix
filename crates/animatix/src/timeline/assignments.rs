@@ -127,38 +127,59 @@ impl Timeline {
             return;
         }
 
-        // Image url assignment
+        // Image / SVG url assignment
         if property == "url" {
             let target_url = evaluate_expr_with_lookup_diagnostic(
                 value, &eval_env, diagnostics, &assignment_subject,
             )
             .unwrap_or(Value::Str(String::new()))
             .as_str();
-            if !target_url.is_empty() {
-                if !track.svg_paths.is_empty() && track.image.get(t_start_ms, None).is_none() {
-                    diagnostics.push(Diagnostic::warning(
-                        DiagnosticCode::UnsupportedMediaAssignment,
-                        DiagnosticPhase::Build,
-                        "Svg url assignments are not supported; redeclare the Svg actor at a keyframe instead.".to_string(),
-                    ).with_subject(&assignment_subject).with_path(&target_url));
-                    return;
-                }
-                match crate::timeline::image::load_image(&target_url) {
-                    Ok(target_image) => {
-                        if duration_ms > 0.0 {
-                            let start_val = track.image.get(t_start_ms, None);
-                            track.image.ensure(None).add_keyframe(t_start_ms, start_val, Easing::Linear);
-                        } else if instant_delayed {
-                            preserve_instant_delayed_value(&mut track.image, t_start_ms);
+            if target_url.is_empty() {
+                return;
+            }
+
+            match track.kind {
+                super::ActorKindId::Svg => {
+                    match std::fs::read_to_string(&target_url) {
+                        Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
+                            Ok(parsed_paths) => {
+                                track.svg_paths = parsed_paths;
+                            }
+                            Err(error) => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::MediaLoadFailure,
+                                    DiagnosticPhase::Build,
+                                    format!("Failed to parse SVG file '{target_url}': {error}"),
+                                ).with_subject(&assignment_subject).with_path(&target_url));
+                            }
+                        },
+                        Err(error) => {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::MediaLoadFailure,
+                                DiagnosticPhase::Build,
+                                format!("Failed to read SVG file '{target_url}': {error}"),
+                            ).with_subject(&assignment_subject).with_path(&target_url));
                         }
-                        track.image.ensure(None).add_keyframe(t_end_ms, Some(target_image), easing);
                     }
-                    Err(error) => {
-                        diagnostics.push(Diagnostic::warning(
-                            DiagnosticCode::MediaLoadFailure,
-                            DiagnosticPhase::Build,
-                            format!("Failed to load image file '{target_url}': {error}"),
-                        ).with_subject(&assignment_subject).with_path(&target_url));
+                }
+                _ => {
+                    match crate::timeline::image::load_image(&target_url) {
+                        Ok(target_image) => {
+                            if duration_ms > 0.0 {
+                                let start_val = track.image.get(t_start_ms, None);
+                                track.image.ensure(None).add_keyframe(t_start_ms, start_val, Easing::Linear);
+                            } else if instant_delayed {
+                                preserve_instant_delayed_value(&mut track.image, t_start_ms);
+                            }
+                            track.image.ensure(None).add_keyframe(t_end_ms, Some(target_image), easing);
+                        }
+                        Err(error) => {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::MediaLoadFailure,
+                                DiagnosticPhase::Build,
+                                format!("Failed to load image file '{target_url}': {error}"),
+                            ).with_subject(&assignment_subject).with_path(&target_url));
+                        }
                     }
                 }
             }
