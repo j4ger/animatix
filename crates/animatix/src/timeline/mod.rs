@@ -36,6 +36,7 @@ pub mod assets;
 mod actor_kind;
 mod assignments;
 mod build;
+mod builtins;
 pub mod colorscheme;
 mod declarations_text;
 pub mod env;
@@ -81,7 +82,8 @@ use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhas
 pub use actor_kind::ActorKind;
 use actions::process_action;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
-pub use env::{Environment, EvalError, Value, load_standard_library};
+pub use env::{Environment, EvalError, Value};
+pub use builtins::load_standard_library;
 pub use index::TimelineIndex;
 pub use image::load_image;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
