@@ -305,8 +305,9 @@ impl Timeline {
             }
         }
 
-        // Store font_family and font_size on the track so Phase-2 runtime recompilation
-        // knows what font to use.
+        // Store text_content, font_family and font_size on the track so Phase-2 runtime
+        // recompilation knows what text and font to use when color or other properties change.
+        track.text_content.ensure(String::new()).add_keyframe(t_end_ms, text_content.clone(), easing);
         if !font_family.is_empty() {
             track.font_family.ensure(String::new()).add_keyframe(t_end_ms, font_family.clone(), easing);
         }

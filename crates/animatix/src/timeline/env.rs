@@ -238,4 +238,42 @@ pub fn load_standard_library(env: &mut Environment) {
     env.set("BLUE", Value::Color([0.0, 0.0, 1.0, 1.0]));
     env.set("BLACK", Value::Color([0.0, 0.0, 0.0, 1.0]));
     env.set("WHITE", Value::Color([1.0, 1.0, 1.0, 1.0]));
+
+    env.set(
+        "rgb",
+        Value::NativeFn(Arc::new(|args, _env| {
+            if args.len() != 3 {
+                return Err(EvalError::TypeMismatch(
+                    "rgb expects 3 arguments".to_string(),
+                ));
+            }
+            match (&args[0], &args[1], &args[2]) {
+                (Value::Num(r), Value::Num(g), Value::Num(b)) => {
+                    Ok(Value::Color([*r / 255.0, *g / 255.0, *b / 255.0, 1.0]))
+                }
+                _ => Err(EvalError::TypeMismatch(
+                    "rgb expects 3 numbers".to_string(),
+                )),
+            }
+        })),
+    );
+
+    env.set(
+        "rgba",
+        Value::NativeFn(Arc::new(|args, _env| {
+            if args.len() != 4 {
+                return Err(EvalError::TypeMismatch(
+                    "rgba expects 4 arguments".to_string(),
+                ));
+            }
+            match (&args[0], &args[1], &args[2], &args[3]) {
+                (Value::Num(r), Value::Num(g), Value::Num(b), Value::Num(a)) => {
+                    Ok(Value::Color([*r, *g, *b, *a]))
+                }
+                _ => Err(EvalError::TypeMismatch(
+                    "rgba expects 4 numbers".to_string(),
+                )),
+            }
+        })),
+    );
 }
