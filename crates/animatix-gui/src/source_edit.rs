@@ -1398,7 +1398,8 @@ btn.position = (200, 100)"#);
         ));
         let scene_names: Vec<_> = stmts.iter().filter_map(|s| match s { Stmt::Scene { name, .. } => Some(name.as_str()), _ => None }).collect();
         assert_eq!(scene_names, vec!["Outro", "Intro", "Middle"]);
-        assert!(matches!(stmts.first(), Some(Stmt::Import { .. })));
+        // The import is wrapped in a Keyframe by the parser, so the prelude starts with Keyframe
+        assert!(matches!(stmts.first(), Some(Stmt::Keyframe { .. })));
     }
 
     #[test]
