@@ -254,4 +254,29 @@ To add GUI creation support for a new primitive:
 
 ---
 
+## GUI Widget Screenshot Harness
+
+Renders isolated GUI components as PNG images for visual inspection. Useful for iterating on UI layout, spacing, and alignment without launching the full application.
+
+The harness is gated behind the `dev-screenshots` Cargo feature and is **never compiled into shipped binaries**.
+
+```bash
+# List available widgets
+cargo run --bin widget-screenshot --features dev-screenshots -- --list
+
+# Render a specific widget
+cargo run --bin widget-screenshot --features dev-screenshots \
+  -- --widget property-row-float --output /tmp/out.png
+
+# Custom size (default is 480×120)
+cargo run --bin widget-screenshot --features dev-screenshots \
+  -- --widget card --width 400 --height 200 --output /tmp/card.png
+```
+
+**Available widgets:** `property-row-vec2`, `property-row-float`, `property-row-slider`, `property-row-color`, `property-row-text`, `property-group`, `card`, `field`, `section-header`, `row`, `icon-button`, `empty-state`.
+
+**Adding a new widget:** Add a demo function to `crates/animatix-gui/src/dev/screenshot_harness.rs`, register it in `WIDGET_REGISTRY`, and wire it in `render_widget()`.
+
+---
+
 *For the language specification, see [`spec.md`](spec.md). For the system architecture, see [`architecture.md`](architecture.md). For work items, see [`roadmap.md`](roadmap.md).

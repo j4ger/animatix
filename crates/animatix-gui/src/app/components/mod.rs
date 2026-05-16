@@ -222,12 +222,19 @@ impl<'a> Row<'a> {
 
 // ─── Card ─────────────────────────────────────────────────────────────────
 
-/// A styled container with our surface background and rounded corners.
+/// A styled container with our surface background, rounded corners,
+/// and layered shadow for depth.
 pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(BG_SURFACE)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::same(SPACE_M as i8))
+        .inner_margin(Margin::same(SPACE_L as i8))
+        .shadow(egui::Shadow {
+            offset: [0, 2],
+            blur: 6,
+            spread: 0,
+            color: shadow_ambient(),
+        })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             add_contents(ui);
@@ -241,7 +248,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     let header_rect = ui.available_rect_before_wrap();
     let line_rect = Rect::from_min_size(header_rect.min, Vec2::new(24.0, 2.0));
     ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
-    ui.add_space(5.0);
+    ui.add_space(SPACE_M);
 
     let available = ui.available_width();
     let row_h = ROW_S;
@@ -279,7 +286,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         );
     }
 
-    ui.add_space(SPACE_S);
+    ui.add_space(SPACE_M);
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────
@@ -325,13 +332,29 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 /// });
 /// ```
 pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
+    field_sized(ui, None, add_contents)
+}
+
+/// Same as [`field`], but with an explicit desired width.
+///
+/// `desired_width` of `None` fills the available space.
+/// A fixed value creates a compact input of that exact width.
+pub fn field_sized(
+    ui: &mut egui::Ui,
+    desired_width: Option<f32>,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) -> Response {
     let frame = egui::Frame::new()
         .fill(BG_WIDGET)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_XS as i8));
+        .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_S as i8));
 
     let response = frame.show(ui, |ui| {
-        ui.set_width(ui.available_width());
+        if let Some(w) = desired_width {
+            ui.set_width(w);
+        } else {
+            ui.set_width(ui.available_width());
+        }
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
             add_contents,

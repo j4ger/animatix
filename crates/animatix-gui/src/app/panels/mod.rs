@@ -99,7 +99,7 @@ impl From<PropertyValue> for animatix::ast::Expr {
 }
 
 #[derive(Default)]
-pub(super) struct UiActions {
+pub(crate) struct UiActions {
     pub(super) open_file: Option<PathBuf>,
     pub(super) toggle_expand_dir: Option<PathBuf>,
     pub(super) show_inspector: bool,

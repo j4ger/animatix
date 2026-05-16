@@ -364,44 +364,29 @@ impl GuiShell {
             let output_path = &mut self.export_state.output_path;
 
             // ── Resolution row ──
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Resolution").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                ui.add_space(SPACE_L);
-
+            Self::settings_row(ui, "Resolution", |ui| {
                 let mut w_f32 = *width as f32;
-                ui.allocate_ui_with_layout(
-                    Vec2::new(80.0, ROW_M),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        components::field(ui, |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut w_f32)
-                                    .speed(10.0)
-                                    .range(1.0..=8192.0)
-                                    .prefix("W: "),
-                            );
-                        });
-                    },
-                );
+                components::field_sized(ui, Some(78.0), |ui| {
+                    ui.add(
+                        egui::DragValue::new(&mut w_f32)
+                            .speed(10.0)
+                            .range(1.0..=8192.0)
+                            .prefix("W: "),
+                    );
+                });
                 *width = w_f32 as u32;
 
                 ui.add_space(SPACE_S);
 
                 let mut h_f32 = *height as f32;
-                ui.allocate_ui_with_layout(
-                    Vec2::new(80.0, ROW_M),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        components::field(ui, |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut h_f32)
-                                    .speed(10.0)
-                                    .range(1.0..=8192.0)
-                                    .prefix("H: "),
-                            );
-                        });
-                    },
-                );
+                components::field_sized(ui, Some(78.0), |ui| {
+                    ui.add(
+                        egui::DragValue::new(&mut h_f32)
+                            .speed(10.0)
+                            .range(1.0..=8192.0)
+                            .prefix("H: "),
+                    );
+                });
                 *height = h_f32 as u32;
 
                 ui.add_space(SPACE_S);
@@ -427,25 +412,16 @@ impl GuiShell {
             // ── Format-specific settings ──
             match format {
                 ExportFormat::Image => {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Time").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                        ui.add_space(SPACE_L + 18.0);
-
+                    Self::settings_row(ui, "Time", |ui| {
                         let mut t = *time_s;
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(100.0, ROW_M),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                components::field(ui, |ui| {
-                                    ui.add(
-                                        egui::DragValue::new(&mut t)
-                                            .speed(0.1)
-                                            .range(0.0..=max_time)
-                                            .suffix(" s"),
-                                    );
-                                });
-                            },
-                        );
+                        components::field_sized(ui, Some(100.0), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut t)
+                                    .speed(0.1)
+                                    .range(0.0..=max_time)
+                                    .suffix(" s"),
+                            );
+                        });
                         *time_s = t;
 
                         ui.add_space(SPACE_S);
@@ -465,34 +441,22 @@ impl GuiShell {
                 }
                 ExportFormat::Video | ExportFormat::Gif => {
                     // FPS
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("FPS").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                        ui.add_space(SPACE_L + 24.0);
-
+                    Self::settings_row(ui, "FPS", |ui| {
                         let mut fps_f32 = *fps as f32;
-                        ui.allocate_ui_with_layout(
-                            Vec2::new(70.0, ROW_M),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                components::field(ui, |ui| {
-                                    ui.add(
-                                        egui::DragValue::new(&mut fps_f32)
-                                            .speed(1.0)
-                                            .range(1.0..=120.0)
-                                            .suffix(" fps"),
-                                    );
-                                });
-                            },
-                        );
+                        components::field_sized(ui, Some(70.0), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut fps_f32)
+                                    .speed(1.0)
+                                    .range(1.0..=120.0)
+                                    .suffix(" fps"),
+                            );
+                        });
                         *fps = fps_f32 as u32;
                     });
 
                     // Duration mode
                     let auto_prev = *auto_duration;
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Duration").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                        ui.add_space(SPACE_L + 2.0);
-
+                    Self::settings_row(ui, "Duration", |ui| {
                         ui.checkbox(auto_duration, RichText::new("Auto").size(FONT_SIZE_S));
 
                         if *auto_duration {
@@ -500,39 +464,27 @@ impl GuiShell {
                             ui.label(RichText::new("Hold:").size(FONT_SIZE_S).color(TEXT_SECONDARY));
 
                             let mut hold = *hold_s;
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(90.0, ROW_M),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    components::field(ui, |ui| {
-                                        ui.add(
-                                            egui::DragValue::new(&mut hold)
-                                                .speed(0.1)
-                                                .range(0.0..=10.0)
-                                                .suffix(" s"),
-                                        );
-                                    });
-                                },
-                            );
+                            components::field_sized(ui, Some(80.0), |ui| {
+                                ui.add(
+                                    egui::DragValue::new(&mut hold)
+                                        .speed(0.1)
+                                        .range(0.0..=10.0)
+                                        .suffix(" s"),
+                                );
+                            });
                             *hold_s = hold;
                         } else {
                             ui.add_space(SPACE_S);
 
                             let mut dur = *duration_s;
-                            ui.allocate_ui_with_layout(
-                                Vec2::new(90.0, ROW_M),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    components::field(ui, |ui| {
-                                        ui.add(
-                                            egui::DragValue::new(&mut dur)
-                                                .speed(0.5)
-                                                .range(0.1..=3600.0)
-                                                .suffix(" s"),
-                                        );
-                                    });
-                                },
-                            );
+                            components::field_sized(ui, Some(80.0), |ui| {
+                                ui.add(
+                                    egui::DragValue::new(&mut dur)
+                                        .speed(0.5)
+                                        .range(0.1..=3600.0)
+                                        .suffix(" s"),
+                                );
+                            });
                             *duration_s = dur;
                         }
                     });
@@ -566,23 +518,14 @@ impl GuiShell {
             ui.add_space(SPACE_S);
 
             // ── Output path ──
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Output").size(FONT_SIZE_S).color(TEXT_SECONDARY));
-                ui.add_space(SPACE_L + 14.0);
-
+            Self::settings_row(ui, "Output", |ui| {
                 let path_width = ui.available_width();
-                ui.allocate_ui_with_layout(
-                    Vec2::new(path_width, ROW_M),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        components::field(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(output_path)
-                                    .hint_text("output filename…"),
-                            );
-                        });
-                    },
-                );
+                components::field_sized(ui, Some(path_width), |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(output_path)
+                            .hint_text("output filename…"),
+                    );
+                });
             });
         }
 
@@ -595,6 +538,51 @@ impl GuiShell {
                     .color(TEXT_MUTED),
             );
         }
+    }
+
+    /// Render a settings row with a left-aligned label and right-aligned content.
+    fn settings_row(
+        ui: &mut egui::Ui,
+        label: &str,
+        add_content: impl FnOnce(&mut egui::Ui),
+    ) {
+        let available = ui.available_width();
+        let row_h = ROW_M;
+        let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+
+        let label_width = (available * 0.32).max(70.0).min(110.0);
+        let content_left = row_rect.min.x + label_width + SPACE_L;
+
+        // Label (left side)
+        let label_rect = egui::Rect::from_min_max(
+            egui::pos2(row_rect.min.x, row_rect.min.y),
+            egui::pos2(row_rect.min.x + label_width, row_rect.max.y),
+        );
+        ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect), |ui| {
+            ui.with_layout(
+                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+                |ui| {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(label).size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                        )
+                        .selectable(false),
+                    );
+                },
+            );
+        });
+
+        // Content (right side)
+        let content_rect = egui::Rect::from_min_max(
+            egui::pos2(content_left, row_rect.min.y),
+            egui::pos2(row_rect.max.x, row_rect.max.y),
+        );
+        ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
+            ui.with_layout(
+                egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
+                add_content,
+            );
+        });
     }
 
     // ─── Action Bar ───────────────────────────────────────────────────────────

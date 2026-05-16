@@ -4,12 +4,12 @@ mod actions;
 pub(crate) mod components;
 mod file_tree;
 pub(crate) mod icons;
-mod panels;
+pub(crate) mod panels;
 mod persistence;
 mod preview;
 mod runtime;
 mod shell;
-pub(crate) mod theme;
+pub mod theme;
 mod utils;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};

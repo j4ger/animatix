@@ -180,6 +180,7 @@ dependencies = [
  "egui_code_editor",
  "egui_extras",
  "egui_tiles",
+ "image",
  "kurbo 0.13.0",
  "notify",
  "pollster",

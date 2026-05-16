@@ -8,4 +8,7 @@ pub mod hot_reload;
 pub mod preview_surface;
 pub mod source_edit;
 
+#[cfg(feature = "dev-screenshots")]
+pub mod dev;
+
 pub use app::run_gui;

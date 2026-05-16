@@ -32,6 +32,15 @@ pub const BORDER: Color32 = Color32::from_rgb(40, 44, 52);
 pub const BORDER_HOVER: Color32 = Color32::from_rgb(60, 66, 78);
 pub const BORDER_FOCUS: Color32 = ACCENT_BLUE;
 
+// ── Shadows (layered: ambient + direct) ──
+// Using const fn because from_rgba_unmultiplied is not a const fn in egui 0.34
+pub fn shadow_ambient() -> Color32 {
+    Color32::from_rgba_unmultiplied(0, 0, 0, 40)
+}
+pub fn shadow_direct() -> Color32 {
+    Color32::from_rgba_unmultiplied(0, 0, 0, 60)
+}
+
 // ── Spacing Scale ──
 pub const SPACE_XS: f32 = 2.0;
 pub const SPACE_S: f32 = 4.0;
@@ -57,3 +66,27 @@ pub const FONT_SIZE_S: f32 = 10.0;
 pub const FONT_SIZE_M: f32 = 11.0;
 pub const FONT_SIZE_L: f32 = 12.0;
 pub const FONT_SIZE_XL: f32 = 14.0;
+
+// ── Inspector Layout ──
+/// Width of the keyframe indicator column (px).
+pub const INSPECTOR_KF_COL_WIDTH: f32 = 18.0;
+/// Minimum width of the label column (px).
+pub const INSPECTOR_LABEL_MIN_WIDTH: f32 = 90.0;
+/// Maximum width of the label column (px).
+pub const INSPECTOR_LABEL_MAX_WIDTH: f32 = 160.0;
+/// Fraction of row width allocated to the label column.
+pub const INSPECTOR_LABEL_WIDTH_FRAC: f32 = 0.48;
+/// Gap between label column and input column (px).
+pub const INSPECTOR_COL_GAP: f32 = 8.0;
+/// Standard width for a single DragValue input (px).
+pub const INSPECTOR_INPUT_WIDTH_FLOAT: f32 = 72.0;
+/// Width of the entire right-hand input column (px).
+pub const INSPECTOR_INPUT_COL_WIDTH: f32 = 120.0;
+/// Standard width for a Vec2 input pair (px).
+pub const INSPECTOR_INPUT_WIDTH_VEC2: f32 = 110.0;
+/// Standard width for a slider + value input (px).
+pub const INSPECTOR_INPUT_WIDTH_SLIDER: f32 = 100.0;
+/// Standard width for a color swatch + hex input (px).
+pub const INSPECTOR_INPUT_WIDTH_COLOR: f32 = 88.0;
+/// Row height for inspector property rows (px).
+pub const INSPECTOR_ROW_HEIGHT: f32 = ROW_M; // 24px

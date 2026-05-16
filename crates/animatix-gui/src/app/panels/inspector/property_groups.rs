@@ -11,20 +11,20 @@ use crate::app::panels::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActi
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
-pub(super) struct PropertyGroup {
+pub(crate) struct PropertyGroup {
     pub name: &'static str,
     pub icon: &'static str,
     pub properties: Vec<PropertyEntry>,
 }
 
-pub(super) struct PropertyEntry {
+pub(crate) struct PropertyEntry {
     pub name: &'static str,
     pub kind: PropertyKind,
     pub has_keyframes: bool,
     pub has_keyframe_at_current_time: bool,
 }
 
-pub(super) enum PropertyKind {
+pub(crate) enum PropertyKind {
     Vec2 { x: f32, y: f32 },
     Float(f32),
     Color([f32; 4]),
@@ -33,7 +33,7 @@ pub(super) enum PropertyKind {
 
 // ─── Group Builder (generic via registry) ─────────────────────────────────
 
-pub(super) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
+pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
     let indices = allowed_property_indices(track.kind);
 
     let mut geometry = Vec::new();
@@ -224,7 +224,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
 
 // ─── Rendering ────────────────────────────────────────────────────────────
 
-pub(super) fn render_property_group(
+pub(crate) fn render_property_group(
     ui: &mut egui::Ui,
     group: &PropertyGroup,
     actor_label: &str,
@@ -257,100 +257,126 @@ pub(super) fn render_property_group(
     }
 
     if expanded {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
         for entry in &group.properties {
             render_property_row(ui, actor_label, entry, actions, keyframe_mode);
         }
         ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
     }
-    ui.add_space(SPACE_S);
+    // Subtle divider + spacing between groups
+    let divider_rect = ui.available_rect_before_wrap();
+    if divider_rect.width() > 0.0 {
+        ui.painter().line_segment(
+            [
+                egui::pos2(divider_rect.min.x + INSPECTOR_KF_COL_WIDTH, divider_rect.min.y + 4.0),
+                egui::pos2(divider_rect.max.x - SPACE_S, divider_rect.min.y + 4.0),
+            ],
+            egui::Stroke::new(1.0, BORDER),
+        );
+    }
+    ui.add_space(SPACE_L);
 }
 
-fn render_property_row(
+pub(crate) fn render_property_row(
     ui: &mut egui::Ui,
     actor_label: &str,
     entry: &PropertyEntry,
     actions: &mut UiActions,
     keyframe_mode: bool,
 ) {
-    let row_height = ROW_S;
+    let row_height = INSPECTOR_ROW_HEIGHT;
     let available = ui.available_width();
-    let (row_rect, _response) =
+    let (row_rect, row_response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
-    if _response.hovered() {
+    if row_response.hovered() {
         ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
     }
 
-    let label_x = row_rect.min.x + SPACE_L;
     let baseline_y = row_rect.center().y;
 
-    // Keyframe dot
-    let dot_x = label_x;
+    // ── Column layout ──
+    // [KF:18px] [Label: flexible] [Gap:8px] [Input column: 120px, right-aligned]
+    let kf_col_right = row_rect.min.x + INSPECTOR_KF_COL_WIDTH;
+    let input_col_right = row_rect.max.x - SPACE_S;
+    let input_col_left = input_col_right - INSPECTOR_INPUT_COL_WIDTH;
+    let label_col_right = input_col_left - INSPECTOR_COL_GAP;
+
+    // ── Keyframe dot (centered in KF column) ──
+    let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
     if entry.has_keyframe_at_current_time {
-        let dot = egui::Rect::from_center_size(
-            egui::pos2(dot_x, baseline_y),
-            Vec2::new(5.0, 5.0),
-        );
-        ui.painter().rect_filled(dot, 1.5, AMBER);
+        let dot = egui::Rect::from_center_size(dot_center, Vec2::new(6.0, 6.0));
+        ui.painter().rect_filled(dot, 2.0, AMBER);
     } else if entry.has_keyframes {
-        let dot = egui::Rect::from_center_size(
-            egui::pos2(dot_x, baseline_y),
-            Vec2::new(4.0, 4.0),
-        );
-        ui.painter().rect_filled(dot, 2.0, TEXT_MUTED);
+        let dot = egui::Rect::from_center_size(dot_center, Vec2::new(5.0, 5.0));
+        ui.painter().rect_filled(dot, 2.5, TEXT_MUTED);
     }
 
-    // Property label
-    ui.painter().text(
-        egui::pos2(label_x + 12.0, baseline_y),
-        egui::Align2::LEFT_CENTER,
-        entry.name,
-        egui::TextStyle::Small.resolve(ui.style()),
-        TEXT_SECONDARY,
+    // ── Property label (truncated, vertically centered) ──
+    let label_rect = egui::Rect::from_min_max(
+        egui::pos2(kf_col_right + SPACE_S, row_rect.min.y),
+        egui::pos2(label_col_right, row_rect.max.y),
     );
+    ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect), |ui| {
+        ui.with_layout(
+            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+            |ui| {
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(entry.name)
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_SECONDARY),
+                    )
+                    .truncate()
+                    .selectable(false),
+                );
+            },
+        );
+    });
 
-    // Input widget (right side)
-    let input_width = 110.0_f32.min(available * 0.45);
-    let input_rect = egui::Rect::from_min_size(
-        egui::pos2(row_rect.max.x - input_width - SPACE_S, row_rect.min.y),
-        Vec2::new(input_width, row_height),
-    );
-
+    // ── Input widget (right-aligned in fixed-width column) ──
     match &entry.kind {
         PropertyKind::Vec2 { x, y } => {
             let mut nx = *x;
             let mut ny = *y;
-            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                components::field(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                        let rx = ui.add(
-                            egui::DragValue::new(&mut nx)
-                                .speed(0.5)
-                                .max_decimals(1),
-                        );
-                        let ry = ui.add(
-                            egui::DragValue::new(&mut ny)
-                                .speed(0.5)
-                                .max_decimals(1),
-                        );
-                        if rx.drag_started() || ry.drag_started() {
-                            actions.inspector_input_drag_started = true;
-                        }
-                        if rx.drag_stopped() || ry.drag_stopped() {
-                            actions.inspector_input_drag_ended = true;
-                        }
-                        if rx.changed() || ry.changed() {
-                            actions.property_edits.push(PropertyEdit {
-                                actor: actor_label.to_string(),
-                                property: entry.name.to_string(),
-                                value: GuiPropertyValue::Vec2([nx, ny]),
-                                create_keyframe: keyframe_mode,
-                            });
-                        }
-                    });
-                });
+            let widget_rect = egui::Rect::from_min_size(
+                egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_VEC2, row_rect.min.y),
+                Vec2::new(INSPECTOR_INPUT_WIDTH_VEC2, row_height),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
+                components::field_sized(
+                    ui,
+                    Some(INSPECTOR_INPUT_WIDTH_VEC2),
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                            let rx = ui.add(
+                                egui::DragValue::new(&mut nx)
+                                    .speed(0.5)
+                                    .max_decimals(1),
+                            );
+                            let ry = ui.add(
+                                egui::DragValue::new(&mut ny)
+                                    .speed(0.5)
+                                    .max_decimals(1),
+                            );
+                            if rx.drag_started() || ry.drag_started() {
+                                actions.inspector_input_drag_started = true;
+                            }
+                            if rx.drag_stopped() || ry.drag_stopped() {
+                                actions.inspector_input_drag_ended = true;
+                            }
+                            if rx.changed() || ry.changed() {
+                                actions.property_edits.push(PropertyEdit {
+                                    actor: actor_label.to_string(),
+                                    property: entry.name.to_string(),
+                                    value: GuiPropertyValue::Vec2([nx, ny]),
+                                    create_keyframe: keyframe_mode,
+                                });
+                            }
+                        });
+                    },
+                );
             });
         }
         PropertyKind::Float(v) => {
@@ -360,65 +386,88 @@ fn render_property_row(
                 entry.name,
                 "opacity" | "fill_opacity" | "stroke_progress"
             );
-            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                components::field(ui, |ui| {
-                    if is_01 {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                            let slider = ui.add(
-                                egui::Slider::new(&mut nv, 0.0..=1.0)
-                                    .show_value(false)
-                                    .trailing_fill(true),
+            let unit = unit_suffix(entry.name);
+            if is_01 {
+                let widget_rect = egui::Rect::from_min_size(
+                    egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_SLIDER, row_rect.min.y),
+                    Vec2::new(INSPECTOR_INPUT_WIDTH_SLIDER, row_height),
+                );
+                ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
+                    components::field_sized(
+                        ui,
+                        Some(INSPECTOR_INPUT_WIDTH_SLIDER),
+                        |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                                let slider_w = INSPECTOR_INPUT_WIDTH_SLIDER * 0.55;
+                                let slider = ui.add_sized(
+                                    Vec2::new(slider_w, ui.available_height()),
+                                    egui::Slider::new(&mut nv, 0.0..=1.0)
+                                        .show_value(false)
+                                        .trailing_fill(true),
+                                );
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(format!("{:.2}", nv))
+                                            .monospace()
+                                            .size(FONT_SIZE_XS)
+                                            .color(TEXT_PRIMARY),
+                                    )
+                                    .selectable(false),
+                                );
+                                if slider.drag_started() {
+                                    actions.inspector_input_drag_started = true;
+                                }
+                                if slider.drag_stopped() {
+                                    actions.inspector_input_drag_ended = true;
+                                }
+                                if slider.changed() {
+                                    actions.property_edits.push(PropertyEdit {
+                                        actor: actor_label.to_string(),
+                                        property: entry.name.to_string(),
+                                        value: GuiPropertyValue::Float(nv),
+                                        create_keyframe: keyframe_mode,
+                                    });
+                                }
+                            });
+                        },
+                    );
+                });
+            } else {
+                let widget_rect = egui::Rect::from_min_size(
+                    egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_FLOAT, row_rect.min.y),
+                    Vec2::new(INSPECTOR_INPUT_WIDTH_FLOAT, row_height),
+                );
+                ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
+                    components::field_sized(
+                        ui,
+                        Some(INSPECTOR_INPUT_WIDTH_FLOAT),
+                        |ui| {
+                            let response = ui.add(
+                                egui::DragValue::new(&mut nv)
+                                    .speed(if is_angle { 0.5 } else { 0.1 })
+                                    .suffix(if is_angle { "°" } else { unit })
+                                    .max_decimals(if is_angle { 1 } else { 2 }),
                             );
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!("{:.2}", nv))
-                                        .monospace()
-                                        .size(FONT_SIZE_XS)
-                                        .color(TEXT_PRIMARY),
-                                )
-                                .selectable(false),
-                            );
-                            if slider.drag_started() {
+                            if response.drag_started() {
                                 actions.inspector_input_drag_started = true;
                             }
-                            if slider.drag_stopped() {
+                            if response.drag_stopped() {
                                 actions.inspector_input_drag_ended = true;
                             }
-                            if slider.changed() {
+                            if response.changed() {
+                                let out_val = if is_angle { nv.to_radians() } else { nv };
                                 actions.property_edits.push(PropertyEdit {
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
-                                    value: GuiPropertyValue::Float(nv),
+                                    value: GuiPropertyValue::Float(out_val),
                                     create_keyframe: keyframe_mode,
                                 });
                             }
-                        });
-                    } else {
-                        let response = ui.add(
-                            egui::DragValue::new(&mut nv)
-                                .speed(if is_angle { 0.5 } else { 0.1 })
-                                .suffix(if is_angle { "°" } else { "" })
-                                .max_decimals(if is_angle { 1 } else { 2 }),
-                        );
-                        if response.drag_started() {
-                            actions.inspector_input_drag_started = true;
-                        }
-                        if response.drag_stopped() {
-                            actions.inspector_input_drag_ended = true;
-                        }
-                        if response.changed() {
-                            let out_val = if is_angle { nv.to_radians() } else { nv };
-                            actions.property_edits.push(PropertyEdit {
-                                actor: actor_label.to_string(),
-                                property: entry.name.to_string(),
-                                value: GuiPropertyValue::Float(out_val),
-                                create_keyframe: keyframe_mode,
-                            });
-                        }
-                    }
+                        },
+                    );
                 });
-            });
+            }
         }
         PropertyKind::Color(rgba) => {
             let mut color = Color32::from_rgba_premultiplied(
@@ -427,82 +476,127 @@ fn render_property_row(
                 (rgba[2] * 255.0) as u8,
                 (rgba[3] * 255.0) as u8,
             );
-            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                components::field(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                        let btn = ui.color_edit_button_srgba(&mut color);
-                        if btn.changed() {
-                            let [r, g, b, a] = color.to_array();
-                            actions.property_edits.push(PropertyEdit {
-                                actor: actor_label.to_string(),
-                                property: entry.name.to_string(),
-                                value: GuiPropertyValue::Color([
-                                    r as f32 / 255.0,
-                                    g as f32 / 255.0,
-                                    b as f32 / 255.0,
-                                    a as f32 / 255.0,
-                                ]),
-                                create_keyframe: keyframe_mode,
-                            });
-                        }
-                    });
-                });
+            let hex = format!(
+                "#{:02x}{:02x}{:02x}",
+                color.r(),
+                color.g(),
+                color.b()
+            );
+            let widget_rect = egui::Rect::from_min_size(
+                egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_COLOR, row_rect.min.y),
+                Vec2::new(INSPECTOR_INPUT_WIDTH_COLOR, row_height),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
+                components::field_sized(
+                    ui,
+                    Some(INSPECTOR_INPUT_WIDTH_COLOR),
+                    |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                            let btn = ui.color_edit_button_srgba(&mut color);
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&hex)
+                                        .monospace()
+                                        .size(FONT_SIZE_XS)
+                                        .color(TEXT_MUTED),
+                                )
+                                .selectable(false),
+                            );
+                            if btn.changed() {
+                                let [r, g, b, a] = color.to_array();
+                                actions.property_edits.push(PropertyEdit {
+                                    actor: actor_label.to_string(),
+                                    property: entry.name.to_string(),
+                                    value: GuiPropertyValue::Color([
+                                        r as f32 / 255.0,
+                                        g as f32 / 255.0,
+                                        b as f32 / 255.0,
+                                        a as f32 / 255.0,
+                                    ]),
+                                    create_keyframe: keyframe_mode,
+                                });
+                            }
+                        });
+                    },
+                );
             });
         }
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
-            ui.scope_builder(egui::UiBuilder::new().max_rect(input_rect), |ui| {
-                components::field(ui, |ui| {
-                    if entry.name == "shape_type" {
-                        let variants: Vec<&str> = [
-                            ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
-                            ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
-                            ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
-                        ]
-                        .iter()
-                        .map(|st| st.as_str())
-                        .collect();
-                        egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
-                            .selected_text(text.as_str())
-                            .width(input_width)
-                            .show_ui(ui, |ui| {
-                                for v in variants {
-                                    if ui.selectable_label(v == text, v).clicked() {
-                                        actions.property_edits.push(PropertyEdit {
-                                            actor: actor_label.to_string(),
-                                            property: entry.name.to_string(),
-                                            value: GuiPropertyValue::Text(v.to_string()),
-                                            create_keyframe: keyframe_mode,
-                                        });
+            // Text inputs fill the entire input column
+            let widget_rect = egui::Rect::from_min_size(
+                egui::pos2(input_col_left, row_rect.min.y),
+                Vec2::new(INSPECTOR_INPUT_COL_WIDTH, row_height),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
+                components::field_sized(
+                    ui,
+                    Some(INSPECTOR_INPUT_COL_WIDTH),
+                    |ui| {
+                        if entry.name == "shape_type" {
+                            let variants: Vec<&str> = [
+                                ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
+                                ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
+                                ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
+                            ]
+                            .iter()
+                            .map(|st| st.as_str())
+                            .collect();
+                            egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
+                                .selected_text(text.as_str())
+                                .width(INSPECTOR_INPUT_COL_WIDTH)
+                                .show_ui(ui, |ui| {
+                                    for v in variants {
+                                        if ui.selectable_label(v == text, v).clicked() {
+                                            actions.property_edits.push(PropertyEdit {
+                                                actor: actor_label.to_string(),
+                                                property: entry.name.to_string(),
+                                                value: GuiPropertyValue::Text(v.to_string()),
+                                                create_keyframe: keyframe_mode,
+                                            });
+                                        }
                                     }
-                                }
-                            });
-                    } else if entry.name == "text_content" || entry.name == "text" {
-                        let edit = egui::TextEdit::singleline(&mut buf)
-                            .font(egui::TextStyle::Small)
-                            .desired_width(input_width);
-                        let response = ui.add(edit);
-                        if response.changed() {
-                            actions.property_edits.push(PropertyEdit {
-                                actor: actor_label.to_string(),
-                                property: entry.name.to_string(),
-                                value: GuiPropertyValue::Text(buf),
-                                create_keyframe: keyframe_mode,
-                            });
+                                });
+                        } else if entry.name == "text_content" || entry.name == "text" {
+                            let edit = egui::TextEdit::singleline(&mut buf)
+                                .font(egui::TextStyle::Small)
+                                .desired_width(INSPECTOR_INPUT_COL_WIDTH);
+                            let response = ui.add(edit);
+                            if response.changed() {
+                                actions.property_edits.push(PropertyEdit {
+                                    actor: actor_label.to_string(),
+                                    property: entry.name.to_string(),
+                                    value: GuiPropertyValue::Text(buf),
+                                    create_keyframe: keyframe_mode,
+                                });
+                            }
+                        } else {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(text.as_str())
+                                        .size(FONT_SIZE_M)
+                                        .color(TEXT_MUTED),
+                                )
+                                .selectable(false),
+                            );
                         }
-                    } else {
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(text.as_str())
-                                    .size(FONT_SIZE_M)
-                                    .color(TEXT_MUTED),
-                            )
-                            .selectable(false),
-                        );
-                    }
-                });
+                    },
+                );
             });
         }
+    }
+}
+
+/// Return a unit suffix for numeric property names.
+fn unit_suffix(name: &str) -> &'static str {
+    match name {
+        "position" | "motion_offset" | "size" | "layout_size" | "line_from" | "line_to" => "px",
+        "stroke_width" => "px",
+        "rotation" => "°",
+        "scale" => "×",
+        "opacity" | "fill_opacity" | "stroke_progress" => "",
+        "font_size" => "pt",
+        _ => "",
     }
 }

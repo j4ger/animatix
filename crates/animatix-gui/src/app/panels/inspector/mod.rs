@@ -6,7 +6,7 @@ use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
 use crate::app::panels::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
 
-mod property_groups;
+pub(crate) mod property_groups;
 mod keyframe_table;
 
 use self::property_groups::*;
@@ -231,84 +231,110 @@ fn render_actor_header(
     let available = ui.available_width();
     let row_h = ROW_L;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
-    let baseline_y = row_rect.center().y;
-    let cursor_x = row_rect.min.x;
 
-    // Actor icon
-    ui.painter().text(
-        egui::pos2(cursor_x + 10.0, baseline_y),
-        egui::Align2::CENTER_CENTER,
-        actor_icon_str(track.kind),
-        egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-        AMBER,
+    // ── Left side: icon + name ──
+    let left_rect = egui::Rect::from_min_max(
+        row_rect.min,
+        egui::pos2(row_rect.center().x, row_rect.max.y),
     );
-    // Actor label (click to rename)
-    let edit_id = ui.id().with("actor_name_edit");
-    let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
-    let mut edit_buffer: String = ui.data(|d| d.get_temp(edit_id.with("buf"))).unwrap_or_else(|| track.label.clone());
+    ui.scope_builder(egui::UiBuilder::new().max_rect(left_rect), |ui| {
+        ui.with_layout(
+            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+            |ui| {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(actor_icon_str(track.kind))
+                            .size(FONT_SIZE_XL)
+                            .color(AMBER),
+                    )
+                    .selectable(false),
+                );
+                ui.add_space(SPACE_S);
 
-    if is_editing {
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut edit_buffer)
-                .font(egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional))
-                .text_color(TEXT_PRIMARY)
-                .desired_width(120.0),
-        );
-        if response.lost_focus() {
-            ui.data_mut(|d| d.insert_temp(edit_id, false));
-            if edit_buffer != track.label && !edit_buffer.is_empty() {
-                actions.rename_actor = Some((track.label.clone(), edit_buffer.clone()));
-            }
-        }
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            ui.data_mut(|d| d.insert_temp(edit_id, false));
-            edit_buffer = track.label.clone();
-        }
-        ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
-    } else {
-        let label_response = ui.add(
-            egui::Label::new(
-                RichText::new(&track.label)
-                    .size(FONT_SIZE_XL)
-                    .color(TEXT_PRIMARY),
-            )
-            .selectable(false)
-            .sense(egui::Sense::click()),
-        );
-        if label_response.clicked() {
-            ui.data_mut(|d| {
-                d.insert_temp(edit_id, true);
-                d.insert_temp(edit_id.with("buf"), track.label.clone());
-            });
-        }
-    }
+                // Actor label (click to rename)
+                let edit_id = ui.id().with("actor_name_edit");
+                let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
+                let mut edit_buffer: String =
+                    ui.data(|d| d.get_temp(edit_id.with("buf")))
+                        .unwrap_or_else(|| track.label.clone());
 
-    // Right-aligned metadata (shape type + first seen time)
-    let mut right_x = row_rect.max.x - SPACE_S;
-    if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
-        let time_text = format!("t = {:.2}s", track.first_seen_ms as f64 / 1000.0);
-        ui.painter().text(
-            egui::pos2(right_x, baseline_y),
-            egui::Align2::RIGHT_CENTER,
-            time_text,
-            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-            TEXT_MUTED,
+                if is_editing {
+                    let response = ui.add(
+                        egui::TextEdit::singleline(&mut edit_buffer)
+                            .font(egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional))
+                            .text_color(TEXT_PRIMARY)
+                            .desired_width(120.0),
+                    );
+                    if response.lost_focus() {
+                        ui.data_mut(|d| d.insert_temp(edit_id, false));
+                        if edit_buffer != track.label && !edit_buffer.is_empty() {
+                            actions.rename_actor = Some((track.label.clone(), edit_buffer.clone()));
+                        }
+                    }
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        ui.data_mut(|d| d.insert_temp(edit_id, false));
+                        edit_buffer = track.label.clone();
+                    }
+                    ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
+                } else {
+                    let label_response = ui.add(
+                        egui::Label::new(
+                            RichText::new(&track.label)
+                                .size(FONT_SIZE_XL)
+                                .color(TEXT_PRIMARY),
+                        )
+                        .selectable(false)
+                        .sense(egui::Sense::click()),
+                    );
+                    if label_response.clicked() {
+                        ui.data_mut(|d| {
+                            d.insert_temp(edit_id, true);
+                            d.insert_temp(edit_id.with("buf"), track.label.clone());
+                        });
+                    }
+                }
+            },
         );
-        // Approximate width for positioning
-        right_x -= 60.0;
-    }
+    });
 
-    if let Some(shape_pt) = &track.shape_type {
-        let shape = shape_pt.evaluate(current_time_ms);
-        let shape_text = format!("{:?}", shape);
-        ui.painter().text(
-            egui::pos2(right_x, baseline_y),
-            egui::Align2::RIGHT_CENTER,
-            shape_text,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-            TEXT_MUTED,
+    // ── Right side: shape type + first seen time ──
+    let right_rect = egui::Rect::from_min_max(
+        egui::pos2(row_rect.center().x, row_rect.min.y),
+        row_rect.max,
+    );
+    ui.scope_builder(egui::UiBuilder::new().max_rect(right_rect), |ui| {
+        ui.with_layout(
+            egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
+            |ui| {
+                if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!(
+                                "t = {:.2}s",
+                                track.first_seen_ms as f64 / 1000.0
+                            ))
+                            .size(FONT_SIZE_XS)
+                            .color(TEXT_MUTED),
+                        )
+                        .selectable(false),
+                    );
+                    ui.add_space(SPACE_M);
+                }
+
+                if let Some(shape_pt) = &track.shape_type {
+                    let shape = shape_pt.evaluate(current_time_ms);
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!("{:?}", shape))
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_MUTED),
+                        )
+                        .selectable(false),
+                    );
+                }
+            },
         );
-    }
+    });
 }
 
 
