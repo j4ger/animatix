@@ -308,22 +308,19 @@ impl WorkspaceViewer<'_> {
                 let row_id = ui.id().with(entry.path.display().to_string());
                 let path = entry.path.clone();
                 let is_dir = entry.is_dir;
-                let clicked = widgets::tree_row(
-                    ui,
-                    row_id,
-                    entry.depth,
-                    has_children,
-                    is_expanded,
-                    is_selected,
-                    icon,
-                    &entry.name,
-                    label_color,
-                    || {
-                        self.actions.toggle_expand_dir = Some(path.clone());
-                    },
-                );
+                let response = components::Row::new(&entry.name)
+                    .indent(entry.depth as f32 * 14.0)
+                    .selected(is_selected)
+                    .icon(icon)
+                    .label_color(label_color.unwrap_or(TEXT_SECONDARY))
+                    .has_children(has_children)
+                    .expanded(is_expanded)
+                    .show(ui, row_id);
 
-                if clicked {
+                if response.chevron_clicked {
+                    self.actions.toggle_expand_dir = Some(path.clone());
+                }
+                if response.row_clicked {
                     if is_dir {
                         self.actions.toggle_expand_dir = Some(path);
                     } else {
@@ -400,6 +397,7 @@ impl WorkspaceViewer<'_> {
             return;
         }
 
+        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
@@ -410,6 +408,8 @@ impl WorkspaceViewer<'_> {
                         root_label,
                         self.selected_actor,
                         self.collapsed_actors,
+                        &mut self.actions,
+                        time_ms,
                         0,
                     );
                 }
@@ -1338,6 +1338,8 @@ fn render_actor_tree(
     label: &str,
     selected_actor: &mut Option<String>,
     collapsed_actors: &mut HashSet<String>,
+    actions: &mut UiActions,
+    time_ms: u64,
     depth: usize,
 ) {
     let Some(track) = timeline.get_track(label) else {
@@ -1348,6 +1350,8 @@ fn render_actor_tree(
     let is_anonymous = label.starts_with("__anon");
     let has_children = !track.children.is_empty();
     let is_expanded = has_children && !collapsed_actors.contains(label);
+    let opacity = track.opacity.get(time_ms, 1.0);
+    let is_visible = opacity > 0.001;
 
     let (icon, display_label, label_color) = if is_anonymous {
         (
@@ -1364,13 +1368,40 @@ fn render_actor_tree(
     // so that multiple anonymous actors don't share the same id.
     let row_id = ui.id().with(label);
     let label_owned = label.to_string();
+
+    // Visibility toggle (eye icon) on the right
+    let eye_icon = if is_visible {
+        egui_phosphor::regular::EYE
+    } else {
+        egui_phosphor::regular::EYE_CLOSED
+    };
+    let eye_color = if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED };
+
     let response = components::Row::new(display_label)
         .indent(depth as f32 * 14.0)
         .selected(is_selected)
         .icon(icon)
-        .label_color(label_color.unwrap_or(TEXT_SECONDARY))
+        .label_color(label_color.unwrap_or(if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED }))
         .has_children(has_children)
         .expanded(is_expanded)
+        .right(|ui| {
+            let eye_btn = components::icon_button_colored(
+                ui,
+                eye_icon,
+                if is_visible { "Hide layer" } else { "Show layer" },
+                eye_color,
+                TEXT_PRIMARY,
+            );
+            if eye_btn.clicked() {
+                let new_opacity = if is_visible { 0.0 } else { 1.0 };
+                actions.property_edits.push(PropertyEdit {
+                    actor: label.to_string(),
+                    property: "opacity".into(),
+                    value: PropertyValue::Float(new_opacity),
+                    create_keyframe: false,
+                });
+            }
+        })
         .show(ui, row_id);
 
     if response.chevron_clicked {
@@ -1394,6 +1425,8 @@ fn render_actor_tree(
                 child_label,
                 selected_actor,
                 collapsed_actors,
+                actions,
+                time_ms,
                 depth + 1,
             );
         }

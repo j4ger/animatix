@@ -3,9 +3,8 @@ use animatix::timeline::{
     property_has_keyframes, property_keyframe_times,
     read_property_value, allowed_property_indices, PROPERTY_REGISTRY,
 };
-use egui::{Color32, Vec2};
+use egui::Vec2;
 
-use crate::app::components;
 use crate::app::theme::*;
 use crate::app::panels::UiActions;
 
@@ -46,7 +45,6 @@ pub(super) fn render_dope_sheet(
     current_time_ms: u64,
     actions: &mut UiActions,
 ) {
-    let duration_s = timeline.duration_seconds().max(0.1);
     let groups = collect_track_groups(track);
 
     if groups.is_empty() {
@@ -54,9 +52,14 @@ pub(super) fn render_dope_sheet(
         return;
     }
 
+    // Compact list of animated properties with keyframe counts
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
     for group in &groups {
-        render_track_group(ui, group, current_time_ms, duration_s, actions);
+        for track_info in &group.tracks {
+            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actions);
+        }
     }
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
 }
 
 /// Collect all keyframe times across all property tracks (for mini timeline).
@@ -108,57 +111,14 @@ fn render_empty_state(ui: &mut egui::Ui) {
     });
 }
 
-// ─── Track Group ──────────────────────────────────────────────────────────
+// ─── Compact Track Row ────────────────────────────────────────────────────
 
-fn render_track_group(
+fn render_compact_track_row(
     ui: &mut egui::Ui,
     group: &TrackGroup,
-    current_time_ms: u64,
-    duration_s: f64,
-    actions: &mut UiActions,
-) {
-    let group_id = ui.id().with(("kf_group", group.name));
-    let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
-
-    let kf_count: usize = group.tracks.iter().map(|t| t.keyframes.len()).sum();
-    let header = components::Row::new(group.name)
-        .height(ROW_M)
-        .icon(Some(group.icon))
-        .has_children(true)
-        .expanded(expanded)
-        .right(|ui| {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(kf_count.to_string())
-                        .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
-                )
-                .selectable(false),
-            );
-        });
-    let response = header.show(ui, group_id.with("header"));
-
-    if response.row_clicked || response.chevron_clicked {
-        expanded = !expanded;
-        ui.data_mut(|d| d.insert_temp(group_id, expanded));
-    }
-
-    if expanded {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-        for track in &group.tracks {
-            render_track_row(ui, track, current_time_ms, duration_s, actions);
-        }
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
-    }
-}
-
-// ─── Track Row ────────────────────────────────────────────────────────────
-
-fn render_track_row(
-    ui: &mut egui::Ui,
     track: &PropertyTrackInfo,
     current_time_ms: u64,
-    duration_s: f64,
+    timeline: &Timeline,
     actions: &mut UiActions,
 ) {
     let row_height = ROW_S;
@@ -170,112 +130,113 @@ fn render_track_row(
         ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
     }
 
-    let label_width = 90.0_f32.min(available * 0.35);
-    let timeline_left = row_rect.min.x + label_width;
-    let timeline_right = row_rect.max.x - SPACE_S;
+    let baseline_y = row_rect.center().y;
+    let duration_s = timeline.duration_seconds().max(0.1);
 
-    // Property label
+    // Icon
+    let mut cursor_x = row_rect.min.x + SPACE_S;
     ui.painter().text(
-        egui::pos2(row_rect.min.x + SPACE_L, row_rect.center().y),
+        egui::pos2(cursor_x + 7.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        group.icon,
+        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TEXT_MUTED,
+    );
+    cursor_x += 18.0;
+
+    // Property name
+    ui.painter().text(
+        egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
         track.name,
         egui::TextStyle::Small.resolve(ui.style()),
         TEXT_SECONDARY,
     );
 
-    // Timeline strip
-    let strip_rect = egui::Rect::from_min_max(
-        egui::pos2(timeline_left, row_rect.min.y + 3.0),
-        egui::pos2(timeline_right, row_rect.max.y - 3.0),
-    );
-    ui.painter().rect_filled(strip_rect, RADIUS_M, BG_WIDGET);
-    ui.painter().rect_stroke(
-        strip_rect,
-        RADIUS_M,
-        egui::Stroke::new(1.0, BORDER),
-        egui::StrokeKind::Outside,
+    // Keyframe count badge (right-aligned)
+    let count = track.keyframes.len();
+    let count_label = format!("{} {}", egui_phosphor::regular::DIAMOND, count);
+    ui.painter().text(
+        egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+        egui::Align2::RIGHT_CENTER,
+        count_label,
+        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TEXT_MUTED,
     );
 
-    // Second tick marks (subtle)
-    let sec_step = if duration_s > 20.0 { 5.0 } else { 1.0 };
-    let mut sec = sec_step;
-    while sec < duration_s {
-        let fraction = sec / duration_s;
-        let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
-        ui.painter().line_segment(
-            [
-                egui::pos2(x, strip_rect.top() + 2.0),
-                egui::pos2(x, strip_rect.bottom() - 2.0),
-            ],
-            egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 15)),
+    // Mini timeline strip (subtle, behind everything)
+    let strip_left = cursor_x + 70.0_f32.min(available * 0.3);
+    let strip_right = row_rect.max.x - SPACE_S - 50.0;
+    if strip_right > strip_left + 20.0 {
+        let strip_rect = egui::Rect::from_min_max(
+            egui::pos2(strip_left, row_rect.min.y + 5.0),
+            egui::pos2(strip_right, row_rect.max.y - 5.0),
         );
-        sec += sec_step;
-    }
+        ui.painter().rect_filled(strip_rect, RADIUS_S, BG_WIDGET);
 
-    // Click / drag on strip to scrub
-    let strip_response = ui.interact(
-        strip_rect,
-        ui.id().with(("strip", track.name)),
-        egui::Sense::click_and_drag(),
-    );
-    if strip_response.clicked() || strip_response.dragged() {
-        if let Some(pos) = strip_response.interact_pointer_pos() {
-            let fraction =
-                ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-            let time_s = fraction * duration_s;
-            actions.scrub_to = Some(time_s);
+        // Keyframe dots on the strip
+        for (time_ms, _) in &track.keyframes {
+            let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
+            let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
+            let is_current = *time_ms == current_time_ms;
+            let color = if is_current { AMBER } else { TEXT_MUTED };
+            let size = if is_current { 3.5 } else { 2.5 };
+            ui.painter().circle_filled(egui::pos2(x, strip_rect.center().y), size, color);
+        }
+
+        // Current time indicator
+        let current_fraction = ((current_time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
+        let playhead_x = egui::lerp(strip_rect.left()..=strip_rect.right(), current_fraction as f32);
+        if playhead_x >= strip_rect.left() && playhead_x <= strip_rect.right() {
+            ui.painter().line_segment(
+                [egui::pos2(playhead_x, strip_rect.top()), egui::pos2(playhead_x, strip_rect.bottom())],
+                egui::Stroke::new(1.0, AMBER),
+            );
+        }
+
+        // Click to scrub
+        let strip_response = ui.interact(
+            strip_rect,
+            ui.id().with(("compact_strip", track.name)),
+            egui::Sense::click_and_drag(),
+        );
+        if strip_response.clicked() || strip_response.dragged() {
+            if let Some(pos) = strip_response.interact_pointer_pos() {
+                let fraction = ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
+                actions.scrub_to = Some(fraction * duration_s);
+            }
         }
     }
 
-    // Current time indicator
-    let current_fraction =
-        ((current_time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
-    let playhead_x = egui::lerp(
-        strip_rect.left()..=strip_rect.right(),
-        current_fraction as f32,
-    );
-
-    // Keyframe diamonds
-    let diamond_size = 5.0;
-    for (time_ms, value) in &track.keyframes {
-        let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
-        let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
-        let center = egui::pos2(x, strip_rect.center().y);
-        let is_current = *time_ms == current_time_ms;
-
-        let size = if is_current { diamond_size + 1.5 } else { diamond_size };
-        components::keyframe_dot(&ui.painter(), center, size, is_current);
-
-        // Hover tooltip
-        let hover_rect =
-            egui::Rect::from_center_size(center, Vec2::splat(size + 6.0));
-        let diamond_response = ui.interact(
-            hover_rect,
-            ui.id().with(("kf", track.name, *time_ms)),
-            egui::Sense::hover(),
-        );
-        diamond_response.on_hover_ui(|ui| {
+    // Hover tooltip showing keyframe values
+    response.on_hover_ui(|ui| {
+        ui.horizontal(|ui| {
+            ui.strong(track.name);
+            ui.label(
+                egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
+                    .size(FONT_SIZE_XS)
+                    .color(TEXT_MUTED),
+            );
+        });
+        ui.add_space(SPACE_XS);
+        for (time_ms, value) in &track.keyframes {
+            let is_current = *time_ms == current_time_ms;
+            let color = if is_current { AMBER } else { TEXT_SECONDARY };
             ui.horizontal(|ui| {
-                ui.strong(track.name);
+                let icon = egui_phosphor::regular::DIAMOND;
+                ui.label(egui::RichText::new(icon).size(FONT_SIZE_XS).color(color));
                 ui.label(
                     egui::RichText::new(format!("{:.2}s", *time_ms as f64 / 1000.0))
                         .monospace()
-                        .color(AMBER),
+                        .size(FONT_SIZE_XS)
+                        .color(color),
+                );
+                ui.label(
+                    egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY),
                 );
             });
-            ui.add_space(SPACE_XS);
-            ui.label(egui::RichText::new(format!("Value: {}", value)).size(FONT_SIZE_M));
-        });
-    }
-
-    // Playhead line (drawn on top of diamonds)
-    if playhead_x >= strip_rect.left() && playhead_x <= strip_rect.right() {
-        components::playhead(
-            &ui.painter(),
-            playhead_x,
-            strip_rect.top() - 1.0..strip_rect.bottom() + 1.0,
-        );
-    }
+        }
+    });
 }
 
 // ─── Collection (generic via registry) ────────────────────────────────────

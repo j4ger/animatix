@@ -74,8 +74,6 @@ pub const INSPECTOR_KF_COL_WIDTH: f32 = 18.0;
 pub const INSPECTOR_LABEL_MIN_WIDTH: f32 = 90.0;
 /// Maximum width of the label column (px).
 pub const INSPECTOR_LABEL_MAX_WIDTH: f32 = 160.0;
-/// Fraction of row width allocated to the label column.
-pub const INSPECTOR_LABEL_WIDTH_FRAC: f32 = 0.48;
 /// Gap between label column and input column (px).
 pub const INSPECTOR_COL_GAP: f32 = 8.0;
 /// Standard width for a single DragValue input (px).
@@ -90,3 +88,7 @@ pub const INSPECTOR_INPUT_WIDTH_SLIDER: f32 = 110.0;
 pub const INSPECTOR_INPUT_WIDTH_COLOR: f32 = 88.0;
 /// Row height for inspector property rows (px).
 pub const INSPECTOR_ROW_HEIGHT: f32 = ROW_M; // 24px
+/// Width of the keyframe toggle button column (px).
+pub const INSPECTOR_KF_BTN_WIDTH: f32 = 16.0;
+/// Fraction of available width for the label column.
+pub const INSPECTOR_LABEL_WIDTH_FRAC: f32 = 0.42;

@@ -27,6 +27,8 @@ pub const WIDGET_REGISTRY: &[(&str, &str)] = &[
     ("row", "Interactive list row"),
     ("icon-button", "Icon button with hover"),
     ("empty-state", "Empty state placeholder"),
+    ("file-tree", "File tree with folders and files"),
+    ("layer-tree", "Layer tree with actors and children"),
 ];
 
 /// Render a widget by name into the given UI.
@@ -48,6 +50,8 @@ pub fn render_widget(ui: &mut egui::Ui, name: &str) {
         "row" => render_demo_row(ui),
         "icon-button" => render_demo_icon_button(ui),
         "empty-state" => render_demo_empty_state(ui),
+        "file-tree" => render_demo_file_tree(ui),
+        "layer-tree" => render_demo_layer_tree(ui),
         _ => {
             ui.vertical_centered(|ui| {
                 ui.add_space(40.0);
@@ -267,4 +271,104 @@ fn render_demo_empty_state(ui: &mut egui::Ui) {
         "No timeline loaded",
         "Open or create a scene to begin",
     );
+}
+
+fn render_demo_file_tree(ui: &mut egui::Ui) {
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
+
+    // Folder: src (expanded)
+    let row1 = components::Row::new("src")
+        .height(ROW_M)
+        .icon(Some(egui_phosphor::regular::FOLDER_OPEN))
+        .has_children(true)
+        .expanded(true);
+    row1.show(ui, ui.id().with("src"));
+
+    // File: src/main.rs (selected)
+    let row2 = components::Row::new("main.rs")
+        .height(ROW_M)
+        .indent(14.0)
+        .icon(Some(egui_phosphor::regular::FILM_STRIP))
+        .has_children(false)
+        .selected(true)
+        .label_color(ACCENT_BLUE);
+    row2.show(ui, ui.id().with("main.rs"));
+
+    // File: src/lib.rs
+    let row3 = components::Row::new("lib.rs")
+        .height(ROW_M)
+        .indent(14.0)
+        .icon(Some(egui_phosphor::regular::FILE))
+        .has_children(false)
+        .selected(false);
+    row3.show(ui, ui.id().with("lib.rs"));
+
+    // Folder: assets (collapsed)
+    let row4 = components::Row::new("assets")
+        .height(ROW_M)
+        .icon(Some(egui_phosphor::regular::FOLDER))
+        .has_children(true)
+        .expanded(false);
+    row4.show(ui, ui.id().with("assets"));
+
+    // File: README.md
+    let row5 = components::Row::new("README.md")
+        .height(ROW_M)
+        .icon(Some(egui_phosphor::regular::FILE_TEXT))
+        .has_children(false)
+        .selected(false);
+    row5.show(ui, ui.id().with("README.md"));
+}
+
+fn render_demo_layer_tree(ui: &mut egui::Ui) {
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+
+    // Root actor: Background (visible, expanded)
+    let row1 = components::Row::new("background")
+        .height(ROW_M)
+        .icon(Some(egui_phosphor::regular::SQUARE))
+        .has_children(true)
+        .expanded(true)
+        .selected(false)
+        .right(|ui| {
+            components::icon_button_colored(ui, egui_phosphor::regular::EYE, "Hide", TEXT_SECONDARY, TEXT_PRIMARY);
+        });
+    row1.show(ui, ui.id().with("bg"));
+
+    // Child: Circle (visible, selected)
+    let row2 = components::Row::new("circle1")
+        .height(ROW_M)
+        .indent(14.0)
+        .icon(Some(egui_phosphor::regular::CIRCLE))
+        .has_children(false)
+        .selected(true)
+        .right(|ui| {
+            components::icon_button_colored(ui, egui_phosphor::regular::EYE, "Hide", TEXT_SECONDARY, TEXT_PRIMARY);
+        });
+    row2.show(ui, ui.id().with("circle1"));
+
+    // Child: Text (hidden)
+    let row3 = components::Row::new("title_text")
+        .height(ROW_M)
+        .indent(14.0)
+        .icon(Some(egui_phosphor::regular::TEXT_T))
+        .has_children(false)
+        .selected(false)
+        .label_color(TEXT_DISABLED)
+        .right(|ui| {
+            components::icon_button_colored(ui, egui_phosphor::regular::EYE_CLOSED, "Show", TEXT_DISABLED, TEXT_SECONDARY);
+        });
+    row3.show(ui, ui.id().with("title"));
+
+    // Root actor: anon ghost (visible)
+    let row4 = components::Row::new("anon")
+        .height(ROW_M)
+        .icon(Some(egui_phosphor::regular::GHOST))
+        .has_children(false)
+        .selected(false)
+        .label_color(TEXT_MUTED)
+        .right(|ui| {
+            components::icon_button_colored(ui, egui_phosphor::regular::EYE, "Hide", TEXT_SECONDARY, TEXT_PRIMARY);
+        });
+    row4.show(ui, ui.id().with("anon"));
 }
