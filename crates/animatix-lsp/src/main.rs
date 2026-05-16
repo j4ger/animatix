@@ -3,8 +3,9 @@
 //! This binary provides language intelligence (completions, diagnostics, hover, go-to-definition)
 //! to external editors like VS Code and Neovim via the Language Server Protocol.
 
-use animatix_analyzer::Analyzer;
+use animatix_analyzer::{Analyzer, Workspace};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
@@ -32,12 +33,55 @@ impl Backend {
         analyzers.get(uri).cloned().unwrap_or_else(|| Analyzer::new(""))
     }
 
+    /// Build a workspace from all open documents and attach it to each analyzer.
+    async fn rebuild_workspace(&self) {
+        let mut analyzers = self.analyzers.lock().await;
+        if analyzers.len() <= 1 {
+            // No cross-file analysis needed with 0 or 1 files
+            return;
+        }
+
+        // Build workspace from all open documents
+        let mut workspace = Workspace::new();
+        for (_uri, analyzer) in analyzers.iter() {
+            if let Some(path) = analyzer.path() {
+                workspace.add_file(path.to_path_buf(), analyzer.source());
+            }
+        }
+
+        let workspace_arc = Arc::new(workspace);
+
+        // Attach workspace to each analyzer
+        for (_, analyzer) in analyzers.iter_mut() {
+            analyzer.set_workspace(Arc::clone(&workspace_arc));
+        }
+    }
+
     /// Update the analyzer for a document.
     async fn update_analyzer(&self, uri: String, text: String) {
         let mut analyzers = self.analyzers.lock().await;
-        let analyzer = analyzers.entry(uri).or_insert_with(|| Analyzer::new(&text));
+        let path = uri_to_path(&uri);
+        let analyzer = analyzers
+            .entry(uri.clone())
+            .or_insert_with(|| Analyzer::new_with_path(&text, path.clone()));
         analyzer.update(&text);
+        drop(analyzers);
+
+        // Rebuild workspace for cross-file analysis
+        self.rebuild_workspace().await;
     }
+
+    /// Remove an analyzer for a closed document.
+    async fn remove_analyzer(&self, uri: &str) {
+        let mut analyzers = self.analyzers.lock().await;
+        analyzers.remove(uri);
+        drop(analyzers);
+
+        // Rebuild workspace after removal
+        self.rebuild_workspace().await;
+    }
+
+
 
     /// Publish diagnostics for a document to the LSP client.
     async fn publish_diagnostics(&self, uri: &str) {
@@ -99,6 +143,8 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                workspace_symbol_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -128,6 +174,11 @@ impl LanguageServer for Backend {
             self.update_analyzer(uri.clone(), change.text).await;
             self.publish_diagnostics(&uri).await;
         }
+    }
+
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        let uri = params.text_document.uri.to_string();
+        self.remove_analyzer(&uri).await;
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
@@ -250,6 +301,102 @@ impl LanguageServer for Backend {
 
         Ok(Some(DocumentSymbolResponse::Flat(lsp_symbols)))
     }
+
+    async fn symbol(
+        &self,
+        _params: WorkspaceSymbolParams,
+    ) -> Result<Option<Vec<SymbolInformation>>> {
+        let analyzers = self.analyzers.lock().await;
+        let mut all_symbols = Vec::new();
+
+        for (uri, analyzer) in analyzers.iter() {
+            let symbols = analyzer.document_symbols();
+            for sym in symbols {
+                let kind = match sym.kind {
+                    animatix_analyzer::SymbolKind::Actor => SymbolKind::VARIABLE,
+                    animatix_analyzer::SymbolKind::Variable => SymbolKind::VARIABLE,
+                    animatix_analyzer::SymbolKind::Component => SymbolKind::CLASS,
+                    animatix_analyzer::SymbolKind::Block => SymbolKind::NAMESPACE,
+                };
+
+                #[allow(deprecated)]
+                all_symbols.push(SymbolInformation {
+                    name: sym.name,
+                    kind,
+                    location: Location {
+                        uri: Url::parse(uri).unwrap_or_else(|_| {
+                            Url::parse("file:///unknown").unwrap()
+                        }),
+                        range: Range::new(
+                            Position::new(sym.line as u32, sym.col as u32),
+                            Position::new(sym.line as u32, sym.col as u32),
+                        ),
+                    },
+                    tags: None,
+                    deprecated: None,
+                    container_name: None,
+                });
+            }
+        }
+
+        if all_symbols.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(all_symbols))
+        }
+    }
+
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let position = params.text_document_position.position;
+
+        // Get the symbol name at the cursor position
+        let analyzer = self.get_analyzer(&uri).await;
+        let symbol_name = analyzer
+            .hover_at(position.line as usize, position.character as usize)
+            .map(|info| {
+                // Extract the symbol name from hover info — it's in backticks
+                info.contents
+                    .split('`')
+                    .nth(1)
+                    .map(|s| s.to_string())
+            })
+            .flatten();
+
+        let Some(symbol_name) = symbol_name else {
+            return Ok(None);
+        };
+
+        // Search for references across all workspace files
+        let analyzers = self.analyzers.lock().await;
+        let mut locations = Vec::new();
+
+        for (file_uri, file_analyzer) in analyzers.iter() {
+            let refs = file_analyzer.find_references(&symbol_name);
+            for (start_line, start_col, end_line, end_col) in refs {
+                if let Ok(uri) = Url::parse(file_uri) {
+                    locations.push(Location {
+                        uri,
+                        range: Range::new(
+                            Position::new(start_line as u32, start_col as u32),
+                            Position::new(end_line as u32, end_col as u32),
+                        ),
+                    });
+                }
+            }
+        }
+
+        if locations.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(locations))
+        }
+    }
+}
+
+/// Convert a file:// URI to a PathBuf.
+fn uri_to_path(uri: &str) -> Option<PathBuf> {
+    uri.strip_prefix("file://").map(PathBuf::from)
 }
 
 #[tokio::main]

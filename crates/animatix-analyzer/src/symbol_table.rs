@@ -1,6 +1,7 @@
 //! Symbol table extraction from the AST.
 
 use animatix::ast::*;
+use animatix::to_source::ToSource;
 use std::collections::{HashMap, HashSet};
 
 /// Extracted symbols from a source file.
@@ -17,6 +18,15 @@ pub struct SymbolTable {
     /// Keywords and built-in actions.
     pub keywords: HashSet<String>,
     pub actions: HashSet<String>,
+    /// Imports declared in this file.
+    pub imports: Vec<ImportInfo>,
+}
+
+/// Information about an import declaration.
+#[derive(Debug, Clone)]
+pub struct ImportInfo {
+    pub path: String,
+    pub alias: Option<String>,
 }
 
 /// Information about a labeled entity.
@@ -268,7 +278,7 @@ impl SymbolTable {
                     name: def.name.clone(),
                     params: def.params.iter().map(|p| ParamInfo {
                         name: p.name.clone(),
-                        default: None, // TODO: serialize default
+                        default: p.default.as_ref().map(|e| e.to_source()),
                     }).collect(),
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
@@ -330,7 +340,14 @@ impl SymbolTable {
                 }
             }
 
-            // Actions, assignments, imports, etc. — no symbols to extract
+            Stmt::Import { path, alias, .. } => {
+                self.imports.push(ImportInfo {
+                    path: path.clone(),
+                    alias: alias.clone(),
+                });
+            }
+
+            // Actions, assignments, etc. — no symbols to extract
             _ => {}
         }
     }
@@ -341,6 +358,30 @@ impl SymbolTable {
         for prop in props {
             if !entry.contains(&prop.name) {
                 entry.push(prop.name.clone());
+            }
+        }
+    }
+
+    /// Merge symbols from another table into this one.
+    /// Used for cross-file analysis: imported file symbols are merged
+    /// into the local symbol table.
+    pub fn merge(&mut self, other: &SymbolTable) {
+        for (name, info) in &other.labels {
+            if !self.labels.contains_key(name) {
+                self.labels.insert(name.clone(), info.clone());
+            }
+        }
+        for (name, info) in &other.components {
+            if !self.components.contains_key(name) {
+                self.components.insert(name.clone(), info.clone());
+            }
+        }
+        for (name, props) in &other.properties {
+            let entry = self.properties.entry(name.clone()).or_default();
+            for prop in props {
+                if !entry.contains(prop) {
+                    entry.push(prop.clone());
+                }
             }
         }
     }

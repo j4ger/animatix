@@ -30,34 +30,7 @@ Access all installed system fonts via `font-kit` / `fontconfig`. Removes the cur
 
 ---
 
-## 2. Analyzer / LSP
 
-### 2.1 Cross-File Analysis
-
-**Status:** Phase 7 of analyzer design — not started.
-**Location:** `docs/contributing.md` §Analyzer Architecture.
-
-- Extend `Analyzer` to accept multiple files.
-- Use `ModuleGraph` for import resolution.
-- Cross-file symbol table.
-- LSP: `workspace/symbol`, `textDocument/references`.
-
-**Effort:** Medium-High.
-
----
-
-### 2.2 Analyzer Default Serialization
-
-**TODO:** `crates/animatix-analyzer/src/symbol_table.rs:271`
-```rust
-default: None, // TODO: serialize default
-```
-
-Symbol table property entries don't capture default values yet.
-
-**Effort:** Low.
-
----
 
 ## 3. Architecture / Cleanup Debt
 
