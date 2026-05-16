@@ -1019,6 +1019,7 @@ impl Timeline {
             fill_opacity,
             shape_type,
             vello_paths,
+            procedural_plot,
         )) = self.process_plot_actor(
             label,
             ty,
@@ -1053,6 +1054,7 @@ impl Timeline {
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
             track.kind = super::ActorKindId::from_type_name(ty);
+            track.procedural_plot = procedural_plot;
 
             if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;

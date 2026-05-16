@@ -563,3 +563,213 @@ pub(crate) fn build_implicit_plot_path(
 
     path
 }
+
+// ─────────────────────────────────────────────────────────────
+// Per-frame procedural plot sampling
+// ─────────────────────────────────────────────────────────────
+
+use crate::renderer::types::VelloPath;
+
+/// All parameters needed to re-sample a plot curve at frame time.
+#[derive(Clone, Debug)]
+pub struct ProceduralPlot {
+    pub ty: String,
+    pub func_args: Vec<String>,
+    pub func_body: Expr,
+    pub p_x_domain: [f64; 2],
+    pub p_y_domain: [f64; 2],
+    pub p_size: [f64; 2],
+    pub t_domain: [f64; 2],
+    pub tolerance: f64,
+    pub max_depth: usize,
+    pub resolution: usize,
+    pub stroke_width: f32,
+    pub stroke_color: [f32; 4],
+}
+
+/// Re-sample a procedural plot at frame time using the given environment.
+/// This allows plot functions to reference timeline variables like `t`.
+pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<VelloPath> {
+    let mut vello_paths = vec![];
+
+    let arg_name = if !plot.func_args.is_empty() {
+        plot.func_args[0].clone()
+    } else {
+        "x".to_string()
+    };
+
+    let (min_t, max_t) = if plot.ty == "CartesianPlot" {
+        (plot.p_x_domain[0], plot.p_x_domain[1])
+    } else if plot.ty == "ImplicitPlot" {
+        (0.0, 0.0)
+    } else {
+        (plot.t_domain[0], plot.t_domain[1])
+    };
+
+    if plot.ty == "ImplicitPlot" {
+        let path = build_implicit_plot_path(
+            env,
+            &plot.func_args,
+            &plot.func_body,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            plot.resolution.max(8),
+        );
+        vello_paths.push(VelloPath {
+            path,
+            fill: None,
+            stroke: if plot.stroke_width > 0.0 {
+                Some((
+                    vello::peniko::Color::from_rgba8(
+                        (plot.stroke_color[0] * 255.0) as u8,
+                        (plot.stroke_color[1] * 255.0) as u8,
+                        (plot.stroke_color[2] * 255.0) as u8,
+                        (plot.stroke_color[3] * 255.0) as u8,
+                    ),
+                    plot.stroke_width,
+                ))
+            } else {
+                None
+            },
+        });
+    } else {
+        let start_eval = evaluate_with_binding(env, &arg_name, min_t, &plot.func_body)
+            .unwrap_or(Value::Num(f64::NAN));
+        let (start_math_x, start_math_y) = if plot.ty == "CartesianPlot" {
+            (min_t, start_eval.as_num())
+        } else if plot.ty == "ParametricPlot" {
+            match start_eval {
+                Value::Vec2([x, y]) => (x, y),
+                _ => (f64::NAN, f64::NAN),
+            }
+        } else {
+            let start_val = start_eval.as_num();
+            (start_val * min_t.cos(), start_val * min_t.sin())
+        };
+        let start_screen_x = -(plot.p_size[0] / 2.0)
+            + plot.p_size[0]
+                * ((start_math_x - plot.p_x_domain[0])
+                    / (plot.p_x_domain[1] - plot.p_x_domain[0]));
+        let start_screen_y = (plot.p_size[1] / 2.0)
+            - plot.p_size[1]
+                * ((start_math_y - plot.p_y_domain[0])
+                    / (plot.p_y_domain[1] - plot.p_y_domain[0]));
+
+        let end_eval = evaluate_with_binding(env, &arg_name, max_t, &plot.func_body)
+            .unwrap_or(Value::Num(f64::NAN));
+        let (end_math_x, end_math_y) = if plot.ty == "CartesianPlot" {
+            (max_t, end_eval.as_num())
+        } else if plot.ty == "ParametricPlot" {
+            match end_eval {
+                Value::Vec2([x, y]) => (x, y),
+                _ => (f64::NAN, f64::NAN),
+            }
+        } else {
+            let end_val = end_eval.as_num();
+            (end_val * max_t.cos(), end_val * max_t.sin())
+        };
+        let end_screen_x = -(plot.p_size[0] / 2.0)
+            + plot.p_size[0]
+                * ((end_math_x - plot.p_x_domain[0])
+                    / (plot.p_x_domain[1] - plot.p_x_domain[0]));
+        let end_screen_y = (plot.p_size[1] / 2.0)
+            - plot.p_size[1]
+                * ((end_math_y - plot.p_y_domain[0])
+                    / (plot.p_y_domain[1] - plot.p_y_domain[0]));
+
+        let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
+        let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
+
+        let mut pts = vec![p0];
+        let mut cache = HashMap::<u64, Value>::new();
+
+        if plot.ty == "CartesianPlot" {
+            sample_recursive_cartesian(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                plot.max_depth,
+                plot.tolerance,
+                env,
+                &arg_name,
+                &plot.func_body,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &mut cache,
+                &mut pts,
+            );
+        } else if plot.ty == "PolarPlot" {
+            sample_recursive_polar(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                plot.max_depth,
+                plot.tolerance,
+                env,
+                &arg_name,
+                &plot.func_body,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &mut cache,
+                &mut pts,
+            );
+        } else {
+            sample_recursive_parametric(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                plot.max_depth,
+                plot.tolerance,
+                env,
+                &arg_name,
+                &plot.func_body,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &mut cache,
+                &mut pts,
+            );
+        }
+
+        let mut path = kurbo::BezPath::new();
+        let mut first = true;
+        for pt in pts {
+            if pt.x.is_nan() || pt.y.is_nan() {
+                first = true;
+            } else if first {
+                path.move_to((pt.x, pt.y));
+                first = false;
+            } else {
+                path.line_to((pt.x, pt.y));
+            }
+        }
+        vello_paths.push(VelloPath {
+            path,
+            fill: None,
+            stroke: if plot.stroke_width > 0.0 {
+                Some((
+                    vello::peniko::Color::from_rgba8(
+                        (plot.stroke_color[0] * 255.0) as u8,
+                        (plot.stroke_color[1] * 255.0) as u8,
+                        (plot.stroke_color[2] * 255.0) as u8,
+                        (plot.stroke_color[3] * 255.0) as u8,
+                    ),
+                    plot.stroke_width,
+                ))
+            } else {
+                None
+            },
+        });
+    }
+
+    vello_paths
+}

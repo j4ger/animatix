@@ -88,16 +88,20 @@ Current `rand()` is not a deterministic function of time. Scenes depending on fr
 
 ---
 
-### 3.3 Plotting System — Per-Frame Sampling
+### 3.3 Plotting System — Per-Frame Sampling Cache
 
-**Status:** Build-time only. Curves are baked at timeline build and cannot animate.
-**Location:** `crates/animatix/src/timeline/plot.rs`, `crates/animatix/src/timeline/build/plot.rs`.
+**Status:** Implemented. Procedural plots re-sample every frame regardless of whether the function references `t`.
+**Location:** `crates/animatix/src/timeline/scene_eval.rs`.
 
-Plot curves are sampled once during `Timeline::build()` using `build_eval_env`, which does not inject the timeline time variable `t`. This means `func: (x) => sin(x + t)` silently fails and produces a static curve.
+`AnimationTrack::procedural_plot` is re-sampled on every call to `evaluate()` using `frame_eval_env`. For static plots (e.g., `func: (x) => x * x`), this is wasted work — the curve never changes.
 
-**Fix:** Introduce a `ProceduralPath` variant that stores `(func_expr, domain, params)` and re-samples at frame time using `frame_eval_env` (which has `t`). Cache the sampled path per-frame to avoid recomputing every render.
+**Fix:** Cache the sampled `Vec<VelloPath>` on the track and only re-sample when:
+- The closure body references `t` or other time-varying variables, OR
+- The cache key (hash of `t`, `x_domain`, `y_domain`, `t_domain`, `size`) changes.
 
-**Effort:** Medium. Requires extending `AnimationTrack` to hold procedural plot state and wiring frame-time re-sampling into `evaluate()`.
+For static plots, sample once at build time and skip re-sampling. For animated plots, cache by `t` rounded to the nearest frame.
+
+**Effort:** Low-Medium.
 
 ---
 
@@ -169,8 +173,9 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 |----------|------|--------|--------|
 | 1 | Multi-Scene GUI transition blending (Phase 7 polish) | Medium | High |
 | 2 | Randomness determinism | Low-Medium | Medium |
-| 3 | Plotting: per-frame sampling (animated plots) | Medium | High |
+| 3 | Plotting: per-frame sampling cache | Low-Medium | Medium |
 | 4 | Plotting: `func` signature validation | Low | Medium |
-| 5 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 6 | Cross-file analyzer | Medium-High | Medium |
-| 7 | Green tree / trivia AST | Very High | Low (polish) |
+| 5 | Plotting: axes out-of-domain position | Low | Low |
+| 6 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 7 | Cross-file analyzer | Medium-High | Medium |
+| 8 | Green tree / trivia AST | Very High | Low (polish) |

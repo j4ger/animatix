@@ -313,6 +313,12 @@ impl Timeline {
 
             let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
             let mut vector_paths = track.evaluate_vector_paths(time_ms);
+
+            // Re-sample procedural plots at frame time so they can reference `t`.
+            if let Some(procedural_plot) = track.procedural_plot.as_ref() {
+                let frame_env = self.frame_eval_env(time_ms, scene_dimensions, &overrides);
+                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &frame_env);
+            }
             let layout_pos = if self.dynamic_layout {
                 layout_positions.get(node_label).copied()
             } else {

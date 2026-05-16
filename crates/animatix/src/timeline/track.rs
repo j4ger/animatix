@@ -3,6 +3,7 @@ use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::{
     MorphOptions, MorphStrategy, align_path_lists_with_strategy, morph_paths_with_options,
 };
+use crate::timeline::plot::ProceduralPlot;
 use crate::timeline::shapes::ShapeType;
 use std::collections::BTreeMap;
 
@@ -456,6 +457,9 @@ pub struct AnimationTrack {
 
     // ── Layout ──
     pub layout_size: Option<PropertyTrack<[f32; 2]>>,
+
+    // ── Procedural plot (re-sampled at frame time) ──
+    pub procedural_plot: Option<ProceduralPlot>,
 }
 
 impl AnimationTrack {
@@ -504,6 +508,9 @@ impl AnimationTrack {
 
             // Layout flat fields
             layout_size: None,
+
+            // Procedural plot
+            procedural_plot: None,
         }
     }
 

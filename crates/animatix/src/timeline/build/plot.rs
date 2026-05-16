@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
+use crate::timeline::plot::ProceduralPlot;
 use crate::timeline::vello_path::VelloPath;
 
 /// Parameters for building plot curve paths.
@@ -277,6 +278,7 @@ impl Timeline {
         f32,
         ShapeType,
         Vec<VelloPath>,
+        Option<ProceduralPlot>,
     )> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if !primitive.is_graph_host() && !primitive.is_plot() {
@@ -468,6 +470,7 @@ impl Timeline {
         let fill_opacity = 0.0f32;
 
         let mut vello_paths = vec![];
+        let mut procedural_plot = None;
 
         if primitive.is_graph_host() {
             vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color);
@@ -503,6 +506,23 @@ impl Timeline {
                 eval_env: &eval_env,
             };
             vello_paths = build_plot_curve_paths(&curve_params);
+
+            if let Some((args, body)) = func.as_ref() {
+                procedural_plot = Some(ProceduralPlot {
+                    ty: ty.to_string(),
+                    func_args: args.clone(),
+                    func_body: (**body).clone(),
+                    p_x_domain,
+                    p_y_domain,
+                    p_size,
+                    t_domain,
+                    tolerance,
+                    max_depth: max_depth as usize,
+                    resolution: resolution as usize,
+                    stroke_width,
+                    stroke_color,
+                });
+            }
         }
 
         Some((
@@ -517,6 +537,7 @@ impl Timeline {
             fill_opacity,
             shape_type,
             vello_paths,
+            procedural_plot,
         ))
     }
 }
