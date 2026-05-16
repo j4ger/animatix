@@ -321,6 +321,7 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
                         glyphs.push(TextPath {
                             path: final_path,
                             color: text.fill.clone(),
+                            opacity: 1.0,
                         });
                     }
 

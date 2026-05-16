@@ -4,6 +4,7 @@ use kurbo::{BezPath, CubicBez, ParamCurve, PathEl, Point};
 pub enum MorphStrategy {
     Auto,
     Match,
+    Fade,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

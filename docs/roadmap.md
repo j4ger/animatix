@@ -103,14 +103,25 @@ Access all installed system fonts via `font-kit` / `fontconfig`. Removes the cur
 
 ### 2.3 `strategy: fade` Morph
 
-**Status:** Deferred — requires compositing architecture change.
-**Location:** `crates/animatix/src/timeline/morph.rs`.
+**Status:** Implemented.
+**Location:** `crates/animatix/src/timeline/morph.rs`, `crates/animatix/src/timeline/track.rs`.
 
-Current morphing (`auto`, `match`, `path_arc`, `stretch`) interpolates paths between two states. `fade` would cross-fade between overlapping states, which needs:
-- Render both source and target shapes at partial opacity.
-- Compositing pass or dual-path rendering.
+`fade` cross-fades between path states by rendering both source and target paths at partial opacity instead of geometrically interpolating vertices. Because Vello is an immediate-mode vector renderer, this is achieved by emitting both path sets into the `Scene` with per-path alpha scaling — no separate compositing pass was required.
 
-**Effort:** High. Touches renderer compositing.
+**Syntax:**
+```
+circle c [100ms, strategy: fade]
+```
+
+**Supported actors:** SVG, Text/Math/Code, Plot, and any actor where `vector_paths` / `text_paths` is the direct render source. Primitive `shape_type` transitions (e.g. `Rect → Circle`) are affected by a pre-existing issue where `build_shape_vector_paths` in `scene_eval.rs` replaces morphed paths with a freshly built primitive path; fixing that is tracked separately.
+
+**Implementation details:**
+- `MorphStrategy::Fade` added to the enum alongside `Auto` and `Match`.
+- Parser accepts `fade` in timing modifiers (was previously rejected with a diagnostic).
+- `interpolate_vello_paths` and `interpolate_text_paths` branch on `Fade` and return both source and target path sets with alpha scaled by `(1-t)` and `t` respectively.
+- `TextPath` gained an `opacity: f32` field so that per-path fade alpha can be applied during scene evaluation without converting `typst::visualize::Paint` prematurely.
+
+**Effort:** Low–Medium. No renderer changes needed.
 
 ---
 
@@ -266,9 +277,9 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 3 | Randomness determinism | Low-Medium | Medium |
 | 4 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
 | 5 | Cross-file analyzer | Medium-High | Medium |
-| 6 | `strategy: fade` morph | High | Medium |
+| 6 | `strategy: fade` morph | Low–Medium | Medium |
 | 7 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-15 — Multi-Scene Phases 4–8 implemented*
+*Last updated: 2026-05-16 — `strategy: fade` morph implemented*

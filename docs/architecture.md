@@ -170,7 +170,7 @@ Re-declaring an actor at a later keyframe triggers automatic path interpolation.
 3. **Segment alignment** — equalize segment count by splitting longest Beziers
 4. **Interpolation** — lerp points with optional arc curvature and bounds normalization
 
-Shipped morph modifiers: `strategy: auto|match`, `path_arc`, `stretch`. `strategy: fade` is deferred.
+Shipped morph modifiers: `strategy: auto|match|fade`, `path_arc`, `stretch`.
 
 ---
 

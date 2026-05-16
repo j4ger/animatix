@@ -433,5 +433,5 @@ For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies),
 
 - `Image` / `Svg` source assignment (currently requires re-declaration)
 - `Ellipse` rotation
-- `strategy: fade` morphing
+- ~~`strategy: fade` morphing~~ (implemented)
 - High-level multi-strategy morph selection

@@ -5,6 +5,7 @@ use vello::peniko::Color;
 pub struct TextPath {
     pub path: BezPath,
     pub color: typst::visualize::Paint,
+    pub opacity: f32,
 }
 
 #[derive(Clone)]

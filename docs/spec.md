@@ -28,7 +28,7 @@
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | See `examples/plotting_demo.amx` |
 | Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
-| Morphing | `strategy:auto\|match`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | `strategy:fade` deferred |
+| Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
@@ -312,7 +312,7 @@ circle: Circle, at: (100, 100) [2s]
 [2s, path_arc: 1.57]    // Curved interpolation hint
 [2s, stretch: true]     // Bounds-normalized interpolation
 ```
-`strategy: fade` deferred (implies overlapping states, not single path interpolation).
+`strategy: fade` cross-fades between overlapping states by rendering both source and target path sets at partial opacity.
 
 **Instant Change:** Zero duration or property assignment.
 ```animatix

@@ -398,15 +398,7 @@ pub(crate) fn parse_timing_modifiers(
                         match raw.as_str() {
                             "auto" => parsed.morph_options.strategy = MorphStrategy::Auto,
                             "match" => parsed.morph_options.strategy = MorphStrategy::Match,
-                            "fade" => push_modifier_diagnostic(
-                                diagnostics,
-                                DiagnosticCode::InvalidModifierValue,
-                                format!(
-                                    "Strategy 'fade' is not supported on {}; use 'auto' or 'match' instead.",
-                                    host.display_name()
-                                ),
-                                subject,
-                            ),
+                            "fade" => parsed.morph_options.strategy = MorphStrategy::Fade,
                             other => push_modifier_diagnostic(
                                 diagnostics,
                                 DiagnosticCode::InvalidModifierValue,

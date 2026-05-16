@@ -443,7 +443,7 @@ impl Timeline {
                             rgba[0],
                             rgba[1],
                             rgba[2],
-                            (rgba[3] as f32 * local_opacity) as u8,
+                            (rgba[3] as f32 * local_opacity * text_path.opacity) as u8,
                         )
                     }
                     _ => vello::peniko::Color::WHITE,
