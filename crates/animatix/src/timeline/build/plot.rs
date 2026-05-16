@@ -5,6 +5,7 @@
 //! property assignments, actions, container layout, component expansion,
 //! text/math/code path compilation, and asset loading.
 
+use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::vello_path::VelloPath;
@@ -32,7 +33,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
     let mut vello_paths = vec![];
 
     if let Some((args, body)) = params.func {
-        let mut env_copy = params.eval_env.clone();
+        let env_copy = params.eval_env.clone();
         let arg_name = if !args.is_empty() {
             args[0].clone()
         } else {
@@ -49,7 +50,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 
         if params.ty == "ImplicitPlot" {
             let path = build_implicit_plot_path(
-                &mut env_copy,
+                &env_copy,
                 args,
                 body,
                 &params.p_x_domain,
@@ -75,14 +76,14 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 },
             });
         } else {
-            env_copy.set(&arg_name, Value::Num(min_t));
-            let start_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(0.0));
+            let start_eval = evaluate_with_binding(&env_copy, &arg_name, min_t, body)
+                .unwrap_or(Value::Num(f64::NAN));
             let (start_math_x, start_math_y) = if params.ty == "CartesianPlot" {
                 (min_t, start_eval.as_num())
             } else if params.ty == "ParametricPlot" {
                 match start_eval {
                     Value::Vec2([x, y]) => (x, y),
-                    _ => (0.0, 0.0),
+                    _ => (f64::NAN, f64::NAN),
                 }
             } else {
                 let start_val = start_eval.as_num();
@@ -97,14 +98,14 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     * ((start_math_y - params.p_y_domain[0])
                         / (params.p_y_domain[1] - params.p_y_domain[0]));
 
-            env_copy.set(&arg_name, Value::Num(max_t));
-            let end_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(0.0));
+            let end_eval = evaluate_with_binding(&env_copy, &arg_name, max_t, body)
+                .unwrap_or(Value::Num(f64::NAN));
             let (end_math_x, end_math_y) = if params.ty == "CartesianPlot" {
                 (max_t, end_eval.as_num())
             } else if params.ty == "ParametricPlot" {
                 match end_eval {
                     Value::Vec2([x, y]) => (x, y),
-                    _ => (0.0, 0.0),
+                    _ => (f64::NAN, f64::NAN),
                 }
             } else {
                 let end_val = end_eval.as_num();
@@ -123,6 +124,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
 
             let mut pts = vec![p0];
+            let mut cache = HashMap::<u64, Value>::new();
 
             if params.ty == "CartesianPlot" {
                 sample_recursive_cartesian(
@@ -133,12 +135,13 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     0,
                     params.max_depth as usize,
                     params.tolerance,
-                    &mut env_copy,
+                    &env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
                     &params.p_y_domain,
                     &params.p_size,
+                    &mut cache,
                     &mut pts,
                 );
             } else if params.ty == "PolarPlot" {
@@ -150,12 +153,13 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     0,
                     params.max_depth as usize,
                     params.tolerance,
-                    &mut env_copy,
+                    &env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
                     &params.p_y_domain,
                     &params.p_size,
+                    &mut cache,
                     &mut pts,
                 );
             } else {
@@ -167,12 +171,13 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     0,
                     params.max_depth as usize,
                     params.tolerance,
-                    &mut env_copy,
+                    &env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
                     &params.p_y_domain,
                     &params.p_size,
+                    &mut cache,
                     &mut pts,
                 );
             }
@@ -217,6 +222,7 @@ pub(super) fn build_graph_axis_paths(
     size: [f32; 2],
     x_domain: [f64; 2],
     y_domain: [f64; 2],
+    axis_color: [f32; 4],
 ) -> Vec<VelloPath> {
     let mut path = kurbo::BezPath::new();
     let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
@@ -238,7 +244,12 @@ pub(super) fn build_graph_axis_paths(
     vec![VelloPath {
         path,
         fill: None,
-        stroke: Some((vello::peniko::Color::from_rgba8(255, 255, 255, 255), 2.0)),
+        stroke: Some((vello::peniko::Color::from_rgba8(
+            (axis_color[0] * 255.0) as u8,
+            (axis_color[1] * 255.0) as u8,
+            (axis_color[2] * 255.0) as u8,
+            (axis_color[3] * 255.0) as u8,
+        ), 2.0)),
     }]
 }
 
@@ -281,6 +292,11 @@ impl Timeline {
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
         let initial_eval_env = self.build_eval_env(time_ms as u64);
+
+        // Start with track defaults, override from props.
+        let mut color = existing_track.color.last(DEFAULT_WHITE);
+        let mut stroke_width = existing_track.stroke_width.last(2.0);
+        let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
 
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
@@ -357,6 +373,40 @@ impl Timeline {
                         func = Some((args, body));
                     }
                 }
+                "color" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Color(c) = v {
+                        color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                    }
+                }
+                "stroke" | "stroke_color" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Color(c) = v {
+                        stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                    }
+                }
+                "stroke_width" | "width" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    stroke_width = v.as_num() as f32;
+                }
                 "tolerance" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -413,17 +463,14 @@ impl Timeline {
         let line_from = existing_track.line_from.last([-50.0, 0.0]);
         let line_to = existing_track.line_to.last([50.0, 0.0]);
         let arc_angles = existing_track.arc_angles.last(default_arc);
-        let color = existing_track.color.last(DEFAULT_WHITE);
         let shape_type = shape_type_for_actor(ty);
-        let stroke_width = existing_track.stroke_width.last(2.0);
-        let stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
         let stroke_progress = existing_track.stroke_progress.last(1.0);
         let fill_opacity = 0.0f32;
 
         let mut vello_paths = vec![];
 
         if primitive.is_graph_host() {
-            vello_paths = build_graph_axis_paths(size, x_domain, y_domain);
+            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color);
         } else if primitive.is_plot_curve() {
             let p_label = parent_label.unwrap_or("").to_string();
             let mut p_x_domain = [-10.0, 10.0];
@@ -472,4 +519,16 @@ impl Timeline {
             vello_paths,
         ))
     }
+}
+
+/// Evaluate `body` with `arg_name` bound to `arg_value`, without mutating `env`.
+fn evaluate_with_binding(
+    env: &Environment,
+    arg_name: &str,
+    arg_value: f64,
+    body: &Expr,
+) -> Result<Value, EvalError> {
+    let mut local_env = env.clone();
+    local_env.set(arg_name, Value::Num(arg_value));
+    evaluate_expr(body, &local_env)
 }

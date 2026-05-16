@@ -32,8 +32,21 @@
 //! The three sampling functions (`cartesian`, `polar`, `parametric`) share this core
 //! algorithm but differ in how they map mathematical coordinates to screen space.
 
-use super::{Environment, Value, evaluate_expr};
+use std::collections::HashMap;
+use super::{Environment, EvalError, Value, evaluate_expr};
 use crate::ast::Expr;
+
+/// Evaluate `body` with `arg_name` bound to `arg_value`, without mutating `env`.
+fn evaluate_with_binding(
+    env: &Environment,
+    arg_name: &str,
+    arg_value: f64,
+    body: &Expr,
+) -> Result<Value, EvalError> {
+    let mut local_env = env.clone();
+    local_env.set(arg_name, Value::Num(arg_value));
+    evaluate_expr(body, &local_env)
+}
 
 pub(crate) fn sample_recursive_cartesian(
     min_t: f64,
@@ -43,12 +56,13 @@ pub(crate) fn sample_recursive_cartesian(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &mut Environment,
+    env: &Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let screen_height = p_size[1];
@@ -63,11 +77,11 @@ pub(crate) fn sample_recursive_cartesian(
         return;
     }
 
-    let dx = (p1.x - p0.x).abs();
-    let dy = (p1.y - p0.y).abs();
-    if dx > 0.0 && (dy / dx) > 1000.0 {
+    let margin_x = p_size[0] * 2.0;
+    let min_screen_x = -(p_size[0] / 2.0) - margin_x;
+    let max_screen_x = (p_size[0] / 2.0) + margin_x;
+    if (p0.x < min_screen_x && p1.x < min_screen_x) || (p0.x > max_screen_x && p1.x > max_screen_x) {
         pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
-        pts.push(p1);
         return;
     }
 
@@ -85,11 +99,16 @@ pub(crate) fn sample_recursive_cartesian(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    env.set(arg_name, Value::Num(mid_t));
-    let val = evaluate_expr(body, env).unwrap_or(Value::Num(0.0)).as_num();
+    let mid_key = mid_t.to_bits();
+    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
+        let result = evaluate_with_binding(env, arg_name, mid_t, body)
+            .unwrap_or(Value::Num(f64::NAN));
+        cache.insert(mid_key, result.clone());
+        result
+    });
+    let math_y = val.as_num();
 
     let math_x = mid_t;
-    let math_y = val;
 
     let screen_x = -(p_size[0] / 2.0)
         + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
@@ -117,6 +136,7 @@ pub(crate) fn sample_recursive_cartesian(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
         sample_recursive_cartesian(
@@ -133,6 +153,7 @@ pub(crate) fn sample_recursive_cartesian(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
     } else {
@@ -148,12 +169,13 @@ pub(crate) fn sample_recursive_polar(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &mut Environment,
+    env: &Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let margin_y = p_size[1] * 2.0;
@@ -186,11 +208,17 @@ pub(crate) fn sample_recursive_polar(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    env.set(arg_name, Value::Num(mid_t));
-    let val = evaluate_expr(body, env).unwrap_or(Value::Num(0.0)).as_num();
+    let mid_key = mid_t.to_bits();
+    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
+        let result = evaluate_with_binding(env, arg_name, mid_t, body)
+            .unwrap_or(Value::Num(f64::NAN));
+        cache.insert(mid_key, result.clone());
+        result
+    });
+    let math_r = val.as_num();
 
-    let math_x = val * mid_t.cos();
-    let math_y = val * mid_t.sin();
+    let math_x = math_r * mid_t.cos();
+    let math_y = math_r * mid_t.sin();
 
     let screen_x = -(p_size[0] / 2.0)
         + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
@@ -218,6 +246,7 @@ pub(crate) fn sample_recursive_polar(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
         sample_recursive_polar(
@@ -234,6 +263,7 @@ pub(crate) fn sample_recursive_polar(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
     } else {
@@ -249,12 +279,13 @@ pub(crate) fn sample_recursive_parametric(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &mut Environment,
+    env: &Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let margin_y = p_size[1] * 2.0;
@@ -287,8 +318,13 @@ pub(crate) fn sample_recursive_parametric(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    env.set(arg_name, Value::Num(mid_t));
-    let val = evaluate_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0]));
+    let mid_key = mid_t.to_bits();
+    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
+        let result = evaluate_with_binding(env, arg_name, mid_t, body)
+            .unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+        cache.insert(mid_key, result.clone());
+        result
+    });
     let Value::Vec2([math_x, math_y]) = val else {
         pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
         pts.push(p1);
@@ -321,6 +357,7 @@ pub(crate) fn sample_recursive_parametric(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
         sample_recursive_parametric(
@@ -337,6 +374,7 @@ pub(crate) fn sample_recursive_parametric(
             p_x_domain,
             p_y_domain,
             p_size,
+            cache,
             pts,
         );
     } else {
@@ -368,7 +406,7 @@ pub(crate) fn implicit_intersection(
 }
 
 pub(crate) fn evaluate_implicit_value(
-    env: &mut Environment,
+    env: &Environment,
     arg_names: &[String],
     body: &Expr,
     x: f64,
@@ -376,15 +414,16 @@ pub(crate) fn evaluate_implicit_value(
 ) -> f64 {
     let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    env.set(x_name, Value::Num(x));
-    env.set(y_name, Value::Num(y));
-    evaluate_expr(body, env)
+    let mut local_env = env.clone();
+    local_env.set(x_name, Value::Num(x));
+    local_env.set(y_name, Value::Num(y));
+    evaluate_expr(body, &local_env)
         .unwrap_or(Value::Num(f64::NAN))
         .as_num()
 }
 
 pub(crate) fn build_implicit_plot_path(
-    env: &mut Environment,
+    env: &Environment,
     arg_names: &[String],
     body: &Expr,
     p_x_domain: &[f64; 2],
@@ -403,6 +442,16 @@ pub(crate) fn build_implicit_plot_path(
     let dx = (p_x_domain[1] - p_x_domain[0]) / x_cells as f64;
     let dy = (p_y_domain[1] - p_y_domain[0]) / y_cells as f64;
 
+    // Pre-evaluate the function on a grid to avoid redundant AST evaluations.
+    let mut grid = vec![vec![f64::NAN; x_cells + 1]; y_cells + 1];
+    for yi in 0..=y_cells {
+        let y = p_y_domain[0] + yi as f64 * dy;
+        for xi in 0..=x_cells {
+            let x = p_x_domain[0] + xi as f64 * dx;
+            grid[yi][xi] = evaluate_implicit_value(env, arg_names, body, x, y);
+        }
+    }
+
     for yi in 0..y_cells {
         let y0 = p_y_domain[0] + yi as f64 * dy;
         let y1 = y0 + dy;
@@ -410,26 +459,10 @@ pub(crate) fn build_implicit_plot_path(
             let x0 = p_x_domain[0] + xi as f64 * dx;
             let x1 = x0 + dx;
 
-            let bl = (
-                x0,
-                y0,
-                evaluate_implicit_value(env, arg_names, body, x0, y0),
-            );
-            let br = (
-                x1,
-                y0,
-                evaluate_implicit_value(env, arg_names, body, x1, y0),
-            );
-            let tr = (
-                x1,
-                y1,
-                evaluate_implicit_value(env, arg_names, body, x1, y1),
-            );
-            let tl = (
-                x0,
-                y1,
-                evaluate_implicit_value(env, arg_names, body, x0, y1),
-            );
+            let bl = (x0, y0, grid[yi][xi]);
+            let br = (x1, y0, grid[yi][xi + 1]);
+            let tr = (x1, y1, grid[yi + 1][xi + 1]);
+            let tl = (x0, y1, grid[yi + 1][xi]);
 
             if [bl.2, br.2, tr.2, tl.2].iter().any(|v| !v.is_finite()) {
                 continue;
@@ -507,7 +540,23 @@ pub(crate) fn build_implicit_plot_path(
                         }
                     }
                 }
-                _ => {}
+                0 => {}
+                1 | 3 => {
+                    tracing::debug!(
+                        "Implicit plot: degenerate cell with {} intersections at ({}, {})",
+                        intersections.len(),
+                        xi,
+                        yi
+                    );
+                }
+                n => {
+                    tracing::warn!(
+                        "Implicit plot: unexpected {} intersections in cell ({}, {})",
+                        n,
+                        xi,
+                        yi
+                    );
+                }
             }
         }
     }

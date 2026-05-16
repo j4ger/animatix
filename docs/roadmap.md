@@ -88,6 +88,51 @@ Current `rand()` is not a deterministic function of time. Scenes depending on fr
 
 ---
 
+### 3.3 Plotting System — Per-Frame Sampling
+
+**Status:** Build-time only. Curves are baked at timeline build and cannot animate.
+**Location:** `crates/animatix/src/timeline/plot.rs`, `crates/animatix/src/timeline/build/plot.rs`.
+
+Plot curves are sampled once during `Timeline::build()` using `build_eval_env`, which does not inject the timeline time variable `t`. This means `func: (x) => sin(x + t)` silently fails and produces a static curve.
+
+**Fix:** Introduce a `ProceduralPath` variant that stores `(func_expr, domain, params)` and re-samples at frame time using `frame_eval_env` (which has `t`). Cache the sampled path per-frame to avoid recomputing every render.
+
+**Effort:** Medium. Requires extending `AnimationTrack` to hold procedural plot state and wiring frame-time re-sampling into `evaluate()`.
+
+---
+
+### 3.4 Plotting System — `func` Signature Validation
+
+**Status:** No validation. Users can pass wrong-arity or wrong-return-type closures without diagnostics.
+**Location:** `crates/animatix/src/timeline/build/plot.rs` §`process_plot_actor`.
+
+The `func` property accepts ad-hoc polymorphism:
+- Cartesian: `(x) => Num`
+- Polar: `(t) => Num` (radius)
+- Parametric: `(t) => Vec2`
+- Implicit: `(x, y) => Num`
+
+Passing a scalar to parametric or a Vec2 to cartesian silently produces incorrect output.
+
+**Fix:** At build time, evaluate the closure once with a test argument and verify the return type matches the plot type. Emit a diagnostic on mismatch.
+
+**Effort:** Low.
+
+---
+
+### 3.5 Plotting System — Graph Axes Out-of-Domain Position
+
+**Status:** When zero is outside the domain, axes are drawn at the plot boundary instead of being omitted.
+**Location:** `crates/animatix/src/timeline/build/plot.rs` §`build_graph_axis_paths`.
+
+For example, `x_domain: (2, 5)` draws the Y-axis at `x = -size[0]` (the left edge), which is visually misleading.
+
+**Fix:** Omit the axis line entirely when zero is not in the domain, or clamp it to the visible edge with a clear visual indication.
+
+**Effort:** Low.
+
+---
+
 ## 4. Long-Term / Speculative
 
 ### 4.1 FFI / Web Canvas Integration
@@ -124,6 +169,8 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 |----------|------|--------|--------|
 | 1 | Multi-Scene GUI transition blending (Phase 7 polish) | Medium | High |
 | 2 | Randomness determinism | Low-Medium | Medium |
-| 3 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 4 | Cross-file analyzer | Medium-High | Medium |
-| 5 | Green tree / trivia AST | Very High | Low (polish) |
+| 3 | Plotting: per-frame sampling (animated plots) | Medium | High |
+| 4 | Plotting: `func` signature validation | Low | Medium |
+| 5 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 6 | Cross-file analyzer | Medium-High | Medium |
+| 7 | Green tree / trivia AST | Very High | Low (polish) |

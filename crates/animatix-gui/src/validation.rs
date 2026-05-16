@@ -1,5 +1,6 @@
 use animatix::ast::Expr;
-use animatix::timeline::env::{load_standard_library, Environment, Value};
+use animatix::timeline::env::{Environment, Value};
+use animatix::timeline::load_standard_library;
 
 use crate::app::panels::PropertyValue;
 
