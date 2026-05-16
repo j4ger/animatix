@@ -20,6 +20,7 @@ pub const WIDGET_REGISTRY: &[(&str, &str)] = &[
     ("property-row-color", "Color picker row with hex"),
     ("property-row-text", "Text/ComboBox row"),
     ("property-group", "Expanded property group header + rows"),
+    ("inspector", "Full inspector panel (multiple groups)"),
     ("card", "Card container with shadow"),
     ("field", "Input field frame (DragValue)"),
     ("section-header", "Section header with accent line"),
@@ -40,6 +41,7 @@ pub fn render_widget(ui: &mut egui::Ui, name: &str) {
         "property-row-color" => render_demo_property_row(ui, demo_color_entry()),
         "property-row-text" => render_demo_property_row(ui, demo_text_entry()),
         "property-group" => render_demo_property_group(ui),
+        "inspector" => render_demo_inspector(ui),
         "card" => render_demo_card(ui),
         "field" => render_demo_field(ui),
         "section-header" => render_demo_section_header(ui),
@@ -138,6 +140,68 @@ fn render_demo_property_group(ui: &mut egui::Ui) {
     };
     let mut actions = UiActions::default();
     render_property_group(ui, &group, "actor1", &mut actions, false);
+}
+
+fn render_demo_inspector(ui: &mut egui::Ui) {
+    components::card(ui, |ui| {
+        components::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
+
+        // Transform group
+        let transform = PropertyGroup {
+            name: "Transform",
+            icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+            properties: vec![
+                PropertyEntry {
+                    name: "position",
+                    kind: PropertyKind::Vec2 { x: 320.0, y: 240.0 },
+                    has_keyframes: true,
+                    has_keyframe_at_current_time: false,
+                },
+                PropertyEntry {
+                    name: "rotation",
+                    kind: PropertyKind::Float(45.0),
+                    has_keyframes: false,
+                    has_keyframe_at_current_time: false,
+                },
+                PropertyEntry {
+                    name: "scale",
+                    kind: PropertyKind::Float(1.5),
+                    has_keyframes: false,
+                    has_keyframe_at_current_time: false,
+                },
+            ],
+        };
+
+        // Style group
+        let style = PropertyGroup {
+            name: "Style",
+            icon: egui_phosphor::regular::PAINT_BRUSH,
+            properties: vec![
+                PropertyEntry {
+                    name: "color",
+                    kind: PropertyKind::Color([1.0, 0.2, 0.4, 1.0]),
+                    has_keyframes: false,
+                    has_keyframe_at_current_time: false,
+                },
+                PropertyEntry {
+                    name: "opacity",
+                    kind: PropertyKind::Float(0.75),
+                    has_keyframes: true,
+                    has_keyframe_at_current_time: true,
+                },
+                PropertyEntry {
+                    name: "stroke_width",
+                    kind: PropertyKind::Float(2.0),
+                    has_keyframes: false,
+                    has_keyframe_at_current_time: false,
+                },
+            ],
+        };
+
+        let mut actions = UiActions::default();
+        render_property_group(ui, &transform, "actor1", &mut actions, false);
+        render_property_group(ui, &style, "actor1", &mut actions, false);
+    });
 }
 
 fn render_demo_card(ui: &mut egui::Ui) {

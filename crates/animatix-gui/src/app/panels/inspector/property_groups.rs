@@ -339,14 +339,15 @@ pub(crate) fn render_property_row(
         PropertyKind::Vec2 { x, y } => {
             let mut nx = *x;
             let mut ny = *y;
+            let scope_w = INSPECTOR_INPUT_COL_WIDTH + SPACE_S * 2.0;
             let widget_rect = egui::Rect::from_min_size(
-                egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_VEC2, row_rect.min.y),
-                Vec2::new(INSPECTOR_INPUT_WIDTH_VEC2, row_height),
+                egui::pos2(input_col_right - scope_w, row_rect.min.y),
+                Vec2::new(scope_w, row_height),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
                 components::field_sized(
                     ui,
-                    Some(INSPECTOR_INPUT_WIDTH_VEC2),
+                    Some(INSPECTOR_INPUT_COL_WIDTH),
                     |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
@@ -388,20 +389,20 @@ pub(crate) fn render_property_row(
             );
             let unit = unit_suffix(entry.name);
             if is_01 {
+                let scope_w = INSPECTOR_INPUT_COL_WIDTH + SPACE_S * 2.0;
                 let widget_rect = egui::Rect::from_min_size(
-                    egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_SLIDER, row_rect.min.y),
-                    Vec2::new(INSPECTOR_INPUT_WIDTH_SLIDER, row_height),
+                    egui::pos2(input_col_right - scope_w, row_rect.min.y),
+                    Vec2::new(scope_w, row_height),
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
                     components::field_sized(
                         ui,
-                        Some(INSPECTOR_INPUT_WIDTH_SLIDER),
+                        Some(INSPECTOR_INPUT_COL_WIDTH),
                         |ui| {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                                let slider_w = INSPECTOR_INPUT_WIDTH_SLIDER * 0.55;
                                 let slider = ui.add_sized(
-                                    Vec2::new(slider_w, ui.available_height()),
+                                    Vec2::new(50.0, 16.0),
                                     egui::Slider::new(&mut nv, 0.0..=1.0)
                                         .show_value(false)
                                         .trailing_fill(true),
@@ -434,14 +435,15 @@ pub(crate) fn render_property_row(
                     );
                 });
             } else {
+                let scope_w = INSPECTOR_INPUT_COL_WIDTH + SPACE_S * 2.0;
                 let widget_rect = egui::Rect::from_min_size(
-                    egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_FLOAT, row_rect.min.y),
-                    Vec2::new(INSPECTOR_INPUT_WIDTH_FLOAT, row_height),
+                    egui::pos2(input_col_right - scope_w, row_rect.min.y),
+                    Vec2::new(scope_w, row_height),
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
                     components::field_sized(
                         ui,
-                        Some(INSPECTOR_INPUT_WIDTH_FLOAT),
+                        Some(INSPECTOR_INPUT_COL_WIDTH),
                         |ui| {
                             let response = ui.add(
                                 egui::DragValue::new(&mut nv)
@@ -482,14 +484,15 @@ pub(crate) fn render_property_row(
                 color.g(),
                 color.b()
             );
+            let scope_w = INSPECTOR_INPUT_COL_WIDTH + SPACE_S * 2.0;
             let widget_rect = egui::Rect::from_min_size(
-                egui::pos2(input_col_right - INSPECTOR_INPUT_WIDTH_COLOR, row_rect.min.y),
-                Vec2::new(INSPECTOR_INPUT_WIDTH_COLOR, row_height),
+                egui::pos2(input_col_right - scope_w, row_rect.min.y),
+                Vec2::new(scope_w, row_height),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
                 components::field_sized(
                     ui,
-                    Some(INSPECTOR_INPUT_WIDTH_COLOR),
+                    Some(INSPECTOR_INPUT_COL_WIDTH),
                     |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
@@ -524,10 +527,10 @@ pub(crate) fn render_property_row(
         }
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
-            // Text inputs fill the entire input column
+            let scope_w = INSPECTOR_INPUT_COL_WIDTH + SPACE_S * 2.0;
             let widget_rect = egui::Rect::from_min_size(
-                egui::pos2(input_col_left, row_rect.min.y),
-                Vec2::new(INSPECTOR_INPUT_COL_WIDTH, row_height),
+                egui::pos2(input_col_right - scope_w, row_rect.min.y),
+                Vec2::new(scope_w, row_height),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(widget_rect), |ui| {
                 components::field_sized(

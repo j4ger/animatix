@@ -85,7 +85,7 @@ pub const INSPECTOR_INPUT_COL_WIDTH: f32 = 120.0;
 /// Standard width for a Vec2 input pair (px).
 pub const INSPECTOR_INPUT_WIDTH_VEC2: f32 = 110.0;
 /// Standard width for a slider + value input (px).
-pub const INSPECTOR_INPUT_WIDTH_SLIDER: f32 = 100.0;
+pub const INSPECTOR_INPUT_WIDTH_SLIDER: f32 = 110.0;
 /// Standard width for a color swatch + hex input (px).
 pub const INSPECTOR_INPUT_WIDTH_COLOR: f32 = 88.0;
 /// Row height for inspector property rows (px).

@@ -352,12 +352,21 @@ pub fn field_sized(
     let response = frame.show(ui, |ui| {
         if let Some(w) = desired_width {
             ui.set_width(w);
+            ui.set_min_width(w);
         } else {
             ui.set_width(ui.available_width());
         }
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
-            add_contents,
+            |ui| {
+                add_contents(ui);
+                // Force the frame to fill the desired width by adding invisible space.
+                // This ensures all inspector input fields have uniform right-edge alignment.
+                let remaining = ui.available_width();
+                if remaining > 0.0 {
+                    ui.add_space(remaining);
+                }
+            },
         )
     });
 
