@@ -135,6 +135,7 @@ dependencies = [
  "chrono",
  "chumsky",
  "clap",
+ "fontdb",
  "fontdue",
  "image",
  "kurbo 0.13.0",

@@ -415,6 +415,10 @@ fn write_string(
 /// Read the current value of a property from a track at the given time.
 /// Returns `None` if the property has no track (not set on this actor).
 pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
+    read_property_value_inner(track, field, time_ms)
+}
+
+fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
     match field {
         ActorField::Position => track.position.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
         ActorField::MotionOffset => track.motion_offset.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
@@ -439,6 +443,28 @@ pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u
         // Groups and unsupported fields
         _ => None,
     }
+}
+
+/// Read a property value, falling back to the schema default if the track
+/// has no value for this property.
+pub fn read_property_value_or_default(
+    track: &AnimationTrack,
+    field: ActorField,
+    time_ms: u64,
+    kind: crate::timeline::ActorKindId,
+) -> PropertyValue {
+    read_property_value(track, field, time_ms)
+        .unwrap_or_else(|| {
+            // Look up the schema for this field and return its default
+            use crate::timeline::property_registry::PROPERTY_REGISTRY;
+            for schema in PROPERTY_REGISTRY.iter() {
+                if schema.field == field {
+                    return (schema.default_value)(kind);
+                }
+            }
+            // Fallback for unknown fields
+            PropertyValue::F32(0.0)
+        })
 }
 
 fn shape_type_to_u32(st: ShapeType) -> u32 {

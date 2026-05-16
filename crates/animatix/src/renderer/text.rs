@@ -10,6 +10,68 @@ use typst::World;
 use typst::{Library, LibraryExt};
 
 // ─────────────────────────────────────────────────────────────
+// System font discovery (temporary DB per query)
+// ─────────────────────────────────────────────────────────────
+
+// FIXME(performance): Each call creates a fresh `fontdb::Database` and scans
+// all system font directories (~45–60ms for ~800 fonts). Scenes with many text
+// elements pay this cost for every compile. The proper fix is a `FontContext`
+// that owns the DB and is threaded through the rendering pipeline.
+// See roadmap §2.1 "Renderer FontContext".
+
+/// On-demand system font loader. Each call creates a temporary `fontdb::Database`,
+/// queries for the requested font, and drops it. No persistent memory usage.
+struct SystemFontLoader;
+
+impl SystemFontLoader {
+    /// Load a single system font by family name.
+    fn load_font(family: &str) -> Option<Font> {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        let id = db.query(&fontdb::Query {
+            families: &[fontdb::Family::Name(family)],
+            ..Default::default()
+        })?;
+        let data = Self::face_data(&db, id)?;
+        let face = db.face(id)?;
+        Font::new(Bytes::new(data), face.index)
+    }
+
+    /// Check whether a family exists in the system font directories.
+    fn has_family(family: &str) -> bool {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        db.query(&fontdb::Query {
+            families: &[fontdb::Family::Name(family)],
+            ..Default::default()
+        })
+        .is_some()
+    }
+
+    /// Return all unique family names discovered on the system.
+    fn families() -> Vec<String> {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        let mut names: Vec<String> = db
+            .faces()
+            .filter_map(|face| db.face(face.id)?.families.first().map(|(name, _)| name.clone()))
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    fn face_data(db: &fontdb::Database, id: fontdb::ID) -> Option<Vec<u8>> {
+        let (source, _index) = db.face_source(id)?;
+        match source {
+            fontdb::Source::Binary(data) => Some(data.as_ref().as_ref().to_vec()),
+            fontdb::Source::File(path) => std::fs::read(path).ok(),
+            fontdb::Source::SharedFile(_path, data) => Some(data.as_ref().as_ref().to_vec()),
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Font bundle
 // ─────────────────────────────────────────────────────────────
 
@@ -35,16 +97,27 @@ static BUNDLED_FONTS: &[BundledFont] = &[
 pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 
-/// Build a TypstWorld with all bundled fonts loaded.
-fn build_world(source: Source) -> TypstWorld {
-    let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len());
+/// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
+fn build_world(source: Source, extra_fonts: &[&str]) -> TypstWorld {
+    let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
+
+    // Load bundled fonts
     for bf in BUNDLED_FONTS {
         let font = Font::new(Bytes::new(bf.data), 0)
             .unwrap_or_else(|| panic!("Failed to load bundled font: {}", bf.family));
         book.push(font.info().clone());
         fonts.push(font);
     }
+
+    // Load requested system fonts on-demand
+    for family in extra_fonts {
+        if let Some(font) = SystemFontLoader::load_font(family) {
+            book.push(font.info().clone());
+            fonts.push(font);
+        }
+    }
+
     let library = typst::Library::builder().build();
     TypstWorld {
         source,
@@ -55,17 +128,35 @@ fn build_world(source: Source) -> TypstWorld {
 }
 
 /// Resolve a font family name to the family string that should appear in Typst markup.
-/// Falls back to `DEFAULT_FONT_FAMILY` if the requested family is not bundled.
-pub fn resolve_font_family(requested: &str) -> &str {
+/// Searches bundled fonts first, then system fonts (via temporary DB query).
+/// Falls back to `DEFAULT_FONT_FAMILY` if not found anywhere.
+pub fn resolve_font_family(requested: &str) -> String {
     if requested.is_empty() {
-        return DEFAULT_FONT_FAMILY;
+        return DEFAULT_FONT_FAMILY.to_string();
     }
+
+    // 1. Check bundled fonts (exact case-insensitive match)
     for bf in BUNDLED_FONTS {
         if bf.family.eq_ignore_ascii_case(requested) {
-            return bf.family;
+            return bf.family.to_string();
         }
     }
-    DEFAULT_FONT_FAMILY
+
+    // 2. Check system fonts (temporary DB, no persistent state)
+    if SystemFontLoader::has_family(requested) {
+        return requested.to_string();
+    }
+
+    DEFAULT_FONT_FAMILY.to_string()
+}
+
+/// Return a sorted list of all available font family names (bundled + system).
+pub fn available_font_families() -> Vec<String> {
+    let mut families: Vec<String> = BUNDLED_FONTS.iter().map(|bf| bf.family.to_string()).collect();
+    families.extend(SystemFontLoader::families());
+    families.sort();
+    families.dedup();
+    families
 }
 
 struct PathBuilder(BezPath);
@@ -110,7 +201,11 @@ pub struct TypstWorld {
 
 impl TypstWorld {
     pub fn new(source: Source) -> Self {
-        build_world(source)
+        build_world(source, &[])
+    }
+
+    pub fn with_fonts(source: Source, fonts: &[&str]) -> Self {
+        build_world(source, fonts)
     }
 }
 
@@ -164,7 +259,7 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::new(source);
+    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY]);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()
@@ -185,7 +280,7 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::new(source);
+    let world = TypstWorld::with_fonts(source, &[&font]);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()
@@ -206,7 +301,7 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::new(source);
+    let world = TypstWorld::with_fonts(source, &[&font]);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()

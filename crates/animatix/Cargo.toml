@@ -8,6 +8,7 @@ bytemuck = { version = "1.25.0", features = ["derive"] }
 chrono = "0.4.44"
 chumsky = "0.12.0"
 clap = { version = "4.5.0", features = ["derive"] }
+fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
 fontdue = "0.9.3"
 image = "0.25.10"
 kurbo = "0.13.0"

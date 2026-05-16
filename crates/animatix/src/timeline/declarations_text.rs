@@ -308,9 +308,12 @@ impl Timeline {
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.
         track.text_content.ensure(String::new()).add_keyframe(t_end_ms, text_content.clone(), easing);
-        if !font_family.is_empty() {
-            track.font_family.ensure(String::new()).add_keyframe(t_end_ms, font_family.clone(), easing);
-        }
+        let font_family = if font_family.is_empty() {
+            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+        } else {
+            font_family
+        };
+        track.font_family.ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()).add_keyframe(t_end_ms, font_family.clone(), easing);
         track.font_size.ensure(kind.default_font_size()).add_keyframe(t_end_ms, font_size, easing);
 
         let frame = match kind {

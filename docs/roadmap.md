@@ -18,19 +18,47 @@ No widget exists for editing variable-length lists of `Vec2` points or path comm
 
 ---
 
-### 1.2 Font Selection — Phase 3: System Font Discovery
 
-**Status:** Phases 1 & 2 done. Phase 3 deferred.
+
+
+
+## 2. Deferred Architecture
+
+### 2.1 Renderer `FontContext`
+
+**Status:** System font discovery works (1.2 complete) but loads a temporary `fontdb::Database` on every text compile. ~45–60ms per call on a typical Linux system with 800+ fonts.
 **Location:** `crates/animatix/src/renderer/text.rs`.
 
-Access all installed system fonts via `font-kit` / `fontconfig`. Removes the curated-bundle limitation but introduces cross-platform complexity, non-determinism, and async loading concerns.
+The current `SystemFontLoader` has no persistent state (good) but pays the full directory-scan cost every time `compile_text()` / `compile_math()` / `compile_code()` is called. A scene with 10 text elements incurs ~500ms of redundant font scanning per frame.
 
-**Effort:** High. Platform APIs, async loading, font caching.
-**Blocked until:** User demand for out-of-bundle fonts.
+**Fix:** Introduce a `FontContext` struct that owns the `fontdb::Database` (metadata only, built once) and is threaded through the entire rendering pipeline:
+
+```rust
+pub struct FontContext {
+    db: fontdb::Database, // built once at app startup
+}
+
+// compile_text now accepts context explicitly
+pub fn compile_text(ctx: &FontContext, text: &str, ...) -> Frame
+
+// Timeline owns the context
+pub struct Timeline {
+    font_context: FontContext,
+    ...
+}
+```
+
+**Scope of changes:**
+- `Timeline::new()` → `Timeline::new(ctx: FontContext)`
+- `Timeline::build()` → `Timeline::build(ast, ctx)`
+- `TextCompiler::compile()` → `TextCompiler::compile(ctx, ...)`
+- `BuildTarget::from_ast()` → `BuildTarget::from_ast(ast, namespaces, ctx)`
+- ~200 call sites across tests, CLI, and GUI
+
+**Effort:** Medium-High (touches ~15 files, mostly mechanical).
+**Blocked until:** User demand justifies the refactor cost.
 
 ---
-
-
 
 ## 3. Architecture / Cleanup Debt
 

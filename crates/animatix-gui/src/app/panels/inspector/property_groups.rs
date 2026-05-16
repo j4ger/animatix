@@ -1,7 +1,8 @@
 use animatix::timeline::{
-    ActorField, AnimationTrack, PropertyValue, ShapeType, ValueType,
-    read_property_value, property_has_keyframes,
-    allowed_property_indices, PROPERTY_REGISTRY,
+    allowed_property_indices, PROPERTY_REGISTRY, read_property_value_or_default,
+    AnimationTrack, ValueType, ShapeType, ActorField,
+    property_has_keyframes, property_has_keyframe_at,
+    PropertyValue,
 };
 use egui::{Color32, Stroke, Vec2};
 
@@ -59,11 +60,10 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             continue;
         }
 
-        let value = read_property_value(track, schema.field, time_ms);
+        let value = read_property_value_or_default(track, schema.field, time_ms, track.kind);
         let has_kf = property_has_keyframes(track, schema.field);
         let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
 
-        let Some(value) = value else { continue };
         let value = convert_for_display(value, schema.name, track.kind);
         let kind = value_to_kind(value, schema.value_type, &schema.name);
         let entry = PropertyEntry {
@@ -624,6 +624,23 @@ pub(crate) fn render_property_row(
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),
                                                     value: GuiPropertyValue::Text(v.to_string()),
+                                                    create_keyframe: keyframe_mode,
+                                                });
+                                            }
+                                        }
+                                    });
+                            } else if entry.name == "font_family" {
+                                let families = animatix::renderer::text::available_font_families();
+                                egui::ComboBox::from_id_salt(ui.id().with(("font", entry.name)))
+                                    .selected_text(text.as_str())
+                                    .width(ui.available_width())
+                                    .show_ui(ui, |ui| {
+                                        for family in families {
+                                            if ui.selectable_label(family == *text, &family).clicked() {
+                                                actions.property_edits.push(PropertyEdit {
+                                                    actor: actor_label.to_string(),
+                                                    property: entry.name.to_string(),
+                                                    value: GuiPropertyValue::Text(family),
                                                     create_keyframe: keyframe_mode,
                                                 });
                                             }

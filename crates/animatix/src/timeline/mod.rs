@@ -55,7 +55,7 @@ pub(crate) mod value_parser;
 
 // Re-export the generic property read API
 pub use property_engine::{
-    PropertyValue, read_property_value,
+    PropertyValue, read_property_value, read_property_value_or_default,
     property_has_keyframes, property_has_keyframe_at,
     property_keyframe_count, property_keyframe_times,
 };
