@@ -218,14 +218,13 @@ fn render_track_row(
         ui.id().with(("strip", track.name)),
         egui::Sense::click_and_drag(),
     );
-    if (strip_response.clicked() || strip_response.dragged())
-        && strip_response.interact_pointer_pos().is_some()
-    {
-        let pos = strip_response.interact_pointer_pos().unwrap();
-        let fraction =
-            ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-        let time_s = fraction * duration_s;
-        actions.scrub_to = Some(time_s);
+    if strip_response.clicked() || strip_response.dragged() {
+        if let Some(pos) = strip_response.interact_pointer_pos() {
+            let fraction =
+                ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
+            let time_s = fraction * duration_s;
+            actions.scrub_to = Some(time_s);
+        }
     }
 
     // Current time indicator
@@ -425,5 +424,12 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             }
         }
         PropertyValue::PointList(v) => format!("[{} pts]", v.len()),
+        PropertyValue::CommandList(v) => {
+            if v.len() > 24 {
+                format!("{}…", &v[..24])
+            } else {
+                v.clone()
+            }
+        }
     }
 }

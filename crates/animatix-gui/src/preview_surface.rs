@@ -15,9 +15,9 @@ pub struct PreviewSurface {
 }
 
 impl PreviewSurface {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        Self {
-            renderer: RendererCore::new(device, queue),
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self, String> {
+        Ok(Self {
+            renderer: RendererCore::new(device, queue).map_err(|e| e.to_string())?,
             render_texture: None,
             render_view: None,
             sample_texture: None,
@@ -27,7 +27,7 @@ impl PreviewSurface {
                 height: 0,
             },
             hit_regions: Vec::new(),
-        }
+        })
     }
 
     pub fn dimensions(&self) -> SceneDimensions {
@@ -113,14 +113,16 @@ impl PreviewSurface {
 
         let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options);
         self.hit_regions = timeline.hit_regions();
-        self.renderer.render_vello_scene(
-            device,
-            queue,
-            render_view,
-            self.dimensions.width,
-            self.dimensions.height,
-            &scene,
-        );
+        self.renderer
+            .render_vello_scene(
+                device,
+                queue,
+                render_view,
+                self.dimensions.width,
+                self.dimensions.height,
+                &scene,
+            )
+            .map_err(|e| e.to_string())?;
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Egui Preview Copy Encoder"),

@@ -45,10 +45,10 @@ impl BuiltinAction for DrawIn {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
@@ -133,10 +133,10 @@ impl BuiltinAction for RevealIn {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let has_prior_stroke = track.stroke_progress.as_ref().map(|t| t.keyframes.keys().any(|&k| k < t_start_ms)).unwrap_or(false);
             let start_stroke = if has_prior_stroke { track.stroke_progress.get(t_start_ms, 1.0) } else { 0.0 };
@@ -223,10 +223,10 @@ impl BuiltinAction for WipeOut {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
             let start_fill = track.fill_opacity.get(t_start_ms, 1.0);
@@ -304,10 +304,10 @@ impl BuiltinAction for RevealOut {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
 
@@ -383,10 +383,10 @@ impl BuiltinAction for DrawOut {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
             let start_fill = track.fill_opacity.get(t_start_ms, 1.0);

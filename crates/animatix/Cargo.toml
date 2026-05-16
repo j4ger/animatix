@@ -25,6 +25,8 @@ vello = { git = "https://github.com/linebender/vello", branch = "main" }
 wgpu = "29.0.0"
 winit = "0.30.13"
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }

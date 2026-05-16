@@ -236,10 +236,10 @@ impl BuiltinAction for Move {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
             let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             if duration_ms > 0.0 {
@@ -317,10 +317,10 @@ impl BuiltinAction for Shift {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
             let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
 
@@ -399,10 +399,10 @@ impl BuiltinAction for Rotate {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
             let start_rotation = track.rotation.get(t_start_ms, 0.0);
             let end_rotation = start_rotation + angle_by;
 
@@ -478,10 +478,10 @@ impl BuiltinAction for Scale {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
             let start_scale = track.scale.get(t_start_ms, 1.0);
             let end_scale = start_scale * scale_by;
 

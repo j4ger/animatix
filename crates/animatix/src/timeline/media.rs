@@ -16,7 +16,7 @@ fn push_media_load_failure_diagnostic(
     message: String,
 ) {
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::MediaLoadFailure,
             DiagnosticPhase::Build,
             message,

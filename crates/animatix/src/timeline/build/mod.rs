@@ -2,6 +2,7 @@ use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::actor_kind::find_actor_kind;
 use crate::timeline::vello_path::VelloPath;
+use tracing::instrument;
 
 mod plot;
 mod keyframe_utils;
@@ -69,6 +70,7 @@ impl Timeline {
         Self::build_with_diagnostics(ast, &std::collections::HashMap::new()).output
     }
 
+    #[instrument(skip(ast, namespaces), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics(
         ast: &[Stmt],
         namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
@@ -92,7 +94,7 @@ impl Timeline {
                     }
                     Err(e) => {
                         diagnostics.push(
-                            Diagnostic::warning(
+                            Diagnostic::error(
                                 DiagnosticCode::ModuleExportEvalError,
                                 DiagnosticPhase::Build,
                                 format!(
@@ -1101,6 +1103,7 @@ impl Timeline {
 
     // === Main AST Statement Processor ===
 
+    #[instrument(skip(self, body, diagnostics, parent_label), fields(time_ms, statements = body.len()))]
     pub(super) fn process_body(
         &mut self,
         time_ms: f64,

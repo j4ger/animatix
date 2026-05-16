@@ -1,4 +1,5 @@
 pub mod core;
+pub mod error;
 pub mod offscreen;
 pub mod text;
 pub mod types;

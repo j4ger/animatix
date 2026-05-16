@@ -38,7 +38,7 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
     kind: &str,
 ) {
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnsupportedStaggerStatement,
             DiagnosticPhase::Build,
             format!(
@@ -66,7 +66,7 @@ pub(crate) fn push_unknown_target_path_diagnostic(
         .map(|candidate| format!(" Did you mean '{candidate}'?"))
         .unwrap_or_default();
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnknownTargetPath,
             DiagnosticPhase::Build,
             format!(

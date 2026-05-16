@@ -120,7 +120,9 @@ pub fn highlight_source(
     let font_id = FontId::new(14.0, FontFamily::Monospace);
 
     let mut parser = Parser::new();
-    parser.set_language(&*LANGUAGE).expect("Failed to set Animatix language");
+    if parser.set_language(&*LANGUAGE).is_err() {
+        return plain_text_job(source, &font_id, colors.default);
+    }
 
     // Verify the source can be parsed
     if parser.parse(source, None).is_none() {
@@ -130,14 +132,15 @@ pub fn highlight_source(
     // Use tree-sitter highlight
     let mut highlighter = tree_sitter_highlight::Highlighter::new();
 
-    let mut config = tree_sitter_highlight::HighlightConfiguration::new(
+    let Ok(mut config) = tree_sitter_highlight::HighlightConfiguration::new(
         tree_sitter_animatix::language(),
         "animatix",
         HIGHLIGHTS_QUERY,
         "",
         "",
-    )
-    .expect("Failed to create highlight configuration");
+    ) else {
+        return plain_text_job(source, &font_id, colors.default);
+    };
 
     config.configure(HIGHLIGHT_NAMES);
 

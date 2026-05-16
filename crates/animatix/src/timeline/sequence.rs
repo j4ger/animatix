@@ -66,7 +66,7 @@ impl Timeline {
         for stmt in body {
             let Some(span_ms) = self.sequence_statement_span_ms(stmt) else {
                 diagnostics.push(
-                    Diagnostic::warning(
+                    Diagnostic::error(
                         DiagnosticCode::UnsupportedSequenceStatement,
                         DiagnosticPhase::Build,
                         format!(

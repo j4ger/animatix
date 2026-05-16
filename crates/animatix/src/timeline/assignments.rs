@@ -148,7 +148,7 @@ impl Timeline {
                                 track.svg_paths = parsed_paths;
                             }
                             Err(error) => {
-                                diagnostics.push(Diagnostic::warning(
+                                diagnostics.push(Diagnostic::error(
                                     DiagnosticCode::MediaLoadFailure,
                                     DiagnosticPhase::Build,
                                     format!("Failed to parse SVG file '{target_url}': {error}"),
@@ -156,7 +156,7 @@ impl Timeline {
                             }
                         },
                         Err(error) => {
-                            diagnostics.push(Diagnostic::warning(
+                            diagnostics.push(Diagnostic::error(
                                 DiagnosticCode::MediaLoadFailure,
                                 DiagnosticPhase::Build,
                                 format!("Failed to read SVG file '{target_url}': {error}"),
@@ -176,7 +176,7 @@ impl Timeline {
                             track.image.ensure(None).add_keyframe(t_end_ms, Some(target_image), easing);
                         }
                         Err(error) => {
-                            diagnostics.push(Diagnostic::warning(
+                            diagnostics.push(Diagnostic::error(
                                 DiagnosticCode::MediaLoadFailure,
                                 DiagnosticPhase::Build,
                                 format!("Failed to load image file '{target_url}': {error}"),
@@ -506,7 +506,7 @@ fn push_unsupported_assignment_property_diagnostic(
     property: &str,
 ) {
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnsupportedAssignmentProperty,
             DiagnosticPhase::Build,
             format!(

@@ -43,10 +43,10 @@ impl BuiltinAction for FadeOut {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_opacity = track.opacity.get(t_start_ms, 1.0);
             if duration_ms > 0.0 {

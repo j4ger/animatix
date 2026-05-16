@@ -237,9 +237,14 @@ impl DiagnosticPhaseSummary {
 }
 
 pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
+    let location = if let (Some(line), Some(col)) = (diagnostic.location.line, diagnostic.location.column) {
+        format!("{}:{}:", line, col)
+    } else {
+        String::new()
+    };
     let mut parts = vec![format!(
-        "{}[{}:{}] {}",
-        diagnostic.severity, diagnostic.phase, diagnostic.code, diagnostic.message
+        "{}{}[{}:{}] {}",
+        location, diagnostic.severity, diagnostic.phase, diagnostic.code, diagnostic.message
     )];
 
     if let Some(subject) = &diagnostic.location.subject {

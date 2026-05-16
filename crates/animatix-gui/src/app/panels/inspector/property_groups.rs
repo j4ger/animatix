@@ -218,6 +218,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::PointList(v), _) => {
             PropertyKind::Text(format!("[{} pts]", v.len()))
         }
+        (PropertyValue::CommandList(v), _) => PropertyKind::Text(v),
     }
 }
 

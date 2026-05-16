@@ -9,6 +9,7 @@ use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use tracing::info;
 
 #[derive(Debug)]
 pub enum ExportError {
@@ -274,14 +275,14 @@ fn select_video_encoder(
         VideoCodec::Auto => {
             for (name, is_hw) in [("h264_nvenc", true), ("h264_vaapi", true)] {
                 if let Some(codec) = AVCodec::find_encoder_by_name(&CString::new(name)?) {
-                    println!("Auto-selected hardware encoder: {name}");
+                    info!("Auto-selected hardware encoder: {name}");
                     return Ok((codec, is_hw));
                 }
             }
             let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?).ok_or_else(
                 || ExportError::VideoEncode("Failed to find libx264 encoder".into()),
             )?;
-            println!("Auto-selected software encoder: libx264");
+            info!("Auto-selected software encoder: libx264");
             Ok((codec, false))
         }
     }
@@ -318,7 +319,7 @@ where
     let chunk_size = ((total_frames as usize + num_threads - 1) / num_threads).max(1);
     let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
 
-    println!(
+    info!(
         "Rendering {} frames using {} thread(s) ({} frame(s) per chunk)...",
         total_frames, num_chunks, chunk_size
     );
@@ -431,7 +432,7 @@ where
     let chunk_size = ((total_frames as usize + num_threads - 1) / num_threads).max(1);
     let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
 
-    println!(
+    info!(
         "Rendering {} scene(s) over {} frames using {} thread(s) ({} frame(s) per chunk)...",
         composition.scenes.len(),
         total_frames,
@@ -560,7 +561,7 @@ async fn render_video_async(
     // ------------------------------------------------------------------------
     // 1. Encoder setup (before streaming so we know if HW accel is available)
     // ------------------------------------------------------------------------
-    println!("\nEncoding {} frames to video...", total_frames);
+    info!("Encoding {} frames to video...", total_frames);
 
     let filename = CString::new(
         output_file
@@ -646,7 +647,7 @@ async fn render_video_async(
     // 2. Parallel frame rendering with streaming to encoder
     // ------------------------------------------------------------------------
     let num_threads = adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
-    println!("Using {num_threads} render thread(s) (adaptive).");
+    info!("Using {num_threads} render thread(s) (adaptive).");
 
     render_frames_streaming(
         &timeline,
@@ -724,7 +725,7 @@ async fn render_video_async(
         .write_trailer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    println!("\nRender complete!");
+    info!("Render complete!");
     Ok(())
 }
 
@@ -989,7 +990,7 @@ async fn render_gif_async(
     // ------------------------------------------------------------------------
     // 1. Parallel frame rendering with streaming to encoder
     // ------------------------------------------------------------------------
-    println!("\nEncoding {} frames to GIF...", total_frames);
+    info!("Encoding {} frames to GIF...", total_frames);
 
     let output = std::fs::File::create(output_file)?;
     let mut encoder = GifEncoder::new(output);
@@ -998,7 +999,7 @@ async fn render_gif_async(
         .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
 
     let num_threads = adaptive_thread_count(width, height, total_frames, true, false, &settings);
-    println!("Using {num_threads} render thread(s) (adaptive).");
+    info!("Using {num_threads} render thread(s) (adaptive).");
 
     render_frames_streaming(
         &timeline,
@@ -1036,7 +1037,7 @@ async fn render_gif_async(
         },
     )?;
 
-    println!("\nGIF render complete!");
+    info!("GIF render complete!");
     Ok(())
 }
 
@@ -1131,7 +1132,7 @@ async fn render_video_composition_async(
 ) -> Result<(), ExportError> {
     let total_frames = (duration * fps as f32).ceil() as u32;
 
-    println!("\nEncoding {} frames to video...", total_frames);
+    info!("Encoding {} frames to video...", total_frames);
 
     let filename = CString::new(
         output_file
@@ -1214,7 +1215,7 @@ async fn render_video_composition_async(
 
     let num_threads =
         adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
-    println!("Using {num_threads} render thread(s) (adaptive).");
+    info!("Using {num_threads} render thread(s) (adaptive).");
 
     render_frames_streaming_composition(
         composition,
@@ -1293,7 +1294,7 @@ async fn render_video_composition_async(
         .write_trailer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    println!("\nRender complete!");
+    info!("Render complete!");
     Ok(())
 }
 
@@ -1391,7 +1392,7 @@ async fn render_gif_composition_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
     let frame_duration_ms = (1000 / fps) as u16;
 
-    println!("\nEncoding {} frames to GIF...", total_frames);
+    info!("Encoding {} frames to GIF...", total_frames);
 
     let output = std::fs::File::create(output_file)?;
     let mut encoder = GifEncoder::new(output);
@@ -1400,7 +1401,7 @@ async fn render_gif_composition_async(
         .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
 
     let num_threads = adaptive_thread_count(width, height, total_frames, true, false, &settings);
-    println!("Using {num_threads} render thread(s) (adaptive).");
+    info!("Using {num_threads} render thread(s) (adaptive).");
 
     render_frames_streaming_composition(
         composition,
@@ -1438,7 +1439,7 @@ async fn render_gif_composition_async(
         },
     )?;
 
-    println!("\nGIF render complete!");
+    info!("GIF render complete!");
     Ok(())
 }
 

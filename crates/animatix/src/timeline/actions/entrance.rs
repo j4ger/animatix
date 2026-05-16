@@ -44,10 +44,10 @@ impl BuiltinAction for WipeIn {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
@@ -120,10 +120,10 @@ impl BuiltinAction for FadeIn {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);

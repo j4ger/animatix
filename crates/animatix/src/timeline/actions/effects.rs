@@ -87,10 +87,10 @@ impl BuiltinAction for Shake {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             // Get starting offset
             let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
@@ -178,10 +178,10 @@ impl BuiltinAction for Pulse {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_scale = track.scale.get(t_start_ms, 1.0);
             let peak_scale = start_scale * (1.0 + intensity);
@@ -249,10 +249,10 @@ impl BuiltinAction for Bounce {
                 continue;
             }
 
-            let track = timeline
-                .tracks
-                .get_mut(target)
-                .expect("validated target track");
+            let track = match timeline.tracks.get_mut(target) {
+                Some(t) => t,
+                None => continue,
+            };
 
             let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
 

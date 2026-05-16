@@ -48,7 +48,7 @@ impl OffscreenRenderer {
             .await
             .map_err(|err| format!("Failed to create device: {err}"))?;
 
-        let core = RendererCore::new(&device, &queue);
+        let core = RendererCore::new(&device, &queue).map_err(|e| format!("Renderer init failed: {e}"))?;
 
         Ok(Self {
             device,
@@ -97,14 +97,16 @@ impl OffscreenRenderer {
             .ok_or_else(|| "Missing offscreen staging buffer".to_string())?;
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        self.core.render_vello_scene(
-            &self.device,
-            &self.queue,
-            &view,
-            dimensions.width,
-            dimensions.height,
-            &scene,
-        );
+        self.core
+            .render_vello_scene(
+                &self.device,
+                &self.queue,
+                &view,
+                dimensions.width,
+                dimensions.height,
+                &scene,
+            )
+            .map_err(|e| e.to_string())?;
 
         let mut encoder = self
             .device

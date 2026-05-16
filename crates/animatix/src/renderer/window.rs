@@ -1,8 +1,10 @@
 use super::core::RendererCore;
+use super::error::RenderError;
 use crate::ast::Stmt;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::error;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -27,14 +29,16 @@ impl State {
         event_loop: &ActiveEventLoop,
         timeline: &Timeline,
         debug_options: DebugRenderOptions,
-    ) -> Self {
+    ) -> Result<Self, RenderError> {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
             Box::new(event_loop.owned_display_handle()),
         ));
 
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance
+            .create_surface(window.clone())
+            .map_err(|e| RenderError::SurfaceCreation(format!("{e:?}")))?;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -43,7 +47,7 @@ impl State {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
+            .map_err(|_e| RenderError::AdapterNotFound)?;
 
         let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
 
@@ -56,7 +60,7 @@ impl State {
                 ..Default::default()
             })
             .await
-            .unwrap();
+            .map_err(|e| RenderError::DeviceRequestFailed(format!("{e:?}")))?;
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -79,9 +83,9 @@ impl State {
 
         surface.configure(&device, &config);
 
-        let core = RendererCore::new(&device, &queue);
+        let core = RendererCore::new(&device, &queue)?;
 
-        Self {
+        Ok(Self {
             timeline: timeline.clone(),
             debug_options,
             surface,
@@ -90,7 +94,7 @@ impl State {
             core,
             device: Arc::new(device),
             queue: Arc::new(queue),
-        }
+        })
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -148,14 +152,16 @@ impl State {
         });
         let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.core.render_vello_scene(
-            &self.device,
-            &self.queue,
-            &render_view,
-            self.config.width,
-            self.config.height,
-            &scene,
-        );
+        self.core
+            .render_vello_scene(
+                &self.device,
+                &self.queue,
+                &render_view,
+                self.config.width,
+                self.config.height,
+                &scene,
+            )
+            .map_err(|e| e.to_string())?;
 
         let blitter = wgpu::util::TextureBlitter::new(&self.device, self.config.format);
         let mut encoder = self
@@ -189,15 +195,29 @@ impl ApplicationHandler for App {
                 .with_title("Animatix Static Scene Renderer")
                 .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
 
-            let window = Arc::new(event_loop.create_window(attributes).unwrap());
+            let window = match event_loop.create_window(attributes) {
+                Ok(w) => Arc::new(w),
+                Err(e) => {
+                    error!("Failed to create window: {e}");
+                    event_loop.exit();
+                    return;
+                }
+            };
             self.window = Some(window.clone());
 
-            let state = pollster::block_on(State::new(
+            let state = match pollster::block_on(State::new(
                 window.clone(),
                 event_loop,
                 &self.timeline,
                 self.debug_options,
-            ));
+            )) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Renderer initialization failed: {e}");
+                    event_loop.exit();
+                    return;
+                }
+            };
             self.state = Some(state);
 
             window.request_redraw();
@@ -253,21 +273,21 @@ impl ApplicationHandler for App {
     }
 }
 
-pub fn run(ast: &[Stmt]) {
+pub fn run(ast: &[Stmt]) -> Result<(), RenderError> {
     let timeline = Timeline::build(ast);
-    run_timeline(timeline);
+    run_timeline(timeline)
 }
 
-pub fn run_timeline(timeline: Timeline) {
-    run_timeline_with_options(timeline, false, DebugRenderOptions::default());
+pub fn run_timeline(timeline: Timeline) -> Result<(), RenderError> {
+    run_timeline_with_options(timeline, false, DebugRenderOptions::default())
 }
 
 pub fn run_timeline_with_options(
     timeline: Timeline,
     loop_playback: bool,
     debug_options: DebugRenderOptions,
-) {
-    let event_loop = EventLoop::new().unwrap();
+) -> Result<(), RenderError> {
+    let event_loop = EventLoop::new().map_err(|e| RenderError::EventLoopCreation(format!("{e:?}")))?;
     event_loop.set_control_flow(ControlFlow::Poll);
     let loop_duration_s = loop_playback.then(|| timeline.duration_seconds());
 
@@ -281,5 +301,5 @@ pub fn run_timeline_with_options(
         debug_options,
     };
 
-    event_loop.run_app(&mut app).unwrap();
+    event_loop.run_app(&mut app).map_err(|e| RenderError::EventLoopCreation(format!("{e:?}")))
 }

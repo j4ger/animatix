@@ -23,7 +23,7 @@ pub(crate) fn push_unknown_lookup_path_diagnostic(
         .map(|candidate| format!(" Did you mean '{candidate}'?"))
         .unwrap_or_default();
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnknownLookupPath,
             DiagnosticPhase::Build,
             format!(

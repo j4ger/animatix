@@ -1,3 +1,4 @@
+use super::error::RenderError;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
@@ -6,7 +7,7 @@ pub struct RendererCore {
 }
 
 impl RendererCore {
-    pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue) -> Self {
+    pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue) -> Result<Self, RenderError> {
         let renderer = Renderer::new(
             device,
             RendererOptions {
@@ -16,9 +17,9 @@ impl RendererCore {
                 num_init_threads: None,
             },
         )
-        .expect("Failed to create Vello renderer");
+        .map_err(|e| RenderError::VelloInit(format!("{e:?}")))?;
 
-        Self { renderer }
+        Ok(Self { renderer })
     }
 
     pub fn render_vello_scene(
@@ -29,7 +30,7 @@ impl RendererCore {
         width: u32,
         height: u32,
         scene: &Scene,
-    ) {
+    ) -> Result<(), RenderError> {
         let render_params = RenderParams {
             base_color: Color::BLACK,
             width,
@@ -39,6 +40,6 @@ impl RendererCore {
 
         self.renderer
             .render_to_texture(device, queue, scene, texture_view, &render_params)
-            .expect("Failed to render vello scene");
+            .map_err(|e| RenderError::FrameRender(format!("{e:?}")))
     }
 }

@@ -570,11 +570,11 @@ impl<'a> TimelineStrip<'a> {
         playhead(&painter, playhead_x, track.top() - 1.0..track.bottom() + 1.0);
 
         // Interaction
-        if (response.clicked() || response.dragged()) && response.interact_pointer_pos().is_some()
-        {
-            let pos = response.interact_pointer_pos().unwrap();
-            let frac = ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0) as f64;
-            return Some(frac * self.duration_s);
+        if response.clicked() || response.dragged() {
+            if let Some(pos) = response.interact_pointer_pos() {
+                let frac = ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0) as f64;
+                return Some(frac * self.duration_s);
+            }
         }
 
         None

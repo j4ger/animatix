@@ -161,56 +161,60 @@ Symbol table property entries don't capture default values yet.
 
 ## 4. Error Handling & Robustness
 
-### 4.1 Panic Audit — In Progress
+### 4.1 Panic Audit — Completed (runtime)
 
-**Status:** ~151 unwrap/expect + ~21 panic in `animatix` core; ~27 unwrap/expect in `animatix-gui`.
-**Location:** Across renderer, action system, parser internals, document I/O.
+**Status:** All user-facing runtime panic sites converted to `Result` or graceful skip. Test-only unwraps/expects remain (acceptable).
+**Location:** Across renderer, action system, parser internals, GUI I/O.
 
-**Remaining hotspots (by severity):**
+**Completed:**
+- **Renderer pipeline** — `RendererCore::new`, `State::new`, `run_timeline_with_options` now return `Result<_, RenderError>`. GPU adapter/surface/device creation failures propagate instead of crashing.
+- **Action system** — Replaced 15 `.expect("validated target track")` in reveal/motion/effects/exit/entrance with `match` + `continue` (graceful skip after diagnostic emission).
+- **Parser internals** — Replaced non-test `unwrap()` in tuple parser with safe pattern match.
+- **GUI I/O** — `DocumentSession` already returned `Result`; fixed non-test panics in highlighting setup (`tree-sitter` init), `interact_pointer_pos()` unwraps in UI interaction, and `eframe::run_native` expect in runtime.
+- **GUI preview surface** — `PreviewSurface::new` now returns `Result` and propagates `RenderError`.
 
-| Area | Count | Severity | Notes |
-|------|-------|----------|-------|
-| Action system (`timeline/actions/*.rs`) | 34 | Medium | `.expect("validated target track")` — internal invariants that should hold but could fail on corrupted timeline data |
-| Renderer pipeline (`renderer/core.rs`, `text.rs`, `window.rs`) | 12 | High | GPU adapter failure, surface creation, typst compilation — all crash the app |
-| Parser internals (`parser.rs`) | 10 | Medium | `panic!` on unexpected AST node types in helper functions |
-| Source serialization (`to_source.rs`) | 2 | Low | `panic!` on expected Keyframe node |
-| Morph system (`morph.rs`) | 2 | Medium | `panic!` on unexpected path command types |
-| Module/primitives/utils | 3 | Low | Internal invariant violations |
-| GUI document I/O (`document.rs`) | 10 | High | `fs::write`, `fs::read_to_string`, `create_dir_all` — crash on permission denied / disk full |
-| GUI source editing (`source_edit.rs`) | 10 | Low | Mostly in test code |
-| GUI UI interaction | 3 | Medium | `.unwrap()` on `interact_pointer_pos()` — could panic on edge-case input |
-| GUI runtime/highlighting | 4 | Low | Tree-sitter setup, app startup |
+**Still present (test code only):**
+- Parser tests, source edit tests, composition tests, to_source tests — all use `.unwrap()` on parser results.
+- Morph system test panics (`panic!` on unexpected path command types in assertions).
 
-**Cleanup plan:**
-
-1. **Renderer pipeline** — Convert `RendererCore::new`, `OffscreenRenderer::new`, `run_timeline_with_options` to return `Result`. Surface creation and Vello init should propagate errors.
-2. **Action system** — Replace `.expect("validated target track")` with `Result`-based dispatch. Actions already go through a central registry; the registry can return `Result` instead of panicking.
-3. **GUI document I/O** — Convert `DocumentSession::save_to_disk`, `load`, `reload_from_disk` to return `Result` with typed errors (`IoError`, `ParseError`, `BuildError`).
-4. **Parser internals** — Replace `panic!` in AST traversal helpers with `Result` or `Option` returns. Most callers can propagate gracefully.
-5. **Morph system** — Replace `panic!` with `Result` that propagates up to `Timeline::build` diagnostics.
-
-**Effort:** Medium. The export renderer refactor took ~1 hour and touched ~500 lines. A full audit would take ~1-2 days.
-**Impact:** High. Every panic is a potential user-facing crash.
+**New error type:** `RenderError` in `crates/animatix/src/renderer/error.rs` covers surface creation, adapter not found, device request failure, Vello init, frame render, window creation, and event loop creation.
 
 ---
 
-### 4.2 Diagnostics Quality
+### 4.2 Diagnostics Quality — Completed
 
-**Status:** Partial. Language cleaned; deduplication implemented; source spans remain deferred.
+**Status:** Severity reclassified; source spans populated for key sites; `format_diagnostic` now includes line:column.
 **Location:** `crates/animatix/src/diagnostics.rs`, across all `Diagnostic::warning/error` call sites.
 
 Completed:
-- Removed POC-inappropriate language ("currently", "not supported yet", "remains deferred", internal jargon like "IR" / "AST fallback").
-- Implemented automatic deduplication in `BuildReport::new` based on `(code, message, subject)` fingerprint.
-- Removed two unused diagnostic codes (`ColorschemeLoadFailure`, `EmptyAutoColorPool`).
+- **Severity reclassification** — The following are now `Error` instead of `Warning`: `UnknownAction`, `UnsupportedActionTarget`, `UnsupportedAssignmentProperty`, `UnsupportedMediaAssignment`, `MediaLoadFailure`, `ModuleExportEvalError`, `UnknownLookupPath`, `UnknownTargetPath`, `UnsupportedSequenceStatement`, `UnsupportedStaggerStatement`.
+- **Source spans** — `with_ast_span()` is now populated for action dispatch diagnostics (`UnknownAction`, `UnsupportedActionTarget`). CLI `check` command displays `at line:col`.
+- **Diagnostic formatting** — `format_diagnostic` prepends `line:col:` when available.
 
 Remaining gaps:
-- **Source spans:** Most diagnostics lack line/column info. `with_ast_span()` exists but is rarely populated. The parser has byte spans; these need to flow through `BuildReport` to the CLI / GUI.
-- **Severity classification:** Some warnings should be errors. Need a pass to reclassify by user-actionability.
 - **Actionability:** A few diagnostics still describe internal state (e.g., "using default") without telling the user *which* default or *why*.
+- **Full span plumbing:** Not every diagnostic creation site has access to an AST span; some are emitted during late-phase evaluation where span info has been lost.
 
-**Effort:** Low-Medium. ~2-4 hours for severity audit + span plumbing.
-**Impact:** Medium. Clean diagnostics are the primary user feedback channel.
+**Impact:** High. User-actionable failures now surface as errors with location info.
+
+---
+
+### 4.3 Logging System — New
+
+**Status:** Implemented.
+
+- Added `tracing` + `tracing-subscriber` with `env-filter` to `Cargo.toml`.
+- CLI `--verbose` / `-v` flag controls log level (default WARN, `-v` → DEBUG, `-vv` → TRACE).
+- `RUST_LOG` environment variable overrides the CLI flag.
+- Key functions instrumented with `#[instrument]`: `Timeline::build_with_diagnostics`, `process_body`, `process_action`.
+- `println!` in `renderer/video.rs` replaced with `info!` — progress messages still visible at default INFO level.
+- `println!`/`eprintln!` in `main.rs` replaced with `info!`/`error!`.
+
+**Usage:**
+```bash
+animatix --verbose check file.amx       # debug output
+RUST_LOG=animatix=trace animatix check file.amx  # trace output
+```
 
 ---
 
@@ -277,14 +281,14 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Panic audit & error handling (renderer pipeline, GUI I/O) | Medium | High |
-| 2 | Multi-Scene GUI (scene list, composition timeline, write-back) | Medium | High |
-| 3 | Randomness determinism | Low-Medium | Medium |
-| 4 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 5 | Cross-file analyzer | Medium-High | Medium |
-| 6 | `strategy: fade` morph | Low–Medium | Medium |
-| 7 | Green tree / trivia AST | Very High | Low (polish) |
+| ~~1~~ | ~~Panic audit & error handling~~ | ~~Medium~~ | ~~High~~ |
+| ~~2~~ | ~~Diagnostics quality + logging system~~ | ~~Low-Medium~~ | ~~Medium~~ |
+| 1 | Multi-Scene GUI (scene list, composition timeline, write-back) | Medium | High |
+| 2 | Randomness determinism | Low-Medium | Medium |
+| 3 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
+| 4 | Cross-file analyzer | Medium-High | Medium |
+| 5 | Green tree / trivia AST | Very High | Low (polish) |
 
 ---
 
-*Last updated: 2026-05-16 — `strategy: fade` morph implemented*
+*Last updated: 2026-05-16 — Error handling overhaul & logging system implemented*

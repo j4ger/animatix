@@ -474,13 +474,15 @@ fn paint_transport_scrubber(
     );
 
     // Interaction
-    if (response.clicked() || response.dragged()) && response.interact_pointer_pos().is_some() {
-        *current_time_s = crate::app::preview::time_from_pointer_x(
-            track_rect,
-            response.interact_pointer_pos().unwrap().x,
-            duration_s,
-        );
-        return true;
+    if response.clicked() || response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            *current_time_s = crate::app::preview::time_from_pointer_x(
+                track_rect,
+                pos.x,
+                duration_s,
+            );
+            return true;
+        }
     }
 
     false

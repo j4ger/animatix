@@ -15,15 +15,17 @@ pub fn run_gui(path: Option<PathBuf>) {
         ..Default::default()
     };
 
-    eframe::run_native(
+    if let Err(e) = eframe::run_native(
         "Animatix",
         options,
         Box::new(move |cc| {
             let app = AnimatixApp::new(cc, initial_path)?;
             Ok(Box::new(app))
         }),
-    )
-    .expect("Failed to run Animatix GUI");
+    ) {
+        eprintln!("Failed to run Animatix GUI: {e}");
+        std::process::exit(1);
+    }
 }
 
 struct AnimatixApp {
@@ -51,7 +53,7 @@ impl AnimatixApp {
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
         cc.egui_ctx.set_fonts(fonts);
 
-        let preview_surface = PreviewSurface::new(device, queue);
+        let preview_surface = PreviewSurface::new(device, queue).map_err(|e| format!("Preview surface init failed: {e}"))?;
         let shell = GuiShell::load(initial_path);
 
         Ok(Self {

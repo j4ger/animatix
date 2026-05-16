@@ -9,6 +9,7 @@ pub mod reveal;
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
+use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
@@ -23,7 +24,7 @@ fn push_unknown_action_diagnostic(
     span: Option<crate::ast::Span>,
 ) {
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnknownAction,
             DiagnosticPhase::Build,
             format!(
@@ -44,7 +45,7 @@ fn push_unsupported_action_target_diagnostic(
     span: Option<crate::ast::Span>,
 ) {
     diagnostics.push(
-        Diagnostic::warning(
+        Diagnostic::error(
             DiagnosticCode::UnsupportedActionTarget,
             DiagnosticPhase::Build,
             format!("Action '{verb}' does not support target '{target}': {reason}."),
@@ -159,6 +160,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
 }
 
 /// Looks up the action by verb and executes it if found.
+#[instrument(skip(timeline, diagnostics), fields(verb = %action.verb, targets = ?action.targets))]
 pub fn process_action(
     action: &Action,
     time_ms: f64,
@@ -169,6 +171,7 @@ pub fn process_action(
     let actions = get_builtin_actions();
     for builtin in actions {
         if builtin.signature().name == action.verb {
+            debug!("Executing builtin action '{}' on targets {:?}", action.verb, action.targets);
             builtin.execute(action, time_ms, timeline, diagnostics);
             return;
         }

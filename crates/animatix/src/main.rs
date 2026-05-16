@@ -5,10 +5,16 @@ use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand};
 use std::path::PathBuf;
+use tracing::{error, info, warn};
+use tracing_subscriber::EnvFilter;
 
 #[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = "Animatix CLI Tool")]
 struct Args {
+    /// Increase verbosity (-v for debug, -vv for trace)
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -166,7 +172,7 @@ fn load_and_build(input: &PathBuf) -> (BuildTarget, Vec<animatix::diagnostics::D
     let (ast, namespaces) = match ModuleGraph::new().load_program(input) {
         Ok(program) => (program.expand_components(), program.namespaces),
         Err(e) => {
-            eprintln!("Error: {}", e);
+            error!("Error: {}", e);
             std::process::exit(1);
         }
     };
@@ -199,6 +205,21 @@ fn default_output_file(ext: &str) -> PathBuf {
 fn main() {
     let args = Args::parse();
 
+    let filter = match args.verbose {
+        0 => EnvFilter::new("warn"),
+        1 => EnvFilter::new("info,animatix=debug"),
+        2 => EnvFilter::new("info,animatix=trace"),
+        _ => EnvFilter::new("trace"),
+    };
+    let filter = if let Ok(env_filter) = std::env::var("RUST_LOG") {
+        EnvFilter::new(env_filter)
+    } else {
+        filter
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .init();
+
     match args.command {
         Commands::Gif {
             input,
@@ -211,11 +232,11 @@ fn main() {
             debug_bounds,
             threads,
         } => {
-            println!("Rendering Animatix GIF: {}", input.display());
+            info!("Rendering Animatix GIF: {}", input.display());
             let (target, _) = load_and_build(&input);
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("gif"));
-            println!(
+            info!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
@@ -252,7 +273,7 @@ fn main() {
                 ),
             };
             if let Err(e) = result {
-                eprintln!("Error: {e}");
+                error!("Error: {e}");
                 std::process::exit(1);
             }
         }
@@ -270,11 +291,11 @@ fn main() {
             codec,
             preset,
         } => {
-            println!("Rendering Animatix video: {}", input.display());
+            info!("Rendering Animatix video: {}", input.display());
             let (target, _) = load_and_build(&input);
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
-            println!(
+            info!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
                 width, height, fps, effective_duration, output_file.display()
             );
@@ -315,7 +336,7 @@ fn main() {
                 }
             };
             if let Err(e) = result {
-                eprintln!("Error: {e}");
+                error!("Error: {e}");
                 std::process::exit(1);
             }
         }
@@ -325,15 +346,14 @@ fn main() {
             compact,
             force: _,
         } => {
-            println!("Parsing Animatix file: {}", input.display());
+            info!("Parsing Animatix file: {}", input.display());
             let ast = match ModuleGraph::new().load_entry(&input) {
                 Ok(statements) => statements,
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    error!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
-            println!("\nAbstract Syntax Tree:");
             if compact {
                 println!("{:?}", ast);
             } else {
@@ -348,38 +368,44 @@ fn main() {
             r#loop,
             debug_bounds,
         } => {
-            println!("Rendering Animatix file: {}", input.display());
+            info!("Rendering Animatix file: {}", input.display());
             let (target, _) = load_and_build(&input);
             match target {
                 BuildTarget::MultiScene(comp) => {
                     // Live preview shows the first scene for multi-scene compositions.
                     // The full composition timeline is available in the GUI.
                     if let Some(first_scene) = comp.scenes.values().next() {
-                        println!(
+                        info!(
                             "Multi-scene composition ({} scenes). Previewing first scene: '{}'.",
                             comp.scenes.len(),
                             first_scene.name
                         );
-                        renderer::run_timeline_with_options(
+                        if let Err(e) = renderer::run_timeline_with_options(
                             first_scene.timeline.clone(),
                             r#loop,
                             DebugRenderOptions {
                                 draw_bounds: debug_bounds,
                             },
-                        );
+                        ) {
+                            error!("Preview failed: {e}");
+                            std::process::exit(1);
+                        }
                     } else {
-                        eprintln!("Error: Composition has no scenes.");
+                        error!("Error: Composition has no scenes.");
                         std::process::exit(1);
                     }
                 }
                 BuildTarget::SingleScene(timeline) => {
-                    renderer::run_timeline_with_options(
+                    if let Err(e) = renderer::run_timeline_with_options(
                         timeline,
                         r#loop,
                         DebugRenderOptions {
                             draw_bounds: debug_bounds,
                         },
-                    );
+                    ) {
+                        error!("Preview failed: {e}");
+                        std::process::exit(1);
+                    }
                 }
             }
         }
@@ -392,10 +418,10 @@ fn main() {
             output,
             debug_bounds,
         } => {
-            println!("Rendering Animatix image: {}", input.display());
+            info!("Rendering Animatix image: {}", input.display());
             let output_file =
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
-            println!(
+            info!(
                 "Output image: {}x{} at {}s -> {}",
                 width, height, time, output_file.display()
             );
@@ -420,7 +446,7 @@ fn main() {
                 ),
             };
             if let Err(e) = result {
-                eprintln!("Error: {e}");
+                error!("Error: {e}");
                 std::process::exit(1);
             }
         }
@@ -429,7 +455,7 @@ fn main() {
             let source = match std::fs::read_to_string(&file) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Cannot read {}: {}", file, e);
+                    error!("Cannot read {}: {}", file, e);
                     std::process::exit(1);
                 }
             };
@@ -439,7 +465,7 @@ fn main() {
             {
                 Ok(program) => (program.expand_components(), program.namespaces),
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    error!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
@@ -457,6 +483,11 @@ fn main() {
                     };
                     let severity = if diag.is_error() { "ERROR" } else { "WARNING" };
                     println!("{prefix} {severity}: {}", diag.message);
+                    if let Some(line) = diag.location.line {
+                        if let Some(col) = diag.location.column {
+                            println!("  at {}:{}", line, col);
+                        }
+                    }
                     if let Some(subject) = &diag.location.subject {
                         println!("  subject: {subject}");
                     }
@@ -471,6 +502,11 @@ fn main() {
 
 fn print_build_diagnostics(diagnostics: &[animatix::diagnostics::Diagnostic]) {
     for diagnostic in diagnostics {
-        eprintln!("{}", format_diagnostic(diagnostic));
+        let formatted = format_diagnostic(diagnostic);
+        if diagnostic.is_error() {
+            error!("{}", formatted);
+        } else {
+            warn!("{}", formatted);
+        }
     }
 }
