@@ -325,6 +325,8 @@ source_text ──parse──► AST (Vec<Stmt>)
 
 **Trade-offs:** formatting is normalized; inline comments after properties are preserved via `Property.trailing_comment`, but blank lines and indentation style are not.
 
+For the full formatting rules, see [`spec.md`](spec.md) §Appendix A: Source Formatting Specification.
+
 ---
 
 ## 12. Module & Component System
@@ -369,7 +371,60 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 
 ---
 
-## 14. File Structure
+## 14. Primitive Architecture
+
+Adding a new primitive requires **3 touch points** via the `Primitive` trait:
+
+```rust
+// primitives/triangle.rs
+pub struct TrianglePrimitive;
+pub const TRIANGLE: TrianglePrimitive = TrianglePrimitive;
+
+impl Primitive for TrianglePrimitive {
+    fn type_name(&self) -> &'static str { "Triangle" }
+    fn category(&self) -> ActorCategory { ActorCategory::Shape }
+    fn is_shape(&self) -> bool { true }
+
+    fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property],
+             modifiers: &[Modifier], children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+        ctx.timeline.process_inline_actor_decl(self.type_name(), label, props,
+                                               modifiers, ctx.time_ms, ctx.parent_label);
+        Ok(())
+    }
+
+    fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        let path = build_triangle_path(ctx.state.size);
+        Some(vec![build_vello_path(path, ctx.style)])
+    }
+
+    fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> { vec![...] }
+}
+```
+
+Steps:
+1. Create `primitives/<name>.rs` implementing `Primitive`.
+2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
+3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/track.rs` (still needed for match arms).
+
+Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
+
+---
+
+## 15. Multi-Scene Composition
+
+> Design doc archived. All phases (1–8) shipped 2026-05-15.
+
+Core concepts:
+- `# SceneName` declares a scene; `play SceneName [transition, duration]` declares edges.
+- `Composition::build()` creates per-scene `Timeline` instances, resolves `play` edges, detects cycles.
+- `Composition::evaluate(global_time_s)` maps global time → `(scene_name, local_time_s, transition_blend)`.
+- `BuildTarget` auto-routes single-scene vs multi-scene for CLI/GUI.
+
+For the full historical design, see git history of `docs/multi-scene-composition-design.md`.
+
+---
+
+## 16. File Structure
 
 ```
 crates/

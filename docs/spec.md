@@ -784,3 +784,110 @@ Multi-scene compositions are automatically detected and routed via `BuildTarget`
 - **Live preview** (`animatix render`) shows only the first scene for multi-scene files.
 - **GUI** does not yet show the scene list panel or composition timeline (Phases 4–6).
 - **Tree-sitter grammar** has not been updated for `# SceneName` or `play` syntax.
+
+---
+
+## Appendix A: Source Formatting Specification
+
+> Scope: serializer output (`animatix::to_source`) and GUI write-back.
+> Goal: deterministic, readable `.amx` source that matches hand-authored style.
+
+### A.1 General Principles
+
+1. **Consistency** — Re-serializing already-formatted code produces byte-identical output.
+2. **Readability** — Vertical space separates logical units; horizontal space is conserved.
+3. **Determinism** — Formatting is entirely structural; no width heuristics or line-length limits.
+
+### A.2 Indentation
+
+| Item | Value |
+|---|---|
+| Indent unit | 2 spaces (U+0020) |
+| Tab characters | Never emitted |
+| Increase | One level per nested block or child list |
+| Decrease | One level when closing a block or child list |
+
+### A.3 Top-Level Layout
+
+- Each **top-level** statement is separated by **one blank line** (`\n\n`).
+- Inside a block (e.g. `sequence { … }`) statements are separated by a **single newline** (`\n`) only.
+- Keyframe blocks (`#2s`, `#+500ms`) are top-level statements, so they are separated by blank lines from neighbours.
+
+### A.4 Actor Declarations
+
+**Without children (flat):**
+```amx
+label: Type, prop1: value1, prop2: value2 [mod1, mod2]
+```
+- Label and type are separated by `: ` (colon + space).
+- Properties are comma-separated on the **same line**.
+- Modifiers follow properties in `[…]` brackets.
+- No trailing comma after the last property.
+
+**With children (container):**
+```amx
+label: Type, prop1: value1 {
+  child1: Type, prop1: value1
+  child2: Type, prop2: value2
+}
+```
+- All properties and modifiers stay on the **header line**.
+- Opening `{` is preceded by a single space and follows the last modifier.
+- Each child gets its **own line**, indented +1 level.
+- Closing `}` gets its **own line** at the parent's indentation level.
+- No trailing comma after the last child.
+
+### A.5 Block Statements
+
+```amx
+sequence {
+  fade-in a [400ms]
+  fade-in b [400ms]
+}
+
+stagger [100ms] {
+  fade-in label [400ms]
+  fade-in a [400ms]
+}
+
+if condition {
+  then_stmt1
+} else {
+  else_stmt1
+}
+```
+
+- Header stays on one line.
+- Body statements each get their own line, indented +1 level.
+- Closing brace on its own line at the parent's indentation level.
+- `else` is separated from the closing `}` of `if` by a single space (no newline).
+
+### A.6 Keyframe and Scene Blocks
+
+```amx
+#2s
+stmt1
+stmt2
+
+# SceneName
+#0s
+stmt1
+stmt2
+
+play NextScene [fade, 300ms]
+```
+
+- Time marker / scene name on its own line.
+- Body statements each on their own line, **not indented**.
+- A blank line separates consecutive keyframe / scene blocks at the top level.
+- `play` appears at the scene body level on its own line.
+
+### A.7 Comments and Expressions
+
+- **Trailing comments** (`// comment`) are preserved with exactly **2 spaces** before `//`.
+- Expressions are always emitted **inline**; they never contain newlines.
+- `config` keeps its settings inline.
+
+### A.8 Write-Back Pipeline
+
+The GUI inspector mutates the AST via `source_edit::apply_edit`, then the entire file is re-serialized. Formatting is applied at the **serialization layer only** (`animatix::to_source`). No formatting state is carried through the edit; the serializer is the single source of truth for layout.

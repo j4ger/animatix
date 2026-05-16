@@ -241,4 +241,17 @@ For demo work: keep runnable demos under `examples/`, verify with both `ast` and
 
 ---
 
-*For the language specification, see [`spec.md`](spec.md). For the system architecture, see [`architecture.md`](architecture.md). For work items, see [`roadmap.md`](roadmap.md).*
+## GUI Actor Creation
+
+Users can create actors from the GUI via toolbar `+`, inspector CTA, or right-click canvas. New actors are inserted into the current keyframe block (or wrapped in `#0s` if none exist).
+
+Supported types: Rect, Circle, Text, Row, Col. Code-only types (Math, Image, Svg, plots) are not creatable from GUI.
+
+To add GUI creation support for a new primitive:
+1. Ensure it implements `Primitive::default_props()` in `primitives/<name>.rs`.
+2. Add the `SourceEdit::InsertActor` handling in `source_edit.rs` if new behavior is needed.
+3. Wire the palette entry in `app/shell/toolbar.rs`.
+
+---
+
+*For the language specification, see [`spec.md`](spec.md). For the system architecture, see [`architecture.md`](architecture.md). For work items, see [`roadmap.md`](roadmap.md).
