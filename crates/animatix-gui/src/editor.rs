@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use animatix_analyzer::Analyzer;
 use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
+use crate::text_diff::TextEdit;
 
 mod highlight {
     pub use crate::highlighting::highlight_source;
@@ -109,6 +110,47 @@ impl EditorBuffer {
         self.cursor_line = None;
         self.keyframe_times_s.clear();
         self.pending_scrub_to_time = None;
+    }
+
+    /// Apply a sequence of non-overlapping text edits in-place.
+    pub fn apply_edits(&mut self, edits: &[TextEdit]) {
+        if edits.is_empty() {
+            return;
+        }
+
+        let cell_state = self.cell_state.clone();
+        let highlighted_line = self.highlighted_line;
+        let pending_scroll_to_line = self.pending_scroll_to_line;
+        let cursor_line = self.cursor_line;
+
+        let mut text = self.text.clone();
+        for edit in edits.iter().rev() {
+            text.replace_range(edit.start_byte..edit.end_byte, &edit.replacement);
+        }
+
+        self.text = text;
+        self.cells = parse_cells(&self.text);
+        self.cell_state = cell_state;
+        self.cells_dirty = false;
+        self.cached_highlight = None;
+        self.analyzer.update(&self.text);
+        self.pending_scroll_to_line = pending_scroll_to_line;
+        self.highlighted_line = highlighted_line;
+        self.cursor_line = cursor_line;
+        self.keyframe_times_s.clear();
+        self.pending_scrub_to_time = None;
+
+        if let Some(focused) = self.cell_state.focused_cell
+            && focused >= self.cells.len()
+        {
+            self.cell_state.focused_cell = None;
+        }
+        if let Some(pending) = self.cell_state.pending_cursor_cell
+            && pending >= self.cells.len()
+        {
+            self.cell_state.pending_cursor_cell = None;
+            self.cell_state.pending_cursor_char = None;
+        }
     }
 
     pub fn set_keyframe_times_s(&mut self, times: std::collections::HashMap<usize, f64>) {

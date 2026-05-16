@@ -1,23 +1,17 @@
 use super::*;
 use super::panels;
 use animatix::timeline::TrackAccessor;
+use crate::validation::validate_roundtrip;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
         let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
         if !is_drag || !self.drag_snapshot_taken {
             self.snapshot();
-            if is_drag {
-                self.drag_snapshot_taken = true;
-            }
+            if is_drag { self.drag_snapshot_taken = true; }
         }
+        if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if edit.property == "child_order" {
-            self.apply_child_order_edit(edit);
-            return;
-        }
-
-        // Update in-memory timeline for live preview (all properties, not just position/rotation)
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
                 let time_ms = (self.preview.current_time_s * 1000.0) as u64;
@@ -26,201 +20,120 @@ impl GuiShell {
             }
         }
 
-        // Insert keyframe block into source via AST mutation.
         let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
         let delta_s = self.preview.current_time_s - prev_time_s;
-        let source_written = if let Some(ref mut stmts) = self.document.raw_statements {
+        let source_result = if let Some(ref mut stmts) = self.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
+            let validation_expr = expr.clone();
             let source_edit = if delta_s < self.keyframe_merge_window_s {
-                crate::source_edit::SourceEdit::MergeKeyframe {
-                    actor: edit.actor.clone(),
-                    property: edit.property.clone(),
-                    value: expr,
-                    time_s: prev_time_s,
-                }
+                crate::source_edit::SourceEdit::MergeKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: prev_time_s }
             } else {
-                crate::source_edit::SourceEdit::InsertKeyframe {
-                    actor: edit.actor.clone(),
-                    property: edit.property.clone(),
-                    value: expr,
-                    time_s: self.preview.current_time_s,
-                    prev_time_s,
-                }
+                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview.current_time_s, prev_time_s }
             };
 
             if crate::source_edit::apply_edit(stmts, source_edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
-                self.document.source_text = new_source.clone();
-                self.editor.replace_text(new_source);
-                self.document.is_dirty = true;
-                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                self.document.rescan_keyframe_lines();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+                if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
+                    tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
+                    self.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview.current_time_s, err);
+                }
+                Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
+            } else { None }
+        } else { None };
+
+        let source_written = if let Some((new_source, source_index)) = source_result {
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(source_index);
+            self.document.rescan_keyframe_lines();
+            true
+        } else { false };
 
         self.preview_dirty = true;
         if source_written {
             self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
-            if delta_s < self.keyframe_merge_window_s {
-                self.preview.status = format!(
-                    "Merged {}.{} @ {:.2}s",
-                    edit.actor, edit.property, prev_time_s
-                );
+            self.preview.status = if delta_s < self.keyframe_merge_window_s {
+                format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
-                self.preview.status = format!(
-                    "Keyframe {}.{} @ {:.2}s",
-                    edit.actor, edit.property, self.preview.current_time_s
-                );
-            }
+                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview.current_time_s)
+            };
         } else {
-            self.preview.status = format!(
-                "Keyframe {}.{} @ {:.2}s — visual only",
-                edit.actor, edit.property, self.preview.current_time_s
-            );
+            self.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview.current_time_s);
         }
     }
 
-    /// Handle a property edit from the inspector panel.
-    ///
-    /// Updates the in-memory timeline and persists the change back to the .amx source file
-    /// via AST mutation + full re-serialization (see [`crate::source_edit`]).
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
-        // ── Keyframe mode: insert a new timestamp instead of overwriting ──────
-        if edit.create_keyframe {
-            self.handle_keyframe_edit(edit);
-            return;
-        }
-
-        // Take a snapshot for undo before making changes.
-        // During a drag, only snapshot once (on the first edit) so that one
-        // drag-start → drag-end counts as a single undo entry.
+        if edit.create_keyframe { self.handle_keyframe_edit(edit); return; }
         let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
-        if !is_drag || !self.drag_snapshot_taken {
-            self.snapshot();
-            if is_drag {
-                self.drag_snapshot_taken = true;
-            }
-        }
+        if !is_drag || !self.drag_snapshot_taken { self.snapshot(); if is_drag { self.drag_snapshot_taken = true; } }
+        if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if edit.property == "child_order" {
-            self.apply_child_order_edit(edit);
-            return;
-        }
-
-        // Apply the edit to the in-memory timeline if it exists
         if let Some(ref mut timeline) = self.document.timeline {
             if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
                 let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
-
-            // Invalidate the frame cache so the next evaluate() produces a fresh
-            // scene reflecting the track mutations above.
             timeline.invalidate_frame_cache();
         }
 
-        // Persist the change back to the .amx source file via AST mutation +
-        // full re-serialization. This replaces the old byte-span surgery model.
-        let source_written = if let Some(ref mut stmts) = self.document.raw_statements {
+        let source_result = if let Some(ref mut stmts) = self.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
-
-            // Try SetProperty first (update existing property).
-            let set_edit = crate::source_edit::SourceEdit::SetProperty {
-                actor: edit.actor.clone(),
-                property: edit.property.clone(),
-                value: expr.clone(),
-            };
-
-            let applied = if crate::source_edit::apply_edit(stmts, set_edit) {
-                true
-            } else {
-                // Property doesn't exist yet — insert it.
-                let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
-                    actor: edit.actor.clone(),
-                    property: edit.property.clone(),
-                    value: expr,
-                };
+            let validation_expr = expr.clone();
+            let set_edit = crate::source_edit::SourceEdit::SetProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr.clone() };
+            let applied = if crate::source_edit::apply_edit(stmts, set_edit) { true } else {
+                let insert_edit = crate::source_edit::SourceEdit::InsertProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr };
                 crate::source_edit::apply_edit(stmts, insert_edit)
             };
 
             if applied {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
-                self.document.source_text = new_source.clone();
-                self.editor.replace_text(new_source);
-                self.document.is_dirty = true;
-                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+                if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
+                    tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
+                    self.preview.status = format!("⚠ Edited {}.{} — round-trip validation failed: {}", edit.actor, edit.property, err);
+                }
+                Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
+            } else { None }
+        } else { None };
 
-        // Mark preview as dirty to trigger a re-render
+        let source_written = if let Some((new_source, source_index)) = source_result {
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(source_index);
+            true
+        } else { false };
+
         self.preview_dirty = true;
-
         if source_written {
-            // Schedule a debounced rebuild to re-parse the modified source
             self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
-            self.preview.status = format!(
-                "Edited {}.{} — source updated",
-                edit.actor, edit.property
-            );
+            self.preview.status = format!("Edited {}.{} — source updated", edit.actor, edit.property);
         } else {
-            self.preview.status = format!(
-                "Edited {}.{} — visual only (no source span)",
-                edit.actor, edit.property
-            );
+            self.preview.status = format!("Edited {}.{} — visual only (no source span)", edit.actor, edit.property);
         }
     }
 
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
         use crate::app::panels::PropertyValue as PV;
-
-        let source_written = if let (Some(ref mut timeline), PV::StringList(order)) =
-            (self.document.timeline.as_mut(), edit.value.clone())
-        {
+        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document.timeline.as_mut(), edit.value.clone()) {
             if let Some(metadata) = timeline.container_metadata.get_mut(&edit.actor) {
                 metadata.child_order = order.clone();
-                metadata.layout_children = order
-                    .iter()
-                    .filter_map(|label| {
-                        timeline.tracks.get(label).map(|_| animatix::timeline::ContainerLayoutChild {
-                            label: label.clone(),
-                        })
-                    })
-                    .collect();
+                metadata.layout_children = order.iter().filter_map(|label| timeline.tracks.get(label).map(|_| animatix::timeline::ContainerLayoutChild { label: label.clone() })).collect();
                 timeline.invalidate_frame_cache();
             }
-
             if let Some(ref mut stmts) = self.document.raw_statements {
-                let applied = crate::source_edit::apply_edit(
-                    stmts,
-                    crate::source_edit::SourceEdit::ReorderContainerChildren {
-                        container: edit.actor.clone(),
-                        new_order: order,
-                    },
-                );
-                if applied {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                }
-                applied
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+                let applied = crate::source_edit::apply_edit(stmts, crate::source_edit::SourceEdit::ReorderContainerChildren { container: edit.actor.clone(), new_order: order });
+                if applied { Some((animatix::to_source::stmts_to_source(stmts), animatix::source_index::SourceIndex::build(stmts))) } else { None }
+            } else { None }
+        } else { None };
+
+        let source_written = if let Some((new_source, source_index)) = source_result {
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(source_index);
+            true
+        } else { false };
 
         self.preview_dirty = true;
         if source_written {

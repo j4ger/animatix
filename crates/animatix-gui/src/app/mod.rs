@@ -15,6 +15,7 @@ mod utils;
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
+use crate::text_diff::diff_text;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use animatix::renderer::video::ExportError;
@@ -214,6 +215,14 @@ struct GuiShell {
 }
 
 impl GuiShell {
+    fn apply_source_edit(&mut self, new_source: String) {
+        let old_source = self.document.source_text.clone();
+        let edits = diff_text(&old_source, &new_source);
+        self.document.source_text = new_source;
+        self.editor.apply_edits(&edits);
+        self.document.is_dirty = true;
+    }
+
     fn check_hot_reload(&mut self, app_time: Instant) {
         if let Some(ref mut reloader) = self.hot_reloader {
             match reloader.update(app_time) {
