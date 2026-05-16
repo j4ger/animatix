@@ -74,18 +74,23 @@ Shipped:
 - Phase 8: Cross-File Scenes — `module.SceneName` resolution in parser/composition, import aliases shown in scene list
 - Examples: `multi_scene_mini.amx`, `multi_scene_demo.amx`, `multi_scene_educational.amx`
 
-### 2.1 Source-Level Animated Geometry — Partial
+### 2.1 Source-Level Animated Geometry — Implemented (non-GUI)
 
-**Status:** `Polygon.points` now animatable at source level. `Path.commands` and GUI inspector support deferred.
+**Status:** `Polygon.points` and `Path.commands` are now animatable at source level. GUI inspector support remains deferred.
 **Location:** `crates/animatix/src/timeline/property_engine.rs`, `crates/animatix-gui/src/app/panels/inspector/`.
 
-`poly.points = [[0,0], [100,0], [50,100]]` inside keyframe blocks now works and triggers path morphing automatically. The track storage (`PropertyTrack<Vec<[f32; 2]>>`), frame-time evaluation, and assignment engine were already wired; only the parser → property engine bridge was missing.
+`poly.points = [[0,0], [100,0], [50,100]]` inside keyframe blocks works and triggers path morphing automatically. `path.commands = {move_to(0,0), line_to(100,0)}` assignments with duration also morph between path states.
+
+**Implementation details:**
+- `ValueType::CommandList` parsing converts command expressions to SVG path strings via `kurbo::BezPath::to_svg()`
+- `track.commands: Option<PropertyTrack<String>>` stores the SVG representation
+- `rebuild_vector_paths` parses the SVG back to `BezPath` with `kurbo::BezPath::from_svg()` and builds the target `VelloPath`
+- Start/end keyframes in `vector_paths` are now correctly inserted for all shape-geometry assignments with duration (fixing a pre-existing issue where the morph interval started from the previous keyframe rather than the assignment start time)
 
 **Still deferred:**
-- **`Path.commands`** — requires a new `commands: Option<PropertyTrack<String>>` field on `AnimationTrack` and on-the-fly parsing from command strings to `BezPath` at evaluation time. The current `vector_paths` field stores pre-built `VelloPath` and has no raw-command fallback.
-- **GUI inspector editing** — no widget exists for editing variable-length lists of `Vec2` points. The inspector currently displays `"[N pts]"` as a read-only label.
+- **GUI inspector editing** — no widget exists for editing variable-length lists of `Vec2` points or path commands. The inspector currently displays `"[N pts]"` as a read-only label.
 
-**Effort:** Low for `commands` (similar bridge work, plus a track field). High for GUI (custom multi-point editor).
+**Effort:** Low–Medium for `commands` (completed). High for GUI (custom multi-point / command editor).
 
 ---
 

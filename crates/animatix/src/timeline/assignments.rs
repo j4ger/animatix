@@ -226,7 +226,7 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
-                    rebuild_vector_paths(track, t_end_ms, easing, diagnostics);
+                    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
                 }
             }
         } else {
@@ -315,7 +315,7 @@ fn handle_size_assignment(
     track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
-    rebuild_vector_paths(track, t_end_ms, easing, diagnostics);
+    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ fn handle_arc_angle_assignment(
     track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, target_angles, easing);
 
     // Rebuild vector paths after angle change
-    rebuild_vector_paths(track, t_end_ms, easing, diagnostics);
+    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -420,12 +420,14 @@ fn recompile_text_at_assignment(
 
 fn rebuild_vector_paths(
     track: &mut AnimationTrack,
+    t_start_ms: u64,
     t_end_ms: u64,
     easing: Easing,
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, std::f32::consts::PI];
+    let has_duration = t_end_ms > t_start_ms;
     let size = track.size.last(default_size);
     let line_from = track.line_from.last([-50.0, 0.0]);
     let line_to = track.line_to.last([50.0, 0.0]);
@@ -446,6 +448,13 @@ fn rebuild_vector_paths(
         vector_shape_state.custom_path = Some(KurboShape::Polygon {
             points: pts,
         }.to_path_default());
+    }
+    // Restore commands for Path actors
+    let commands_svg = track.commands.last(String::new());
+    if !commands_svg.is_empty() {
+        if let Ok(path) = kurbo::BezPath::from_svg(&commands_svg) {
+            vector_shape_state.custom_path = Some(path);
+        }
     }
 
     let shape_type = track.shape_type.last(ShapeType::Rect);
@@ -468,7 +477,10 @@ fn rebuild_vector_paths(
         )
     });
 
-    if t_end_ms > 0 {
+    if has_duration {
+        let start_paths = track.evaluate_vector_paths(t_start_ms);
+        track.vector_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_paths, Easing::Linear);
+    } else if t_end_ms > 0 {
         preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
     }
     track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, vec![target_vello_path], easing);
@@ -482,7 +494,7 @@ fn affects_shape_geometry(property: &str) -> bool {
     matches!(property,
         "from" | "to" | "start_angle" | "sweep_angle" | "arc_angles"
         | "radius" | "radius_x" | "radius_y" | "size"
-        | "tip_length" | "tip_width" | "points"
+        | "tip_length" | "tip_width" | "points" | "commands"
         | "shape_type"
     )
 }

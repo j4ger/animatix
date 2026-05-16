@@ -60,6 +60,7 @@ pub enum PropertyValue {
     Vec2([f32; 2]),
     Vec4([f32; 4]),
     PointList(Vec<[f32; 2]>),
+    CommandList(String),
     Color([f32; 4]),
     String(String),
 }
@@ -134,13 +135,16 @@ pub(crate) fn parse_property_value(
                 None
             }
         }
+        ValueType::CommandList => {
+            crate::timeline::parse_path_commands_expr(expr, env)
+                .map(|path| PropertyValue::CommandList(path.to_svg()))
+        }
         // These types require context-specific handling (group resolution)
         ValueType::ShapeType
         | ValueType::PlacementMode
         | ValueType::SceneAnchor
         | ValueType::PositionBinding
         | ValueType::MorphOptions
-        | ValueType::CommandList
         | ValueType::BuildTimeOnly => None,
     }
 }
@@ -215,6 +219,7 @@ pub(crate) fn write_property_field(
         ActorField::LineTo => write_vec2(&mut track.line_to, value, t_start_ms, t_end_ms, easing, [50.0, 0.0], has_duration, has_delay),
         ActorField::ArcAngles => write_vec2(&mut track.arc_angles, value, t_start_ms, t_end_ms, easing, [0.0, std::f32::consts::PI], has_duration, has_delay),
         ActorField::Points => write_point_list(&mut track.points, value, t_start_ms, t_end_ms, easing, Vec::new(), has_duration, has_delay),
+        ActorField::Commands => write_command_list(&mut track.commands, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
         ActorField::VectorPaths => {
             // Vector paths are generated from shape state, not parsed directly
         }
@@ -344,6 +349,26 @@ fn write_point_list(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
+fn write_command_list(
+    field: &mut Option<PropertyTrack<String>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: String,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::CommandList(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
 fn write_shape_type(
     field: &mut Option<PropertyTrack<ShapeType>>,
     value: ShapeType,
@@ -407,6 +432,7 @@ pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u
         ActorField::LineFrom => track.line_from.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
         ActorField::LineTo => track.line_to.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
         ActorField::ArcAngles => track.arc_angles.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::Commands => track.commands.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
         ActorField::TextContent => track.text_content.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
         ActorField::FontFamily => track.font_family.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
         ActorField::FontSize => track.font_size.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
@@ -458,6 +484,7 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
         ActorField::LineFrom => track.line_from.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::LineTo => track.line_to.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::ArcAngles => track.arc_angles.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::Commands => track.commands.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::TextContent => track.text_content.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::FontFamily => track.font_family.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::FontSize => track.font_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
@@ -484,6 +511,7 @@ pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usi
         ActorField::LineFrom => track.line_from.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::LineTo => track.line_to.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::ArcAngles => track.arc_angles.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::Commands => track.commands.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::TextContent => track.text_content.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::FontFamily => track.font_family.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::FontSize => track.font_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -510,6 +538,7 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
         ActorField::LineFrom => track.line_from.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::LineTo => track.line_to.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::ArcAngles => track.arc_angles.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::Commands => track.commands.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::TextContent => track.text_content.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::FontFamily => track.font_family.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::FontSize => track.font_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),

@@ -3205,6 +3205,67 @@ fn test_path_redeclaration_rebuilds_geometry() {
 }
 
 #[test]
+fn test_path_commands_assignment_with_duration_morphs() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "guide".to_string(),
+                ty: "Path".to_string(),
+                props: vec![Property {
+                    name: "commands".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Call("move_to".into(), vec![Expr::Num(-120.0), Expr::Num(40.0)]),
+                        Expr::Call("line_to".into(), vec![Expr::Num(80.0), Expr::Num(100.0)]),
+                        Expr::Call("close".into(), vec![]),
+                    ]),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: Time::Seconds(2.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["guide".to_string()],
+                property: "commands".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Call("move_to".into(), vec![Expr::Num(-130.0), Expr::Num(20.0)]),
+                    Expr::Call("curve_to".into(), vec![
+                        Expr::Num(-40.0), Expr::Num(-140.0),
+                        Expr::Num(90.0), Expr::Num(-20.0),
+                        Expr::Num(130.0), Expr::Num(50.0),
+                    ]),
+                    Expr::Call("line_to".into(), vec![Expr::Num(20.0), Expr::Num(120.0)]),
+                    Expr::Call("close".into(), vec![]),
+                ]),
+                modifiers: vec![Modifier { name: None, value: Expr::Ident("1s".to_string()) }],
+                value_span: None,
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let start_bounds = vector_path_bounds(&timeline, "guide", 2000);
+    let mid_bounds = vector_path_bounds(&timeline, "guide", 2500);
+    let end_bounds = vector_path_bounds(&timeline, "guide", 3000);
+
+    assert!(report.diagnostics.is_empty());
+    assert!((mid_bounds.x0 - start_bounds.x0).abs() > 0.1);
+    assert!(mid_bounds.x0 > end_bounds.x0);
+    assert!(mid_bounds.y0 > end_bounds.y0);
+    assert!(mid_bounds.x1 < end_bounds.x1);
+}
+
+#[test]
 fn test_actor_morph_modifiers_require_timed_redeclaration() {
     let ast = vec![
         Stmt::Keyframe {

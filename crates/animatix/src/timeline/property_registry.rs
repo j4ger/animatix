@@ -126,6 +126,7 @@ pub enum ActorField {
     LineTo,
     ArcAngles,
     Points,
+    Commands,
     VectorPaths,
 
     // ── Text payload ──
@@ -280,7 +281,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     PropertySchema { name: "code",         value_type: ValueType::String,     flags: F::ANIMATED,                 field: ActorField::TextContent,        group: None,                             applicable: Applicable::ActorKinds(&[A::Code]) },
     PropertySchema { name: "color",        value_type: ValueType::Color,      flags: F::ASSIGNABLE_AI,             field: ActorField::Color,              group: None,                             applicable: Applicable::AllDrawables },
     PropertySchema { name: "cols",         value_type: ValueType::U32,        flags: F::empty(),                  field: ActorField::ContainerLayoutGroup, group: Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), applicable: Applicable::ActorKinds(&[A::Grid]) },
-    PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::empty(),                  field: ActorField::VectorShapeGroup,    group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::Never },
+    PropertySchema { name: "commands",     value_type: ValueType::CommandList,flags: F::ASSIGNABLE_A,             field: ActorField::Commands,           group: Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), applicable: Applicable::ShapeKinds(&[S::Path]) },
     PropertySchema { name: "fill_opacity", value_type: ValueType::F32,        flags: F::ASSIGNABLE_AI,             field: ActorField::FillOpacity,        group: None,                             applicable: Applicable::AllShapesExceptLine },
     PropertySchema { name: "font_family",  value_type: ValueType::String,     flags: F::ASSIGNABLE,               field: ActorField::FontFamily,          group: None,                             applicable: Applicable::ActorKinds(&[A::Text, A::Math, A::Code]) },
     PropertySchema { name: "font_size",    value_type: ValueType::F32,        flags: F::ASSIGNABLE_A,             field: ActorField::FontSize,            group: None,                             applicable: Applicable::ActorKinds(&[A::Text, A::Math, A::Code]) },

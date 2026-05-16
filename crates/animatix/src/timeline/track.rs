@@ -443,6 +443,7 @@ pub struct AnimationTrack {
     pub line_to: Option<PropertyTrack<[f32; 2]>>,
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
     pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
+    pub commands: Option<PropertyTrack<String>>,
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
 
     // ── Text / media payload (flat compat fields) ──
@@ -490,6 +491,7 @@ impl AnimationTrack {
             line_to: None,
             arc_angles: None,
             points: None,
+            commands: None,
             vector_paths: None,
 
             // Text / media flat fields
@@ -555,7 +557,7 @@ impl AnimationTrack {
             self.stroke_progress.last_time(), self.fill_opacity.last_time(),
             self.morph_options.last_time(), self.text_paths.last_time(),
             self.vector_paths.last_time(), self.image.last_time(),
-            self.points.last_time(),
+            self.points.last_time(), self.commands.last_time(),
             self.font_family.last_time(), self.font_size.last_time(),
         ];
         times.into_iter().flatten().max()

@@ -110,7 +110,7 @@ pub(crate) use property_lookup::{
 pub use shapes::{
     VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
-    finalize_vector_shape_state, shape_type_for_actor,
+    finalize_vector_shape_state, parse_path_commands_expr, shape_type_for_actor,
     vector_shape_uses_custom_path, ShapeType,
 };
 pub use svg::parse_svg;

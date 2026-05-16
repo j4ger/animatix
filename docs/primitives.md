@@ -421,7 +421,7 @@ Text/Math/Code use text-path keyframes; shapes use vector-path keyframes.
 
 Nested property targeting via dotted paths works on both sides: `left.badge.color = red` (assignment) and `copy.at = left.badge.at` (read). Component reads like `source.at.x` are supported.
 
-Geometry inputs (`Polygon.points`, `Path.commands`) are declaration-time only, not animated tracks.
+Geometry inputs (`Polygon.points`, `Path.commands`) are now fully animated tracks; assignments with duration trigger path morphing via `vector_paths` interpolation.
 
 Unsupported assignments report build diagnostics rather than silent ignore.
 
