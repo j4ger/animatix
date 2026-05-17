@@ -744,6 +744,9 @@ impl GuiShell {
         if let Some(original_label) = actions.duplicate_actor {
             self.handle_duplicate_actor(&original_label);
         }
+        if let Some((from_scene, transition)) = actions.set_transition {
+            self.handle_set_transition(&from_scene, transition);
+        }
         if let Some((old_label, new_label)) = actions.rename_actor {
             self.handle_rename_actor(&old_label, &new_label);
         }
@@ -1148,6 +1151,37 @@ impl GuiShell {
         self.selected_actors.clear();
         self.preview_dirty = true;
         self.preview.status = format!("Deleted {} actor(s)", deleted.len());
+    }
+
+    /// Update the transition on a scene's play statement.
+    fn handle_set_transition(&mut self, from_scene: &str, transition: animatix::ast::Transition) {
+        self.snapshot();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to set transition — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::SetTransition {
+            from_scene: from_scene.into(),
+            transition: Some(transition.clone()),
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+            self.preview.status = format!(
+                "Set transition on '{}' → {}ms",
+                from_scene,
+                transition.duration_ms
+            );
+        } else {
+            self.preview.status = format!("Failed to set transition on '{}'", from_scene);
+        }
     }
 
     /// Generate a unique label for a new actor of the given type.

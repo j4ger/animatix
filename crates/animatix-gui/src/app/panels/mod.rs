@@ -158,6 +158,8 @@ pub(crate) struct UiActions {
     pub(super) rename_actor: Option<(String, String)>,
     /// Duplicate an actor by label (Alt-drag). The new actor is created at the same position.
     pub(super) duplicate_actor: Option<String>,
+    /// Set transition on a scene: (from_scene, transition)
+    pub(super) set_transition: Option<(String, animatix::ast::Transition)>,
     /// Open the export dialog.
     pub(super) open_export_dialog: bool,
 }
@@ -596,24 +598,69 @@ self.selected_actors,
                     // Transition badge: show play target and transition type beneath the scene row
                     if let Some(comp) = self.composition {
                         if let Some(edge) = comp.edges.get(&scene_name) {
-                            let transition_label = if edge.transition.duration_ms > 0 {
-                                format!(
-                                    "→ {} [{} · {}ms]",
-                                    edge.to_scene,
-                                    transition_type_label(&edge.transition.transition_type),
-                                    edge.transition.duration_ms
-                                )
+                            let trans_edit_id = row_id.with("trans_edit");
+                            let is_editing_trans = ui.data(|d| d.get_temp::<bool>(trans_edit_id)).unwrap_or(false);
+
+                            if is_editing_trans {
+                                let mut new_type = transition_type_label(&edge.transition.transition_type).to_string();
+                                let mut new_duration = edge.transition.duration_ms as f64 / 1000.0;
+                                ui.horizontal(|ui| {
+                                    ui.add_space(24.0);
+                                    egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
+                                        .width(100.0)
+                                        .selected_text(&new_type)
+                                        .show_ui(ui, |ui| {
+                                            for ty in &["cut", "fade", "wipe-left", "wipe-right", "wipe-up", "wipe-down"] {
+                                                ui.selectable_value(&mut new_type, ty.to_string(), *ty);
+                                            }
+                                        });
+                                    ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").clamp_range(0.0..=10.0));
+                                    if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                        let tt = match new_type.as_str() {
+                                            "cut" => animatix::ast::TransitionType::Cut,
+                                            "fade" => animatix::ast::TransitionType::Fade,
+                                            "wipe-left" => animatix::ast::TransitionType::WipeLeft,
+                                            "wipe-right" => animatix::ast::TransitionType::WipeRight,
+                                            "wipe-up" => animatix::ast::TransitionType::WipeUp,
+                                            "wipe-down" => animatix::ast::TransitionType::WipeDown,
+                                            _ => animatix::ast::TransitionType::Fade,
+                                        };
+                                        self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
+                                            transition_type: tt,
+                                            duration_ms: (new_duration * 1000.0).round() as u64,
+                                        }));
+                                        ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
+                                    }
+                                    if ui.button("✕").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                                        ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
+                                    }
+                                });
                             } else {
-                                format!("→ {}", edge.to_scene)
-                            };
-                            ui.horizontal(|ui| {
-                                ui.add_space(24.0);
-                                ui.label(
-                                    RichText::new(transition_label)
-                                        .size(FONT_SIZE_S)
-                                        .color(TEXT_MUTED),
-                                );
-                            });
+                                let transition_label = if edge.transition.duration_ms > 0 {
+                                    format!(
+                                        "→ {} [{} · {}ms]",
+                                        edge.to_scene,
+                                        transition_type_label(&edge.transition.transition_type),
+                                        edge.transition.duration_ms
+                                    )
+                                } else {
+                                    format!("→ {}", edge.to_scene)
+                                };
+                                let trans_response = ui.horizontal(|ui| {
+                                    ui.add_space(24.0);
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(transition_label)
+                                                .size(FONT_SIZE_S)
+                                                .color(TEXT_MUTED),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    )
+                                });
+                                if trans_response.inner.clicked() {
+                                    ui.data_mut(|d| d.insert_temp(trans_edit_id, true));
+                                }
+                            }
                         }
                     }
                 }
