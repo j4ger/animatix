@@ -107,6 +107,7 @@ pub struct TransitionBlend {
     /// 0.0 = fully from, 1.0 = fully to
     pub progress: f64,
     pub transition_type: TransitionType,
+    pub easing: crate::easing::Easing,
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +275,7 @@ impl Composition {
                         transition: transition.clone().unwrap_or(Transition {
                             transition_type: TransitionType::Cut,
                             duration_ms: 0,
+                            easing: crate::easing::Easing::Linear,
                         }),
                     },
                 );
@@ -368,6 +370,9 @@ impl Composition {
             let transition_duration_s = edge
                 .map(|e| e.transition.duration_ms as f64 / 1000.0)
                 .unwrap_or(0.0);
+            let easing = edge
+                .map(|e| e.transition.easing)
+                .unwrap_or(crate::easing::Easing::Linear);
 
             let progress = if transition_duration_s > 0.0 {
                 ((t - to_start) / transition_duration_s).clamp(0.0, 1.0)
@@ -383,6 +388,7 @@ impl Composition {
                     to_scene: to_name.clone(),
                     progress,
                     transition_type,
+                    easing,
                 }),
             )
         } else if let Some((name, start, _end)) = active.first() {

@@ -242,6 +242,17 @@ pub struct Action {
 pub struct Transition {
     pub transition_type: TransitionType,
     pub duration_ms: u64,
+    pub easing: crate::easing::Easing,
+}
+
+impl Default for Transition {
+    fn default() -> Self {
+        Self {
+            transition_type: TransitionType::Cut,
+            duration_ms: 0,
+            easing: crate::easing::Easing::Linear,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

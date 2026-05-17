@@ -21,17 +21,10 @@ The inspector displays `"[N pts]"` as a read-only label. A popup point table was
 
 ### 1.2 Multi-Scene GUI: Scene List & Composition Timeline
 
-**Status:** Partially implemented. Scene list and transition visualization exist; drag-to-reorder and transition editing deferred.
+**Status:** Completed. Scene list with transitions, transport bar overlays, drag-to-reorder, inline transition editing, and click-to-jump.
 **Location:** `crates/animatix-gui/src/app/panels/`, `crates/animatix-gui/src/app/shell/transport_bar.rs`.
 
-The sidebar Scenes tab now displays each scene's play target and transition type/duration beneath the scene name. The transport bar scrubber shows transition overlap regions as semi-transparent stripes with transition-type labels.
-
-**Remaining:**
-- Drag-to-reorder scenes in the sidebar scene list
-- Edit transition type/duration directly in the scene list or transport bar
-- Click a scene block in the transport bar to jump to that scene
-
-**Completed:** Scene list with transitions, transport bar transition overlays.
+The sidebar Scenes tab displays each scene's play target and transition type/duration beneath the scene name, with inline editing (click the transition badge). The transport bar scrubber shows transition overlap regions and supports clicking scene blocks to jump. Scenes can be reordered via drag handles.
 
 ---
 
@@ -49,7 +42,7 @@ The preview drag system uses a state-machine (`DragState` enum) supporting move,
 
 ## 4. Scene Transitions
 
-**Status:** Visual blending implemented (fade + 4 wipe directions). Easing curves pending.
+**Status:** Visual blending implemented (fade + 4 wipe directions). Easing curves applied.
 
 ### 4.1 Phase 7: Visual Transition Blending
 
@@ -62,10 +55,7 @@ Render Scene B → Texture B
 Composite Pass  → Fullscreen quad shader mixes A/B based on progress + transition type
 ```
 
-**Remaining:**
-- Apply easing curves to transition progress (currently linear)
-
-**Completed:** Dual offscreen targets, `TransitionCompositor` WGSL shader, video export integration, GUI preview integration, chunk boundary handling, background blending.
+**Completed:** Dual offscreen targets, `TransitionCompositor` WGSL shader, video export integration, GUI preview integration, chunk boundary handling, background blending, easing curves (linear, ease-in/out, bounce, elastic, back, expo).
 
 ---
 

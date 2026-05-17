@@ -508,6 +508,7 @@ where
                             to_local,
                             blend.progress as f32,
                             blend.transition_type,
+                            blend.easing,
                             dims,
                             debug_options,
                         )
@@ -1569,6 +1570,7 @@ async fn render_image_composition_async(
                 to_local,
                 blend.progress as f32,
                 blend.transition_type,
+                blend.easing,
                 dims,
                 debug_options,
             )

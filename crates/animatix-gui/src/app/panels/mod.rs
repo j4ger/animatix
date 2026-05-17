@@ -604,10 +604,11 @@ self.selected_actors,
                             if is_editing_trans {
                                 let mut new_type = transition_type_label(&edge.transition.transition_type).to_string();
                                 let mut new_duration = edge.transition.duration_ms as f64 / 1000.0;
+                                let mut new_easing = format!("{:?}", edge.transition.easing).to_lowercase();
                                 ui.horizontal(|ui| {
                                     ui.add_space(24.0);
                                     egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
-                                        .width(100.0)
+                                        .width(90.0)
                                         .selected_text(&new_type)
                                         .show_ui(ui, |ui| {
                                             for ty in &["cut", "fade", "wipe-left", "wipe-right", "wipe-up", "wipe-down"] {
@@ -615,6 +616,14 @@ self.selected_actors,
                                             }
                                         });
                                     ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").clamp_range(0.0..=10.0));
+                                    egui::ComboBox::from_id_salt(trans_edit_id.with("easing"))
+                                        .width(90.0)
+                                        .selected_text(&new_easing)
+                                        .show_ui(ui, |ui| {
+                                            for e in &["linear", "easein", "easeout", "easeinout", "bounce", "elastic", "back", "expo"] {
+                                                ui.selectable_value(&mut new_easing, e.to_string(), *e);
+                                            }
+                                        });
                                     if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                                         let tt = match new_type.as_str() {
                                             "cut" => animatix::ast::TransitionType::Cut,
@@ -625,9 +634,21 @@ self.selected_actors,
                                             "wipe-down" => animatix::ast::TransitionType::WipeDown,
                                             _ => animatix::ast::TransitionType::Fade,
                                         };
+                                        let easing = match new_easing.as_str() {
+                                            "linear" => animatix::easing::Easing::Linear,
+                                            "easein" => animatix::easing::Easing::EaseIn,
+                                            "easeout" => animatix::easing::Easing::EaseOut,
+                                            "easeinout" => animatix::easing::Easing::EaseInOut,
+                                            "bounce" => animatix::easing::Easing::Bounce,
+                                            "elastic" => animatix::easing::Easing::Elastic,
+                                            "back" => animatix::easing::Easing::Back,
+                                            "expo" => animatix::easing::Easing::Expo,
+                                            _ => animatix::easing::Easing::Linear,
+                                        };
                                         self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
                                             transition_type: tt,
                                             duration_ms: (new_duration * 1000.0).round() as u64,
+                                            easing,
                                         }));
                                         ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
                                     }

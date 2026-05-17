@@ -181,6 +181,7 @@ impl OffscreenRenderer {
         to_time: f64,
         progress: f32,
         transition_type: TransitionType,
+        easing: crate::easing::Easing,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
@@ -234,6 +235,7 @@ impl OffscreenRenderer {
             dimensions.height,
             progress,
             transition_type,
+            easing,
         ).map_err(|e| e.to_string())?;
 
         self.readback_output(dimensions)

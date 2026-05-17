@@ -224,7 +224,7 @@ impl TransitionCompositor {
     }
 
     /// Composite two scene textures into the output texture using the given
-    /// transition progress and type.
+    /// transition progress, type, and easing.
     pub fn render(
         &self,
         device: &wgpu::Device,
@@ -236,9 +236,12 @@ impl TransitionCompositor {
         _height: u32,
         progress: f32,
         transition_type: TransitionType,
+        easing: crate::easing::Easing,
     ) -> Result<(), String> {
+        // Apply easing to progress
+        let eased_progress = crate::easing::apply_easing(progress, easing);
         // Update uniform buffer
-        let uniforms = TransitionUniforms::new(progress, transition_type);
+        let uniforms = TransitionUniforms::new(eased_progress, transition_type);
         queue.write_buffer(
             &self.uniform_buffer,
             0,

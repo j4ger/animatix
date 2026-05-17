@@ -315,6 +315,7 @@ impl PreviewSurface {
                     self.dimensions.height,
                     blend.progress as f32,
                     blend.transition_type,
+                    blend.easing,
                 ).map_err(|e| e.to_string())?;
 
                 // Copy composite result to sample texture

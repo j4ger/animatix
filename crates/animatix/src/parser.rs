@@ -1199,6 +1199,7 @@ fn parse_transition_from_modifiers(modifiers: &[Modifier]) -> Option<crate::ast:
     transition_type.map(|tt| crate::ast::Transition {
         transition_type: tt,
         duration_ms,
+        easing: crate::easing::Easing::Linear,
     })
 }
 
