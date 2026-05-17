@@ -183,6 +183,7 @@ pub(crate) fn transport_bar_ui(
                     scrubber_width.max(120.0),
                     cursor_time_s,
                     composition,
+                    actions,
                 ) {
                     actions.scrub_to = Some(scrub);
                 }
@@ -342,6 +343,7 @@ fn paint_transport_scrubber(
     width: f32,
     cursor_time_s: Option<f64>,
     composition: Option<&Composition>,
+    actions: &mut UiActions,
 ) -> bool {
     let height = ROW_S;
     let desired_size = Vec2::new(width.max(120.0), height);
@@ -513,7 +515,32 @@ fn paint_transport_scrubber(
     );
 
     // Interaction
-    if response.clicked() || response.dragged() {
+    if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            // Check if click landed on a scene block
+            if let Some(composition) = composition {
+                let total = duration_s.max(0.1);
+                for scene_name in &composition.declaration_order {
+                    let Some(scene) = composition.scenes.get(scene_name) else { continue };
+                    let Some(start_s) = composition.scene_start_times.get(scene_name).copied() else { continue };
+                    let end_s = (start_s + scene.duration_s).min(total);
+                    let left = egui::lerp(track_rect.left()..=track_rect.right(), (start_s / total).clamp(0.0, 1.0) as f32);
+                    let right = egui::lerp(track_rect.left()..=track_rect.right(), (end_s / total).clamp(0.0, 1.0) as f32);
+                    if pos.x >= left && pos.x <= right && pos.y >= track_rect.top() && pos.y <= track_rect.bottom() {
+                        actions.select_scene = Some(scene_name.clone());
+                        *current_time_s = start_s;
+                        return true;
+                    }
+                }
+            }
+            *current_time_s = crate::app::preview::time_from_pointer_x(
+                track_rect,
+                pos.x,
+                duration_s,
+            );
+            return true;
+        }
+    } else if response.dragged() {
         if let Some(pos) = response.interact_pointer_pos() {
             *current_time_s = crate::app::preview::time_from_pointer_x(
                 track_rect,
