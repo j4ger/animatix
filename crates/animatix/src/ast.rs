@@ -240,7 +240,8 @@ pub struct Action {
 /// Scene transition descriptor for the `play` statement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transition {
-    pub transition_type: TransitionType,
+    /// Transition ID from the registry (e.g. "fade", "wipe-left").
+    pub id: String,
     pub duration_ms: u64,
     pub easing: crate::easing::Easing,
 }
@@ -248,21 +249,11 @@ pub struct Transition {
 impl Default for Transition {
     fn default() -> Self {
         Self {
-            transition_type: TransitionType::Cut,
+            id: "cut".into(),
             duration_ms: 0,
             easing: crate::easing::Easing::Linear,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TransitionType {
-    Cut,
-    Fade,
-    WipeLeft,
-    WipeRight,
-    WipeUp,
-    WipeDown,
 }
 
 // ----------------------------------------------------------------------------

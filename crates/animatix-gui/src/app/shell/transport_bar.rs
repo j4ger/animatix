@@ -425,7 +425,7 @@ fn paint_transport_scrubber(
             // Transition label if wide enough
             let width = overlap_rect.width();
             if width > 40.0 {
-                let label = format!("{}", transition_type_label(&edge.transition.transition_type));
+                let label = format!("{}", transition_type_label(&edge.transition.id));
                 painter.text(
                     overlap_rect.center(),
                     Align2::CENTER_CENTER,
@@ -554,13 +554,6 @@ fn paint_transport_scrubber(
     false
 }
 
-fn transition_type_label(tt: &animatix::ast::TransitionType) -> &'static str {
-    match tt {
-        animatix::ast::TransitionType::Cut => "cut",
-        animatix::ast::TransitionType::Fade => "fade",
-        animatix::ast::TransitionType::WipeLeft => "wipe-left",
-        animatix::ast::TransitionType::WipeRight => "wipe-right",
-        animatix::ast::TransitionType::WipeUp => "wipe-up",
-        animatix::ast::TransitionType::WipeDown => "wipe-down",
-    }
+fn transition_type_label(id: &str) -> &'static str {
+    animatix::transition_registry::display_name(id)
 }

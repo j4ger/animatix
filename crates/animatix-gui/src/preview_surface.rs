@@ -314,7 +314,7 @@ impl PreviewSurface {
                     self.dimensions.width,
                     self.dimensions.height,
                     blend.progress as f32,
-                    blend.transition_type,
+                    &blend.id,
                     blend.easing,
                 ).map_err(|e| e.to_string())?;
 

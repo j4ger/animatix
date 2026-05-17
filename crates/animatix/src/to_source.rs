@@ -256,22 +256,9 @@ impl ToSource for ComponentDef {
     }
 }
 
-impl ToSource for TransitionType {
-    fn to_source(&self) -> String {
-        match self {
-            TransitionType::Cut => "cut".into(),
-            TransitionType::Fade => "fade".into(),
-            TransitionType::WipeLeft => "wipe-left".into(),
-            TransitionType::WipeRight => "wipe-right".into(),
-            TransitionType::WipeUp => "wipe-up".into(),
-            TransitionType::WipeDown => "wipe-down".into(),
-        }
-    }
-}
-
 impl ToSource for Transition {
     fn to_source(&self) -> String {
-        let mut parts = vec![self.transition_type.to_source()];
+        let mut parts = vec![self.id.clone()];
         if self.duration_ms > 0 {
             parts.push(format!("{}ms", self.duration_ms));
         }

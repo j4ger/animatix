@@ -13,15 +13,8 @@ fn default_actor_type() -> &'static str {
         .unwrap_or("Rect")
 }
 
-fn transition_type_label(tt: &animatix::ast::TransitionType) -> &'static str {
-    match tt {
-        animatix::ast::TransitionType::Cut => "cut",
-        animatix::ast::TransitionType::Fade => "fade",
-        animatix::ast::TransitionType::WipeLeft => "wipe-left",
-        animatix::ast::TransitionType::WipeRight => "wipe-right",
-        animatix::ast::TransitionType::WipeUp => "wipe-up",
-        animatix::ast::TransitionType::WipeDown => "wipe-down",
-    }
+fn transition_type_label(id: &str) -> &'static str {
+    animatix::transition_registry::display_name(id)
 }
 
 use crate::app::components;
@@ -602,17 +595,17 @@ self.selected_actors,
                             let is_editing_trans = ui.data(|d| d.get_temp::<bool>(trans_edit_id)).unwrap_or(false);
 
                             if is_editing_trans {
-                                let mut new_type = transition_type_label(&edge.transition.transition_type).to_string();
+                                let mut new_type = edge.transition.id.clone();
                                 let mut new_duration = edge.transition.duration_ms as f64 / 1000.0;
                                 let mut new_easing = format!("{:?}", edge.transition.easing).to_lowercase();
                                 ui.horizontal(|ui| {
                                     ui.add_space(24.0);
                                     egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
                                         .width(90.0)
-                                        .selected_text(&new_type)
+                                        .selected_text(animatix::transition_registry::display_name(&new_type))
                                         .show_ui(ui, |ui| {
-                                            for ty in &["cut", "fade", "wipe-left", "wipe-right", "wipe-up", "wipe-down"] {
-                                                ui.selectable_value(&mut new_type, ty.to_string(), *ty);
+                                            for def in animatix::transition_registry::REGISTRY {
+                                                ui.selectable_value(&mut new_type, def.id.to_string(), def.display_name);
                                             }
                                         });
                                     ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").clamp_range(0.0..=10.0));
@@ -625,15 +618,6 @@ self.selected_actors,
                                             }
                                         });
                                     if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                        let tt = match new_type.as_str() {
-                                            "cut" => animatix::ast::TransitionType::Cut,
-                                            "fade" => animatix::ast::TransitionType::Fade,
-                                            "wipe-left" => animatix::ast::TransitionType::WipeLeft,
-                                            "wipe-right" => animatix::ast::TransitionType::WipeRight,
-                                            "wipe-up" => animatix::ast::TransitionType::WipeUp,
-                                            "wipe-down" => animatix::ast::TransitionType::WipeDown,
-                                            _ => animatix::ast::TransitionType::Fade,
-                                        };
                                         let easing = match new_easing.as_str() {
                                             "linear" => animatix::easing::Easing::Linear,
                                             "easein" => animatix::easing::Easing::EaseIn,
@@ -646,7 +630,7 @@ self.selected_actors,
                                             _ => animatix::easing::Easing::Linear,
                                         };
                                         self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
-                                            transition_type: tt,
+                                            id: new_type,
                                             duration_ms: (new_duration * 1000.0).round() as u64,
                                             easing,
                                         }));
@@ -661,7 +645,7 @@ self.selected_actors,
                                     format!(
                                         "→ {} [{} · {}ms]",
                                         edge.to_scene,
-                                        transition_type_label(&edge.transition.transition_type),
+                                        transition_type_label(&edge.transition.id),
                                         edge.transition.duration_ms
                                     )
                                 } else {

@@ -1495,7 +1495,7 @@ btn.position = (200, 100)"#);
             &mut stmts,
             SourceEdit::SetTransition {
                 from_scene: "Intro".into(),
-                transition: Some(Transition { transition_type: animatix::ast::TransitionType::Fade, duration_ms: 300 }),
+                transition: Some(Transition { id: "fade".into(), duration_ms: 300, easing: animatix::easing::Easing::Linear }),
             }
         ));
         assert!(stmts_to_source(&stmts).contains("play Outro [fade, 300ms]"));

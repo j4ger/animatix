@@ -59,54 +59,19 @@ Composite Pass  → Fullscreen quad shader mixes A/B based on progress + transit
 
 ---
 
-### 4.2 Extensible Transition System (Option A)
+### 4.2 Extensible Transition System
 
-**Goal:** Replace hardcoded `TransitionType` enum with a plugin-style registry so new transitions can be added without touching the parser, renderer, or GUI.
+**Status:** Implemented. `TransitionType` enum replaced with `Transition.id: String`. `transition_registry::REGISTRY` is the single source of truth.
 
-**Problem:** Adding "slide" requires changing enum, parser match arms, shader switch cases, and GUI dropdowns.
+**Registry:** `crates/animatix/src/transition_registry.rs` defines `TransitionDef { id, display_name, default_duration_ms, shader_case }`. Adding a new transition only requires adding an entry to `REGISTRY` and a corresponding shader case.
 
-**Design:**
+**Parser:** Uses `transition_registry::find()` for generic ID lookup instead of hardcoded match arms.
 
-```rust
-// Transition becomes ID + parameters
-pub struct Transition {
-    pub id: String,                    // "fade", "wipe", "slide", "custom"
-    pub duration_ms: u64,
-    pub params: Vec<(String, Expr)>,   // ("direction", "left"), ("blur", 10)
-    pub easing: Easing,
-}
+**Renderer:** `TransitionCompositor::render` takes `transition_id: &str` and maps to shader case via `transition_registry::shader_case()`.
 
-// Registry-driven definitions
-pub struct TransitionDef {
-    pub id: &'static str,
-    pub display_name: &'static str,
-    pub params: &'static [TransitionParam],
-    pub default_duration_ms: u64,
-}
+**GUI:** Dropdowns auto-generate from `REGISTRY` — no GUI code changes needed for new transitions.
 
-// Parser becomes generic
-// play Scene [wipe, direction: left, 500ms]
-// play Scene [slide, direction: up, distance: 50, 400ms]
-```
-
-**Benefits:**
-- Add transitions by registering a `TransitionDef` + shader snippet
-- Transitions can have custom parameters (direction, distance, blur amount)
-- GUI dropdown auto-generates from registry
-- Analyzer completions auto-generate from registry
-
-**Implementation:**
-1. Replace `TransitionType` enum with `Transition.id: String`
-2. Build `TRANSITION_REGISTRY` with schema for each transition
-3. Update parser to generic param parsing
-4. Update renderer to data-driven shader (transition ID → shader case)
-5. Update composition engine to use `id` instead of enum
-
-**Files:** `ast.rs`, `parser.rs`, `composition.rs`, `renderer/transition.rs`, `renderer/video.rs`, `preview_surface.rs`
-
-**Effort:** 3–4 days.
-
-**Dependencies:** Blocked by 4.1 (Phase 7 must land first).
+**Files:** `ast.rs`, `parser.rs`, `composition.rs`, `renderer/transition.rs`, `renderer/offscreen.rs`, `renderer/video.rs`, `preview_surface.rs`, GUI panels.
 
 ---
 

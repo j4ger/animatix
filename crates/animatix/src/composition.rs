@@ -8,7 +8,7 @@
 //! `Timeline::build_with_diagnostics` path — this module is only activated
 //! when `Stmt::Scene` markers are present in the parsed AST.
 
-use crate::ast::{Property, Span, Stmt, Transition, TransitionType};
+use crate::ast::{Property, Span, Stmt, Transition};
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
 use crate::module::Namespace;
@@ -106,7 +106,7 @@ pub struct TransitionBlend {
     pub to_scene: String,
     /// 0.0 = fully from, 1.0 = fully to
     pub progress: f64,
-    pub transition_type: TransitionType,
+    pub id: String,
     pub easing: crate::easing::Easing,
 }
 
@@ -273,7 +273,7 @@ impl Composition {
                     SceneEdge {
                         to_scene: target.clone(),
                         transition: transition.clone().unwrap_or(Transition {
-                            transition_type: TransitionType::Cut,
+                            id: "cut".into(),
                             duration_ms: 0,
                             easing: crate::easing::Easing::Linear,
                         }),
@@ -364,9 +364,9 @@ impl Composition {
             let _to_local = t - to_start;
 
             let edge = self.edges.get(from_name);
-            let transition_type = edge
-                .map(|e| e.transition.transition_type.clone())
-                .unwrap_or(TransitionType::Cut);
+            let id = edge
+                .map(|e| e.transition.id.clone())
+                .unwrap_or_else(|| "cut".into());
             let transition_duration_s = edge
                 .map(|e| e.transition.duration_ms as f64 / 1000.0)
                 .unwrap_or(0.0);
@@ -387,7 +387,7 @@ impl Composition {
                     from_scene: from_name.clone(),
                     to_scene: to_name.clone(),
                     progress,
-                    transition_type,
+                    id,
                     easing,
                 }),
             )
@@ -616,7 +616,7 @@ mod tests {
         assert!(comp.edges.contains_key("Intro"));
         let edge = comp.edges.get("Intro").unwrap();
         assert_eq!(edge.to_scene, "Diagram");
-        assert_eq!(edge.transition.transition_type, TransitionType::Fade);
+        assert_eq!(edge.transition.id, "fade");
         assert_eq!(edge.transition.duration_ms, 300);
 
         // With 300ms transition, Diagram should overlap by 0.3s

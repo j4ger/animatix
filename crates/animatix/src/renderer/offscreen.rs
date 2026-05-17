@@ -1,6 +1,5 @@
 use super::core::RendererCore;
 use super::transition::TransitionCompositor;
-use crate::ast::TransitionType;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 #[derive(Debug, Clone)]
@@ -180,7 +179,7 @@ impl OffscreenRenderer {
         to_timeline: &Timeline,
         to_time: f64,
         progress: f32,
-        transition_type: TransitionType,
+        transition_id: String,
         easing: crate::easing::Easing,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
@@ -234,7 +233,7 @@ impl OffscreenRenderer {
             dimensions.width,
             dimensions.height,
             progress,
-            transition_type,
+            &transition_id,
             easing,
         ).map_err(|e| e.to_string())?;
 

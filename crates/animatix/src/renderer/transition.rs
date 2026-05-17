@@ -1,4 +1,3 @@
-use crate::ast::TransitionType;
 use std::borrow::Cow;
 
 /// GPU-based compositor for scene transition effects.
@@ -22,23 +21,12 @@ struct TransitionUniforms {
 }
 
 impl TransitionUniforms {
-    fn new(progress: f32, transition_type: TransitionType) -> Self {
+    fn new(progress: f32, transition_id: &str) -> Self {
         Self {
             progress: progress.clamp(0.0, 1.0),
-            transition_type: transition_type_as_u32(transition_type),
+            transition_type: crate::transition_registry::shader_case(transition_id),
             _padding: [0.0; 2],
         }
-    }
-}
-
-fn transition_type_as_u32(tt: TransitionType) -> u32 {
-    match tt {
-        TransitionType::Cut => 0,
-        TransitionType::Fade => 1,
-        TransitionType::WipeLeft => 2,
-        TransitionType::WipeRight => 3,
-        TransitionType::WipeUp => 4,
-        TransitionType::WipeDown => 5,
     }
 }
 
@@ -235,13 +223,13 @@ impl TransitionCompositor {
         _width: u32,
         _height: u32,
         progress: f32,
-        transition_type: TransitionType,
+        transition_id: &str,
         easing: crate::easing::Easing,
     ) -> Result<(), String> {
         // Apply easing to progress
         let eased_progress = crate::easing::apply_easing(progress, easing);
         // Update uniform buffer
-        let uniforms = TransitionUniforms::new(eased_progress, transition_type);
+        let uniforms = TransitionUniforms::new(eased_progress, transition_id);
         queue.write_buffer(
             &self.uniform_buffer,
             0,

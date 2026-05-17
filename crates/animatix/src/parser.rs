@@ -1162,21 +1162,15 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
 /// The first bare identifier (not a time) is the transition type.
 /// The first time literal is the duration.
 fn parse_transition_from_modifiers(modifiers: &[Modifier]) -> Option<crate::ast::Transition> {
-    let mut transition_type: Option<crate::ast::TransitionType> = None;
+    let mut transition_id: Option<String> = None;
     let mut duration_ms: u64 = 0;
 
     for m in modifiers {
         match (&m.name, &m.value) {
-            (None, Expr::Ident(name)) if transition_type.is_none() => {
-                transition_type = match name.as_str() {
-                    "cut" => Some(crate::ast::TransitionType::Cut),
-                    "fade" => Some(crate::ast::TransitionType::Fade),
-                    "wipe-left" => Some(crate::ast::TransitionType::WipeLeft),
-                    "wipe-right" => Some(crate::ast::TransitionType::WipeRight),
-                    "wipe-up" => Some(crate::ast::TransitionType::WipeUp),
-                    "wipe-down" => Some(crate::ast::TransitionType::WipeDown),
-                    _ => None,
-                };
+            (None, Expr::Ident(name)) if transition_id.is_none() => {
+                if crate::transition_registry::find(name).is_some() {
+                    transition_id = Some(name.clone());
+                }
             }
             (None, Expr::Ident(name)) if name.ends_with("ms") => {
                 if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {
@@ -1196,8 +1190,8 @@ fn parse_transition_from_modifiers(modifiers: &[Modifier]) -> Option<crate::ast:
         }
     }
 
-    transition_type.map(|tt| crate::ast::Transition {
-        transition_type: tt,
+    transition_id.map(|id| crate::ast::Transition {
+        id,
         duration_ms,
         easing: crate::easing::Easing::Linear,
     })
