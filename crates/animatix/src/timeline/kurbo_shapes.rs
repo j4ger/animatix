@@ -5,12 +5,11 @@
 //!
 //! Supported shapes:
 //! - Rect: axis-aligned rectangle with min/max coordinates
-//! - RoundedRect: rectangle with rounded corners (uniform or per-corner radii)
 //! - Line: simple two-point line segment
 //! - Ellipse: parametric ellipse with rotation
 //! - Arc: elliptical arc with sweep angle
 
-use kurbo::{Arc, BezPath, Ellipse, Line, Point, Rect, RoundedRect, Shape, Vec2};
+use kurbo::{Arc, BezPath, Ellipse, Line, Point, Rect, Shape, Vec2};
 
 /// Default tolerance for curve approximation
 /// Controls accuracy when converting curves to bezier segments
@@ -21,24 +20,6 @@ pub const DEFAULT_TOLERANCE: f64 = 0.1;
 pub enum KurboShape {
     /// Axis-aligned rectangle defined by min and max coordinates
     Rect { x0: f64, y0: f64, x1: f64, y1: f64 },
-
-    /// Rectangle with uniform corner radius
-    RectUniform {
-        x0: f64,
-        y0: f64,
-        x1: f64,
-        y1: f64,
-        radius: f64,
-    },
-
-    /// Rectangle with per-corner radii (top-left, top-right, bottom-right, bottom-left)
-    RectRadii {
-        x0: f64,
-        y0: f64,
-        x1: f64,
-        y1: f64,
-        radii: (f64, f64, f64, f64),
-    },
 
     /// Line segment from start to end point
     Line { p0: Point, p1: Point },
@@ -70,34 +51,6 @@ impl KurboShape {
     /// Create a rectangle from min and max coordinates
     pub fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         KurboShape::Rect { x0, y0, x1, y1 }
-    }
-
-    /// Create a rectangle with uniform corner radius
-    pub fn rounded_rect(x0: f64, y0: f64, x1: f64, y1: f64, radius: f64) -> Self {
-        KurboShape::RectUniform {
-            x0,
-            y0,
-            x1,
-            y1,
-            radius,
-        }
-    }
-
-    /// Create a rectangle with per-corner radii (clockwise from top-left)
-    pub fn rounded_rect_radii(
-        x0: f64,
-        y0: f64,
-        x1: f64,
-        y1: f64,
-        radii: (f64, f64, f64, f64),
-    ) -> Self {
-        KurboShape::RectRadii {
-            x0,
-            y0,
-            x1,
-            y1,
-            radii,
-        }
     }
 
     /// Create a line segment
@@ -183,20 +136,6 @@ impl KurboShape {
             KurboShape::Rect { x0, y0, x1, y1 } => {
                 Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
             }
-            KurboShape::RectUniform {
-                x0,
-                y0,
-                x1,
-                y1,
-                radius,
-            } => RoundedRect::new(*x0, *y0, *x1, *y1, *radius).into_path(tolerance),
-            KurboShape::RectRadii {
-                x0,
-                y0,
-                x1,
-                y1,
-                radii,
-            } => RoundedRect::new(*x0, *y0, *x1, *y1, *radii).into_path(tolerance),
             KurboShape::Line { p0, p1 } => Line::new(*p0, *p1).into_path(tolerance),
             KurboShape::Ellipse {
                 center,
@@ -282,25 +221,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rounded_rect_uniform() {
-        let rect = KurboShape::rounded_rect(0.0, 0.0, 100.0, 100.0, 10.0);
-        let path = rect.to_path_default();
-
-        // RoundedRect should convert to path with curves
-        assert!(!path.elements().is_empty());
-    }
-
-    #[test]
-    fn test_rounded_rect_radii() {
-        let radii = (10.0, 15.0, 20.0, 25.0);
-        let rect = KurboShape::rounded_rect_radii(0.0, 0.0, 100.0, 100.0, radii);
-        let path = rect.to_path_default();
-
-        // RoundedRect with per-corner radii should convert to valid path
-        assert!(!path.elements().is_empty());
-    }
-
-    #[test]
     fn test_line_conversion() {
         let line = KurboShape::line(Point::new(0.0, 0.0), Point::new(100.0, 100.0));
         let path = line.to_path_default();
@@ -373,21 +293,7 @@ mod tests {
         assert!(!morphed.elements().is_empty());
     }
 
-    #[test]
-    fn test_rect_to_rounded_rect_morph() {
-        let rect = KurboShape::rect(0.0, 0.0, 100.0, 100.0);
-        let rounded_rect = KurboShape::rounded_rect(0.0, 0.0, 100.0, 100.0, 20.0);
 
-        // Morphing square to rounded square should work
-        let morphed_start = morph_kurbo_shapes_default(&rect, &rounded_rect, 0.0);
-        let morphed_mid = morph_kurbo_shapes_default(&rect, &rounded_rect, 0.5);
-        let morphed_end = morph_kurbo_shapes_default(&rect, &rounded_rect, 1.0);
-
-        // All morph stages should be valid
-        assert!(!morphed_start.elements().is_empty());
-        assert!(!morphed_mid.elements().is_empty());
-        assert!(!morphed_end.elements().is_empty());
-    }
 
     #[test]
     fn test_tolerance_parameter() {

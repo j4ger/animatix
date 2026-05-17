@@ -29,45 +29,9 @@ The runtime supports multi-scene composition (`# SceneName`, `play SceneName [tr
 
 ---
 
-### 1.3 Image / Svg Source Assignment
-
-**Status:** Re-declaration required. Property assignment not yet supported.
-
-Changing `Image.url` or `Svg.url` currently requires a full actor re-declaration at a keyframe. Direct assignment (`photo.url = "new.png"`) is not supported.
-
-**Effort:** Low–Medium.
-
----
-
 ## 2. Architecture / Cleanup Debt
 
-### 2.1 Docs Out of Sync with Unified Primitives
-
-**Status:** `spec.md`, `primitives.md`, and `contributing.md` still reference deleted types (`Circle`, `Dot`, `Arc`, `Arrow`, `Square`, `RegularPolygon`).
-
-The primitives were unified (11 → 5: `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`) but docs still describe the old surface.
-
-**Effort:** Low.
-
----
-
-### 2.2 `KurboShape` Dead Variants
-
-**Status:** `RectUniform` and `RectRadii` variants exist but are never constructed in production or tests.
-
-These were intended for corner rounding on `Rect` but are unused. Either wire them to a `radius` property or remove them.
-
-**Effort:** Low.
-
----
-
-### 2.3 `ShapeKind` / `ShapeType` Duality
-
-**Status:** Two enums cover the same 5 shape variants.
-
-`ShapeKind` (in `track.rs`) categorizes actors; `ShapeType` (in `shapes/mod.rs`) is an animatable property value. Consider a `From<ShapeType> for ShapeKind` impl to reduce manual mapping duplication.
-
-**Effort:** Low.
+*(Currently clear.)*
 
 ---
 
@@ -105,8 +69,6 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Docs sync with unified primitives (2.1) | Low | High |
-| 2 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
-| 3 | GUI Inspector: point / path command editors (1.1) | High | Medium |
-| 4 | `KurboShape` dead variant cleanup (2.2) | Low | Low |
-| 5 | Green tree / trivia AST (3.2) | Very High | Low (polish) |
+| 1 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
+| 2 | GUI Inspector: point / path command editors (1.1) | High | Medium |
+| 3 | Green tree / trivia AST (3.2) | Very High | Low (polish) |

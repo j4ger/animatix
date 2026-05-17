@@ -69,6 +69,19 @@ pub enum ShapeKind {
     Rect, Ellipse, Line, Polygon, Path,
 }
 
+impl From<super::shapes::ShapeType> for ShapeKind {
+    fn from(st: super::shapes::ShapeType) -> Self {
+        match st {
+            super::shapes::ShapeType::Rect => Self::Rect,
+            super::shapes::ShapeType::Ellipse => Self::Ellipse,
+            super::shapes::ShapeType::Line => Self::Line,
+            super::shapes::ShapeType::Polygon => Self::Polygon,
+            super::shapes::ShapeType::Path => Self::Path,
+            _ => Self::Rect,
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Actor kind metadata registry
 // ─────────────────────────────────────────────────────────────
