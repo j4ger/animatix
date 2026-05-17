@@ -219,6 +219,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 }
 
 /// Build graph axis VelloPaths (X and Y axes).
+/// Omits an axis entirely when zero is not in its domain.
 pub(super) fn build_graph_axis_paths(
     size: [f32; 2],
     x_domain: [f64; 2],
@@ -226,21 +227,24 @@ pub(super) fn build_graph_axis_paths(
     axis_color: [f32; 4],
 ) -> Vec<VelloPath> {
     let mut path = kurbo::BezPath::new();
-    let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-        size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
-    } else {
-        size[1] as f64
-    };
-    path.move_to((-(size[0] as f64), x_axis_y));
-    path.line_to((size[0] as f64, x_axis_y));
 
-    let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-        size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]))
-    } else {
-        -(size[0] as f64)
-    };
-    path.move_to((y_axis_x, -(size[1] as f64)));
-    path.line_to((y_axis_x, size[1] as f64));
+    // X-axis: drawn only when y=0 is inside the y_domain
+    if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+        let x_axis_y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
+        path.move_to((-(size[0] as f64), x_axis_y));
+        path.line_to((size[0] as f64, x_axis_y));
+    }
+
+    // Y-axis: drawn only when x=0 is inside the x_domain
+    if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+        let y_axis_x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
+        path.move_to((y_axis_x, -(size[1] as f64)));
+        path.line_to((y_axis_x, size[1] as f64));
+    }
+
+    if path.elements().is_empty() {
+        return Vec::new();
+    }
 
     vec![VelloPath {
         path,
@@ -443,6 +447,68 @@ impl Timeline {
             }
         }
 
+        // Validate plot func signature if present.
+        if let Some((ref args, ref body)) = func {
+            let (expected_arity, expected_ty) = match ty {
+                "CartesianPlot" | "PolarPlot" => (1, "number"),
+                "ParametricPlot" => (1, "vec2"),
+                "ImplicitPlot" => (2, "number"),
+                _ => (1, "number"),
+            };
+            if args.len() != expected_arity {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPlotFunc,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "{} expects a func with {} argument(s), got {}",
+                            ty, expected_arity, args.len()
+                        ),
+                    )
+                    .with_subject(label),
+                );
+            }
+            // Type-check by evaluating with a test input.
+            let mut test_env = initial_eval_env.clone();
+            for arg in args.iter() {
+                test_env.set(arg, Value::Num(0.0));
+            }
+            if let Ok(result) = evaluate_expr(body, &test_env) {
+                let ok = match (expected_ty, &result) {
+                    ("number", Value::Num(_)) => true,
+                    ("vec2", Value::Vec2(_)) => true,
+                    _ => false,
+                };
+                if !ok {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPlotFunc,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "{} func should return {}, got {}",
+                                ty,
+                                expected_ty,
+                                match result {
+                                    Value::Num(_) => "number".to_string(),
+                                    Value::Vec2(_) => "vec2".to_string(),
+                                    Value::Vec3(_) => "vec3".to_string(),
+                                    Value::Vec4(_) => "vec4".to_string(),
+                                    Value::Color(_) => "color".to_string(),
+                                    Value::Str(_) => "string".to_string(),
+                                    Value::List(_) => "list".to_string(),
+                                    Value::NativeFn(_) => "function".to_string(),
+                                    Value::Closure(_, _) => "closure".to_string(),
+                                    Value::Object(name, _) => name.clone(),
+                                    Value::Bool(_) => "bool".to_string(),
+                                }
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+        }
+
         if primitive.is_graph_host() {
             self.env
                 .set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
@@ -507,21 +573,26 @@ impl Timeline {
             };
             vello_paths = build_plot_curve_paths(&curve_params);
 
+            // Only create a procedural_plot for dynamic plots (funcs that reference `t`).
+            // Static plots use the build-time sampled paths directly, avoiding
+            // redundant per-frame re-sampling.
             if let Some((args, body)) = func.as_ref() {
-                procedural_plot = Some(ProceduralPlot {
-                    ty: ty.to_string(),
-                    func_args: args.clone(),
-                    func_body: (**body).clone(),
-                    p_x_domain,
-                    p_y_domain,
-                    p_size,
-                    t_domain,
-                    tolerance,
-                    max_depth: max_depth as usize,
-                    resolution: resolution as usize,
-                    stroke_width,
-                    stroke_color,
-                });
+                if body.references_ident("t") {
+                    procedural_plot = Some(ProceduralPlot {
+                        ty: ty.to_string(),
+                        func_args: args.clone(),
+                        func_body: (**body).clone(),
+                        p_x_domain,
+                        p_y_domain,
+                        p_size,
+                        t_domain,
+                        tolerance,
+                        max_depth: max_depth as usize,
+                        resolution: resolution as usize,
+                        stroke_width,
+                        stroke_color,
+                    });
+                }
             }
         }
 

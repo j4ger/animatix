@@ -66,6 +66,8 @@ pub enum DiagnosticCode {
     DuplicateSceneName,
     PlayTargetNotFound,
     PlayCycleDetected,
+    // Plotting
+    InvalidPlotFunc,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -107,6 +109,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
+            DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
         }
     }
 }

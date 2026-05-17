@@ -26,55 +26,6 @@ No widget exists for editing variable-length lists of `Vec2` points or path comm
 
 ## 3. Architecture / Cleanup Debt
 
-### 3.1 Plotting System — Per-Frame Sampling Cache
-
-**Status:** Implemented. Procedural plots re-sample every frame regardless of whether the function references `t`.
-**Location:** `crates/animatix/src/timeline/scene_eval.rs`.
-
-`AnimationTrack::procedural_plot` is re-sampled on every call to `evaluate()` using `frame_eval_env`. For static plots (e.g., `func: (x) => x * x`), this is wasted work — the curve never changes.
-
-**Fix:** Cache the sampled `Vec<VelloPath>` on the track and only re-sample when:
-- The closure body references `t` or other time-varying variables, OR
-- The cache key (hash of `t`, `x_domain`, `y_domain`, `t_domain`, `size`) changes.
-
-For static plots, sample once at build time and skip re-sampling. For animated plots, cache by `t` rounded to the nearest frame.
-
-**Effort:** Low-Medium.
-
----
-
-### 3.2 Plotting System — `func` Signature Validation
-
-**Status:** No validation. Users can pass wrong-arity or wrong-return-type closures without diagnostics.
-**Location:** `crates/animatix/src/timeline/build/plot.rs` §`process_plot_actor`.
-
-The `func` property accepts ad-hoc polymorphism:
-- Cartesian: `(x) => Num`
-- Polar: `(t) => Num` (radius)
-- Parametric: `(t) => Vec2`
-- Implicit: `(x, y) => Num`
-
-Passing a scalar to parametric or a Vec2 to cartesian silently produces incorrect output.
-
-**Fix:** At build time, evaluate the closure once with a test argument and verify the return type matches the plot type. Emit a diagnostic on mismatch.
-
-**Effort:** Low.
-
----
-
-### 3.3 Plotting System — Graph Axes Out-of-Domain Position
-
-**Status:** When zero is outside the domain, axes are drawn at the plot boundary instead of being omitted.
-**Location:** `crates/animatix/src/timeline/build/plot.rs` §`build_graph_axis_paths`.
-
-For example, `x_domain: (2, 5)` draws the Y-axis at `x = -size[0]` (the left edge), which is visually misleading.
-
-**Fix:** Omit the axis line entirely when zero is not in the domain, or clamp it to the visible edge with a clear visual indication.
-
-**Effort:** Low.
-
----
-
 ## 4. Long-Term / Speculative
 
 ### 4.1 FFI / Web Canvas Integration
@@ -110,8 +61,5 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | Multi-Scene GUI transition blending (Phase 7 polish) | Medium | High |
-| 2 | Plotting: per-frame sampling cache | Low-Medium | Medium |
-| 3 | Plotting: `func` signature validation | Low | Medium |
-| 4 | Plotting: axes out-of-domain position | Low | Low |
-| 5 | Cross-file analyzer | Medium-High | Medium |
-| 6 | Green tree / trivia AST | Very High | Low (polish) |
+| 2 | Cross-file analyzer | Medium-High | Medium |
+| 3 | Green tree / trivia AST | Very High | Low (polish) |

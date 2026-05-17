@@ -125,6 +125,39 @@ pub enum Expr {
     Construct(String, Vec<Property>), // Button, text: "OK"
 }
 
+impl Expr {
+    /// Returns true if this expression (or any sub-expression) references
+    /// the given identifier name.
+    pub fn references_ident(&self, name: &str) -> bool {
+        match self {
+            Expr::Ident(ident) => ident == name,
+            Expr::Path(parts) => parts.iter().any(|p| p == name),
+            Expr::Index(container, index) => {
+                container.references_ident(name) || index.references_ident(name)
+            }
+            Expr::Tuple(items) => items.iter().any(|item| item.references_ident(name)),
+            Expr::Binary(left, _, right) => {
+                left.references_ident(name) || right.references_ident(name)
+            }
+            Expr::Unary(_, expr) => expr.references_ident(name),
+            Expr::Call(_, args) => args.iter().any(|arg| arg.references_ident(name)),
+            Expr::Method(receiver, _, args) => {
+                receiver.references_ident(name)
+                    || args.iter().any(|arg| arg.references_ident(name))
+            }
+            Expr::Closure(_, body) => body.references_ident(name),
+            Expr::Conditional(cond, then_branch, else_branch) => {
+                cond.references_ident(name)
+                    || then_branch.references_ident(name)
+                    || else_branch.references_ident(name)
+            }
+            Expr::Construct(_, props) => props.iter().any(|p| p.value.references_ident(name)),
+            // Literals never reference an identifier
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     Add,
