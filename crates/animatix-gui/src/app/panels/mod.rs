@@ -62,6 +62,7 @@ pub(crate) enum PropertyValue {
     Color([f32; 4]),
     Text(String),
     StringList(Vec<String>),
+    PointList(Vec<[f32; 2]>),
 }
 
 impl From<PropertyValue> for animatix::ast::Expr {
@@ -104,6 +105,14 @@ impl From<PropertyValue> for animatix::ast::Expr {
             PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
             PropertyValue::StringList(items) => {
                 animatix::ast::Expr::Tuple(items.into_iter().map(animatix::ast::Expr::Ident).collect())
+            }
+            PropertyValue::PointList(points) => {
+                animatix::ast::Expr::Tuple(points.into_iter().map(|[x, y]| {
+                    animatix::ast::Expr::Tuple(vec![
+                        animatix::ast::Expr::Num(x as f64),
+                        animatix::ast::Expr::Num(y as f64),
+                    ])
+                }).collect())
             }
         }
     }
@@ -603,6 +612,25 @@ self.selected_actors,
                 let props = self.get_actor_props(&actor);
 
                 if let Some(ref p) = props {
+                    // Check polygon vertices first (before scale/rotate handles)
+                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let vertex_points = self.timeline
+                        .and_then(|t| t.get_track(&actor))
+                        .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
+                        .filter(|pts| !pts.is_empty());
+
+                    if let Some(points) = vertex_points {
+                        if let Some(vidx) = preview::hit_test_vertex(mouse, p, &points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius) {
+                            *self.drag_state = DragState::EditVertices {
+                                actor,
+                                vertex: vidx,
+                                start_points: points,
+                                start_scene: scene,
+                            };
+                            return true;
+                        }
+                    }
+
                     let handle_world = preview::world_handle_positions(p);
                     let handle_screen: [Pos2; 8] =
                         std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
@@ -1032,6 +1060,36 @@ self.selected_actors,
                         }
                     }
                 }
+                DragState::EditVertices {
+                    actor,
+                    vertex,
+                    start_points,
+                    start_scene,
+                } => {
+                    let dx = (scene.x - start_scene.x) as f32;
+                    let dy = (scene.y - start_scene.y) as f32;
+
+                    let mut new_points = start_points.clone();
+                    if let Some(p) = self.get_actor_props(&actor) {
+                        // Inverse-transform the world delta back to local space
+                        let cos = (-p.rotation).cos();
+                        let sin = (-p.rotation).sin();
+                        let local_dx = dx * cos - dy * sin;
+                        let local_dy = dx * sin + dy * cos;
+
+                        if let Some(pt) = new_points.get_mut(vertex) {
+                            pt[0] += local_dx;
+                            pt[1] += local_dy;
+                        }
+                    }
+
+                    self.actions.property_edits.push(PropertyEdit {
+                        actor,
+                        property: "points".into(),
+                        value: PropertyValue::PointList(new_points),
+                        create_keyframe: self.keyframe_mode,
+                    });
+                }
                 DragState::None => {}
             }
         }
@@ -1322,6 +1380,30 @@ self.selected_actors,
                 preview_rect.size(),
             );
             is_first = false;
+
+            // Draw polygon vertex handles
+            let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+            let points = self.timeline
+                .and_then(|t| t.get_track(actor))
+                .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
+                .filter(|pts| !pts.is_empty());
+            if let (Some(ref p), Some(pts)) = (props, points) {
+                let active_vertex = match &self.drag_state {
+                    DragState::EditVertices { actor: drag_actor, vertex, .. } => {
+                        if drag_actor == actor { Some(*vertex) } else { None }
+                    }
+                    _ => None,
+                };
+                preview::draw_vertex_handles(
+                    ui.painter(),
+                    p,
+                    &pts,
+                    preview_rect,
+                    self.scene_dimensions,
+                    preview_rect.size(),
+                    active_vertex,
+                );
+            }
 
             if let DragState::Reorder {
                 actor: drag_actor,

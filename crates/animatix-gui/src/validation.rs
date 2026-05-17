@@ -35,6 +35,9 @@ fn property_value_to_runtime(value: &PropertyValue) -> Result<Value, String> {
         PropertyValue::StringList(items) => {
             Value::List(items.iter().cloned().map(Value::Str).collect())
         }
+        PropertyValue::PointList(points) => {
+            Value::List(points.iter().map(|&[x, y]| Value::Vec2([x as f64, y as f64])).collect())
+        }
     })
 }
 

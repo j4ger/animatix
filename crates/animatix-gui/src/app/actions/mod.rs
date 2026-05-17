@@ -411,6 +411,13 @@ fn apply_property_edit_to_track(
                 }
             }
         }
+        "points" => {
+            if let PV::PointList(v) = value {
+                let pt = track.points.get_or_insert_with(|| PropertyTrack::new(v.clone()));
+                pt.default_value = v.clone();
+                pt.add_keyframe(time_ms, v.clone(), linear);
+            }
+        }
 
         _ => {}
     }

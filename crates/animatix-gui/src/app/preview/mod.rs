@@ -85,6 +85,16 @@ pub(super) enum DragState {
         start_mouse: kurbo::Point,
         layout_type: animatix::timeline::LayoutType,
     },
+    /// Dragging a polygon vertex to reshape it.
+    EditVertices {
+        actor: String,
+        /// Index of the vertex being dragged.
+        vertex: usize,
+        /// All vertex positions in object-local space at drag start.
+        start_points: Vec<[f32; 2]>,
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
 }
 
 // ─── Actor Properties ───────────────────────────────────────────────────────
@@ -602,6 +612,50 @@ pub(super) fn hit_test_rotation_handle(
     hit_radius: f32,
 ) -> bool {
     screen_point.distance(rot_screen) <= hit_radius + 4.0
+}
+
+/// Check if the screen point is near any polygon vertex.
+/// Returns the vertex index if within hit radius.
+pub(super) fn hit_test_vertex(
+    screen_point: Pos2,
+    props: &ActorProps,
+    points: &[[f32; 2]],
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: Vec2,
+    hit_radius: f32,
+) -> Option<usize> {
+    for (i, &pt) in points.iter().enumerate() {
+        let world = local_to_world(pt, props.position, props.rotation);
+        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired);
+        if screen_point.distance(screen) <= hit_radius + 2.0 {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Draw small circles at each polygon vertex in screen space.
+pub(super) fn draw_vertex_handles(
+    painter: &egui::Painter,
+    props: &ActorProps,
+    points: &[[f32; 2]],
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: Vec2,
+    active_vertex: Option<usize>,
+) {
+    const VERTEX_RADIUS: f32 = 4.0;
+    for (i, &pt) in points.iter().enumerate() {
+        let world = local_to_world(pt, props.position, props.rotation);
+        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired);
+        let is_active = active_vertex == Some(i);
+        let fill = if is_active { ACCENT_BLUE } else { TEXT_PRIMARY };
+        let stroke_color = if is_active { AMBER } else { SELECTION_COLOR };
+        let radius = if is_active { VERTEX_RADIUS + 1.5 } else { VERTEX_RADIUS };
+        painter.circle_filled(screen, radius, fill);
+        painter.circle_stroke(screen, radius, Stroke::new(1.0, stroke_color));
+    }
 }
 
 // ─── Preview Helpers ────────────────────────────────────────────────────────

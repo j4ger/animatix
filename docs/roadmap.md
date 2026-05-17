@@ -63,24 +63,6 @@ The preview drag system uses a state-machine (`DragState` enum) supporting move,
 
 ---
 
-### 3.11 Polygon Vertex Editing
-
-**Status:** Not implemented. Selected polygons show a bounding box with scale/rotate handles, but individual vertices cannot be dragged.
-**Location:** `crates/animatix-gui/src/app/preview/`.
-
-Polygon points are stored in actor-local space (`track.points: Vec<[f32; 2]>`). The preview drag system already handles scene↔screen transforms, hit-testing (`hit_test_handle`), and property-edit emission. Adding vertex editing requires:
-
-- New `DragState::EditVertices { actor, vertex_index, start_points }` variant
-- Render vertex handles (small circles) in world space via the actor's `local_transform`
-- Hit-test vertex handles before falling through to body/handle checks
-- Inverse-transform drag delta from world back to local space
-- Emit `PropertyEdit::PointList` on drag, wired through `apply_property_edit_to_track`
-
-**Scope:** Polygon only. Path/SVG bezier editing requires a pen-tool mode (control handles, cubic/quadratic bezier math, SVG string reconstruction) and is deferred.
-**Effort:** Medium.
-
----
-
 ## 4. Scene Transitions
 
 **Status:** Visual blending implemented (fade + 4 wipe directions). Easing curves pending.
