@@ -471,10 +471,15 @@ self.selected_actors,
         }
 
         ui.vertical(|ui| {
+            let drag_id = ui.id().with("scene_drag");
+            let drag_idx: Option<usize> = ui.data(|d| d.get_temp(drag_id));
+            let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+            let mut drop_target: Option<usize> = None;
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
 
-                for scene_name in self.scene_names.clone() {
+                for (idx, scene_name) in self.scene_names.clone().into_iter().enumerate() {
                     let is_active = self.active_scene.as_deref() == Some(scene_name.as_str());
                     let row_id = ui.id().with(&scene_name);
                     let edit_id = row_id.with("scene_name_edit");
@@ -482,6 +487,75 @@ self.selected_actors,
                     let mut edit_buffer = ui
                         .data(|d| d.get_temp::<String>(edit_id.with("buf")))
                         .unwrap_or_else(|| scene_name.clone());
+
+                    // Drag handle
+                    let handle_width = 18.0;
+                    let row_height = crate::app::theme::ROW_M;
+                    let handle_rect = ui.available_rect_before_wrap();
+                    let handle_rect = egui::Rect::from_min_size(
+                        egui::pos2(handle_rect.min.x, handle_rect.min.y),
+                        egui::vec2(handle_width, row_height),
+                    );
+                    let handle_response = ui.interact(handle_rect, row_id.with("drag"), egui::Sense::drag());
+                    ui.painter().text(
+                        handle_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        egui_phosphor::regular::DOTS_SIX_VERTICAL,
+                        egui::FontId::new(10.0, egui::FontFamily::Proportional),
+                        if handle_response.hovered() { TEXT_SECONDARY } else { TEXT_MUTED },
+                    );
+                    ui.add_space(handle_width);
+
+                    if handle_response.drag_started() {
+                        ui.data_mut(|d| d.insert_temp(drag_id, idx));
+                    }
+                    if handle_response.dragged() {
+                        if let Some(pointer) = pointer_pos {
+                            // Calculate drop target from pointer Y relative to list top
+                            let row_y = handle_rect.min.y + row_height / 2.0;
+                            drop_target = Some(idx);
+                        }
+                    }
+                    let pointer_released = ui.input(|i| i.pointer.any_released());
+                    if pointer_released && drag_idx == Some(idx) {
+                        ui.data_mut(|d| d.remove::<usize>(drag_id));
+                        if let Some(dragged_idx) = drag_idx {
+                            if let Some(pointer) = pointer_pos {
+                                // Compute drop target from pointer Y position
+                                let list_top = ui.min_rect().top();
+                                let relative_y = pointer.y - list_top;
+                                let target_idx = (relative_y / row_height).max(0.0) as usize;
+                                let target_idx = target_idx.min(self.scene_names.len().saturating_sub(1));
+                                if dragged_idx != target_idx {
+                                    let mut new_order = self.scene_names.clone();
+                                    let item = new_order.remove(dragged_idx);
+                                    let insert_at = target_idx.min(new_order.len());
+                                    new_order.insert(insert_at, item);
+                                    self.actions.reorder_scenes = Some(new_order);
+                                }
+                            }
+                        }
+                    }
+
+                    // Drop target indicator
+                    if drag_idx.is_some() {
+                        if let Some(pointer) = pointer_pos {
+                            let row_top = handle_rect.min.y;
+                            let row_bottom = handle_rect.max.y;
+                            let mid = (row_top + row_bottom) / 2.0;
+                            if pointer.y < mid && pointer.y >= row_top - 2.0 {
+                                ui.painter().line_segment(
+                                    [egui::pos2(handle_rect.min.x, row_top), egui::pos2(ui.available_width() + handle_rect.min.x, row_top)],
+                                    Stroke::new(2.0, ACCENT_BLUE),
+                                );
+                            } else if pointer.y >= mid && pointer.y < row_bottom + 2.0 {
+                                ui.painter().line_segment(
+                                    [egui::pos2(handle_rect.min.x, row_bottom), egui::pos2(ui.available_width() + handle_rect.min.x, row_bottom)],
+                                    Stroke::new(2.0, ACCENT_BLUE),
+                                );
+                            }
+                        }
+                    }
 
                     if is_editing {
                         let response = ui.add(
