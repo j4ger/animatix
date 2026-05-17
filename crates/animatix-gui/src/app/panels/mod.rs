@@ -13,6 +13,17 @@ fn default_actor_type() -> &'static str {
         .unwrap_or("Rect")
 }
 
+fn transition_type_label(tt: &animatix::ast::TransitionType) -> &'static str {
+    match tt {
+        animatix::ast::TransitionType::Cut => "cut",
+        animatix::ast::TransitionType::Fade => "fade",
+        animatix::ast::TransitionType::WipeLeft => "wipe-left",
+        animatix::ast::TransitionType::WipeRight => "wipe-right",
+        animatix::ast::TransitionType::WipeUp => "wipe-up",
+        animatix::ast::TransitionType::WipeDown => "wipe-down",
+    }
+}
+
 use crate::app::components;
 use crate::app::components::widgets;
 use crate::app::icons::actor_icon_str;
@@ -146,6 +157,7 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) import_aliases: Vec<String>,
     pub(super) active_scene: Option<String>,
     pub(super) is_composition: bool,
+    pub(super) composition: Option<&'a animatix::composition::Composition>,
     pub(super) current_file: &'a Path,
     pub(super) workspace_root: &'a Path,
     pub(super) expanded_dirs: &'a mut HashSet<PathBuf>,
@@ -486,7 +498,31 @@ impl WorkspaceViewer<'_> {
                                 d.insert_temp(edit_id.with("buf"), scene_name.clone());
                             });
                         } else if response.row_clicked {
-                            self.actions.select_scene = Some(scene_name);
+                            self.actions.select_scene = Some(scene_name.clone());
+                        }
+                    }
+
+                    // Transition badge: show play target and transition type beneath the scene row
+                    if let Some(comp) = self.composition {
+                        if let Some(edge) = comp.edges.get(&scene_name) {
+                            let transition_label = if edge.transition.duration_ms > 0 {
+                                format!(
+                                    "→ {} [{} · {}ms]",
+                                    edge.to_scene,
+                                    transition_type_label(&edge.transition.transition_type),
+                                    edge.transition.duration_ms
+                                )
+                            } else {
+                                format!("→ {}", edge.to_scene)
+                            };
+                            ui.horizontal(|ui| {
+                                ui.add_space(24.0);
+                                ui.label(
+                                    RichText::new(transition_label)
+                                        .size(FONT_SIZE_S)
+                                        .color(TEXT_MUTED),
+                                );
+                            });
                         }
                     }
                 }

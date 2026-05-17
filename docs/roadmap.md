@@ -21,12 +21,17 @@ The inspector displays `"[N pts]"` as a read-only label. A popup point table was
 
 ### 1.2 Multi-Scene GUI: Scene List & Composition Timeline
 
-**Status:** Pending. Hard cuts supported; transition blending deferred.
-**Location:** `crates/animatix-gui/src/app/panels/`.
+**Status:** Partially implemented. Scene list and transition visualization exist; drag-to-reorder and transition editing deferred.
+**Location:** `crates/animatix-gui/src/app/panels/`, `crates/animatix-gui/src/app/shell/transport_bar.rs`.
 
-The runtime supports multi-scene composition (`# SceneName`, `play SceneName [transition, duration]`), but the GUI lacks a scene list / composition timeline panel. Transition blending (dual render) is Phase 7; only hard cuts work in Phase 1.
+The sidebar Scenes tab now displays each scene's play target and transition type/duration beneath the scene name. The transport bar scrubber shows transition overlap regions as semi-transparent stripes with transition-type labels.
 
-**Effort:** Medium–High.
+**Remaining:**
+- Drag-to-reorder scenes in the sidebar scene list
+- Edit transition type/duration directly in the scene list or transport bar
+- Click a scene block in the transport bar to jump to that scene
+
+**Completed:** Scene list with transitions, transport bar transition overlays.
 
 ---
 

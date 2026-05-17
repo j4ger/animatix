@@ -394,6 +394,45 @@ fn paint_transport_scrubber(
                 );
             }
         }
+
+        // Draw transition overlaps as brighter stripes at the boundary between scenes
+        let transition_stripe_color = Color32::from_rgba_unmultiplied(255, 255, 255, 40);
+        for (idx, scene_name) in composition.declaration_order.iter().enumerate() {
+            let Some(edge) = composition.edges.get(scene_name) else { continue; };
+            if edge.transition.duration_ms == 0 {
+                continue;
+            }
+            let Some(start_s) = composition.scene_start_times.get(scene_name).copied() else { continue; };
+            let Some(scene) = composition.scenes.get(scene_name) else { continue; };
+            let transition_s = edge.transition.duration_ms as f64 / 1000.0;
+            let overlap_start = (start_s + scene.duration_s - transition_s).max(0.0);
+            let overlap_end = (start_s + scene.duration_s).min(total);
+            if overlap_end <= overlap_start {
+                continue;
+            }
+
+            let left = egui::lerp(track_rect.left()..=track_rect.right(), (overlap_start / total).clamp(0.0, 1.0) as f32);
+            let right = egui::lerp(track_rect.left()..=track_rect.right(), (overlap_end / total).clamp(0.0, 1.0) as f32);
+            let overlap_rect = egui::Rect::from_min_max(
+                egui::pos2(left, track_rect.top()),
+                egui::pos2(right, track_rect.bottom()),
+            );
+            // Stripe pattern: draw diagonal hatching to indicate overlap
+            painter.rect_filled(overlap_rect, 0.0, transition_stripe_color);
+
+            // Transition label if wide enough
+            let width = overlap_rect.width();
+            if width > 40.0 {
+                let label = format!("{}", transition_type_label(&edge.transition.transition_type));
+                painter.text(
+                    overlap_rect.center(),
+                    Align2::CENTER_CENTER,
+                    label,
+                    FontId::monospace(8.0),
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 160),
+                );
+            }
+        }
     }
 
     painter.rect_stroke(
@@ -486,4 +525,15 @@ fn paint_transport_scrubber(
     }
 
     false
+}
+
+fn transition_type_label(tt: &animatix::ast::TransitionType) -> &'static str {
+    match tt {
+        animatix::ast::TransitionType::Cut => "cut",
+        animatix::ast::TransitionType::Fade => "fade",
+        animatix::ast::TransitionType::WipeLeft => "wipe-left",
+        animatix::ast::TransitionType::WipeRight => "wipe-right",
+        animatix::ast::TransitionType::WipeUp => "wipe-up",
+        animatix::ast::TransitionType::WipeDown => "wipe-down",
+    }
 }

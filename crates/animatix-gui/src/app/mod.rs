@@ -480,6 +480,7 @@ impl GuiShell {
             import_aliases: self.document.import_aliases(),
             active_scene: self.document.active_scene.clone(),
             is_composition: self.document.is_composition(),
+            composition: self.document.composition.as_ref(),
             current_file: &self.document.file_path,
             workspace_root: &self.workspace_root,
             expanded_dirs: &mut self.expanded_dirs,
