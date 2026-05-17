@@ -199,7 +199,7 @@ impl Timeline {
             };
             self.text_compiler
                 .borrow_mut()
-                .compile(&content, &font_family, font_size, color, kind)
+                .compile(&content, &font_family, font_size, color, kind, &self.font_context)
         } else {
             track.evaluate_text_paths(time_ms)
         }

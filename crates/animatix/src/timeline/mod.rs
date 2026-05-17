@@ -231,6 +231,7 @@ pub struct Timeline {
     pub layout_engine: LayoutEngine,
     pub dynamic_layout: bool,
     pub asset_cache: assets::AssetCache,
+    pub font_context: crate::renderer::text::FontContext,
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
@@ -273,6 +274,7 @@ impl Clone for Timeline {
             layout_engine: self.layout_engine.clone(),
             dynamic_layout: self.dynamic_layout,
             asset_cache: self.asset_cache.clone(),
+            font_context: self.font_context.clone(),
             child_orders: self.child_orders.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
@@ -283,6 +285,10 @@ impl Clone for Timeline {
 
 impl Timeline {
     pub fn new() -> Self {
+        Self::new_with_font_context(crate::renderer::text::FontContext::new())
+    }
+
+    pub fn new_with_font_context(font_context: crate::renderer::text::FontContext) -> Self {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
@@ -301,6 +307,7 @@ impl Timeline {
             layout_engine: LayoutEngine,
             dynamic_layout: false,
             asset_cache: assets::AssetCache::new(),
+            font_context,
             child_orders: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),

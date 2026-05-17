@@ -630,7 +630,10 @@ pub(crate) fn render_property_row(
                                         }
                                     });
                             } else if entry.name == "font_family" {
-                                let families = animatix::renderer::text::available_font_families();
+                                use std::sync::OnceLock;
+                                static FONT_CONTEXT: OnceLock<animatix::renderer::text::FontContext> = OnceLock::new();
+                                let font_ctx = FONT_CONTEXT.get_or_init(animatix::renderer::text::FontContext::new);
+                                let families = animatix::renderer::text::available_font_families(font_ctx);
                                 egui::ComboBox::from_id_salt(ui.id().with(("font", entry.name)))
                                     .selected_text(text.as_str())
                                     .width(ui.available_width())

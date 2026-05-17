@@ -131,15 +131,16 @@ impl BuildTarget {
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
     ) -> BuildReport<Self> {
+        let font_context = crate::renderer::text::FontContext::new();
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         if has_scenes {
-            let report = Composition::build(statements, namespaces);
+            let report = Composition::build_with_font_context(statements, namespaces, font_context);
             BuildReport {
                 output: BuildTarget::MultiScene(report.output),
                 diagnostics: report.diagnostics,
             }
         } else {
-            let report = Timeline::build_with_diagnostics(statements, namespaces);
+            let report = Timeline::build_with_diagnostics_and_font_context(statements, namespaces, font_context);
             BuildReport {
                 output: BuildTarget::SingleScene(report.output),
                 diagnostics: report.diagnostics,
@@ -168,6 +169,15 @@ impl Composition {
     pub fn build(
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
+    ) -> BuildReport<Self> {
+        Self::build_with_font_context(statements, namespaces, crate::renderer::text::FontContext::new())
+    }
+
+    /// Build a `Composition` from parsed AST statements with a shared `FontContext`.
+    pub fn build_with_font_context(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        font_context: crate::renderer::text::FontContext,
     ) -> BuildReport<Self> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut scenes: BTreeMap<String, CompositionScene> = BTreeMap::new();
@@ -202,7 +212,7 @@ impl Composition {
                     let mut merged_body = shared_prelude.clone();
                     merged_body.extend(body.clone());
 
-                    let build_report = Timeline::build_with_diagnostics(&merged_body, namespaces);
+                    let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone());
                     diagnostics.extend(
                         build_report
                             .diagnostics

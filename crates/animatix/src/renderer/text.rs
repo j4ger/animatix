@@ -10,51 +10,54 @@ use typst::World;
 use typst::{Library, LibraryExt};
 
 // ─────────────────────────────────────────────────────────────
-// System font discovery (temporary DB per query)
+// Persistent font database (FontContext)
 // ─────────────────────────────────────────────────────────────
 
-// FIXME(performance): Each call creates a fresh `fontdb::Database` and scans
-// all system font directories (~45–60ms for ~800 fonts). Scenes with many text
-// elements pay this cost for every compile. The proper fix is a `FontContext`
-// that owns the DB and is threaded through the rendering pipeline.
-// See roadmap §2.1 "Renderer FontContext".
+/// Owns a persistent `fontdb::Database` to avoid redundant font scanning (~45-60ms per call).
+///
+/// Create one `FontContext` early and share it throughout the build pipeline.
+#[derive(Clone, Debug)]
+pub struct FontContext {
+    db: fontdb::Database,
+}
 
-/// On-demand system font loader. Each call creates a temporary `fontdb::Database`,
-/// queries for the requested font, and drops it. No persistent memory usage.
-struct SystemFontLoader;
-
-impl SystemFontLoader {
-    /// Load a single system font by family name.
-    fn load_font(family: &str) -> Option<Font> {
+impl FontContext {
+    pub fn new() -> Self {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
-        let id = db.query(&fontdb::Query {
+        Self { db }
+    }
+
+    fn load_font(&self, family: &str) -> Option<Font> {
+        let id = self.db.query(&fontdb::Query {
             families: &[fontdb::Family::Name(family)],
             ..Default::default()
         })?;
-        let data = Self::face_data(&db, id)?;
-        let face = db.face(id)?;
+        let data = Self::face_data(&self.db, id)?;
+        let face = self.db.face(id)?;
         Font::new(Bytes::new(data), face.index)
     }
 
-    /// Check whether a family exists in the system font directories.
-    fn has_family(family: &str) -> bool {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
-        db.query(&fontdb::Query {
-            families: &[fontdb::Family::Name(family)],
-            ..Default::default()
-        })
-        .is_some()
+    fn has_family(&self, family: &str) -> bool {
+        self.db
+            .query(&fontdb::Query {
+                families: &[fontdb::Family::Name(family)],
+                ..Default::default()
+            })
+            .is_some()
     }
 
-    /// Return all unique family names discovered on the system.
-    fn families() -> Vec<String> {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
-        let mut names: Vec<String> = db
+    pub fn families(&self) -> Vec<String> {
+        let mut names: Vec<String> = self
+            .db
             .faces()
-            .filter_map(|face| db.face(face.id)?.families.first().map(|(name, _)| name.clone()))
+            .filter_map(|face| {
+                self.db
+                    .face(face.id)?
+                    .families
+                    .first()
+                    .map(|(name, _)| name.clone())
+            })
             .collect();
         names.sort();
         names.dedup();
@@ -98,7 +101,7 @@ pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
-fn build_world(source: Source, extra_fonts: &[&str]) -> TypstWorld {
+fn build_world(source: Source, extra_fonts: &[&str], font_ctx: &FontContext) -> TypstWorld {
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
 
@@ -110,9 +113,9 @@ fn build_world(source: Source, extra_fonts: &[&str]) -> TypstWorld {
         fonts.push(font);
     }
 
-    // Load requested system fonts on-demand
+    // Load requested system fonts via persistent FontContext
     for family in extra_fonts {
-        if let Some(font) = SystemFontLoader::load_font(family) {
+        if let Some(font) = font_ctx.load_font(family) {
             book.push(font.info().clone());
             fonts.push(font);
         }
@@ -128,9 +131,9 @@ fn build_world(source: Source, extra_fonts: &[&str]) -> TypstWorld {
 }
 
 /// Resolve a font family name to the family string that should appear in Typst markup.
-/// Searches bundled fonts first, then system fonts (via temporary DB query).
+/// Searches bundled fonts first, then system fonts (via FontContext).
 /// Falls back to `DEFAULT_FONT_FAMILY` if not found anywhere.
-pub fn resolve_font_family(requested: &str) -> String {
+pub fn resolve_font_family(requested: &str, font_ctx: &FontContext) -> String {
     if requested.is_empty() {
         return DEFAULT_FONT_FAMILY.to_string();
     }
@@ -142,8 +145,8 @@ pub fn resolve_font_family(requested: &str) -> String {
         }
     }
 
-    // 2. Check system fonts (temporary DB, no persistent state)
-    if SystemFontLoader::has_family(requested) {
+    // 2. Check system fonts via FontContext
+    if font_ctx.has_family(requested) {
         return requested.to_string();
     }
 
@@ -151,9 +154,9 @@ pub fn resolve_font_family(requested: &str) -> String {
 }
 
 /// Return a sorted list of all available font family names (bundled + system).
-pub fn available_font_families() -> Vec<String> {
+pub fn available_font_families(font_ctx: &FontContext) -> Vec<String> {
     let mut families: Vec<String> = BUNDLED_FONTS.iter().map(|bf| bf.family.to_string()).collect();
-    families.extend(SystemFontLoader::families());
+    families.extend(font_ctx.families());
     families.sort();
     families.dedup();
     families
@@ -200,12 +203,12 @@ pub struct TypstWorld {
 }
 
 impl TypstWorld {
-    pub fn new(source: Source) -> Self {
-        build_world(source, &[])
+    pub fn new(source: Source, font_ctx: &FontContext) -> Self {
+        build_world(source, &[], font_ctx)
     }
 
-    pub fn with_fonts(source: Source, fonts: &[&str]) -> Self {
-        build_world(source, fonts)
+    pub fn with_fonts(source: Source, fonts: &[&str], font_ctx: &FontContext) -> Self {
+        build_world(source, fonts, font_ctx)
     }
 }
 
@@ -247,8 +250,8 @@ impl World for TypstWorld {
     }
 }
 
-pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
-    let text_font = resolve_font_family(font_family);
+pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+    let text_font = resolve_font_family(font_family, font_ctx);
     let typst_markup = convert_math(latex, None).unwrap();
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
@@ -259,14 +262,14 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY]);
+    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()
 }
 
-pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
-    let font = resolve_font_family(font_family);
+pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+    let font = resolve_font_family(font_family, font_ctx);
     let escaped = text
         .replace('\\', "\\\\")
         .replace('[', "\\[")
@@ -280,14 +283,14 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font]);
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()
 }
 
-pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str) -> Frame {
-    let font = resolve_font_family(font_family);
+pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+    let font = resolve_font_family(font_family, font_ctx);
     let escaped = code
         .replace('\\', "\\\\")
         .replace('[', "\\[")
@@ -301,7 +304,7 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font]);
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
     let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
 
     document.pages[0].frame.clone()
@@ -506,6 +509,7 @@ impl TextCompiler {
         font_size: f32,
         color: [f32; 4],
         kind: TextKind,
+        font_ctx: &FontContext,
     ) -> Vec<TextPath> {
         let key = TextCacheKey {
             content: content.to_string(),
@@ -526,9 +530,9 @@ impl TextCompiler {
 
         let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
         let frame = match kind {
-            TextKind::Text => compile_text(content, font_size, typst_color, font_family),
-            TextKind::Math => compile_math(content, font_size, typst_color, font_family),
-            TextKind::Code => compile_code(content, font_size, typst_color, font_family),
+            TextKind::Text => compile_text(content, font_size, typst_color, font_family, font_ctx),
+            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx),
+            TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx),
         };
         let paths = extract_glyphs(&frame);
         self.cache.insert(key, paths.clone());

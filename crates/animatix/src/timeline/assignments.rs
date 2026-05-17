@@ -125,6 +125,8 @@ impl Timeline {
                 easing,
                 instant_delayed,
                 duration_ms,
+                &self.font_context,
+                &mut self.text_compiler.borrow_mut(),
             );
             return;
         }
@@ -372,6 +374,8 @@ fn recompile_text_at_assignment(
     easing: Easing,
     instant_delayed: bool,
     duration_ms: f64,
+    font_ctx: &crate::renderer::text::FontContext,
+    text_compiler: &mut crate::renderer::text::TextCompiler,
 ) {
     if duration_ms > 0.0 {
         let start_val = track.text_content.get(t_start_ms, String::new());
@@ -392,8 +396,7 @@ fn recompile_text_at_assignment(
     let font_size = track.font_size.get(t_end_ms, 48.0);
     let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
 
-    let mut compiler = crate::renderer::text::TextCompiler::new();
-    let new_paths = compiler.compile(&target_text, &font_family, font_size, color, text_kind);
+    let new_paths = text_compiler.compile(&target_text, &font_family, font_size, color, text_kind, font_ctx);
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
     if duration_ms > 0.0 {
