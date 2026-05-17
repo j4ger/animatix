@@ -714,6 +714,42 @@ self.selected_actors,
                         .any(|(label, bounds)| label == &actor && bounds.contains(scene))
                 {
                     if self.is_layout_managed(&actor) {
+                        let shift = ui.input(|i| i.modifiers.shift);
+                        if shift {
+                            // Shift-drag: break out of layout and start Move drag
+                            let current_pos = props.as_ref().map(|p| p.position).unwrap_or([scene.x as f32, scene.y as f32]);
+                            self.actions.property_edits.push(PropertyEdit {
+                                actor: actor.clone(),
+                                property: "placement_mode".into(),
+                                value: PropertyValue::Text("manual".into()),
+                                create_keyframe: self.keyframe_mode,
+                            });
+                            self.actions.property_edits.push(PropertyEdit {
+                                actor: actor.clone(),
+                                property: "position".into(),
+                                value: PropertyValue::Vec2(current_pos),
+                                create_keyframe: self.keyframe_mode,
+                            });
+                            let mut actors = Vec::new();
+                            for sel in self.selected_actors.iter() {
+                                let pos = if let Some(p) = self.get_actor_props(sel) {
+                                    p.position
+                                } else {
+                                    self.hit_regions
+                                        .iter()
+                                        .find(|(l, _)| l == sel)
+                                        .map(|(_, r)| [(r.x0 + r.x1) as f32 / 2.0, (r.y0 + r.y1) as f32 / 2.0])
+                                        .unwrap_or([0.0, 0.0])
+                                };
+                                actors.push((sel.clone(), pos));
+                            }
+                            *self.drag_state = DragState::Move {
+                                primary: actor,
+                                actors,
+                                start_scene: scene,
+                            };
+                            return true;
+                        }
                         if let Some((container, layout_type, source_index)) = self.find_layout_container(&actor) {
                             *self.drag_state = DragState::Reorder {
                                 actor,

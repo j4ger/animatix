@@ -47,22 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.9 Nested Transform Not Supported
-
-**Status:** Child actors in layout containers are layout-managed and cannot be moved/scaled/rotated individually; only reordering works.
-**Impact:** Cannot fine-tune positions of children within a Row/Col/Grid.
-**Effort:** Medium–High (requires layout override mechanism).
-
----
-
-### 3.10 Reorder Preview Is Limited
-
-**Status:** Shows ghost + insertion line during drag, but no persistent visual feedback until drag ends.
-**Impact:** Users can't see the final order until they release the mouse.
-**Effort:** Low.
-
----
-
 ## 4. Scene Transitions
 
 **Status:** Visual blending implemented (fade + 4 wipe directions). Easing curves pending.

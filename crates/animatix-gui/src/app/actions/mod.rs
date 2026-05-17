@@ -418,6 +418,21 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, v.clone(), linear);
             }
         }
+        "placement_mode" => {
+            if let PV::Text(v) = value {
+                use animatix::timeline::PlacementMode;
+                let mode = match v.as_str() {
+                    "manual" => Some(PlacementMode::Manual),
+                    "layout" => Some(PlacementMode::LayoutManaged),
+                    _ => None,
+                };
+                if let Some(mode) = mode {
+                    let pt = track.placement_mode.get_or_insert_with(|| PropertyTrack::new(mode));
+                    pt.default_value = mode;
+                    pt.add_keyframe(time_ms, mode, linear);
+                }
+            }
+        }
 
         _ => {}
     }
