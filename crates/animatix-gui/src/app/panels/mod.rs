@@ -595,6 +595,7 @@ self.selected_actors,
         let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
         let drag_started = response.drag_started()
             || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
+        let hit_radius = preview::HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
 
         if drag_started {
             if let (Some(actor), Some(mouse)) = (self.selected_actors.iter().next().cloned(), raw_pointer_pos) {
@@ -605,7 +606,7 @@ self.selected_actors,
                     let handle_world = preview::world_handle_positions(p);
                     let handle_screen: [Pos2; 8] =
                         std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
-                    if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
+                    if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen, hit_radius) {
                         let anchor_local = if p.pivot_offset != [0.0, 0.0] {
                             p.pivot_offset
                         } else {
@@ -647,7 +648,7 @@ self.selected_actors,
 
                     let rot_world = preview::rotation_handle_world(p);
                     let rot_screen = self.preview_scene_to_screen(preview_rect, rot_world);
-                    if preview::hit_test_rotation_handle(mouse, rot_screen) {
+                    if preview::hit_test_rotation_handle(mouse, rot_screen, hit_radius) {
                         let pivot = preview::pivot_world(p);
                         let angle = ((scene.y - pivot[1] as f64) as f32)
                             .atan2((scene.x - pivot[0] as f64) as f32);
@@ -1164,6 +1165,7 @@ self.selected_actors,
     fn render_preview_cursor_feedback(&self, ui: &egui::Ui, preview_rect: egui::Rect) {
         let is_dragging = !matches!(self.drag_state, DragState::None);
         let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+        let hit_radius = preview::HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
 
         if !is_dragging && !self.selection.context_menu_open {
             if let Some(mouse) = raw_pointer_pos {
@@ -1174,12 +1176,12 @@ self.selected_actors,
                     let handle_world = preview::world_handle_positions(&props);
                     let handle_screen: [Pos2; 8] =
                         std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
-                    if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
+                    if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen, hit_radius) {
                         Some(idx)
                     } else {
                         let rot_world = preview::rotation_handle_world(&props);
                         let rot_screen = self.preview_scene_to_screen(preview_rect, rot_world);
-                        if preview::hit_test_rotation_handle(mouse, rot_screen) {
+                        if preview::hit_test_rotation_handle(mouse, rot_screen, hit_radius) {
                             Some(8usize)
                         } else {
                             None

@@ -108,7 +108,7 @@ pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
 pub(super) const ROTATION_OFFSET: f32 = 20.0;
 pub(super) const ROTATION_RADIUS: f32 = 4.0;
 const HANDLE_SIZE: f32 = 6.0;
-const HANDLE_HIT_RADIUS: f32 = 10.0;
+pub(super) const HANDLE_HIT_RADIUS: f32 = 10.0;
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
@@ -545,9 +545,10 @@ fn scale_handle_positions(sel_rect: egui::Rect) -> [Pos2; 8] {
 pub(super) fn hit_test_handle(
     screen_point: Pos2,
     handle_screen_positions: &[Pos2; 8],
+    hit_radius: f32,
 ) -> Option<usize> {
     for (i, pos) in handle_screen_positions.iter().enumerate() {
-        if screen_point.distance(*pos) <= HANDLE_HIT_RADIUS {
+        if screen_point.distance(*pos) <= hit_radius {
             return Some(i);
         }
     }
@@ -558,8 +559,9 @@ pub(super) fn hit_test_handle(
 pub(super) fn hit_test_rotation_handle(
     screen_point: Pos2,
     rot_screen: Pos2,
+    hit_radius: f32,
 ) -> bool {
-    screen_point.distance(rot_screen) <= HANDLE_HIT_RADIUS + 4.0
+    screen_point.distance(rot_screen) <= hit_radius + 4.0
 }
 
 // ─── Preview Helpers ────────────────────────────────────────────────────────
