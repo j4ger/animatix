@@ -63,6 +63,8 @@ pub enum PropertyValue {
     CommandList(String),
     Color([f32; 4]),
     String(String),
+    PlacementMode(super::PlacementMode),
+    MorphOptions(super::MorphOptions),
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -428,6 +430,9 @@ fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms:
         ActorField::TextContent => track.text_content.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
         ActorField::FontFamily => track.font_family.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
         ActorField::FontSize => track.font_size.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::Points => track.points.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
+        ActorField::PlacementMode => track.placement_mode.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate(time_ms))),
+        ActorField::MorphOptions => track.morph_options.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate(time_ms))),
         // Groups and unsupported fields
         _ => None,
     }

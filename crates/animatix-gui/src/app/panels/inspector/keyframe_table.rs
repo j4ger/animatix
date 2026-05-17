@@ -392,5 +392,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
                 v.clone()
             }
         }
+        PropertyValue::PlacementMode(v) => format!("{:?}", v),
+        PropertyValue::MorphOptions(v) => format!("{:?}", v),
     }
 }

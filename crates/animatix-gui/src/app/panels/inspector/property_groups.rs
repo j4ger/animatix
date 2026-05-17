@@ -28,6 +28,7 @@ pub(crate) struct PropertyEntry {
 pub(crate) enum PropertyKind {
     Vec2 { x: f32, y: f32 },
     Float(f32),
+    U32(u32),
     Color([f32; 4]),
     Text(String),
 }
@@ -214,11 +215,13 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::U32(v), ValueType::ShapeType) => {
             PropertyKind::Text(ShapeType::from(v).to_string())
         }
-        (PropertyValue::U32(v), _) => PropertyKind::Float(v as f32),
+        (PropertyValue::U32(v), _) => PropertyKind::U32(v),
         (PropertyValue::PointList(v), _) => {
             PropertyKind::Text(format!("[{} pts]", v.len()))
         }
         (PropertyValue::CommandList(v), _) => PropertyKind::Text(v),
+        (PropertyValue::PlacementMode(v), _) => PropertyKind::Text(format!("{:?}", v)),
+        (PropertyValue::MorphOptions(v), _) => PropertyKind::Text(format!("{:?}", v)),
     }
 }
 
@@ -546,6 +549,40 @@ pub(crate) fn render_property_row(
                 );
             }
         }
+        PropertyKind::U32(v) => {
+            let mut nv = *v as i64;
+            ui.scope_builder(
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                |ui| {
+                    *ui.style_mut() = flat_style.clone();
+                    ui.with_layout(
+                        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+                        |ui| {
+                            let response = ui.add_sized(
+                                Vec2::new(ui.available_width(), row_height - 4.0),
+                                egui::DragValue::new(&mut nv)
+                                    .speed(0.1)
+                                    .max_decimals(0),
+                            );
+                            if response.drag_started() {
+                                actions.inspector_input_drag_started = true;
+                            }
+                            if response.drag_stopped() {
+                                actions.inspector_input_drag_ended = true;
+                            }
+                            if response.changed() {
+                                actions.property_edits.push(PropertyEdit {
+                                    actor: actor_label.to_string(),
+                                    property: entry.name.to_string(),
+                                    value: GuiPropertyValue::Float(nv as f32),
+                                    create_keyframe: keyframe_mode,
+                                });
+                            }
+                        },
+                    );
+                },
+            );
+        }
         PropertyKind::Color(rgba) => {
             let mut color = Color32::from_rgba_premultiplied(
                 (rgba[0] * 255.0) as u8,
@@ -608,7 +645,7 @@ pub(crate) fn render_property_row(
                             if entry.name == "shape_type" {
                                 let variants: Vec<&str> = [
                                     ShapeType::Rect, ShapeType::Ellipse, ShapeType::Line,
-                                    ShapeType::Polygon, ShapeType::Path, ShapeType::Graph, ShapeType::Plot,
+                                    ShapeType::Polygon, ShapeType::Path,
                                 ]
                                 .iter()
                                 .map(|st| st.as_str())
@@ -684,6 +721,7 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
     match &entry.kind {
         PropertyKind::Vec2 { x, y } => Some(GuiPropertyValue::Vec2([*x, *y])),
         PropertyKind::Float(v) => Some(GuiPropertyValue::Float(*v)),
+        PropertyKind::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
         PropertyKind::Text(t) => Some(GuiPropertyValue::Text(t.clone())),
     }
