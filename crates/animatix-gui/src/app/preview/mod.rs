@@ -496,23 +496,63 @@ pub(super) fn draw_reorder_overlay(
     let accent = ACCENT_BLUE;
     let scale_x = desired.x as f64 / scene_dimensions.width as f64;
     let scale_y = desired.y as f64 / scene_dimensions.height as f64;
-    if is_row {
+    let insertion_screen = if is_row {
         let x = (preview_rect.min.x as f64 + insertion_coord as f64 * scale_x) as f32;
         painter.line_segment(
             [Pos2::new(x, preview_rect.top()), Pos2::new(x, preview_rect.bottom())],
             Stroke::new(2.5, accent),
         );
+        Pos2::new(x, preview_rect.top() + 16.0)
     } else {
         let y = (preview_rect.min.y as f64 + insertion_coord as f64 * scale_y) as f32;
         painter.line_segment(
             [Pos2::new(preview_rect.left(), y), Pos2::new(preview_rect.right(), y)],
             Stroke::new(2.5, accent),
         );
+        Pos2::new(preview_rect.left() + 16.0, y)
+    };
+
+    // Draw target index badge on the insertion line
+    let badge_text = format!("→ {}", target_index + 1);
+    let badge_galley = painter.layout_no_wrap(badge_text, FontId::proportional(11.0), TEXT_PRIMARY);
+    let badge_size = badge_galley.size() + Vec2::new(8.0, 4.0);
+    let badge_rect = egui::Rect::from_min_size(insertion_screen, badge_size);
+    painter.rect_filled(badge_rect, 3.0, Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220));
+    painter.rect_stroke(badge_rect, 3.0, Stroke::new(1.0, accent), egui::StrokeKind::Outside);
+    painter.galley(badge_rect.min + Vec2::new(4.0, 2.0), badge_galley, TEXT_PRIMARY);
+
+    // Draw subtle shift arrows on affected siblings
+    let shift_color = Color32::from_rgba_unmultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 120);
+    for (i, (_, pos)) in sibling_positions.iter().enumerate() {
+        let screen_pos = scene_to_screen(
+            kurbo::Point::new(pos[0] as f64, pos[1] as f64),
+            preview_rect,
+            scene_dimensions,
+            desired,
+        );
+        let arrow_size = 8.0;
+        if i == target_index {
+            // Sibling at target index will shift right/down
+            let (dx, dy) = if is_row { (arrow_size, 0.0) } else { (0.0, arrow_size) };
+            painter.arrow(
+                screen_pos,
+                Vec2::new(dx, dy),
+                Stroke::new(1.5, shift_color),
+            );
+        } else if target_index > 0 && i == target_index - 1 {
+            // Sibling before target will shift left/up
+            let (dx, dy) = if is_row { (-arrow_size, 0.0) } else { (0.0, -arrow_size) };
+            painter.arrow(
+                screen_pos,
+                Vec2::new(dx, dy),
+                Stroke::new(1.5, shift_color),
+            );
+        }
     }
 
     let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
-    let tooltip_text = "Reorder: drag to new position";
-    let galley = painter.layout_no_wrap(tooltip_text.to_owned(), FontId::proportional(12.0), TEXT_PRIMARY);
+    let tooltip_text = format!("Reorder: move to position {}", target_index + 1);
+    let galley = painter.layout_no_wrap(tooltip_text, FontId::proportional(12.0), TEXT_PRIMARY);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
     painter.rect_filled(tooltip_rect, 4.0, Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 235));
     painter.rect_stroke(
