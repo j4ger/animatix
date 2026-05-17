@@ -23,7 +23,7 @@
 | Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Arrow`, `Ellipse`, `Arc`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
+| Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
 | Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | See `examples/plotting_demo.amx` |
 | Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
@@ -137,13 +137,13 @@ Colorscheme v1 surface:
 6. Later timed assignments
 7. Frame-local `always` overrides
 
-**Primitive-type defaults:** Text-like (`Text`, `Math`, `Code`) → `text.primary`; shape fills → `surface.primary`; shape strokes (`Line`, `Arrow`, `Arc`) → `stroke.default`; plot curves → `accent.primary`.
+**Primitive-type defaults:** Text-like (`Text`, `Math`, `Code`) → `text.primary`; shape fills → `surface.primary`; shape strokes (`Line`) → `stroke.default`; plot curves → `accent.primary`.
 
 ```animatix
 config { colorscheme: "editorial-dark" }
 title: Text, text: "Hello"           // color: text.primary
 panel: Rect, size: (200, 100)       // color: surface.primary
-badge: Circle, radius: 20, color: auto
+badge: Ellipse, radius: 20, color: auto
 ```
 
 `Colorscheme` primitive with `extends` inheritance is supported. See [`architecture.md`](architecture.md) §Colorscheme System.
@@ -299,10 +299,10 @@ Nested `sequence`/`stagger` and declarations inside either block are rejected.
 **Automatic Morph:** Re-declaration at a new keyframe triggers path interpolation.
 ```animatix
 #0s
-circle: Circle, at: (0, 0)
+circle: Ellipse, at: (0, 0)
 
 #2s
-circle: Circle, at: (100, 100) [2s]
+circle: Ellipse, at: (100, 100) [2s]
 ```
 
 **Shipped morph modifiers** (timed path-morphing only):
@@ -343,7 +343,7 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`.
 ```animatix
 row: Row, gap: 12, padding: 20, align: "center" {
   Rect, color: red
-  Circle, color: blue
+  Ellipse, color: blue
 }
 ```
 
@@ -354,14 +354,14 @@ row: Row, gap: 12, padding: 20, align: "center" {
 
 ## 9. Primitive Types
 
-**Shapes:** `Circle`, `Dot`, `Rect`, `Square`, `Line`, `Arrow`, `Ellipse`, `Arc`, `Polygon`, `RegularPolygon`, `Path`
+**Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`
 
 **Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
 
 **Path commands:** `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`
 
 ```animatix
-arc: Arc, radius_x: 50, radius_y: 50, start_angle: 0, sweep_angle: 3.14
+arc: Ellipse, radius_x: 50, radius_y: 50, start_angle: 0, sweep_angle: 3.14
 poly: Polygon, points: [(0,0), (100,0), (50,100)]
 path: Path, commands: [move_to(0, 0), line_to(100, 100), close()]
 img: Image, url: "photo.png", at: (100, 100), size: (200, 150)
@@ -454,7 +454,7 @@ Re-export chains are resolved transitively. Values are evaluated at build time i
 pub component MetricCard(title: "Metric") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text { text: title, at: (0, -20) }
-    badge: Circle, radius: 12, color: gold
+    badge: Ellipse, radius: 12, color: gold
 }
 ```
 

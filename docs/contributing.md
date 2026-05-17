@@ -245,7 +245,7 @@ For demo work: keep runnable demos under `examples/`, verify with both `ast` and
 
 Users can create actors from the GUI via toolbar `+`, inspector CTA, or right-click canvas. New actors are inserted into the current keyframe block (or wrapped in `#0s` if none exist).
 
-Supported types: Rect, Circle, Text, Row, Col. Code-only types (Math, Image, Svg, plots) are not creatable from GUI.
+Supported types: Rect, Ellipse, Line, Polygon, Path, Text, Row, Col. Code-only types (Math, Image, Svg, plots) are not creatable from GUI.
 
 To add GUI creation support for a new primitive:
 1. Ensure it implements `Primitive::default_props()` in `primitives/<name>.rs`.

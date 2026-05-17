@@ -78,7 +78,7 @@ Note: Missing files or invalid SVG contents report build diagnostics. Source cha
 
 **Properties:**
 - `url`: String
-- `at`: Tuple `(x, y)` or scene-relative percent tuple `(30%, 38%)`
+- `at`: Tuple `(x, y)` or percent tuple `(30%, 38%)`
 - `anchor`: Scene anchor
 - `offset`: Tuple `(x, y)`
 - `size`: Optional tuple `(width, height)` — defaults to intrinsic pixel size
@@ -90,176 +90,143 @@ photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
 
-## Circle
-**Status:** Implemented in parser and runtime.
-
-**Properties:**
-- `radius`: Number
-- `color`: Color
-- `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
-- `fill_opacity`: Number
-- `stroke_progress`: Number
-- `at`: Tuple `(x, y)`
-
-**Example:**
-```animatix
-c: Circle, radius: 50, color: red, at: (200, 200)
-```
-
-## Dot
-**Status:** Implemented in parser and runtime.
-
-Small-radius alias of Circle pipeline. Same properties as Circle.
-
-**Example:**
-```animatix
-dot: Dot, color: gold, at: (320, 240)
-```
-
 ## Rect
 **Status:** Implemented in parser and runtime.
 
-Uses generic `size` tuple (not separate `width`/`height`).
+**Absorbs:** `Square` — use `side` property for equal-sided squares. `side` takes precedence over
+`size` when both are provided.
 
 **Properties:**
-- `size`: Tuple `(width, height)`
+- `size`: Tuple `(width, height)` — general rectangle dimensions
+- `side`: Number — shorthand for equal width/height (square mode)
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
+- `stroke_width`: Number
 - `fill_opacity`: Number
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
-**Example:**
+**Special modes:**
+- Providing `side` (and omitting `size`) activates square mode — renders as equal-sided rect.
+  Equivalent to `size: (side, side)`.
+
+**Examples:**
 ```animatix
+# Rectangle with explicit size
 r: Rect, size: (160, 80), color: blue, at: (400, 300)
-```
 
-## Square
-**Status:** Implemented in parser and runtime.
-
-Equal-side alias of Rect. Supports both `side` shorthand and `size`.
-
-**Properties:**
-- `side`: Number
-- `size`: Tuple `(width, height)`
-- `color`: Color
-- `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
-- `fill_opacity`: Number
-- `stroke_progress`: Number
-- `at`: Tuple `(x, y)`
-
-**Example:**
-```animatix
-sq: Square, side: 120, color: blue, at: (400, 300)
-```
-
-## Line
-**Status:** Implemented in parser and runtime. Stroke-oriented (no fill).
-
-**Properties:**
-- `from`: Tuple `(x, y)` in local actor coordinates
-- `to`: Tuple `(x, y)` in local actor coordinates
-- `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
-- `at`: Tuple `(x, y)`
-
-**Example:**
-```animatix
-axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (640, 360)
-```
-
-## Arrow
-**Status:** Implemented in parser and runtime.
-
-Straight-arrow companion to Line. Generates filled arrowhead at `to` end via vector path pipeline.
-
-**Properties:**
-- `from`: Tuple `(x, y)` in local actor coordinates
-- `to`: Tuple `(x, y)` in local actor coordinates
-- `tip_length`: Number
-- `tip_width`: Number
-- `color`: Color
-- `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
-- `fill_opacity`: Number
-- `at`: Tuple `(x, y)`
-
-**Example:**
-```animatix
-flow: Arrow, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, stroke: white, color: gold, at: (640, 360)
+# Square via side shorthand
+sq: Rect, side: 120, color: green, at: (400, 500)
 ```
 
 ## Ellipse
-**Status:** Implemented in parser and runtime. Axis-aligned only (rotation planned).
+**Status:** Implemented in parser and runtime.
+
+**Absorbs:** `Circle`, `Dot`, `Arc`.
+
+- `Circle` — use `radius` or `size` for uniform radii.
+- `Dot` — use `radius` with a small value.
+- `Arc` — add `start_angle` and `sweep_angle` to render an open arc instead of a full ellipse.
 
 **Properties:**
-- `radius_x`: Number
-- `radius_y`: Number
+- `size`: Tuple `(width, height)` — bounding box dimensions, converted to `radius_x = width / 2`, `radius_y = height / 2`
+- `radius`: Number — shorthand for equal `radius_x` and `radius_y` (circle mode)
+- `radius_x`: Number — horizontal radius
+- `radius_y`: vertical radius
+- `start_angle`: Number — arc start in radians (default: `0`)
+- `sweep_angle`: Number — arc sweep in radians (default: `2π`, full ellipse)
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
+- `stroke_width`: Number
 - `fill_opacity`: Number
+- `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
-**Example:**
+**Special modes:**
+- Providing `radius` (without `radius_x`/`radius_y`) activates circle mode —
+  renders a uniform-radius circle.
+- Providing `start_angle` and/or `sweep_angle` (when sweeping from `2π`) activates arc mode —
+  renders an open arc (stroke-only, not a pie slice). In arc mode `color` and `fill_opacity`
+  are ignored; only `stroke`/`stroke_width` apply.
+- A small `radius` (e.g. `≤ 3`) renders a dot — use `color` for fill, omit stroke for a clean dot.
+
+**Examples:**
 ```animatix
+# Circle via radius shorthand
+c: Ellipse, radius: 50, color: red, at: (200, 200)
+
+# Ellipse with explicit radii
 halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
+
+# Ellipse via size tuple
+halo: Ellipse, size: (180, 80), color: cyan, at: (640, 360)
+
+# Dot (small-radius circle)
+dot: Ellipse, radius: 3, color: gold, at: (320, 240)
+
+# Arc (open stroke-only arc)
+ring: Ellipse, radius_x: 160, radius_y: 110, start_angle: -0.5, sweep_angle: 4.0, stroke: gold, stroke_width: 5, at: (640, 360)
 ```
 
-## Arc
-**Status:** Implemented in parser and runtime. Stroke-only (open arc, not pie slice).
+## Line
+**Status:** Implemented in parser and runtime.
+
+**Absorbs:** `Arrow` — add `tip_length` and `tip_width` to draw an arrowhead at the `to` endpoint.
+
+Stroke-oriented — no fill property.
 
 **Properties:**
-- `radius_x`: Number
-- `radius_y`: Number
-- `start_angle`: Number
-- `sweep_angle`: Number
+- `from`: Tuple `(x, y)` in local actor coordinates
+- `to`: Tuple `(x, y)` in local actor coordinates
+- `tip_length`: Number — arrowhead length along the shaft (default: `0`, no arrowhead)
+- `tip_width`: Number — arrowhead width perpendicular to the shaft
 - `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
+- `stroke_width`: Number
 - `at`: Tuple `(x, y)`
 
-**Example:**
+**Special modes:**
+- Providing `tip_length` and `tip_width` (both > 0) activates arrowhead mode —
+  renders a filled arrowhead at the `to` endpoint via the vector path pipeline. In arrowhead mode
+  the `stroke` color is used for the shaft and the arrowhead fill matches `stroke`.
+
+**Examples:**
 ```animatix
-ring: Arc, radius_x: 160, radius_y: 110, start_angle: -0.5, sweep_angle: 4.0, stroke: gold, width: 5, at: (640, 360)
+# Plain line (no arrowhead)
+axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (640, 360)
+
+# Arrow line
+flow: Line, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, stroke: white, at: (640, 360)
 ```
 
 ## Polygon
 **Status:** Implemented in parser and runtime.
 
+**Absorbs:** `RegularPolygon` — use `sides` and `radius` to generate evenly spaced points automatically.
+
 **Properties:**
-- `points`: Tuple/list of point tuples
+- `points`: Tuple/list of point tuples — explicit vertex list
+- `sides`: Number (≥ 3) — number of sides for automatic regular polygon generation
+- `radius`: Number — circumradius used with `sides` for point generation
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
+- `stroke_width`: Number
 - `fill_opacity`: Number
+- `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
-**Example:**
+**Special modes:**
+- Providing `sides ≥ 3` (with or without explicit `points`) activates regular polygon
+  generation — points are derived automatically from `sides` and `radius`.
+- Providing explicit `points` overrides regular polygon generation and renders an arbitrary
+  polygon from the given vertices.
+
+**Examples:**
 ```animatix
+# Explicit vertex list
 badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan, at: (640, 360)
-```
 
-## RegularPolygon
-**Status:** Implemented in parser and runtime.
-
-Generated-points companion to Polygon. Derives evenly spaced points from `sides` and `radius`.
-
-**Properties:**
-- `sides`: Number (minimum 3)
-- `radius`: Number
-- `points`: Optional explicit point override
-- `color`: Color
-- `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
-- `fill_opacity`: Number
-- `at`: Tuple `(x, y)`
-
-**Example:**
-```animatix
-hex: RegularPolygon, sides: 6, radius: 70, color: cyan, at: (640, 360)
+# Regular polygon via sides/radius
+hex: Polygon, sides: 6, radius: 70, color: cyan, at: (640, 360)
 ```
 
 ## Path
@@ -271,8 +238,9 @@ Uses structured commands (`move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve
 - `commands`: Tuple/list of path commands
 - `color`: Color
 - `stroke` / `stroke_color`: Color
-- `stroke_width` / `width`: Number
+- `stroke_width`: Number
 - `fill_opacity`: Number
+- `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
 **Example:**
@@ -282,7 +250,7 @@ guide: Path, commands: {
   line_to(-40, -80),
   curve_to(20, -120, 80, 40, 140, -10),
   close()
-}, stroke: white, width: 4, at: (640, 360)
+}, stroke: white, stroke_width: 4, at: (640, 360)
 ```
 
 ---
@@ -351,7 +319,7 @@ Samples scalar field closure `(x, y) => expr`, extracts zero contour via marchin
 ```animatix
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300) {
   parabola: CartesianPlot, func: (x) => x^2 + 3, color: red, width: 2,
-rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
+  rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
 }
 
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
@@ -415,23 +383,29 @@ Root layout containers can omit `at` and default to `scene.center`. Scene-relati
 
 # 4. Common Animated Properties
 
-Runtime supports explicit assignment for: `color`, `stroke_width`, `stroke_color`, `stroke_progress`, `fill_opacity`, `size`, `at`/`position`, `radius`, `radius_x`, `radius_y`, `from`, `to`, `start_angle`, `sweep_angle`, `scene.background_color`.
+Runtime supports explicit assignment for: `color`, `stroke`, `stroke_width`, `stroke_progress`,
+`fill_opacity`, `size`, `side`, `at`/`position`, `radius`, `radius_x`, `radius_y`, `from`,
+`to`, `tip_length`, `tip_width`, `start_angle`, `sweep_angle`, `scene.background_color`.
 
 Text/Math/Code use text-path keyframes; shapes use vector-path keyframes.
 
-Nested property targeting via dotted paths works on both sides: `left.badge.color = red` (assignment) and `copy.at = left.badge.at` (read). Component reads like `source.at.x` are supported.
+Nested property targeting via dotted paths works on both sides: `left.badge.color = red`
+(assignment) and `copy.at = left.badge.at` (read). Component reads like `source.at.x`
+are supported.
 
-Geometry inputs (`Polygon.points`, `Path.commands`) are now fully animated tracks; assignments with duration trigger path morphing via `vector_paths` interpolation.
+Geometry inputs (`points`, `commands`) are now fully animated tracks; assignments with
+duration trigger path morphing via `vector_paths` interpolation.
 
 Unsupported assignments report build diagnostics rather than silent ignore.
 
-For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies), see [`spec.md`](spec.md).
+For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies), see
+[`spec.md`](spec.md).
 
 ---
 
 # 5. Planned / Parser-Only
 
 - `Image` / `Svg` source assignment (currently requires re-declaration)
-- `Ellipse` rotation
+- ~~`Ellipse` rotation~~ (unified into Ellipse)
 - ~~`strategy: fade` morphing~~ (implemented)
 - High-level multi-strategy morph selection
