@@ -1190,18 +1190,21 @@ self.selected_actors,
                 });
 
                 if let Some(handle_idx) = over_handle {
-                    let icon = match handle_idx {
-                        0 => egui::CursorIcon::ResizeNwSe,
-                        1 => egui::CursorIcon::ResizeNeSw,
-                        2 => egui::CursorIcon::ResizeNwSe,
-                        3 => egui::CursorIcon::ResizeNeSw,
-                        4 => egui::CursorIcon::ResizeVertical,
-                        5 => egui::CursorIcon::ResizeHorizontal,
-                        6 => egui::CursorIcon::ResizeVertical,
-                        7 => egui::CursorIcon::ResizeHorizontal,
-                        _ => egui::CursorIcon::Crosshair,
+                    let (icon, tooltip) = match handle_idx {
+                        0 => (egui::CursorIcon::ResizeNwSe, "Scale from top-left"),
+                        1 => (egui::CursorIcon::ResizeNeSw, "Scale from top-right"),
+                        2 => (egui::CursorIcon::ResizeNwSe, "Scale from bottom-right"),
+                        3 => (egui::CursorIcon::ResizeNeSw, "Scale from bottom-left"),
+                        4 => (egui::CursorIcon::ResizeVertical, "Scale height"),
+                        5 => (egui::CursorIcon::ResizeHorizontal, "Scale width"),
+                        6 => (egui::CursorIcon::ResizeVertical, "Scale height"),
+                        7 => (egui::CursorIcon::ResizeHorizontal, "Scale width"),
+                        _ => (egui::CursorIcon::Crosshair, "Rotate"),
                     };
                     ui.ctx().set_cursor_icon(icon);
+                    egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), egui::Id::new("handle_tooltip"), |ui| {
+                        ui.label(egui::RichText::new(tooltip).size(crate::app::theme::FONT_SIZE_S));
+                    });
                 } else {
                     let is_over_selected = self
                         .selected_actors

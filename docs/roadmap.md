@@ -47,14 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.8 No Handle Tooltips
-
-**Status:** Hovering a scale handle shows a resize cursor but no text label.
-**Impact:** New users can't tell corner vs. edge handle behavior.
-**Effort:** Trivial.
-
----
-
 ### 3.9 Nested Transform Not Supported
 
 **Status:** Child actors in layout containers are layout-managed and cannot be moved/scaled/rotated individually; only reordering works.
