@@ -115,12 +115,12 @@ impl LayoutEngine {
     pub fn compute_layout_for_time(
         &self,
         metadata: &ContainerMetadata,
+        layout_children: &[ContainerLayoutChild],
         time_ms: u64,
         tracks: &BTreeMap<String, AnimationTrack>,
     ) -> BTreeMap<String, [f32; 2]> {
         // Sample child extents at current time
-        let child_extents: Vec<ChildExtent> = metadata
-            .layout_children
+        let child_extents: Vec<ChildExtent> = layout_children
             .iter()
             .map(|child| {
                 let track = tracks
@@ -131,7 +131,7 @@ impl LayoutEngine {
                     half_size: track
                         .layout_size_get(time_ms)
                         .expect("admitted layout child must have seeded layout_size"),
-                    placement_mode: track.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
+                    placement_mode: child.placement_mode,
                 }
             })
             .collect();
@@ -205,6 +205,7 @@ impl Timeline {
             if is_admitted {
                 layout_children.push(ContainerLayoutChild {
                     label: child_label.clone(),
+                    placement_mode,
                 });
             }
         }
@@ -222,7 +223,7 @@ impl Timeline {
             return;
         };
 
-        let children = metadata.layout_children.clone();
+        let children = self.layout_children_for(container_label);
 
         // Layout containers consume child-local half-extents from the dedicated
         // layout-size track. Authored shapes seed this track from declared geometry;
@@ -236,13 +237,12 @@ impl Timeline {
                     .tracks
                     .get(&cl.label)
                     .expect("admitted layout child must have a track");
-                let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
                 ChildExtent {
                     label: cl.label.clone(),
                     half_size: track
                         .layout_size_last()
                         .expect("admitted layout child must have seeded layout_size"),
-                    placement_mode,
+                    placement_mode: cl.placement_mode,
                 }
             })
             .collect();
@@ -253,8 +253,8 @@ impl Timeline {
 
         // Write positions to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
-            if let Some(track) = self.tracks.get_mut(&child.label) {
-                if track.placement_mode.last(PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged {
+            if child.placement_mode == PlacementMode::LayoutManaged {
+                if let Some(track) = self.tracks.get_mut(&child.label) {
                     track.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
                 }
             }

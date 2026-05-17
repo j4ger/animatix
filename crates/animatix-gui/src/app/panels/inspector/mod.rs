@@ -153,13 +153,13 @@ pub(super) fn inspector_ui(
                 ui.add_space(SPACE_M);
 
                 // ── Container Children ──
-                if let Some(metadata) = timeline.container_metadata.get(sel) {
+                if timeline.container_metadata.get(sel).is_some() {
                     components::card(ui, |ui| {
                         components::section_header(
                             ui,
                             egui_phosphor::regular::ROWS,
                             "Children",
-                            Some(metadata.layout_children.len()),
+                            Some(timeline.layout_children_for(sel).len()),
                         );
                         let time_ms = (current_time_s * 1000.0) as u64;
                         let order = timeline.get_child_order(sel, time_ms);

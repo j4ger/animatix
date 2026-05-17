@@ -171,6 +171,27 @@ pub fn load_standard_library(env: &mut Environment) {
         Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(rand::random::<f64>())))),
     );
 
+    // Deterministic pseudo-random using splitmix64 hash.
+    // Same seed always produces the same value in [0, 1).
+    fn splitmix64(x: u64) -> u64 {
+        let z = x.wrapping_add(0x9e3779b97f4a7c15);
+        let z = z ^ (z >> 30);
+        let z = z.wrapping_mul(0xbf58476d1ce4e5b9);
+        let z = z ^ (z >> 27);
+        let z = z.wrapping_mul(0x94d049bb133111eb);
+        z ^ (z >> 31)
+    }
+
+    env.set(
+        "seeded_rand",
+        Value::NativeFn(Arc::new(|args, _env| {
+            expect_arg_count("seeded_rand", args, 1)?;
+            let seed = expect_num("seeded_rand", &args[0])?;
+            let hash = splitmix64(seed.to_bits());
+            Ok(Value::Num(hash as f64 / u64::MAX as f64))
+        })),
+    );
+
     env.set("RED", Value::Color([1.0, 0.0, 0.0, 1.0]));
     env.set("GREEN", Value::Color([0.0, 1.0, 0.0, 1.0]));
     env.set("BLUE", Value::Color([0.0, 0.0, 1.0, 1.0]));

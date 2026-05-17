@@ -118,7 +118,7 @@ impl GuiShell {
         let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document.timeline.as_mut(), edit.value.clone()) {
             if let Some(metadata) = timeline.container_metadata.get_mut(&edit.actor) {
                 metadata.child_order = order.clone();
-                metadata.layout_children = order.iter().filter_map(|label| timeline.tracks.get(label).map(|_| animatix::timeline::ContainerLayoutChild { label: label.clone() })).collect();
+                // layout_children is computed on demand via Timeline::layout_children_for
                 timeline.invalidate_frame_cache();
             }
             if let Some(ref mut stmts) = self.document.raw_statements {

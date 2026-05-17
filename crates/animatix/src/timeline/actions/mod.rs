@@ -361,10 +361,6 @@ mod tests {
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string()],
-                layout_children: vec![
-                    ContainerLayoutChild { label: "a".to_string() },
-                    ContainerLayoutChild { label: "b".to_string() },
-                ],
             },
         );
 
@@ -417,11 +413,6 @@ mod tests {
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                layout_children: vec![
-                    ContainerLayoutChild { label: "a".to_string() },
-                    ContainerLayoutChild { label: "b".to_string() },
-                    ContainerLayoutChild { label: "c".to_string() },
-                ],
             },
         );
 
@@ -527,11 +518,6 @@ mod tests {
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-                layout_children: vec![
-                    ContainerLayoutChild { label: "a".to_string() },
-                    ContainerLayoutChild { label: "b".to_string() },
-                    ContainerLayoutChild { label: "c".to_string() },
-                ],
             },
         );
 
@@ -593,10 +579,6 @@ mod tests {
                 align: "center".to_string(),
                 cols: None,
                 child_order: vec!["a".to_string(), "b".to_string()],
-                layout_children: vec![
-                    ContainerLayoutChild { label: "a".to_string() },
-                    ContainerLayoutChild { label: "b".to_string() },
-                ],
             },
         );
 

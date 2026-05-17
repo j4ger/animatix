@@ -48,7 +48,8 @@ impl Timeline {
             .get(label)
             .map(|t| t.children.clone())
             .unwrap_or_default();
-        let layout_children = self.build_layout_children(label, container_ty, &child_order, diagnostics);
+        // layout_children is computed on demand via Timeline::layout_children_for
+        let _layout_children = self.build_layout_children(label, container_ty, &child_order, diagnostics);
 
         self.container_metadata.insert(
             label.to_string(),
@@ -59,7 +60,6 @@ impl Timeline {
                 align: align.unwrap_or("center").to_string(),
                 cols,
                 child_order,
-                layout_children,
             },
         );
 

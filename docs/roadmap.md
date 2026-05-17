@@ -26,34 +26,7 @@ No widget exists for editing variable-length lists of `Vec2` points or path comm
 
 ## 3. Architecture / Cleanup Debt
 
-### 3.1 Dynamic Layout — Post-Migration Cleanup
-
-**Location:** `docs/architecture.md` §Layout System.
-
-- Richer `ContainerLayoutChild` entries than just labels.
-- Reducing metadata duplication between `child_order` and `layout_children`.
-- Retiring legacy `size` from non-layout subsystems if desired.
-
-**Effort:** Low-Medium.
-
----
-
-### 3.2 Randomness Determinism
-
-**Status:** Documented caveat.
-**Location:** `docs/architecture.md` §Reactive System.
-
-Current `rand()` is not a deterministic function of time. Scenes depending on fresh randomness per evaluation break the random-access frame promise.
-
-**Options:**
-- Seed `rand()` from `t` + label hash for deterministic pseudo-randomness.
-- Add `seeded_rand(t, seed)` builtin.
-
-**Effort:** Low-Medium.
-
----
-
-### 3.3 Plotting System — Per-Frame Sampling Cache
+### 3.1 Plotting System — Per-Frame Sampling Cache
 
 **Status:** Implemented. Procedural plots re-sample every frame regardless of whether the function references `t`.
 **Location:** `crates/animatix/src/timeline/scene_eval.rs`.
@@ -70,7 +43,7 @@ For static plots, sample once at build time and skip re-sampling. For animated p
 
 ---
 
-### 3.4 Plotting System — `func` Signature Validation
+### 3.2 Plotting System — `func` Signature Validation
 
 **Status:** No validation. Users can pass wrong-arity or wrong-return-type closures without diagnostics.
 **Location:** `crates/animatix/src/timeline/build/plot.rs` §`process_plot_actor`.
@@ -89,7 +62,7 @@ Passing a scalar to parametric or a Vec2 to cartesian silently produces incorrec
 
 ---
 
-### 3.5 Plotting System — Graph Axes Out-of-Domain Position
+### 3.3 Plotting System — Graph Axes Out-of-Domain Position
 
 **Status:** When zero is outside the domain, axes are drawn at the plot boundary instead of being omitted.
 **Location:** `crates/animatix/src/timeline/build/plot.rs` §`build_graph_axis_paths`.
@@ -137,10 +110,8 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | Multi-Scene GUI transition blending (Phase 7 polish) | Medium | High |
-| 2 | Randomness determinism | Low-Medium | Medium |
-| 3 | Plotting: per-frame sampling cache | Low-Medium | Medium |
-| 4 | Plotting: `func` signature validation | Low | Medium |
-| 5 | Plotting: axes out-of-domain position | Low | Low |
-| 6 | Dynamic layout cleanup | Low-Medium | Low (cleanup) |
-| 7 | Cross-file analyzer | Medium-High | Medium |
-| 8 | Green tree / trivia AST | Very High | Low (polish) |
+| 2 | Plotting: per-frame sampling cache | Low-Medium | Medium |
+| 3 | Plotting: `func` signature validation | Low | Medium |
+| 4 | Plotting: axes out-of-domain position | Low | Low |
+| 5 | Cross-file analyzer | Medium-High | Medium |
+| 6 | Green tree / trivia AST | Very High | Low (polish) |

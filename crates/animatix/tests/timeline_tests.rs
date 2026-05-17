@@ -2291,19 +2291,21 @@ fn test_layout_uses_dedicated_layout_size_not_legacy_size() {
         align: "center".to_string(),
         cols: None,
         child_order: vec!["left".to_string(), "right".to_string()],
-        layout_children: vec![
-            ContainerLayoutChild {
-                label: "left".to_string(),
-            },
-            ContainerLayoutChild {
-                label: "right".to_string(),
-            },
-        ],
     };
+    let layout_children = vec![
+        ContainerLayoutChild {
+            label: "left".to_string(),
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+        ContainerLayoutChild {
+            label: "right".to_string(),
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+    ];
 
     let computed = timeline
         .layout_engine
-        .compute_layout_for_time(&metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(&metadata, &layout_children, 0, &timeline.tracks);
 
     assert_eq!(computed.get("left"), Some(&[-20.0, 0.0]));
     assert_eq!(computed.get("right"), Some(&[20.0, 0.0]));
@@ -2341,14 +2343,15 @@ fn test_layout_size_fallback_uses_unseeded_layout_size_even_if_legacy_size_exist
         align: "center".to_string(),
         cols: None,
         child_order: vec!["fallback_child".to_string(), "measured_child".to_string()],
-        layout_children: vec![ContainerLayoutChild {
-            label: "measured_child".to_string(),
-        }],
     };
+    let layout_children = vec![ContainerLayoutChild {
+        label: "measured_child".to_string(),
+        placement_mode: PlacementMode::LayoutManaged,
+    }];
 
     let computed = timeline
         .layout_engine
-        .compute_layout_for_time(&metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(&metadata, &layout_children, 0, &timeline.tracks);
 
     assert_eq!(computed.get("fallback_child"), None);
     assert_eq!(computed.get("measured_child"), Some(&[0.0, 0.0]));
@@ -5296,7 +5299,7 @@ right.size = (80, 20) [1s]
     // left position = -40 + 10 = -30, right position = -40 + 20 + 20 + 20 = 20
     let positions_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     assert_eq!(positions_0.get("left").copied().unwrap(), [-30.0, 0.0]);
     assert_eq!(positions_0.get("right").copied().unwrap(), [20.0, 0.0]);
@@ -5306,7 +5309,7 @@ right.size = (80, 20) [1s]
     // left position = -60 + 10 = -50, right position = -60 + 20 + 20 + 40 = 20
     let positions_2s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 2000, &timeline.tracks);
 
     // Left should have shifted left because the row got wider
     assert_eq!(positions_2s.get("left").copied().unwrap(), [-50.0, 0.0]);
@@ -5335,7 +5338,7 @@ row: Row, gap: 20 {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // left is LayoutManaged, so it should be in the result
     assert!(positions.contains_key("left"));
@@ -6345,7 +6348,7 @@ fn test_manual_children_do_not_affect_layout_spacing() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // Manual child still contributes spacing. With a 30px manual circle, 20px gap,
     // and a 20px auto circle: total = 30 + 20 + 20 = 70, start = -35,
@@ -6445,10 +6448,10 @@ fn test_row_col_parity_horizontal_vertical_distribution() {
 
     let row_positions = row_timeline
         .layout_engine
-        .compute_layout_for_time(row_metadata, 0, &row_timeline.tracks);
+        .compute_layout_for_time(row_metadata, &row_metadata.layout_children(&row_timeline.tracks), 0, &row_timeline.tracks);
     let col_positions = col_timeline
         .layout_engine
-        .compute_layout_for_time(col_metadata, 0, &col_timeline.tracks);
+        .compute_layout_for_time(col_metadata, &col_metadata.layout_children(&col_timeline.tracks), 0, &col_timeline.tracks);
 
     // Row: total width = 20 + 10 + 30 = 60, start = -30
     // a at -30 + 10 = -20, b at -30 + 20 + 10 + 15 = 15
@@ -6483,7 +6486,7 @@ fn test_grid_parity_with_row_col_extent_computation() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // Col 0: max width = max(30, 20) = 50, positions should center in 50-wide cell
     // Col 1: max width = 50
@@ -6540,7 +6543,7 @@ fn test_dynamic_layout_recomputes_on_size_change() {
     // left at -52 + 12 = -40, right at -52 + 24 + 20 + 30 = 22
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert_eq!(pos_0.get("left").copied().unwrap(), [-40.0, 0.0]);
     assert_eq!(pos_0.get("right").copied().unwrap(), [22.0, 0.0]);
 
@@ -6549,7 +6552,7 @@ fn test_dynamic_layout_recomputes_on_size_change() {
     // left at -72 + 12 = -60, right at -72 + 24 + 20 + 50 = 22
     let pos_3s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 3000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 3000, &timeline.tracks);
     assert_eq!(pos_3s.get("left").copied().unwrap(), [-60.0, 0.0]);
     // right center stays at 22 (same absolute position because left shifted)
     assert_eq!(pos_3s.get("right").copied().unwrap(), [22.0, 0.0]);
@@ -6585,14 +6588,14 @@ fn test_dynamic_layout_recomputes_on_child_addition() {
     // children participate in dynamic layout sampling once admitted.
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert_eq!(pos_0.get("a").copied().unwrap(), [-27.5, 0.0]);
     assert_eq!(pos_0.get("b").copied().unwrap(), [17.5, 0.0]);
 
     // At t=1s+, positions remain consistent with the same child set.
     let pos_1s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 1000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 1000, &timeline.tracks);
     assert_eq!(pos_1s.get("a").copied().unwrap(), [-27.5, 0.0]);
     assert_eq!(pos_1s.get("b").copied().unwrap(), [17.5, 0.0]);
 }
@@ -6618,12 +6621,13 @@ fn test_dynamic_layout_excludes_unadmitted_children_at_all_times() {
         .get("icon_row")
         .expect("icon_row should have metadata");
 
-    assert!(metadata.layout_children.is_empty());
+    assert!(timeline.layout_children_for("icon_row").is_empty());
 
     for time_ms in [0_u64, 500, 1000, 2000] {
+        let layout_children = timeline.layout_children_for("icon_row");
         let positions = timeline
             .layout_engine
-            .compute_layout_for_time(metadata, time_ms, &timeline.tracks);
+            .compute_layout_for_time(metadata, &layout_children, time_ms, &timeline.tracks);
         assert!(!positions.contains_key("icon1"));
         assert!(!positions.contains_key("icon2"));
     }
@@ -6653,10 +6657,10 @@ fn test_dynamic_layout_uses_layout_size_for_radius_y_assignment() {
 
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     let pos_2s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 2000, &timeline.tracks);
 
     assert_eq!(pos_0.get("left").copied().unwrap(), [-20.0, 0.0]);
     assert_eq!(pos_0.get("right").copied().unwrap(), [30.0, 0.0]);
@@ -6690,7 +6694,7 @@ fn test_stack_overlaps_all_children_at_origin() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // Stack places ALL children at origin regardless of their sizes
     assert_eq!(positions.get("base").copied().unwrap(), [0.0, 0.0]);
@@ -6724,10 +6728,10 @@ fn test_stack_does_not_reflow_on_size_change() {
     // Stack should always place 'growing' at origin regardless of size
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     let pos_2s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 2000, &timeline.tracks);
 
     // Both times, growing should be at origin
     assert_eq!(pos_0.get("growing").copied().unwrap(), [0.0, 0.0]);
@@ -6754,7 +6758,7 @@ fn test_stack_ignores_manual_placement_all_children_at_origin() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // Stack only includes LayoutManaged children in positions
     // 'manual' is Manual, so only 'auto' should be in positions
@@ -6827,7 +6831,7 @@ fn test_text_in_row_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(positions.contains_key("title"), "title should have layout position");
     assert!(positions.contains_key("subtitle"), "subtitle should have layout position");
 
@@ -6876,7 +6880,7 @@ fn test_math_in_col_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(positions.contains_key("eq1"), "eq1 should have layout position");
     assert!(positions.contains_key("eq2"), "eq2 should have layout position");
 
@@ -6923,7 +6927,7 @@ fn test_code_in_grid_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(positions.contains_key("fn_a"));
     assert!(positions.contains_key("fn_b"));
     assert!(positions.contains_key("fn_c"));
@@ -6983,8 +6987,9 @@ fn test_svg_in_row_is_layout_managed() {
 
     // SVGs without seeded layout_size should be excluded from layout_children
     // and a LayoutSizeFallback warning should be emitted
-    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon1"));
-    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon2"));
+    let layout_children = timeline.layout_children_for("icon_row");
+    assert!(!layout_children.iter().any(|c| c.label == "icon1"));
+    assert!(!layout_children.iter().any(|c| c.label == "icon2"));
     assert!(report.diagnostics.iter().any(|d| {
         d.code == DiagnosticCode::LayoutSizeFallback
             && d.location.subject.as_deref() == Some("icon1")
@@ -6997,7 +7002,7 @@ fn test_svg_in_row_is_layout_managed() {
     // Verify layout computes positions - but SVGs are excluded so no positions for them
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(!positions.contains_key("icon1"), "SVG without layout_size should be excluded");
     assert!(!positions.contains_key("icon2"), "SVG without layout_size should be excluded");
 }
@@ -7043,7 +7048,7 @@ fn test_image_in_col_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(positions.contains_key("photo1"));
     assert!(positions.contains_key("photo2"));
 
@@ -7231,7 +7236,7 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
     // Verify layout computes positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     assert!(positions.contains_key("plot_a"));
     assert!(positions.contains_key("plot_b"));
 
@@ -7279,7 +7284,7 @@ fn test_circle_in_row_is_layout_managed() {
     // Verify layout positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     let red_pos = positions.get("red_dot").copied().unwrap();
     let blue_pos = positions.get("blue_dot").copied().unwrap();
     assert_ne!(red_pos[0], blue_pos[0], "dots should have distinct X positions");
@@ -7322,7 +7327,7 @@ fn test_rect_in_col_is_layout_managed() {
     // Verify layout positions
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     let small_pos = positions.get("small_box").copied().unwrap();
     let tall_pos = positions.get("tall_box").copied().unwrap();
     assert_ne!(small_pos[1], tall_pos[1], "boxes should have distinct Y positions");
@@ -7358,9 +7363,10 @@ fn test_stack_places_all_actor_kinds_at_origin() {
         .get("mixed_stack")
         .expect("mixed_stack should have metadata");
 
+    let layout_children = timeline.layout_children_for("mixed_stack");
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &layout_children, 0, &timeline.tracks);
 
     // Children with seeded layout_size should be at origin (Stack semantics)
     // SVG without layout_size is excluded from layout_children
@@ -7370,7 +7376,7 @@ fn test_stack_places_all_actor_kinds_at_origin() {
     assert_eq!(positions.get("box").copied().unwrap(), [0.0, 0.0]);
 
     // Verify SVG was excluded and warning was emitted
-    assert!(!metadata.layout_children.iter().any(|c| c.label == "icon"));
+    assert!(!layout_children.iter().any(|c| c.label == "icon"));
     assert!(report.diagnostics.iter().any(|d| {
         d.code == DiagnosticCode::LayoutSizeFallback
             && d.location.subject.as_deref() == Some("icon")
@@ -7404,10 +7410,10 @@ fn test_stack_does_not_reflow_mixed_actor_kinds() {
     // Both at t=0 and t=2s should be at origin
     let pos_0 = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
     let pos_2s = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 2000, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 2000, &timeline.tracks);
 
     assert_eq!(pos_0.get("growing_text").copied().unwrap(), [0.0, 0.0]);
     assert_eq!(pos_0.get("growing_shape").copied().unwrap(), [0.0, 0.0]);
@@ -7442,7 +7448,7 @@ fn test_layout_engine_excludes_manual_children() {
 
     let positions = timeline
         .layout_engine
-        .compute_layout_for_time(metadata, 0, &timeline.tracks);
+        .compute_layout_for_time(metadata, &metadata.layout_children(&timeline.tracks), 0, &timeline.tracks);
 
     // Only layout-managed children should appear
     assert!(positions.contains_key("l1"));
@@ -7509,10 +7515,10 @@ fn test_row_center_align_same_semantics_as_col_center() {
 
     let row_positions = row_timeline
         .layout_engine
-        .compute_layout_for_time(row_metadata, 0, &row_timeline.tracks);
+        .compute_layout_for_time(row_metadata, &row_metadata.layout_children(&row_timeline.tracks), 0, &row_timeline.tracks);
     let col_positions = col_timeline
         .layout_engine
-        .compute_layout_for_time(col_metadata, 0, &col_timeline.tracks);
+        .compute_layout_for_time(col_metadata, &col_metadata.layout_children(&col_timeline.tracks), 0, &col_timeline.tracks);
 
     // Center alignment affects only the cross axis. Main-axis positions still differ.
     assert_eq!(row_positions.get("tall").copied().unwrap(), [-25.0, 0.0]);
@@ -7606,4 +7612,71 @@ fn test_swap_action_animates_positions() {
     let b_moved = (pos_b_mid[0] - pos_b_before[0]).abs() > 0.1;
     assert!(a_moved, "a should have moved from its start position during animation; before={:?} mid={:?} after={:?}", pos_a_before, pos_a_mid, pos_a_after);
     assert!(b_moved, "b should have moved from its start position during animation; before={:?} mid={:?} after={:?}", pos_b_before, pos_b_mid, pos_b_after);
+}
+
+// ─── seeded_rand determinism tests ───────────────────────────────────────
+
+#[test]
+fn seeded_rand_is_deterministic() {
+    let source = r#"
+        c: Circle, radius: 50, color: red
+        always {
+            c.position = (seeded_rand(1.0) * 100, seeded_rand(2.0) * 100)
+        }
+    "#;
+    let ast = parse_program(source);
+    let timeline = Timeline::build(&ast);
+    let pos1 = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+
+    // Rebuild and re-evaluate — same seed must produce same value
+    let timeline2 = Timeline::build(&ast);
+    let pos2 = timeline2.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+    assert_eq!(pos1, pos2, "seeded_rand must be deterministic for the same seed");
+}
+
+#[test]
+fn seeded_rand_returns_value_in_range() {
+    let source = r#"
+        c: Circle, radius: 50, color: red
+        always {
+            c.position = (seeded_rand(42.0) * 100, seeded_rand(42.0) * 100)
+        }
+    "#;
+    let ast = parse_program(source);
+    let timeline = Timeline::build(&ast);
+    let pos = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+    assert!(
+        pos[0] >= 0.0 && pos[0] <= 100.0,
+        "seeded_rand should return value in [0,1] range, got {}",
+        pos[0]
+    );
+    assert!(
+        pos[1] >= 0.0 && pos[1] <= 100.0,
+        "seeded_rand should return value in [0,1] range, got {}",
+        pos[1]
+    );
+}
+
+#[test]
+fn seeded_rand_different_seeds_produce_different_values() {
+    use animatix::ast::Expr;
+    use animatix::timeline::{evaluate_expr, Value};
+
+    let source = r#"
+        c: Circle, radius: 50, color: red
+    "#;
+    let ast = parse_program(source);
+    let timeline = Timeline::build(&ast);
+
+    // Evaluate seeded_rand with different seeds directly in the timeline's env
+    let expr1 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(1.0)]);
+    let expr2 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(2.0)]);
+
+    let val1 = evaluate_expr(&expr1, &timeline.env).unwrap();
+    let val2 = evaluate_expr(&expr2, &timeline.env).unwrap();
+
+    let n1 = match val1 { Value::Num(n) => n, _ => panic!("expected num") };
+    let n2 = match val2 { Value::Num(n) => n, _ => panic!("expected num") };
+
+    assert_ne!(n1, n2, "different seeds should produce different values");
 }

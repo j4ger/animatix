@@ -171,6 +171,8 @@ pub struct ContainerLayoutChild {
     /// membership/order. Children excluded here still remain in `track.children`
     /// for scene traversal/rendering.
     pub label: String,
+    /// Cached placement mode from build time to avoid repeated track lookups.
+    pub placement_mode: PlacementMode,
 }
 
 #[derive(Clone, Debug)]
@@ -184,12 +186,28 @@ pub struct ContainerMetadata {
     ///
     /// This is retained for debugging/tests and for preserving the distinction
     /// between authored scene-graph membership and admitted layout membership.
+    /// Layout-admitted children are derived from this on demand via
+    /// `Timeline::layout_children_for` or `ContainerMetadata::layout_children`.
     pub child_order: Vec<String>,
-    /// Layout-admitted subset in authored order.
-    ///
-    /// Layout computation uses this field, while scene traversal/rendering still
-    /// uses `track.children`.
-    pub layout_children: Vec<ContainerLayoutChild>,
+}
+
+impl ContainerMetadata {
+    /// Compute layout-admitted children on demand from `child_order` + tracks.
+    pub fn layout_children(&self, tracks: &BTreeMap<String, AnimationTrack>) -> Vec<ContainerLayoutChild> {
+        self.child_order
+            .iter()
+            .filter_map(|child_label| {
+                let track = tracks.get(child_label)?;
+                if !track.has_layout_size() {
+                    return None;
+                }
+                Some(ContainerLayoutChild {
+                    label: child_label.clone(),
+                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
+                })
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -414,7 +432,7 @@ impl Timeline {
     }
 
     /// Returns the effective child order for a container at the given time.
-    /// Falls back to the container's authored `layout_children` order.
+    /// Falls back to the container's authored `child_order`.
     pub fn get_child_order(&self,
         container_label: &str,
         time_ms: u64,
@@ -427,8 +445,30 @@ impl Timeline {
         }
         self.container_metadata
             .get(container_label)
-            .map(|m| m.layout_children.iter().map(|c| c.label.clone()).collect())
+            .map(|m| m.child_order.clone())
             .unwrap_or_default()
+    }
+
+    /// Compute layout-admitted children for a container on demand.
+    /// Filters `child_order` by `has_layout_size()` and captures placement mode.
+    pub fn layout_children_for(&self, container_label: &str) -> Vec<ContainerLayoutChild> {
+        let Some(metadata) = self.container_metadata.get(container_label) else {
+            return Vec::new();
+        };
+        metadata
+            .child_order
+            .iter()
+            .filter_map(|child_label| {
+                let track = self.tracks.get(child_label)?;
+                if !track.has_layout_size() {
+                    return None;
+                }
+                Some(ContainerLayoutChild {
+                    label: child_label.clone(),
+                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
+                })
+            })
+            .collect()
     }
 
     /// Computes layout positions for a container using a specific child order.
@@ -528,8 +568,10 @@ impl Timeline {
         }
 
         // No child_orders track — delegate to static layout
+        let layout_children = self.layout_children_for(container_label);
         self.layout_engine.compute_layout_for_time(
             metadata,
+            &layout_children,
             time_ms,
             &self.tracks,
         )
@@ -614,8 +656,10 @@ impl Timeline {
             // Compute layout positions for this node's children (needed for next iteration)
             if self.dynamic_layout {
                 if let Some(metadata) = self.container_metadata.get(node_label.as_str()) {
+                    let layout_children = self.layout_children_for(node_label.as_str());
                     current_layout_positions = self.layout_engine.compute_layout_for_time(
                         metadata,
+                        &layout_children,
                         time_ms,
                         &self.tracks,
                     );
