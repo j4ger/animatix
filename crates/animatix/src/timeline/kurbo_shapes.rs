@@ -4,14 +4,13 @@
 //! to BezPath for use with the existing morph_paths interpolation logic.
 //!
 //! Supported shapes:
-//! - Circle: center and radius
 //! - Rect: axis-aligned rectangle with min/max coordinates
 //! - RoundedRect: rectangle with rounded corners (uniform or per-corner radii)
 //! - Line: simple two-point line segment
 //! - Ellipse: parametric ellipse with rotation
 //! - Arc: elliptical arc with sweep angle
 
-use kurbo::{Arc, BezPath, Circle, Ellipse, Line, Point, Rect, RoundedRect, Shape, Vec2};
+use kurbo::{Arc, BezPath, Ellipse, Line, Point, Rect, RoundedRect, Shape, Vec2};
 
 /// Default tolerance for curve approximation
 /// Controls accuracy when converting curves to bezier segments
@@ -20,9 +19,6 @@ pub const DEFAULT_TOLERANCE: f64 = 0.1;
 /// Enum representing all supported kurbo shapes
 #[derive(Clone, Debug)]
 pub enum KurboShape {
-    /// Circle defined by center point and radius
-    Circle { center: Point, radius: f64 },
-
     /// Axis-aligned rectangle defined by min and max coordinates
     Rect { x0: f64, y0: f64, x1: f64, y1: f64 },
 
@@ -71,19 +67,6 @@ pub enum KurboShape {
 }
 
 impl KurboShape {
-    /// Create a circle from center and radius
-    pub fn circle(center: Point, radius: f64) -> Self {
-        KurboShape::Circle { center, radius }
-    }
-
-    /// Create a circle from center coordinates and radius
-    pub fn circle_xy(cx: f64, cy: f64, radius: f64) -> Self {
-        KurboShape::Circle {
-            center: Point::new(cx, cy),
-            radius,
-        }
-    }
-
     /// Create a rectangle from min and max coordinates
     pub fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         KurboShape::Rect { x0, y0, x1, y1 }
@@ -197,9 +180,6 @@ impl KurboShape {
     /// Convert this shape to a BezPath with specified tolerance
     pub fn to_path(&self, tolerance: f64) -> BezPath {
         match self {
-            KurboShape::Circle { center, radius } => {
-                Circle::new(*center, *radius).into_path(tolerance)
-            }
             KurboShape::Rect { x0, y0, x1, y1 } => {
                 Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
             }
@@ -280,11 +260,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_circle_conversion() {
-        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
-        let path = circle.to_path_default();
+    fn test_circle_as_ellipse_conversion() {
+        let ellipse = KurboShape::Ellipse {
+            center: Point::new(50.0, 50.0),
+            radii: Vec2::new(30.0, 30.0),
+            rotation: 0.0,
+        };
+        let path = ellipse.to_path_default();
 
-        // Circle should convert to a valid BezPath
+        // Equal-radii ellipse (circle) should convert to a valid BezPath
         assert!(!path.elements().is_empty());
     }
 
@@ -376,12 +360,16 @@ mod tests {
     }
 
     #[test]
-    fn test_circle_to_rect_morph() {
-        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+    fn test_ellipse_to_rect_morph() {
+        let ellipse = KurboShape::Ellipse {
+            center: Point::new(50.0, 50.0),
+            radii: Vec2::new(30.0, 30.0),
+            rotation: 0.0,
+        };
         let rect = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
         // Mid-morph should produce valid path
-        let morphed = morph_kurbo_shapes_default(&circle, &rect, 0.5);
+        let morphed = morph_kurbo_shapes_default(&ellipse, &rect, 0.5);
         assert!(!morphed.elements().is_empty());
     }
 
@@ -403,11 +391,15 @@ mod tests {
 
     #[test]
     fn test_tolerance_parameter() {
-        let circle = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+        let ellipse = KurboShape::Ellipse {
+            center: Point::new(50.0, 50.0),
+            radii: Vec2::new(30.0, 30.0),
+            rotation: 0.0,
+        };
 
         // Looser tolerance should produce fewer segments
-        let path_loose = circle.to_path(0.5);
-        let path_tight = circle.to_path(0.1);
+        let path_loose = ellipse.to_path(0.5);
+        let path_tight = ellipse.to_path(0.1);
 
         // Both should be valid
         assert!(!path_loose.elements().is_empty());
@@ -422,7 +414,11 @@ mod tests {
 
     #[test]
     fn test_morph_continuity() {
-        let shape1 = KurboShape::circle(Point::new(50.0, 50.0), 30.0);
+        let shape1 = KurboShape::Ellipse {
+            center: Point::new(50.0, 50.0),
+            radii: Vec2::new(30.0, 30.0),
+            rotation: 0.0,
+        };
         let shape2 = KurboShape::rect(20.0, 20.0, 80.0, 80.0);
 
         // Morphs at different time values

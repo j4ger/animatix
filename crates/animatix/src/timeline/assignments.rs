@@ -232,14 +232,10 @@ impl Timeline {
                 }
             }
         } else {
-            // Unknown property — try shape rebuild
-            if affects_shape_geometry(property) && false {
-                // This path would be for truly unknown shape properties
-            } else {
-                push_unsupported_assignment_property_diagnostic(
-                    diagnostics, &assignment_subject, &target_key, property,
-                );
-            }
+            // Unknown property — report diagnostic
+            push_unsupported_assignment_property_diagnostic(
+                diagnostics, &assignment_subject, &target_key, property,
+            );
         }
     }
 }

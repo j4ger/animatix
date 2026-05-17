@@ -1201,7 +1201,7 @@ fn test_missing_properties() {
 }
 
 #[test]
-fn test_square_primitive_builds_rect_shape() {
+fn test_rect_side_property_builds_shape() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -1255,7 +1255,7 @@ fn test_ellipse_uses_default_size() {
 }
 
 #[test]
-fn test_regular_polygon_builds_runtime_path() {
+fn test_polygon_sides_property_builds_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -1291,7 +1291,7 @@ fn test_regular_polygon_builds_runtime_path() {
 }
 
 #[test]
-fn test_arrow_primitive_builds_runtime_path() {
+fn test_line_tip_properties_build_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -1330,7 +1330,7 @@ fn test_arrow_primitive_builds_runtime_path() {
 }
 
 #[test]
-fn test_arrow_tip_properties_update_size_track() {
+fn test_line_tip_properties_update_size_track() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -2578,7 +2578,7 @@ fn test_ellipse_actor_builds_runtime_path() {
 }
 
 #[test]
-fn test_arc_actor_builds_runtime_path() {
+fn test_ellipse_arc_mode_builds_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -2884,7 +2884,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
 }
 
 #[test]
-fn test_arc_assignments_rebuild_runtime_path() {
+fn test_ellipse_arc_assignments_rebuild_runtime_path() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -2950,7 +2950,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
 }
 
 #[test]
-fn test_arc_negative_sweep_builds_runtime_path() {
+fn test_ellipse_arc_negative_sweep_builds_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -7249,7 +7249,7 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
 
 /// Verifies that Circle (vector shape) in Row works correctly with layout.
 #[test]
-fn test_circle_in_row_is_layout_managed() {
+fn test_ellipse_in_row_is_layout_managed() {
     let ast = parse_program(
         r#"
         dot_row: Row, gap: 10 {

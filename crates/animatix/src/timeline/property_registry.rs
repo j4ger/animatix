@@ -325,7 +325,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
     schema!("start_angle",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::ArcAngles,           Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Ellipse]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
-    schema!("stroke_color",  ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("sweep_angle",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::ArcAngles,           Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Ellipse]), |_| super::property_engine::PropertyValue::F32(std::f32::consts::PI)),
@@ -336,7 +335,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),
     schema!("tolerance",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]), |_| super::property_engine::PropertyValue::F32(0.1)),
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),
-    schema!("width",         ValueType::F32,         F::ASSIGNABLE_A,              ActorField::StrokeWidth,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("x_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
     schema!("y_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::CartesianPlot, A::PolarPlot, A::ParametricPlot, A::ImplicitPlot]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
 ];
@@ -404,21 +402,6 @@ mod tests {
             );
             assert_eq!(found.unwrap().name, schema.name);
         }
-    }
-
-    /// Verify aliases point to the same field.
-    #[test]
-    fn stroke_is_alias_for_stroke_color() {
-        let stroke = lookup_property("stroke").unwrap();
-        let stroke_color = lookup_property("stroke_color").unwrap();
-        assert_eq!(stroke.field, stroke_color.field);
-    }
-
-    #[test]
-    fn width_is_alias_for_stroke_width() {
-        let width = lookup_property("width").unwrap();
-        let stroke_width = lookup_property("stroke_width").unwrap();
-        assert_eq!(width.field, stroke_width.field);
     }
 
     /// Verify that no property name is duplicated.
