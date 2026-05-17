@@ -47,14 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.4 No Alt-Drag Duplicate
-
-**Status:** Hold-Alt-to-duplicate is not implemented.
-**Impact:** Common workflow for copying actors is unsupported.
-**Effort:** Low.
-
----
-
 ### 3.5 No Keyboard Transform Shortcuts
 
 **Status:** Arrow keys for nudge, Delete for remove, R/S/M mode keys, etc. are not implemented in the preview canvas.

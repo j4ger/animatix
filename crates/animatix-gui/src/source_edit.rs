@@ -726,6 +726,54 @@ fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> bool {
 
 /// Find a mutable reference to an ActorDecl (or Text/Math/Code/Svg/Image) with
 /// the given label anywhere in the statement tree.
+pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
+    for stmt in stmts.iter() {
+        match stmt {
+            Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
+            Stmt::Text { label: Some(l), .. } if l == label => return Some(stmt),
+            Stmt::Math { label: Some(l), .. } if l == label => return Some(stmt),
+            Stmt::Code { label: Some(l), .. } if l == label => return Some(stmt),
+            Stmt::Svg { label: Some(l), .. } if l == label => return Some(stmt),
+            Stmt::Image { label: Some(l), .. } if l == label => return Some(stmt),
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::LabeledAlways { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. } => {
+                if let Some(found) = find_actor_decl(body, label) {
+                    return Some(found);
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if let Some(found) = find_actor_decl(then_branch, label) {
+                    return Some(found);
+                }
+                if let Some(else_b) = else_branch {
+                    if let Some(found) = find_actor_decl(else_b, label) {
+                        return Some(found);
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if let Some(found) = find_actor_decl(body, label) {
+                    return Some(found);
+                }
+            }
+            Stmt::ActorDecl { children, .. } => {
+                // Inline items are not Stmts, so we can't return them here.
+                // This is a limitation — nested children aren't editable via
+                // this path. For now, we only support top-level actors.
+                let _ = children;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut Stmt> {
     for stmt in stmts.iter_mut() {
         match stmt {
@@ -839,6 +887,29 @@ fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property>
 }
 
 /// Recursively search for a labeled InlineItem. (Used for finding nested actors.)
+fn find_inline_item<'a>(
+    items: &'a [InlineItem],
+    label: &str,
+) -> Option<&'a InlineItem> {
+    for item in items.iter() {
+        match item {
+            InlineItem::Labeled { label: l, .. } if l == label => return Some(item),
+            InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
+                if let Some(found) = find_inline_item(children, label) {
+                    return Some(found);
+                }
+            }
+            InlineItem::SlotFill { items: slot_items, .. } => {
+                if let Some(found) = find_inline_item(slot_items, label) {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn find_inline_item_mut<'a>(
     items: &'a mut [InlineItem],
     label: &str,

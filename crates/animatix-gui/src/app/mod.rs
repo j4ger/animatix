@@ -741,6 +741,9 @@ impl GuiShell {
         if let Some((ty, label, position)) = actions.create_actor {
             self.handle_create_actor(&ty, &label, position);
         }
+        if let Some(original_label) = actions.duplicate_actor {
+            self.handle_duplicate_actor(&original_label);
+        }
         if let Some((old_label, new_label)) = actions.rename_actor {
             self.handle_rename_actor(&old_label, &new_label);
         }
@@ -1013,6 +1016,85 @@ impl GuiShell {
             WorkspaceTab::Inspector => WorkspaceTab::Inspector,
         };
         let _ = self.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
+    }
+
+    /// Duplicate an actor, preserving its type and properties.
+    fn handle_duplicate_actor(&mut self, original_label: &str) {
+        self.snapshot();
+
+        // Generate new label before borrowing self mutably
+        let new_label = self.unique_label(original_label);
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to duplicate — no AST available".to_string();
+            return;
+        };
+
+        // Find the original actor declaration
+        let original_stmt = crate::source_edit::find_actor_decl(stmts, original_label).cloned();
+
+        let Some(mut new_stmt) = original_stmt else {
+            self.preview.status = format!("Failed to duplicate — actor '{}' not found", original_label);
+            return;
+        };
+
+        // Update label in the new statement
+        match &mut new_stmt {
+            animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
+            animatix::ast::Stmt::Text { label, .. } => *label = Some(new_label.clone()),
+            animatix::ast::Stmt::Math { label, .. } => *label = Some(new_label.clone()),
+            animatix::ast::Stmt::Code { label, .. } => *label = Some(new_label.clone()),
+            animatix::ast::Stmt::Svg { label, .. } => *label = Some(new_label.clone()),
+            animatix::ast::Stmt::Image { label, .. } => *label = Some(new_label.clone()),
+            _ => {
+                self.preview.status = "Failed to duplicate — unsupported actor type".to_string();
+                return;
+            }
+        }
+
+        // Find position to insert (after the original actor)
+        if let Some(pos) = stmts.iter().position(|s| {
+            match s {
+                animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
+                animatix::ast::Stmt::Text { label: Some(l), .. } if l == original_label => true,
+                animatix::ast::Stmt::Math { label: Some(l), .. } if l == original_label => true,
+                animatix::ast::Stmt::Code { label: Some(l), .. } if l == original_label => true,
+                animatix::ast::Stmt::Svg { label: Some(l), .. } if l == original_label => true,
+                animatix::ast::Stmt::Image { label: Some(l), .. } if l == original_label => true,
+                _ => false,
+            }
+        }) {
+            stmts.insert(pos + 1, new_stmt);
+        } else {
+            stmts.push(new_stmt);
+        }
+
+        // Update source
+        let new_source = animatix::to_source::stmts_to_source(stmts);
+        self.document.source_text = new_source.clone();
+        self.editor.replace_text(new_source);
+        self.document.is_dirty = true;
+        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+        self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+
+        // Select new actor and start move drag
+        self.selected_actors.clear();
+        self.selected_actors.insert(new_label.clone());
+        self.preview_dirty = true;
+        self.preview.status = format!("Duplicated '{}' → '{}'", original_label, new_label);
+
+        // Start move drag for the new actor at the original position
+        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        if let Some(timeline) = self.document.timeline.as_ref() {
+            if let Some(track) = timeline.get_track(original_label) {
+                let position = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                self.drag_state = DragState::Move {
+                    primary: new_label.clone(),
+                    actors: vec![(new_label, position)],
+                    start_scene: kurbo::Point::new(position[0] as f64, position[1] as f64),
+                };
+            }
+        }
     }
 
     /// Generate a unique label for a new actor of the given type.

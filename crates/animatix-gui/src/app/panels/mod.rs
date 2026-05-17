@@ -147,6 +147,8 @@ pub(crate) struct UiActions {
     pub(super) create_actor: Option<(String, String, [f32; 2])>,
     /// Rename an actor: (old_label, new_label)
     pub(super) rename_actor: Option<(String, String)>,
+    /// Duplicate an actor by label (Alt-drag). The new actor is created at the same position.
+    pub(super) duplicate_actor: Option<String>,
     /// Open the export dialog.
     pub(super) open_export_dialog: bool,
 }
@@ -694,6 +696,13 @@ self.selected_actors,
                             };
                             return true;
                         }
+                        return true;
+                    }
+
+                    let alt = ui.input(|i| i.modifiers.alt);
+                    if alt {
+                        // Alt-drag: duplicate the primary actor
+                        self.actions.duplicate_actor = Some(actor);
                         return true;
                     }
 
