@@ -75,35 +75,157 @@ impl Interpolate for ShapeType {
 }
 
 #[derive(Clone, Debug)]
-pub struct VectorShapeState {
+pub struct RectState {
+    pub size: [f32; 2],
+}
+
+impl Default for RectState {
+    fn default() -> Self {
+        Self { size: [50.0, 50.0] }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EllipseState {
+    pub size: [f32; 2],
+    pub arc_angles: [f32; 2],
+    pub rotation: f32,
+}
+
+impl Default for EllipseState {
+    fn default() -> Self {
+        Self {
+            size: [50.0, 50.0],
+            arc_angles: [0.0, 0.0],
+            rotation: 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LineState {
+    /// tip_length, tip_width (0.0 = no arrow)
     pub size: [f32; 2],
     pub line_from: [f32; 2],
     pub line_to: [f32; 2],
-    pub arc_angles: [f32; 2],
-    pub custom_path: Option<kurbo::BezPath>,
+}
+
+impl Default for LineState {
+    fn default() -> Self {
+        Self {
+            size: [0.0, 0.0],
+            line_from: [-50.0, 0.0],
+            line_to: [50.0, 0.0],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PolygonState {
+    pub size: [f32; 2],
     pub regular_polygon_sides: usize,
     pub regular_polygon_radius: f32,
+    pub custom_path: Option<kurbo::BezPath>,
     pub rotation: f32,
     pub points: Vec<[f32; 2]>,
 }
 
-impl VectorShapeState {
-    pub fn new(
-        size: [f32; 2],
-        line_from: [f32; 2],
-        line_to: [f32; 2],
-        arc_angles: [f32; 2],
-    ) -> Self {
+impl Default for PolygonState {
+    fn default() -> Self {
         Self {
-            size,
-            line_from,
-            line_to,
-            arc_angles,
-            custom_path: None,
+            size: [50.0, 50.0],
             regular_polygon_sides: 0,
-            regular_polygon_radius: size[0],
+            regular_polygon_radius: 50.0,
+            custom_path: None,
             rotation: 0.0,
             points: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PathState {
+    pub size: [f32; 2],
+    pub custom_path: Option<kurbo::BezPath>,
+}
+
+impl Default for PathState {
+    fn default() -> Self {
+        Self {
+            size: [50.0, 50.0],
+            custom_path: None,
+        }
+    }
+}
+
+/// Per-shape state enum that only holds fields relevant to each shape type.
+///
+/// Previously `VectorShapeState` was a flat struct with dead fields
+/// (e.g. `arc_angles` on Rect, `regular_polygon_sides` on Ellipse).
+/// Now each variant carries exactly the fields it needs.
+#[derive(Clone, Debug)]
+pub enum VectorShapeState {
+    Rect(RectState),
+    Ellipse(EllipseState),
+    Line(LineState),
+    Polygon(PolygonState),
+    Path(PathState),
+}
+
+impl VectorShapeState {
+    /// Create the appropriate state variant for a given shape type.
+    ///
+    /// `size` is shared by all shapes; shape-specific params like `line_from` /
+    /// `line_to` / `arc_angles` are only stored when the variant supports them.
+    pub fn new(shape_type: ShapeType, size: [f32; 2]) -> Self {
+        match shape_type {
+            ShapeType::Rect => Self::Rect(RectState { size }),
+            ShapeType::Ellipse => Self::Ellipse(EllipseState {
+                size,
+                arc_angles: [0.0, 0.0],
+                rotation: 0.0,
+            }),
+            ShapeType::Line => Self::Line(LineState {
+                size: [0.0, 0.0], // no arrow tip by default
+                line_from: [-50.0, 0.0],
+                line_to: [50.0, 0.0],
+            }),
+            ShapeType::Polygon => Self::Polygon(PolygonState {
+                size,
+                regular_polygon_sides: 0,
+                regular_polygon_radius: size[0],
+                custom_path: None,
+                rotation: 0.0,
+                points: Vec::new(),
+            }),
+            ShapeType::Path => Self::Path(PathState {
+                size,
+                custom_path: None,
+            }),
+            // Graph/Plot are not vector shapes with state
+            ShapeType::Graph | ShapeType::Plot => Self::Rect(RectState { size }),
+        }
+    }
+
+    /// Shared accessor: all shapes have a size.
+    pub fn size(&self) -> [f32; 2] {
+        match self {
+            Self::Rect(s) => s.size,
+            Self::Ellipse(s) => s.size,
+            Self::Line(s) => s.size,
+            Self::Polygon(s) => s.size,
+            Self::Path(s) => s.size,
+        }
+    }
+
+    /// Shared mutable accessor: all shapes have a size.
+    pub fn size_mut(&mut self) -> &mut [f32; 2] {
+        match self {
+            Self::Rect(s) => &mut s.size,
+            Self::Ellipse(s) => &mut s.size,
+            Self::Line(s) => &mut s.size,
+            Self::Polygon(s) => &mut s.size,
+            Self::Path(s) => &mut s.size,
         }
     }
 }
@@ -118,30 +240,30 @@ pub struct VectorShapeStyle {
 mod primitives;
 #[allow(unused_imports)]
 pub use primitives::*;
-pub fn shape_type_for_actor(ty: &str) -> ShapeType {
+pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
         if let Some(primitive) = crate::primitives::find_primitive(ty) {
         if primitive.is_shape() {
             return match ty {
-                "Rect" => ShapeType::Rect,
-                "Ellipse" => ShapeType::Ellipse,
-                "Line" => ShapeType::Line,
-                "Polygon" => ShapeType::Polygon,
-                "Path" => ShapeType::Path,
-                _ => ShapeType::Rect,
+                "Rect" => Some(ShapeType::Rect),
+                "Ellipse" => Some(ShapeType::Ellipse),
+                "Line" => Some(ShapeType::Line),
+                "Polygon" => Some(ShapeType::Polygon),
+                "Path" => Some(ShapeType::Path),
+                _ => None,
             };
         }
     }
 
     match ty {
-        "Graph" => ShapeType::Graph,
-        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => ShapeType::Plot,
-        _ => ShapeType::Rect,
+        "Graph" => Some(ShapeType::Graph),
+        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => Some(ShapeType::Plot),
+        _ => None,
     }
 }
 
 pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
-        primitive.apply_defaults(actor_type, state);
+        primitive.apply_defaults(state);
     }
 }
 
@@ -155,14 +277,14 @@ pub fn apply_vector_shape_property(
     state: &mut VectorShapeState,
 ) -> bool {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
-        return primitive.apply_property(actor_type, name, value, env, diagnostics, subject, state);
+        return primitive.apply_property(name, value, env, diagnostics, subject, state);
     }
     false
 }
 
 pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
-        primitive.finalize_state(actor_type, state);
+        primitive.finalize_state(state);
     }
 }
 
@@ -175,6 +297,19 @@ pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
 
 pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
     matches!(shape_type, ShapeType::Polygon | ShapeType::Path)
+}
+
+/// Extract the individual shape-state values for backward-compatible APIs.
+///
+/// Returns `(size, line_from, line_to, arc_angles)`.
+pub fn extract_shape_state_values(state: &VectorShapeState) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+    let size = state.size();
+    let (line_from, line_to, arc_angles) = match state {
+        VectorShapeState::Line(line) => (line.line_from, line.line_to, [0.0, 0.0]),
+        VectorShapeState::Ellipse(ellipse) => ([-50.0, 0.0], [50.0, 0.0], ellipse.arc_angles),
+        _ => ([-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]),
+    };
+    (size, line_from, line_to, arc_angles)
 }
 
 pub fn build_vector_shape_vello_path(
@@ -444,7 +579,14 @@ pub fn build_vello_path(
             None
         },
         stroke: shape_stroke(stroke_color, stroke_width)
-            .or_else(|| if force_stroke { Some((vello::peniko::Color::from_rgba8(0, 0, 0, 255), 1.0)) } else { None }),
+            .or_else(|| if force_stroke {
+                Some((vello::peniko::Color::from_rgba8(
+                    (color[0] * 255.0) as u8,
+                    (color[1] * 255.0) as u8,
+                    (color[2] * 255.0) as u8,
+                    (color[3] * 255.0) as u8,
+                ), 1.0))
+            } else { None }),
     }
 }
 
@@ -459,7 +601,36 @@ pub fn build_shape_vello_path(
     stroke_color: [f32; 4],
     fill_opacity: f32,
 ) -> VelloPath {
-    let state = VectorShapeState::new(size, line_from, line_to, arc_angles);
+    let state = match shape_type {
+        ShapeType::Rect => VectorShapeState::Rect(RectState { size }),
+        ShapeType::Ellipse => VectorShapeState::Ellipse(EllipseState {
+            size,
+            arc_angles,
+            rotation: 0.0,
+        }),
+        ShapeType::Line => VectorShapeState::Line(LineState {
+            size: [0.0, 0.0],
+            line_from,
+            line_to,
+        }),
+        ShapeType::Polygon => VectorShapeState::Polygon(PolygonState {
+            size,
+            regular_polygon_sides: 0,
+            regular_polygon_radius: size[0],
+            custom_path: None,
+            rotation: 0.0,
+            points: Vec::new(),
+        }),
+        ShapeType::Path => VectorShapeState::Path(PathState {
+            size,
+            custom_path: None,
+        }),
+        _ => return VelloPath {
+            path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
+            fill: shape_fill_color(shape_type, color, fill_opacity),
+            stroke: shape_stroke(stroke_color, stroke_width),
+        },
+    };
     build_vector_shape_vello_path(
         shape_type,
         &state,
@@ -496,10 +667,18 @@ mod tests {
 
     #[test]
     fn polygon_with_sides_finalizes_custom_path() {
-        let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        state.regular_polygon_sides = 5;
-        state.regular_polygon_radius = 50.0;
+        let mut state = VectorShapeState::Polygon(PolygonState {
+            size: [50.0, 50.0],
+            regular_polygon_sides: 5,
+            regular_polygon_radius: 50.0,
+            custom_path: None,
+            rotation: 0.0,
+            points: Vec::new(),
+        });
         finalize_vector_shape_state("Polygon", &mut state);
-        assert!(state.custom_path.is_some());
+        match &state {
+            VectorShapeState::Polygon(p) => assert!(p.custom_path.is_some()),
+            _ => panic!("expected Polygon variant"),
+        }
     }
 }

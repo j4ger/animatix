@@ -22,7 +22,10 @@ impl Primitive for PathPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let path = ctx.state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new);
+        let VectorShapeState::Path(state) = ctx.state else {
+            return None;
+        };
+        let path = state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
         )])
@@ -46,15 +49,14 @@ impl Primitive for PathPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     fn supports_fill(&self) -> bool { true }
 
     fn apply_property(
         &self,
-        _actor_type: &str,
         name: &str,
         value: &Expr,
         env: &Environment,
@@ -62,12 +64,13 @@ impl Primitive for PathPrimitive {
         _subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
+        let VectorShapeState::Path(path) = state else {
+            return false;
+        };
         if name != "commands" { return false; }
-        state.custom_path = parse_path_commands_expr(value, env);
+        path.custom_path = parse_path_commands_expr(value, env);
         true
     }
 
     fn uses_custom_path(&self) -> bool { true }
 }
-
-

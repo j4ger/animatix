@@ -150,14 +150,19 @@ use crate::timeline::evaluate_expr;
 mod tests {
     use super::*;
     use crate::timeline::VectorShapeState;
+    use crate::timeline::shapes::{EllipseState, LineState, PolygonState, RectState};
 
     #[test]
     fn ellipse_default_size_is_standard() {
         use crate::primitives::Primitive;
-        let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        crate::primitives::ELLIPSE.apply_defaults("Ellipse", &mut state);
+        let mut state = VectorShapeState::Ellipse(EllipseState {
+            size: [50.0, 50.0],
+            arc_angles: [0.0, 0.0],
+            rotation: 0.0,
+        });
+        crate::primitives::ELLIPSE.apply_defaults(&mut state);
         // Ellipse uses standard size defaults
-        assert_eq!(state.size, [50.0, 50.0]);
+        assert_eq!(state.size(), [50.0, 50.0]);
     }
 
     #[test]
@@ -178,10 +183,18 @@ mod tests {
     #[test]
     fn polygon_with_sides_finalizes_custom_path() {
         use crate::primitives::Primitive;
-        let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        state.regular_polygon_sides = 5;
-        state.regular_polygon_radius = 50.0;
-        crate::primitives::POLYGON.finalize_state("Polygon", &mut state);
-        assert!(state.custom_path.is_some());
+        let mut state = VectorShapeState::Polygon(PolygonState {
+            size: [50.0, 50.0],
+            regular_polygon_sides: 5,
+            regular_polygon_radius: 50.0,
+            custom_path: None,
+            rotation: 0.0,
+            points: Vec::new(),
+        });
+        crate::primitives::POLYGON.finalize_state(&mut state);
+        match &state {
+            VectorShapeState::Polygon(p) => assert!(p.custom_path.is_some()),
+            _ => panic!("expected Polygon variant"),
+        }
     }
 }

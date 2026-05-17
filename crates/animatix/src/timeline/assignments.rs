@@ -1,7 +1,8 @@
 use super::{
     AnimationTrack, Diagnostic, Easing, ModifierHost, ParsedTimingModifiers, PositionBinding,
     ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr_with_lookup_diagnostic,
+    build_shape_vello_path, build_vector_shape_vello_path,
+    evaluate_expr_with_lookup_diagnostic,
     mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic,
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_unknown_target_path_diagnostic,
@@ -9,6 +10,7 @@ use super::{
     DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
+use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::timeline::property_engine::{
     parse_property_value, write_property_field,
 };
@@ -75,7 +77,7 @@ impl Timeline {
             .entry(target_key.clone())
             .or_insert_with(|| AnimationTrack::new(target_key.clone()));
 
-        // ── Special cases that can't go through the generic engine ──
+// ── Special cases that can't go through the generic engine ──
 
         // Position / at — uses position binding resolution (compound property)
         if matches!(property, "position" | "at") {
@@ -109,85 +111,22 @@ impl Timeline {
             return;
         }
 
-        // Text / math / code content assignment — recompiles glyph paths at runtime
-        if matches!(property, "text" | "latex" | "math" | "code") {
-            let target_text = evaluate_expr_with_lookup_diagnostic(
-                value, &eval_env, diagnostics, &assignment_subject,
-            )
-            .unwrap_or(Value::Str(String::new()))
-            .as_str()
-            .to_string();
-            recompile_text_at_assignment(
-                track,
-                target_text,
+        // ── Primitive dispatch: let each primitive handle its own special cases ──
+        let type_name = super::actor_kind_meta(track.kind).type_name;
+        let primitive = find_primitive(type_name);
+        if let Some(primitive) = primitive {
+            let mut ctx = AssignmentCtx {
                 t_start_ms,
                 t_end_ms,
                 easing,
                 instant_delayed,
                 duration_ms,
-                &self.font_context,
-                &mut self.text_compiler.borrow_mut(),
-            );
-            return;
-        }
-
-        // Image / SVG url assignment
-        if property == "url" {
-            let target_url = evaluate_expr_with_lookup_diagnostic(
-                value, &eval_env, diagnostics, &assignment_subject,
-            )
-            .unwrap_or(Value::Str(String::new()))
-            .as_str();
-            if target_url.is_empty() {
+                font_context: &self.font_context,
+                text_compiler: &mut self.text_compiler.borrow_mut(),
+            };
+            if primitive.handle_assignment(track, property, value, &mut ctx, &eval_env, diagnostics, &assignment_subject) {
                 return;
             }
-
-            match track.kind {
-                super::ActorKindId::Svg => {
-                    match std::fs::read_to_string(&target_url) {
-                        Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
-                            Ok(parsed_paths) => {
-                                track.svg_paths = parsed_paths;
-                            }
-                            Err(error) => {
-                                diagnostics.push(Diagnostic::error(
-                                    DiagnosticCode::MediaLoadFailure,
-                                    DiagnosticPhase::Build,
-                                    format!("Failed to parse SVG file '{target_url}': {error}"),
-                                ).with_subject(&assignment_subject).with_path(&target_url));
-                            }
-                        },
-                        Err(error) => {
-                            diagnostics.push(Diagnostic::error(
-                                DiagnosticCode::MediaLoadFailure,
-                                DiagnosticPhase::Build,
-                                format!("Failed to read SVG file '{target_url}': {error}"),
-                            ).with_subject(&assignment_subject).with_path(&target_url));
-                        }
-                    }
-                }
-                _ => {
-                    match crate::timeline::image::load_image(&target_url) {
-                        Ok(target_image) => {
-                            if duration_ms > 0.0 {
-                                let start_val = track.image.get(t_start_ms, None);
-                                track.image.ensure(None).add_keyframe(t_start_ms, start_val, Easing::Linear);
-                            } else if instant_delayed {
-                                preserve_instant_delayed_value(&mut track.image, t_start_ms);
-                            }
-                            track.image.ensure(None).add_keyframe(t_end_ms, Some(target_image), easing);
-                        }
-                        Err(error) => {
-                            diagnostics.push(Diagnostic::error(
-                                DiagnosticCode::MediaLoadFailure,
-                                DiagnosticPhase::Build,
-                                format!("Failed to load image file '{target_url}': {error}"),
-                            ).with_subject(&assignment_subject).with_path(&target_url));
-                        }
-                    }
-                }
-            }
-            return;
         }
 
         // ── Generic engine for all other properties ──
@@ -362,7 +301,7 @@ fn handle_arc_angle_assignment(
 // Helper: text / math / code assignments → text paths
 // ─────────────────────────────────────────────────────────────
 
-fn recompile_text_at_assignment(
+pub(crate) fn recompile_text_at_assignment(
     track: &mut AnimationTrack,
     target_text: String,
     t_start_ms: u64,
@@ -438,25 +377,36 @@ fn rebuild_vector_paths(
     let _shape_type = track.shape_type.last(ShapeType::Rect);
 
     // Build vector shape state and compute paths
-    let mut vector_shape_state = VectorShapeState::new(size, line_from, line_to, arc_angles);
-    // Restore points for Polygon actors
-    vector_shape_state.points = track.points.last(Vec::new());
-    if !vector_shape_state.points.is_empty() {
-        use crate::timeline::KurboShape;
-        let pts: Vec<kurbo::Point> = vector_shape_state.points.iter().map(|&[x, y]| kurbo::Point::new(x as f64, y as f64)).collect();
-        vector_shape_state.custom_path = Some(KurboShape::Polygon {
-            points: pts,
-        }.to_path_default());
-    }
-    // Restore commands for Path actors
-    let commands_svg = track.commands.last(String::new());
-    if !commands_svg.is_empty() {
-        if let Ok(path) = kurbo::BezPath::from_svg(&commands_svg) {
-            vector_shape_state.custom_path = Some(path);
-        }
-    }
-
     let shape_type = track.shape_type.last(ShapeType::Rect);
+    let mut vector_shape_state = VectorShapeState::new(shape_type, size);
+    // Restore shape-specific fields from track data
+    match &mut vector_shape_state {
+        VectorShapeState::Line(line) => {
+            line.line_from = track.line_from.last([-50.0, 0.0]);
+            line.line_to = track.line_to.last([50.0, 0.0]);
+        }
+        VectorShapeState::Polygon(poly) => {
+            // Restore points for Polygon actors
+            poly.points = track.points.last(Vec::new());
+            if !poly.points.is_empty() {
+                use crate::timeline::KurboShape;
+                let pts: Vec<kurbo::Point> = poly.points.iter().map(|&[x, y]| kurbo::Point::new(x as f64, y as f64)).collect();
+                poly.custom_path = Some(KurboShape::Polygon {
+                    points: pts,
+                }.to_path_default());
+            }
+        }
+        VectorShapeState::Path(path_state) => {
+            // Restore commands for Path actors
+            let commands_svg = track.commands.last(String::new());
+            if !commands_svg.is_empty() {
+                if let Ok(path) = kurbo::BezPath::from_svg(&commands_svg) {
+                    path_state.custom_path = Some(path);
+                }
+            }
+        }
+        _ => {}
+    }
     let target_vello_path = build_vector_shape_vello_path(
         shape_type,
         &vector_shape_state,

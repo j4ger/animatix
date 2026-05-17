@@ -46,9 +46,10 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
+use crate::easing::Easing;
 use crate::timeline::{
-    ActorCategory, ActorKindId, Environment, SceneDimensions, Timeline, VectorShapeState,
-    VectorShapeStyle, VelloPath,
+    ActorCategory, ActorKindId, AnimationTrack, Environment, SceneDimensions, Timeline,
+    VectorShapeState, VectorShapeStyle, VelloPath,
 };
 
 // ── Re-export all primitive modules ──────────────────────────────────────
@@ -72,12 +73,23 @@ mod group;      pub use group::GROUP;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
-/// Context passed to `Primitive::build()``.
+/// Context passed to `Primitive::build()`.
 pub struct BuildCtx<'a> {
     pub timeline: &'a mut Timeline,
     pub time_ms: f64,
     pub parent_label: Option<&'a str>,
     pub diagnostics: &'a mut Vec<Diagnostic>,
+}
+
+/// Timing and resource context for `Primitive::handle_assignment()`.
+pub struct AssignmentCtx<'a> {
+    pub t_start_ms: u64,
+    pub t_end_ms: u64,
+    pub easing: Easing,
+    pub instant_delayed: bool,
+    pub duration_ms: f64,
+    pub font_context: &'a crate::renderer::text::FontContext,
+    pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
 }
 
 /// Context passed to `Primitive::render()`.
@@ -140,13 +152,12 @@ pub trait Primitive: Send + Sync {
     // ── Build-time shape state (for vector shapes) ──
 
     /// Apply primitive-specific defaults to the shape state.
-    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
     /// Apply a single property to the shape state.
     /// Returns `true` if the property was handled.
     fn apply_property(
         &self,
-        _actor_type: &str,
         _name: &str,
         _value: &Expr,
         _env: &Environment,
@@ -158,7 +169,7 @@ pub trait Primitive: Send + Sync {
     }
 
     /// Finalize the shape state after all properties have been applied.
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     /// Returns true if this shape uses a custom path (Polygon, Path).
     fn uses_custom_path(&self) -> bool { false }
@@ -202,6 +213,24 @@ pub trait Primitive: Send + Sync {
     /// Default properties used when creating this actor from the GUI.
     fn default_props(&self, _scene_dimensions: &SceneDimensions) -> Vec<Property> {
         vec![]
+    }
+
+    // ── Assignment-phase handling ──
+
+    /// Handle a property assignment at the assignment phase.
+    /// Return `true` if the primitive handled it (bypassing generic engine).
+    /// Default implementation returns `false` (delegate to generic engine).
+    fn handle_assignment(
+        &self,
+        _track: &mut AnimationTrack,
+        _property: &str,
+        _value: &Expr,
+        _ctx: &mut AssignmentCtx,
+        _env: &Environment,
+        _diagnostics: &mut Vec<Diagnostic>,
+        _subject: &str,
+    ) -> bool {
+        false
     }
 }
 

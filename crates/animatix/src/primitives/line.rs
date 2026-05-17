@@ -24,20 +24,23 @@ impl Primitive for LinePrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        let VectorShapeState::Line(state) = ctx.state else {
+            return None;
+        };
         // If tip size is set, render as an arrow path (absorbs Arrow primitive).
-        let has_tips = ctx.state.size[0] > 0.0 && ctx.state.size[1] > 0.0;
+        let has_tips = state.size[0] > 0.0 && state.size[1] > 0.0;
         let path = if has_tips {
             let arrow_path = crate::timeline::shapes::build_arrow_path(
-                ctx.state.line_from,
-                ctx.state.line_to,
-                ctx.state.size[0],
-                ctx.state.size[1],
+                state.line_from,
+                state.line_to,
+                state.size[0],
+                state.size[1],
             );
             KurboShape::Path { path: arrow_path }.to_path_default()
         } else {
             KurboShape::Line {
-                p0: kurbo::Point::new(ctx.state.line_from[0] as f64, ctx.state.line_from[1] as f64),
-                p1: kurbo::Point::new(ctx.state.line_to[0] as f64, ctx.state.line_to[1] as f64),
+                p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
+                p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
             }
             .to_path_default()
         };
@@ -56,12 +59,15 @@ impl Primitive for LinePrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _actor_type: &str, state: &mut VectorShapeState) {
+    fn apply_defaults(&self, state: &mut VectorShapeState) {
+        let VectorShapeState::Line(line) = state else {
+            return;
+        };
         // Default to no arrow tips; tips are only present when explicitly set
-        state.size = [0.0, 0.0];
+        line.size = [0.0, 0.0];
     }
 
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     fn uses_custom_path(&self) -> bool { false }
 
@@ -79,7 +85,6 @@ impl Primitive for LinePrimitive {
 
     fn apply_property(
         &self,
-        _actor_type: &str,
         name: &str,
         value: &Expr,
         env: &Environment,
@@ -87,31 +92,34 @@ impl Primitive for LinePrimitive {
         subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
+        let VectorShapeState::Line(line) = state else {
+            return false;
+        };
         match name {
             "from" => {
                 if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject) {
-                    state.line_from = parsed;
+                    line.line_from = parsed;
                 }
                 true
             }
             "to" => {
                 if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject) {
-                    state.line_to = parsed;
+                    line.line_to = parsed;
                 }
                 true
             }
             "tip_length" => {
                 // Arrow compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.size[0] as f64));
-                state.size[0] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(line.size[0] as f64));
+                line.size[0] = v.as_num() as f32;
                 true
             }
             "tip_width" => {
                 // Arrow compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.size[1] as f64));
-                state.size[1] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(line.size[1] as f64));
+                line.size[1] = v.as_num() as f32;
                 true
             }
             _ => false,

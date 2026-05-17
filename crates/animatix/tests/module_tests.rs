@@ -195,7 +195,7 @@ fn load_program_aliased_import_does_not_flatten() {
         &helper,
         r#"
 pub let offset = 120
-hidden: Circle, radius: 50
+hidden: Ellipse, radius: 50
 "#,
     );
 
@@ -401,7 +401,7 @@ pub component Badge {
         self.scale = 1.5 [100ms]
         self.scale = 1.0 [100ms]
     }
-    icon: Circle, radius: 12
+    icon: Ellipse, radius: 12
 }
 "#,
       );

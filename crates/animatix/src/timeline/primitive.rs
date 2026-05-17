@@ -113,85 +113,14 @@ impl PrimitiveDescriptor {
             };
         }
 
-        match actor_type {
-            "Text" | "Math" | "Code" => Self {
-                actor_type: "TextLike",
-                family: PrimitiveFamily::TextLike,
-                capabilities: PrimitiveCapabilities {
-                    text_paths: true,
-                    morphable_paths: true,
-                    vector_reveal_target: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-            "Svg" => Self {
-                actor_type: "Svg",
-                family: PrimitiveFamily::Media,
-                capabilities: PrimitiveCapabilities {
-                    vector_paths: true,
-                    morphable_paths: true,
-                    vector_reveal_target: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-            "Image" => Self {
-                actor_type: "Image",
-                family: PrimitiveFamily::Media,
-                capabilities: PrimitiveCapabilities {
-                    image_payload: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-            "Graph" => Self {
-                actor_type: "Graph",
-                family: PrimitiveFamily::Plot,
-                capabilities: PrimitiveCapabilities {
-                    vector_paths: true,
-                    morphable_paths: true,
-                    vector_reveal_target: true,
-                    plot_geometry: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-            "CartesianPlot" => Self::plot_curve("CartesianPlot"),
-            "PolarPlot" => Self::plot_curve("PolarPlot"),
-            "ParametricPlot" => Self::plot_curve("ParametricPlot"),
-            "ImplicitPlot" => Self::plot_curve("ImplicitPlot"),
-            "Row" | "Col" | "Grid" | "Stack" => Self {
-                actor_type: "Container",
-                family: PrimitiveFamily::Container,
-                capabilities: PrimitiveCapabilities {
-                    layout_container: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-            "Group" => Self {
-                actor_type: "Group",
-                family: PrimitiveFamily::Group,
-                capabilities: PrimitiveCapabilities::default(),
-            },
-            _ => Self {
-                actor_type: "VectorShape",
-                family: PrimitiveFamily::VectorShape,
-                capabilities: PrimitiveCapabilities {
-                    vector_paths: true,
-                    morphable_paths: true,
-                    vector_reveal_target: true,
-                    ..PrimitiveCapabilities::default()
-                },
-            },
-        }
-    }
-
-    fn plot_curve(actor_type: &'static str) -> Self {
+        // Fallback for unknown/unregistered types
         Self {
-            actor_type,
-            family: PrimitiveFamily::Plot,
+            actor_type: "VectorShape",
+            family: PrimitiveFamily::VectorShape,
             capabilities: PrimitiveCapabilities {
                 vector_paths: true,
                 morphable_paths: true,
                 vector_reveal_target: true,
-                plot_geometry: true,
                 ..PrimitiveCapabilities::default()
             },
         }

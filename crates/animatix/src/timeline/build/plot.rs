@@ -531,7 +531,7 @@ impl Timeline {
         let line_from = existing_track.line_from.last([-50.0, 0.0]);
         let line_to = existing_track.line_to.last([50.0, 0.0]);
         let arc_angles = existing_track.arc_angles.last(default_arc);
-        let shape_type = shape_type_for_actor(ty);
+        let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let stroke_progress = existing_track.stroke_progress.last(1.0);
         let fill_opacity = 0.0f32;
 

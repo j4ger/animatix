@@ -25,23 +25,25 @@ impl Primitive for PolygonPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let path = if !ctx.state.points.is_empty() {
-            let points = ctx
-                .state
+        let VectorShapeState::Polygon(state) = ctx.state else {
+            return None;
+        };
+        let path = if !state.points.is_empty() {
+            let points = state
                 .points
                 .iter()
                 .map(|p| kurbo::Point::new(p[0] as f64, p[1] as f64))
                 .collect();
             KurboShape::Polygon { points }.to_path_default()
-        } else if ctx.state.regular_polygon_sides >= 3 {
+        } else if state.regular_polygon_sides >= 3 {
             // RegularPolygon compat: generate points from sides + radius
             let points = regular_polygon_points(
-                ctx.state.regular_polygon_sides,
-                ctx.state.regular_polygon_radius,
-                ctx.state.rotation,
+                state.regular_polygon_sides,
+                state.regular_polygon_radius,
+                state.rotation,
             );
             KurboShape::Polygon { points }.to_path_default()
-        } else if let Some(custom_path) = &ctx.state.custom_path {
+        } else if let Some(custom_path) = &state.custom_path {
             KurboShape::Path { path: custom_path.clone() }.to_path_default()
         } else {
             KurboShape::Polygon { points: Vec::new() }.to_path_default()
@@ -67,17 +69,20 @@ impl Primitive for PolygonPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
-    fn finalize_state(&self, _actor_type: &str, state: &mut VectorShapeState) {
+    fn finalize_state(&self, state: &mut VectorShapeState) {
+        let VectorShapeState::Polygon(polygon) = state else {
+            return;
+        };
         // RegularPolygon compat: if sides is set but no custom path, generate the path
-        if state.custom_path.is_none() && state.regular_polygon_sides >= 3 {
-            state.custom_path = Some(
+        if polygon.custom_path.is_none() && polygon.regular_polygon_sides >= 3 {
+            polygon.custom_path = Some(
                 KurboShape::Polygon {
                     points: regular_polygon_points(
-                        state.regular_polygon_sides,
-                        state.regular_polygon_radius,
-                        state.rotation,
+                        polygon.regular_polygon_sides,
+                        polygon.regular_polygon_radius,
+                        polygon.rotation,
                     ),
                 }
                 .to_path_default(),
@@ -89,7 +94,6 @@ impl Primitive for PolygonPrimitive {
 
     fn apply_property(
         &self,
-        _actor_type: &str,
         name: &str,
         value: &Expr,
         env: &Environment,
@@ -97,25 +101,28 @@ impl Primitive for PolygonPrimitive {
         subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
+        let VectorShapeState::Polygon(polygon) = state else {
+            return false;
+        };
         match name {
             "points" => {
                 if let Some(points) = parse_point_list_expr(value, env) {
-                    state.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
+                    polygon.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
                 }
                 true
             }
             "sides" => {
                 // RegularPolygon compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.regular_polygon_sides as f64));
-                state.regular_polygon_sides = v.as_num().round().max(3.0) as usize;
+                    .unwrap_or(Value::Num(polygon.regular_polygon_sides as f64));
+                polygon.regular_polygon_sides = v.as_num().round().max(3.0) as usize;
                 true
             }
             "radius" => {
                 // RegularPolygon compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.regular_polygon_radius as f64));
-                state.regular_polygon_radius = v.as_num() as f32;
+                    .unwrap_or(Value::Num(polygon.regular_polygon_radius as f64));
+                polygon.regular_polygon_radius = v.as_num() as f32;
                 true
             }
             _ => false,

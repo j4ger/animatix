@@ -23,22 +23,25 @@ impl Primitive for EllipsePrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        let VectorShapeState::Ellipse(state) = ctx.state else {
+            return None;
+        };
         // If arc angles are specified (non-default), render as an arc.
         // This absorbs the Arc primitive.
-        let has_arc_angles = ctx.state.arc_angles[1] != 0.0;
+        let has_arc_angles = state.arc_angles[1] != 0.0;
         let path = if has_arc_angles {
             KurboShape::Arc {
                 center: kurbo::Point::new(0.0, 0.0),
-                radii: kurbo::Vec2::new(ctx.state.size[0] as f64, ctx.state.size[1] as f64),
-                start_angle: ctx.state.arc_angles[0] as f64,
-                sweep_angle: ctx.state.arc_angles[1] as f64,
-                rotation: ctx.state.rotation as f64,
+                radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
+                start_angle: state.arc_angles[0] as f64,
+                sweep_angle: state.arc_angles[1] as f64,
+                rotation: state.rotation as f64,
             }
         } else {
             KurboShape::Ellipse {
                 center: kurbo::Point::new(0.0, 0.0),
-                radii: kurbo::Vec2::new(ctx.state.size[0] as f64, ctx.state.size[1] as f64),
-                rotation: ctx.state.rotation as f64,
+                radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
+                rotation: state.rotation as f64,
             }
         }
         .to_path_default();
@@ -58,11 +61,11 @@ impl Primitive for EllipsePrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {
         // Ellipse has no actor-type-specific defaults
     }
 
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     fn uses_custom_path(&self) -> bool { false }
 
@@ -72,7 +75,6 @@ impl Primitive for EllipsePrimitive {
 
     fn apply_property(
         &self,
-        _actor_type: &str,
         name: &str,
         value: &Expr,
         env: &Environment,
@@ -80,39 +82,42 @@ impl Primitive for EllipsePrimitive {
         subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
+        let VectorShapeState::Ellipse(ellipse) = state else {
+            return false;
+        };
         match name {
             "radius" => {
                 // Circle compat: radius sets both axes
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.size[0] as f64));
+                    .unwrap_or(Value::Num(ellipse.size[0] as f64));
                 let r = v.as_num() as f32;
-                state.size = [r, r];
+                ellipse.size = [r, r];
                 true
             }
             "radius_x" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.size[0] as f64));
-                state.size[0] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(ellipse.size[0] as f64));
+                ellipse.size[0] = v.as_num() as f32;
                 true
             }
             "radius_y" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.size[1] as f64));
-                state.size[1] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(ellipse.size[1] as f64));
+                ellipse.size[1] = v.as_num() as f32;
                 true
             }
             "start_angle" => {
                 // Arc compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.arc_angles[0] as f64));
-                state.arc_angles[0] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(ellipse.arc_angles[0] as f64));
+                ellipse.arc_angles[0] = v.as_num() as f32;
                 true
             }
             "sweep_angle" => {
                 // Arc compat
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(state.arc_angles[1] as f64));
-                state.arc_angles[1] = v.as_num() as f32;
+                    .unwrap_or(Value::Num(ellipse.arc_angles[1] as f64));
+                ellipse.arc_angles[1] = v.as_num() as f32;
                 true
             }
             _ => false,

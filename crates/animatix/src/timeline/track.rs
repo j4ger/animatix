@@ -37,30 +37,8 @@ pub enum ActorKindId {
 }
 
 impl ActorKindId {
-    pub fn from_type_name(ty: &str) -> Self {
-        match ty {
-            "Text" => Self::Text,
-            "Math" => Self::Math,
-            "Code" => Self::Code,
-            "Svg" => Self::Svg,
-            "Image" => Self::Image,
-            "Graph" => Self::Graph,
-            "CartesianPlot" => Self::CartesianPlot,
-            "PolarPlot" => Self::PolarPlot,
-            "ParametricPlot" => Self::ParametricPlot,
-            "ImplicitPlot" => Self::ImplicitPlot,
-            "Row" => Self::Row,
-            "Col" => Self::Col,
-            "Grid" => Self::Grid,
-            "Stack" => Self::Stack,
-            "Group" => Self::Group,
-            "Rect" => Self::Shape(ShapeKind::Rect),
-            "Ellipse" => Self::Shape(ShapeKind::Ellipse),
-            "Line" => Self::Shape(ShapeKind::Line),
-            "Polygon" => Self::Shape(ShapeKind::Polygon),
-            "Path" => Self::Shape(ShapeKind::Path),
-            _ => Self::Shape(ShapeKind::Rect),
-        }
+    pub fn from_type_name(ty: &str) -> Option<Self> {
+        crate::primitives::find_primitive(ty).map(|p| p.kind_id())
     }
 }
 
@@ -77,7 +55,8 @@ impl From<super::shapes::ShapeType> for ShapeKind {
             super::shapes::ShapeType::Line => Self::Line,
             super::shapes::ShapeType::Polygon => Self::Polygon,
             super::shapes::ShapeType::Path => Self::Path,
-            _ => Self::Rect,
+            super::shapes::ShapeType::Graph => Self::Rect,
+            super::shapes::ShapeType::Plot => Self::Rect,
         }
     }
 }
@@ -792,8 +771,13 @@ mod tests {
     fn actor_kind_type_name_roundtrips() {
         for meta in actor_kind_registry().iter() {
             let parsed = ActorKindId::from_type_name(meta.type_name);
+            assert!(
+                parsed.is_some(),
+                "ActorKindId::from_type_name({:?}) returned None",
+                meta.type_name
+            );
             assert_eq!(
-                parsed, meta.kind,
+                parsed.unwrap(), meta.kind,
                 "ActorKindId::from_type_name({:?}) returned {:?}, expected {:?}",
                 meta.type_name, parsed, meta.kind
             );

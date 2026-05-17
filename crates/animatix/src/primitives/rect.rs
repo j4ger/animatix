@@ -49,11 +49,14 @@ impl Primitive for RectPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        let VectorShapeState::Rect(state) = ctx.state else {
+            return None;
+        };
         let path = KurboShape::Rect {
-            x0: -(ctx.state.size[0] as f64),
-            y0: -(ctx.state.size[1] as f64),
-            x1: ctx.state.size[0] as f64,
-            y1: ctx.state.size[1] as f64,
+            x0: -(state.size[0] as f64),
+            y0: -(state.size[1] as f64),
+            x1: state.size[0] as f64,
+            y1: state.size[1] as f64,
         }
         .to_path_default();
         Some(vec![crate::timeline::shapes::build_vello_path(
@@ -84,9 +87,9 @@ impl Primitive for RectPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     fn uses_custom_path(&self) -> bool { false }
 
@@ -96,7 +99,6 @@ impl Primitive for RectPrimitive {
 
     fn apply_property(
         &self,
-        _actor_type: &str,
         name: &str,
         value: &Expr,
         env: &Environment,
@@ -107,11 +109,14 @@ impl Primitive for RectPrimitive {
         if name != "side" {
             return false;
         }
+        let VectorShapeState::Rect(rect) = state else {
+            return false;
+        };
         // Square compat: side sets both axes
         let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-            .unwrap_or(Value::Num(state.size[0] as f64 * 2.0));
+            .unwrap_or(Value::Num(rect.size[0] as f64 * 2.0));
         let side = v.as_num() as f32;
-        state.size = [side / 2.0, side / 2.0];
+        rect.size = [side / 2.0, side / 2.0];
         true
     }
 }

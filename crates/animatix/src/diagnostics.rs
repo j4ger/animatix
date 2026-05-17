@@ -68,6 +68,7 @@ pub enum DiagnosticCode {
     PlayCycleDetected,
     // Plotting
     InvalidPlotFunc,
+    UnknownActorType,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -110,6 +111,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
+            DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
         }
     }
 }

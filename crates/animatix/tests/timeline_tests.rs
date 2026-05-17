@@ -889,7 +889,7 @@ fn component_instances_get_distinct_auto_colors() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: surface.primary
-    badge: Circle, radius: 12, color: auto
+    badge: Ellipse, radius: 12, color: auto
 }
 "#,
     );
@@ -1584,7 +1584,7 @@ fn imported_component_instances_expand_with_isolated_labels_and_props() {
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text, text: title, at: (0, -20)
-    badge: Circle, radius: 12, color: gold
+    badge: Ellipse, radius: 12, color: gold
     badge.color = red
 }
 "#,
@@ -1651,7 +1651,7 @@ fn imported_component_nested_assignment_targets_update_prefixed_tracks() {
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text, text: title, color: white, at: (0, -20)
-    badge: Circle, radius: 12, color: gold
+    badge: Ellipse, radius: 12, color: gold
 }
 "#,
     );
@@ -1810,7 +1810,7 @@ fn rhs_path_lookup_reads_nested_component_properties() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Circle, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1821,7 +1821,7 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-copy: Circle, radius: left.badge.radius, at: left.badge.at, color: left.badge.color
+copy: Ellipse, radius: left.badge.radius, at: left.badge.at, color: left.badge.color
 "#,
     );
 
@@ -1848,7 +1848,7 @@ fn missing_nested_rhs_lookup_reports_diagnostic_in_declaration() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Circle, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1859,7 +1859,7 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-copy: Circle, radius: left.missing.radius, at: left.missing.at, color: left.missing.color
+copy: Ellipse, radius: left.missing.radius, at: left.missing.at, color: left.missing.color
 "#,
     );
 
@@ -1900,7 +1900,7 @@ fn missing_nested_rhs_lookup_reports_diagnostic_in_assignment() {
         &library,
         r#"
 pub component MetricCard(title: "Default") {
-    badge: Circle, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1911,7 +1911,7 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-echo: Circle, radius: 9, color: blue
+echo: Ellipse, radius: 9, color: blue
 
 #0s
 echo.radius = left.missing.radius
@@ -1952,7 +1952,7 @@ fn nonexistent_nested_assignment_reports_diagnostic() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Circle, radius: 14, color: red
+    badge: Ellipse, radius: 14, color: red
 }
 "#,
     );
@@ -1995,7 +1995,7 @@ fn unsupported_nested_component_property_assignment_reports_diagnostic() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Circle, radius: 14, color: red
+    badge: Ellipse, radius: 14, color: red
 }
 "#,
     );
@@ -2045,7 +2045,7 @@ fn component_instances_have_completely_isolated_namespaces() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Circle, radius: 12, color: gold
+    badge: Ellipse, radius: 12, color: gold
 }
 "#,
     );
@@ -5145,7 +5145,7 @@ fn test_row_layout_does_not_reflow_from_scaled_child_animation() {
     let ast = parse_program(
         r#"
 row: Row, gap: 20 {
-  badge: Circle, radius: 10, color: gold
+  badge: Ellipse, radius: 10, color: gold
   label: Text, text: "Stable layout", font_size: 28
 }
 
@@ -5180,7 +5180,7 @@ fn test_row_layout_reflows_from_size_change_when_dynamic_enabled() {
 config { dynamic_layout: true }
 
 row: Row, gap: 20 {
-  badge: Circle, radius: 10, color: gold
+  badge: Ellipse, radius: 10, color: gold
   label: Rect, size: (40, 20), color: blue
 }
 
@@ -5214,8 +5214,8 @@ fn test_container_metadata_populated_for_layout_containers() {
     let ast = parse_program(
         r#"
 row: Row, gap: 30, align: "center" {
-  a: Circle, radius: 20
-  b: Circle, radius: 20
+  a: Ellipse, radius: 20
+  b: Ellipse, radius: 20
 }
 "#,
     );
@@ -5262,7 +5262,7 @@ fn test_dynamic_layout_disabled_by_default() {
     let ast = parse_program(
         r#"
 row: Row, gap: 20 {
-  a: Circle, radius: 10
+  a: Ellipse, radius: 10
 }
 "#,
     );
@@ -5279,7 +5279,7 @@ fn test_layout_engine_recomputes_positions_when_size_changes() {
 config { dynamic_layout: true }
 
 row: Row, gap: 20 {
-  left: Circle, radius: 10
+  left: Ellipse, radius: 10
   right: Rect, size: (40, 20)
 }
 
@@ -5324,8 +5324,8 @@ fn test_layout_engine_skips_manual_placement_children() {
 config { dynamic_layout: true }
 
 row: Row, gap: 20 {
-  left: Circle, radius: 10
-  right: Circle, radius: 10, at: (100, 0)
+  left: Ellipse, radius: 10
+  right: Ellipse, radius: 10, at: (100, 0)
 }
 "#,
     );
@@ -6334,8 +6334,8 @@ fn test_manual_children_do_not_affect_layout_spacing() {
     let ast = parse_program(
         r#"
         row: Row, gap: 20 {
-          manual: Circle, radius: 15, at: (200, 50)
-          auto: Circle, radius: 10
+          manual: Ellipse, radius: 15, at: (200, 50)
+          auto: Ellipse, radius: 10
         }
         "#,
     );
@@ -6367,8 +6367,8 @@ fn test_manual_child_preserves_explicit_position() {
     let ast = parse_program(
         r#"
         row: Row, gap: 20 {
-          manual: Circle, radius: 15, at: (100, 75)
-          auto: Circle, radius: 10
+          manual: Ellipse, radius: 15, at: (100, 75)
+          auto: Ellipse, radius: 10
         }
         "#,
     );
@@ -6392,7 +6392,7 @@ fn test_center_anchored_child_preserves_relative_offset() {
     let ast = parse_program(
         r#"
         container: Col {
-          child: Circle, radius: 20, anchor: scene.center, offset: (0, 30)
+          child: Ellipse, radius: 20, anchor: scene.center, offset: (0, 30)
         }
         "#,
     );
@@ -6521,7 +6521,7 @@ fn test_dynamic_layout_recomputes_on_size_change() {
         config { dynamic_layout: true }
 
         row: Row, gap: 20 {
-          left: Circle, radius: 12
+          left: Ellipse, radius: 12
           right: Rect, size: (60, 40)
         }
 
@@ -6567,13 +6567,13 @@ fn test_dynamic_layout_recomputes_on_child_addition() {
         config { dynamic_layout: true }
 
         row: Row, gap: 15 {
-          a: Circle, radius: 10
+          a: Ellipse, radius: 10
         }
 
         #1s
         row: Row, gap: 15 {
-          a: Circle, radius: 10
-          b: Circle, radius: 20
+          a: Ellipse, radius: 10
+          b: Ellipse, radius: 20
         }
         "#,
     );
@@ -6680,7 +6680,7 @@ fn test_stack_overlaps_all_children_at_origin() {
         r#"
         stack: Stack {
           base: Rect, size: (100, 80)
-          overlay: Circle, radius: 30
+          overlay: Ellipse, radius: 30
           top: Rect, size: (20, 20)
         }
         "#,
@@ -6744,7 +6744,7 @@ fn test_stack_ignores_manual_placement_all_children_at_origin() {
     let ast = parse_program(
         r#"
         stack: Stack {
-          manual: Circle, radius: 20, at: (500, 300)
+          manual: Ellipse, radius: 20, at: (500, 300)
           auto: Rect, size: (60, 40)
         }
         "#,
@@ -7253,8 +7253,8 @@ fn test_ellipse_in_row_is_layout_managed() {
     let ast = parse_program(
         r#"
         dot_row: Row, gap: 10 {
-            red_dot: Circle, radius: 15, color: red
-            blue_dot: Circle, radius: 20, color: blue
+            red_dot: Ellipse, radius: 15, color: red
+            blue_dot: Ellipse, radius: 20, color: blue
         }
         "#,
     );
@@ -7349,7 +7349,7 @@ fn test_stack_places_all_actor_kinds_at_origin() {
         mixed_stack: Stack {{
             label: Text, text: "Title", font_size: 32
             icon: Svg {{ url: "{}" }}
-            badge: Circle, radius: 18, color: red
+            badge: Ellipse, radius: 18, color: red
             box: Rect, size: (60, 40), color: blue
         }}
         "#,
@@ -7432,10 +7432,10 @@ fn test_layout_engine_excludes_manual_children() {
     let ast = parse_program(
         r#"
         row: Row, gap: 25 {
-          m1: Circle, radius: 10, at: (0, 0)
-          l1: Circle, radius: 15
+          m1: Ellipse, radius: 10, at: (0, 0)
+          l1: Ellipse, radius: 15
           m2: Rect, size: (20, 20), at: (50, 50)
-          l2: Circle, radius: 10
+          l2: Ellipse, radius: 10
         }
         "#,
     );
@@ -7469,7 +7469,7 @@ fn test_layout_engine_excludes_manual_children() {
 fn test_layout_engine_returns_empty_for_non_container() {
     let ast = parse_program(
         r#"
-        circle: Circle, radius: 30
+        circle: Ellipse, radius: 30
         "#,
     );
 
@@ -7531,10 +7531,10 @@ fn test_row_center_align_same_semantics_as_col_center() {
 /// supported container types: Row, Col, Grid, Stack.
 #[test]
 fn test_container_metadata_layout_type_parity() {
-    let row_ast = parse_program(r#"row: Row, gap: 10 { a: Circle, radius: 10 }"#);
-    let col_ast = parse_program(r#"col: Col, gap: 10 { a: Circle, radius: 10 }"#);
-    let grid_ast = parse_program(r#"grid: Grid, cols: 2 { a: Circle, radius: 10 }"#);
-    let stack_ast = parse_program(r#"stack: Stack { a: Circle, radius: 10 }"#);
+    let row_ast = parse_program(r#"row: Row, gap: 10 { a: Ellipse, radius: 10 }"#);
+    let col_ast = parse_program(r#"col: Col, gap: 10 { a: Ellipse, radius: 10 }"#);
+    let grid_ast = parse_program(r#"grid: Grid, cols: 2 { a: Ellipse, radius: 10 }"#);
+    let stack_ast = parse_program(r#"stack: Stack { a: Ellipse, radius: 10 }"#);
 
     let row_tl = Timeline::build(&row_ast);
     let col_tl = Timeline::build(&col_ast);
@@ -7619,7 +7619,7 @@ fn test_swap_action_animates_positions() {
 #[test]
 fn seeded_rand_is_deterministic() {
     let source = r#"
-        c: Circle, radius: 50, color: red
+        c: Ellipse, radius: 50, color: red
         always {
             c.position = (seeded_rand(1.0) * 100, seeded_rand(2.0) * 100)
         }
@@ -7637,7 +7637,7 @@ fn seeded_rand_is_deterministic() {
 #[test]
 fn seeded_rand_returns_value_in_range() {
     let source = r#"
-        c: Circle, radius: 50, color: red
+        c: Ellipse, radius: 50, color: red
         always {
             c.position = (seeded_rand(42.0) * 100, seeded_rand(42.0) * 100)
         }
@@ -7663,7 +7663,7 @@ fn seeded_rand_different_seeds_produce_different_values() {
     use animatix::timeline::{evaluate_expr, Value};
 
     let source = r#"
-        c: Circle, radius: 50, color: red
+        c: Ellipse, radius: 50, color: red
     "#;
     let ast = parse_program(source);
     let timeline = Timeline::build(&ast);

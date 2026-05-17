@@ -94,11 +94,13 @@ use plot::{
 };
 use position::{
     apply_explicit_position_binding, mark_track_manual_position,
-    preserve_discrete_position_state_before, preserve_instant_delayed_value,
+    preserve_discrete_position_state_before,
     resolve_bound_position, resolve_position_binding_with_lookup_diagnostic,
     set_track_position_binding,
 };
 pub use position::scene_anchor_point;
+pub(crate) use assignments::recompile_text_at_assignment;
+pub(crate) use position::preserve_instant_delayed_value;
 pub(crate) use primitive::PrimitiveDescriptor;
 use property_lookup::{
     assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
@@ -112,7 +114,7 @@ pub(crate) use property_lookup::{
 pub use shapes::{
     VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
-    finalize_vector_shape_state, parse_path_commands_expr, shape_type_for_actor,
+    extract_shape_state_values, finalize_vector_shape_state, parse_path_commands_expr, shape_type_for_actor,
     vector_shape_uses_custom_path, ShapeType,
 };
 pub use svg::parse_svg;

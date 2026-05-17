@@ -122,9 +122,9 @@ impl Timeline {
         track: &AnimationTrack,
         time_ms: u64,
         half_size: [f32; 2],
-        line_from: [f32; 2],
-        line_to: [f32; 2],
-        arc_angles: [f32; 2],
+        _line_from: [f32; 2],
+        _line_to: [f32; 2],
+        _arc_angles: [f32; 2],
         color: [f32; 4],
         stroke_width: f32,
         stroke_color: [f32; 4],
@@ -136,11 +136,36 @@ impl Timeline {
             return;
         }
 
-        let mut vector_shape_state = VectorShapeState::new(half_size, line_from, line_to, arc_angles);
-        vector_shape_state.rotation = track.rotation.get(time_ms, 0.0);
-        vector_shape_state.points = track.points.get(time_ms, Vec::new());
+        let mut vector_shape_state = VectorShapeState::new(shape_type, half_size);
+        match &mut vector_shape_state {
+            VectorShapeState::Line(line_state) => {
+                line_state.line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
+                line_state.line_to = track.line_to.get(time_ms, [50.0, 0.0]);
+            }
+            VectorShapeState::Ellipse(ellipse) => {
+                ellipse.arc_angles = track.arc_angles.get(time_ms, [0.0, 0.0]);
+                let rot = track.rotation.get(time_ms, 0.0);
+                if rot != 0.0 {
+                    ellipse.rotation = rot;
+                }
+            }
+            VectorShapeState::Polygon(poly) => {
+                poly.points = track.points.get(time_ms, Vec::new());
+                let rot = track.rotation.get(time_ms, 0.0);
+                if rot != 0.0 {
+                    poly.rotation = rot;
+                }
+            }
+            _ => {}
+        }
         if vector_shape_uses_custom_path(shape_type) {
-            vector_shape_state.custom_path = vector_paths.first().map(|vp| vp.path.clone());
+            if let Some(first_path) = vector_paths.first().map(|vp| vp.path.clone()) {
+                match &mut vector_shape_state {
+                    VectorShapeState::Polygon(poly) => poly.custom_path = Some(first_path),
+                    VectorShapeState::Path(path_state) => path_state.custom_path = Some(first_path),
+                    _ => {}
+                }
+            }
         }
         if let Some(path) = build_vector_shape_vello_path(
             shape_type,

@@ -639,7 +639,19 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> VectorShapeState {
         let eval_env = self.build_eval_env(time_ms as u64);
-        let mut vector_shape_state = VectorShapeState::new(size, line_from, line_to, arc_angles);
+        let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
+        let mut vector_shape_state = VectorShapeState::new(shape_type, size);
+        // Initialize shape-specific fields
+        match &mut vector_shape_state {
+            VectorShapeState::Line(line) => {
+                line.line_from = line_from;
+                line.line_to = line_to;
+            }
+            VectorShapeState::Ellipse(ellipse) => {
+                ellipse.arc_angles = arc_angles;
+            }
+            _ => {}
+        }
         apply_vector_shape_defaults(ty, &mut vector_shape_state);
 
         for prop in props {
@@ -655,8 +667,11 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     let r = v.as_num() as f32;
-                    vector_shape_state.size = [r, r];
-                    vector_shape_state.regular_polygon_radius = r;
+                    *vector_shape_state.size_mut() = [r, r];
+                    // Also set regular_polygon_radius if the variant supports it
+                    if let VectorShapeState::Polygon(poly) = &mut vector_shape_state {
+                        poly.regular_polygon_radius = r;
+                    }
                 }
                 "size" => {
                     let size_val = evaluate_expr_with_lookup_diagnostic(
@@ -667,7 +682,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     if let Value::Vec2([w, h]) = size_val {
-                        vector_shape_state.size = [w as f32 / 2.0, h as f32 / 2.0];
+                        *vector_shape_state.size_mut() = [w as f32 / 2.0, h as f32 / 2.0];
                     }
                 }
                 _ => {
@@ -747,7 +762,7 @@ impl Timeline {
             return vec![];
         }
 
-        let shape_type = shape_type_for_actor(ty);
+        let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let vello_path = build_vector_shape_vello_path(
             shape_type,
             vector_shape_state,
@@ -849,6 +864,18 @@ impl Timeline {
             return;
         }
 
+        let Some(kind_id) = super::ActorKindId::from_type_name(ty) else {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::UnknownActorType,
+                    DiagnosticPhase::Build,
+                    format!("Unknown actor type '{}'", ty),
+                )
+                .with_subject(label),
+            );
+            return;
+        };
+
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         let existing_track = self
             .tracks
@@ -884,12 +911,9 @@ impl Timeline {
         let mut align = extracted.align.clone();
         let mut cols = extracted.cols;
         let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
-        let shape_type = shape_type_for_actor(ty);
+        let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let mut vector_shape_state = self.build_vector_shape_state(ty, props, time_ms, size, line_from, line_to, arc_angles, diagnostics);
-        size = vector_shape_state.size;
-        line_from = vector_shape_state.line_from;
-        line_to = vector_shape_state.line_to;
-        arc_angles = vector_shape_state.arc_angles;
+        (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
 
         let ParsedTimingModifiers { duration_ms, delay_ms, easing, morph_options } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
         let t_start_ms = (time_ms + delay_ms) as u64;
@@ -945,10 +969,7 @@ impl Timeline {
                 "fill_opacity" => { let v = evaluate_expr_with_lookup_diagnostic(&prop.value, &eval_env, diagnostics, &prop_subject).unwrap_or(Value::Num(0.0)); fill_opacity = v.as_num() as f32; }
                 _ if vector_shape.is_some() => {
                     if apply_vector_shape_property(ty, &prop.name, &prop.value, &eval_env, diagnostics, &prop_subject, &mut vector_shape_state) {
-                        size = vector_shape_state.size;
-                        line_from = vector_shape_state.line_from;
-                        line_to = vector_shape_state.line_to;
-                        arc_angles = vector_shape_state.arc_angles;
+                        (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
                     }
                 }
                 _ => {}
@@ -957,10 +978,7 @@ impl Timeline {
 
         if vector_shape.is_some() {
             finalize_vector_shape_state(ty, &mut vector_shape_state);
-            size = vector_shape_state.size;
-            line_from = vector_shape_state.line_from;
-            line_to = vector_shape_state.line_to;
-            arc_angles = vector_shape_state.arc_angles;
+            (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
         }
 
         if primitive.is_graph_host() || primitive.is_layout_container() {
@@ -980,7 +998,7 @@ impl Timeline {
         );
 
         let track = self.tracks.entry(label.to_string()).or_insert_with(|| AnimationTrack::new(label.to_string()));
-        track.kind = super::ActorKindId::from_type_name(ty);
+        track.kind = kind_id;
         if track.first_seen_ms == u64::MAX { track.first_seen_ms = t_start_ms; }
 
         if let Some((binding, bound_position)) = position_binding {
@@ -1014,6 +1032,18 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let Some(kind_id) = super::ActorKindId::from_type_name(ty) else {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::UnknownActorType,
+                    DiagnosticPhase::Build,
+                    format!("Unknown actor type '{}'", ty),
+                )
+                .with_subject(label),
+            );
+            return;
+        };
+
         let existing_track = self
             .tracks
             .get(label)
@@ -1066,7 +1096,7 @@ impl Timeline {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
-            track.kind = super::ActorKindId::from_type_name(ty);
+            track.kind = kind_id;
             track.procedural_plot = procedural_plot;
 
             if track.first_seen_ms == u64::MAX {
