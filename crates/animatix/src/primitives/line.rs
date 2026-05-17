@@ -4,7 +4,8 @@ use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderC
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
 use crate::timeline::{
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-    Environment,
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Environment, Value,
 };
 
 pub struct LinePrimitive;
@@ -19,17 +20,31 @@ impl Primitive for LinePrimitive {
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Line) }
 
     fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let path = KurboShape::Line {
-            p0: kurbo::Point::new(ctx.state.line_from[0] as f64, ctx.state.line_from[1] as f64),
-            p1: kurbo::Point::new(ctx.state.line_to[0] as f64, ctx.state.line_to[1] as f64),
-        }
-        .to_path_default();
-        Some(vec![self.build_vello_path(ctx, path)])
+        // If tip size is set, render as an arrow path (absorbs Arrow primitive).
+        let has_tips = ctx.state.size[0] > 0.0 && ctx.state.size[1] > 0.0;
+        let path = if has_tips {
+            let arrow_path = crate::timeline::shapes::build_arrow_path(
+                ctx.state.line_from,
+                ctx.state.line_to,
+                ctx.state.size[0],
+                ctx.state.size[1],
+            );
+            KurboShape::Path { path: arrow_path }.to_path_default()
+        } else {
+            KurboShape::Line {
+                p0: kurbo::Point::new(ctx.state.line_from[0] as f64, ctx.state.line_from[1] as f64),
+                p1: kurbo::Point::new(ctx.state.line_to[0] as f64, ctx.state.line_to[1] as f64),
+            }
+            .to_path_default()
+        };
+        // Line is stroke-only; override fill_opacity to 0
+        Some(vec![crate::timeline::shapes::build_vello_path(
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, 0.0, true,
+        )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -41,13 +56,16 @@ impl Primitive for LinePrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, state: &mut VectorShapeState) {
+        // Default to no arrow tips; tips are only present when explicitly set
+        state.size = [0.0, 0.0];
+    }
 
     fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
     fn uses_custom_path(&self) -> bool { false }
 
-    fn exposes_tip_size(&self) -> bool { false }
+    fn exposes_tip_size(&self) -> bool { true }
 
     fn supports_fill(&self) -> bool { false }
 
@@ -82,19 +100,21 @@ impl Primitive for LinePrimitive {
                 }
                 true
             }
+            "tip_length" => {
+                // Arrow compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.size[0] as f64));
+                state.size[0] = v.as_num() as f32;
+                true
+            }
+            "tip_width" => {
+                // Arrow compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.size[1] as f64));
+                state.size[1] = v.as_num() as f32;
+                true
+            }
             _ => false,
-        }
-    }
-}
-
-impl LinePrimitive {
-    fn build_vello_path(&self, ctx: &RenderCtx, path: kurbo::BezPath) -> VelloPath {
-        use vello::peniko::Color;
-        VelloPath {
-            path,
-            fill: None,
-            stroke: crate::timeline::shapes::shape_stroke(ctx.style.stroke_color, ctx.style.stroke_width)
-                .or_else(|| Some((Color::from_rgba8(0, 0, 0, 255), 1.0))),
         }
     }
 }

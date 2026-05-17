@@ -3,9 +3,9 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-a: Circle, radius: 60, color: accent.danger, at: (320, 390)
+a: Ellipse, radius: 60, color: accent.danger, at: (320, 390)
 b: Rect, size: (140, 100), color: accent.success, at: (640, 390)
-c: Circle, radius: 50, color: accent.primary, at: (960, 390)
+c: Ellipse, radius: 50, color: accent.primary, at: (960, 390)
 
 #0.5s
 fade-in a [600ms, ease: ease-out]
@@ -26,7 +26,7 @@ a.radius = 90 [600ms, ease: bounce]
 b.color = accent.warning [600ms, ease: ease-in-out]
 
 #4.0s
-shape: Circle, radius: 80, color: accent.danger, at: (640, 390)
+shape: Ellipse, radius: 80, color: accent.danger, at: (640, 390)
 
 #5.0s
 shape: Rect, size: (180, 140), color: accent.success, at: (640, 390) [1s, strategy: auto]

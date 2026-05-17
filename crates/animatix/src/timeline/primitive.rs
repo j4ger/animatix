@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn treats_circle_as_vector_shape() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("Circle");
+        let descriptor = PrimitiveDescriptor::for_actor_type("Ellipse");
         assert_eq!(descriptor.family, PrimitiveFamily::VectorShape);
         assert!(descriptor.capabilities.vector_paths);
     }

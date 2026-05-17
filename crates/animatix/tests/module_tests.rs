@@ -560,11 +560,11 @@ sequence {
          r#"
  import "./slides.amx"
 
- slide: SlideLayout {
-     @body {
-         Circle, radius: 20
-     }
- }
+  slide: SlideLayout {
+      @body {
+          Ellipse, radius: 20
+      }
+  }
  // header and footer not filled — should use defaults
  "#,
      );
@@ -579,7 +579,7 @@ sequence {
      assert!(expanded_debug.contains("Default Header"));
      assert!(expanded_debug.contains("Default Footer"));
      // Filled body should appear
-     assert!(expanded_debug.contains("Circle"));
+     assert!(expanded_debug.contains("Ellipse"));
  }
 
  #[test]

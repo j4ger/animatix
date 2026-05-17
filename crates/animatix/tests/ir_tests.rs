@@ -387,7 +387,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "panel.badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     animatix::ast::Property {
                         name: "radius".to_string(),
@@ -415,7 +415,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "echo".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     animatix::ast::Property {
                         name: "radius".to_string(),

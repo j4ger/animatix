@@ -1,5 +1,5 @@
 // Rotation Demo: Demonstrates primitive-level rotation assignment
-// Shows how to rotate Ellipse, Rect, and RegularPolygon with [angle] property
+// Shows how to rotate Ellipse, Rect, and Polygon with [angle] property
 
 config { colorscheme: "default-dark" }
 
@@ -20,7 +20,7 @@ rectangular: Rect, size: (120, 40), color: accent.success, at: (640, 360)
 rect_label: Text, text: "Rectangle (bar)", font_size: 18, color: text.secondary, at: (640, 280)
 
 // Rotating polygon - star that rotates
-star_polygon: RegularPolygon, sides: 5, radius: 60, color: accent.warning, at: (960, 360)
+star_polygon: Polygon, sides: 5, radius: 60, color: accent.warning, at: (960, 360)
 polygon_label: Text, text: "Polygon (5-point star)", font_size: 18, color: text.secondary, at: (960, 280)
 
 // Status/status bar

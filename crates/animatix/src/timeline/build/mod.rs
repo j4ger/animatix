@@ -867,7 +867,7 @@ impl Timeline {
         let eval_env = self.build_eval_env(time_ms as u64);
 
         let default_size = DEFAULT_LAYOUT_HALF_SIZE;
-        let default_arc = [0.0, std::f32::consts::PI];
+        let default_arc = [0.0, 0.0];
         let mut position = existing_track.position.last([0.0, 0.0]);
         let mut size = existing_track.size.last(default_size);
         let mut line_from = existing_track.line_from.last([-50.0, 0.0]);

@@ -3,10 +3,10 @@
 config { colorscheme: "editorial-dark" }
 
 #0s
-center: Circle, radius: 8, color: text.primary, at: (640, 390)
-orbiter: Circle, radius: 32, color: accent.primary, at: (820, 390)
+center: Ellipse, radius: 8, color: text.primary, at: (640, 390)
+orbiter: Ellipse, radius: 32, color: accent.primary, at: (820, 390)
 pulse: Rect, size: (120, 120), color: (0.88, 0.42, 0.84, 1.0), at: (280, 390)
-echo: Circle, radius: 20, color: accent.warning, at: pulse.at
+echo: Ellipse, radius: 20, color: accent.warning, at: pulse.at
 
 always {
   orbiter.at = (640 + 180 * cos(t), 390 + 120 * sin(t * 2))
@@ -18,9 +18,9 @@ always {
 // Explicit repeated declarations (for loops are top-level only)
 #0s
 dots: Row, anchor: scene.bottom, offset: (0, -120), gap: 30, align: "center" {
-  d0: Circle, radius: 12, color: accent.primary
-  d1: Circle, radius: 16, color: accent.success
-  d2: Circle, radius: 20, color: accent.warning
-  d3: Circle, radius: 24, color: accent.danger
-  d4: Circle, radius: 28, color: accent.primary
+  d0: Ellipse, radius: 12, color: accent.primary
+  d1: Ellipse, radius: 16, color: accent.success
+  d2: Ellipse, radius: 20, color: accent.warning
+  d3: Ellipse, radius: 24, color: accent.danger
+  d4: Ellipse, radius: 28, color: accent.primary
 }

@@ -429,7 +429,7 @@ fn rebuild_vector_paths(
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
-    let default_arc = [0.0, std::f32::consts::PI];
+    let default_arc = [0.0, 0.0];
     let has_duration = t_end_ms > t_start_ms;
     let size = track.size.last(default_size);
     let line_from = track.line_from.last([-50.0, 0.0]);

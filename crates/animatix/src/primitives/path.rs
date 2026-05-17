@@ -23,7 +23,9 @@ impl Primitive for PathPrimitive {
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
         let path = ctx.state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new);
-        Some(vec![self.build_vello_path(ctx, path)])
+        Some(vec![crate::timeline::shapes::build_vello_path(
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
+        )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -44,7 +46,7 @@ impl Primitive for PathPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
     fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
@@ -68,20 +70,4 @@ impl Primitive for PathPrimitive {
     fn uses_custom_path(&self) -> bool { true }
 }
 
-impl PathPrimitive {
-    fn build_vello_path(&self, ctx: &RenderCtx, path: kurbo::BezPath) -> VelloPath {
-        use vello::peniko::Color;
-        VelloPath {
-            path,
-            fill: if ctx.style.fill_opacity > 0.0 {
-                Some(Color::from_rgba8(
-                    (ctx.style.color[0] * 255.0) as u8,
-                    (ctx.style.color[1] * 255.0) as u8,
-                    (ctx.style.color[2] * 255.0) as u8,
-                    (ctx.style.color[3] * 255.0 * ctx.style.fill_opacity) as u8,
-                ))
-            } else { None },
-            stroke: crate::timeline::shapes::shape_stroke(ctx.style.stroke_color, ctx.style.stroke_width),
-        }
-    }
-}
+

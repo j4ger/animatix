@@ -291,7 +291,7 @@ fn test_colorscheme_auto_cycle() {
         Stmt::ActorDecl {
             is_pub: false,
             label: "a".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "color".to_string(),
                 value: Expr::Ident("auto".to_string()),
@@ -305,7 +305,7 @@ fn test_colorscheme_auto_cycle() {
         Stmt::ActorDecl {
             is_pub: false,
             label: "b".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "color".to_string(),
                 value: Expr::Ident("auto".to_string()),

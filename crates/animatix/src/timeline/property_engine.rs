@@ -199,19 +199,7 @@ pub(crate) fn write_property_field(
         // ── Shape payload ──
         ActorField::ShapeType => {
             if let PropertyValue::U32(v) = value {
-                let st = match v {
-                    0 => ShapeType::Rect,
-                    1 => ShapeType::Circle,
-                    2 => ShapeType::Line,
-                    3 => ShapeType::Ellipse,
-                    4 => ShapeType::Arc,
-                    5 => ShapeType::Polygon,
-                    6 => ShapeType::Path,
-                    7 => ShapeType::Arrow,
-                    8 => ShapeType::Graph,
-                    9 => ShapeType::Plot,
-                    _ => ShapeType::Rect,
-                };
+                let st = ShapeType::from(v);
                 write_shape_type(&mut track.shape_type, st, t_start_ms, t_end_ms, easing, ShapeType::Rect, has_duration, has_delay);
             }
         }
@@ -470,15 +458,12 @@ pub fn read_property_value_or_default(
 fn shape_type_to_u32(st: ShapeType) -> u32 {
     match st {
         ShapeType::Rect => 0,
-        ShapeType::Circle => 1,
+        ShapeType::Ellipse => 1,
         ShapeType::Line => 2,
-        ShapeType::Ellipse => 3,
-        ShapeType::Arc => 4,
-        ShapeType::Polygon => 5,
-        ShapeType::Path => 6,
-        ShapeType::Arrow => 7,
-        ShapeType::Graph => 8,
-        ShapeType::Plot => 9,
+        ShapeType::Polygon => 3,
+        ShapeType::Path => 4,
+        ShapeType::Graph => 5,
+        ShapeType::Plot => 6,
     }
 }
 

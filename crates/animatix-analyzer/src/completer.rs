@@ -306,16 +306,10 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
             "Code" => Some("Code block with syntax highlighting"),
             "Svg" => Some("SVG image element"),
             "Image" => Some("Raster image element"),
-            "Circle" => Some("Circle shape"),
-            "Dot" => Some("Small dot marker"),
             "Rect" => Some("Rectangle shape"),
-            "Square" => Some("Square shape"),
-            "Line" => Some("Line segment between two points"),
-            "Arrow" => Some("Arrow with head"),
-            "Ellipse" => Some("Ellipse shape"),
-            "Arc" => Some("Arc segment"),
-            "Polygon" => Some("Polygon shape"),
-            "RegularPolygon" => Some("Regular polygon (triangle, pentagon, etc.)"),
+            "Ellipse" => Some("Ellipse, circle, arc, or dot"),
+            "Line" => Some("Line segment or arrow"),
+            "Polygon" => Some("Polygon or regular polygon"),
             "Path" => Some("SVG path element"),
             "Graph" => Some("Function graph"),
             "CartesianPlot" => Some("Cartesian coordinate plot"),
@@ -579,7 +573,7 @@ mod tests {
             .collect();
 
         assert!(types.contains(&"Text"));
-        assert!(types.contains(&"Circle"));
+        assert!(types.contains(&"Ellipse"));
         assert!(types.contains(&"Button"));
     }
 

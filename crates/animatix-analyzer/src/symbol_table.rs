@@ -74,9 +74,7 @@ pub struct ParamInfo {
 /// Known built-in types in the Animatix DSL.
 const BUILTIN_TYPES: &[&str] = &[
     "Text", "Math", "Code", "Svg", "Image",
-    "Circle", "Dot", "Rect", "Square",
-    "Line", "Arrow", "Ellipse", "Arc",
-    "Polygon", "RegularPolygon", "Path",
+    "Rect", "Ellipse", "Line", "Polygon", "Path",
     "Graph", "CartesianPlot", "PolarPlot",
     "ParametricPlot", "ImplicitPlot",
     "Button",
@@ -136,7 +134,7 @@ fn known_properties() -> HashMap<String, Vec<String>> {
     ]);
     map.insert("Code".to_string(), code_props);
 
-    // Shape-specific (Circle, Rect, etc.)
+    // Shape-specific (Rect, Ellipse, etc.)
     let mut shape_props = common.clone();
     shape_props.extend([
         "fill".to_string(),
@@ -145,11 +143,11 @@ fn known_properties() -> HashMap<String, Vec<String>> {
         "size".to_string(),
         "radius".to_string(),
     ]);
-    for shape in &["Circle", "Dot", "Rect", "Square", "Ellipse", "Arc", "Polygon", "RegularPolygon"] {
+    for shape in &["Rect", "Ellipse", "Polygon"] {
         map.insert(shape.to_string(), shape_props.clone());
     }
 
-    // Line/Arrow
+    // Line
     let mut line_props = common.clone();
     line_props.extend([
         "start".to_string(),
@@ -157,8 +155,7 @@ fn known_properties() -> HashMap<String, Vec<String>> {
         "stroke".to_string(),
         "stroke_width".to_string(),
     ]);
-    map.insert("Line".to_string(), line_props.clone());
-    map.insert("Arrow".to_string(), line_props);
+    map.insert("Line".to_string(), line_props);
 
     // Button
     let mut button_props = common.clone();
@@ -396,7 +393,7 @@ mod tests {
         let stmts = vec![];
         let table = SymbolTable::build_from_ast(&stmts);
         assert!(table.types.contains("Text"));
-        assert!(table.types.contains("Circle"));
+        assert!(table.types.contains("Ellipse"));
         assert!(table.types.contains("Button"));
     }
 

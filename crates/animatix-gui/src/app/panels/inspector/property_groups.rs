@@ -607,9 +607,8 @@ pub(crate) fn render_property_row(
                         |ui| {
                             if entry.name == "shape_type" {
                                 let variants: Vec<&str> = [
-                                    ShapeType::Rect, ShapeType::Circle, ShapeType::Line,
-                                    ShapeType::Ellipse, ShapeType::Arc, ShapeType::Polygon,
-                                    ShapeType::Path, ShapeType::Arrow, ShapeType::Graph, ShapeType::Plot,
+                                    ShapeType::Rect, ShapeType::Ellipse, ShapeType::Line,
+                                    ShapeType::Polygon, ShapeType::Path, ShapeType::Graph, ShapeType::Plot,
                                 ]
                                 .iter()
                                 .map(|st| st.as_str())

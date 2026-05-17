@@ -4,6 +4,10 @@ use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderC
 use crate::timeline::{
     kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath,
 };
+use crate::timeline::{
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Environment, Value,
+};
 
 pub struct RectPrimitive;
 pub const RECT: RectPrimitive = RectPrimitive;
@@ -41,7 +45,6 @@ impl Primitive for RectPrimitive {
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
@@ -53,7 +56,9 @@ impl Primitive for RectPrimitive {
             y1: ctx.state.size[1] as f64,
         }
         .to_path_default();
-        Some(vec![self.build_vello_path(ctx, path)])
+        Some(vec![crate::timeline::shapes::build_vello_path(
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
+        )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -79,7 +84,7 @@ impl Primitive for RectPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
     fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
@@ -88,30 +93,25 @@ impl Primitive for RectPrimitive {
     fn exposes_tip_size(&self) -> bool { false }
 
     fn supports_fill(&self) -> bool { true }
-}
 
-impl RectPrimitive {
-    fn build_vello_path(&self,
-        ctx: &RenderCtx,
-        path: kurbo::BezPath,
-    ) -> VelloPath {
-        use vello::peniko::Color;
-        VelloPath {
-            path,
-            fill: if ctx.style.fill_opacity > 0.0 {
-                Some(Color::from_rgba8(
-                    (ctx.style.color[0] * 255.0) as u8,
-                    (ctx.style.color[1] * 255.0) as u8,
-                    (ctx.style.color[2] * 255.0) as u8,
-                    (ctx.style.color[3] * 255.0 * ctx.style.fill_opacity) as u8,
-                ))
-            } else {
-                None
-            },
-            stroke: crate::timeline::shapes::shape_stroke(
-                ctx.style.stroke_color,
-                ctx.style.stroke_width,
-            ),
+    fn apply_property(
+        &self,
+        _actor_type: &str,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        if name != "side" {
+            return false;
         }
+        // Square compat: side sets both axes
+        let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Num(state.size[0] as f64 * 2.0));
+        let side = v.as_num() as f32;
+        state.size = [side / 2.0, side / 2.0];
+        true
     }
 }

@@ -31,11 +31,18 @@
 //!
 //! | Category | Primitives |
 //! |----------|-----------|
-//! | Shapes | Rect, Circle, Square, Ellipse, Line, Arc, Polygon, RegularPolygon, Path, Arrow, Dot |
+//! | Shapes | Rect, Ellipse, Line, Polygon, Path |
 //! | Text | Text, Math, Code |
 //! | Media | Image, Svg |
 //! | Plots | Graph, CartesianPlot, PolarPlot, ParametricPlot, ImplicitPlot |
 //! | Containers | Row, Col, Grid, Stack, Group |
+//!
+//! ## Unified shapes (backward-compatible aliases)
+//!
+//! - `Circle`, `Dot`, `Arc` → `Ellipse` (with `radius`, `start_angle`, `sweep_angle`)
+//! - `Square` → `Rect` (with `side`)
+//! - `Arrow` → `Line` (with `tip_length`, `tip_width`)
+//! - `RegularPolygon` → `Polygon` (with `sides`, `radius`)
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
@@ -47,16 +54,10 @@ use crate::timeline::{
 // ── Re-export all primitive modules ──────────────────────────────────────
 
 mod rect;       pub use rect::RECT;
-mod circle;     pub use circle::CIRCLE;
-mod square;     pub use square::SQUARE;
 mod ellipse;    pub use ellipse::ELLIPSE;
 mod line;       pub use line::LINE;
-mod arc;        pub use arc::ARC;
 mod polygon;    pub use polygon::POLYGON;
-mod regular_polygon; pub use regular_polygon::REGULAR_POLYGON;
 mod path;       pub use path::PATH;
-mod arrow;      pub use arrow::ARROW;
-mod dot;        pub use dot::DOT;
 mod text;       pub use text::TEXT;
 mod math;       pub use math::MATH;
 mod code;       pub use code::CODE;
@@ -71,7 +72,7 @@ mod group;      pub use group::GROUP;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
-/// Context passed to `Primitive::build()`.
+/// Context passed to `Primitive::build()``.
 pub struct BuildCtx<'a> {
     pub timeline: &'a mut Timeline,
     pub time_ms: f64,
@@ -139,7 +140,7 @@ pub trait Primitive: Send + Sync {
     // ── Build-time shape state (for vector shapes) ──
 
     /// Apply primitive-specific defaults to the shape state.
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
     /// Apply a single property to the shape state.
     /// Returns `true` if the property was handled.
@@ -162,10 +163,10 @@ pub trait Primitive: Send + Sync {
     /// Returns true if this shape uses a custom path (Polygon, Path).
     fn uses_custom_path(&self) -> bool { false }
 
-    /// Returns true if this shape exposes tip size properties (Arrow).
+    /// Returns true if this shape exposes tip size properties (Line with arrows).
     fn exposes_tip_size(&self) -> bool { false }
 
-    /// Returns true if this shape supports fill (most shapes; Line and Arc do not).
+    /// Returns true if this shape supports fill.
     fn supports_fill(&self) -> bool { true }
 
     /// Returns the colorscheme key for default color lookup.
@@ -210,11 +211,8 @@ pub trait Primitive: Send + Sync {
 ///
 /// **This is the only place you add a new primitive.**
 pub static PRIMITIVES: &[&dyn Primitive] = &[
-    // Shapes (basic)
-    &RECT, &CIRCLE,
-    // Shapes (advanced)
-    &SQUARE, &ELLIPSE, &LINE, &ARC, &POLYGON, &REGULAR_POLYGON,
-    &PATH, &ARROW, &DOT,
+    // Shapes
+    &RECT, &ELLIPSE, &LINE, &POLYGON, &PATH,
     // Text
     &TEXT, &MATH, &CODE,
     // Media
@@ -336,10 +334,8 @@ mod tests {
             registry.iter().map(|m| m.kind).collect();
 
         let shape_kinds = [
-            ShapeKind::Rect, ShapeKind::Circle, ShapeKind::Ellipse,
-            ShapeKind::Line, ShapeKind::Arc, ShapeKind::Polygon,
-            ShapeKind::Path, ShapeKind::Arrow, ShapeKind::Dot,
-            ShapeKind::Square, ShapeKind::RegularPolygon,
+            ShapeKind::Rect, ShapeKind::Ellipse,
+            ShapeKind::Line, ShapeKind::Polygon, ShapeKind::Path,
         ];
         for sk in &shape_kinds {
             let id = ActorKindId::Shape(*sk);

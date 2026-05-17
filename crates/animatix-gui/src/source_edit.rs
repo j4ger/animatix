@@ -1227,7 +1227,7 @@ btn.color = red"#);
     fn insert_actor_top_level() {
         let mut stmts = parse(r#"btn: Rect, size: (100, 200)"#);
         let edit = SourceEdit::InsertActor {
-            ty: "Circle".into(),
+            ty: "Ellipse".into(),
             label: "circle1".into(),
             props: vec![
                 Property {
@@ -1248,7 +1248,7 @@ btn.color = red"#);
         // Second statement should be the new actor
         if let Stmt::ActorDecl { label, ty, .. } = &stmts[1] {
             assert_eq!(label, "circle1");
-            assert_eq!(ty, "Circle");
+            assert_eq!(ty, "Ellipse");
         } else {
             panic!("Expected ActorDecl at index 1");
         }
@@ -1260,7 +1260,7 @@ btn.color = red"#);
   btn: Rect, size: (100, 200)
 }"#);
         let edit = SourceEdit::InsertActor {
-            ty: "Circle".into(),
+            ty: "Ellipse".into(),
             label: "circle1".into(),
             props: vec![
                 Property {
@@ -1281,7 +1281,7 @@ btn.color = red"#);
             assert_eq!(children.len(), 2);
             if let InlineItem::Labeled { label, ty, .. } = &children[1] {
                 assert_eq!(label, "circle1");
-                assert_eq!(ty, "Circle");
+                assert_eq!(ty, "Ellipse");
             } else {
                 panic!("Expected Labeled child at index 1");
             }

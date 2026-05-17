@@ -8,28 +8,22 @@ use crate::ast::Expr;
 pub enum ShapeType {
     #[default]
     Rect = 0,
-    Circle = 1,
+    Ellipse = 1,
     Line = 2,
-    Ellipse = 3,
-    Arc = 4,
-    Polygon = 5,
-    Path = 6,
-    Arrow = 7,
-    Graph = 8,
-    Plot = 9,
+    Polygon = 3,
+    Path = 4,
+    Graph = 5,
+    Plot = 6,
 }
 
 impl ShapeType {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Rect => "Rect",
-            Self::Circle => "Circle",
-            Self::Line => "Line",
             Self::Ellipse => "Ellipse",
-            Self::Arc => "Arc",
+            Self::Line => "Line",
             Self::Polygon => "Polygon",
             Self::Path => "Path",
-            Self::Arrow => "Arrow",
             Self::Graph => "Graph",
             Self::Plot => "Plot",
         }
@@ -42,15 +36,12 @@ impl std::str::FromStr for ShapeType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Rect" => Ok(Self::Rect),
-            "Circle" => Ok(Self::Circle),
-            "Line" => Ok(Self::Line),
             "Ellipse" => Ok(Self::Ellipse),
-            "Arc" => Ok(Self::Arc),
+            "Line" => Ok(Self::Line),
             "Polygon" => Ok(Self::Polygon),
             "Path" => Ok(Self::Path),
-            "Arrow" => Ok(Self::Arrow),
             "Graph" => Ok(Self::Graph),
-            "Plot" => Ok(Self::Plot),
+            "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => Ok(Self::Plot),
             _ => Err(()),
         }
     }
@@ -66,15 +57,12 @@ impl From<u32> for ShapeType {
     fn from(value: u32) -> Self {
         match value {
             0 => Self::Rect,
-            1 => Self::Circle,
+            1 => Self::Ellipse,
             2 => Self::Line,
-            3 => Self::Ellipse,
-            4 => Self::Arc,
-            5 => Self::Polygon,
-            6 => Self::Path,
-            7 => Self::Arrow,
-            8 => Self::Graph,
-            9 => Self::Plot,
+            3 => Self::Polygon,
+            4 => Self::Path,
+            5 => Self::Graph,
+            6 => Self::Plot,
             _ => Self::Rect,
         }
     }
@@ -112,7 +100,7 @@ impl VectorShapeState {
             line_to,
             arc_angles,
             custom_path: None,
-            regular_polygon_sides: 5,
+            regular_polygon_sides: 0,
             regular_polygon_radius: size[0],
             rotation: 0.0,
             points: Vec::new(),
@@ -131,17 +119,14 @@ mod primitives;
 #[allow(unused_imports)]
 pub use primitives::*;
 pub fn shape_type_for_actor(ty: &str) -> ShapeType {
-    if let Some(primitive) = crate::primitives::find_primitive(ty) {
+        if let Some(primitive) = crate::primitives::find_primitive(ty) {
         if primitive.is_shape() {
             return match ty {
-                "Rect" | "Square" => ShapeType::Rect,
-                "Circle" | "Dot" => ShapeType::Circle,
-                "Line" => ShapeType::Line,
+                "Rect" => ShapeType::Rect,
                 "Ellipse" => ShapeType::Ellipse,
-                "Arc" => ShapeType::Arc,
-                "Polygon" | "RegularPolygon" => ShapeType::Polygon,
+                "Line" => ShapeType::Line,
+                "Polygon" => ShapeType::Polygon,
                 "Path" => ShapeType::Path,
-                "Arrow" => ShapeType::Arrow,
                 _ => ShapeType::Rect,
             };
         }
@@ -156,7 +141,7 @@ pub fn shape_type_for_actor(ty: &str) -> ShapeType {
 
 pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
-        primitive.apply_defaults(state);
+        primitive.apply_defaults(actor_type, state);
     }
 }
 
@@ -183,7 +168,7 @@ pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeStat
 
 pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
     match shape_type {
-        ShapeType::Arrow => true,
+        ShapeType::Line => true,
         _ => false,
     }
 }
@@ -200,13 +185,10 @@ pub fn build_vector_shape_vello_path(
     // Map shape type back to a primitive type name for lookup
     let type_name = match shape_type {
         ShapeType::Rect => "Rect",
-        ShapeType::Circle => "Circle",
-        ShapeType::Line => "Line",
         ShapeType::Ellipse => "Ellipse",
-        ShapeType::Arc => "Arc",
+        ShapeType::Line => "Line",
         ShapeType::Polygon => "Polygon",
         ShapeType::Path => "Path",
-        ShapeType::Arrow => "Arrow",
         _ => return None,
     };
     crate::primitives::find_primitive(type_name)
@@ -363,28 +345,26 @@ pub fn build_shape(
     arc_angles: [f32; 2],
 ) -> KurboShape {
     match shape_type {
-        ShapeType::Circle => KurboShape::Circle {
-            center: kurbo::Point::new(0.0, 0.0),
-            radius: size[0] as f64,
-        },
+        ShapeType::Ellipse => {
+            if arc_angles[1] != 0.0 {
+                KurboShape::Arc {
+                    center: kurbo::Point::new(0.0, 0.0),
+                    radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
+                    start_angle: arc_angles[0] as f64,
+                    sweep_angle: arc_angles[1] as f64,
+                    rotation: 0.0,
+                }
+            } else {
+                KurboShape::Ellipse {
+                    center: kurbo::Point::new(0.0, 0.0),
+                    radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
+                    rotation: 0.0,
+                }
+            }
+        }
         ShapeType::Line => KurboShape::Line {
             p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
             p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
-        },
-        ShapeType::Ellipse => KurboShape::Ellipse {
-            center: kurbo::Point::new(0.0, 0.0),
-            radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
-            rotation: 0.0,
-        },
-        ShapeType::Arc => KurboShape::Arc {
-            center: kurbo::Point::new(0.0, 0.0),
-            radii: kurbo::Vec2::new(size[0] as f64, size[1] as f64),
-            start_angle: arc_angles[0] as f64,
-            sweep_angle: arc_angles[1] as f64,
-            rotation: 0.0,
-        },
-        ShapeType::Arrow => KurboShape::Path {
-            path: build_arrow_path(line_from, line_to, size[0], size[1]),
         },
         _ => KurboShape::Rect {
             x0: -(size[0] as f64),
@@ -405,7 +385,7 @@ pub fn shape_fill_color(
     }
 
     match shape_type {
-        ShapeType::Line | ShapeType::Arc => return None,
+        ShapeType::Line => return None,
         _ => {}
     }
 
@@ -434,6 +414,38 @@ pub fn shape_stroke(
         ),
         stroke_width,
     ))
+}
+
+/// Build a `VelloPath` from a `BezPath` and the current render style.
+///
+/// This is the shared helper that eliminates the copy-pasted `build_vello_path`
+/// in every primitive implementation.
+///
+/// Set `force_stroke` to `true` for stroke-only shapes (Line, Arc) that need
+/// a visible stroke even when the user hasn't explicitly set one.
+pub fn build_vello_path(
+    path: kurbo::BezPath,
+    color: [f32; 4],
+    stroke_color: [f32; 4],
+    stroke_width: f32,
+    fill_opacity: f32,
+    force_stroke: bool,
+) -> VelloPath {
+    VelloPath {
+        path,
+        fill: if fill_opacity > 0.0 {
+            Some(vello::peniko::Color::from_rgba8(
+                (color[0] * 255.0) as u8,
+                (color[1] * 255.0) as u8,
+                (color[2] * 255.0) as u8,
+                (color[3] * 255.0 * fill_opacity) as u8,
+            ))
+        } else {
+            None
+        },
+        stroke: shape_stroke(stroke_color, stroke_width)
+            .or_else(|| if force_stroke { Some((vello::peniko::Color::from_rgba8(0, 0, 0, 255), 1.0)) } else { None }),
+    }
 }
 
 pub fn build_shape_vello_path(
@@ -470,15 +482,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dot_default_size_is_specialized() {
-        let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        apply_vector_shape_defaults("Dot", &mut state);
-        assert_eq!(state.size, [6.0, 6.0]);
-    }
-
-    #[test]
-    fn arrow_reports_tip_lookup_support() {
-        assert!(vector_shape_exposes_tip_size(ShapeType::Arrow));
+    fn line_reports_tip_lookup_support() {
+        assert!(vector_shape_exposes_tip_size(ShapeType::Line));
         assert!(!vector_shape_exposes_tip_size(ShapeType::Rect));
     }
 
@@ -490,9 +495,11 @@ mod tests {
     }
 
     #[test]
-    fn regular_polygon_finalizes_custom_path() {
+    fn polygon_with_sides_finalizes_custom_path() {
         let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        finalize_vector_shape_state("RegularPolygon", &mut state);
+        state.regular_polygon_sides = 5;
+        state.regular_polygon_radius = 50.0;
+        finalize_vector_shape_state("Polygon", &mut state);
         assert!(state.custom_path.is_some());
     }
 }

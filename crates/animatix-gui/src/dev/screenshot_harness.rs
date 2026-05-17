@@ -124,7 +124,7 @@ fn demo_color_entry() -> PropertyEntry {
 fn demo_text_entry() -> PropertyEntry {
     PropertyEntry {
         name: "shape_type",
-        kind: PropertyKind::Text("Circle".to_string()),
+        kind: PropertyKind::Text("Ellipse".to_string()),
         has_keyframes: false,
         has_keyframe_at_current_time: false,
     }

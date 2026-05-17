@@ -19,18 +19,35 @@ impl Primitive for EllipsePrimitive {
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse) }
 
     fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let path = KurboShape::Ellipse {
-            center: kurbo::Point::new(0.0, 0.0),
-            radii: kurbo::Vec2::new(ctx.state.size[0] as f64, ctx.state.size[1] as f64),
-            rotation: ctx.state.rotation as f64,
+        // If arc angles are specified (non-default), render as an arc.
+        // This absorbs the Arc primitive.
+        let has_arc_angles = ctx.state.arc_angles[1] != 0.0;
+        let path = if has_arc_angles {
+            KurboShape::Arc {
+                center: kurbo::Point::new(0.0, 0.0),
+                radii: kurbo::Vec2::new(ctx.state.size[0] as f64, ctx.state.size[1] as f64),
+                start_angle: ctx.state.arc_angles[0] as f64,
+                sweep_angle: ctx.state.arc_angles[1] as f64,
+                rotation: ctx.state.rotation as f64,
+            }
+        } else {
+            KurboShape::Ellipse {
+                center: kurbo::Point::new(0.0, 0.0),
+                radii: kurbo::Vec2::new(ctx.state.size[0] as f64, ctx.state.size[1] as f64),
+                rotation: ctx.state.rotation as f64,
+            }
         }
         .to_path_default();
-        Some(vec![self.build_vello_path(ctx, path)])
+        // Arcs don't have fill; override fill_opacity to 0 for arc mode
+        let fill_opacity = if has_arc_angles { 0.0 } else { ctx.style.fill_opacity };
+        Some(vec![crate::timeline::shapes::build_vello_path(
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, fill_opacity,
+            has_arc_angles, // Arc mode: force stroke when no explicit stroke set
+        )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -41,7 +58,9 @@ impl Primitive for EllipsePrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {
+        // Ellipse has no actor-type-specific defaults
+    }
 
     fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
@@ -62,6 +81,14 @@ impl Primitive for EllipsePrimitive {
         state: &mut VectorShapeState,
     ) -> bool {
         match name {
+            "radius" => {
+                // Circle compat: radius sets both axes
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.size[0] as f64));
+                let r = v.as_num() as f32;
+                state.size = [r, r];
+                true
+            }
             "radius_x" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .unwrap_or(Value::Num(state.size[0] as f64));
@@ -74,25 +101,21 @@ impl Primitive for EllipsePrimitive {
                 state.size[1] = v.as_num() as f32;
                 true
             }
+            "start_angle" => {
+                // Arc compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.arc_angles[0] as f64));
+                state.arc_angles[0] = v.as_num() as f32;
+                true
+            }
+            "sweep_angle" => {
+                // Arc compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.arc_angles[1] as f64));
+                state.arc_angles[1] = v.as_num() as f32;
+                true
+            }
             _ => false,
-        }
-    }
-}
-
-impl EllipsePrimitive {
-    fn build_vello_path(&self, ctx: &RenderCtx, path: kurbo::BezPath) -> VelloPath {
-        use vello::peniko::Color;
-        VelloPath {
-            path,
-            fill: if ctx.style.fill_opacity > 0.0 {
-                Some(Color::from_rgba8(
-                    (ctx.style.color[0] * 255.0) as u8,
-                    (ctx.style.color[1] * 255.0) as u8,
-                    (ctx.style.color[2] * 255.0) as u8,
-                    (ctx.style.color[3] * 255.0 * ctx.style.fill_opacity) as u8,
-                ))
-            } else { None },
-            stroke: crate::timeline::shapes::shape_stroke(ctx.style.stroke_color, ctx.style.stroke_width),
         }
     }
 }

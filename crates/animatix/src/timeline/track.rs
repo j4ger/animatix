@@ -55,16 +55,10 @@ impl ActorKindId {
             "Stack" => Self::Stack,
             "Group" => Self::Group,
             "Rect" => Self::Shape(ShapeKind::Rect),
-            "Circle" => Self::Shape(ShapeKind::Circle),
             "Ellipse" => Self::Shape(ShapeKind::Ellipse),
             "Line" => Self::Shape(ShapeKind::Line),
-            "Arc" => Self::Shape(ShapeKind::Arc),
             "Polygon" => Self::Shape(ShapeKind::Polygon),
             "Path" => Self::Shape(ShapeKind::Path),
-            "Arrow" => Self::Shape(ShapeKind::Arrow),
-            "Dot" => Self::Shape(ShapeKind::Dot),
-            "Square" => Self::Shape(ShapeKind::Square),
-            "RegularPolygon" => Self::Shape(ShapeKind::RegularPolygon),
             _ => Self::Shape(ShapeKind::Rect),
         }
     }
@@ -72,8 +66,7 @@ impl ActorKindId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
-    Rect, Circle, Ellipse, Line, Arc, Polygon, Path, Arrow,
-    Dot, Square, RegularPolygon,
+    Rect, Ellipse, Line, Polygon, Path,
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -716,16 +709,10 @@ mod tests {
         // Enumerate all ShapeKind variants
         let shape_kinds = [
             ShapeKind::Rect,
-            ShapeKind::Circle,
             ShapeKind::Ellipse,
             ShapeKind::Line,
-            ShapeKind::Arc,
             ShapeKind::Polygon,
             ShapeKind::Path,
-            ShapeKind::Arrow,
-            ShapeKind::Dot,
-            ShapeKind::Square,
-            ShapeKind::RegularPolygon,
         ];
 
         for sk in &shape_kinds {

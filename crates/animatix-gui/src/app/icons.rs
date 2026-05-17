@@ -52,13 +52,10 @@ pub fn actor_type_name(kind: ActorKindId) -> &'static str {
 pub fn shape_type_icon(shape: ShapeType) -> &'static str {
     match shape {
         ShapeType::Rect => egui_phosphor::regular::SQUARE,
-        ShapeType::Circle => egui_phosphor::regular::CIRCLE,
+        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE,
         ShapeType::Line => egui_phosphor::regular::MINUS,
-        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE_NOTCH,
-        ShapeType::Arc => egui_phosphor::regular::ARROWS_CLOCKWISE,
         ShapeType::Polygon => egui_phosphor::regular::POLYGON,
         ShapeType::Path => egui_phosphor::regular::PEN,
-        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
         ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
         ShapeType::Plot => egui_phosphor::regular::CHART_LINE_UP,
     }
@@ -144,13 +141,10 @@ mod tests {
         use animatix::timeline::ShapeType;
         for variant in [
             ShapeType::Rect,
-            ShapeType::Circle,
-            ShapeType::Line,
             ShapeType::Ellipse,
-            ShapeType::Arc,
+            ShapeType::Line,
             ShapeType::Polygon,
             ShapeType::Path,
-            ShapeType::Arrow,
             ShapeType::Graph,
             ShapeType::Plot,
         ] {

@@ -442,7 +442,7 @@ mod tests {
         Stmt::ActorDecl {
             is_pub: false,
             label: label.to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "radius".to_string(),

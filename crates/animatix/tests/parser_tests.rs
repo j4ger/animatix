@@ -296,22 +296,22 @@ fn test_stagger_each_parse() {
 #[test]
 fn test_actor_decl_full() {
     assert_eq!(
-        parse_single_stmt("circle: Circle, radius: 50, color: blue [2s, ease: bounce]"),
+        parse_single_stmt("circle: Ellipse, radius: 50, color: blue [2s, ease: bounce]"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "circle".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "radius".to_string(),
                     value: Expr::Num(50.0),
-                    value_span: Some(ByteSpan { start: 24, end: 26 }),
+                    value_span: Some(ByteSpan { start: 25, end: 27 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("blue".to_string()),
-                    value_span: Some(ByteSpan { start: 35, end: 40 }),
+                    value_span: Some(ByteSpan { start: 36, end: 41 }),
                 trailing_comment: None,
                 }
             ],
@@ -358,22 +358,22 @@ fn test_qualified_play_parse() {
 #[test]
 fn test_actor_decl_colorscheme_alias_parse() {
     assert_eq!(
-        parse_single_stmt("badge: Circle, color: auto, stroke: stroke.default"),
+        parse_single_stmt("badge: Ellipse, color: auto, stroke: stroke.default"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
-                    value_span: Some(ByteSpan { start: 22, end: 26 }),
+                    value_span: Some(ByteSpan { start: 23, end: 27 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
-                    value_span: Some(ByteSpan { start: 36, end: 50 }),
+                    value_span: Some(ByteSpan { start: 37, end: 51 }),
                 trailing_comment: None,
                 },
             ],
@@ -416,15 +416,15 @@ fn test_text_colorscheme_alias_parse() {
 #[test]
 fn test_modifier_delay_and_duplicates_parse() {
     assert_eq!(
-        parse_single_stmt("badge: Circle, radius: 20 [delay: 250ms, ease: ease-in, ease: bounce]"),
+        parse_single_stmt("badge: Ellipse, radius: 20 [delay: 250ms, ease: ease-in, ease: bounce]"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
-                value_span: Some(ByteSpan { start: 23, end: 26 }),
+                value_span: Some(ByteSpan { start: 24, end: 27 }),
             trailing_comment: None,
             }],
             modifiers: vec![
@@ -472,16 +472,16 @@ fn test_modifier_delay_and_duplicates_parse() {
 fn test_morph_modifier_keys_parse() {
     assert_eq!(
         parse_single_stmt(
-            "badge: Circle, radius: 20 [1s, strategy: match, path_arc: 1.57, stretch: false]"
+            "badge: Ellipse, radius: 20 [1s, strategy: match, path_arc: 1.57, stretch: false]"
         ),
         Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
-                value_span: Some(ByteSpan { start: 23, end: 26 }),
+                value_span: Some(ByteSpan { start: 24, end: 27 }),
             trailing_comment: None,
             }],
             modifiers: vec![
@@ -727,41 +727,41 @@ fn test_ellipse_actor_decl() {
 fn test_arc_actor_decl() {
     assert_eq!(
         parse_single_stmt(
-            "ring: Arc, radius_x: 80, radius_y: 50, start_angle: 0, sweep_angle: 3.14, stroke: gold"
+            "ring: Ellipse, radius_x: 80, radius_y: 50, start_angle: 0, sweep_angle: 3.14, stroke: gold"
         ),
         Stmt::ActorDecl {
             is_pub: false,
             label: "ring".to_string(),
-            ty: "Arc".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "radius_x".to_string(),
                     value: Expr::Num(80.0),
-                    value_span: Some(ByteSpan { start: 21, end: 23 }),
+                    value_span: Some(ByteSpan { start: 25, end: 27 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(50.0),
-                    value_span: Some(ByteSpan { start: 35, end: 37 }),
+                    value_span: Some(ByteSpan { start: 39, end: 41 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "start_angle".to_string(),
                     value: Expr::Num(0.0),
-                    value_span: Some(ByteSpan { start: 52, end: 53 }),
+                    value_span: Some(ByteSpan { start: 56, end: 57 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "sweep_angle".to_string(),
                     value: Expr::Num(3.14),
-                    value_span: Some(ByteSpan { start: 68, end: 72 }),
+                    value_span: Some(ByteSpan { start: 72, end: 76 }),
                 trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Ident("gold".to_string()),
-                    value_span: Some(ByteSpan { start: 82, end: 86 }),
+                    value_span: Some(ByteSpan { start: 86, end: 90 }),
                 trailing_comment: None,
                 }
             ],
@@ -875,7 +875,7 @@ fn test_path_actor_decl() {
 #[test]
 fn test_actor_decl_nested() {
     assert_eq!(
-        parse_single_stmt("group: Group { a: Circle, size: 10, b: Rect, size: 20 }"),
+        parse_single_stmt("group: Group { a: Ellipse, size: 10, b: Rect, size: 20 }"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "group".to_string(),
@@ -885,15 +885,15 @@ fn test_actor_decl_nested() {
             children: vec![
                 animatix::ast::InlineItem::Labeled {
                     label: "a".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 32, end: 34 }),
+                        value_span: Some(ByteSpan { start: 33, end: 35 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
-                    children: vec![],
+                    children: vec![]
                 },
                 animatix::ast::InlineItem::Labeled {
                     label: "b".to_string(),
@@ -901,7 +901,7 @@ fn test_actor_decl_nested() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 51, end: 54 }),
+                        value_span: Some(ByteSpan { start: 52, end: 55 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -916,7 +916,7 @@ fn test_actor_decl_nested() {
 #[test]
 fn test_actor_decl_anonymous() {
     assert_eq!(
-        parse_single_stmt("group: Group { Circle, size: 10, Rect, size: 20 }"),
+        parse_single_stmt("group: Group { Ellipse, size: 10, Rect, size: 20 }"),
         Stmt::ActorDecl {
             is_pub: false,
             label: "group".to_string(),
@@ -925,22 +925,22 @@ fn test_actor_decl_anonymous() {
             modifiers: vec![],
             children: vec![
                 animatix::ast::InlineItem::Anonymous {
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 29, end: 31 }),
+                        value_span: Some(ByteSpan { start: 30, end: 32 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
-                    children: vec![],
+                    children: vec![]
                 },
                 animatix::ast::InlineItem::Anonymous {
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 45, end: 48 }),
+                        value_span: Some(ByteSpan { start: 46, end: 49 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -958,7 +958,7 @@ fn test_actor_decl_nested_with_children() {
     // The `{...}` after properties attaches to the preceding item.
     assert_eq!(
         parse_single_stmt(
-            "group: Group { a: Circle, size: 10 { child: Text, text: \"hi\" }, b: Rect, size: 20 }"
+            "group: Group { a: Ellipse, size: 10 { child: Text, text: \"hi\" }, b: Rect, size: 20 }"
         ),
         Stmt::ActorDecl {
             is_pub: false,
@@ -969,11 +969,11 @@ fn test_actor_decl_nested_with_children() {
             children: vec![
                 animatix::ast::InlineItem::Labeled {
                     label: "a".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 32, end: 35 }),
+                        value_span: Some(ByteSpan { start: 33, end: 36 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -983,7 +983,7 @@ fn test_actor_decl_nested_with_children() {
                         props: vec![Property {
                             name: "text".to_string(),
                             value: Expr::Str("hi".to_string()),
-                            value_span: Some(ByteSpan { start: 56, end: 61 }),
+                            value_span: Some(ByteSpan { start: 57, end: 62 }),
                         trailing_comment: None,
                         }],
                         modifiers: vec![],
@@ -996,7 +996,7 @@ fn test_actor_decl_nested_with_children() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 79, end: 82 }),
+                        value_span: Some(ByteSpan { start: 80, end: 83 }),
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -1397,7 +1397,7 @@ fn test_slot_fill_parsing() {
     title: Text, text: "Hello"
   }
   @body {
-    badge: Circle, radius: 20
+    badge: Ellipse, radius: 20
   }
 }"#;
     let stmt = parse_single_stmt(src);

@@ -2,8 +2,12 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{Environment, VectorShapeState};
-use crate::timeline::shapes::parse_point_list_expr;
+use crate::timeline::shapes::{parse_point_list_expr, regular_polygon_points};
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VelloPath};
+use crate::timeline::{
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Value,
+};
 
 pub struct PolygonPrimitive;
 pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
@@ -17,7 +21,6 @@ impl Primitive for PolygonPrimitive {
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Polygon) }
 
     fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
@@ -30,12 +33,22 @@ impl Primitive for PolygonPrimitive {
                 .map(|p| kurbo::Point::new(p[0] as f64, p[1] as f64))
                 .collect();
             KurboShape::Polygon { points }.to_path_default()
+        } else if ctx.state.regular_polygon_sides >= 3 {
+            // RegularPolygon compat: generate points from sides + radius
+            let points = regular_polygon_points(
+                ctx.state.regular_polygon_sides,
+                ctx.state.regular_polygon_radius,
+                ctx.state.rotation,
+            );
+            KurboShape::Polygon { points }.to_path_default()
         } else if let Some(custom_path) = &ctx.state.custom_path {
             KurboShape::Path { path: custom_path.clone() }.to_path_default()
         } else {
             KurboShape::Polygon { points: Vec::new() }.to_path_default()
         };
-        Some(vec![self.build_vello_path(ctx, path)])
+        Some(vec![crate::timeline::shapes::build_vello_path(
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
+        )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -54,9 +67,23 @@ impl Primitive for PolygonPrimitive {
         ]
     }
 
-    fn apply_defaults(&self, _state: &mut VectorShapeState) {}
+    fn apply_defaults(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
 
-    fn finalize_state(&self, _actor_type: &str, _state: &mut VectorShapeState) {}
+    fn finalize_state(&self, _actor_type: &str, state: &mut VectorShapeState) {
+        // RegularPolygon compat: if sides is set but no custom path, generate the path
+        if state.custom_path.is_none() && state.regular_polygon_sides >= 3 {
+            state.custom_path = Some(
+                KurboShape::Polygon {
+                    points: regular_polygon_points(
+                        state.regular_polygon_sides,
+                        state.regular_polygon_radius,
+                        state.rotation,
+                    ),
+                }
+                .to_path_default(),
+            );
+        }
+    }
 
     fn supports_fill(&self) -> bool { true }
 
@@ -66,34 +93,34 @@ impl Primitive for PolygonPrimitive {
         name: &str,
         value: &Expr,
         env: &Environment,
-        _diagnostics: &mut Vec<Diagnostic>,
-        _subject: &str,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
-        if name != "points" { return false; }
-        if let Some(points) = parse_point_list_expr(value, env) {
-            state.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
+        match name {
+            "points" => {
+                if let Some(points) = parse_point_list_expr(value, env) {
+                    state.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
+                }
+                true
+            }
+            "sides" => {
+                // RegularPolygon compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.regular_polygon_sides as f64));
+                state.regular_polygon_sides = v.as_num().round().max(3.0) as usize;
+                true
+            }
+            "radius" => {
+                // RegularPolygon compat
+                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    .unwrap_or(Value::Num(state.regular_polygon_radius as f64));
+                state.regular_polygon_radius = v.as_num() as f32;
+                true
+            }
+            _ => false,
         }
-        true
     }
 
     fn uses_custom_path(&self) -> bool { true }
-}
-
-impl PolygonPrimitive {
-    fn build_vello_path(&self, ctx: &RenderCtx, path: kurbo::BezPath) -> VelloPath {
-        use vello::peniko::Color;
-        VelloPath {
-            path,
-            fill: if ctx.style.fill_opacity > 0.0 {
-                Some(Color::from_rgba8(
-                    (ctx.style.color[0] * 255.0) as u8,
-                    (ctx.style.color[1] * 255.0) as u8,
-                    (ctx.style.color[2] * 255.0) as u8,
-                    (ctx.style.color[3] * 255.0 * ctx.style.fill_opacity) as u8,
-                ))
-            } else { None },
-            stroke: crate::timeline::shapes::shape_stroke(ctx.style.stroke_color, ctx.style.stroke_width),
-        }
-    }
 }

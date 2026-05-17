@@ -152,17 +152,18 @@ mod tests {
     use crate::timeline::VectorShapeState;
 
     #[test]
-    fn dot_default_size_is_specialized() {
+    fn ellipse_default_size_is_standard() {
         use crate::primitives::Primitive;
         let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        crate::primitives::DOT.apply_defaults(&mut state);
-        assert_eq!(state.size, [6.0, 6.0]);
+        crate::primitives::ELLIPSE.apply_defaults("Ellipse", &mut state);
+        // Ellipse uses standard size defaults
+        assert_eq!(state.size, [50.0, 50.0]);
     }
 
     #[test]
-    fn arrow_reports_tip_lookup_support() {
+    fn line_reports_tip_lookup_support() {
         use crate::primitives::Primitive;
-        assert!(crate::primitives::ARROW.exposes_tip_size());
+        assert!(crate::primitives::LINE.exposes_tip_size());
         assert!(!crate::primitives::RECT.exposes_tip_size());
     }
 
@@ -175,10 +176,12 @@ mod tests {
     }
 
     #[test]
-    fn regular_polygon_finalizes_custom_path() {
+    fn polygon_with_sides_finalizes_custom_path() {
         use crate::primitives::Primitive;
         let mut state = VectorShapeState::new([50.0, 50.0], [-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]);
-        crate::primitives::REGULAR_POLYGON.finalize_state("RegularPolygon", &mut state);
+        state.regular_polygon_sides = 5;
+        state.regular_polygon_radius = 50.0;
+        crate::primitives::POLYGON.finalize_state("Polygon", &mut state);
         assert!(state.custom_path.is_some());
     }
 }

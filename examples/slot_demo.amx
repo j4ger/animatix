@@ -8,7 +8,7 @@ slide: SlideLayout {
     subtitle: Text, text: "Declarative Animation Language", font_size: 24, color: text.secondary
   }
   @body {
-    circle: Circle, radius: 30, color: auto
+    circle: Ellipse, radius: 30, color: auto
   }
   // footer omitted — uses the default "Powered by Animatix" text
 }

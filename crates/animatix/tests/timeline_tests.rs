@@ -160,7 +160,7 @@ fn test_timeline_build_and_evaluate() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "actor1".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "at".to_string(),
@@ -186,7 +186,7 @@ fn test_timeline_build_and_evaluate() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "actor1".to_string(),
-                ty: "Square".to_string(),
+                ty: "Rect".to_string(),
                 props: vec![
                     Property {
                         name: "at".to_string(),
@@ -352,7 +352,7 @@ fn explicit_color_beats_colorscheme_alias() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "color".to_string(),
@@ -447,7 +447,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 Stmt::ActorDecl {
                     is_pub: false,
                     label: "alice".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "color".to_string(),
                         value: Expr::Ident("auto".to_string()),
@@ -461,7 +461,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 Stmt::ActorDecl {
                     is_pub: false,
                     label: "bob".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "color".to_string(),
                         value: Expr::Ident("auto".to_string()),
@@ -480,7 +480,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "alice".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
@@ -622,7 +622,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "color".to_string(),
                     value: Expr::Path(vec!["accent".to_string(), "missing".to_string()]),
@@ -682,7 +682,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                 Stmt::ActorDecl {
                     is_pub: false,
                     label: "badge".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
@@ -759,7 +759,7 @@ fn explicit_color_beats_primitive_default() {
                 Stmt::ActorDecl {
                     is_pub: false,
                     label: "explicit".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![
                         Property {
                             name: "radius".to_string(),
@@ -787,7 +787,7 @@ fn explicit_color_beats_primitive_default() {
                 Stmt::ActorDecl {
                     is_pub: false,
                     label: "auto_color".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![
                         Property {
                             name: "radius".to_string(),
@@ -850,7 +850,7 @@ fn default_scheme_applies_primitive_defaults() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
@@ -1207,7 +1207,7 @@ fn test_square_primitive_builds_rect_shape() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "sq".to_string(),
-            ty: "Square".to_string(),
+            ty: "Rect".to_string(),
             props: vec![Property {
                 name: "side".to_string(),
                 value: Expr::Num(80.0),
@@ -1232,13 +1232,13 @@ fn test_square_primitive_builds_rect_shape() {
 }
 
 #[test]
-fn test_dot_primitive_uses_small_default_radius() {
+fn test_ellipse_uses_default_size() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
-            label: "dot".to_string(),
-            ty: "Dot".to_string(),
+            label: "ell".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![],
             modifiers: vec![],
             children: vec![],
@@ -1248,9 +1248,9 @@ fn test_dot_primitive_uses_small_default_radius() {
     }];
 
     let timeline = Timeline::build(&ast);
-    let track = timeline.tracks.get("dot").expect("dot track should exist");
+    let track = timeline.tracks.get("ell").expect("ellipse track should exist");
 
-    assert_eq!(track.size.evaluate(0), [6.0, 6.0]);
+    assert_eq!(track.size.evaluate(0), [50.0, 50.0]);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -1261,7 +1261,7 @@ fn test_regular_polygon_builds_runtime_path() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "hex".to_string(),
-            ty: "RegularPolygon".to_string(),
+            ty: "Polygon".to_string(),
             props: vec![
                 Property {
                     name: "sides".to_string(),
@@ -1297,7 +1297,7 @@ fn test_arrow_primitive_builds_runtime_path() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "arrow".to_string(),
-            ty: "Arrow".to_string(),
+            ty: "Line".to_string(),
             props: vec![
                 Property {
                     name: "from".to_string(),
@@ -1325,7 +1325,7 @@ fn test_arrow_primitive_builds_runtime_path() {
         .get("arrow")
         .expect("arrow track should exist");
 
-    assert_eq!(track.shape_type.evaluate(0), ShapeType::Arrow);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Line);
     assert!(!track.vector_paths.evaluate(0).is_empty());
 }
 
@@ -1336,7 +1336,7 @@ fn test_arrow_tip_properties_update_size_track() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "arrow".to_string(),
-            ty: "Arrow".to_string(),
+            ty: "Line".to_string(),
             props: vec![
                 Property {
                     name: "tip_length".to_string(),
@@ -1691,7 +1691,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "source".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -1713,7 +1713,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "mirror".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -1752,7 +1752,7 @@ fn rhs_path_lookup_supports_vector_components() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "source".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
@@ -1766,7 +1766,7 @@ fn rhs_path_lookup_supports_vector_components() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "target".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![
@@ -2584,7 +2584,7 @@ fn test_arc_actor_builds_runtime_path() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "ring".to_string(),
-            ty: "Arc".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "radius_x".to_string(),
@@ -2626,7 +2626,7 @@ fn test_arc_actor_builds_runtime_path() {
     let vector_path = &track.vector_paths.evaluate(0)[0];
     let bounds = vector_path.path.bounding_box();
 
-    assert_eq!(track.shape_type.evaluate(0), ShapeType::Arc);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Ellipse);
     assert_eq!(track.size.evaluate(0), [80.0, 40.0]);
     assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
     assert!(vector_path.fill.is_none());
@@ -2891,7 +2891,7 @@ fn test_arc_assignments_rebuild_runtime_path() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "ring".to_string(),
-                ty: "Arc".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius_x".to_string(),
@@ -2956,7 +2956,7 @@ fn test_arc_negative_sweep_builds_runtime_path() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "ring".to_string(),
-            ty: "Arc".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![
                 Property {
                     name: "radius_x".to_string(),
@@ -3276,7 +3276,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3294,7 +3294,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(48.0),
@@ -3331,7 +3331,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3377,7 +3377,7 @@ fn test_action_delay_starts_later() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3433,7 +3433,7 @@ fn test_sequence_advances_statement_timing() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3502,7 +3502,7 @@ fn test_sequence_reports_unsupported_statements() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "late_badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3532,7 +3532,7 @@ fn test_stagger_offsets_statement_start_times() {
     let actor = |label: &str| Stmt::ActorDecl {
         is_pub: false,
         label: label.to_string(),
-        ty: "Circle".to_string(),
+        ty: "Ellipse".to_string(),
         props: vec![Property {
             name: "radius".to_string(),
             value: Expr::Num(24.0),
@@ -3600,7 +3600,7 @@ fn test_stagger_reports_unsupported_statements() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "late_badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3640,7 +3640,7 @@ fn test_nested_sequence_timing() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(24.0),
@@ -3927,7 +3927,7 @@ fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(24.0),
@@ -3963,7 +3963,7 @@ fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
         body: vec![Stmt::ActorDecl {
             is_pub: false,
             label: "badge".to_string(),
-            ty: "Circle".to_string(),
+            ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(24.0),
@@ -4021,7 +4021,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "shape".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -4121,7 +4121,7 @@ fn test_row_child_with_explicit_origin_stays_manual() {
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
                 label: "origin_child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -4512,7 +4512,7 @@ fn test_row_child_without_at_is_layout_managed() {
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
                 label: "auto_child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
@@ -4566,7 +4566,7 @@ fn test_row_mixed_manual_and_layout_children() {
             children: vec![
                 animatix::ast::InlineItem::Labeled {
                     label: "manual_child".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![
                         Property {
                             name: "radius".to_string(),
@@ -4586,7 +4586,7 @@ fn test_row_mixed_manual_and_layout_children() {
                 },
                 animatix::ast::InlineItem::Labeled {
                     label: "layout_child".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(20.0),
@@ -4699,7 +4699,7 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
                 label: "manual_child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -4740,7 +4740,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
@@ -4793,7 +4793,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "radius".to_string(),
                     value: Expr::Num(20.0),
@@ -4811,7 +4811,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 label: "child".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
                         name: "radius".to_string(),
@@ -5029,7 +5029,7 @@ fn test_stack_layout_overlaps_children_by_default() {
                 },
                 animatix::ast::InlineItem::Labeled {
                     label: "overlay".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(12.0),
@@ -5430,7 +5430,7 @@ fn test_row_with_mixed_authored_and_measured_children() {
             children: vec![
                 animatix::ast::InlineItem::Labeled {
                     label: "dot".to_string(),
-                    ty: "Circle".to_string(),
+                    ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "radius".to_string(),
                         value: Expr::Num(10.0),
@@ -5691,7 +5691,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
             Stmt::ActorDecl {
                 is_pub: false,
                 label: "percent".to_string(),
-                ty: "Circle".to_string(),
+                ty: "Ellipse".to_string(),
                 props: vec![Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)]),
