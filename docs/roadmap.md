@@ -7,14 +7,15 @@
 
 ## 1. Deferred Features
 
-### 1.1 GUI Inspector: Animated Geometry Editing
+### 1.1 Canvas Polygon Vertex Editing
 
-**Status:** `Polygon.points` and `Path.commands` assignments work at source level. GUI widgets deferred.
-**Location:** `crates/animatix-gui/src/app/panels/inspector/`.
+**Status:** Deferred. `Polygon.points` works at source level; preview canvas has move/scale/rotate but no vertex editing.
+**Location:** `crates/animatix-gui/src/app/preview/`.
 
-No widget exists for editing variable-length lists of `Vec2` points or path commands. The inspector currently displays `"[N pts]"` / command string as read-only labels.
+The inspector displays `"[N pts]"` as a read-only label. A popup point table was considered (Chapter 2.1, now removed) but provides poor UX compared to dragging vertices directly on the canvas. Polygon points are stored in actor-local space; the existing `DragState` machine and scene↔screen transforms can be extended with an `EditVertices` variant.
 
-**Effort:** High (custom multi-point / command editor).
+**Scope:** Polygon only. Path commands (SVG beziers) require a full pen-tool mode and are deferred indefinitely.
+**Effort:** Medium.
 
 ---
 
@@ -31,14 +32,7 @@ The runtime supports multi-scene composition (`# SceneName`, `play SceneName [tr
 
 ## 2. GUI / Inspector Debt
 
-### 2.1 Point / Path Command Editors
-
-**Status:** `Polygon.points` and `Path.commands` assignments work at source level. GUI widgets deferred.
-**Location:** `crates/animatix-gui/src/app/panels/inspector/`.
-
-No widget exists for editing variable-length lists of `Vec2` points or path commands. The inspector currently displays `"[N pts]"` / command string as read-only labels.
-
-**Effort:** High (custom multi-point / command editor).
+*(Empty — inspector widgets are adequate for current scope. Geometry editing belongs in the preview canvas; see 3.11.)*
 
 ---
 
@@ -128,7 +122,118 @@ The preview drag system uses a state-machine (`DragState` enum) supporting move,
 
 ---
 
-## 4. Architecture / Cleanup Debt
+### 3.11 Polygon Vertex Editing
+
+**Status:** Not implemented. Selected polygons show a bounding box with scale/rotate handles, but individual vertices cannot be dragged.
+**Location:** `crates/animatix-gui/src/app/preview/`.
+
+Polygon points are stored in actor-local space (`track.points: Vec<[f32; 2]>`). The preview drag system already handles scene↔screen transforms, hit-testing (`hit_test_handle`), and property-edit emission. Adding vertex editing requires:
+
+- New `DragState::EditVertices { actor, vertex_index, start_points }` variant
+- Render vertex handles (small circles) in world space via the actor's `local_transform`
+- Hit-test vertex handles before falling through to body/handle checks
+- Inverse-transform drag delta from world back to local space
+- Emit `PropertyEdit::PointList` on drag, wired through `apply_property_edit_to_track`
+
+**Scope:** Polygon only. Path/SVG bezier editing requires a pen-tool mode (control handles, cubic/quadratic bezier math, SVG string reconstruction) and is deferred.
+**Effort:** Medium.
+
+---
+
+## 4. Scene Transitions
+
+**Status:** Data model complete, rendering incomplete. Parser supports 6 transition types; composition engine computes overlap timing; `TransitionBlend` struct exists. Video export and GUI preview only render the "from" scene during transitions (hard cuts only).
+
+### 4.1 Phase 7: Visual Transition Blending
+
+**Goal:** Composite two scenes during a transition period using GPU shaders.
+
+**Architecture:**
+```
+Render Scene A → Texture A
+Render Scene B → Texture B
+Composite Pass  → Fullscreen quad shader mixes A/B based on progress + transition type
+```
+
+**Implementation phases:**
+
+**Phase 1 — Dual Offscreen Targets (1–2 days)**
+- Add second `texture` + `buffer` pair to `OffscreenRenderer`
+- Add `render_timeline_to_texture()` that returns a `wgpu::Texture` handle
+
+**Phase 2 — Transition Shader (2–3 days)**
+- New file `renderer/transition.rs`: `TransitionCompositor` with wgpu pipeline
+- WGSL shader with `mix()` for fade, `step()` for wipes
+- Uniform buffer: `progress: f32`, `transition_type: u32`
+
+**Phase 3 — Composition Integration (1–2 days)**
+- `renderer/video.rs`: Use `render_transition()` when `TransitionBlend` is present
+- Render A and B to separate targets, then composite
+
+**Phase 4 — GUI Preview (1 day)**
+- `preview_surface.rs`: Replace "render from scene only" with dual render + composite
+
+**Phase 5 — Polish (1–2 days)**
+- Apply easing curves to transition progress (currently linear)
+- Handle transitions crossing video export chunk boundaries
+- Background color blending
+
+**Effort:** 6–10 days total.
+
+---
+
+### 4.2 Extensible Transition System (Option A)
+
+**Goal:** Replace hardcoded `TransitionType` enum with a plugin-style registry so new transitions can be added without touching the parser, renderer, or GUI.
+
+**Problem:** Adding "slide" requires changing enum, parser match arms, shader switch cases, and GUI dropdowns.
+
+**Design:**
+
+```rust
+// Transition becomes ID + parameters
+pub struct Transition {
+    pub id: String,                    // "fade", "wipe", "slide", "custom"
+    pub duration_ms: u64,
+    pub params: Vec<(String, Expr)>,   // ("direction", "left"), ("blur", 10)
+    pub easing: Easing,
+}
+
+// Registry-driven definitions
+pub struct TransitionDef {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub params: &'static [TransitionParam],
+    pub default_duration_ms: u64,
+}
+
+// Parser becomes generic
+// play Scene [wipe, direction: left, 500ms]
+// play Scene [slide, direction: up, distance: 50, 400ms]
+```
+
+**Benefits:**
+- Add transitions by registering a `TransitionDef` + shader snippet
+- Transitions can have custom parameters (direction, distance, blur amount)
+- GUI dropdown auto-generates from registry
+- Analyzer completions auto-generate from registry
+
+**Implementation:**
+1. Replace `TransitionType` enum with `Transition.id: String`
+2. Build `TRANSITION_REGISTRY` with schema for each transition
+3. Update parser to generic param parsing
+4. Update renderer to data-driven shader (transition ID → shader case)
+5. Update composition engine to use `id` instead of enum
+
+**Files:** `ast.rs`, `parser.rs`, `composition.rs`, `renderer/transition.rs`, `renderer/video.rs`, `preview_surface.rs`
+
+**Effort:** 3–4 days.
+
+**Dependencies:** Blocked by 4.1 (Phase 7 must land first).
+
+---
+
+## 5. Architecture / Cleanup Debt
 
 ### 3.1 Unified Property System: Primitive Trait Dispatch + Registry Metadata
 
@@ -220,13 +325,15 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
-| 2 | Preview drag: multi-select + marquee (3.1, 3.6) | Medium | High |
-| 3 | Preview drag: grid snapping (3.3) | Low–Medium | Medium |
-| 4 | GUI Inspector: point / path command editors (2.1) | High | Medium |
-| 5 | Preview drag: pivot manipulation (3.2) | Medium | Medium |
-| 6 | Preview drag: Alt-drag duplicate (3.4) | Low | Medium |
-| 7 | Preview drag: keyboard shortcuts (3.5) | Low | Medium |
-| 8 | Preview drag: handle hit radius (3.7) | Trivial | Low |
-| 9 | Preview drag: handle tooltips (3.8) | Trivial | Low |
-| 10 | Green tree / trivia AST (4.2) | Very High | Low (polish) |
+| 1 | Scene transitions: visual blending (4.1) | Medium–High | High |
+| 2 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
+| 3 | Preview drag: multi-select + marquee (3.1, 3.6) | Medium | High |
+| 4 | Preview drag: grid snapping (3.3) | Low–Medium | Medium |
+| 5 | Preview: polygon vertex editing (3.11) | Medium | Medium |
+| 6 | Preview drag: pivot manipulation (3.2) | Medium | Medium |
+| 7 | Preview drag: Alt-drag duplicate (3.4) | Low | Medium |
+| 8 | Preview drag: keyboard shortcuts (3.5) | Low | Medium |
+| 9 | Scene transitions: extensible system (4.2) | Medium | Medium |
+| 10 | Preview drag: handle hit radius (3.7) | Trivial | Low |
+| 11 | Preview drag: handle tooltips (3.8) | Trivial | Low |
+| 12 | Green tree / trivia AST (5.2) | Very High | Low (polish) |
