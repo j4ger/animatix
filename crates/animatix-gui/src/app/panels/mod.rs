@@ -125,7 +125,6 @@ pub(crate) struct UiActions {
     pub(super) next_keyframe: bool,
     pub(super) prev_scene: bool,
     pub(super) next_scene: bool,
-    pub(super) select_actor: Option<String>,
     pub(super) select_scene: Option<String>,
     pub(super) add_scene: bool,
     pub(super) rename_scene: Option<(String, String)>,
@@ -170,7 +169,7 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) source_dirty: &'a mut String,
     pub(super) scene_dimensions: SceneDimensions,
     pub(super) timeline: Option<&'a Timeline>,
-    pub(super) selected_actor: &'a mut Option<String>,
+    pub(super) selected_actors: &'a mut HashSet<String>,
     pub(super) hit_regions: &'a [(String, kurbo::Rect)],
     pub(super) drag_state: &'a mut DragState,
     pub(super) selection: &'a mut selection::SelectionState,
@@ -418,7 +417,7 @@ impl WorkspaceViewer<'_> {
                         ui,
                         timeline,
                         root_label,
-                        self.selected_actor,
+self.selected_actors,
                         self.collapsed_actors,
                         &mut self.actions,
                         time_ms,
@@ -589,7 +588,7 @@ impl WorkspaceViewer<'_> {
             || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
 
         if drag_started {
-            if let (Some(actor), Some(mouse)) = (self.selected_actor.clone(), raw_pointer_pos) {
+            if let (Some(actor), Some(mouse)) = (self.selected_actors.iter().next().cloned(), raw_pointer_pos) {
                 let scene = self.preview_screen_to_scene(preview_rect, mouse);
                 let props = self.get_actor_props(&actor);
 
@@ -687,83 +686,100 @@ impl WorkspaceViewer<'_> {
                         return true;
                     }
 
-                    let start_position = if let Some(ref p) = props {
-                        p.position
-                    } else {
-                        self.hit_regions
-                            .iter()
-                            .find(|(l, _)| l == &actor)
-                            .map(|(_, r)| [(r.x0 + r.x1) as f32 / 2.0, (r.y0 + r.y1) as f32 / 2.0])
-                            .unwrap_or([0.0, 0.0])
-                    };
+                    let mut actors = Vec::new();
+                    for sel in self.selected_actors.iter() {
+                        let pos = if let Some(p) = self.get_actor_props(sel) {
+                            p.position
+                        } else {
+                            self.hit_regions
+                                .iter()
+                                .find(|(l, _)| l == sel)
+                                .map(|(_, r)| [(r.x0 + r.x1) as f32 / 2.0, (r.y0 + r.y1) as f32 / 2.0])
+                                .unwrap_or([0.0, 0.0])
+                        };
+                        actors.push((sel.clone(), pos));
+                    }
                     *self.drag_state = DragState::Move {
-                        actor,
+                        primary: actor,
+                        actors,
                         start_scene: scene,
-                        start_position,
                     };
                 }
+            } else if let Some(mouse) = raw_pointer_pos {
+                // Drag started on empty canvas — begin marquee selection
+                self.selection.marquee_start = Some(mouse);
+                self.selection.marquee_current = Some(mouse);
             }
         }
 
         if !is_dragging {
-            // nothing — handled by match arms below
+            // Update marquee selection rectangle during empty-canvas drag
+            if let (Some(mouse), Some(_start)) = (raw_pointer_pos, self.selection.marquee_start) {
+                self.selection.marquee_current = Some(mouse);
+            }
         } else if let Some(mouse) = raw_pointer_pos {
             let scene = self.preview_screen_to_scene(preview_rect, mouse);
             let shift = ui.input(|i| i.modifiers.shift);
 
             match self.drag_state.clone() {
                 DragState::Move {
-                    actor,
+                    primary: _,
+                    actors,
                     start_scene,
-                    start_position,
                 } => {
-                    let dx = (scene.x - start_scene.x) as f32;
-                    let dy = (scene.y - start_scene.y) as f32;
-                    let (nx, ny) = if shift {
-                        if dx.abs() > dy.abs() {
-                            (start_position[0] + dx, start_position[1])
+                    let raw_dx = (scene.x - start_scene.x) as f32;
+                    let raw_dy = (scene.y - start_scene.y) as f32;
+                    // Shift constrains movement to horizontal or vertical based on primary drag direction
+                    let (dx, dy) = if shift {
+                        if raw_dx.abs() > raw_dy.abs() {
+                            (raw_dx, 0.0)
                         } else {
-                            (start_position[0], start_position[1] + dy)
+                            (0.0, raw_dy)
                         }
                     } else {
-                        (start_position[0] + dx, start_position[1] + dy)
+                        (raw_dx, raw_dy)
                     };
 
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                    let binding = self
-                        .timeline
-                        .and_then(|t| t.get_track(&actor))
-                        .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
-                        .unwrap_or(PositionBinding::Absolute);
+                    for (actor, start_position) in actors {
+                        let nx = start_position[0] + dx;
+                        let ny = start_position[1] + dy;
 
-                    match binding {
-                        PositionBinding::SceneAnchor { anchor, .. } => {
-                            let anchor_pt = animatix::timeline::scene_anchor_point(anchor, self.scene_dimensions);
-                            let new_offset = [nx - anchor_pt.x as f32, ny - anchor_pt.y as f32];
-                            self.actions.property_edits.push(PropertyEdit {
-                                actor,
-                                property: "offset".into(),
-                                value: PropertyValue::Vec2(new_offset),
-                                create_keyframe: self.keyframe_mode,
-                            });
-                        }
-                        PositionBinding::ScenePercent { .. } => {
-                            let w = self.scene_dimensions.width.max(1) as f32;
-                            let h = self.scene_dimensions.height.max(1) as f32;
-                            self.actions.property_edits.push(PropertyEdit {
-                                actor,
-                                property: "at".into(),
-                                value: PropertyValue::Vec2([nx / w, ny / h]),
-                                create_keyframe: self.keyframe_mode,
-                            });
-                        }
-                        _ => {
-                            self.actions.property_edits.push(PropertyEdit {
-                                actor,
-                                property: "position".into(),
-                                value: PropertyValue::Vec2([nx, ny]),
-                                create_keyframe: self.keyframe_mode,
-                            });
+                        let binding = self
+                            .timeline
+                            .and_then(|t| t.get_track(&actor))
+                            .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
+                            .unwrap_or(PositionBinding::Absolute);
+
+                        match binding {
+                            PositionBinding::SceneAnchor { anchor, .. } => {
+                                let anchor_pt = animatix::timeline::scene_anchor_point(anchor, self.scene_dimensions);
+                                let new_offset = [nx - anchor_pt.x as f32, ny - anchor_pt.y as f32];
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "offset".into(),
+                                    value: PropertyValue::Vec2(new_offset),
+                                    create_keyframe: self.keyframe_mode,
+                                });
+                            }
+                            PositionBinding::ScenePercent { .. } => {
+                                let w = self.scene_dimensions.width.max(1) as f32;
+                                let h = self.scene_dimensions.height.max(1) as f32;
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "at".into(),
+                                    value: PropertyValue::Vec2([nx / w, ny / h]),
+                                    create_keyframe: self.keyframe_mode,
+                                });
+                            }
+                            _ => {
+                                self.actions.property_edits.push(PropertyEdit {
+                                    actor,
+                                    property: "position".into(),
+                                    value: PropertyValue::Vec2([nx, ny]),
+                                    create_keyframe: self.keyframe_mode,
+                                });
+                            }
                         }
                     }
                 }
@@ -1026,6 +1042,32 @@ impl WorkspaceViewer<'_> {
             self.actions.drag_ended = true;
         }
 
+        // Marquee selection end
+        if pointer_released && self.selection.marquee_start.is_some() {
+            if let (Some(start), Some(current)) = (self.selection.marquee_start, self.selection.marquee_current) {
+                let marquee_rect = egui::Rect::from_two_pos(start, current);
+                let multi = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
+                if !multi {
+                    self.selected_actors.clear();
+                }
+                for (label, bounds) in self.hit_regions {
+                    let center = egui::pos2(
+                        ((bounds.x0 + bounds.x1) / 2.0) as f32,
+                        ((bounds.y0 + bounds.y1) / 2.0) as f32,
+                    );
+                    if marquee_rect.contains(center) {
+                        if multi && self.selected_actors.contains(label) {
+                            self.selected_actors.remove(label);
+                        } else {
+                            self.selected_actors.insert(label.clone());
+                        }
+                    }
+                }
+            }
+            self.selection.marquee_start = None;
+            self.selection.marquee_current = None;
+        }
+
         false
     }
 
@@ -1055,11 +1097,12 @@ impl WorkspaceViewer<'_> {
             let (selected, close, _rect) = selection::draw_context_menu(
                 ui,
                 self.selection,
-                self.selected_actor,
+                self.selected_actors,
             );
             menu_item_clicked = close;
             if let Some(actor) = selected {
-                self.actions.select_actor = Some(actor);
+                self.selected_actors.clear();
+                self.selected_actors.insert(actor);
             }
             if close {
                 self.selection.context_menu_open = false;
@@ -1071,24 +1114,22 @@ impl WorkspaceViewer<'_> {
             if ui.input(|i| i.pointer.primary_clicked()) {
                 self.selection.context_menu_open = false;
                 suppress_click = true;
-                *self.selected_actor = None;
+                self.selected_actors.clear();
             }
         }
 
         if response.clicked() && !is_dragging && !self.selection.context_menu_open && !suppress_click {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
-                let selected = selection::handle_click(
+                let modifiers = ui.ctx().input(|i| i.modifiers);
+                selection::handle_click(
                     self.selection,
+                    self.selected_actors,
                     self.hit_regions,
                     click_pos,
                     move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen),
+                    &modifiers,
                 );
-                if let Some(actor) = selected {
-                    self.actions.select_actor = Some(actor);
-                } else {
-                    *self.selected_actor = None;
-                }
             }
         }
     }
@@ -1102,7 +1143,7 @@ impl WorkspaceViewer<'_> {
             if let Some(mouse) = raw_pointer_pos {
                 let scene = self.preview_screen_to_scene(preview_rect, mouse);
 
-                let over_handle = self.selected_actor.as_ref().and_then(|a| {
+                let over_handle = self.selected_actors.iter().next().and_then(|a| {
                     let props = self.get_actor_props(a)?;
                     let handle_world = preview::world_handle_positions(&props);
                     let handle_screen: [Pos2; 8] =
@@ -1135,8 +1176,9 @@ impl WorkspaceViewer<'_> {
                     ui.ctx().set_cursor_icon(icon);
                 } else {
                     let is_over_selected = self
-                        .selected_actor
-                        .as_ref()
+                        .selected_actors
+                        .iter()
+                        .next()
                         .and_then(|a| {
                             self.hit_regions
                                 .iter()
@@ -1169,9 +1211,9 @@ impl WorkspaceViewer<'_> {
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p));
         if let Some(hovered) = self.selection.hovered_actor.as_ref() {
-            if self.selected_actor.as_ref() != Some(hovered) {
+            if !self.selected_actors.contains(hovered) {
                 if let Some(hover_rect) = preview::selection_screen_rect(
-                    hovered,
+                    &HashSet::from([hovered.clone()]),
                     self.hit_regions,
                     preview_rect,
                     self.scene_dimensions,
@@ -1216,15 +1258,29 @@ impl WorkspaceViewer<'_> {
         preview_rect: egui::Rect,
         is_dragging: bool,
     ) {
-        if let Some(actor) = self.selected_actor.as_ref() {
+        // Draw selection overlay for all selected actors.
+        // Only the first (primary) actor gets scale/rotate handles.
+        let mut is_first = true;
+        for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
-            let fallback = preview::selection_screen_rect(
-                actor,
-                self.hit_regions,
-                preview_rect,
-                self.scene_dimensions,
-                preview_rect.size(),
-            );
+            let fallback = self.hit_regions
+                .iter()
+                .find(|(l, _)| l == actor)
+                .map(|(_, bounds)| {
+                    let top_left = preview::scene_to_screen(
+                        kurbo::Point::new(bounds.x0, bounds.y0),
+                        preview_rect,
+                        self.scene_dimensions,
+                        preview_rect.size(),
+                    );
+                    let bottom_right = preview::scene_to_screen(
+                        kurbo::Point::new(bounds.x1, bounds.y1),
+                        preview_rect,
+                        self.scene_dimensions,
+                        preview_rect.size(),
+                    );
+                    egui::Rect::from_min_max(top_left, bottom_right)
+                });
             preview::draw_selection_overlay(
                 ui.painter(),
                 props.as_ref(),
@@ -1234,6 +1290,8 @@ impl WorkspaceViewer<'_> {
                 self.scene_dimensions,
                 preview_rect.size(),
             );
+            is_first = false;
+
             if let DragState::Reorder {
                 actor: drag_actor,
                 container,
@@ -1266,6 +1324,15 @@ impl WorkspaceViewer<'_> {
                     }
                 }
             }
+        }
+
+        // Draw marquee selection rectangle
+        if let (Some(start), Some(current)) = (self.selection.marquee_start, self.selection.marquee_current) {
+            let marquee_rect = egui::Rect::from_two_pos(start, current);
+            let fill = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 30);
+            let stroke = Stroke::new(1.0, Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120));
+            ui.painter().rect_filled(marquee_rect, 0.0, fill);
+            ui.painter().rect_stroke(marquee_rect, 0.0, stroke, egui::StrokeKind::Outside);
         }
     }
 
@@ -1361,7 +1428,7 @@ impl WorkspaceViewer<'_> {
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
             let current_time_s = self.preview.current_time_s;
-            inspector::inspector_ui(ui, self.timeline, self.selected_actor, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions);
+            inspector::inspector_ui(ui, self.timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions);
         });
     }
 }
@@ -1372,7 +1439,7 @@ fn render_actor_tree(
     ui: &mut egui::Ui,
     timeline: &Timeline,
     label: &str,
-    selected_actor: &mut Option<String>,
+    selected_actors: &mut HashSet<String>,
     collapsed_actors: &mut HashSet<String>,
     actions: &mut UiActions,
     time_ms: u64,
@@ -1382,7 +1449,7 @@ fn render_actor_tree(
         return;
     };
 
-    let is_selected = selected_actor.as_deref() == Some(label);
+    let is_selected = selected_actors.contains(label);
     let is_anonymous = label.starts_with("__anon");
     let has_children = !track.children.is_empty();
     let is_expanded = has_children && !collapsed_actors.contains(label);
@@ -1449,7 +1516,18 @@ fn render_actor_tree(
     }
 
     if response.row_clicked {
-        *selected_actor = Some(label.to_string());
+        let modifiers = ui.ctx().input(|i| i.modifiers);
+        let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
+        if multi {
+            if selected_actors.contains(label) {
+                selected_actors.remove(label);
+            } else {
+                selected_actors.insert(label.to_string());
+            }
+        } else {
+            selected_actors.clear();
+            selected_actors.insert(label.to_string());
+        }
     }
 
     // Children
@@ -1459,7 +1537,7 @@ fn render_actor_tree(
                 ui,
                 timeline,
                 child_label,
-                selected_actor,
+                selected_actors,
                 collapsed_actors,
                 actions,
                 time_ms,

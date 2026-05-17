@@ -2,6 +2,7 @@
 
 pub mod selection;
 
+use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
 use crate::app::theme::*;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
@@ -31,13 +32,14 @@ pub(super) enum ResizeMode {
 #[derive(Debug, Clone)]
 pub(super) enum DragState {
     None,
-    /// Dragging the actor body to move it.
+    /// Dragging actor(s) to move them.
     Move {
-        actor: String,
+        /// Primary actor (the one under the cursor at drag start).
+        primary: String,
+        /// All selected actors and their start positions.
+        actors: Vec<(String, [f32; 2])>,
         /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
-        /// Actor centre position [x, y] at drag start.
-        start_position: [f32; 2],
     },
     /// Dragging a scale handle (8 corners + edge midpoints).
     Scale {
@@ -189,7 +191,7 @@ pub(super) fn rotation_handle_world(props: &ActorProps) -> kurbo::Point {
 // ─── Scene ↔ Screen mapping ─────────────────────────────────────────────────
 
 /// Convert scene coordinates to screen coordinates for the preview canvas.
-fn scene_to_screen(
+pub(super) fn scene_to_screen(
     scene_pos: kurbo::Point,
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
@@ -208,13 +210,14 @@ fn scene_to_screen(
 /// Compute the screen-space bounding box for the selected actor using hit_regions.
 /// This is a fallback for actors without explicit position/size/rotation tracks.
 pub(super) fn selection_screen_rect(
-    selected_actor: &str,
+    selected_actors: &HashSet<String>,
     hit_regions: &[(String, kurbo::Rect)],
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
     desired: Vec2,
 ) -> Option<egui::Rect> {
-    let (_, bounds) = hit_regions.iter().find(|(l, _)| l == selected_actor)?;
+    let first = selected_actors.iter().next()?;
+    let (_, bounds) = hit_regions.iter().find(|(l, _)| l == first)?;
     let top_left = scene_to_screen(
         kurbo::Point::new(bounds.x0, bounds.y0),
         preview_rect,

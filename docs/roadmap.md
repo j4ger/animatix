@@ -47,14 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.1 No Multi-Select
-
-**Status:** Only one actor can be selected at a time. No Shift/Ctrl-click to add to selection, no marquee/box selection.
-**Impact:** Cannot move, scale, or rotate multiple actors simultaneously.
-**Effort:** Medium.
-
----
-
 ### 3.2 No Pivot / Origin Manipulation
 
 **Status:** Rotation and scaling always use the actor center as pivot. No way to change the pivot point.
@@ -83,14 +75,6 @@ The preview drag system uses a state-machine (`DragState` enum) supporting move,
 
 **Status:** Arrow keys for nudge, Delete for remove, R/S/M mode keys, etc. are not implemented in the preview canvas.
 **Impact:** All transform operations require mouse.
-**Effort:** Low.
-
----
-
-### 3.6 No Bounding-Box (Marquee) Selection
-
-**Status:** Dragging on empty space does nothing. No way to select multiple overlapping actors at once.
-**Impact:** See 3.1 — multi-select is impossible.
 **Effort:** Low.
 
 ---

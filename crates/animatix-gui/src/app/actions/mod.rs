@@ -431,7 +431,7 @@ impl GuiShell {
         let props = default_props_for_actor(ty, position, self.document.scene_dimensions);
 
         // If a container is selected, offer to insert inside it
-        let container = self.selected_actor.clone().filter(|sel| {
+        let container = self.selected_actors.iter().next().cloned().filter(|sel| {
             self.document
                 .timeline
                 .as_ref()
@@ -477,7 +477,8 @@ impl GuiShell {
         }
 
         // Auto-select the new actor
-        self.selected_actor = Some(label.into());
+        self.selected_actors.clear();
+        self.selected_actors.insert(label.into());
         self.preview_dirty = true;
     }
 
@@ -519,8 +520,9 @@ impl GuiShell {
         }
 
         // Update selection to the new name
-        if self.selected_actor.as_deref() == Some(old_label) {
-            self.selected_actor = Some(new_label.into());
+        if self.selected_actors.contains(old_label) {
+            self.selected_actors.remove(old_label);
+            self.selected_actors.insert(new_label.into());
         }
         self.preview_dirty = true;
     }

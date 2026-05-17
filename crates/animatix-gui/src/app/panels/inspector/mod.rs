@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use animatix::timeline::{AnimationTrack, Timeline};
 use egui::{Color32, RichText, ScrollArea, Vec2};
 
@@ -34,17 +35,18 @@ fn default_actor_type() -> &'static str {
 pub(super) fn inspector_ui(
     ui: &mut egui::Ui,
     timeline: Option<&Timeline>,
-    selected_actor: &mut Option<String>,
+    selected_actors: &mut HashSet<String>,
     current_time_s: f64,
     actions: &mut UiActions,
     keyframe_mode: bool,
     scene_dimensions: animatix::timeline::SceneDimensions,
 ) {
-    let should_reset = selected_actor
-        .as_ref()
+    let should_reset = selected_actors
+        .iter()
+        .next()
         .is_some_and(|sel| timeline.is_some_and(|t| !t.has_actor(sel)));
     if should_reset {
-        *selected_actor = None;
+        selected_actors.clear();
     }
 
     let Some(timeline) = timeline else {
@@ -98,7 +100,7 @@ pub(super) fn inspector_ui(
         return;
     }
 
-    if let Some(sel) = selected_actor.as_ref() {
+    if let Some(sel) = selected_actors.iter().next() {
         let Some(track) = timeline.get_track(sel) else {
             components::empty_state(
                 ui,
@@ -109,9 +111,21 @@ pub(super) fn inspector_ui(
             return;
         };
 
+        let multi_count = selected_actors.len();
+
         ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
+                if multi_count > 1 {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("{} actors selected", multi_count))
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_SECONDARY),
+                        );
+                    });
+                    ui.add_space(SPACE_S);
+                }
                 render_actor_header(ui, track, current_time_s, actions);
                 ui.add_space(SPACE_M);
 

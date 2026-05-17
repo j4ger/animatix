@@ -161,7 +161,7 @@ struct GuiShell {
     persistence_path: PathBuf,
     hot_reloader: Option<HotReloader>,
     last_reload_time: Option<Instant>,
-    selected_actor: Option<String>,
+    selected_actors: HashSet<String>,
     /// Per-actor hit regions from the last render (for click-to-select).
     hit_regions: Vec<(String, kurbo::Rect)>,
     /// Current drag interaction state on the preview canvas.
@@ -290,7 +290,7 @@ impl GuiShell {
             persistence_path,
             hot_reloader,
             last_reload_time: None,
-            selected_actor: None,
+            selected_actors: HashSet::new(),
             hit_regions: Vec::new(),
             drag_state: DragState::None,
             selection: crate::app::preview::selection::SelectionState::default(),
@@ -493,7 +493,7 @@ impl GuiShell {
             source_dirty: &mut self.document.source_text,
             scene_dimensions,
             timeline: self.document.timeline.as_ref(),
-            selected_actor: &mut self.selected_actor,
+            selected_actors: &mut self.selected_actors,
             hit_regions: &self.hit_regions,
             drag_state: &mut self.drag_state,
             selection: &mut self.selection,
@@ -652,21 +652,6 @@ impl GuiShell {
                         );
                     }
                 }
-            }
-        }
-        if let Some(label) = actions.select_actor {
-            if self
-                .document
-                .active_timeline()
-                .is_some_and(|t| t.has_actor(&label))
-            {
-                self.selected_actor = Some(label);
-            }
-            // Safety: changing the selected actor destroys inspector widgets,
-            // so any ongoing inspector drag is implicitly ended.
-            if self.inspector_input_drag_active {
-                self.inspector_input_drag_active = false;
-                self.drag_snapshot_taken = false;
             }
         }
         if let Some(scene) = actions.select_scene {

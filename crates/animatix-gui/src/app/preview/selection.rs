@@ -3,6 +3,7 @@
 //! Handles hover preview, click cycling through overlapping actors,
 //! and right-click context menu for explicit selection.
 
+use std::collections::HashSet;
 use super::*;
 use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
 use crate::app::theme::*;
@@ -27,6 +28,10 @@ pub(crate) struct SelectionState {
     pub(crate) context_menu_pos: Option<Pos2>,
     /// Actors at the right-click position for the context menu.
     pub(crate) context_menu_actors: Vec<String>,
+    /// Marquee selection: screen-space start point (set on drag start over empty canvas).
+    pub(crate) marquee_start: Option<Pos2>,
+    /// Marquee selection: current screen-space pointer position during drag.
+    pub(crate) marquee_current: Option<Pos2>,
 }
 
 // ─── Helper Functions ───────────────────────────────────────────────────────
@@ -91,22 +96,32 @@ pub(crate) fn handle_right_click(
     }
 }
 
-/// Handle left-click with cycling support.
-/// Returns the actor to select, or None to deselect.
+/// Handle left-click with cycling and multi-select support.
+///
+/// - No modifiers: replace selection with clicked actor (or cycle through overlap).
+/// - Shift or Ctrl: toggle clicked actor in selection (add if absent, remove if present).
+/// - Empty click: clear selection unless Shift/Ctrl is held.
 pub(crate) fn handle_click(
     selection: &mut SelectionState,
+    selected_actors: &mut HashSet<String>,
     hit_regions: &[(String, kurbo::Rect)],
     click_pos: Pos2,
     screen_to_scene: impl Fn(Pos2) -> kurbo::Point,
-) -> Option<String> {
+    modifiers: &egui::Modifiers,
+) {
     let scene_point = screen_to_scene(click_pos);
     let candidates = actors_at_point(hit_regions, scene_point);
+
+    let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
 
     if candidates.is_empty() {
         selection.click_candidates = Vec::new();
         selection.cycle_index = 0;
         selection.last_click_scene = None;
-        return None;
+        if !multi {
+            selected_actors.clear();
+        }
+        return;
     }
 
     // Check if this is a repeat click at the same position
@@ -124,7 +139,18 @@ pub(crate) fn handle_click(
     }
 
     selection.last_click_scene = Some(scene_point);
-    Some(selection.click_candidates[selection.cycle_index].clone())
+    let actor = selection.click_candidates[selection.cycle_index].clone();
+
+    if multi {
+        if selected_actors.contains(&actor) {
+            selected_actors.remove(&actor);
+        } else {
+            selected_actors.insert(actor);
+        }
+    } else {
+        selected_actors.clear();
+        selected_actors.insert(actor);
+    }
 }
 
 // ─── Context Menu Drawing ───────────────────────────────────────────────────
@@ -135,7 +161,7 @@ pub(crate) fn handle_click(
 pub(crate) fn draw_context_menu(
     ui: &mut egui::Ui,
     selection: &SelectionState,
-    current_selected: &Option<String>,
+    current_selected: &HashSet<String>,
 ) -> (Option<String>, bool, Option<egui::Rect>) {
     let menu_pos = selection.context_menu_pos.unwrap_or_default();
     let actors = &selection.context_menu_actors;
@@ -143,7 +169,7 @@ pub(crate) fn draw_context_menu(
     let entries: Vec<MenuEntry> = std::iter::once(MenuEntry::header("Select actor"))
         .chain(std::iter::once(MenuEntry::separator()))
         .chain(actors.iter().enumerate().map(|(i, actor)| {
-            let is_selected = current_selected.as_ref() == Some(actor);
+            let is_selected = current_selected.contains(actor);
             let prefix = if i < 9 {
                 format!("{}.", i + 1)
             } else {
