@@ -468,27 +468,70 @@ where
             let dims = SceneDimensions { width, height };
             for frame in start..end {
                 let global_time = (frame as f64) / (fps as f64);
-                let (scene_name, local_time_s, _transition) =
+                let (scene_name, local_time_s, transition_blend) =
                     composition.evaluate(global_time);
 
-                // Phase 1: hard cuts — render single active scene
-                // Phase 7: transition blending will composite two scenes here
-                let scene_timeline = composition
-                    .scenes
-                    .get(&scene_name)
-                    .ok_or_else(|| ExportError::FrameRender {
-                        frame,
-                        message: format!("Scene '{}' not found in composition", scene_name),
-                    })?;
+                let rendered = if let Some(blend) = transition_blend {
+                    // Phase 7: transition blending — composite two scenes
+                    let from_scene = composition
+                        .scenes
+                        .get(&blend.from_scene)
+                        .ok_or_else(|| ExportError::FrameRender {
+                            frame,
+                            message: format!(
+                                "From scene '{}' not found in composition",
+                                blend.from_scene
+                            ),
+                        })?;
+                    let to_scene = composition
+                        .scenes
+                        .get(&blend.to_scene)
+                        .ok_or_else(|| ExportError::FrameRender {
+                            frame,
+                            message: format!(
+                                "To scene '{}' not found in composition",
+                                blend.to_scene
+                            ),
+                        })?;
+                    let to_start = composition
+                        .scene_start_times
+                        .get(&blend.to_scene)
+                        .copied()
+                        .unwrap_or(0.0);
+                    let to_local = global_time - to_start;
 
-                let rendered = renderer
-                    .render_timeline_with_debug(
-                        &scene_timeline.timeline,
-                        local_time_s,
-                        dims,
-                        debug_options,
-                    )
-                    .map_err(|e| ExportError::FrameRender { frame, message: e })?;
+                    renderer
+                        .render_transition(
+                            &from_scene.timeline,
+                            local_time_s,
+                            &to_scene.timeline,
+                            to_local,
+                            blend.progress as f32,
+                            blend.transition_type,
+                            dims,
+                            debug_options,
+                        )
+                        .map_err(|e| ExportError::FrameRender { frame, message: e })?
+                } else {
+                    // Single active scene — no transition
+                    let scene_timeline = composition
+                        .scenes
+                        .get(&scene_name)
+                        .ok_or_else(|| ExportError::FrameRender {
+                            frame,
+                            message: format!("Scene '{}' not found in composition", scene_name),
+                        })?;
+
+                    renderer
+                        .render_timeline_with_debug(
+                            &scene_timeline.timeline,
+                            local_time_s,
+                            dims,
+                            debug_options,
+                        )
+                        .map_err(|e| ExportError::FrameRender { frame, message: e })?
+                };
+
                 sender
                     .send(rendered)
                     .map_err(|_| ExportError::ThreadPanicked)?;
@@ -1489,24 +1532,60 @@ async fn render_image_composition_async(
     }
 
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
-    let (scene_name, local_time_s, _transition) = composition.evaluate(time as f64);
+    let (scene_name, local_time_s, transition_blend) = composition.evaluate(time as f64);
 
-    let scene = composition
-        .scenes
-        .get(&scene_name)
-        .ok_or_else(|| ExportError::FrameRender {
-            frame: 0,
-            message: format!("Scene '{}' not found in composition", scene_name),
-        })?;
+    let dims = SceneDimensions { width, height };
 
-    let frame = renderer
-        .render_timeline_with_debug(
-            &scene.timeline,
-            local_time_s,
-            SceneDimensions { width, height },
-            debug_options,
-        )
-        .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?;
+    let frame = if let Some(blend) = transition_blend {
+        let from_scene = composition
+            .scenes
+            .get(&blend.from_scene)
+            .ok_or_else(|| ExportError::FrameRender {
+                frame: 0,
+                message: format!(
+                    "From scene '{}' not found in composition",
+                    blend.from_scene
+                ),
+            })?;
+        let to_scene = composition
+            .scenes
+            .get(&blend.to_scene)
+            .ok_or_else(|| ExportError::FrameRender {
+                frame: 0,
+                message: format!("To scene '{}' not found in composition", blend.to_scene),
+            })?;
+        let to_start = composition
+            .scene_start_times
+            .get(&blend.to_scene)
+            .copied()
+            .unwrap_or(0.0);
+        let to_local = time as f64 - to_start;
+
+        renderer
+            .render_transition(
+                &from_scene.timeline,
+                local_time_s,
+                &to_scene.timeline,
+                to_local,
+                blend.progress as f32,
+                blend.transition_type,
+                dims,
+                debug_options,
+            )
+            .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?
+    } else {
+        let scene = composition
+            .scenes
+            .get(&scene_name)
+            .ok_or_else(|| ExportError::FrameRender {
+                frame: 0,
+                message: format!("Scene '{}' not found in composition", scene_name),
+            })?;
+
+        renderer
+            .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
+            .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?
+    };
 
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;

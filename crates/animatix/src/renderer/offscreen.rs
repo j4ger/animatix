@@ -1,4 +1,6 @@
 use super::core::RendererCore;
+use super::transition::TransitionCompositor;
+use crate::ast::TransitionType;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 #[derive(Debug, Clone)]
@@ -12,8 +14,14 @@ pub struct OffscreenRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     core: RendererCore,
-    texture: Option<wgpu::Texture>,
-    buffer: Option<wgpu::Buffer>,
+    output_texture: Option<wgpu::Texture>,
+    output_view: Option<wgpu::TextureView>,
+    output_buffer: Option<wgpu::Buffer>,
+    texture_a: Option<wgpu::Texture>,
+    view_a: Option<wgpu::TextureView>,
+    texture_b: Option<wgpu::Texture>,
+    view_b: Option<wgpu::TextureView>,
+    compositor: Option<TransitionCompositor>,
     dimensions: SceneDimensions,
     bytes_per_row: u32,
 }
@@ -54,8 +62,14 @@ impl OffscreenRenderer {
             device,
             queue,
             core,
-            texture: None,
-            buffer: None,
+            output_texture: None,
+            output_view: None,
+            output_buffer: None,
+            texture_a: None,
+            view_a: None,
+            texture_b: None,
+            view_b: None,
+            compositor: None,
             dimensions: SceneDimensions {
                 width: 0,
                 height: 0,
@@ -86,43 +100,165 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
+        // Render to output texture
         let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
-        let texture = self
-            .texture
-            .as_ref()
-            .ok_or_else(|| "Missing offscreen render target".to_string())?;
-        let buffer = self
-            .buffer
-            .as_ref()
-            .ok_or_else(|| "Missing offscreen staging buffer".to_string())?;
+        let output_view = self.output_view.as_ref()
+            .ok_or_else(|| "Missing offscreen output view".to_string())?;
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.core
             .render_vello_scene(
                 &self.device,
                 &self.queue,
-                &view,
+                output_view,
                 dimensions.width,
                 dimensions.height,
                 &scene,
             )
             .map_err(|e| e.to_string())?;
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Offscreen Readback Encoder"),
-            });
+        self.readback_output(dimensions)
+    }
+
+    /// Render a timeline to the primary offscreen texture (texture_a).
+    /// Returns a reference to the texture for use as a compositor input.
+    pub fn render_timeline_to_texture_a(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<&wgpu::Texture, String> {
+        if dimensions.width == 0 || dimensions.height == 0 {
+            return Err("Preview dimensions must be greater than zero".to_string());
+        }
+
+        self.ensure_targets(dimensions);
+
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
+        let view_a = self.view_a.as_ref()
+            .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+
+        self.core
+            .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene)
+            .map_err(|e| e.to_string())?;
+
+        Ok(self.texture_a.as_ref().unwrap())
+    }
+
+    /// Render a timeline to the secondary offscreen texture (texture_b).
+    /// Returns a reference to the texture for use as a compositor input.
+    pub fn render_timeline_to_texture_b(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<&wgpu::Texture, String> {
+        if dimensions.width == 0 || dimensions.height == 0 {
+            return Err("Preview dimensions must be greater than zero".to_string());
+        }
+
+        self.ensure_targets(dimensions);
+
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
+        let view_b = self.view_b.as_ref()
+            .ok_or_else(|| "Missing offscreen view_b".to_string())?;
+
+        self.core
+            .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene)
+            .map_err(|e| e.to_string())?;
+
+        Ok(self.texture_b.as_ref().unwrap())
+    }
+
+    /// Render a transition between two timelines by compositing them with the
+    /// given progress and transition type. Returns a CPU-readback frame.
+    pub fn render_transition(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_type: TransitionType,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<RenderedFrame, String> {
+        if dimensions.width == 0 || dimensions.height == 0 {
+            return Err("Preview dimensions must be greater than zero".to_string());
+        }
+
+        self.ensure_targets(dimensions);
+
+        // Lazy-init compositor
+        if self.compositor.is_none() {
+            self.compositor = Some(TransitionCompositor::new(&self.device).map_err(|e| e.to_string())?);
+        }
+        let compositor = self.compositor.as_ref().unwrap();
+
+        // Render from scene to texture_a, then drop scene_a before creating scene_b
+        // to avoid holding both large vello::Scene objects simultaneously.
+        {
+            let scene_a = from_timeline.evaluate_with_debug(from_time, dimensions, debug_options);
+            let view_a = self.view_a.as_ref()
+                .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+            self.core
+                .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene_a)
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Render to scene to texture_b
+        {
+            let scene_b = to_timeline.evaluate_with_debug(to_time, dimensions, debug_options);
+            let view_b = self.view_b.as_ref()
+                .ok_or_else(|| "Missing offscreen view_b".to_string())?;
+            self.core
+                .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene_b)
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Composite to output_texture
+        let output_view = self.output_view.as_ref()
+            .ok_or_else(|| "Missing offscreen output view".to_string())?;
+        let view_a = self.view_a.as_ref()
+            .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+        let view_b = self.view_b.as_ref()
+            .ok_or_else(|| "Missing offscreen view_b".to_string())?;
+        compositor.render(
+            &self.device,
+            &self.queue,
+            view_a,
+            view_b,
+            output_view,
+            dimensions.width,
+            dimensions.height,
+            progress,
+            transition_type,
+        ).map_err(|e| e.to_string())?;
+
+        self.readback_output(dimensions)
+    }
+
+    /// Copy the output texture to the output buffer and read back CPU-visible RGBA data.
+    pub fn readback_output(&mut self, dimensions: SceneDimensions) -> Result<RenderedFrame, String> {
+        let output_texture = self.output_texture.as_ref()
+            .ok_or_else(|| "Missing offscreen output texture".to_string())?;
+        let output_buffer = self.output_buffer.as_ref()
+            .ok_or_else(|| "Missing offscreen output buffer".to_string())?;
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Offscreen Readback Encoder"),
+        });
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture,
+                texture: output_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyBufferInfo {
-                buffer,
+                buffer: output_buffer,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.bytes_per_row),
@@ -138,7 +274,7 @@ impl OffscreenRenderer {
 
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        let buffer_slice = buffer.slice(..);
+        let buffer_slice = output_buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = tx.send(result);
@@ -163,7 +299,7 @@ impl OffscreenRenderer {
             dst_row.copy_from_slice(src_row);
         }
         drop(data);
-        buffer.unmap();
+        output_buffer.unmap();
 
         Ok(RenderedFrame {
             width: dimensions.width,
@@ -173,14 +309,19 @@ impl OffscreenRenderer {
     }
 
     fn ensure_targets(&mut self, dimensions: SceneDimensions) {
-        if self.dimensions == dimensions {
+        if self.dimensions == dimensions
+            && self.output_texture.is_some()
+            && self.texture_a.is_some()
+            && self.texture_b.is_some()
+        {
             return;
         }
 
         self.dimensions = dimensions;
         self.bytes_per_row = (dimensions.width * 4 + 255) & !255;
 
-        self.texture = Some(self.device.create_texture(&wgpu::TextureDescriptor {
+        // Output texture (for single-scene render or compositor output)
+        let output_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: dimensions.width,
                 height: dimensions.height,
@@ -195,13 +336,58 @@ impl OffscreenRenderer {
                 | wgpu::TextureUsages::STORAGE_BINDING,
             label: Some("Animatix Offscreen Output Texture"),
             view_formats: &[],
-        }));
+        });
+        let output_view = output_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.output_texture = Some(output_texture);
+        self.output_view = Some(output_view);
 
-        self.buffer = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
+        self.output_buffer = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
             size: (self.bytes_per_row * dimensions.height) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             label: Some("Animatix Offscreen Output Buffer"),
             mapped_at_creation: false,
         }));
+
+        // Texture A (primary intermediate target)
+        let texture_a = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: dimensions.width,
+                height: dimensions.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: Some("Animatix Offscreen Texture A"),
+            view_formats: &[],
+        });
+        let view_a = texture_a.create_view(&wgpu::TextureViewDescriptor::default());
+        self.texture_a = Some(texture_a);
+        self.view_a = Some(view_a);
+
+        // Texture B (secondary intermediate target)
+        let texture_b = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: dimensions.width,
+                height: dimensions.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: Some("Animatix Offscreen Texture B"),
+            view_formats: &[],
+        });
+        let view_b = texture_b.create_view(&wgpu::TextureViewDescriptor::default());
+        self.texture_b = Some(texture_b);
+        self.view_b = Some(view_b);
     }
 }

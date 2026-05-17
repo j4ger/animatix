@@ -142,7 +142,7 @@ Polygon points are stored in actor-local space (`track.points: Vec<[f32; 2]>`). 
 
 ## 4. Scene Transitions
 
-**Status:** Data model complete, rendering incomplete. Parser supports 6 transition types; composition engine computes overlap timing; `TransitionBlend` struct exists. Video export and GUI preview only render the "from" scene during transitions (hard cuts only).
+**Status:** Visual blending implemented (fade + 4 wipe directions). Easing curves pending.
 
 ### 4.1 Phase 7: Visual Transition Blending
 
@@ -155,30 +155,10 @@ Render Scene B → Texture B
 Composite Pass  → Fullscreen quad shader mixes A/B based on progress + transition type
 ```
 
-**Implementation phases:**
-
-**Phase 1 — Dual Offscreen Targets (1–2 days)**
-- Add second `texture` + `buffer` pair to `OffscreenRenderer`
-- Add `render_timeline_to_texture()` that returns a `wgpu::Texture` handle
-
-**Phase 2 — Transition Shader (2–3 days)**
-- New file `renderer/transition.rs`: `TransitionCompositor` with wgpu pipeline
-- WGSL shader with `mix()` for fade, `step()` for wipes
-- Uniform buffer: `progress: f32`, `transition_type: u32`
-
-**Phase 3 — Composition Integration (1–2 days)**
-- `renderer/video.rs`: Use `render_transition()` when `TransitionBlend` is present
-- Render A and B to separate targets, then composite
-
-**Phase 4 — GUI Preview (1 day)**
-- `preview_surface.rs`: Replace "render from scene only" with dual render + composite
-
-**Phase 5 — Polish (1–2 days)**
+**Remaining:**
 - Apply easing curves to transition progress (currently linear)
-- Handle transitions crossing video export chunk boundaries
-- Background color blending
 
-**Effort:** 6–10 days total.
+**Completed:** Dual offscreen targets, `TransitionCompositor` WGSL shader, video export integration, GUI preview integration, chunk boundary handling, background blending.
 
 ---
 
@@ -325,15 +305,16 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Scene transitions: visual blending (4.1) | Medium–High | High |
-| 2 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
-| 3 | Preview drag: multi-select + marquee (3.1, 3.6) | Medium | High |
-| 4 | Preview drag: grid snapping (3.3) | Low–Medium | Medium |
-| 5 | Preview: polygon vertex editing (3.11) | Medium | Medium |
-| 6 | Preview drag: pivot manipulation (3.2) | Medium | Medium |
-| 7 | Preview drag: Alt-drag duplicate (3.4) | Low | Medium |
-| 8 | Preview drag: keyboard shortcuts (3.5) | Low | Medium |
+| 1 | Multi-Scene GUI scene list / composition timeline (1.2) | Medium–High | High |
+| 2 | Preview drag: multi-select + marquee (3.1, 3.6) | Medium | High |
+| 3 | Preview drag: grid snapping (3.3) | Low–Medium | Medium |
+| 4 | Preview: polygon vertex editing (3.11) | Medium | Medium |
+| 5 | Preview drag: pivot manipulation (3.2) | Medium | Medium |
+| 6 | Preview drag: Alt-drag duplicate (3.4) | Low | Medium |
+| 7 | Preview drag: keyboard shortcuts (3.5) | Low | Medium |
+| 8 | Scene transitions: easing curves (4.1 remaining) | Low | Medium |
 | 9 | Scene transitions: extensible system (4.2) | Medium | Medium |
 | 10 | Preview drag: handle hit radius (3.7) | Trivial | Low |
 | 11 | Preview drag: handle tooltips (3.8) | Trivial | Low |
-| 12 | Green tree / trivia AST (5.2) | Very High | Low (polish) |
+| 12 | GPU memory profiling: per-frame allocations, staging belt growth, renderer cache retention | Medium | Medium |
+| 13 | Green tree / trivia AST (5.2) | Very High | Low (polish) |

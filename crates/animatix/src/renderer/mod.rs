@@ -2,11 +2,13 @@ pub mod core;
 pub mod error;
 pub mod offscreen;
 pub mod text;
+pub mod transition;
 pub mod types;
 pub mod video;
 pub mod window;
 
 pub use offscreen::{OffscreenRenderer, RenderedFrame};
+pub use transition::TransitionCompositor;
 pub use video::{
     render_gif_composition, render_gif_composition_with_settings,
     render_gif_composition_with_progress,
