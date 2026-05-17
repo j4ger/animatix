@@ -47,14 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.2 No Pivot / Origin Manipulation
-
-**Status:** Rotation and scaling always use the actor center as pivot. No way to change the pivot point.
-**Impact:** Rotating or scaling around a corner or edge requires manual position math.
-**Effort:** Medium.
-
----
-
 ### 3.4 No Alt-Drag Duplicate
 
 **Status:** Hold-Alt-to-duplicate is not implemented.

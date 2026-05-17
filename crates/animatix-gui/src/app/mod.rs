@@ -29,7 +29,7 @@ use persistence::{default_tree, load_workspace_persistence, persistence_path};
 use preview::fit_preview;
 use preview::DragState;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -216,6 +216,8 @@ struct GuiShell {
     grid_enabled: bool,
     /// Grid size in pixels.
     grid_size: f32,
+    /// Per-actor pivot offsets in object-local space (relative to actor centre).
+    pivot_offsets: HashMap<String, [f32; 2]>,
 }
 
 impl GuiShell {
@@ -320,6 +322,7 @@ impl GuiShell {
             keyframe_merge_window_s: 0.05,
             grid_enabled: true,
             grid_size: 20.0,
+            pivot_offsets: HashMap::new(),
         }
     }
 
@@ -507,6 +510,7 @@ impl GuiShell {
             collapsed_actors: &mut self.collapsed_actors,
             grid_enabled: &mut self.grid_enabled,
             grid_size: &mut self.grid_size,
+            pivot_offsets: &mut self.pivot_offsets,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };

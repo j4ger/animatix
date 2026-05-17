@@ -34,7 +34,7 @@ use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, RichText, Stroke, Vec2};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -181,6 +181,8 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) grid_enabled: &'a mut bool,
     /// Grid size in pixels.
     pub(super) grid_size: &'a mut f32,
+    /// Per-actor pivot offsets in object-local space (relative to actor centre).
+    pub(super) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -244,7 +246,8 @@ impl WorkspaceViewer<'_> {
         let rotation = (coeffs[1] as f32).atan2(coeffs[0] as f32);
         let scale = ((coeffs[0] * coeffs[0] + coeffs[1] * coeffs[1]).sqrt()) as f32;
         let size = [local_size[0] * scale, local_size[1] * scale];
-        Some(ActorProps { position, size, rotation })
+        let pivot_offset = self.pivot_offsets.get(actor).copied().unwrap_or([0.0, 0.0]);
+        Some(ActorProps { position, size, rotation, pivot_offset })
     }
 
     fn is_layout_managed(&self, actor: &str) -> bool {
@@ -601,7 +604,11 @@ self.selected_actors,
                     let handle_screen: [Pos2; 8] =
                         std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
                     if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen) {
-                        let anchor_local = preview::handle_anchor_local(idx, p.size);
+                        let anchor_local = if p.pivot_offset != [0.0, 0.0] {
+                            p.pivot_offset
+                        } else {
+                            preview::handle_anchor_local(idx, p.size)
+                        };
                         let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                         let (resize_mode, start_scale) = self
                             .timeline
@@ -639,14 +646,14 @@ self.selected_actors,
                     let rot_world = preview::rotation_handle_world(p);
                     let rot_screen = self.preview_scene_to_screen(preview_rect, rot_world);
                     if preview::hit_test_rotation_handle(mouse, rot_screen) {
-                        let center = [p.position[0], p.position[1]];
-                        let angle = ((scene.y - center[1] as f64) as f32)
-                            .atan2((scene.x - center[0] as f64) as f32);
+                        let pivot = preview::pivot_world(p);
+                        let angle = ((scene.y - pivot[1] as f64) as f32)
+                            .atan2((scene.x - pivot[0] as f64) as f32);
                         *self.drag_state = DragState::Rotate {
                             actor,
                             start_angle: angle,
                             start_rotation: p.rotation,
-                            center,
+                            pivot,
                         };
                         return true;
                     }
@@ -932,10 +939,10 @@ self.selected_actors,
                     actor,
                     start_angle,
                     start_rotation,
-                    center,
+                    pivot,
                 } => {
-                    let angle = ((scene.y - center[1] as f64) as f32)
-                        .atan2((scene.x - center[0] as f64) as f32);
+                    let angle = ((scene.y - pivot[1] as f64) as f32)
+                        .atan2((scene.x - pivot[0] as f64) as f32);
                     let mut delta = angle - start_angle;
                     while delta > std::f32::consts::PI {
                         delta -= 2.0 * std::f32::consts::PI;
@@ -1486,7 +1493,7 @@ self.selected_actors,
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
             let current_time_s = self.preview.current_time_s;
-            inspector::inspector_ui(ui, self.timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions);
+            inspector::inspector_ui(ui, self.timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
         });
     }
 }

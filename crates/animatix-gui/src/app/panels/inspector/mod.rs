@@ -40,6 +40,7 @@ pub(super) fn inspector_ui(
     actions: &mut UiActions,
     keyframe_mode: bool,
     scene_dimensions: animatix::timeline::SceneDimensions,
+    pivot_offsets: &mut std::collections::HashMap<String, [f32; 2]>,
 ) {
     let should_reset = selected_actors
         .iter()
@@ -165,6 +166,31 @@ pub(super) fn inspector_ui(
                 });
 
                 ui.add_space(SPACE_M);
+
+                // ── Pivot ──
+                if multi_count == 1 {
+                    components::card(ui, |ui| {
+                        components::section_header(
+                            ui,
+                            egui_phosphor::regular::CROSSHAIR,
+                            "Pivot",
+                            None,
+                        );
+                        let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("X").size(FONT_SIZE_S).color(TEXT_MUTED));
+                            ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Y").size(FONT_SIZE_S).color(TEXT_MUTED));
+                            ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
+                        });
+                        if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED)).clicked() {
+                            *pivot = [0.0, 0.0];
+                        }
+                    });
+                    ui.add_space(SPACE_M);
+                }
 
                 // ── Container Children ──
                 if timeline.container_metadata.get(sel).is_some() {

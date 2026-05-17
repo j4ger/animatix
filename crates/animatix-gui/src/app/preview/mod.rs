@@ -54,8 +54,8 @@ pub(super) enum DragState {
         start_size: [f32; 2],
         /// Rotation in radians at drag start.
         start_rotation: f32,
-        /// The anchor point in object‑local space (the corner / edge-midpoint
-        /// opposite the dragged handle). This stays fixed in world space.
+        /// The anchor point in object‑local space.
+        /// When a pivot is set this is the pivot; otherwise the corner opposite the handle.
         anchor_local: [f32; 2],
         /// Whether this is a single‑axis scale (edge‑mid handle).
         constrain_axis: bool,
@@ -69,12 +69,12 @@ pub(super) enum DragState {
     /// Dragging the rotation handle.
     Rotate {
         actor: String,
-        /// Angle from centre to mouse at drag start (radians).
+        /// Angle from pivot to mouse at drag start (radians).
         start_angle: f32,
         /// Actor rotation at drag start (radians).
         start_rotation: f32,
-        /// Actor centre in world space at drag start.
-        center: [f32; 2],
+        /// Pivot point in world space at drag start.
+        pivot: [f32; 2],
     },
     /// Dragging a layout-managed child to reorder within its container.
     Reorder {
@@ -95,6 +95,14 @@ pub(super) struct ActorProps {
     pub position: [f32; 2],
     pub size: [f32; 2],
     pub rotation: f32,
+    /// Pivot offset in object-local space (relative to actor center).
+    pub pivot_offset: [f32; 2],
+}
+
+/// Compute the pivot point in world space.
+pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
+    let rotated = rotate_vec(props.pivot_offset, props.rotation);
+    [props.position[0] + rotated[0], props.position[1] + rotated[1]]
 }
 
 pub(super) const ROTATION_OFFSET: f32 = 20.0;
@@ -348,6 +356,28 @@ pub(super) fn draw_selection_overlay(
             ROTATION_RADIUS,
             Stroke::new(1.0, SELECTION_COLOR),
         );
+
+        // Pivot marker (crosshair)
+        if p.pivot_offset != [0.0, 0.0] {
+            let pivot_world_pt = pivot_world(p);
+            let pivot_screen = scene_to_screen(
+                kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64),
+                preview_rect,
+                scene_dimensions,
+                desired,
+            );
+            let cross_size = 6.0;
+            let cross_color = AMBER;
+            painter.line_segment(
+                [Pos2::new(pivot_screen.x - cross_size, pivot_screen.y), Pos2::new(pivot_screen.x + cross_size, pivot_screen.y)],
+                Stroke::new(1.5, cross_color),
+            );
+            painter.line_segment(
+                [Pos2::new(pivot_screen.x, pivot_screen.y - cross_size), Pos2::new(pivot_screen.x, pivot_screen.y + cross_size)],
+                Stroke::new(1.5, cross_color),
+            );
+            painter.circle_stroke(pivot_screen, cross_size + 2.0, Stroke::new(1.0, cross_color));
+        }
     } else if let Some(fallback) = fallback_rect {
         // ── Axis‑aligned fallback ────────────────────────────────────────
         let sel_rect = fallback;
