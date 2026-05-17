@@ -586,7 +586,7 @@ mod tests {
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text { text: title, at: (0, -20) }
-    badge: Circle, radius: 12, color: gold
+    badge: Ellipse, radius: 12, color: gold
     badge.color = red
 }
 "#,

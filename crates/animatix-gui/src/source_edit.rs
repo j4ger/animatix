@@ -1092,7 +1092,7 @@ btn: Rect, size: (100, 200)"#);
         // No keyframes at all — inserting a relative keyframe must wrap the
         // top-level declarations in #0s so they don't get shifted.
         let mut stmts = parse(r#"btn: Rect, size: (100, 200)
-circle: Circle, radius: 50"#);
+circle: Ellipse, radius: 50"#);
 
         let edit = SourceEdit::InsertKeyframe {
             actor: "btn".into(),

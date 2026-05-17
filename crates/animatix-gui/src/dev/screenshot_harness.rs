@@ -335,7 +335,7 @@ fn render_demo_layer_tree(ui: &mut egui::Ui) {
         });
     row1.show(ui, ui.id().with("bg"));
 
-    // Child: Circle (visible, selected)
+    // Child: Ellipse (visible, selected)
     let row2 = components::Row::new("circle1")
         .height(ROW_M)
         .indent(14.0)
