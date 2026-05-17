@@ -177,6 +177,10 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) keyframe_mode: bool,
     /// Actor labels that the user has explicitly collapsed in the layer tree.
     pub(super) collapsed_actors: &'a mut HashSet<String>,
+    /// Whether grid snapping is enabled in the preview canvas.
+    pub(super) grid_enabled: &'a mut bool,
+    /// Grid size in pixels.
+    pub(super) grid_size: &'a mut f32,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -742,8 +746,14 @@ self.selected_actors,
 
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                     for (actor, start_position) in actors {
-                        let nx = start_position[0] + dx;
-                        let ny = start_position[1] + dy;
+                        let mut nx = start_position[0] + dx;
+                        let mut ny = start_position[1] + dy;
+
+                        if *self.grid_enabled {
+                            let grid = *self.grid_size;
+                            nx = (nx / grid).round() * grid;
+                            ny = (ny / grid).round() * grid;
+                        }
 
                         let binding = self
                             .timeline
@@ -1373,6 +1383,29 @@ self.selected_actors,
                 badge_text,
             );
 
+            // Grid toggle button in header (right of badge)
+            let grid_btn_rect = egui::Rect::from_min_size(
+                egui::pos2(badge_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
+                Vec2::new(header_h, header_h - 4.0),
+            );
+            let grid_btn = ui.allocate_rect(grid_btn_rect, egui::Sense::click());
+            let grid_icon = if *self.grid_enabled {
+                egui_phosphor::regular::GRID_FOUR
+            } else {
+                egui_phosphor::regular::GRID_NINE
+            };
+            let grid_color = if *self.grid_enabled { ACCENT_BLUE } else { TEXT_MUTED };
+            ui.painter().text(
+                grid_btn_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                grid_icon,
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                grid_color,
+            );
+            if grid_btn.clicked() {
+                *self.grid_enabled = !*self.grid_enabled;
+            }
+
             ui.add_space(SPACE_S);
 
             let available = ui.available_size_before_wrap();
@@ -1417,6 +1450,31 @@ self.selected_actors,
             self.render_preview_cursor_feedback(ui, preview_rect);
             self.render_preview_overlays(ui, preview_rect);
             self.render_preview_content(ui, preview_rect);
+
+            // Draw grid overlay
+            if *self.grid_enabled {
+                let grid = *self.grid_size;
+                let scale_x = preview_rect.width() / self.scene_dimensions.width.max(1) as f32;
+                let scale_y = preview_rect.height() / self.scene_dimensions.height.max(1) as f32;
+                let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 12);
+
+                let mut x = preview_rect.min.x;
+                while x < preview_rect.max.x {
+                    ui.painter().line_segment(
+                        [egui::pos2(x, preview_rect.min.y), egui::pos2(x, preview_rect.max.y)],
+                        Stroke::new(1.0, grid_color),
+                    );
+                    x += grid * scale_x;
+                }
+                let mut y = preview_rect.min.y;
+                while y < preview_rect.max.y {
+                    ui.painter().line_segment(
+                        [egui::pos2(preview_rect.min.x, y), egui::pos2(preview_rect.max.x, y)],
+                        Stroke::new(1.0, grid_color),
+                    );
+                    y += grid * scale_y;
+                }
+            }
             self.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
             // NOTE: errors are shown in the diagnostics banner above the canvas,

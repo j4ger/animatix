@@ -212,6 +212,10 @@ struct GuiShell {
     /// Keyframe merge window in seconds. Edits within this window of the
     /// previous keyframe are merged instead of creating a new timestamp.
     keyframe_merge_window_s: f64,
+    /// Whether grid snapping is enabled in the preview canvas.
+    grid_enabled: bool,
+    /// Grid size in pixels.
+    grid_size: f32,
 }
 
 impl GuiShell {
@@ -314,6 +318,8 @@ impl GuiShell {
             export_total_frames: 0,
             debug_bounds: false,
             keyframe_merge_window_s: 0.05,
+            grid_enabled: true,
+            grid_size: 20.0,
         }
     }
 
@@ -499,6 +505,8 @@ impl GuiShell {
             selection: &mut self.selection,
             keyframe_mode: self.keyframe_mode,
             collapsed_actors: &mut self.collapsed_actors,
+            grid_enabled: &mut self.grid_enabled,
+            grid_size: &mut self.grid_size,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };

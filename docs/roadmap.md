@@ -55,14 +55,6 @@ The preview drag system uses a state-machine (`DragState` enum) supporting move,
 
 ---
 
-### 3.3 No Grid Snapping
-
-**Status:** No snap-to-grid for position, rotation, or scale.
-**Impact:** Precise alignment requires typing values in the inspector.
-**Effort:** Low–Medium.
-
----
-
 ### 3.4 No Alt-Drag Duplicate
 
 **Status:** Hold-Alt-to-duplicate is not implemented.
