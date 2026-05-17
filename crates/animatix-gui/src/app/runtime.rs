@@ -136,8 +136,56 @@ impl AnimatixApp {
             self.shell.preview_dirty = true;
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
+        // Arrow keys: nudge selected actors OR scrub timeline
+        let has_selection = !self.shell.selected_actors.is_empty();
+        let arrow_left = ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft));
+        let arrow_right = ctx.input(|i| i.key_pressed(egui::Key::ArrowRight));
+        let arrow_up = ctx.input(|i| i.key_pressed(egui::Key::ArrowUp));
+        let arrow_down = ctx.input(|i| i.key_pressed(egui::Key::ArrowDown));
+
+        if has_selection && (arrow_left || arrow_right || arrow_up || arrow_down) {
+            let nudge_step = if ctx.input(|i| i.modifiers.shift) {
+                10.0
+            } else if self.shell.grid_enabled {
+                self.shell.grid_size
+            } else {
+                1.0
+            };
+            let dx = if arrow_left { -nudge_step } else if arrow_right { nudge_step } else { 0.0 };
+            let dy = if arrow_up { -nudge_step } else if arrow_down { nudge_step } else { 0.0 };
+
+            let time_ms = (self.shell.preview.current_time_s * 1000.0) as u64;
+            let keyframe_mode = self.shell.keyframe_mode;
+            let selected: Vec<String> = self.shell.selected_actors.iter().cloned().collect();
+            let mut edits = Vec::new();
+            if let Some(ref timeline) = self.shell.document.timeline {
+                for actor in &selected {
+                    if let Some(track) = timeline.get_track(actor) {
+                        let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                        let new_pos = [pos[0] + dx, pos[1] + dy];
+                        edits.push(crate::app::panels::PropertyEdit {
+                            actor: actor.clone(),
+                            property: "position".into(),
+                            value: crate::app::panels::PropertyValue::Vec2(new_pos),
+                            create_keyframe: keyframe_mode,
+                        });
+                    }
+                }
+            }
+            for edit in edits {
+                self.shell.handle_property_edit(edit);
+            }
+        } else if arrow_left {
             self.shell.preview.current_time_s -= scrub_step_s;
+            self.shell.preview.clamp_time();
+            self.shell.preview.is_playing = false;
+            self.shell.preview_dirty = true;
+            self.shell.preview.status = format!(
+                "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
+                self.shell.preview.current_time_s, self.shell.preview.duration_s
+            );
+        } else if arrow_right {
+            self.shell.preview.current_time_s += scrub_step_s;
             self.shell.preview.clamp_time();
             self.shell.preview.is_playing = false;
             self.shell.preview_dirty = true;
@@ -147,15 +195,9 @@ impl AnimatixApp {
             );
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
-            self.shell.preview.current_time_s += scrub_step_s;
-            self.shell.preview.clamp_time();
-            self.shell.preview.is_playing = false;
-            self.shell.preview_dirty = true;
-            self.shell.preview.status = format!(
-                "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview.current_time_s, self.shell.preview.duration_s
-            );
+        // Delete key: remove selected actor(s)
+        if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
+            self.shell.handle_delete_selected_actors();
         }
     }
 

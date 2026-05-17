@@ -1097,6 +1097,59 @@ impl GuiShell {
         }
     }
 
+    /// Delete all selected actors from the source AST.
+    fn handle_delete_selected_actors(&mut self) {
+        self.snapshot();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to delete — no AST available".to_string();
+            return;
+        };
+
+        let to_delete: Vec<String> = self.selected_actors.iter().cloned().collect();
+        if to_delete.is_empty() {
+            return;
+        }
+
+        let mut deleted = Vec::new();
+        for label in &to_delete {
+            // Find and remove the actor declaration
+            let pos = stmts.iter().position(|s| {
+                match s {
+                    animatix::ast::Stmt::ActorDecl { label: l, .. } if l == label => true,
+                    animatix::ast::Stmt::Text { label: Some(l), .. } if l == label => true,
+                    animatix::ast::Stmt::Math { label: Some(l), .. } if l == label => true,
+                    animatix::ast::Stmt::Code { label: Some(l), .. } if l == label => true,
+                    animatix::ast::Stmt::Svg { label: Some(l), .. } if l == label => true,
+                    animatix::ast::Stmt::Image { label: Some(l), .. } if l == label => true,
+                    _ => false,
+                }
+            });
+            if let Some(pos) = pos {
+                stmts.remove(pos);
+                deleted.push(label.clone());
+            }
+        }
+
+        if deleted.is_empty() {
+            self.preview.status = "No actors deleted".to_string();
+            return;
+        }
+
+        // Update source
+        let new_source = animatix::to_source::stmts_to_source(stmts);
+        self.document.source_text = new_source.clone();
+        self.editor.replace_text(new_source);
+        self.document.is_dirty = true;
+        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+        self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+
+        // Clear selection
+        self.selected_actors.clear();
+        self.preview_dirty = true;
+        self.preview.status = format!("Deleted {} actor(s)", deleted.len());
+    }
+
     /// Generate a unique label for a new actor of the given type.
     fn unique_label(&self, ty: &str) -> String {
         let base = ty.to_lowercase();

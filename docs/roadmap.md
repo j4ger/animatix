@@ -47,14 +47,6 @@ The sidebar Scenes tab now displays each scene's play target and transition type
 
 The preview drag system uses a state-machine (`DragState` enum) supporting move, scale (8 handles), rotate, and reorder operations. Core mechanics work, but several standard visual editor features are missing.
 
-### 3.5 No Keyboard Transform Shortcuts
-
-**Status:** Arrow keys for nudge, Delete for remove, R/S/M mode keys, etc. are not implemented in the preview canvas.
-**Impact:** All transform operations require mouse.
-**Effort:** Low.
-
----
-
 ### 3.7 Handle Hit Radius Is Fixed
 
 **Status:** `HANDLE_HIT_RADIUS = 10.0` pixels, not scaled by zoom or DPI.
