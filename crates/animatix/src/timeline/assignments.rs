@@ -27,6 +27,16 @@ impl Timeline {
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        if target.is_empty() {
+            diagnostics.push(Diagnostic::error(
+                DiagnosticCode::InvalidAssignmentTarget,
+                DiagnosticPhase::Build,
+                format!(
+                    "Assignment '{property} = ...' must include an actor label, or be placed inside a 'drive' block",
+                ),
+            ));
+            return;
+        }
         let eval_env = self.build_eval_env(time_ms as u64);
         let assignment_subject = format!("{}.{}", target.join("."), property);
         let ParsedTimingModifiers {

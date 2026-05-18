@@ -676,7 +676,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 let span = extra.span();
                 (value, ByteSpan { start: span.start, end: span.end })
             }))
-            .try_map(|(path, (value, _value_span)), span| {
+            .try_map(|(path, (value, value_span)), span| {
                 if path.len() < 2 {
                     Err(Rich::custom(
                         span,
@@ -689,6 +689,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         target,
                         property,
                         value,
+                        value_span: Some(value_span),
                         span: None,
                     })
                 }

@@ -498,6 +498,7 @@ pub enum Stmt {
         target: Vec<String>,
         property: String,
         value: Expr,
+        value_span: Option<ByteSpan>,
         
         span: Option<Span>,
     },

@@ -15,7 +15,45 @@ Per-frame allocation tracking, staging belt growth monitoring, and renderer cach
 
 ---
 
-## 2. Language / Primitives
+## 2. Architectural Cleanup
+
+### 2.1 Remove or Repurpose `LabeledAlways`
+
+**Location:** `crates/animatix/src/ast.rs`, `crates/animatix/src/parser.rs`, `crates/animatix/src/timeline/build/mod.rs`
+
+`LabeledAlways` (`job: always { ... }`) currently ignores its label — it behaves identically to `always { ... }`. The original design intent was to support `stop <label>` / `pause <label>` control flow over labeled reactive blocks, but the spec matrix explicitly removed `loop` / `yield` / `stop` / `pause` / `resume`.
+
+**Options:**
+- Remove `LabeledAlways` entirely (users should use `drive` for labeled reactive blocks)
+- Repurpose the label for conditional modifier filtering
+
+**Effort:** Low. Parser + AST + module system cleanup.
+
+---
+
+### 2.2 Generic `duration_seconds` Aggregation
+
+**Location:** `crates/animatix/src/timeline/mod.rs`
+
+`duration_seconds` manually aggregates max keyframe times from `tracks`, `background_color`, `child_orders`, and `variable_tracks`. Every new track-like collection requires a human to remember to update this function.
+
+**Fix:** Store all duration-contributing collections behind a common trait (`HasDuration`) or iterate over a registry.
+
+**Effort:** Low.
+
+---
+
+### 2.3 Primitive `default_props` Factory Helpers
+
+**Location:** `crates/animatix/src/primitives/`
+
+Every primitive defines `default_props()` by manually constructing `Property { name: ..., value: ..., value_span: None, trailing_comment: None }`. Only `plot.rs` has a `property()` helper. Adding any new field to `Property` requires touching ~67 construction sites.
+
+**Fix:** Add a `Property::new(name, value)` constructor and migrate all primitive definitions to use it.
+
+**Effort:** Low. Mechanical refactor.
+
+---
 
 ## 3. Long-Term / Speculative
 
@@ -54,4 +92,7 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | GPU memory profiling | Medium | Medium |
-| 2 | Green tree / trivia AST (3.2) | Very High | Low (polish) |
+| 2 | Remove / repurpose `LabeledAlways` (2.1) | Low | Low (cleanup) |
+| 3 | Generic `duration_seconds` aggregation (2.2) | Low | Low (cleanup) |
+| 4 | Primitive `Property` factory helpers (2.3) | Low | Low (cleanup) |
+| 5 | Green tree / trivia AST (3.2) | Very High | Low (polish) |

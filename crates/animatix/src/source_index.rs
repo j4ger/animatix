@@ -115,12 +115,12 @@ impl SourceIndex {
                         }
                     }
                 }
-                Stmt::ReactiveBinding { target, property, .. } => {
+                Stmt::ReactiveBinding { target, property, value_span, .. } => {
                     // Reactive bindings are indexed like assignments
                     if let Some(actor) = target.last() {
                         self.assignments.insert(
                             (actor.clone(), property.clone()),
-                            crate::ast::ByteSpan::default(),
+                            value_span.unwrap_or_default(),
                         );
                     }
                 }

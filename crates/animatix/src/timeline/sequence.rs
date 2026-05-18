@@ -50,6 +50,7 @@ impl Timeline {
                 let last_span = self.sequence_statement_span_ms(&body[last_idx])?;
                 Some(interval_ms * last_idx as f64 + last_span)
             }
+            Stmt::LetDecl { .. } => Some(0.0),
             _ => None,
         }
     }

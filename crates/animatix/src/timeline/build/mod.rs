@@ -1301,6 +1301,7 @@ impl Timeline {
                     target,
                     property,
                     value,
+                    value_span,
                     ..
                 } => {
                     self.modifiers.push(Stmt::Assignment {
@@ -1308,7 +1309,7 @@ impl Timeline {
                         property: property.clone(),
                         value: value.clone(),
                         modifiers: vec![],
-                        value_span: None,
+                        value_span: *value_span,
                         span: None,
                     });
                 }

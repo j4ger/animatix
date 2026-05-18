@@ -67,11 +67,12 @@ fn expand_stmt_into(
                 span: None,
             });
         }
-        Stmt::ReactiveBinding { target, property, value, .. } => {
+        Stmt::ReactiveBinding { target, property, value, value_span, .. } => {
             output.push(Stmt::ReactiveBinding {
                 target: target.clone(),
                 property: property.clone(),
                 value: value.clone(),
+                value_span: *value_span,
                 span: None,
             });
         }

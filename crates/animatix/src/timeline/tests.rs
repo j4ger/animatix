@@ -765,6 +765,7 @@ fn test_reactive_binding_desugars_to_modifier() {
                             )),
                         ),
                     ]),
+                    value_span: None,
                     span: None,
                 },
             ],

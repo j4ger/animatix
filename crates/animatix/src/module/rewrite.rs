@@ -210,10 +210,11 @@ pub(super) fn rewrite_stmt(
                 .collect(),
             span: None,
         },
-        Stmt::ReactiveBinding { target, property, value, .. } => Stmt::ReactiveBinding {
+        Stmt::ReactiveBinding { target, property, value, value_span, .. } => Stmt::ReactiveBinding {
             target: target.iter().map(|t| rewrite_label(t, prefix, root_label, known_labels)).collect(),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
+            value_span: *value_span,
             span: None,
         },
         Stmt::Conditional {

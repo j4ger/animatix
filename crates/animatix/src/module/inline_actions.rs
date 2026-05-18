@@ -59,10 +59,11 @@ fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
             body: inline_custom_actions(body, registry),
             span,
         }],
-        Stmt::ReactiveBinding { target, property, value, span } => vec![Stmt::ReactiveBinding {
+        Stmt::ReactiveBinding { target, property, value, value_span, span } => vec![Stmt::ReactiveBinding {
             target,
             property,
             value,
+            value_span,
             span,
         }],
         Stmt::Conditional {

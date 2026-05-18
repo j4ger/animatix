@@ -70,6 +70,8 @@ impl fmt::Display for IrLowerError {
 
 impl std::error::Error for IrLowerError {}
 
+/// Convenience wrapper that unwraps `Always` / `LabeledAlways` / `Drive`
+/// statements and lowers their bodies. Kept for test compatibility.
 pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
     let mut statements = Vec::new();
     for stmt in program {
