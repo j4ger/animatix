@@ -82,7 +82,7 @@ pub fn tree_row(
             egui::pos2(chevron_rect.center().x, baseline_y),
             egui::Align2::CENTER_CENTER,
             chevron_icon,
-            egui::TextStyle::Small.resolve(ui.style()),
+            egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
             chevron_color,
         );
     }
@@ -105,7 +105,7 @@ pub fn tree_row(
             egui::pos2(icon_rect.center().x, baseline_y),
             egui::Align2::CENTER_CENTER,
             icon_str,
-            egui::TextStyle::Small.resolve(ui.style()),
+            egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
             icon_color,
         );
         cursor_x += TREE_ICON_WIDTH + TREE_GAP;
@@ -121,12 +121,11 @@ pub fn tree_row(
         }
     });
 
-    let font_id = egui::TextStyle::Small.resolve(ui.style());
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
         label,
-        font_id,
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
         label_color,
     );
 
@@ -174,12 +173,16 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         }
 
         let text_color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
-        let text = format!("{}  {}", icon, label);
+        let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
+        let full_text = format!("{}  {}", icon, label);
+        let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
+        let show_label = galley.size().x + 12.0 <= tab_w; // 12px padding
+        let display_text = if show_label { full_text } else { icon.to_string() };
         ui.painter().text(
             tab_rect.center(),
             egui::Align2::CENTER_CENTER,
-            text,
-            egui::TextStyle::Small.resolve(ui.style()),
+            display_text,
+            font_id,
             text_color,
         );
 

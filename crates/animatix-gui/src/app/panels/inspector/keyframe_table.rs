@@ -149,7 +149,7 @@ fn render_compact_track_row(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
         track.name,
-        egui::TextStyle::Small.resolve(ui.style()),
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
         TEXT_SECONDARY,
     );
 

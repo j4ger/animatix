@@ -156,7 +156,7 @@ impl<'a> Row<'a> {
                 egui::pos2(chevron_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon,
-                egui::TextStyle::Small.resolve(ui.style()),
+                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
                 color,
             );
         }
@@ -174,7 +174,7 @@ impl<'a> Row<'a> {
                 egui::pos2(icon_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon_str,
-                egui::TextStyle::Small.resolve(ui.style()),
+                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
                 self.label_color.unwrap_or(default_color),
             );
             cursor_x += 14.0 + SPACE_S;
@@ -194,7 +194,7 @@ impl<'a> Row<'a> {
             egui::pos2(cursor_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             self.label,
-            egui::TextStyle::Small.resolve(ui.style()),
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
             label_color,
         );
 

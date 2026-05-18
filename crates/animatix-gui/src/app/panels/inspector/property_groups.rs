@@ -687,7 +687,7 @@ pub(crate) fn render_property_row(
                                     });
                             } else if entry.name == "text_content" || entry.name == "text" {
                                 let edit = egui::TextEdit::singleline(&mut buf)
-                                    .font(egui::TextStyle::Small)
+                                    .font(egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional))
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {

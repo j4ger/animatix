@@ -246,7 +246,7 @@ pub(crate) fn draw_hover_highlight(
     let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
     let galley = painter.layout_no_wrap(
         hovered_actor.to_string(),
-        egui::TextStyle::Small.resolve(painter.ctx().global_style().as_ref()),
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
         TEXT_PRIMARY,
     );
     let tooltip_size = galley.size();
@@ -289,7 +289,7 @@ pub(crate) fn draw_cycle_indicator(
 
     let galley = painter.layout_no_wrap(
         indicator_text,
-        egui::TextStyle::Small.resolve(painter.ctx().global_style().as_ref()),
+        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
         TEXT_PRIMARY,
     );
     let size = galley.size();
