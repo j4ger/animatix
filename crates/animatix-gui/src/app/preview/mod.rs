@@ -22,13 +22,32 @@ pub(super) enum ResizeMode {
     Scale,
 }
 
+/// Active tool mode for the preview canvas. Determines the default interaction
+/// when clicking on an actor body (handles still work in all modes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) enum ToolMode {
+    /// Auto-detect interaction based on cursor position (default).
+    #[default]
+    Select,
+    /// Click-drag to move actors.
+    Move,
+    /// Click-drag to scale actors.
+    Scale,
+    /// Click-drag to rotate actors.
+    Rotate,
+    /// Click-drag to edit polygon vertices.
+    Vertex,
+    /// Click-drag to move the pivot point.
+    Pivot,
+}
+
 /// Tracks the current drag interaction on the preview canvas.
 ///
 /// - `Move`, `Scale`, `Rotate` manipulate absolutely positioned actors.
 /// - `Reorder` reorders layout-managed children within their parent container.
 ///
 /// All spatial manipulation is computed in the actor's **object-local** coordinate system
-/// (origin at actor center, pre-rotation axes) and then transformed to world space.
+/// (origin at actor centre, pre-rotation axes) and then transformed to world space.
 #[derive(Debug, Clone)]
 pub(super) enum DragState {
     None,
@@ -95,6 +114,14 @@ pub(super) enum DragState {
         /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
+    /// Dragging the pivot crosshair to reposition it.
+    MovePivot {
+        actor: String,
+        /// Pivot offset in object-local space at drag start.
+        start_offset: [f32; 2],
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
 }
 
 // ─── Actor Properties ───────────────────────────────────────────────────────
@@ -119,6 +146,7 @@ pub(super) const ROTATION_OFFSET: f32 = 20.0;
 pub(super) const ROTATION_RADIUS: f32 = 4.0;
 const HANDLE_SIZE: f32 = 6.0;
 pub(super) const HANDLE_HIT_RADIUS: f32 = 10.0;
+pub(super) const PIVOT_HIT_RADIUS: f32 = 12.0;
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
@@ -257,6 +285,7 @@ pub(super) fn selection_screen_rect(
 ///
 /// When `props` is available the bounding box is correctly rotated;
 /// otherwise falls back to the axis-aligned hit_regions rect.
+/// `pixels_per_point` scales visual handle sizes for HiDPI displays.
 pub(super) fn draw_selection_overlay(
     painter: &egui::Painter,
     props: Option<&ActorProps>,
@@ -265,6 +294,7 @@ pub(super) fn draw_selection_overlay(
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
     desired: Vec2,
+    pixels_per_point: f32,
 ) {
     let stroke = if is_dragging {
         Stroke::new(
@@ -335,9 +365,10 @@ pub(super) fn draw_selection_overlay(
         let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
             scene_to_screen(handle_world[i], preview_rect, scene_dimensions, desired)
         });
+        let handle_px = HANDLE_SIZE * pixels_per_point;
         for pos in &handle_screen {
             let handle_rect =
-                egui::Rect::from_center_size(*pos, Vec2::new(HANDLE_SIZE, HANDLE_SIZE));
+                egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
             painter.rect_stroke(
                 handle_rect,
@@ -360,15 +391,16 @@ pub(super) fn draw_selection_overlay(
             [top_center_screen, rot_screen],
             Stroke::new(1.0, SELECTION_COLOR),
         );
-        painter.circle_filled(rot_screen, ROTATION_RADIUS, TEXT_PRIMARY);
+        let rot_radius = ROTATION_RADIUS * pixels_per_point;
+        painter.circle_filled(rot_screen, rot_radius, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_screen,
-            ROTATION_RADIUS,
+            rot_radius,
             Stroke::new(1.0, SELECTION_COLOR),
         );
 
-        // Pivot marker (crosshair)
-        if p.pivot_offset != [0.0, 0.0] {
+        // Pivot marker (crosshair) — always drawn so it can be dragged
+        {
             let pivot_world_pt = pivot_world(p);
             let pivot_screen = scene_to_screen(
                 kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64),
@@ -376,7 +408,7 @@ pub(super) fn draw_selection_overlay(
                 scene_dimensions,
                 desired,
             );
-            let cross_size = 6.0;
+            let cross_size = 6.0 * pixels_per_point;
             let cross_color = AMBER;
             painter.line_segment(
                 [Pos2::new(pivot_screen.x - cross_size, pivot_screen.y), Pos2::new(pivot_screen.x + cross_size, pivot_screen.y)],
@@ -386,7 +418,7 @@ pub(super) fn draw_selection_overlay(
                 [Pos2::new(pivot_screen.x, pivot_screen.y - cross_size), Pos2::new(pivot_screen.x, pivot_screen.y + cross_size)],
                 Stroke::new(1.5, cross_color),
             );
-            painter.circle_stroke(pivot_screen, cross_size + 2.0, Stroke::new(1.0, cross_color));
+            painter.circle_stroke(pivot_screen, cross_size + 2.0 * pixels_per_point, Stroke::new(1.0, cross_color));
         }
     } else if let Some(fallback) = fallback_rect {
         // ── Axis‑aligned fallback ────────────────────────────────────────
@@ -614,6 +646,15 @@ pub(super) fn hit_test_rotation_handle(
     screen_point.distance(rot_screen) <= hit_radius + 4.0
 }
 
+/// Check if the screen point is near the pivot crosshair.
+pub(super) fn hit_test_pivot(
+    screen_point: Pos2,
+    pivot_screen: Pos2,
+    hit_radius: f32,
+) -> bool {
+    screen_point.distance(pivot_screen) <= hit_radius
+}
+
 /// Check if the screen point is near any polygon vertex.
 /// Returns the vertex index if within hit radius.
 pub(super) fn hit_test_vertex(
@@ -636,6 +677,7 @@ pub(super) fn hit_test_vertex(
 }
 
 /// Draw small circles at each polygon vertex in screen space.
+/// `pixels_per_point` scales vertex handle sizes for HiDPI displays.
 pub(super) fn draw_vertex_handles(
     painter: &egui::Painter,
     props: &ActorProps,
@@ -644,6 +686,7 @@ pub(super) fn draw_vertex_handles(
     scene_dimensions: SceneDimensions,
     desired: Vec2,
     active_vertex: Option<usize>,
+    pixels_per_point: f32,
 ) {
     const VERTEX_RADIUS: f32 = 4.0;
     for (i, &pt) in points.iter().enumerate() {
@@ -652,7 +695,11 @@ pub(super) fn draw_vertex_handles(
         let is_active = active_vertex == Some(i);
         let fill = if is_active { ACCENT_BLUE } else { TEXT_PRIMARY };
         let stroke_color = if is_active { AMBER } else { SELECTION_COLOR };
-        let radius = if is_active { VERTEX_RADIUS + 1.5 } else { VERTEX_RADIUS };
+        let radius = if is_active {
+            (VERTEX_RADIUS + 1.5) * pixels_per_point
+        } else {
+            VERTEX_RADIUS * pixels_per_point
+        };
         painter.circle_filled(screen, radius, fill);
         painter.circle_stroke(screen, radius, Stroke::new(1.0, stroke_color));
     }

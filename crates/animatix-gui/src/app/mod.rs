@@ -218,6 +218,8 @@ struct GuiShell {
     grid_size: f32,
     /// Per-actor pivot offsets in object-local space (relative to actor centre).
     pivot_offsets: HashMap<String, [f32; 2]>,
+    /// Active tool mode for preview canvas interactions.
+    tool_mode: preview::ToolMode,
 }
 
 impl GuiShell {
@@ -323,6 +325,7 @@ impl GuiShell {
             grid_enabled: true,
             grid_size: 20.0,
             pivot_offsets: HashMap::new(),
+            tool_mode: preview::ToolMode::Select,
         }
     }
 
@@ -511,6 +514,7 @@ impl GuiShell {
             grid_enabled: &mut self.grid_enabled,
             grid_size: &mut self.grid_size,
             pivot_offsets: &mut self.pivot_offsets,
+            tool_mode: &mut self.tool_mode,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };

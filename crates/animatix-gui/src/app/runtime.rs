@@ -199,6 +199,39 @@ impl AnimatixApp {
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
             self.shell.handle_delete_selected_actors();
         }
+
+        // Esc: cancel active drag or reset tool mode to Select
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if !matches!(self.shell.drag_state, crate::app::preview::DragState::None) {
+                self.shell.drag_state = crate::app::preview::DragState::None;
+                self.shell.preview.status = "Drag cancelled".to_string();
+            } else if self.shell.tool_mode != crate::app::preview::ToolMode::Select {
+                self.shell.tool_mode = crate::app::preview::ToolMode::Select;
+                self.shell.preview.status = "Tool: Select".to_string();
+            }
+        }
+
+        // Tool mode shortcuts
+        if ctx.input(|i| i.key_pressed(egui::Key::M)) {
+            self.shell.tool_mode = crate::app::preview::ToolMode::Move;
+            self.shell.preview.status = "Tool: Move".to_string();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.shift) {
+            self.shell.tool_mode = crate::app::preview::ToolMode::Scale;
+            self.shell.preview.status = "Tool: Scale".to_string();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+            self.shell.tool_mode = crate::app::preview::ToolMode::Rotate;
+            self.shell.preview.status = "Tool: Rotate".to_string();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::V)) {
+            self.shell.tool_mode = crate::app::preview::ToolMode::Vertex;
+            self.shell.preview.status = "Tool: Vertex".to_string();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::P)) {
+            self.shell.tool_mode = crate::app::preview::ToolMode::Pivot;
+            self.shell.preview.status = "Tool: Pivot".to_string();
+        }
     }
 
     fn sync_preview_surface(&mut self, frame: &mut eframe::Frame) -> Result<(), String> {

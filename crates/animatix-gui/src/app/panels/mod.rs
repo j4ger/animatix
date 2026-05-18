@@ -189,6 +189,8 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) grid_size: &'a mut f32,
     /// Per-actor pivot offsets in object-local space (relative to actor centre).
     pub(super) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
+    /// Active tool mode for preview interactions.
+    pub(super) tool_mode: &'a mut preview::ToolMode,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -738,81 +740,192 @@ self.selected_actors,
                 let props = self.get_actor_props(&actor);
 
                 if let Some(ref p) = props {
-                    // Check polygon vertices first (before scale/rotate handles)
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                     let vertex_points = self.timeline
                         .and_then(|t| t.get_track(&actor))
                         .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
                         .filter(|pts| !pts.is_empty());
 
-                    if let Some(points) = vertex_points {
-                        if let Some(vidx) = preview::hit_test_vertex(mouse, p, &points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius) {
-                            *self.drag_state = DragState::EditVertices {
+                    // ── Tool-mode overrides ──
+                    match *self.tool_mode {
+                        preview::ToolMode::Move => {
+                            // Skip all handles; fall through to body drag
+                        }
+                        preview::ToolMode::Vertex => {
+                            if let Some(ref points) = vertex_points {
+                                // Find nearest vertex even if not directly hitting it
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius * 2.0) {
+                                    *self.drag_state = DragState::EditVertices {
+                                        actor,
+                                        vertex: vidx,
+                                        start_points: points.clone(),
+                                        start_scene: scene,
+                                    };
+                                    return true;
+                                }
+                            }
+                        }
+                        preview::ToolMode::Scale => {
+                            let handle_world = preview::world_handle_positions(p);
+                            let handle_screen: [Pos2; 8] =
+                                std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
+                            // Find nearest handle even if not directly hitting it
+                            let nearest = (0..8).min_by_key(|i| {
+                                let d = mouse.distance(handle_screen[*i]);
+                                (d * 1000.0) as i32
+                            });
+                            if let Some(idx) = nearest {
+                                let anchor_local = if p.pivot_offset != [0.0, 0.0] {
+                                    p.pivot_offset
+                                } else {
+                                    preview::handle_anchor_local(idx, p.size)
+                                };
+                                let (resize_mode, start_scale) = self
+                                    .timeline
+                                    .and_then(|t| t.get_track(&actor))
+                                    .map(|tr| {
+                                        let mode = if let Some(primitive) = animatix::primitives::find_primitive(
+                                            animatix::timeline::actor_kind_meta(tr.kind).type_name,
+                                        ) {
+                                            match primitive.resize_mode() {
+                                                animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
+                                                _ => preview::ResizeMode::Size,
+                                            }
+                                        } else {
+                                            preview::ResizeMode::Size
+                                        };
+                                        (mode, tr.scale.get(time_ms, 1.0))
+                                    })
+                                    .unwrap_or((preview::ResizeMode::Size, 1.0));
+                                *self.drag_state = DragState::Scale {
+                                    actor,
+                                    handle: idx,
+                                    start_scene: scene,
+                                    start_position: p.position,
+                                    start_size: p.size,
+                                    start_rotation: p.rotation,
+                                    anchor_local,
+                                    constrain_axis: preview::handle_constrains_axis(idx),
+                                    uniform_ratio: ui.input(|i| i.modifiers.shift),
+                                    resize_mode,
+                                    start_scale,
+                                };
+                                return true;
+                            }
+                        }
+                        preview::ToolMode::Rotate => {
+                            let pivot = preview::pivot_world(p);
+                            let angle = ((scene.y - pivot[1] as f64) as f32)
+                                .atan2((scene.x - pivot[0] as f64) as f32);
+                            *self.drag_state = DragState::Rotate {
                                 actor,
-                                vertex: vidx,
-                                start_points: points,
-                                start_scene: scene,
+                                start_angle: angle,
+                                start_rotation: p.rotation,
+                                pivot,
                             };
                             return true;
                         }
-                    }
-
-                    let handle_world = preview::world_handle_positions(p);
-                    let handle_screen: [Pos2; 8] =
-                        std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
-                    if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen, hit_radius) {
-                        let anchor_local = if p.pivot_offset != [0.0, 0.0] {
-                            p.pivot_offset
-                        } else {
-                            preview::handle_anchor_local(idx, p.size)
-                        };
-                        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
-                        let (resize_mode, start_scale) = self
-                            .timeline
-                            .and_then(|t| t.get_track(&actor))
-                            .map(|tr| {
-                                let mode = if let Some(primitive) = animatix::primitives::find_primitive(
-                                    animatix::timeline::actor_kind_meta(tr.kind).type_name,
-                                ) {
-                                    match primitive.resize_mode() {
-                                        animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
-                                        _ => preview::ResizeMode::Size,
-                                    }
-                                } else {
-                                    preview::ResizeMode::Size
+                        preview::ToolMode::Pivot => {
+                            let pivot_world_pt = preview::pivot_world(p);
+                            let pivot_screen = self.preview_scene_to_screen(
+                                preview_rect,
+                                kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64),
+                            );
+                            if preview::hit_test_pivot(mouse, pivot_screen, hit_radius) {
+                                *self.drag_state = DragState::MovePivot {
+                                    actor,
+                                    start_offset: p.pivot_offset,
+                                    start_scene: scene,
                                 };
-                                (mode, tr.scale.get(time_ms, 1.0))
-                            })
-                            .unwrap_or((preview::ResizeMode::Size, 1.0));
-                        *self.drag_state = DragState::Scale {
-                            actor,
-                            handle: idx,
-                            start_scene: scene,
-                            start_position: p.position,
-                            start_size: p.size,
-                            start_rotation: p.rotation,
-                            anchor_local,
-                            constrain_axis: preview::handle_constrains_axis(idx),
-                            uniform_ratio: ui.input(|i| i.modifiers.shift),
-                            resize_mode,
-                            start_scale,
-                        };
-                        return true;
-                    }
+                                return true;
+                            }
+                        }
+                        preview::ToolMode::Select => {
+                            // Standard auto-detect priority
+                            if let Some(ref points) = vertex_points {
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius) {
+                                    *self.drag_state = DragState::EditVertices {
+                                        actor: actor.clone(),
+                                        vertex: vidx,
+                                        start_points: points.clone(),
+                                        start_scene: scene,
+                                    };
+                                    return true;
+                                }
+                            }
 
-                    let rot_world = preview::rotation_handle_world(p);
-                    let rot_screen = self.preview_scene_to_screen(preview_rect, rot_world);
-                    if preview::hit_test_rotation_handle(mouse, rot_screen, hit_radius) {
-                        let pivot = preview::pivot_world(p);
-                        let angle = ((scene.y - pivot[1] as f64) as f32)
-                            .atan2((scene.x - pivot[0] as f64) as f32);
-                        *self.drag_state = DragState::Rotate {
-                            actor,
-                            start_angle: angle,
-                            start_rotation: p.rotation,
-                            pivot,
-                        };
-                        return true;
+                            let handle_world = preview::world_handle_positions(p);
+                            let handle_screen: [Pos2; 8] =
+                                std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
+                            if let Some(idx) = preview::hit_test_handle(mouse, &handle_screen, hit_radius) {
+                                let anchor_local = if p.pivot_offset != [0.0, 0.0] {
+                                    p.pivot_offset
+                                } else {
+                                    preview::handle_anchor_local(idx, p.size)
+                                };
+                                let (resize_mode, start_scale) = self
+                                    .timeline
+                                    .and_then(|t| t.get_track(&actor))
+                                    .map(|tr| {
+                                        let mode = if let Some(primitive) = animatix::primitives::find_primitive(
+                                            animatix::timeline::actor_kind_meta(tr.kind).type_name,
+                                        ) {
+                                            match primitive.resize_mode() {
+                                                animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
+                                                _ => preview::ResizeMode::Size,
+                                            }
+                                        } else {
+                                            preview::ResizeMode::Size
+                                        };
+                                        (mode, tr.scale.get(time_ms, 1.0))
+                                    })
+                                    .unwrap_or((preview::ResizeMode::Size, 1.0));
+                                *self.drag_state = DragState::Scale {
+                                    actor: actor.clone(),
+                                    handle: idx,
+                                    start_scene: scene,
+                                    start_position: p.position,
+                                    start_size: p.size,
+                                    start_rotation: p.rotation,
+                                    anchor_local,
+                                    constrain_axis: preview::handle_constrains_axis(idx),
+                                    uniform_ratio: ui.input(|i| i.modifiers.shift),
+                                    resize_mode,
+                                    start_scale,
+                                };
+                                return true;
+                            }
+
+                            let rot_world = preview::rotation_handle_world(p);
+                            let rot_screen = self.preview_scene_to_screen(preview_rect, rot_world);
+                            if preview::hit_test_rotation_handle(mouse, rot_screen, hit_radius) {
+                                let pivot = preview::pivot_world(p);
+                                let angle = ((scene.y - pivot[1] as f64) as f32)
+                                    .atan2((scene.x - pivot[0] as f64) as f32);
+                                *self.drag_state = DragState::Rotate {
+                                    actor: actor.clone(),
+                                    start_angle: angle,
+                                    start_rotation: p.rotation,
+                                    pivot,
+                                };
+                                return true;
+                            }
+
+                            // Pivot hit-test (lowest priority in Select mode)
+                            let pivot_world_pt = preview::pivot_world(p);
+                            let pivot_screen = self.preview_scene_to_screen(
+                                preview_rect,
+                                kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64),
+                            );
+                            if preview::hit_test_pivot(mouse, pivot_screen, hit_radius) {
+                                *self.drag_state = DragState::MovePivot {
+                                    actor: actor.clone(),
+                                    start_offset: p.pivot_offset,
+                                    start_scene: scene,
+                                };
+                                return true;
+                            }
+                        }
                     }
                 }
 
@@ -1252,6 +1365,25 @@ self.selected_actors,
                         create_keyframe: self.keyframe_mode,
                     });
                 }
+                DragState::MovePivot {
+                    actor,
+                    start_offset,
+                    start_scene,
+                } => {
+                    let dx = (scene.x - start_scene.x) as f32;
+                    let dy = (scene.y - start_scene.y) as f32;
+
+                    if let Some(p) = self.get_actor_props(&actor) {
+                        // Inverse-transform the world delta back to local space
+                        let cos = (-p.rotation).cos();
+                        let sin = (-p.rotation).sin();
+                        let local_dx = dx * cos - dy * sin;
+                        let local_dy = dx * sin + dy * cos;
+
+                        let new_offset = [start_offset[0] + local_dx, start_offset[1] + local_dy];
+                        self.pivot_offsets.insert(actor, new_offset);
+                    }
+                }
                 DragState::None => {}
             }
         }
@@ -1393,6 +1525,15 @@ self.selected_actors,
 
                 let over_handle = self.selected_actors.iter().next().and_then(|a| {
                     let props = self.get_actor_props(a)?;
+                    // Check pivot first (higher priority than scale/rotate for feedback)
+                    let pivot_world_pt = preview::pivot_world(&props);
+                    let pivot_screen = self.preview_scene_to_screen(
+                        preview_rect,
+                        kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64),
+                    );
+                    if preview::hit_test_pivot(mouse, pivot_screen, hit_radius) {
+                        return Some(9usize);
+                    }
                     let handle_world = preview::world_handle_positions(&props);
                     let handle_screen: [Pos2; 8] =
                         std::array::from_fn(|i| self.preview_scene_to_screen(preview_rect, handle_world[i]));
@@ -1419,7 +1560,9 @@ self.selected_actors,
                         5 => (egui::CursorIcon::ResizeHorizontal, "Scale width"),
                         6 => (egui::CursorIcon::ResizeVertical, "Scale height"),
                         7 => (egui::CursorIcon::ResizeHorizontal, "Scale width"),
-                        _ => (egui::CursorIcon::Crosshair, "Rotate"),
+                        8 => (egui::CursorIcon::Crosshair, "Rotate"),
+                        9 => (egui::CursorIcon::Move, "Move pivot"),
+                        _ => (egui::CursorIcon::Default, ""),
                     };
                     ui.ctx().set_cursor_icon(icon);
                     egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), egui::Id::new("handle_tooltip"), |ui| {
@@ -1439,7 +1582,15 @@ self.selected_actors,
                         .unwrap_or(false);
 
                     if is_over_selected {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        let cursor = match *self.tool_mode {
+                            preview::ToolMode::Move => egui::CursorIcon::Grab,
+                            preview::ToolMode::Scale => egui::CursorIcon::ResizeNwSe,
+                            preview::ToolMode::Rotate => egui::CursorIcon::Crosshair,
+                            preview::ToolMode::Vertex => egui::CursorIcon::Crosshair,
+                            preview::ToolMode::Pivot => egui::CursorIcon::Move,
+                            preview::ToolMode::Select => egui::CursorIcon::Grab,
+                        };
+                        ui.ctx().set_cursor_icon(cursor);
                     } else if self.selection.hovered_actor.is_some() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
@@ -1540,6 +1691,7 @@ self.selected_actors,
                 preview_rect,
                 self.scene_dimensions,
                 preview_rect.size(),
+                ui.ctx().pixels_per_point(),
             );
             is_first = false;
 
@@ -1564,6 +1716,7 @@ self.selected_actors,
                     self.scene_dimensions,
                     preview_rect.size(),
                     active_vertex,
+                    ui.ctx().pixels_per_point(),
                 );
             }
 
