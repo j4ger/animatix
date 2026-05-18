@@ -19,15 +19,36 @@ Per-frame allocation tracking, staging belt growth monitoring, and renderer cach
 
 ### 2.1 Math Visualization Primitives
 
-**Location:** `crates/animatix/src/primitives/`
+**Location:** `crates/animatix/src/primitives/`, `crates/animatix-gui/src/app/`
 
-Missing primitives for mathematical education use cases: `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`.
+Missing primitives for mathematical education use cases. To avoid flooding the primitive registry, we group curve plots under a single primitive and keep only structurally distinct types as separate entries.
 
-- `VectorField`: grid-sampled arrows from `(x,y) => (dx,dy)` function. Highest value-add for calculus/physics visualization.
-- `NumberPlane`: axes + grid lines + ticks as a single declarative component. Current workaround is manual `Line` declarations.
-- `Heatmap` / `ContourSet`: pixel-level color mapping and level-set curves.
+#### Design: group curves, keep containers/fields separate
 
-**Effort:** Medium per primitive. `VectorField` and `NumberPlane` are the priority pair.
+| Primitive | Status | Rationale |
+|-----------|--------|-----------|
+| `PlotCurve` | **New** — merges `CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot` | The four existing curve plots share 90 % of properties and build logic. They become `PlotCurve` with a `kind` property (`"cartesian"`, `"polar"`, `"parametric"`, `"implicit"`). This removes 3 registry entries and 3 `ActorKindId` variants. |
+| `Graph` | **Keep** — enhanced | Add `grid`, `ticks`, `tick_labels` properties to `Graph`. `NumberPlane` is intentionally **not** a separate primitive; it is a more configurable `Graph`. |
+| `VectorField` | **Add** | Grid-sampled arrows from `(x,y) => (dx,dy)` function. Highest value-add for calculus/physics visualization. |
+| `Heatmap` | **Add** | Pixel-level color mapping from `(x,y) => scalar` function. |
+| `ContourSet` | **Add** | Level-set curves for a scalar function. Bulk-declares multiple `ImplicitPlot`-like curves via a `levels` list. |
+
+#### Why not flatten every plot type?
+
+The `ActorKindId` enum is the real bottleneck — every new primitive needs a variant, and variants are manually listed in match arms across the codebase (`property_registry.rs`, `track.rs` tests, etc.). The build logic for curve plots *already* does runtime string dispatch on `ty` (`"CartesianPlot"` vs `"PolarPlot"`, etc.), so we were paying registry bloat **and** runtime branching. Collapsing them into `PlotCurve` with a `kind` property reflects the reality that these are sampling-strategy variants of the same visual output (a stroke path).
+
+`VectorField`, `Heatmap`, and `ContourSet` deserve separate registry entries because their property schemas and rendering paths differ fundamentally from curve plots.
+
+#### GUI impact
+
+Minimal. The GUI is registry-driven (`actor_kind_registry()`, `find_primitive()`, `default_props()`). Changes required:
+
+- **Palette**: 4 curve-plot buttons become 1 `PlotCurve` button. The inspector exposes `kind` as a dropdown automatically via the property registry.
+- **Icons**: Remove 3 plot-specific icon mappings; `PlotCurve` uses a single icon (`chart-line-up` or a new generic plot-curve icon).
+- **Inspector header**: `shape_type` text will read `"Plot"` for all curve plots. Consider showing the `kind` property value next to it (e.g. `"Plot (polar)"`).
+- **Backward compatibility**: Existing `.amx` files using `CartesianPlot` / `PolarPlot` / `ParametricPlot` / `ImplicitPlot` continue to parse. The parser maps the old type names to `PlotCurve` with the appropriate `kind`.
+
+**Effort:** Medium. `PlotCurve` refactor + `Graph` enhancements + 3 new primitives.
 
 ---
 
@@ -180,7 +201,7 @@ drive tracker {
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | GPU memory profiling | Medium | Medium |
-| 2 | VectorField + NumberPlane primitives (2.1) | Medium | High |
+| 2 | PlotCurve refactor + VectorField + Heatmap + ContourSet + Graph enhancements (2.1) | Medium | High |
 | 3 | Reactive binding `:=` (2.4) | Low–Medium | Medium |
 | 4 | Keyframe-scoped variables (2.3) | Medium | Medium |
 | 5 | Per-actor reactive blocks / `drive` keyword (2.2) | Medium | Medium |

@@ -25,8 +25,7 @@
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
-| Plotting | `Graph`, `CartesianPlot`, `PolarPlot` | Yes | Runtime-real | Yes | Yes | See `examples/plotting_demo.amx` |
-| Plotting | `ParametricPlot`, `ImplicitPlot` | Yes | Runtime-real | Yes | Yes | Parametric uses tuple-return closure; implicit uses `(x, y) => scalar` |
+| Plotting | `Graph`, `PlotCurve` | Yes | Runtime-real | Yes | Yes | `PlotCurve` replaces `CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot` via `kind` property. Old names are backward-compatible aliases. See `examples/plotting_demo.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -559,20 +558,26 @@ slide: SlideLayout {
 
 ## 13. Math & Graphs
 
-**`Graph`**: Container mapping logical domains to physical bounds.
+**`Graph`**: Container mapping logical domains to physical bounds. Supports axes, optional grid lines, and ticks.
 ```animatix
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400)
 ```
 
-**`CartesianPlot`**: Function `(x) => expression`
+**`PlotCurve`**: Single-stroke curve plot. The `kind` property selects the sampling strategy:
+
+| `kind` | Closure signature | Example |
+|--------|-------------------|---------|
+| `"cartesian"` | `(x) => y` | `func: (x) => x^2 + 3` |
+| `"polar"` | `(theta) => r` | `func: (t) => 1 + sin(3*t)` |
+| `"parametric"` | `(t) => (x, y)` | `func: (t) => (cos(t), sin(t))` |
+| `"implicit"` | `(x, y) => scalar` | `func: (x, y) => x^2 + y^2 - 1` |
+
 ```animatix
-parabola: CartesianPlot, func: (x) => x^2 + 3, color: red
+parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red
+spiral: PlotCurve, kind: "polar", func: (t) => t, color: blue
 ```
 
-**`PolarPlot`**: Function `(theta) => expression` with `t_domain`
-```animatix
-spiral: PolarPlot, func: (t) => t, color: blue
-```
+The legacy type names `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` are backward-compatible aliases that desugar to `PlotCurve` with the matching `kind`.
 
 **Closures:**
 ```animatix

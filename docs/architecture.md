@@ -200,7 +200,7 @@ Expressions are evaluated via `evaluate_expr` using an `Environment` (`Rc<RefCel
 
 Built-ins: `sin`, `cos`, `lerp`, `rand`, `format`. Closures use arrow syntax `(x) => x^2`.
 
-The plotting system (`CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot`) samples closure `func` at discrete points with adaptive refinement.
+The plotting system (`PlotCurve` with `kind: cartesian|polar|parametric|implicit`) samples closure `func` at discrete points with adaptive refinement.
 
 ---
 
@@ -407,6 +407,19 @@ Steps:
 3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/track.rs` (still needed for match arms).
 
 Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
+
+### When to group primitives
+
+Not every visual variation needs its own primitive. The rule of thumb:
+
+- **Same property schema + same rendering path + only internal sampling logic differs** → use a single primitive with a `kind` property.
+- **Different property schema or fundamentally different rendering** → separate primitive.
+
+**Example — plot curves:** `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` all expose `func`, `x_domain`, `y_domain`, `t_domain`, `tolerance`, `max_depth`, and `resolution`. They differ only in how the closure is sampled. These are merged into `PlotCurve` with a `kind` property. This keeps `ActorKindId` lean and avoids `PROPERTY_REGISTRY` bloat.
+
+**Counter-example — `VectorField`:** It exposes `func` that returns a 2-D vector, plus `density` / `grid_size`, and renders arrows rather than a single stroke path. It stays as a separate primitive.
+
+**Counter-example — `NumberPlane`:** Axes + grid + ticks is conceptually just a configurable `Graph`. Rather than a new primitive, `Graph` gains `grid`, `ticks`, and `tick_labels` properties.
 
 ---
 

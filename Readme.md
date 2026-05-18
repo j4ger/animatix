@@ -100,7 +100,7 @@ If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphic
 ## What's Shipped Today
 
 - Scene primitives: `Text`, `Math`, `Code`, `Svg`, `Image`, `Rect`, `Line`, `Ellipse`, `Polygon`, and `Path`
-- Plotting: `Graph`, `CartesianPlot`, and `PolarPlot`
+- Plotting: `Graph` and `PlotCurve` (`kind: cartesian`, `polar`, `parametric`, `implicit`)
 - Containers: `Row`, `Col`, `Grid`, `Stack`, and `Group`
 - Reactive authoring: stateless `always` and compile-time `for`
 - Components: imported `pub component` instantiation, parameter binding, dotted assignment targets, and rhs property lookup
@@ -117,7 +117,7 @@ Runnable demos live in [`examples/`](examples/):
 
 - `showcase.amx` — broad runtime overview
 - `layout_demo.amx` — layout containers and placement behavior
-- `plotting_demo.amx` — graphing and plots
+- `plotting.amx` — graphing and curve plots (`PlotCurve` with all `kind` variants)
 - `math_demo.amx` — math rendering
 - `line_and_ellipse_demo.amx` — line and ellipse primitives
 - `arc_polygon_path_demo.amx` — newer vector primitives
@@ -130,8 +130,6 @@ Runnable demos live in [`examples/`](examples/):
 - `composition_stagger_demo.amx` — current staggered composition surface (`stagger`)
 - `primitive_breadth_demo.amx` — legacy demo using deprecated aliases
 - `arrow_demo.amx` — legacy arrow demo
-- `parametric_plot_demo.amx` — current parametric plotting slice (`ParametricPlot`)
-- `implicit_plot_demo.amx` — current implicit plotting slice (`ImplicitPlot`)
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior
 - `code_demo.amx` — the shipped `Code` primitive
 - `component_modules_demo.amx` — imported components and dotted property access

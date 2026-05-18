@@ -52,7 +52,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 - **`colorschemes.amx`** — Theme system with `auto` color derivation
 
 ### Specialized
-- **`plotting.amx`** — `Graph`, `CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot`
+- **`plotting.amx`** — `Graph`, `PlotCurve` (`kind: cartesian`, `polar`, `parametric`, `implicit`)
 - **`font_demo.amx`** — `font_family` selection, runtime text recompilation, dynamic `font_size`
 
 ## Helper Modules (not standalone demos)

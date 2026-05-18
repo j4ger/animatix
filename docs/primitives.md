@@ -218,66 +218,40 @@ Container establishing logical plotting domains and rendering axes.
 - `size`: Tuple `(width, height)`
 - `at`: Tuple `(x, y)`
 
-## CartesianPlot
+## PlotCurve
 **Status:** Implemented in runtime.
 
-**Properties:**
-- `func`: Closure `(x) => expression`
-- `color` / `stroke`: Color
-- `width` / `stroke_width`: Number
-- `tolerance`: Number
-- `max_depth`: Number
-
-## PolarPlot
-**Status:** Implemented in runtime.
+Single-stroke curve plot. The `kind` property selects the sampling strategy. Replaces the legacy `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` primitives (those names are backward-compatible aliases).
 
 **Properties:**
-- `func`: Closure `(theta) => expression`
-- `t_domain`: Tuple `(min, max)`
+- `kind`: `"cartesian" | "polar" | "parametric" | "implicit"`
+- `func`: Closure — signature depends on `kind`
+  - `"cartesian"`: `(x) => y`
+  - `"polar"`: `(theta) => r`
+  - `"parametric"`: `(t) => (x, y)`
+  - `"implicit"`: `(x, y) => scalar`
+- `x_domain`: Tuple `(min, max)`
+- `y_domain`: Tuple `(min, max)`
+- `t_domain`: Tuple `(min, max)` — used by `"polar"` and `"parametric"`
 - `color` / `stroke`: Color
 - `width` / `stroke_width`: Number
-- `tolerance`: Number
-- `max_depth`: Number
-
-## ParametricPlot
-**Status:** Implemented in runtime.
-
-Samples closure returning `(x, y)` over `t_domain`, maps into parent Graph domain.
-
-**Properties:**
-- `func`: Closure `(t) => (x_expr, y_expr)`
-- `t_domain`: Tuple `(min, max)`
-- `color` / `stroke`: Color
-- `width` / `stroke_width`: Number
-- `tolerance`: Number
-- `max_depth`: Number
-
-## ImplicitPlot
-**Status:** Implemented in runtime.
-
-Samples scalar field closure `(x, y) => expr`, extracts zero contour via marching squares.
-
-**Properties:**
-- `func`: Closure `(x, y) => scalar_expr`
-- `resolution`: Number of sampling cells along longer graph axis
-- `color` / `stroke`: Color
-- `width` / `stroke_width`: Number
-
-**Constraints:** Stroke-only, zero contour only (`func(x,y) = 0`), quality depends on resolution and sampled grid.
+- `tolerance`: Number — adaptive subdivision threshold
+- `max_depth`: Number — max recursion depth for adaptive sampling
+- `resolution`: Number — sampling grid resolution for `"implicit"`
 
 **Example:**
 ```animatix
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300) {
-  parabola: CartesianPlot, func: (x) => x^2 + 3, color: red, width: 2,
-  rose: PolarPlot, func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
+  parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red, width: 2,
+  rose: PlotCurve, kind: "polar", func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
 }
 
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
-  lissajous: ParametricPlot, func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
+  lissajous: PlotCurve, kind: "parametric", func: (t) => (sin(2 * t), cos(3 * t)), t_domain: (0, 6.28), stroke: cyan, width: 3
 }
 
 graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 360) {
-  circle: ImplicitPlot, func: (x, y) => x * x + y * y - 1, resolution: 96, stroke: cyan, width: 3
+  circle: PlotCurve, kind: "implicit", func: (x, y) => x * x + y * y - 1, resolution: 96, stroke: cyan, width: 3
 }
 ```
 
