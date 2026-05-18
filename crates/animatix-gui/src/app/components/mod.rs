@@ -387,6 +387,34 @@ pub fn field_sized(
     response.response
 }
 
+/// Renders a label-left / input-right row with consistent alignment.
+///
+/// Matches the inspector property row layout: label occupies remaining width
+/// on the left, input is right-aligned with a fixed width and framed.
+///
+/// Usage:
+/// ```ignore
+/// labeled_row(ui, "Grid size", 120.0, |ui| {
+///     ui.add(egui::DragValue::new(&mut val).suffix(" px"));
+/// });
+/// ```
+pub fn labeled_row(
+    ui: &mut egui::Ui,
+    label: impl Into<egui::WidgetText>,
+    input_width: f32,
+    add_input: impl FnOnce(&mut egui::Ui),
+) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        let remaining = ui.available_width();
+        let frame_width = input_width + 2.0 * SPACE_S;
+        if remaining > frame_width {
+            ui.add_space(remaining - frame_width);
+        }
+        field_sized(ui, Some(input_width), add_input);
+    });
+}
+
 // ─── Icon Button ──────────────────────────────────────────────────────────
 
 /// A small square icon button with hover highlight.
