@@ -43,7 +43,6 @@ const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
     width: 1920,
     height: 1080,
 };
-const REBUILD_DEBOUNCE: Duration = Duration::from_millis(150);
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
 const EXPLORER_INDENT_PX: f32 = 10.0;
@@ -220,6 +219,18 @@ struct GuiShell {
     pivot_offsets: HashMap<String, [f32; 2]>,
     /// Active tool mode for preview canvas interactions.
     tool_mode: preview::ToolMode,
+    /// Arrow-key scrub step in seconds.
+    scrub_step_s: f64,
+    /// Arrow-key nudge step in pixels (no modifier).
+    nudge_step_px: f32,
+    /// Arrow-key nudge step in pixels (Shift held).
+    nudge_step_shift_px: f32,
+    /// Rotation snap increment in degrees (Shift+rotate).
+    rotation_snap_degrees: f32,
+    /// Maximum undo history entries.
+    undo_limit: usize,
+    /// Rebuild debounce delay in milliseconds.
+    rebuild_debounce_ms: u64,
 }
 
 impl GuiShell {
@@ -326,6 +337,12 @@ impl GuiShell {
             grid_size: 20.0,
             pivot_offsets: HashMap::new(),
             tool_mode: preview::ToolMode::Select,
+            scrub_step_s: 0.1,
+            nudge_step_px: 1.0,
+            nudge_step_shift_px: 10.0,
+            rotation_snap_degrees: 15.0,
+            undo_limit: 100,
+            rebuild_debounce_ms: 150,
         }
     }
 
@@ -515,6 +532,7 @@ impl GuiShell {
             grid_size: &mut self.grid_size,
             pivot_offsets: &mut self.pivot_offsets,
             tool_mode: &mut self.tool_mode,
+            rotation_snap_degrees: self.rotation_snap_degrees,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };
@@ -590,7 +608,7 @@ impl GuiShell {
         if actions.editor_changed {
             self.document
                 .set_source_text(self.editor.text().to_string());
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = "Editing source • rebuild scheduled".to_string();
             // Clear any stale error from a previous failed rebuild so the user
             // doesn't see an outdated error banner while typing.
@@ -702,7 +720,7 @@ impl GuiShell {
                     self.editor.replace_text(new_source);
                     self.document.is_dirty = true;
                     self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                    self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
                     self.preview.status = format!("Added scene {}", new_name);
                 }
             }
@@ -720,7 +738,7 @@ impl GuiShell {
                         self.editor.replace_text(new_source);
                         self.document.is_dirty = true;
                         self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                        self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                        self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
                         self.preview.status = format!("Renamed scene to {}", new_name);
                     }
                 }
@@ -737,7 +755,7 @@ impl GuiShell {
                     self.editor.replace_text(new_source);
                     self.document.is_dirty = true;
                     self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                    self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
                     self.preview.status = "Reordered scenes".to_string();
                 }
             }
@@ -985,8 +1003,8 @@ impl GuiShell {
     fn snapshot(&mut self) {
         self.undo_stack.push(self.document.source_text.clone());
         self.redo_stack.clear();
-        // Limit undo history to 100 entries
-        if self.undo_stack.len() > 100 {
+        // Limit undo history
+        if self.undo_stack.len() > self.undo_limit {
             self.undo_stack.remove(0);
         }
     }
@@ -998,7 +1016,7 @@ impl GuiShell {
             self.document.source_text = previous.clone();
             self.editor.replace_text(previous);
             self.document.is_dirty = true;
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = "Undo".to_string();
         }
     }
@@ -1010,7 +1028,7 @@ impl GuiShell {
             self.document.source_text = next.clone();
             self.editor.replace_text(next);
             self.document.is_dirty = true;
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = "Redo".to_string();
         }
     }
@@ -1082,7 +1100,7 @@ impl GuiShell {
         self.editor.replace_text(new_source);
         self.document.is_dirty = true;
         self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-        self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+        self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
 
         // Select new actor and start move drag
         self.selected_actors.clear();
@@ -1149,7 +1167,7 @@ impl GuiShell {
         self.editor.replace_text(new_source);
         self.document.is_dirty = true;
         self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-        self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+        self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
 
         // Clear selection
         self.selected_actors.clear();
@@ -1177,7 +1195,7 @@ impl GuiShell {
             self.editor.replace_text(new_source);
             self.document.is_dirty = true;
             self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-            self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = format!(
                 "Set transition on '{}' → {}ms",
                 from_scene,

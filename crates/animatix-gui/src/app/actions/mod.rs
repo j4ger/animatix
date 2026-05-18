@@ -52,7 +52,7 @@ impl GuiShell {
 
         self.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = if delta_s < self.keyframe_merge_window_s {
                 format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
@@ -106,7 +106,7 @@ impl GuiShell {
 
         self.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = format!("Edited {}.{} — source updated", edit.actor, edit.property);
         } else {
             self.preview.status = format!("Edited {}.{} — visual only (no source span)", edit.actor, edit.property);
@@ -137,7 +137,7 @@ impl GuiShell {
 
         self.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = format!("Edited {}.child_order — source updated", edit.actor);
         } else {
             self.preview.status = format!("Edited {}.child_order — visual only (no source span)", edit.actor);
@@ -487,7 +487,7 @@ impl GuiShell {
                 self.editor.replace_text(new_source);
                 self.document.is_dirty = true;
                 self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+                self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
                 self.preview.status = format!("Created {} ({}) at ({:.0}, {:.0})", label, ty, position[0], position[1]);
             } else {
                 self.preview.status = format!("Failed to create {} — source edit failed", label);
@@ -534,7 +534,7 @@ impl GuiShell {
             self.editor.replace_text(new_source);
             self.document.is_dirty = true;
             self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-            self.pending_rebuild_at = Some(std::time::Instant::now() + REBUILD_DEBOUNCE);
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = format!("Renamed {} → {}", old_label, new_label);
         } else {
             self.preview.status = "Rename failed — no AST available".to_string();

@@ -71,7 +71,7 @@ impl AnimatixApp {
         // BUT still allow Ctrl+Z/Ctrl+Shift+Z for undo/redo of property edits
         let wants_keyboard = ctx.egui_wants_keyboard_input();
 
-        let scrub_step_s = 0.1;
+        let scrub_step_s = self.shell.scrub_step_s;
 
         // Undo/Redo (works even when editor is focused, for property edits)
         if ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && !i.modifiers.shift) {
@@ -145,11 +145,11 @@ impl AnimatixApp {
 
         if has_selection && (arrow_left || arrow_right || arrow_up || arrow_down) {
             let nudge_step = if ctx.input(|i| i.modifiers.shift) {
-                10.0
+                self.shell.nudge_step_shift_px
             } else if self.shell.grid_enabled {
                 self.shell.grid_size
             } else {
-                1.0
+                self.shell.nudge_step_px
             };
             let dx = if arrow_left { -nudge_step } else if arrow_right { nudge_step } else { 0.0 };
             let dy = if arrow_up { -nudge_step } else if arrow_down { nudge_step } else { 0.0 };

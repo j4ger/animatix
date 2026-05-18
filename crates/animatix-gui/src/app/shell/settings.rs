@@ -31,127 +31,181 @@ impl GuiShell {
             self.settings_open = false;
         }
 
-        // Centered dialog
-        let dialog_w = 420.0;
-        let dialog_h = 280.0;
-        let dialog_rect = egui::Rect::from_center_size(
-            screen_rect.center(),
-            egui::Vec2::new(dialog_w, dialog_h),
-        );
+        // Centered dialog using egui window for proper layout
+        let window_response = egui::Window::new("Settings")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .default_size([420.0, 520.0])
+            .min_size([380.0, 400.0])
+            .max_size([600.0, 700.0])
+            .resizable(true)
+            .collapsible(false)
+            .title_bar(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(BG_BASE)
+                    .stroke(Stroke::new(1.0, BORDER))
+                    .corner_radius(RADIUS_XL)
+                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
+            )
+            .show(ui.ctx(), |ui| {
+                ui.set_min_width(360.0);
 
-        // Dialog background
-        ui.painter().rect_filled(dialog_rect, RADIUS_XL, BG_BASE);
-        ui.painter().rect_stroke(
-            dialog_rect,
-            RADIUS_XL,
-            Stroke::new(1.0, BORDER),
-            egui::StrokeKind::Inside,
-        );
+                // Title row
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Settings")
+                            .size(FONT_SIZE_XL)
+                            .color(TEXT_PRIMARY),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let close_resp = ui.button(egui_phosphor::regular::X);
+                        if close_resp.clicked() {
+                            self.settings_open = false;
+                        }
+                    });
+                });
+                ui.add_space(SPACE_M);
+                ui.separator();
+                ui.add_space(SPACE_M);
 
-        // Content area with margin
-        let content_rect = dialog_rect.shrink(SPACE_XL * 2.0);
-        let mut cursor_y = content_rect.top();
+                // ── Preview ──
+                components::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
+                ui.add_space(SPACE_S);
 
-        // Title row
-        ui.painter().text(
-            egui::pos2(content_rect.left(), cursor_y + 14.0),
-            egui::Align2::LEFT_CENTER,
-            "Settings",
-            egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-            TEXT_PRIMARY,
-        );
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Grid size").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.grid_size)
+                                    .speed(1.0)
+                                    .range(1.0..=200.0)
+                                    .suffix(" px"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_M);
 
-        // Close button (X)
-        let close_size = Vec2::new(ROW_L, ROW_L);
-        let close_rect =
-            egui::Rect::from_min_size(egui::pos2(content_rect.right() - close_size.x, cursor_y), close_size);
-        let close_resp = ui.interact(close_rect, ui.id().with("settings_close"), egui::Sense::click());
-        let close_color = if close_resp.hovered() {
-            TEXT_PRIMARY
-        } else {
-            TEXT_MUTED
-        };
-        ui.painter().text(
-            close_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            egui_phosphor::regular::X,
-            egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-            close_color,
-        );
-        if close_resp.clicked() {
-            self.settings_open = false;
-        }
+                // ── Input ──
+                components::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
+                ui.add_space(SPACE_S);
 
-        cursor_y += ROW_L + SPACE_L;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Nudge step").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.nudge_step_px)
+                                    .speed(0.5)
+                                    .range(0.1..=50.0)
+                                    .suffix(" px"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_S);
 
-        // Divider
-        ui.painter().line_segment(
-            [
-                egui::pos2(content_rect.left(), cursor_y),
-                egui::pos2(content_rect.right(), cursor_y),
-            ],
-            Stroke::new(1.0, BORDER),
-        );
-        cursor_y += SPACE_L;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Nudge step (Shift)").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.nudge_step_shift_px)
+                                    .speed(0.5)
+                                    .range(1.0..=200.0)
+                                    .suffix(" px"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_S);
 
-        // ── Keyframe merge window setting ──
-        let label = "Keyframe merge window";
-        let label_font = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
-        let galley = ui.painter().layout(
-            label.to_string(),
-            label_font.clone(),
-            TEXT_SECONDARY,
-            f32::INFINITY,
-        );
-        ui.painter().galley(
-            egui::pos2(content_rect.left(), cursor_y),
-            galley,
-            TEXT_SECONDARY,
-        );
-        cursor_y += ROW_S + SPACE_XS;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Rotation snap").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.rotation_snap_degrees)
+                                    .speed(1.0)
+                                    .range(1.0..=90.0)
+                                    .suffix("°"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_M);
 
-        let mut value_ms = (self.keyframe_merge_window_s * 1000.0) as f32;
-        let value_rect = egui::Rect::from_min_size(
-            egui::pos2(content_rect.left(), cursor_y),
-            Vec2::new(120.0, ROW_M),
-        );
-        ui.scope_builder(egui::UiBuilder::new().max_rect(value_rect), |ui| {
-            components::field(ui, |ui| {
-                ui.style_mut().spacing.item_spacing = Vec2::new(4.0, 0.0);
-                ui.add(
-                    egui::DragValue::new(&mut value_ms)
-                        .speed(1.0)
-                        .range(0.0..=500.0)
-                        .suffix(" ms"),
-                );
-            });
-        });
-        self.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
-        cursor_y += ROW_M + SPACE_M;
+                // ── Playback ──
+                components::section_header(ui, egui_phosphor::regular::PLAY, "Playback", None);
+                ui.add_space(SPACE_S);
 
-        // Description
-        let desc = "Edits within this window of the previous keyframe are merged\ninstead of creating a new timestamp.";
-        let desc_font = egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional);
-        let desc_galley = ui.painter().layout(
-            desc.to_string(),
-            desc_font,
-            TEXT_MUTED,
-            content_rect.width(),
-        );
-        ui.painter().galley(
-            egui::pos2(content_rect.left(), cursor_y),
-            desc_galley,
-            TEXT_MUTED,
-        );
-        cursor_y += SPACE_XL * 2.0 + SPACE_S;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Scrub step").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.scrub_step_s)
+                                    .speed(0.01)
+                                    .range(0.01..=1.0)
+                                    .suffix(" s"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_M);
 
-        // ── Debug bounds toggle ──
-        let toggle_rect = egui::Rect::from_min_size(
-            egui::pos2(content_rect.left(), cursor_y),
-            Vec2::new(content_rect.width(), ROW_M),
-        );
-        ui.scope_builder(egui::UiBuilder::new().max_rect(toggle_rect), |ui| {
-            ui.horizontal(|ui| {
+                // ── Editor ──
+                components::section_header(ui, egui_phosphor::regular::PENCIL, "Editor", None);
+                ui.add_space(SPACE_S);
+
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Rebuild debounce").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.rebuild_debounce_ms)
+                                    .speed(10.0)
+                                    .range(0..=1000)
+                                    .suffix(" ms"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_S);
+
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Undo limit").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.undo_limit)
+                                    .speed(10.0)
+                                    .range(10..=1000)
+                                    .suffix(" entries"),
+                            );
+                        });
+                    });
+                });
+                ui.add_space(SPACE_S);
+
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Keyframe merge window").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        components::field(ui, |ui| {
+                            let mut value_ms = (self.keyframe_merge_window_s * 1000.0) as f32;
+                            ui.add(
+                                egui::DragValue::new(&mut value_ms)
+                                    .speed(1.0)
+                                    .range(0.0..=500.0)
+                                    .suffix(" ms"),
+                            );
+                            self.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
+                        });
+                    });
+                });
+                ui.add_space(SPACE_S);
+
                 let mut debug = self.debug_bounds;
                 ui.checkbox(
                     &mut debug,
@@ -161,22 +215,10 @@ impl GuiShell {
                 );
                 self.debug_bounds = debug;
             });
-        });
 
-        cursor_y += ROW_M + SPACE_M;
-
-        let desc2 = "Shows per-actor content bounding boxes on the preview canvas\nand in exported output.";
-        let desc2_font = egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional);
-        let desc2_galley = ui.painter().layout(
-            desc2.to_string(),
-            desc2_font,
-            TEXT_MUTED,
-            content_rect.width(),
-        );
-        ui.painter().galley(
-            egui::pos2(content_rect.left(), cursor_y),
-            desc2_galley,
-            TEXT_MUTED,
-        );
+        if window_response.is_none() {
+            // Window was closed via egui chrome
+            self.settings_open = false;
+        }
     }
 }

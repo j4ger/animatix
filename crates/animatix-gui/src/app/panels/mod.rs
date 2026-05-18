@@ -191,6 +191,8 @@ pub(super) struct WorkspaceViewer<'a> {
     pub(super) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     /// Active tool mode for preview interactions.
     pub(super) tool_mode: &'a mut preview::ToolMode,
+    /// Rotation snap increment in degrees (Shift+rotate).
+    pub(super) rotation_snap_degrees: f32,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -1265,7 +1267,7 @@ self.selected_actors,
                     }
                     let mut new_rot = start_rotation + delta;
                     if shift {
-                        let step = std::f32::consts::PI / 12.0;
+                        let step = self.rotation_snap_degrees.to_radians();
                         new_rot = (new_rot / step).round() * step;
                     }
                     self.actions.property_edits.push(PropertyEdit {
