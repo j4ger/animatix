@@ -34,7 +34,7 @@
 //! | Shapes | Rect, Ellipse, Line, Polygon, Path |
 //! | Text | Text, Math, Code |
 //! | Media | Image, Svg |
-//! | Plots | Graph, CartesianPlot, PolarPlot, ParametricPlot, ImplicitPlot |
+//! | Plots | Graph, PlotCurve |
 //! | Containers | Row, Col, Grid, Stack, Group |
 //!
 use crate::ast::{Expr, InlineItem, Modifier, Property};
@@ -57,7 +57,7 @@ mod math;       pub use math::MATH;
 mod code;       pub use code::CODE;
 mod image;      pub use image::IMAGE;
 mod svg;        pub use svg::SVG;
-mod plot;       pub use plot::{GRAPH, CARTESIAN_PLOT, POLAR_PLOT, PARAMETRIC_PLOT, IMPLICIT_PLOT};
+mod plot;       pub use plot::{GRAPH, PLOT_CURVE};
 mod row;        pub use row::ROW;
 mod col;        pub use col::COL;
 mod grid;       pub use grid::GRID;
@@ -240,7 +240,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Media
     &IMAGE, &SVG,
     // Plots
-    &GRAPH, &CARTESIAN_PLOT, &POLAR_PLOT, &PARAMETRIC_PLOT, &IMPLICIT_PLOT,
+    &GRAPH, &PLOT_CURVE,
     // Containers
     &ROW, &COL, &GRID, &STACK, &GROUP,
 ];
@@ -367,9 +367,7 @@ mod tests {
         for id in [
             ActorKindId::Text, ActorKindId::Math, ActorKindId::Code,
             ActorKindId::Image, ActorKindId::Svg,
-            ActorKindId::Graph, ActorKindId::CartesianPlot,
-            ActorKindId::PolarPlot, ActorKindId::ParametricPlot,
-            ActorKindId::ImplicitPlot,
+            ActorKindId::Graph, ActorKindId::PlotCurve,
             ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
             ActorKindId::Stack, ActorKindId::Group,
         ] {

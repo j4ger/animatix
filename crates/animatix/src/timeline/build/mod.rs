@@ -9,6 +9,7 @@ mod keyframe_utils;
 
 use keyframe_utils::{insert_end_keyframes, insert_start_keyframes, preserve_delayed_values};
 use plot::{build_graph_axis_paths, build_plot_curve_paths, PlotCurveParams};
+use crate::timeline::plot::PlotCurveKind;
 
 #[derive(Clone, Debug)]
 struct ExtractedActorProperties {
@@ -20,6 +21,7 @@ struct ExtractedActorProperties {
     tolerance: f64,
     max_depth: f64,
     resolution: f64,
+    kind: Option<PlotCurveKind>,
     at_expr: Option<Expr>,
     anchor_expr: Option<Expr>,
     offset_expr: Option<Expr>,
@@ -491,6 +493,7 @@ impl Timeline {
         let mut tolerance = 0.5;
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
+        let mut kind: Option<PlotCurveKind> = None;
         let mut at_expr: Option<Expr> = None;
         let mut anchor_expr: Option<Expr> = None;
         let mut offset_expr: Option<Expr> = None;
@@ -600,6 +603,13 @@ impl Timeline {
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
                 }
+                "kind" => {
+                    if let Expr::Str(s) = &prop.value {
+                        kind = PlotCurveKind::from_str(s);
+                    } else if let Expr::Ident(s) = &prop.value {
+                        kind = PlotCurveKind::from_str(s);
+                    }
+                }
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
@@ -616,6 +626,7 @@ impl Timeline {
             tolerance,
             max_depth,
             resolution,
+            kind,
             at_expr,
             anchor_expr,
             offset_expr,
@@ -726,8 +737,9 @@ impl Timeline {
                 p_size = sz;
             }
 
+            let kind = extracted.kind.unwrap_or(PlotCurveKind::Cartesian);
             let curve_params = PlotCurveParams {
-                ty,
+                kind,
                 func: &extracted.func,
                 p_x_domain,
                 p_y_domain,

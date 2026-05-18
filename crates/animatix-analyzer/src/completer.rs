@@ -312,10 +312,7 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
             "Polygon" => Some("Polygon or regular polygon"),
             "Path" => Some("SVG path element"),
             "Graph" => Some("Function graph"),
-            "CartesianPlot" => Some("Cartesian coordinate plot"),
-            "PolarPlot" => Some("Polar coordinate plot"),
-            "ParametricPlot" => Some("Parametric curve plot"),
-            "ImplicitPlot" => Some("Implicit equation plot"),
+            "PlotCurve" => Some("Plot curve with configurable sampling kind"),
             "Button" => Some("Interactive button element"),
             _ => None,
         };

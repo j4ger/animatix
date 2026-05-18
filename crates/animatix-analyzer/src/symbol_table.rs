@@ -75,8 +75,7 @@ pub struct ParamInfo {
 const BUILTIN_TYPES: &[&str] = &[
     "Text", "Math", "Code", "Svg", "Image",
     "Rect", "Ellipse", "Line", "Polygon", "Path",
-    "Graph", "CartesianPlot", "PolarPlot",
-    "ParametricPlot", "ImplicitPlot",
+    "Graph", "PlotCurve",
     "Button",
 ];
 
@@ -183,7 +182,7 @@ fn known_properties() -> HashMap<String, Vec<String>> {
         "y_range".to_string(),
         "function".to_string(),
     ]);
-    for graph in &["Graph", "CartesianPlot", "PolarPlot", "ParametricPlot", "ImplicitPlot"] {
+    for graph in &["Graph", "PlotCurve"] {
         map.insert(graph.to_string(), graph_props.clone());
     }
 

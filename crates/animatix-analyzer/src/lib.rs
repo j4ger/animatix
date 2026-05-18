@@ -619,10 +619,7 @@ fn type_documentation(name: &str) -> &str {
         "Polygon" => "Polygon or regular polygon shape.",
         "Path" => "SVG path element.",
         "Graph" => "Function graph.",
-        "CartesianPlot" => "Cartesian coordinate plot.",
-        "PolarPlot" => "Polar coordinate plot.",
-        "ParametricPlot" => "Parametric curve plot.",
-        "ImplicitPlot" => "Implicit equation plot.",
+        "PlotCurve" => "Plot curve with configurable sampling kind.",
         "Button" => "Interactive button element.",
         _ => "Unknown type.",
     }

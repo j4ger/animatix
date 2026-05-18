@@ -221,7 +221,7 @@ Container establishing logical plotting domains and rendering axes.
 ## PlotCurve
 **Status:** Implemented in runtime.
 
-Single-stroke curve plot. The `kind` property selects the sampling strategy. Replaces the legacy `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` primitives (those names are backward-compatible aliases).
+Single-stroke curve plot. The `kind` property selects the sampling strategy.
 
 **Properties:**
 - `kind`: `"cartesian" | "polar" | "parametric" | "implicit"`

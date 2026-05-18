@@ -8,12 +8,12 @@
 use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
-use crate::timeline::plot::ProceduralPlot;
+use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
 use crate::timeline::vello_path::VelloPath;
 
 /// Parameters for building plot curve paths.
 pub(super) struct PlotCurveParams<'a> {
-    pub(super) ty: &'a str,
+    pub(super) kind: PlotCurveKind,
     pub(super) func: &'a Option<(Vec<String>, Box<Expr>)>,
     pub(super) p_x_domain: [f64; 2],
     pub(super) p_y_domain: [f64; 2],
@@ -41,15 +41,15 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             "x".to_string()
         };
 
-        let (min_t, max_t) = if params.ty == "CartesianPlot" {
+        let (min_t, max_t) = if params.kind == PlotCurveKind::Cartesian {
             (params.p_x_domain[0], params.p_x_domain[1])
-        } else if params.ty == "ImplicitPlot" {
+        } else if params.kind == PlotCurveKind::Implicit {
             (0.0, 0.0)
         } else {
             (params.t_domain[0], params.t_domain[1])
         };
 
-        if params.ty == "ImplicitPlot" {
+        if params.kind == PlotCurveKind::Implicit {
             let path = build_implicit_plot_path(
                 &env_copy,
                 args,
@@ -79,9 +79,9 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         } else {
             let start_eval = evaluate_with_binding(&env_copy, &arg_name, min_t, body)
                 .unwrap_or(Value::Num(f64::NAN));
-            let (start_math_x, start_math_y) = if params.ty == "CartesianPlot" {
+            let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
-            } else if params.ty == "ParametricPlot" {
+            } else if params.kind == PlotCurveKind::Parametric {
                 match start_eval {
                     Value::Vec2([x, y]) => (x, y),
                     _ => (f64::NAN, f64::NAN),
@@ -101,9 +101,9 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 
             let end_eval = evaluate_with_binding(&env_copy, &arg_name, max_t, body)
                 .unwrap_or(Value::Num(f64::NAN));
-            let (end_math_x, end_math_y) = if params.ty == "CartesianPlot" {
+            let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
-            } else if params.ty == "ParametricPlot" {
+            } else if params.kind == PlotCurveKind::Parametric {
                 match end_eval {
                     Value::Vec2([x, y]) => (x, y),
                     _ => (f64::NAN, f64::NAN),
@@ -127,7 +127,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let mut pts = vec![p0];
             let mut cache = HashMap::<u64, Value>::new();
 
-            if params.ty == "CartesianPlot" {
+            if params.kind == PlotCurveKind::Cartesian {
                 sample_recursive_cartesian(
                     min_t,
                     max_t,
@@ -145,7 +145,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     &mut cache,
                     &mut pts,
                 );
-            } else if params.ty == "PolarPlot" {
+            } else if params.kind == PlotCurveKind::Polar {
                 sample_recursive_polar(
                     min_t,
                     max_t,
@@ -297,6 +297,7 @@ impl Timeline {
         let mut tolerance = 0.5;
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
+        let mut kind = PlotCurveKind::Cartesian;
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Start with track defaults, override from props.
@@ -443,17 +444,27 @@ impl Timeline {
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
                 }
+                "kind" => {
+                    if let Expr::Str(s) = &prop.value {
+                        if let Some(k) = PlotCurveKind::from_str(s) {
+                            kind = k;
+                        }
+                    } else if let Expr::Ident(s) = &prop.value {
+                        if let Some(k) = PlotCurveKind::from_str(s) {
+                            kind = k;
+                        }
+                    }
+                }
                 _ => {}
             }
         }
 
         // Validate plot func signature if present.
         if let Some((ref args, ref body)) = func {
-            let (expected_arity, expected_ty) = match ty {
-                "CartesianPlot" | "PolarPlot" => (1, "number"),
-                "ParametricPlot" => (1, "vec2"),
-                "ImplicitPlot" => (2, "number"),
-                _ => (1, "number"),
+            let (expected_arity, expected_ty) = match kind {
+                PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
+                PlotCurveKind::Parametric => (1, "vec2"),
+                PlotCurveKind::Implicit => (2, "number"),
             };
             if args.len() != expected_arity {
                 diagnostics.push(
@@ -558,7 +569,7 @@ impl Timeline {
 
             let eval_env = self.build_eval_env(time_ms as u64);
             let curve_params = PlotCurveParams {
-                ty,
+                kind,
                 func: &func,
                 p_x_domain,
                 p_y_domain,
@@ -579,7 +590,7 @@ impl Timeline {
             if let Some((args, body)) = func.as_ref() {
                 if body.references_ident("t") {
                     procedural_plot = Some(ProceduralPlot {
-                        ty: ty.to_string(),
+                        kind,
                         func_args: args.clone(),
                         func_body: (**body).clone(),
                         p_x_domain,

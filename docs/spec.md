@@ -25,7 +25,7 @@
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
-| Plotting | `Graph`, `PlotCurve` | Yes | Runtime-real | Yes | Yes | `PlotCurve` replaces `CartesianPlot`, `PolarPlot`, `ParametricPlot`, `ImplicitPlot` via `kind` property. Old names are backward-compatible aliases. See `examples/plotting_demo.amx` |
+| Plotting | `Graph`, `PlotCurve` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -577,7 +577,7 @@ parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red
 spiral: PlotCurve, kind: "polar", func: (t) => t, color: blue
 ```
 
-The legacy type names `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` are backward-compatible aliases that desugar to `PlotCurve` with the matching `kind`.
+
 
 **Closures:**
 ```animatix

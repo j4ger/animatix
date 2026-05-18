@@ -1386,8 +1386,14 @@ fn test_parametric_plot_builds_runtime_path() {
             modifiers: vec![],
             children: vec![InlineItem::Labeled {
                 label: "curve".to_string(),
-                ty: "ParametricPlot".to_string(),
+                ty: "PlotCurve".to_string(),
                 props: vec![
+                    Property {
+                        name: "kind".to_string(),
+                        value: Expr::Str("parametric".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
                     Property {
                         name: "func".to_string(),
                         value: Expr::Closure(
@@ -1462,8 +1468,14 @@ fn test_implicit_plot_builds_runtime_path() {
             modifiers: vec![],
             children: vec![InlineItem::Labeled {
                 label: "contour".to_string(),
-                ty: "ImplicitPlot".to_string(),
+                ty: "PlotCurve".to_string(),
                 props: vec![
+                    Property {
+                        name: "kind".to_string(),
+                        value: Expr::Str("implicit".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
                     Property {
                         name: "func".to_string(),
                         value: Expr::Closure(
@@ -5740,16 +5752,24 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
             modifiers: vec![],
             children: vec![animatix::ast::InlineItem::Labeled {
                 label: "plot".to_string(),
-                ty: "CartesianPlot".to_string(),
-                props: vec![Property {
-                    name: "func".to_string(),
-                    value: Expr::Closure(
-                        vec!["x".to_string()],
-                        Box::new(Expr::Ident("x".to_string())),
-                    ),
-                    value_span: None,
-                trailing_comment: None,
-                }],
+                ty: "PlotCurve".to_string(),
+                props: vec![
+                    Property {
+                        name: "kind".to_string(),
+                        value: Expr::Str("cartesian".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "func".to_string(),
+                        value: Expr::Closure(
+                            vec!["x".to_string()],
+                            Box::new(Expr::Ident("x".to_string())),
+                        ),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
                 modifiers: vec![],
                 children: vec![],
             }],
@@ -6770,7 +6790,7 @@ fn test_stack_ignores_manual_placement_all_children_at_origin() {
 //   - Math/Code:      Math, Code
 //   - SVG:            Svg
 //   - Image:          Image
-//   - Plot/Graph:     Graph with ParametricPlot child
+//   - Plot/Graph:     Graph with PlotCurve child
 //
 // Layout containers covered:
 //   - Row:            horizontal distribution
@@ -7044,7 +7064,7 @@ fn test_image_in_col_is_layout_managed() {
     assert_ne!(pos1[1], pos2[1], "photos should have distinct Y positions");
 }
 
-/// Verifies Graph with ParametricPlot child can be layout-managed inside a Grid.
+/// Verifies Graph with PlotCurve child can be layout-managed inside a Grid.
 ///
 /// Graph is built using the AST builder pattern with explicit Closure expressions.
 #[test]
@@ -7097,8 +7117,14 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                     modifiers: vec![],
                     children: vec![InlineItem::Labeled {
                         label: "curve".to_string(),
-                        ty: "ParametricPlot".to_string(),
+                        ty: "PlotCurve".to_string(),
                         props: vec![
+                            Property {
+                                name: "kind".to_string(),
+                                value: Expr::Str("parametric".to_string()),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
                             Property {
                                 name: "func".to_string(),
                                 value: Expr::Closure(
@@ -7157,8 +7183,14 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
                     modifiers: vec![],
                     children: vec![InlineItem::Labeled {
                         label: "curve".to_string(),
-                        ty: "ParametricPlot".to_string(),
+                        ty: "PlotCurve".to_string(),
                         props: vec![
+                            Property {
+                                name: "kind".to_string(),
+                                value: Expr::Str("parametric".to_string()),
+                                value_span: None,
+                                trailing_comment: None,
+                            },
                             Property {
                                 name: "func".to_string(),
                                 value: Expr::Closure(

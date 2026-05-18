@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn classifies_plot_primitives() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("CartesianPlot");
+        let descriptor = PrimitiveDescriptor::for_actor_type("PlotCurve");
         assert_eq!(descriptor.family, PrimitiveFamily::Plot);
         assert!(descriptor.capabilities.plot_geometry);
     }

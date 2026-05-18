@@ -31,7 +31,7 @@ Missing primitives for mathematical education use cases. To avoid flooding the p
 | `Graph` | **Keep** — enhanced | Add `grid`, `ticks`, `tick_labels` properties to `Graph`. `NumberPlane` is intentionally **not** a separate primitive; it is a more configurable `Graph`. |
 | `VectorField` | **Add** | Grid-sampled arrows from `(x,y) => (dx,dy)` function. Highest value-add for calculus/physics visualization. |
 | `Heatmap` | **Add** | Pixel-level color mapping from `(x,y) => scalar` function. |
-| `ContourSet` | **Add** | Level-set curves for a scalar function. Bulk-declares multiple `ImplicitPlot`-like curves via a `levels` list. |
+| `ContourSet` | **Add** | Level-set curves for a scalar function. Bulk-declares multiple implicit curves via a `levels` list. |
 
 #### Why not flatten every plot type?
 
@@ -46,7 +46,7 @@ Minimal. The GUI is registry-driven (`actor_kind_registry()`, `find_primitive()`
 - **Palette**: 4 curve-plot buttons become 1 `PlotCurve` button. The inspector exposes `kind` as a dropdown automatically via the property registry.
 - **Icons**: Remove 3 plot-specific icon mappings; `PlotCurve` uses a single icon (`chart-line-up` or a new generic plot-curve icon).
 - **Inspector header**: `shape_type` text will read `"Plot"` for all curve plots. Consider showing the `kind` property value next to it (e.g. `"Plot (polar)"`).
-- **Backward compatibility**: Existing `.amx` files using `CartesianPlot` / `PolarPlot` / `ParametricPlot` / `ImplicitPlot` continue to parse. The parser maps the old type names to `PlotCurve` with the appropriate `kind`.
+
 
 **Effort:** Medium. `PlotCurve` refactor + `Graph` enhancements + 3 new primitives.
 

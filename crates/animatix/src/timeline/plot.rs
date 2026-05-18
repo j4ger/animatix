@@ -36,6 +36,32 @@ use std::collections::HashMap;
 use super::{Environment, EvalError, Value, evaluate_expr};
 use crate::ast::Expr;
 
+// ─────────────────────────────────────────────────────────────
+// Plot curve kind
+// ─────────────────────────────────────────────────────────────
+
+/// Discriminant for the four sampling strategies of `PlotCurve`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlotCurveKind {
+    Cartesian,
+    Polar,
+    Parametric,
+    Implicit,
+}
+
+impl PlotCurveKind {
+    /// Parse a `kind` property value.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "cartesian" => Some(Self::Cartesian),
+            "polar" => Some(Self::Polar),
+            "parametric" => Some(Self::Parametric),
+            "implicit" => Some(Self::Implicit),
+            _ => None,
+        }
+    }
+}
+
 /// Evaluate `body` with `arg_name` bound to `arg_value`, without mutating `env`.
 fn evaluate_with_binding(
     env: &Environment,
@@ -573,7 +599,7 @@ use crate::renderer::types::VelloPath;
 /// All parameters needed to re-sample a plot curve at frame time.
 #[derive(Clone, Debug)]
 pub struct ProceduralPlot {
-    pub ty: String,
+    pub kind: PlotCurveKind,
     pub func_args: Vec<String>,
     pub func_body: Expr,
     pub p_x_domain: [f64; 2],
@@ -598,15 +624,15 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
         "x".to_string()
     };
 
-    let (min_t, max_t) = if plot.ty == "CartesianPlot" {
+    let (min_t, max_t) = if plot.kind == PlotCurveKind::Cartesian {
         (plot.p_x_domain[0], plot.p_x_domain[1])
-    } else if plot.ty == "ImplicitPlot" {
+    } else if plot.kind == PlotCurveKind::Implicit {
         (0.0, 0.0)
     } else {
         (plot.t_domain[0], plot.t_domain[1])
     };
 
-    if plot.ty == "ImplicitPlot" {
+    if plot.kind == PlotCurveKind::Implicit {
         let path = build_implicit_plot_path(
             env,
             &plot.func_args,
@@ -636,9 +662,9 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
     } else {
         let start_eval = evaluate_with_binding(env, &arg_name, min_t, &plot.func_body)
             .unwrap_or(Value::Num(f64::NAN));
-        let (start_math_x, start_math_y) = if plot.ty == "CartesianPlot" {
+        let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (min_t, start_eval.as_num())
-        } else if plot.ty == "ParametricPlot" {
+        } else if plot.kind == PlotCurveKind::Parametric {
             match start_eval {
                 Value::Vec2([x, y]) => (x, y),
                 _ => (f64::NAN, f64::NAN),
@@ -658,9 +684,9 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
 
         let end_eval = evaluate_with_binding(env, &arg_name, max_t, &plot.func_body)
             .unwrap_or(Value::Num(f64::NAN));
-        let (end_math_x, end_math_y) = if plot.ty == "CartesianPlot" {
+        let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (max_t, end_eval.as_num())
-        } else if plot.ty == "ParametricPlot" {
+        } else if plot.kind == PlotCurveKind::Parametric {
             match end_eval {
                 Value::Vec2([x, y]) => (x, y),
                 _ => (f64::NAN, f64::NAN),
@@ -684,7 +710,7 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
         let mut pts = vec![p0];
         let mut cache = HashMap::<u64, Value>::new();
 
-        if plot.ty == "CartesianPlot" {
+        if plot.kind == PlotCurveKind::Cartesian {
             sample_recursive_cartesian(
                 min_t,
                 max_t,
@@ -702,7 +728,7 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
                 &mut cache,
                 &mut pts,
             );
-        } else if plot.ty == "PolarPlot" {
+        } else if plot.kind == PlotCurveKind::Polar {
             sample_recursive_polar(
                 min_t,
                 max_t,

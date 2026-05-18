@@ -41,7 +41,7 @@ impl std::str::FromStr for ShapeType {
             "Polygon" => Ok(Self::Polygon),
             "Path" => Ok(Self::Path),
             "Graph" => Ok(Self::Graph),
-            "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => Ok(Self::Plot),
+            "PlotCurve" => Ok(Self::Plot),
             _ => Err(()),
         }
     }
@@ -256,7 +256,7 @@ pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
 
     match ty {
         "Graph" => Some(ShapeType::Graph),
-        "CartesianPlot" | "PolarPlot" | "ParametricPlot" | "ImplicitPlot" => Some(ShapeType::Plot),
+        "PlotCurve" => Some(ShapeType::Plot),
         _ => None,
     }
 }

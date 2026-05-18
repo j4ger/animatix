@@ -415,7 +415,7 @@ Not every visual variation needs its own primitive. The rule of thumb:
 - **Same property schema + same rendering path + only internal sampling logic differs** → use a single primitive with a `kind` property.
 - **Different property schema or fundamentally different rendering** → separate primitive.
 
-**Example — plot curves:** `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` all expose `func`, `x_domain`, `y_domain`, `t_domain`, `tolerance`, `max_depth`, and `resolution`. They differ only in how the closure is sampled. These are merged into `PlotCurve` with a `kind` property. This keeps `ActorKindId` lean and avoids `PROPERTY_REGISTRY` bloat.
+**Example — plot curves:** The former `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` primitives all exposed `func`, `x_domain`, `y_domain`, `t_domain`, `tolerance`, `max_depth`, and `resolution`. They differed only in how the closure was sampled. These were merged into `PlotCurve` with a `kind` property. This keeps `ActorKindId` lean and avoids `PROPERTY_REGISTRY` bloat.
 
 **Counter-example — `VectorField`:** It exposes `func` that returns a 2-D vector, plus `density` / `grid_size`, and renders arrows rather than a single stroke path. It stays as a separate primitive.
 
