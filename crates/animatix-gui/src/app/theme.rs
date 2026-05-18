@@ -61,11 +61,11 @@ pub const RADIUS_L: f32 = 6.0;
 pub const RADIUS_XL: f32 = 8.0;
 
 // ── Typography ──
-pub const FONT_SIZE_XS: f32 = 9.0;
-pub const FONT_SIZE_S: f32 = 10.0;
-pub const FONT_SIZE_M: f32 = 11.0;
-pub const FONT_SIZE_L: f32 = 12.0;
-pub const FONT_SIZE_XL: f32 = 14.0;
+pub const FONT_SIZE_XS: f32 = 10.0;
+pub const FONT_SIZE_S: f32 = 12.0;
+pub const FONT_SIZE_M: f32 = 13.0;
+pub const FONT_SIZE_L: f32 = 15.0;
+pub const FONT_SIZE_XL: f32 = 18.0;
 
 // ── Inspector Layout ──
 /// Width of the keyframe indicator column (px).

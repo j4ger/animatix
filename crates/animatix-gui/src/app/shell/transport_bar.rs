@@ -61,7 +61,7 @@ pub(crate) fn transport_bar_ui(
                 // Skip back
                 let prev_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::SKIP_BACK)
-                        .size(13.0)
+                        .size(FONT_SIZE_M)
                         .color(TEXT_MUTED),
                 )
                 .fill(Color32::TRANSPARENT)
@@ -78,7 +78,7 @@ pub(crate) fn transport_bar_ui(
                 // Skip forward
                 let next_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::SKIP_FORWARD)
-                        .size(13.0)
+                        .size(FONT_SIZE_M)
                         .color(TEXT_MUTED),
                 )
                 .fill(Color32::TRANSPARENT)
@@ -96,7 +96,7 @@ pub(crate) fn transport_bar_ui(
                     // Scene navigation
                     let prev_scene_btn = egui::Button::new(
                         RichText::new(egui_phosphor::regular::CARET_LEFT)
-                            .size(13.0)
+                            .size(FONT_SIZE_M)
                             .color(TEXT_MUTED),
                     )
                     .fill(Color32::TRANSPARENT)
@@ -112,7 +112,7 @@ pub(crate) fn transport_bar_ui(
 
                     let next_scene_btn = egui::Button::new(
                         RichText::new(egui_phosphor::regular::CARET_RIGHT)
-                            .size(13.0)
+                            .size(FONT_SIZE_M)
                             .color(TEXT_MUTED),
                     )
                     .fill(Color32::TRANSPARENT)

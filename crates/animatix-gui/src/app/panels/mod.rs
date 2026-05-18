@@ -409,7 +409,7 @@ impl WorkspaceViewer<'_> {
                 if ui
                     .button(
                         RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                            .size(12.0)
+                            .size(FONT_SIZE_L)
                             .color(ACCENT_BLUE),
                     )
                     .clicked()
@@ -500,7 +500,7 @@ self.selected_actors,
                         handle_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         egui_phosphor::regular::DOTS_SIX_VERTICAL,
-                        egui::FontId::new(10.0, egui::FontFamily::Proportional),
+                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
                         if handle_response.hovered() { TEXT_SECONDARY } else { TEXT_MUTED },
                     );
                     ui.add_space(handle_width);
