@@ -718,7 +718,12 @@ impl Timeline {
     ) -> Vec<VelloPath> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if primitive.is_graph_host() {
-            return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color);
+            return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color, false, false);
+        }
+
+        // VectorField, Heatmap, ContourSet are build-time only; no runtime re-evaluation.
+        if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" {
+            return vec![];
         }
 
         if primitive.is_plot_curve() {

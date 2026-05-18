@@ -210,13 +210,16 @@ guide: Path, commands: {
 ## Graph
 **Status:** Implemented in runtime.
 
-Container establishing logical plotting domains and rendering axes.
+Container establishing logical plotting domains and rendering axes. Supports optional grid lines and ticks.
 
 **Properties:**
 - `x_domain`: Tuple `(min, max)`
 - `y_domain`: Tuple `(min, max)`
 - `size`: Tuple `(width, height)`
 - `at`: Tuple `(x, y)`
+- `grid`: Boolean — draw grid lines at regular intervals
+- `ticks`: Boolean — draw tick marks on axes
+- `tick_labels`: Boolean — draw numeric labels at ticks (not yet implemented)
 
 ## PlotCurve
 **Status:** Implemented in runtime.
@@ -239,9 +242,49 @@ Single-stroke curve plot. The `kind` property selects the sampling strategy.
 - `max_depth`: Number — max recursion depth for adaptive sampling
 - `resolution`: Number — sampling grid resolution for `"implicit"`
 
+## VectorField
+**Status:** Implemented in runtime.
+
+Grid-sampled vector field rendered as arrows.
+
+**Properties:**
+- `func`: Closure `(x, y) => (dx, dy)` — returns a vector at each point
+- `density`: Number — grid resolution (default 16)
+- `x_domain`: Tuple `(min, max)`
+- `y_domain`: Tuple `(min, max)`
+- `size`: Tuple `(width, height)`
+- `color` / `stroke`: Color
+
+## Heatmap
+**Status:** Implemented in runtime.
+
+Pixel-level scalar field visualization using colored rectangles.
+
+**Properties:**
+- `func`: Closure `(x, y) => scalar`
+- `resolution`: Number — grid resolution (default 64)
+- `x_domain`: Tuple `(min, max)`
+- `y_domain`: Tuple `(min, max)`
+- `size`: Tuple `(width, height)`
+- `color`: Color — used as the "hot" color (alpha varies by scalar value)
+
+## ContourSet
+**Status:** Implemented in runtime.
+
+Multiple level-set curves for a scalar function.
+
+**Properties:**
+- `func`: Closure `(x, y) => scalar`
+- `levels`: Tuple of numbers — e.g. `(-2, 0, 2)`
+- `resolution`: Number — sampling grid resolution (default 96)
+- `x_domain`: Tuple `(min, max)`
+- `y_domain`: Tuple `(min, max)`
+- `size`: Tuple `(width, height)`
+- `color` / `stroke`: Color
+
 **Example:**
 ```animatix
-graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300) {
+graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300), grid: true, ticks: true {
   parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red, width: 2,
   rose: PlotCurve, kind: "polar", func: (t) => 3 * sin(4 * t), t_domain: (0, 6), stroke: green, width: 2
 }

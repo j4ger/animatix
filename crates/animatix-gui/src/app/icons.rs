@@ -97,6 +97,8 @@ fn phosphor_icon(id: &str) -> &'static str {
         "chart-polar" => egui_phosphor::regular::CHART_POLAR,
         "chart-scatter" => egui_phosphor::regular::CHART_SCATTER,
         "chart-donut" => egui_phosphor::regular::CHART_DONUT,
+        "arrows-out-cardinal" => egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+        "gradient" => egui_phosphor::regular::GRADIENT,
         "rows" => egui_phosphor::regular::ROWS,
         "columns" => egui_phosphor::regular::COLUMNS,
         "squares-four" => egui_phosphor::regular::SQUARES_FOUR,

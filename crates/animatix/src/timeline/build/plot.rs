@@ -218,44 +218,140 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
     vello_paths
 }
 
-/// Build graph axis VelloPaths (X and Y axes).
+/// Build graph axis VelloPaths (X and Y axes, optional grid and ticks).
 /// Omits an axis entirely when zero is not in its domain.
 pub(super) fn build_graph_axis_paths(
     size: [f32; 2],
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     axis_color: [f32; 4],
+    grid: bool,
+    ticks: bool,
 ) -> Vec<VelloPath> {
-    let mut path = kurbo::BezPath::new();
+    let mut paths = Vec::new();
+    let mut axis_path = kurbo::BezPath::new();
 
     // X-axis: drawn only when y=0 is inside the y_domain
-    if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-        let x_axis_y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
-        path.move_to((-(size[0] as f64), x_axis_y));
-        path.line_to((size[0] as f64, x_axis_y));
-    }
+    let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+        let y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
+        axis_path.move_to((-(size[0] as f64), y));
+        axis_path.line_to((size[0] as f64, y));
+        Some(y)
+    } else {
+        None
+    };
 
     // Y-axis: drawn only when x=0 is inside the x_domain
-    if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-        let y_axis_x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
-        path.move_to((y_axis_x, -(size[1] as f64)));
-        path.line_to((y_axis_x, size[1] as f64));
+    let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+        let x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
+        axis_path.move_to((x, -(size[1] as f64)));
+        axis_path.line_to((x, size[1] as f64));
+        Some(x)
+    } else {
+        None
+    };
+
+    if !axis_path.elements().is_empty() {
+        paths.push(VelloPath {
+            path: axis_path,
+            fill: None,
+            stroke: Some((vello::peniko::Color::from_rgba8(
+                (axis_color[0] * 255.0) as u8,
+                (axis_color[1] * 255.0) as u8,
+                (axis_color[2] * 255.0) as u8,
+                (axis_color[3] * 255.0) as u8,
+            ), 2.0)),
+        });
     }
 
-    if path.elements().is_empty() {
-        return Vec::new();
+    // Grid lines
+    if grid {
+        let mut grid_path = kurbo::BezPath::new();
+        let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
+        let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
+
+        // Vertical grid lines
+        let mut x = (x_domain[0] / x_step).ceil() * x_step;
+        while x <= x_domain[1] {
+            if x != 0.0 {
+                let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                grid_path.move_to((screen_x, -(size[1] as f64)));
+                grid_path.line_to((screen_x, size[1] as f64));
+            }
+            x += x_step;
+        }
+
+        // Horizontal grid lines
+        let mut y = (y_domain[0] / y_step).ceil() * y_step;
+        while y <= y_domain[1] {
+            if y != 0.0 {
+                let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                grid_path.move_to((-(size[0] as f64), screen_y));
+                grid_path.line_to((size[0] as f64, screen_y));
+            }
+            y += y_step;
+        }
+
+        if !grid_path.elements().is_empty() {
+            paths.push(VelloPath {
+                path: grid_path,
+                fill: None,
+                stroke: Some((vello::peniko::Color::from_rgba8(
+                    (axis_color[0] * 255.0) as u8,
+                    (axis_color[1] * 255.0) as u8,
+                    (axis_color[2] * 255.0) as u8,
+                    (axis_color[3] * 255.0) as u8 / 4,
+                ), 1.0)),
+            });
+        }
     }
 
-    vec![VelloPath {
-        path,
-        fill: None,
-        stroke: Some((vello::peniko::Color::from_rgba8(
-            (axis_color[0] * 255.0) as u8,
-            (axis_color[1] * 255.0) as u8,
-            (axis_color[2] * 255.0) as u8,
-            (axis_color[3] * 255.0) as u8,
-        ), 2.0)),
-    }]
+    // Tick marks
+    if ticks {
+        let mut tick_path = kurbo::BezPath::new();
+        let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
+        let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
+        let tick_len = 4.0;
+
+        if let Some(y) = x_axis_y {
+            let mut x = (x_domain[0] / x_step).ceil() * x_step;
+            while x <= x_domain[1] {
+                if x != 0.0 {
+                    let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                    tick_path.move_to((screen_x, y - tick_len));
+                    tick_path.line_to((screen_x, y + tick_len));
+                }
+                x += x_step;
+            }
+        }
+
+        if let Some(x) = y_axis_x {
+            let mut y = (y_domain[0] / y_step).ceil() * y_step;
+            while y <= y_domain[1] {
+                if y != 0.0 {
+                    let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                    tick_path.move_to((x - tick_len, screen_y));
+                    tick_path.line_to((x + tick_len, screen_y));
+                }
+                y += y_step;
+            }
+        }
+
+        if !tick_path.elements().is_empty() {
+            paths.push(VelloPath {
+                path: tick_path,
+                fill: None,
+                stroke: Some((vello::peniko::Color::from_rgba8(
+                    (axis_color[0] * 255.0) as u8,
+                    (axis_color[1] * 255.0) as u8,
+                    (axis_color[2] * 255.0) as u8,
+                    (axis_color[3] * 255.0) as u8,
+                ), 1.5)),
+            });
+        }
+    }
+
+    paths
 }
 
 impl Timeline {
@@ -298,6 +394,10 @@ impl Timeline {
         let mut max_depth = 10.0;
         let mut resolution = 96.0;
         let mut kind = PlotCurveKind::Cartesian;
+        let mut density = 16.0;
+        let mut levels: Vec<f64> = vec![];
+        let mut grid = false;
+        let mut ticks = false;
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Start with track defaults, override from props.
@@ -444,6 +544,54 @@ impl Timeline {
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
                 }
+                "density" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(16.0));
+                    density = v.as_num().max(2.0).round();
+                }
+                "levels" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    match v {
+                        Value::List(items) => {
+                            levels = items.iter().map(|item| item.as_num()).collect();
+                        }
+                        Value::Num(n) => {
+                            levels.push(n);
+                        }
+                        _ => {}
+                    }
+                }
+                "grid" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    grid = v.as_bool();
+                }
+                "ticks" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    ticks = v.as_bool();
+                }
                 "kind" => {
                     if let Expr::Str(s) = &prop.value {
                         if let Some(k) = PlotCurveKind::from_str(s) {
@@ -459,8 +607,12 @@ impl Timeline {
             }
         }
 
-        // Validate plot func signature if present.
+        // Validate plot func signature if present (skip for multi-arg plot types).
+        let is_vector_field = ty == "VectorField";
+        let is_heatmap = ty == "Heatmap";
+        let is_contour_set = ty == "ContourSet";
         if let Some((ref args, ref body)) = func {
+            if !is_vector_field && !is_heatmap && !is_contour_set {
             let (expected_arity, expected_ty) = match kind {
                 PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
                 PlotCurveKind::Parametric => (1, "vec2"),
@@ -518,7 +670,8 @@ impl Timeline {
                     );
                 }
             }
-        }
+            } // end inner if (graph host/plot_curve only validation)
+        } // end func validation guard for plot_curve types only
 
         if primitive.is_graph_host() {
             self.env
@@ -550,7 +703,55 @@ impl Timeline {
         let mut procedural_plot = None;
 
         if primitive.is_graph_host() {
-            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color);
+            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color, grid, ticks);
+        } else if is_vector_field {
+            let eval_env = self.build_eval_env(time_ms as u64);
+            if let Some((args, body)) = func.as_ref() {
+                let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                vello_paths = build_vector_field_paths(
+                    &eval_env,
+                    args,
+                    body,
+                    x_domain,
+                    y_domain,
+                    full_size,
+                    density as usize,
+                    stroke_color,
+                    stroke_width,
+                );
+            }
+        } else if is_heatmap {
+            let eval_env = self.build_eval_env(time_ms as u64);
+            if let Some((args, body)) = func.as_ref() {
+                let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                vello_paths = build_heatmap_paths(
+                    &eval_env,
+                    args,
+                    body,
+                    x_domain,
+                    y_domain,
+                    full_size,
+                    resolution.max(2.0).round() as usize,
+                    color,
+                );
+            }
+        } else if is_contour_set {
+            let eval_env = self.build_eval_env(time_ms as u64);
+            if let Some((args, body)) = func.as_ref() {
+                let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                vello_paths = build_contour_set_paths(
+                    &eval_env,
+                    args,
+                    body,
+                    &levels,
+                    x_domain,
+                    y_domain,
+                    full_size,
+                    resolution.max(8.0) as usize,
+                    stroke_color,
+                    stroke_width,
+                );
+            }
         } else if primitive.is_plot_curve() {
             let p_label = parent_label.unwrap_or("").to_string();
             let mut p_x_domain = [-10.0, 10.0];
@@ -634,4 +835,260 @@ fn evaluate_with_binding(
     let mut local_env = env.clone();
     local_env.set(arg_name, Value::Num(arg_value));
     evaluate_expr(body, &local_env)
+}
+
+// ── Helpers for VectorField, Heatmap, ContourSet ────────────────────────
+
+/// Transform math coordinates to screen coordinates.
+/// `full_size` is the full width/height of the plot area (not half-size).
+fn math_to_screen(
+    x: f64,
+    y: f64,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    full_size: [f64; 2],
+) -> (f64, f64) {
+    let sx = -(full_size[0] / 2.0)
+        + full_size[0] * ((x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+    let sy = (full_size[1] / 2.0)
+        - full_size[1] * ((y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+    (sx, sy)
+}
+
+/// Evaluate a scalar field func at (x,y).
+fn evaluate_scalar_field(
+    env: &Environment,
+    arg_names: &[String],
+    body: &Expr,
+    x: f64,
+    y: f64,
+) -> f64 {
+    let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
+    let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
+    let mut local_env = env.clone();
+    local_env.set(x_name, Value::Num(x));
+    local_env.set(y_name, Value::Num(y));
+    evaluate_expr(body, &local_env)
+        .unwrap_or(Value::Num(f64::NAN))
+        .as_num()
+}
+
+/// Evaluate a vector field func at (x,y), returning (dx, dy).
+fn evaluate_vec2_field(
+    env: &Environment,
+    arg_names: &[String],
+    body: &Expr,
+    x: f64,
+    y: f64,
+) -> [f64; 2] {
+    let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
+    let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
+    let mut local_env = env.clone();
+    local_env.set(x_name, Value::Num(x));
+    local_env.set(y_name, Value::Num(y));
+    match evaluate_expr(body, &local_env).unwrap_or(Value::Vec2([0.0, 0.0])) {
+        Value::Vec2(v) => v,
+        Value::Num(n) => [n, 0.0],
+        _ => [0.0, 0.0],
+    }
+}
+
+/// Build VelloPaths for a VectorField.
+///
+/// Samples `func` on a `density × density` grid within x_domain/y_domain,
+/// evaluates each sample to get (dx, dy), and draws arrows with a scale
+/// that prevents overlap.
+fn build_vector_field_paths(
+    env: &Environment,
+    arg_names: &[String],
+    body: &Expr,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    full_size: [f64; 2],
+    density: usize,
+    stroke_color: [f32; 4],
+    stroke_width: f32,
+) -> Vec<VelloPath> {
+    let dx_domain = x_domain[1] - x_domain[0];
+    let dy_domain = y_domain[1] - y_domain[0];
+    let cell_w = full_size[0] / density as f64;
+    let cell_h = full_size[1] / density as f64;
+    let base_scale = cell_w.min(cell_h) * 0.4;
+
+    let mut path = kurbo::BezPath::new();
+
+    for yi in 0..density {
+        for xi in 0..density {
+            let x_frac = (xi as f64 + 0.5) / density as f64;
+            let y_frac = (yi as f64 + 0.5) / density as f64;
+            let math_x = x_domain[0] + x_frac * dx_domain;
+            let math_y = y_domain[0] + y_frac * dy_domain;
+
+            let [dx, dy] = evaluate_vec2_field(env, arg_names, body, math_x, math_y);
+
+            let (sx, sy) = math_to_screen(math_x, math_y, x_domain, y_domain, full_size);
+
+            // Scale so the arrow fits within a cell (clamp denominator >= 1)
+            let denom = dx.abs().max(dy.abs()).max(1.0);
+            let scale = base_scale / denom;
+
+            // dy is inverted because screen Y points down
+            let ex = sx + dx * scale;
+            let ey = sy - dy * scale;
+
+            path.move_to((sx, sy));
+            path.line_to((ex, ey));
+        }
+    }
+
+    let c = vello::peniko::Color::from_rgba8(
+        (stroke_color[0] * 255.0) as u8,
+        (stroke_color[1] * 255.0) as u8,
+        (stroke_color[2] * 255.0) as u8,
+        (stroke_color[3] * 255.0) as u8,
+    );
+
+    vec![VelloPath {
+        path,
+        fill: None,
+        stroke: if stroke_width > 0.0 {
+            Some((c, stroke_width))
+        } else {
+            None
+        },
+    }]
+}
+
+/// Build VelloPaths for a Heatmap.
+///
+/// Samples `func` on a `resolution × resolution` grid, normalizes each
+/// sample to [0,1] across the min/max range, and draws filled rectangles
+/// at varying alpha using the actor's `color`.
+fn build_heatmap_paths(
+    env: &Environment,
+    arg_names: &[String],
+    body: &Expr,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    full_size: [f64; 2],
+    resolution: usize,
+    color: [f32; 4],
+) -> Vec<VelloPath> {
+    let res = resolution.max(2);
+    let x_step = (x_domain[1] - x_domain[0]) / res as f64;
+    let y_step = (y_domain[1] - y_domain[0]) / res as f64;
+
+    // Sample the function on a grid
+    let mut values = vec![vec![0.0f64; res]; res];
+    let mut min_val = f64::MAX;
+    let mut max_val = f64::MIN;
+
+    for yi in 0..res {
+        for xi in 0..res {
+            let math_x = x_domain[0] + (xi as f64 + 0.5) * x_step;
+            let math_y = y_domain[0] + (yi as f64 + 0.5) * y_step;
+
+            let val = evaluate_scalar_field(env, arg_names, body, math_x, math_y);
+            values[yi][xi] = val;
+            if val.is_finite() {
+                min_val = min_val.min(val);
+                max_val = max_val.max(val);
+            }
+        }
+    }
+
+    let range = (max_val - min_val).max(1e-10);
+    let mut vello_paths = Vec::with_capacity(res * res);
+
+    let cr = (color[0] * 255.0) as u8;
+    let cg = (color[1] * 255.0) as u8;
+    let cb = (color[2] * 255.0) as u8;
+
+    for yi in 0..res {
+        for xi in 0..res {
+            let normalized = ((values[yi][xi] - min_val) / range).clamp(0.0, 1.0);
+            let alpha = (normalized * 255.0) as u8;
+
+            // Compute cell screen coordinates
+            let sx0 = -(full_size[0] / 2.0) + full_size[0] * xi as f64 / res as f64;
+            let sx1 = -(full_size[0] / 2.0) + full_size[0] * (xi as f64 + 1.0) / res as f64;
+            let sy0 = (full_size[1] / 2.0) - full_size[1] * (yi as f64 + 1.0) / res as f64;
+            let sy1 = (full_size[1] / 2.0) - full_size[1] * yi as f64 / res as f64;
+
+            // Compute cell screen coordinates
+            let mut bp = kurbo::BezPath::new();
+            bp.move_to(kurbo::Point::new(sx0, sy0));
+            bp.line_to(kurbo::Point::new(sx1, sy0));
+            bp.line_to(kurbo::Point::new(sx1, sy1));
+            bp.line_to(kurbo::Point::new(sx0, sy1));
+            bp.close_path();
+
+            vello_paths.push(VelloPath {
+                path: bp,
+                fill: Some(vello::peniko::Color::from_rgba8(cr, cg, cb, alpha)),
+                stroke: None,
+            });
+        }
+    }
+
+    vello_paths
+}
+
+/// Build VelloPaths for a ContourSet.
+///
+/// For each level value, constructs `func(x,y) - level` and delegates to
+/// `build_implicit_plot_path` to trace the zero-contour.  Each level
+/// produces one stroked path.
+fn build_contour_set_paths(
+    env: &Environment,
+    arg_names: &[String],
+    body: &Expr,
+    levels: &[f64],
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    full_size: [f64; 2],
+    resolution: usize,
+    stroke_color: [f32; 4],
+    stroke_width: f32,
+) -> Vec<VelloPath> {
+    let c = vello::peniko::Color::from_rgba8(
+        (stroke_color[0] * 255.0) as u8,
+        (stroke_color[1] * 255.0) as u8,
+        (stroke_color[2] * 255.0) as u8,
+        (stroke_color[3] * 255.0) as u8,
+    );
+    let mut paths = Vec::new();
+
+    for &level in levels {
+        // Build `func(x,y) - level` expression for the implicit solver
+        let modified_body = Expr::Binary(
+            Box::new((*body).clone()),
+            crate::ast::BinaryOp::Sub,
+            Box::new(crate::ast::Expr::Num(level)),
+        );
+
+        let bez_path = build_implicit_plot_path(
+            env,
+            arg_names,
+            &modified_body,
+            &x_domain,
+            &y_domain,
+            &full_size,
+            resolution,
+        );
+
+        if !bez_path.elements().is_empty() {
+            paths.push(VelloPath {
+                path: bez_path,
+                fill: None,
+                stroke: if stroke_width > 0.0 {
+                    Some((c, stroke_width))
+                } else {
+                    None
+                },
+            });
+        }
+    }
+
+    paths
 }

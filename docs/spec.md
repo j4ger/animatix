@@ -25,7 +25,7 @@
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
-| Plotting | `Graph`, `PlotCurve` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
+| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -578,6 +578,21 @@ spiral: PlotCurve, kind: "polar", func: (t) => t, color: blue
 ```
 
 
+
+**`VectorField`**: Grid-sampled arrows from `(x, y) => (dx, dy)`.
+```animatix
+field: VectorField, func: (x, y) => (y, -x), density: 12, color: accent.primary
+```
+
+**`Heatmap`**: Scalar field visualization with color-mapped rectangles.
+```animatix
+heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 32, color: red
+```
+
+**`ContourSet`**: Multiple level-set curves for a scalar function.
+```animatix
+contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 96, color: blue
+```
 
 **Closures:**
 ```animatix
