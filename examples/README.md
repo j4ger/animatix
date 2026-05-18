@@ -7,7 +7,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 | Demo | Duration | Feature Focus |
 |---|---|---|
 | `showcase.amx` | ~10s | **Hero/overview** — layout, animation, primitives, composition |
-| `primitives.amx` | ~5s | **Shape primitives** — Rect, Circle, Ellipse, Line, Arc, Polygon, Path, Arrow |
+| `primitives.amx` | ~5s | **Shape primitives** — Rect, Ellipse, Line, Polygon, Path |
 | `layout.amx` | ~5s | **Layout containers** — Row, Col, Grid, Stack, anchors, offsets |
 | `animation.amx` | ~6s | **Animation actions** — fade, shift, rotate, scale, morph, sequence, stagger |
 | `effects_demo.amx` | ~8s | **Effect actions** — shake, pulse, bounce, combined effect passes |
@@ -41,7 +41,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 - **`showcase.amx`** — Combined hero scene with layout + animation + primitives
 
 ### Primitives & Media
-- **`primitives.amx`** — All shapes: `Rect`, `Circle`, `Ellipse`, `Line`, `Arc`, `Polygon`, `Path`, `Arrow`, `Text`, `Math`, `Code`, `Image`, `Svg`
+- **`primitives.amx`** — All shapes: `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, `Text`, `Math`, `Code`, `Image`, `Svg`
 - **`rotation_demo.amx`** — `angle` property for rotating primitives
 - **`path_animation_demo.amx`** — Morphing `Polygon.points` over time
 

@@ -4,10 +4,7 @@ use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderC
 use crate::timeline::{
     kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath,
 };
-use crate::timeline::{
-    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
-    Environment, Value,
-};
+use crate::timeline::Environment;
 
 pub struct RectPrimitive;
 pub const RECT: RectPrimitive = RectPrimitive;
@@ -99,24 +96,13 @@ impl Primitive for RectPrimitive {
 
     fn apply_property(
         &self,
-        name: &str,
-        value: &Expr,
-        env: &Environment,
-        diagnostics: &mut Vec<Diagnostic>,
-        subject: &str,
-        state: &mut VectorShapeState,
+        _name: &str,
+        _value: &Expr,
+        _env: &Environment,
+        _diagnostics: &mut Vec<Diagnostic>,
+        _subject: &str,
+        _state: &mut VectorShapeState,
     ) -> bool {
-        if name != "side" {
-            return false;
-        }
-        let VectorShapeState::Rect(rect) = state else {
-            return false;
-        };
-        // Square compat: side sets both axes
-        let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-            .unwrap_or(Value::Num(rect.size[0] as f64 * 2.0));
-        let side = v.as_num() as f32;
-        rect.size = [side / 2.0, side / 2.0];
-        true
+        false
     }
 }

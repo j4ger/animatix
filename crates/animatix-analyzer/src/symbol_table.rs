@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 pub struct SymbolTable {
     /// All labels defined in the file (actor labels, let bindings).
     pub labels: HashMap<String, LabelInfo>,
-    /// Built-in types: Text, Math, Circle, etc.
+    /// Built-in types: Text, Math, Ellipse, etc.
     pub types: HashSet<String>,
     /// Components defined in this file.
     pub components: HashMap<String, ComponentInfo>,

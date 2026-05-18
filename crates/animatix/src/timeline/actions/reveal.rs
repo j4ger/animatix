@@ -445,8 +445,11 @@ mod tests {
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
-                    name: "radius".to_string(),
-                    value: crate::ast::Expr::Num(40.0),
+                    name: "size".to_string(),
+                    value: crate::ast::Expr::Tuple(vec![
+                        crate::ast::Expr::Num(80.0),
+                        crate::ast::Expr::Num(80.0),
+                    ]),
                     value_span: None,
                 trailing_comment: None,
                 },

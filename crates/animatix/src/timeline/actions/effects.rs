@@ -301,8 +301,8 @@ mod tests {
             label: label.to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
-                name: "radius".to_string(),
-                value: Expr::Num(20.0),
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                 value_span: None,
             trailing_comment: None,
             }],

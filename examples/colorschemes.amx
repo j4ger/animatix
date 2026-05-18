@@ -6,14 +6,14 @@ config { colorscheme: "editorial-dark" }
 label: Text, text: "Auto colors (left) vs explicit override (right)", font_size: 20, color: text.primary, anchor: scene.top, offset: (0, 120)
 
 row: Row, anchor: scene.center, offset: (0, -20), gap: 50, align: "center" {
-  auto1: Ellipse, radius: 32
-  auto2: Ellipse, radius: 32
-  auto3: Ellipse, radius: 32
+  auto1: Ellipse, size: (64, 64)
+  auto2: Ellipse, size: (64, 64)
+  auto3: Ellipse, size: (64, 64)
 }
 
-override: Ellipse, radius: 24, color: accent.warning, at: (640, 520)
+override: Ellipse, size: (48, 48), color: accent.warning, at: (640, 520)
 
 #1.5s
-auto1.radius = 48 [700ms, ease: ease-in-out]
+auto1.size = (96, 96) [700ms, ease: ease-in-out]
 auto2.color = accent.success [700ms, ease: ease-in-out]
 auto3.color = accent.danger [700ms, ease: ease-in-out]

@@ -143,7 +143,7 @@ Colorscheme v1 surface:
 config { colorscheme: "editorial-dark" }
 title: Text, text: "Hello"           // color: text.primary
 panel: Rect, size: (200, 100)       // color: surface.primary
-badge: Ellipse, radius: 20, color: auto
+badge: Ellipse, size: (40, 40), color: auto
 ```
 
 `Colorscheme` primitive with `extends` inheritance is supported. See [`architecture.md`](architecture.md) §Colorscheme System.
@@ -361,7 +361,7 @@ row: Row, gap: 12, padding: 20, align: "center" {
 **Path commands:** `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`
 
 ```animatix
-arc: Ellipse, radius_x: 50, radius_y: 50, start_angle: 0, sweep_angle: 3.14
+circle: Ellipse, size: (100, 100)
 poly: Polygon, points: [(0,0), (100,0), (50,100)]
 path: Path, commands: [move_to(0, 0), line_to(100, 100), close()]
 img: Image, url: "photo.png", at: (100, 100), size: (200, 150)
@@ -454,7 +454,7 @@ Re-export chains are resolved transitively. Values are evaluated at build time i
 pub component MetricCard(title: "Metric") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text { text: title, at: (0, -20) }
-    badge: Ellipse, radius: 12, color: gold
+    badge: Ellipse, size: (24, 24), color: gold
 }
 ```
 
@@ -591,10 +591,10 @@ spiral: PolarPlot, func: (t) => t, color: blue
 **Assignment targets** resolve to runtime actors; final segment = property name.
 ```animatix
 left.badge.color = red
-right.frame.radius = 20
+right.frame.size = (40, 40)
 ```
 
-**Seeded property paths:** `node.at`, `node.radius`, `node.color`, `scene.background_color`, `node.at.x`, `node.at.y`, `node.color.r/g/b/a`.
+**Seeded property paths:** `node.at`, `node.size`, `node.color`, `scene.background_color`, `node.at.x`, `node.at.y`, `node.color.r/g/b/a`.
 
 **Unresolved rhs paths** report build diagnostics; host property keeps its default/fallback value.
 

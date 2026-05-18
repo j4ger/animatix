@@ -20,7 +20,7 @@ rectangular: Rect, size: (120, 40), color: accent.success, at: (640, 360)
 rect_label: Text, text: "Rectangle (bar)", font_size: 18, color: text.secondary, at: (640, 280)
 
 // Rotating polygon - star that rotates
-star_polygon: Polygon, sides: 5, radius: 60, color: accent.warning, at: (960, 360)
+star_polygon: Polygon, points: ((60, 0), (18.54, 57.07), (-48.54, 35.27), (-48.54, -35.27), (18.54, -57.07)), color: accent.warning, at: (960, 360)
 polygon_label: Text, text: "Polygon (5-point star)", font_size: 18, color: text.secondary, at: (960, 280)
 
 // Status/status bar
@@ -28,13 +28,13 @@ status: Text, text: "Demonstrating primitive rotation via property assignment", 
 
 // Buttons to trigger rotations
 controls: Row, anchor: scene.bottom, offset: (0, -200), gap: 60, align: "center" {
-  trigger_elliptical: Rect, size: (180, 44), color: accent.primary, radius: 22
+  trigger_elliptical: Rect, size: (180, 44), color: accent.primary
     trigger_ell_text: Text, text: "Rotate Ellipse", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
 
-  trigger_rect: Rect, size: (180, 44), color: accent.success, radius: 22
+  trigger_rect: Rect, size: (180, 44), color: accent.success
     trigger_rect_text: Text, text: "Rotate Rectangle", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
 
-  trigger_star: Rect, size: (180, 44), color: accent.warning, radius: 22
+  trigger_star: Rect, size: (180, 44), color: accent.warning
     trigger_star_text: Text, text: "Rotate Star", font_size: 16, color: (1.0, 1.0, 1.0, 1.0), anchor: scene.center
 }
 

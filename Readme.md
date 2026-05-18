@@ -19,13 +19,13 @@ title: Text { text: "Animatix", font_size: 92, color: (1.0, 1.0, 1.0, 1.0), anch
 formula: Math { math: "E = mc^2", font_size: 80, color: (0.50, 0.80, 1.0, 1.0), at: (30%, 34%) }
 logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (72%, 34%) }
 stage: Row, anchor: scene.bottom, offset: (0, -120), gap: 180, align: "center" {
-  orb: Circle, radius: 82, color: (1.0, 0.25, 0.55, 1.0),
+  orb: Ellipse, size: (164, 164), color: (1.0, 0.25, 0.55, 1.0),
   signal: Line, from: (-80, 0), to: (80, 0), stroke: (0.50, 0.80, 1.0, 1.0), stroke_width: 6,
   panel: Rect, size: (250, 130), color: (0.25, 1.0, 0.65, 1.0)
 }
 
 #1.5s
-orb.radius = 120 [1s, ease: ease-in-out]
+orb.size = (240, 240) [1s, ease: ease-in-out]
 orb.color = (0.25, 1.0, 0.65, 1.0) [1s, ease: ease-in-out]
 ```
 
@@ -99,7 +99,7 @@ If you use Nix, `nix develop` sets up the Rust, FFmpeg, Tree-sitter, and graphic
 
 ## What's Shipped Today
 
-- Scene primitives: `Text`, `Math`, `Code`, `Svg`, `Image`, `Circle`, `Rect`, `Line`, `Ellipse`, `Arc`, `Polygon`, and `Path`
+- Scene primitives: `Text`, `Math`, `Code`, `Svg`, `Image`, `Rect`, `Line`, `Ellipse`, `Polygon`, and `Path`
 - Plotting: `Graph`, `CartesianPlot`, and `PolarPlot`
 - Containers: `Row`, `Col`, `Grid`, `Stack`, and `Group`
 - Reactive authoring: stateless `always` and compile-time `for`
@@ -128,8 +128,8 @@ Runnable demos live in [`examples/`](examples/):
 - `motion_scale_demo.amx` — current local visual scale action surface (`scale`)
 - `composition_sequence_demo.amx` — current ordered composition surface (`sequence`)
 - `composition_stagger_demo.amx` — current staggered composition surface (`stagger`)
-- `primitive_breadth_demo.amx` — current primitive breadth slice (`Dot`, `Square`, `RegularPolygon`)
-- `arrow_demo.amx` — current arrow primitive slice (`Arrow`)
+- `primitive_breadth_demo.amx` — legacy demo using deprecated aliases
+- `arrow_demo.amx` — legacy arrow demo
 - `parametric_plot_demo.amx` — current parametric plotting slice (`ParametricPlot`)
 - `implicit_plot_demo.amx` — current implicit plotting slice (`ImplicitPlot`)
 - `text_morph_demo.amx` / `shape_morph_demo.amx` — current morphing behavior

@@ -658,21 +658,6 @@ impl Timeline {
             let prop_subject = format!("{}.{}", ty, prop.name);
             match prop.name.as_str() {
                 "at" | "anchor" | "offset" => {}
-                "radius" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    let r = v.as_num() as f32;
-                    *vector_shape_state.size_mut() = [r, r];
-                    // Also set regular_polygon_radius if the variant supports it
-                    if let VectorShapeState::Polygon(poly) = &mut vector_shape_state {
-                        poly.regular_polygon_radius = r;
-                    }
-                }
                 "size" => {
                     let size_val = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,

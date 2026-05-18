@@ -1201,7 +1201,7 @@ fn test_missing_properties() {
 }
 
 #[test]
-fn test_rect_side_property_builds_shape() {
+fn test_rect_size_property_builds_shape() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -1209,8 +1209,8 @@ fn test_rect_side_property_builds_shape() {
             label: "sq".to_string(),
             ty: "Rect".to_string(),
             props: vec![Property {
-                name: "side".to_string(),
-                value: Expr::Num(80.0),
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(80.0)]),
                 value_span: None,
             trailing_comment: None,
             }],
@@ -1330,27 +1330,14 @@ fn test_line_tip_properties_build_runtime_path() {
 }
 
 #[test]
-fn test_line_tip_properties_update_size_track() {
+fn test_line_size_track_defaults_to_zero() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
-            label: "arrow".to_string(),
+            label: "line".to_string(),
             ty: "Line".to_string(),
-            props: vec![
-                Property {
-                    name: "tip_length".to_string(),
-                    value: Expr::Num(30.0),
-                    value_span: None,
-                trailing_comment: None,
-                },
-                Property {
-                    name: "tip_width".to_string(),
-                    value: Expr::Num(20.0),
-                    value_span: None,
-                trailing_comment: None,
-                },
-            ],
+            props: vec![],
             modifiers: vec![],
             children: vec![],
             span: None,
@@ -1361,10 +1348,11 @@ fn test_line_tip_properties_update_size_track() {
     let timeline = Timeline::build(&ast);
     let track = timeline
         .tracks
-        .get("arrow")
-        .expect("arrow track should exist");
+        .get("line")
+        .expect("line track should exist");
 
-    assert_eq!(track.size.evaluate(0), [30.0, 20.0]);
+    assert_eq!(track.size.evaluate(0), [0.0, 0.0]);
+    assert_eq!(track.shape_type.evaluate(0), ShapeType::Line);
 }
 
 #[test]
@@ -1694,8 +1682,8 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(18.0),
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(36.0), Expr::Num(36.0)]),
                         value_span: None,
                     trailing_comment: None,
                     },
@@ -1716,8 +1704,14 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
-                        name: "radius".to_string(),
-                        value: Expr::Path(vec!["source".to_string(), "radius".to_string()]),
+                        name: "radius_x".to_string(),
+                        value: Expr::Path(vec!["source".to_string(), "radius_x".to_string()]),
+                        value_span: None,
+                    trailing_comment: None,
+                    },
+                    Property {
+                        name: "radius_y".to_string(),
+                        value: Expr::Path(vec!["source".to_string(), "radius_y".to_string()]),
                         value_span: None,
                     trailing_comment: None,
                     },
@@ -1810,7 +1804,7 @@ fn rhs_path_lookup_reads_nested_component_properties() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, size: (28, 28), color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1821,7 +1815,7 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-copy: Ellipse, radius: left.badge.radius, at: left.badge.at, color: left.badge.color
+copy: Ellipse, radius_x: left.badge.radius_x, radius_y: left.badge.radius_y, at: left.badge.at, color: left.badge.color
 "#,
     );
 
@@ -1848,7 +1842,7 @@ fn missing_nested_rhs_lookup_reports_diagnostic_in_declaration() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, size: (28, 28), color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1859,7 +1853,7 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-copy: Ellipse, radius: left.missing.radius, at: left.missing.at, color: left.missing.color
+copy: Ellipse, size: left.missing.size, at: left.missing.at, color: left.missing.color
 "#,
     );
 
@@ -1869,8 +1863,8 @@ copy: Ellipse, radius: left.missing.radius, at: left.missing.at, color: left.mis
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
-            && diagnostic.message.contains("left.missing.radius")
-            && diagnostic.message.contains("left.badge.radius")
+            && diagnostic.message.contains("left.missing.size")
+            && diagnostic.message.contains("left.badge.size")
     }));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
@@ -1883,7 +1877,9 @@ copy: Ellipse, radius: left.missing.radius, at: left.missing.at, color: left.mis
             && diagnostic.message.contains("left.badge.color")
     }));
 
-    assert_eq!(report.output.tracks["copy"].size.evaluate(0), [0.0, 0.0]);
+    // copy has `size: left.missing.size` which fails, falling back to default
+    
+    assert_eq!(report.output.tracks["copy"].size.evaluate(0), [50.0, 50.0]);
     assert_eq!(
         report.output.tracks["copy"].color.evaluate(0),
         [0.8, 0.8, 0.8, 1.0]
@@ -1900,7 +1896,7 @@ fn missing_nested_rhs_lookup_reports_diagnostic_in_assignment() {
         &library,
         r#"
 pub component MetricCard(title: "Default") {
-    badge: Ellipse, radius: 14, color: red, at: (-80, 20)
+    badge: Ellipse, size: (28, 28), color: red, at: (-80, 20)
 }
 "#,
     );
@@ -1911,10 +1907,10 @@ pub component MetricCard(title: "Default") {
 import "./components.amx"
 
 left: MetricCard, title: "Latency"
-echo: Ellipse, radius: 9, color: blue
+echo: Ellipse, size: (18, 18), color: blue
 
 #0s
-echo.radius = left.missing.radius
+echo.size = left.missing.size
 echo.color = left.missing.color
 "#,
     );
@@ -1925,7 +1921,7 @@ echo.color = left.missing.color
 
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
-            && diagnostic.message.contains("left.missing.radius")
+            && diagnostic.message.contains("left.missing.size")
     }));
     assert!(report.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::UnknownLookupPath
@@ -1995,9 +1991,36 @@ fn unsupported_nested_component_property_assignment_reports_diagnostic() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Ellipse, radius: 14, color: red
+    badge: Ellipse, size: (28, 28), color: red
 }
 "#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./components.amx"
+
+card: MetricCard, title: "Latency"
+
+#0s
+card.badge.glow = 10
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::UnsupportedAssignmentProperty
+            && diagnostic.location.subject.as_deref() == Some("card.badge.glow")
+            && diagnostic.message.contains("card.badge")
+            && diagnostic.message.contains("glow")
+    }));
+    assert_eq!(
+        report.output.tracks["card.badge"].size.evaluate(0),
+        [14.0, 14.0]
     );
 
     write_file(
@@ -2045,7 +2068,7 @@ fn component_instances_have_completely_isolated_namespaces() {
         r#"
 pub component MetricCard(title: "Default") {
     frame: Rect, size: (240, 120), color: blue
-    badge: Ellipse, radius: 12, color: gold
+    badge: Ellipse, size: (24, 24), color: gold
 }
 "#,
     );
@@ -2063,7 +2086,7 @@ first.badge.color = red
 second.badge.color = blue
 
 #1s
-first.badge.radius = 30
+first.badge.size = (60, 60)
 "#,
     );
 
@@ -2093,17 +2116,17 @@ first.badge.radius = 30
         "second.badge.color should be blue"
     );
 
-    // Isolated radius change (only first is affected at #1s)
+    // Isolated size change (only first is affected at #1s)
     assert_eq!(
         timeline.tracks["first.badge"].size.evaluate(1000),
         [30.0, 30.0],
-        "first.badge.radius should be 30 at #1s"
+        "first.badge.size should be (60,60) at #1s → half-size [30,30]"
     );
-    // second.badge.radius should remain unchanged (12)
+    // second.badge.size should remain unchanged (24 → half-size [12,12])
     assert_eq!(
         timeline.tracks["second.badge"].size.evaluate(1000),
         [12.0, 12.0],
-        "second.badge.radius should still be 12 at #1s"
+        "second.badge.size should still be (24,24) → half-size [12,12] at #1s"
     );
 }
 
@@ -2578,7 +2601,7 @@ fn test_ellipse_actor_builds_runtime_path() {
 }
 
 #[test]
-fn test_ellipse_arc_mode_builds_runtime_path() {
+fn test_ellipse_radius_properties_build_runtime_path() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -2595,18 +2618,6 @@ fn test_ellipse_arc_mode_builds_runtime_path() {
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(40.0),
-                    value_span: None,
-                trailing_comment: None,
-                },
-                Property {
-                    name: "start_angle".to_string(),
-                    value: Expr::Num(0.0),
-                    value_span: None,
-                trailing_comment: None,
-                },
-                Property {
-                    name: "sweep_angle".to_string(),
-                    value: Expr::Num(std::f64::consts::PI),
                     value_span: None,
                 trailing_comment: None,
                 },
@@ -2628,8 +2639,7 @@ fn test_ellipse_arc_mode_builds_runtime_path() {
 
     assert_eq!(track.shape_type.evaluate(0), ShapeType::Ellipse);
     assert_eq!(track.size.evaluate(0), [80.0, 40.0]);
-    assert_eq!(track.arc_angles.evaluate(0), [0.0, std::f32::consts::PI]);
-    assert!(vector_path.fill.is_none());
+    assert!(!track.vector_paths.evaluate(0).is_empty());
     assert!((bounds.x0 + 80.0).abs() < 0.1);
     assert!((bounds.x1 - 80.0).abs() < 0.1);
 }
@@ -2884,7 +2894,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
 }
 
 #[test]
-fn test_ellipse_arc_assignments_rebuild_runtime_path() {
+fn test_ellipse_radius_assignments_rebuild_runtime_path() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
@@ -2905,18 +2915,6 @@ fn test_ellipse_arc_assignments_rebuild_runtime_path() {
                         value_span: None,
                     trailing_comment: None,
                     },
-                    Property {
-                        name: "start_angle".to_string(),
-                        value: Expr::Num(0.0),
-                        value_span: None,
-                    trailing_comment: None,
-                    },
-                    Property {
-                        name: "sweep_angle".to_string(),
-                        value: Expr::Num(std::f64::consts::PI / 2.0),
-                        value_span: None,
-                    trailing_comment: None,
-                    },
                 ],
                 modifiers: vec![],
                 children: vec![],
@@ -2928,8 +2926,8 @@ fn test_ellipse_arc_assignments_rebuild_runtime_path() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::Assignment {
                 target: vec!["ring".to_string()],
-                property: "sweep_angle".to_string(),
-                value: Expr::Num(std::f64::consts::PI),
+                property: "radius_y".to_string(),
+                value: Expr::Num(80.0),
                 modifiers: vec![],
                 value_span: None,
             span: None,
@@ -2942,8 +2940,8 @@ fn test_ellipse_arc_assignments_rebuild_runtime_path() {
     let bounds = vector_path_bounds(&timeline, "ring", 1000);
 
     assert_eq!(
-        timeline.tracks["ring"].arc_angles.evaluate(1000),
-        [0.0, std::f32::consts::PI]
+        timeline.tracks["ring"].size.evaluate(1000),
+        [80.0, 80.0]
     );
     assert!((bounds.x0 + 80.0).abs() < 0.1);
     assert!((bounds.x1 - 80.0).abs() < 0.1);
@@ -2967,18 +2965,6 @@ fn test_ellipse_arc_negative_sweep_builds_runtime_path() {
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(50.0),
-                    value_span: None,
-                trailing_comment: None,
-                },
-                Property {
-                    name: "start_angle".to_string(),
-                    value: Expr::Num(std::f64::consts::PI),
-                    value_span: None,
-                trailing_comment: None,
-                },
-                Property {
-                    name: "sweep_angle".to_string(),
-                    value: Expr::Num(-std::f64::consts::PI / 2.0),
                     value_span: None,
                 trailing_comment: None,
                 },
@@ -3430,13 +3416,13 @@ fn test_sequence_advances_statement_timing() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![
-            Stmt::ActorDecl {
+Stmt::ActorDecl {
                 is_pub: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
-                    name: "radius".to_string(),
-                    value: Expr::Num(24.0),
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(48.0), Expr::Num(48.0)]),
                     value_span: None,
                 trailing_comment: None,
                 }],
@@ -3458,8 +3444,8 @@ fn test_sequence_advances_statement_timing() {
                     }, None),
                     Stmt::Assignment {
                         target: vec!["badge".to_string()],
-                        property: "radius".to_string(),
-                        value: Expr::Num(50.0),
+                        property: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
                         modifiers: vec![
                             Modifier {
                                 name: Some("delay".to_string()),
@@ -4569,8 +4555,8 @@ fn test_row_mixed_manual_and_layout_children() {
                     ty: "Ellipse".to_string(),
                     props: vec![
                         Property {
-                            name: "radius".to_string(),
-                            value: Expr::Num(20.0),
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                             value_span: None,
                         trailing_comment: None,
                         },
@@ -4588,8 +4574,8 @@ fn test_row_mixed_manual_and_layout_children() {
                     label: "layout_child".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(20.0),
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                         value_span: None,
                     trailing_comment: None,
                     }],
@@ -5262,7 +5248,7 @@ fn test_dynamic_layout_disabled_by_default() {
     let ast = parse_program(
         r#"
 row: Row, gap: 20 {
-  a: Ellipse, radius: 10
+  a: Ellipse, size: (20, 20)
 }
 "#,
     );
@@ -5279,7 +5265,7 @@ fn test_layout_engine_recomputes_positions_when_size_changes() {
 config { dynamic_layout: true }
 
 row: Row, gap: 20 {
-  left: Ellipse, radius: 10
+  left: Ellipse, size: (20, 20)
   right: Rect, size: (40, 20)
 }
 
@@ -5432,8 +5418,8 @@ fn test_row_with_mixed_authored_and_measured_children() {
                     label: "dot".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(10.0),
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(20.0)]),
                         value_span: None,
                     trailing_comment: None,
                     }],
@@ -6334,8 +6320,8 @@ fn test_manual_children_do_not_affect_layout_spacing() {
     let ast = parse_program(
         r#"
         row: Row, gap: 20 {
-          manual: Ellipse, radius: 15, at: (200, 50)
-          auto: Ellipse, radius: 10
+          manual: Ellipse, size: (30, 30), at: (200, 50)
+          auto: Ellipse, size: (20, 20)
         }
         "#,
     );
@@ -6521,7 +6507,7 @@ fn test_dynamic_layout_recomputes_on_size_change() {
         config { dynamic_layout: true }
 
         row: Row, gap: 20 {
-          left: Ellipse, radius: 12
+          left: Ellipse, size: (24, 24)
           right: Rect, size: (60, 40)
         }
 
@@ -6567,13 +6553,13 @@ fn test_dynamic_layout_recomputes_on_child_addition() {
         config { dynamic_layout: true }
 
         row: Row, gap: 15 {
-          a: Ellipse, radius: 10
+          a: Ellipse, size: (20, 20)
         }
 
         #1s
         row: Row, gap: 15 {
-          a: Ellipse, radius: 10
-          b: Ellipse, radius: 20
+          a: Ellipse, size: (20, 20)
+          b: Ellipse, size: (40, 40)
         }
         "#,
     );
@@ -7253,8 +7239,8 @@ fn test_ellipse_in_row_is_layout_managed() {
     let ast = parse_program(
         r#"
         dot_row: Row, gap: 10 {
-            red_dot: Ellipse, radius: 15, color: red
-            blue_dot: Ellipse, radius: 20, color: blue
+            red_dot: Ellipse, size: (30, 30), color: red
+            blue_dot: Ellipse, size: (40, 40), color: blue
         }
         "#,
     );
@@ -7432,10 +7418,10 @@ fn test_layout_engine_excludes_manual_children() {
     let ast = parse_program(
         r#"
         row: Row, gap: 25 {
-          m1: Ellipse, radius: 10, at: (0, 0)
-          l1: Ellipse, radius: 15
+          m1: Ellipse, size: (20, 20), at: (0, 0)
+          l1: Ellipse, size: (30, 30)
           m2: Rect, size: (20, 20), at: (50, 50)
-          l2: Ellipse, radius: 10
+          l2: Ellipse, size: (20, 20)
         }
         "#,
     );

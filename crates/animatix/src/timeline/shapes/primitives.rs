@@ -180,21 +180,4 @@ mod tests {
         assert!(!crate::primitives::RECT.uses_custom_path());
     }
 
-    #[test]
-    fn polygon_with_sides_finalizes_custom_path() {
-        use crate::primitives::Primitive;
-        let mut state = VectorShapeState::Polygon(PolygonState {
-            size: [50.0, 50.0],
-            regular_polygon_sides: 5,
-            regular_polygon_radius: 50.0,
-            custom_path: None,
-            rotation: 0.0,
-            points: Vec::new(),
-        });
-        crate::primitives::POLYGON.finalize_state(&mut state);
-        match &state {
-            VectorShapeState::Polygon(p) => assert!(p.custom_path.is_some()),
-            _ => panic!("expected Polygon variant"),
-        }
-    }
 }

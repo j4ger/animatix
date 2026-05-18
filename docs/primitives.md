@@ -93,48 +93,31 @@ Note: Missing files report build diagnostics. Source changes are discrete (cross
 ## Rect
 **Status:** Implemented in parser and runtime.
 
-**Absorbs:** `Square` — use `side` property for equal-sided squares. `side` takes precedence over
-`size` when both are provided.
-
 **Properties:**
 - `size`: Tuple `(width, height)` — general rectangle dimensions
-- `side`: Number — shorthand for equal width/height (square mode)
 - `color`: Color
 - `stroke` / `stroke_color`: Color
 - `stroke_width`: Number
 - `fill_opacity`: Number
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
-
-**Special modes:**
-- Providing `side` (and omitting `size`) activates square mode — renders as equal-sided rect.
-  Equivalent to `size: (side, side)`.
 
 **Examples:**
 ```animatix
 # Rectangle with explicit size
 r: Rect, size: (160, 80), color: blue, at: (400, 300)
 
-# Square via side shorthand
-sq: Rect, side: 120, color: green, at: (400, 500)
+# Square
+sq: Rect, size: (120, 120), color: green, at: (400, 500)
 ```
 
 ## Ellipse
 **Status:** Implemented in parser and runtime.
 
-**Absorbs:** `Circle`, `Dot`, `Arc`.
-
-- `Circle` — use `radius` or `size` for uniform radii.
-- `Dot` — use `radius` with a small value.
-- `Arc` — add `start_angle` and `sweep_angle` to render an open arc instead of a full ellipse.
-
 **Properties:**
 - `size`: Tuple `(width, height)` — bounding box dimensions, converted to `radius_x = width / 2`, `radius_y = height / 2`
-- `radius`: Number — shorthand for equal `radius_x` and `radius_y` (circle mode)
 - `radius_x`: Number — horizontal radius
-- `radius_y`: vertical radius
-- `start_angle`: Number — arc start in radians (default: `0`)
-- `sweep_angle`: Number — arc sweep in radians (default: `2π`, full ellipse)
+- `radius_y`: Number — vertical radius
 - `color`: Color
 - `stroke` / `stroke_color`: Color
 - `stroke_width`: Number
@@ -142,18 +125,10 @@ sq: Rect, side: 120, color: green, at: (400, 500)
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
-**Special modes:**
-- Providing `radius` (without `radius_x`/`radius_y`) activates circle mode —
-  renders a uniform-radius circle.
-- Providing `start_angle` and/or `sweep_angle` (when sweeping from `2π`) activates arc mode —
-  renders an open arc (stroke-only, not a pie slice). In arc mode `color` and `fill_opacity`
-  are ignored; only `stroke`/`stroke_width` apply.
-- A small `radius` (e.g. `≤ 3`) renders a dot — use `color` for fill, omit stroke for a clean dot.
-
 **Examples:**
 ```animatix
-# Circle via radius shorthand
-c: Ellipse, radius: 50, color: red, at: (200, 200)
+# Circle
+c: Ellipse, size: (100, 100), color: red, at: (200, 200)
 
 # Ellipse with explicit radii
 halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
@@ -161,52 +136,33 @@ halo: Ellipse, radius_x: 90, radius_y: 40, color: cyan, at: (640, 360)
 # Ellipse via size tuple
 halo: Ellipse, size: (180, 80), color: cyan, at: (640, 360)
 
-# Dot (small-radius circle)
-dot: Ellipse, radius: 3, color: gold, at: (320, 240)
-
-# Arc (open stroke-only arc)
-ring: Ellipse, radius_x: 160, radius_y: 110, start_angle: -0.5, sweep_angle: 4.0, stroke: gold, stroke_width: 5, at: (640, 360)
+# Dot
+dot: Ellipse, size: (6, 6), color: gold, at: (320, 240)
 ```
 
 ## Line
 **Status:** Implemented in parser and runtime.
-
-**Absorbs:** `Arrow` — add `tip_length` and `tip_width` to draw an arrowhead at the `to` endpoint.
 
 Stroke-oriented — no fill property.
 
 **Properties:**
 - `from`: Tuple `(x, y)` in local actor coordinates
 - `to`: Tuple `(x, y)` in local actor coordinates
-- `tip_length`: Number — arrowhead length along the shaft (default: `0`, no arrowhead)
-- `tip_width`: Number — arrowhead width perpendicular to the shaft
 - `stroke` / `stroke_color`: Color
 - `stroke_width`: Number
 - `at`: Tuple `(x, y)`
 
-**Special modes:**
-- Providing `tip_length` and `tip_width` (both > 0) activates arrowhead mode —
-  renders a filled arrowhead at the `to` endpoint via the vector path pipeline. In arrowhead mode
-  the `stroke` color is used for the shaft and the arrowhead fill matches `stroke`.
-
 **Examples:**
 ```animatix
-# Plain line (no arrowhead)
+# Plain line
 axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (640, 360)
-
-# Arrow line
-flow: Line, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, stroke: white, at: (640, 360)
 ```
 
 ## Polygon
 **Status:** Implemented in parser and runtime.
 
-**Absorbs:** `RegularPolygon` — use `sides` and `radius` to generate evenly spaced points automatically.
-
 **Properties:**
 - `points`: Tuple/list of point tuples — explicit vertex list
-- `sides`: Number (≥ 3) — number of sides for automatic regular polygon generation
-- `radius`: Number — circumradius used with `sides` for point generation
 - `color`: Color
 - `stroke` / `stroke_color`: Color
 - `stroke_width`: Number
@@ -214,19 +170,13 @@ flow: Line, from: (-100, 0), to: (100, 0), tip_length: 28, tip_width: 18, stroke
 - `stroke_progress`: Number
 - `at`: Tuple `(x, y)`
 
-**Special modes:**
-- Providing `sides ≥ 3` (with or without explicit `points`) activates regular polygon
-  generation — points are derived automatically from `sides` and `radius`.
-- Providing explicit `points` overrides regular polygon generation and renders an arbitrary
-  polygon from the given vertices.
-
 **Examples:**
 ```animatix
 # Explicit vertex list
 badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan, at: (640, 360)
 
-# Regular polygon via sides/radius
-hex: Polygon, sides: 6, radius: 70, color: cyan, at: (640, 360)
+# Regular hexagon
+hex: Polygon, points: {(-70, 0), (-35, -60), (35, -60), (70, 0), (35, 60), (-35, 60)}, color: cyan, at: (640, 360)
 ```
 
 ## Path
@@ -384,8 +334,7 @@ Root layout containers can omit `at` and default to `scene.center`. Scene-relati
 # 4. Common Animated Properties
 
 Runtime supports explicit assignment for: `color`, `stroke`, `stroke_width`, `stroke_progress`,
-`fill_opacity`, `size`, `side`, `at`/`position`, `radius`, `radius_x`, `radius_y`, `from`,
-`to`, `tip_length`, `tip_width`, `start_angle`, `sweep_angle`, `scene.background_color`.
+`fill_opacity`, `size`, `at`/`position`, `radius_x`, `radius_y`, `from`, `to`, `scene.background_color`.
 
 Text/Math/Code use text-path keyframes; shapes use vector-path keyframes.
 

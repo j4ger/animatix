@@ -4,8 +4,7 @@ use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderC
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
 use crate::timeline::{
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
-    Environment, Value,
+    Environment,
 };
 
 pub struct LinePrimitive;
@@ -27,23 +26,11 @@ impl Primitive for LinePrimitive {
         let VectorShapeState::Line(state) = ctx.state else {
             return None;
         };
-        // If tip size is set, render as an arrow path (absorbs Arrow primitive).
-        let has_tips = state.size[0] > 0.0 && state.size[1] > 0.0;
-        let path = if has_tips {
-            let arrow_path = crate::timeline::shapes::build_arrow_path(
-                state.line_from,
-                state.line_to,
-                state.size[0],
-                state.size[1],
-            );
-            KurboShape::Path { path: arrow_path }.to_path_default()
-        } else {
-            KurboShape::Line {
-                p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
-                p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
-            }
-            .to_path_default()
-        };
+        let path = KurboShape::Line {
+            p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
+            p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
+        }
+        .to_path_default();
         // Line is stroke-only; override fill_opacity to 0
         Some(vec![crate::timeline::shapes::build_vello_path(
             path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, 0.0, true,
@@ -106,20 +93,6 @@ impl Primitive for LinePrimitive {
                 if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject) {
                     line.line_to = parsed;
                 }
-                true
-            }
-            "tip_length" => {
-                // Arrow compat
-                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(line.size[0] as f64));
-                line.size[0] = v.as_num() as f32;
-                true
-            }
-            "tip_width" => {
-                // Arrow compat
-                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(line.size[1] as f64));
-                line.size[1] = v.as_num() as f32;
                 true
             }
             _ => false,

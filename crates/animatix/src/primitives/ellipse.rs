@@ -26,30 +26,15 @@ impl Primitive for EllipsePrimitive {
         let VectorShapeState::Ellipse(state) = ctx.state else {
             return None;
         };
-        // If arc angles are specified (non-default), render as an arc.
-        // This absorbs the Arc primitive.
-        let has_arc_angles = state.arc_angles[1] != 0.0;
-        let path = if has_arc_angles {
-            KurboShape::Arc {
-                center: kurbo::Point::new(0.0, 0.0),
-                radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
-                start_angle: state.arc_angles[0] as f64,
-                sweep_angle: state.arc_angles[1] as f64,
-                rotation: state.rotation as f64,
-            }
-        } else {
-            KurboShape::Ellipse {
-                center: kurbo::Point::new(0.0, 0.0),
-                radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
-                rotation: state.rotation as f64,
-            }
+        let path = KurboShape::Ellipse {
+            center: kurbo::Point::new(0.0, 0.0),
+            radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
+            rotation: state.rotation as f64,
         }
         .to_path_default();
-        // Arcs don't have fill; override fill_opacity to 0 for arc mode
-        let fill_opacity = if has_arc_angles { 0.0 } else { ctx.style.fill_opacity };
         Some(vec![crate::timeline::shapes::build_vello_path(
-            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, fill_opacity,
-            has_arc_angles, // Arc mode: force stroke when no explicit stroke set
+            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity,
+            false,
         )])
     }
 
@@ -86,14 +71,6 @@ impl Primitive for EllipsePrimitive {
             return false;
         };
         match name {
-            "radius" => {
-                // Circle compat: radius sets both axes
-                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(ellipse.size[0] as f64));
-                let r = v.as_num() as f32;
-                ellipse.size = [r, r];
-                true
-            }
             "radius_x" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .unwrap_or(Value::Num(ellipse.size[0] as f64));
@@ -104,20 +81,6 @@ impl Primitive for EllipsePrimitive {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .unwrap_or(Value::Num(ellipse.size[1] as f64));
                 ellipse.size[1] = v.as_num() as f32;
-                true
-            }
-            "start_angle" => {
-                // Arc compat
-                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(ellipse.arc_angles[0] as f64));
-                ellipse.arc_angles[0] = v.as_num() as f32;
-                true
-            }
-            "sweep_angle" => {
-                // Arc compat
-                let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .unwrap_or(Value::Num(ellipse.arc_angles[1] as f64));
-                ellipse.arc_angles[1] = v.as_num() as f32;
                 true
             }
             _ => false,

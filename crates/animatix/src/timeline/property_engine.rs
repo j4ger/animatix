@@ -596,15 +596,9 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, label, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
 
     // Shape-specific derived fields
-    let radius = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE)[0];
-    env.set(&format!("{label}.radius"),   Value::Num(radius as f64));
-    env.set(&format!("{label}.radius_x"), Value::Num(radius as f64));
-    env.set(&format!("{label}.radius_y"), Value::Num(radius as f64));
-
-    // Arc angles
-    let [start, sweep] = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-    env.set(&format!("{label}.start_angle"), Value::Num(start as f64));
-    env.set(&format!("{label}.sweep_angle"), Value::Num(sweep as f64));
+    let size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    env.set(&format!("{label}.radius_x"), Value::Num(size[0] as f64));
+    env.set(&format!("{label}.radius_y"), Value::Num(size[1] as f64));
 
     // Line from/to
     inject_vec2_env(env, label, "from", &track.line_from, time_ms, [-50.0, 0.0]);

@@ -65,7 +65,7 @@ pub component Button(text: "OK") {
     self.frame.color = accent.primary [150ms]
   }
 
-  frame: Rect, size: (140, 48), color: accent.primary, radius: 8 {
+  frame: Rect, size: (140, 48), color: accent.primary {
     label: Text, text: text, font_size: 16, color: text.primary, anchor: self.center
   }
 }

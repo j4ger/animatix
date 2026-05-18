@@ -382,12 +382,6 @@ impl Timeline {
                 if let Some(Value::Vec2(to)) = node_overrides.get("to") {
                     line_to = [to[0] as f32, to[1] as f32];
                 }
-                if let Some(Value::Num(start_angle)) = node_overrides.get("start_angle") {
-                    arc_angles[0] = *start_angle as f32;
-                }
-                if let Some(Value::Num(sweep_angle)) = node_overrides.get("sweep_angle") {
-                    arc_angles[1] = *sweep_angle as f32;
-                }
                 if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
                     color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
                 }

@@ -134,7 +134,7 @@ impl Timeline {
         let _track_label = &track.label.clone();
 
         // Special handling for size-like properties (also write to layout_size)
-        let is_size_property = matches!(property, "size" | "radius" | "radius_x" | "radius_y" | "tip_length" | "tip_width");
+        let is_size_property = matches!(property, "size" | "radius_x" | "radius_y");
 
         let schema = lookup_property(property);
 
@@ -150,13 +150,6 @@ impl Timeline {
             // Special handling for properties that write to size + layout_size together
             if is_size_property {
                 handle_size_assignment(track, property, value, &eval_env, &assignment_subject,
-                    t_start_ms, t_end_ms, easing, instant_delayed, diagnostics);
-                return;
-            }
-
-            // Special handling for start_angle / sweep_angle → write to arc_angles
-            if matches!(property, "start_angle" | "sweep_angle") {
-                handle_arc_angle_assignment(track, property, value, &eval_env, &assignment_subject,
                     t_start_ms, t_end_ms, easing, instant_delayed, diagnostics);
                 return;
             }
@@ -206,11 +199,6 @@ fn handle_size_assignment(
                 } else { track.size.last(default_size) }
             } else { track.size.last(default_size) }
         }
-        "radius" => {
-            let r = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .map(|v| v.as_num() as f32).unwrap_or(track.size.last(default_size)[0]);
-            [r, r]
-        }
         "radius_x" => {
             let mut s = track.size.last(default_size);
             s[0] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
@@ -218,18 +206,6 @@ fn handle_size_assignment(
             s
         }
         "radius_y" => {
-            let mut s = track.size.last(default_size);
-            s[1] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .map(|v| v.as_num() as f32).unwrap_or(s[1]);
-            s
-        }
-        "tip_length" => {
-            let mut s = track.size.last(default_size);
-            s[0] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .map(|v| v.as_num() as f32).unwrap_or(s[0]);
-            s
-        }
-        "tip_width" => {
             let mut s = track.size.last(default_size);
             s[1] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .map(|v| v.as_num() as f32).unwrap_or(s[1]);
@@ -252,48 +228,6 @@ fn handle_size_assignment(
     track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
-    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper: start_angle / sweep_angle → arc_angles
-// ─────────────────────────────────────────────────────────────
-
-fn handle_arc_angle_assignment(
-    track: &mut AnimationTrack,
-    property: &str,
-    value: &super::Expr,
-    env: &super::Environment,
-    subject: &str,
-    t_start_ms: u64,
-    t_end_ms: u64,
-    easing: Easing,
-    instant_delayed: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let default_arc = [0.0, std::f32::consts::PI];
-    let has_duration = t_end_ms > t_start_ms;
-
-    let target_angle = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-        .map(|v| v.as_num() as f32)
-        .unwrap_or(track.arc_angles.last(default_arc)[0]);
-
-    let mut target_angles = track.arc_angles.last(default_arc);
-    match property {
-        "start_angle" => target_angles[0] = target_angle,
-        "sweep_angle" => target_angles[1] = target_angle,
-        _ => {}
-    }
-
-    if has_duration {
-        let start_val = track.arc_angles.get(t_start_ms, default_arc);
-        track.arc_angles.ensure(default_arc).add_keyframe(t_start_ms, start_val, Easing::Linear);
-    } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
-    }
-    track.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, target_angles, easing);
-
-    // Rebuild vector paths after angle change
     rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
 }
 
@@ -441,9 +375,8 @@ fn rebuild_vector_paths(
 
 fn affects_shape_geometry(property: &str) -> bool {
     matches!(property,
-        "from" | "to" | "start_angle" | "sweep_angle" | "arc_angles"
-        | "radius" | "radius_x" | "radius_y" | "size"
-        | "tip_length" | "tip_width" | "points" | "commands"
+        "from" | "to" | "radius_x" | "radius_y" | "size"
+        | "points" | "commands"
         | "shape_type"
     )
 }

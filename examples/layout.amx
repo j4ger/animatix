@@ -17,21 +17,21 @@ sidebar: Col, anchor: scene.left, offset: (140, 0), gap: 16, align: "center" {
 }
 
 toolbar: Row, anchor: scene.top, offset: (0, 100), gap: 20, align: "center" {
-  t1: Ellipse, radius: 18, color: accent.danger
-  t2: Ellipse, radius: 18, color: accent.primary
-  t3: Ellipse, radius: 18, color: accent.success
+  t1: Ellipse, size: (36, 36), color: accent.danger
+  t2: Ellipse, size: (36, 36), color: accent.primary
+  t3: Ellipse, size: (36, 36), color: accent.success
 }
 
 overlay: Stack, anchor: (82%, 76%) {
   plate: Rect, size: (260, 100), color: (0.10, 0.14, 0.22, 1.0)
-  ring: Ellipse, radius: 28, color: accent.warning
-  core: Ellipse, radius: 14, color: text.primary
+  ring: Ellipse, size: (56, 56), color: accent.warning
+  core: Ellipse, size: (28, 28), color: text.primary
 }
 
 // Nested layout with a manual child override
 mixed: Row, anchor: scene.bottom, offset: (0, -100), gap: 24, align: "center" {
-  focus: Ellipse, radius: 16, color: text.primary, at: (-80, -20)
-  x: Ellipse, radius: 28, color: accent.danger
-  y: Ellipse, radius: 22, color: accent.success
-  z: Ellipse, radius: 32, color: accent.primary
+  focus: Ellipse, size: (32, 32), color: text.primary, at: (-80, -20)
+  x: Ellipse, size: (56, 56), color: accent.danger
+  y: Ellipse, size: (44, 44), color: accent.success
+  z: Ellipse, size: (64, 64), color: accent.primary
 }

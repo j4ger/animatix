@@ -37,13 +37,6 @@
 //! | Plots | Graph, CartesianPlot, PolarPlot, ParametricPlot, ImplicitPlot |
 //! | Containers | Row, Col, Grid, Stack, Group |
 //!
-//! ## Unified shapes (backward-compatible aliases)
-//!
-//! - `Circle`, `Dot`, `Arc` → `Ellipse` (with `radius`, `start_angle`, `sweep_angle`)
-//! - `Square` → `Rect` (with `side`)
-//! - `Arrow` → `Line` (with `tip_length`, `tip_width`)
-//! - `RegularPolygon` → `Polygon` (with `sides`, `radius`)
-
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
