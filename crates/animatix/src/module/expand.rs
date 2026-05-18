@@ -58,6 +58,23 @@ fn expand_stmt_into(
                 span: None,
             });
         }
+        Stmt::Drive { label, body, .. } => {
+            let (expanded_body, sub_registry) = expand_statements(body, components);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Drive {
+                label: label.clone(),
+                body: expanded_body,
+                span: None,
+            });
+        }
+        Stmt::ReactiveBinding { target, property, value, .. } => {
+            output.push(Stmt::ReactiveBinding {
+                target: target.clone(),
+                property: property.clone(),
+                value: value.clone(),
+                span: None,
+            });
+        }
         Stmt::Conditional {
             condition,
             then_branch,
@@ -270,10 +287,16 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
         } => {
             labels.insert(label.clone());
         }
-        Stmt::LabeledAlways { label, body, .. } => {
+        Stmt::LabeledAlways { label, body, .. }
+        | Stmt::Drive { label, body, .. } => {
             labels.insert(label.clone());
             for stmt in body {
                 collect_stmt_labels(stmt, labels);
+            }
+        }
+        Stmt::ReactiveBinding { target, .. } => {
+            if let Some(label) = target.first() {
+                labels.insert(label.clone());
             }
         }
         Stmt::Keyframe { body, .. }

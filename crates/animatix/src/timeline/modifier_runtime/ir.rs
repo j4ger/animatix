@@ -80,7 +80,9 @@ pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerE
 
 fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result<(), IrLowerError> {
     match stmt {
-        Stmt::Always { body, .. } | Stmt::LabeledAlways { body, .. } => {
+        Stmt::Always { body, .. }
+        | Stmt::LabeledAlways { body, .. }
+        | Stmt::Drive { body, .. } => {
             output.extend(lower_modifier_block(body)?);
         }
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
@@ -150,6 +152,8 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Stagger { .. }
         | Stmt::Always { .. }
         | Stmt::LabeledAlways { .. }
+        | Stmt::Drive { .. }
+        | Stmt::ReactiveBinding { .. }
         | Stmt::ComponentDef(..)
         | Stmt::ComponentAction { .. }
         | Stmt::Config { .. }

@@ -22,6 +22,8 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::RelativeKeyframe { .. } => "relative keyframe",
         Stmt::Always { .. } => "always block",
         Stmt::LabeledAlways { .. } => "labeled always block",
+        Stmt::Drive { .. } => "drive block",
+        Stmt::ReactiveBinding { .. } => "reactive binding",
         Stmt::Conditional { .. } => "conditional",
         Stmt::ForLoop { .. } => "for loop",
         Stmt::ComponentDef(..) => "component definition",

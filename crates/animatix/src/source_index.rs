@@ -115,12 +115,22 @@ impl SourceIndex {
                         }
                     }
                 }
+                Stmt::ReactiveBinding { target, property, .. } => {
+                    // Reactive bindings are indexed like assignments
+                    if let Some(actor) = target.last() {
+                        self.assignments.insert(
+                            (actor.clone(), property.clone()),
+                            crate::ast::ByteSpan::default(),
+                        );
+                    }
+                }
                 Stmt::Keyframe { body, .. }
                 | Stmt::RelativeKeyframe { body, .. }
                 | Stmt::Sequence { body, .. }
                 | Stmt::Stagger { body, .. }
                 | Stmt::Always { body, .. }
                 | Stmt::LabeledAlways { body, .. }
+                | Stmt::Drive { body, .. }
                 | Stmt::Conditional { then_branch: body, .. }
                 | Stmt::ForLoop { body, .. } => {
                     self.walk(body);

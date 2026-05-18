@@ -41,6 +41,7 @@ pub enum DiagnosticCode {
     RenderFailure,
     UnsupportedModifierKey,
     UnsupportedAssignmentProperty,
+    InvalidAssignmentTarget,
     InvalidModifierValue,
     InvalidConfigValue,
     ConflictingModifierKey,
@@ -80,6 +81,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
                 write!(f, "unsupported-assignment-property")
+            }
+            DiagnosticCode::InvalidAssignmentTarget => {
+                write!(f, "invalid-assignment-target")
             }
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
             DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),

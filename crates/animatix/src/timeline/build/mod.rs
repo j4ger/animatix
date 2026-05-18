@@ -144,7 +144,8 @@ impl Timeline {
                 Stmt::ActorDecl { .. }
                 | Stmt::Assignment { .. }
                 | Stmt::Sequence { .. }
-                | Stmt::Stagger { .. } => {
+                | Stmt::Stagger { .. }
+                | Stmt::LetDecl { .. } => {
                     timeline.process_body(
                         current_build_time_ms,
                         &[stmt.clone()],
@@ -1148,6 +1149,81 @@ impl Timeline {
         }
     }
 
+    // === Drive Block Helpers ===
+
+    /// Recursively rewrite assignments inside a `drive` block by prepending
+    /// the drive label to single-segment (empty-target) assignments.
+    fn rewrite_drive_assignments(&self, stmts: &[Stmt], label: &str) -> Vec<Stmt> {
+        stmts
+            .iter()
+            .map(|stmt| match stmt {
+                Stmt::Assignment {
+                    target,
+                    property,
+                    value,
+                    modifiers,
+                    value_span,
+                    span,
+                } if target.is_empty() => Stmt::Assignment {
+                    target: vec![label.to_string()],
+                    property: property.clone(),
+                    value: value.clone(),
+                    modifiers: modifiers.clone(),
+                    value_span: *value_span,
+                    span: *span,
+                },
+                Stmt::Assignment { .. } => stmt.clone(),
+                Stmt::Conditional {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    span,
+                } => Stmt::Conditional {
+                    condition: condition.clone(),
+                    then_branch: self.rewrite_drive_assignments(then_branch, label),
+                    else_branch: else_branch
+                        .as_ref()
+                        .map(|b| self.rewrite_drive_assignments(b, label)),
+                    span: *span,
+                },
+                Stmt::ForLoop {
+                    var,
+                    iterable,
+                    body,
+                    span,
+                } => Stmt::ForLoop {
+                    var: var.clone(),
+                    iterable: iterable.clone(),
+                    body: self.rewrite_drive_assignments(body, label),
+                    span: *span,
+                },
+                Stmt::Always { body, span } => Stmt::Always {
+                    body: self.rewrite_drive_assignments(body, label),
+                    span: *span,
+                },
+                Stmt::LabeledAlways {
+                    label: inner_label,
+                    body,
+                    span,
+                } => Stmt::LabeledAlways {
+                    label: inner_label.clone(),
+                    body: self.rewrite_drive_assignments(body, label),
+                    span: *span,
+                },
+                Stmt::Drive {
+                    label: inner_label,
+                    body,
+                    span,
+                } => Stmt::Drive {
+                    label: inner_label.clone(),
+                    body: self.rewrite_drive_assignments(body, label),
+                    span: *span,
+                },
+                other => other.clone(),
+            })
+            .collect()
+    }
+
     // === Main AST Statement Processor ===
 
     #[instrument(skip(self, body, diagnostics, parent_label), fields(time_ms, statements = body.len()))]
@@ -1191,19 +1267,50 @@ impl Timeline {
                     modifiers,
                     value_span: _,
                     ..
-                } => self.process_assignment_statement(
-                    target,
-                    property,
-                    value,
-                    modifiers,
-                    time_ms,
-                    diagnostics,
-                ),
+                } => {
+                    if target.is_empty() {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidAssignmentTarget,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Assignment '{property} = ...' must include an actor label, or be placed inside a 'drive' block",
+                            ),
+                        ));
+                    } else {
+                        self.process_assignment_statement(
+                            target,
+                            property,
+                            value,
+                            modifiers,
+                            time_ms,
+                            diagnostics,
+                        );
+                    }
+                }
                 Stmt::Always { body, .. } => {
                     self.modifiers.extend(body.clone());
                 }
                 Stmt::LabeledAlways { label: _, body, .. } => {
                     self.modifiers.extend(body.clone());
+                }
+                Stmt::Drive { label, body, .. } => {
+                    let rewritten = self.rewrite_drive_assignments(body, label);
+                    self.modifiers.extend(rewritten);
+                }
+                Stmt::ReactiveBinding {
+                    target,
+                    property,
+                    value,
+                    ..
+                } => {
+                    self.modifiers.push(Stmt::Assignment {
+                        target: target.clone(),
+                        property: property.clone(),
+                        value: value.clone(),
+                        modifiers: vec![],
+                        value_span: None,
+                        span: None,
+                    });
                 }
                 Stmt::ForLoop {
                     var,
@@ -1224,6 +1331,31 @@ impl Timeline {
                 }
                 Stmt::Action(action, span) => {
                     process_action(action, time_ms, self, diagnostics, *span);
+                }
+                Stmt::LetDecl { name, value, .. } => {
+                    let eval_env = self.build_eval_env(time_ms as u64);
+                    match evaluate_expr(value, &eval_env) {
+                        Ok(val) => {
+                            self.variable_tracks
+                                .entry(name.clone())
+                                .or_default()
+                                .keyframes
+                                .insert(time_ms as u64, val);
+                        }
+                        Err(e) => {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::ModuleExportEvalError,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Failed to evaluate variable '{}': {}; skipping.",
+                                        name, e
+                                    ),
+                                )
+                                .with_subject(name),
+                            );
+                        }
+                    }
                 }
                 _ => {}
             }

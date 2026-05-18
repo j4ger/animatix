@@ -235,6 +235,29 @@ impl Default for SceneDimensions {
     }
 }
 
+/// A piecewise-constant variable track defined by `let` declarations in keyframes.
+/// Evaluates to the value of the most recent keyframe at or before the query time.
+#[derive(Clone, Debug, Default)]
+pub struct VariableTrack {
+    pub keyframes: BTreeMap<u64, Value>,
+}
+
+impl VariableTrack {
+    pub fn new() -> Self {
+        Self {
+            keyframes: BTreeMap::new(),
+        }
+    }
+
+    /// Evaluate the variable at the given time, returning the most recent keyframe value.
+    pub fn evaluate(&self, time_ms: u64) -> Option<Value> {
+        self.keyframes
+            .range(..=time_ms)
+            .next_back()
+            .map(|(_, v)| v.clone())
+    }
+}
+
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
@@ -263,6 +286,11 @@ pub struct Timeline {
     /// Per-actor world-space bounding boxes from the last evaluate call.
     /// Each entry is (actor_label, world_bounds). Populated during evaluate.
     pub hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    /// Keyframe-scoped variable tracks.
+    /// Variables declared via `let` inside keyframes are stored here as
+    /// piecewise-constant functions of time, injected into the frame environment
+    /// during modifier evaluation.
+    pub variable_tracks: BTreeMap<String, VariableTrack>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -299,6 +327,7 @@ impl Clone for Timeline {
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
+            variable_tracks: self.variable_tracks.clone(),
         }
     }
 }
@@ -332,6 +361,7 @@ impl Timeline {
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),
             hit_regions: std::cell::RefCell::new(Vec::new()),
+            variable_tracks: BTreeMap::new(),
         }
     }
 
@@ -351,7 +381,13 @@ impl Timeline {
             .filter_map(|track| track.last_keyframe_time())
             .max()
             .unwrap_or(0);
-        let max_ms = max_track_ms.max(max_bg_ms).max(max_order_ms);
+        let max_var_ms = self
+            .variable_tracks
+            .values()
+            .filter_map(|track| track.keyframes.keys().next_back().copied())
+            .max()
+            .unwrap_or(0);
+        let max_ms = max_track_ms.max(max_bg_ms).max(max_order_ms).max(max_var_ms);
         (max_ms as f64) / 1000.0
     }
 

@@ -54,6 +54,17 @@ fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
             body: inline_custom_actions(body, registry),
             span,
         }],
+        Stmt::Drive { label, body, span } => vec![Stmt::Drive {
+            label,
+            body: inline_custom_actions(body, registry),
+            span,
+        }],
+        Stmt::ReactiveBinding { target, property, value, span } => vec![Stmt::ReactiveBinding {
+            target,
+            property,
+            value,
+            span,
+        }],
         Stmt::Conditional {
             condition,
             then_branch,

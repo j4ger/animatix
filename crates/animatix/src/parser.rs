@@ -115,6 +115,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "let",
                 "import",
                 "always",
+                "drive",
                 "if",
                 "else",
                 "for",
@@ -635,11 +636,22 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             }))
             .then(modifiers.clone())
             .try_map(|((path, (value, value_span)), modifiers), span| {
-                if path.len() < 2 {
+                if path.is_empty() {
                     Err(Rich::custom(
                         span,
-                        "assignment target must include at least one '.' before the property",
+                        "assignment target must be a property name or actor.property path",
                     ))
+                } else if path.len() == 1 {
+                    // Single-segment assignment: e.g. `at = expr` inside a drive block
+                    let property = path[0].clone();
+                    Ok(Stmt::Assignment {
+                        target: vec![],
+                        property,
+                        value,
+                        modifiers,
+                        value_span: Some(value_span),
+                        span: None,
+                    })
                 } else {
                     let property = path.last().cloned().unwrap_or_default();
                     let target = path[..path.len() - 1].to_vec();
@@ -654,6 +666,34 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 }
             })
             .labelled("assignment")
+            .padded();
+
+        // Reactive binding: actor.prop := expr
+        let reactive_binding = dotted_ident
+            .clone()
+            .then_ignore(just(":=").padded())
+            .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+                let span = extra.span();
+                (value, ByteSpan { start: span.start, end: span.end })
+            }))
+            .try_map(|(path, (value, _value_span)), span| {
+                if path.len() < 2 {
+                    Err(Rich::custom(
+                        span,
+                        "reactive binding target must include an actor label and a property (e.g. 'actor.prop := expr')",
+                    ))
+                } else {
+                    let property = path.last().cloned().unwrap_or_default();
+                    let target = path[..path.len() - 1].to_vec();
+                    Ok(Stmt::ReactiveBinding {
+                        target,
+                        property,
+                        value,
+                        span: None,
+                    })
+                }
+            })
+            .labelled("reactive binding")
             .padded();
 
         let block_props = property
@@ -893,6 +933,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|((label, _), body)| Stmt::LabeledAlways { label, body, span: None })
             .padded();
 
+        // Drive statement: drive actor { }
+        let drive_stmt = text::keyword("drive")
+            .ignore_then(ident.clone())
+            .then(always_body.clone())
+            .map(|(label, body)| Stmt::Drive { label, body, span: None })
+            .padded();
+
         // Conditional: if expr { }
         let conditional_stmt = text::keyword("if")
             .ignore_then(expr.clone())
@@ -1009,10 +1056,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             let_decl,
             import_stmt,
             assignment,
+            reactive_binding,
             svg_stmt,
             image_stmt,
             labeled_always_stmt,
             always_stmt,
+            drive_stmt,
             conditional_stmt,
             for_stmt,
             sequence_stmt,
@@ -1383,5 +1432,90 @@ mod tests {
         } else {
             panic!("Expected Keyframe");
         }
+    }
+
+    #[test]
+    fn test_drive_block_parser() {
+        let input = r#"drive tracker {
+    at = (640 + 100 * cos(t), 360 + 100 * sin(t))
+}"#;
+        let res = parser().parse(input).unwrap();
+        assert_eq!(res.len(), 1);
+        // Top-level statements are wrapped in a default keyframe
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::Drive { label, body: drive_body, .. } = &body[0] {
+                assert_eq!(label, "tracker");
+                assert_eq!(drive_body.len(), 1);
+                if let Stmt::Assignment {
+                    target,
+                    property,
+                    ..
+                } = &drive_body[0]
+                {
+                    assert!(target.is_empty(), "Expected empty target for single-segment assignment inside drive");
+                    assert_eq!(property, "at");
+                } else {
+                    panic!("Expected Assignment");
+                }
+            } else {
+                panic!("Expected Drive");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
+    }
+
+    #[test]
+    fn test_single_segment_assignment_outside_drive_is_parsed() {
+        // Single-segment assignments parse successfully but are rejected at build time
+        let input = r#"at = (100, 200)"#;
+        let res = parser().parse(input).unwrap();
+        assert_eq!(res.len(), 1);
+        // Top-level statements are wrapped in a default keyframe
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::Assignment { target, property, .. } = &body[0] {
+                assert!(target.is_empty());
+                assert_eq!(property, "at");
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
+    }
+
+    #[test]
+    fn test_reactive_binding_parser() {
+        let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
+        let res = parser().parse(input).unwrap();
+        assert_eq!(res.len(), 1);
+        // Top-level statements are wrapped in a default keyframe
+        if let Stmt::Keyframe { body, .. } = &res[0] {
+            if let Stmt::ReactiveBinding { target, property, value, .. } = &body[0] {
+                assert_eq!(target, &["orbiter"]);
+                assert_eq!(property, "at");
+                // Verify it's a binary expression (tracker.at + (...))
+                if let Expr::Binary(left, BinaryOp::Add, _right) = value {
+                    if let Expr::Path(parts) = left.as_ref() {
+                        assert_eq!(parts, &["tracker", "at"]);
+                    } else {
+                        panic!("Expected Path for left side");
+                    }
+                } else {
+                    panic!("Expected Binary Add expression");
+                }
+            } else {
+                panic!("Expected ReactiveBinding");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
+    }
+
+    #[test]
+    fn test_reactive_binding_rejects_single_segment() {
+        let input = r#"at := (100, 200)"#;
+        let res = parser().parse(input);
+        assert!(res.has_errors(), "Expected parse error for single-segment reactive binding");
     }
 }

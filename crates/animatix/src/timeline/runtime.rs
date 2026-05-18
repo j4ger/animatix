@@ -22,6 +22,12 @@ impl Timeline {
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));
+        // Inject keyframe-scoped variable tracks into the frame environment.
+        for (name, track) in &self.variable_tracks {
+            if let Some(value) = track.evaluate(time_ms) {
+                env.set(name, value);
+            }
+        }
         // Fast path: no modifiers means no property lookups at frame time.
         // Skip the per-track property evaluation entirely.
         if self.modifier_programs.is_empty() && self.modifiers.is_empty() {

@@ -421,8 +421,12 @@ impl ToSource for Stmt {
                 format!("#+{}\n{}", offset.to_source(), body_str)
             }
             Stmt::Assignment { target, property, value, modifiers, .. } => {
-                let target_str = target.join(".");
-                let mut parts = vec![format!("{}.{} = {}", target_str, property, value.to_source())];
+                let assignment_str = if target.is_empty() {
+                    format!("{} = {}", property, value.to_source())
+                } else {
+                    format!("{}.{} = {}", target.join("."), property, value.to_source())
+                };
+                let mut parts = vec![assignment_str];
                 if !modifiers.is_empty() {
                     let mods = modifiers.iter().map(|m| m.to_source()).collect::<Vec<_>>().join(", ");
                     parts.push(format!(" [{}]", mods));
@@ -453,6 +457,14 @@ impl ToSource for Stmt {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);
                 format!("{}: always {{\n{}\n}}", label, indented)
+            }
+            Stmt::Drive { label, body, .. } => {
+                let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
+                let indented = indent(&body_str, 1);
+                format!("drive {} {{\n{}\n}}", label, indented)
+            }
+            Stmt::ReactiveBinding { target, property, value, .. } => {
+                format!("{}.{} := {}", target.join("."), property, value.to_source())
             }
             Stmt::Conditional { condition, then_branch, else_branch, .. } => {
                 let then_str = then_branch.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
@@ -767,6 +779,49 @@ btn: Rect, size: (100, 200) // half-extents"#;
     fn parse_reorder_demo() {
         let source = include_str!("../../../examples/reorder_demo.amx");
         let parsed = crate::parser::parser().parse(source).unwrap();
+        let serialized = stmts_to_source(&parsed);
+        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        assert_eq!(parsed.len(), reparsed.len());
+    }
+
+    #[test]
+    fn roundtrip_drive_block() {
+        let source = r#"drive tracker {
+    at = (640 + 100 * cos(t), 360 + 100 * sin(t))
+}"#;
+        let parsed = crate::parser::parser().parse(source).unwrap();
+        assert_eq!(parsed.len(), 1);
+        // Top-level statements are wrapped in a default keyframe
+        if let Stmt::Keyframe { body, .. } = &parsed[0] {
+            if let Stmt::Drive { label, body: drive_body, .. } = &body[0] {
+                assert_eq!(label, "tracker");
+                assert_eq!(drive_body.len(), 1);
+            } else {
+                panic!("Expected Drive statement");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
+        let serialized = stmts_to_source(&parsed);
+        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        assert_eq!(parsed.len(), reparsed.len());
+    }
+
+    #[test]
+    fn roundtrip_reactive_binding() {
+        let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
+        let parsed = crate::parser::parser().parse(source).unwrap();
+        assert_eq!(parsed.len(), 1);
+        if let Stmt::Keyframe { body, .. } = &parsed[0] {
+            if let Stmt::ReactiveBinding { target, property, .. } = &body[0] {
+                assert_eq!(target, &["orbiter"]);
+                assert_eq!(property, "at");
+            } else {
+                panic!("Expected ReactiveBinding");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
         let serialized = stmts_to_source(&parsed);
         let reparsed = crate::parser::parser().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());

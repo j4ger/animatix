@@ -202,6 +202,20 @@ pub(super) fn rewrite_stmt(
                 .collect(),
             span: None,
         },
+        Stmt::Drive { label, body, .. } => Stmt::Drive {
+            label: rewrite_label(label, prefix, root_label, known_labels),
+            body: body
+                .iter()
+                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                .collect(),
+            span: None,
+        },
+        Stmt::ReactiveBinding { target, property, value, .. } => Stmt::ReactiveBinding {
+            target: target.iter().map(|t| rewrite_label(t, prefix, root_label, known_labels)).collect(),
+            property: property.clone(),
+            value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
+            span: None,
+        },
         Stmt::Conditional {
             condition,
             then_branch,
