@@ -704,6 +704,120 @@ fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: 
 }
 
 // ─────────────────────────────────────────────────────────────
+// Field dispatch enums (centralise the ActorField → track field mapping)
+// ─────────────────────────────────────────────────────────────
+
+use crate::timeline::property_registry::ActorField;
+
+/// Immutable reference to a track field, abstracting over the value type.
+///
+/// This enum lets generic code access `PropertyTrack<T>` fields without
+/// knowing `T` at compile time.  It eliminates the N×M match-block explosion
+/// in `property_engine.rs`.
+pub enum TrackFieldRef<'a> {
+    F32(&'a Option<PropertyTrack<f32>>),
+    Vec2(&'a Option<PropertyTrack<[f32; 2]>>),
+    Vec4(&'a Option<PropertyTrack<[f32; 4]>>),
+    String(&'a Option<PropertyTrack<String>>),
+    U32(&'a Option<PropertyTrack<u32>>),
+    PointList(&'a Option<PropertyTrack<Vec<[f32; 2]>>>),
+    CommandList(&'a Option<PropertyTrack<String>>),
+    ShapeType(&'a Option<PropertyTrack<ShapeType>>),
+    PlacementMode(&'a Option<PropertyTrack<PlacementMode>>),
+    MorphOptions(&'a Option<PropertyTrack<MorphOptions>>),
+}
+
+/// Mutable reference to a track field, abstracting over the value type.
+pub enum TrackFieldMut<'a> {
+    F32(&'a mut Option<PropertyTrack<f32>>),
+    Vec2(&'a mut Option<PropertyTrack<[f32; 2]>>),
+    Vec4(&'a mut Option<PropertyTrack<[f32; 4]>>),
+    String(&'a mut Option<PropertyTrack<String>>),
+    U32(&'a mut Option<PropertyTrack<u32>>),
+    PointList(&'a mut Option<PropertyTrack<Vec<[f32; 2]>>>),
+    CommandList(&'a mut Option<PropertyTrack<String>>),
+    ShapeType(&'a mut Option<PropertyTrack<ShapeType>>),
+    PlacementMode(&'a mut Option<PropertyTrack<PlacementMode>>),
+    MorphOptions(&'a mut Option<PropertyTrack<MorphOptions>>),
+}
+
+impl AnimationTrack {
+    /// Get an immutable reference to the track field identified by `field`.
+    pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef> {
+        use ActorField::*;
+        Some(match field {
+            Position => TrackFieldRef::Vec2(&self.position),
+            MotionOffset => TrackFieldRef::Vec2(&self.motion_offset),
+            Size => TrackFieldRef::Vec2(&self.size),
+            LayoutSize => TrackFieldRef::Vec2(&self.layout_size),
+            Rotation => TrackFieldRef::F32(&self.rotation),
+            Scale => TrackFieldRef::F32(&self.scale),
+            Color => TrackFieldRef::Vec4(&self.color),
+            Opacity => TrackFieldRef::F32(&self.opacity),
+            StrokeWidth => TrackFieldRef::F32(&self.stroke_width),
+            StrokeColor => TrackFieldRef::Vec4(&self.stroke_color),
+            StrokeProgress => TrackFieldRef::F32(&self.stroke_progress),
+            FillOpacity => TrackFieldRef::F32(&self.fill_opacity),
+            ShadowOffset => TrackFieldRef::Vec2(&self.shadow_offset),
+            ShadowBlur => TrackFieldRef::F32(&self.shadow_blur),
+            ShadowColor => TrackFieldRef::Vec4(&self.shadow_color),
+            GlowRadius => TrackFieldRef::F32(&self.glow_radius),
+            GlowColor => TrackFieldRef::Vec4(&self.glow_color),
+            BackdropBlur => TrackFieldRef::F32(&self.backdrop_blur),
+            ShapeType => TrackFieldRef::ShapeType(&self.shape_type),
+            LineFrom => TrackFieldRef::Vec2(&self.line_from),
+            LineTo => TrackFieldRef::Vec2(&self.line_to),
+            ArcAngles => TrackFieldRef::Vec2(&self.arc_angles),
+            Points => TrackFieldRef::PointList(&self.points),
+            Commands => TrackFieldRef::CommandList(&self.commands),
+            TextContent => TrackFieldRef::String(&self.text_content),
+            FontFamily => TrackFieldRef::String(&self.font_family),
+            FontSize => TrackFieldRef::F32(&self.font_size),
+            PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
+            MorphOptions => TrackFieldRef::MorphOptions(&self.morph_options),
+            _ => return None,
+        })
+    }
+
+    /// Get a mutable reference to the track field identified by `field`.
+    pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut> {
+        use ActorField::*;
+        Some(match field {
+            Position => TrackFieldMut::Vec2(&mut self.position),
+            MotionOffset => TrackFieldMut::Vec2(&mut self.motion_offset),
+            Size => TrackFieldMut::Vec2(&mut self.size),
+            LayoutSize => TrackFieldMut::Vec2(&mut self.layout_size),
+            Rotation => TrackFieldMut::F32(&mut self.rotation),
+            Scale => TrackFieldMut::F32(&mut self.scale),
+            Color => TrackFieldMut::Vec4(&mut self.color),
+            Opacity => TrackFieldMut::F32(&mut self.opacity),
+            StrokeWidth => TrackFieldMut::F32(&mut self.stroke_width),
+            StrokeColor => TrackFieldMut::Vec4(&mut self.stroke_color),
+            StrokeProgress => TrackFieldMut::F32(&mut self.stroke_progress),
+            FillOpacity => TrackFieldMut::F32(&mut self.fill_opacity),
+            ShadowOffset => TrackFieldMut::Vec2(&mut self.shadow_offset),
+            ShadowBlur => TrackFieldMut::F32(&mut self.shadow_blur),
+            ShadowColor => TrackFieldMut::Vec4(&mut self.shadow_color),
+            GlowRadius => TrackFieldMut::F32(&mut self.glow_radius),
+            GlowColor => TrackFieldMut::Vec4(&mut self.glow_color),
+            BackdropBlur => TrackFieldMut::F32(&mut self.backdrop_blur),
+            ShapeType => TrackFieldMut::ShapeType(&mut self.shape_type),
+            LineFrom => TrackFieldMut::Vec2(&mut self.line_from),
+            LineTo => TrackFieldMut::Vec2(&mut self.line_to),
+            ArcAngles => TrackFieldMut::Vec2(&mut self.arc_angles),
+            Points => TrackFieldMut::PointList(&mut self.points),
+            Commands => TrackFieldMut::CommandList(&mut self.commands),
+            TextContent => TrackFieldMut::String(&mut self.text_content),
+            FontFamily => TrackFieldMut::String(&mut self.font_family),
+            FontSize => TrackFieldMut::F32(&mut self.font_size),
+            PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
+            MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
+            _ => return None,
+        })
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────
 

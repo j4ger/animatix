@@ -417,40 +417,19 @@ pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u
 }
 
 fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
-    match field {
-        ActorField::Position => track.position.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::MotionOffset => track.motion_offset.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::Size => track.size.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::LayoutSize => track.layout_size.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::Rotation => track.rotation.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::Scale => track.scale.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::Color => track.color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
-        ActorField::Opacity => track.opacity.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::StrokeWidth => track.stroke_width.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::StrokeColor => track.stroke_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
-        ActorField::StrokeProgress => track.stroke_progress.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::FillOpacity => track.fill_opacity.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::ShapeType => track.shape_type.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate(time_ms)))),
-        ActorField::LineFrom => track.line_from.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::LineTo => track.line_to.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::ArcAngles => track.arc_angles.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::Commands => track.commands.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
-        ActorField::TextContent => track.text_content.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
-        ActorField::FontFamily => track.font_family.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
-        ActorField::FontSize => track.font_size.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::Points => track.points.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
-        ActorField::PlacementMode => track.placement_mode.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate(time_ms))),
-        ActorField::MorphOptions => track.morph_options.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate(time_ms))),
-        // Effects tier
-        ActorField::ShadowOffset => track.shadow_offset.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        ActorField::ShadowBlur => track.shadow_blur.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::ShadowColor => track.shadow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
-        ActorField::GlowRadius => track.glow_radius.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        ActorField::GlowColor => track.glow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
-        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        // Groups and unsupported fields
-        _ => None,
-    }
+    use crate::timeline::track::TrackFieldRef;
+    track.field_ref(field).and_then(|f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        TrackFieldRef::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
+        TrackFieldRef::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate(time_ms))),
+        TrackFieldRef::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate(time_ms)))),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate(time_ms))),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate(time_ms))),
+    })
 }
 
 /// Read a property value, falling back to the schema default if the track
@@ -498,138 +477,70 @@ pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool
 
 /// Returns whether a property has a keyframe at exactly the given time.
 pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
-    match field {
-        ActorField::Position => track.position.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Size => track.size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::LayoutSize => track.layout_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Rotation => track.rotation.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Scale => track.scale.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Color => track.color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Opacity => track.opacity.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::ShapeType => track.shape_type.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::LineFrom => track.line_from.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::LineTo => track.line_to.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::Commands => track.commands.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::TextContent => track.text_content.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::FontFamily => track.font_family.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::FontSize => track.font_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        // Effects tier
-        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::GlowColor => track.glow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        _ => false,
-    }
+    use crate::timeline::track::TrackFieldRef;
+    track.field_ref(field).map_or(false, |f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::String(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::U32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+    })
 }
 
 /// Returns the number of keyframes for a property on the given track.
 pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
-    match field {
-        ActorField::Position => track.position.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Size => track.size.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::LayoutSize => track.layout_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Rotation => track.rotation.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Scale => track.scale.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Color => track.color.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Opacity => track.opacity.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::ShapeType => track.shape_type.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::LineFrom => track.line_from.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::LineTo => track.line_to.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::Commands => track.commands.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::TextContent => track.text_content.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::FontFamily => track.font_family.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::FontSize => track.font_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        // Effects tier
-        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::GlowColor => track.glow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        _ => 0,
-    }
+    use crate::timeline::track::TrackFieldRef;
+    track.field_ref(field).map_or(0, |f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+    })
 }
 
 /// Returns all keyframe times (in ms) for a property, sorted.
 pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
-    match field {
-        ActorField::Position => track.position.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::MotionOffset => track.motion_offset.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Size => track.size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::LayoutSize => track.layout_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Rotation => track.rotation.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Scale => track.scale.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Color => track.color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Opacity => track.opacity.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::StrokeWidth => track.stroke_width.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::StrokeColor => track.stroke_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::StrokeProgress => track.stroke_progress.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::FillOpacity => track.fill_opacity.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::ShapeType => track.shape_type.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::LineFrom => track.line_from.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::LineTo => track.line_to.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::ArcAngles => track.arc_angles.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::Commands => track.commands.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::TextContent => track.text_content.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::FontFamily => track.font_family.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::FontSize => track.font_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        // Effects tier
-        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::GlowColor => track.glow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        _ => Vec::new(),
-    }
+    use crate::timeline::track::TrackFieldRef;
+    track.field_ref(field).map_or(Vec::new(), |f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+    })
 }
 
 /// Returns the easing at a specific keyframe time for a property.
 pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
-    match field {
-        ActorField::Position => track.position.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::MotionOffset => track.motion_offset.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Size => track.size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::LayoutSize => track.layout_size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Rotation => track.rotation.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Scale => track.scale.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Color => track.color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Opacity => track.opacity.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::StrokeWidth => track.stroke_width.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::StrokeColor => track.stroke_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::StrokeProgress => track.stroke_progress.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::FillOpacity => track.fill_opacity.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::ShapeType => track.shape_type.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::LineFrom => track.line_from.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::LineTo => track.line_to.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::ArcAngles => track.arc_angles.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::Commands => track.commands.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::TextContent => track.text_content.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::FontFamily => track.font_family.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::FontSize => track.font_size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        // Effects tier
-        ActorField::ShadowOffset => track.shadow_offset.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::ShadowBlur => track.shadow_blur.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::ShadowColor => track.shadow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::GlowRadius => track.glow_radius.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::GlowColor => track.glow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        ActorField::BackdropBlur => track.backdrop_blur.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        _ => None,
-    }
+    use crate::timeline::track::TrackFieldRef;
+    track.field_ref(field).and_then(|f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+    })
 }
 
 // ─────────────────────────────────────────────────────────────
