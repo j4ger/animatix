@@ -689,13 +689,20 @@ impl GuiShell {
             }
         }
         if let Some(scene) = actions.select_scene {
-            if self
-                .document
-                .composition
-                .as_ref()
-                .is_some_and(|composition| composition.scenes.contains_key(&scene))
-            {
-                self.document.active_scene = Some(scene);
+            if let Some(composition) = self.document.composition.as_ref() {
+                if composition.scenes.contains_key(&scene) {
+                    self.document.active_scene = Some(scene.clone());
+                    if let Some(start) = composition.scene_start_times.get(&scene) {
+                        self.preview.current_time_s = *start;
+                        self.preview.clamp_time();
+                        self.preview.is_playing = false;
+                        self.preview_dirty = true;
+                        self.preview.status = format!(
+                            "Scene {} • t = {:.2}s / {:.2}s",
+                            scene, self.preview.current_time_s, self.preview.duration_s
+                        );
+                    }
+                }
             }
         }
         if actions.add_scene {
