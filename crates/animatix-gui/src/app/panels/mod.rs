@@ -1975,11 +1975,28 @@ self.selected_actors,
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
             let current_time_s = self.preview.current_time_s;
-            // For compositions, use the active scene's timeline
+            // For compositions, use the active scene's timeline.
+            // During a transition, if the selected actor is in the other scene,
+            // use that scene's timeline so the inspector shows correct properties.
             let timeline = self.timeline.or_else(|| {
                 let comp = self.composition?;
-                let scene_name = self.active_scene.as_ref()?;
-                comp.scenes.get(scene_name).map(|s| &s.timeline)
+                let active_scene = self.active_scene.as_ref()?;
+                let active_has_actor = self.selected_actors.iter().next().is_some_and(|sel| {
+                    comp.scenes.get(active_scene.as_str()).is_some_and(|s| s.timeline.has_actor(sel))
+                });
+                if !active_has_actor {
+                    let (_, _, transition) = comp.evaluate(current_time_s);
+                    if transition.is_some() {
+                        for (name, scene) in &comp.scenes {
+                            if name != active_scene {
+                                if self.selected_actors.iter().any(|sel| scene.timeline.has_actor(sel)) {
+                                    return Some(&scene.timeline);
+                                }
+                            }
+                        }
+                    }
+                }
+                comp.scenes.get(active_scene.as_str()).map(|s| &s.timeline)
             });
             inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
         });
