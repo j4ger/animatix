@@ -10,6 +10,17 @@ pub enum Easing {
     Expo,
 }
 
+pub const EASING_REGISTRY: &[(&str, &str)] = &[
+    ("linear", "Linear"),
+    ("easein", "Ease In"),
+    ("easeout", "Ease Out"),
+    ("easeinout", "Ease In Out"),
+    ("bounce", "Bounce"),
+    ("elastic", "Elastic"),
+    ("back", "Back"),
+    ("expo", "Expo"),
+];
+
 pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
     let t = progress.clamp(0.0, 1.0);
     match easing {

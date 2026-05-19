@@ -675,22 +675,13 @@ self.selected_actors,
                                         .width(90.0)
                                         .selected_text(&new_easing)
                                         .show_ui(ui, |ui| {
-                                            for e in &["linear", "easein", "easeout", "easeinout", "bounce", "elastic", "back", "expo"] {
-                                                ui.selectable_value(&mut new_easing, e.to_string(), *e);
+                                            for (id, display_name) in animatix::easing::EASING_REGISTRY {
+                                                ui.selectable_value(&mut new_easing, id.to_string(), *display_name);
                                             }
                                         });
                                     if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                        let easing = match new_easing.as_str() {
-                                            "linear" => animatix::easing::Easing::Linear,
-                                            "easein" => animatix::easing::Easing::EaseIn,
-                                            "easeout" => animatix::easing::Easing::EaseOut,
-                                            "easeinout" => animatix::easing::Easing::EaseInOut,
-                                            "bounce" => animatix::easing::Easing::Bounce,
-                                            "elastic" => animatix::easing::Easing::Elastic,
-                                            "back" => animatix::easing::Easing::Back,
-                                            "expo" => animatix::easing::Easing::Expo,
-                                            _ => animatix::easing::Easing::Linear,
-                                        };
+                                        let easing = animatix::timeline::parse_easing_name(&new_easing)
+                                            .unwrap_or(animatix::easing::Easing::Linear);
                                         self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
                                             id: new_type,
                                             duration_ms: (new_duration * 1000.0).round() as u64,

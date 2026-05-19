@@ -74,6 +74,7 @@ mod sequence;
 pub mod shapes;
 pub mod svg;
 mod timing;
+pub use timing::parse_easing_name;
 pub mod track;
 pub mod utils;
 pub mod vello_path;

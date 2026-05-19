@@ -119,11 +119,11 @@ impl ModifierHost {
     }
 }
 
-pub(crate) fn parse_easing_name(raw: &str) -> Option<Easing> {
+pub fn parse_easing_name(raw: &str) -> Option<Easing> {
     match raw {
-        "ease-in" => Some(Easing::EaseIn),
-        "ease-out" => Some(Easing::EaseOut),
-        "ease-in-out" => Some(Easing::EaseInOut),
+        "ease-in" | "easein" => Some(Easing::EaseIn),
+        "ease-out" | "easeout" => Some(Easing::EaseOut),
+        "ease-in-out" | "easeinout" => Some(Easing::EaseInOut),
         "bounce" => Some(Easing::Bounce),
         "elastic" => Some(Easing::Elastic),
         "back" => Some(Easing::Back),
