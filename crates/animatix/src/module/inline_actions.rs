@@ -49,11 +49,6 @@ fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
             body: inline_custom_actions(body, registry),
             span,
         }],
-        Stmt::LabeledAlways { label, body, span } => vec![Stmt::LabeledAlways {
-            label,
-            body: inline_custom_actions(body, registry),
-            span,
-        }],
         Stmt::Drive { label, body, span } => vec![Stmt::Drive {
             label,
             body: inline_custom_actions(body, registry),

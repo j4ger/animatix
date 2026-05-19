@@ -926,15 +926,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(|body| Stmt::Always { body, span: None })
             .padded();
 
-        let labeled_always_stmt = ident
-            .clone()
-            .then_ignore(just(':').padded())
-            .then(text::keyword("always"))
-            .then(always_body.clone())
-            .map(|((label, _), body)| Stmt::LabeledAlways { label, body, span: None })
-            .padded();
-
-        // Drive statement: drive actor { }
         let drive_stmt = text::keyword("drive")
             .ignore_then(ident.clone())
             .then(always_body.clone())
@@ -1060,7 +1051,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             reactive_binding,
             svg_stmt,
             image_stmt,
-            labeled_always_stmt,
             always_stmt,
             drive_stmt,
             conditional_stmt,

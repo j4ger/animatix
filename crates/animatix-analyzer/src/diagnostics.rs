@@ -258,11 +258,6 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                 check_stmt(stmt, symbols, diagnostics);
             }
         }
-        Stmt::LabeledAlways { body, .. } => {
-            for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
-            }
-        }
         Stmt::Conditional { then_branch, else_branch, .. } => {
             for stmt in then_branch {
                 check_stmt(stmt, symbols, diagnostics);

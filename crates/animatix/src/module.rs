@@ -31,7 +31,6 @@ fn set_action_spans(stmts: &mut [Stmt], source: &str) {
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::LabeledAlways { body, .. }
             | Stmt::Drive { body, .. } => bodies.push(body),
             Stmt::Conditional { then_branch, else_branch, .. } => {
                 bodies.push(then_branch);

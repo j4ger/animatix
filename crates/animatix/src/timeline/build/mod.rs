@@ -1201,15 +1201,6 @@ impl Timeline {
                     body: self.rewrite_drive_assignments(body, label),
                     span: *span,
                 },
-                Stmt::LabeledAlways {
-                    label: inner_label,
-                    body,
-                    span,
-                } => Stmt::LabeledAlways {
-                    label: inner_label.clone(),
-                    body: self.rewrite_drive_assignments(body, label),
-                    span: *span,
-                },
                 Stmt::Drive {
                     label: inner_label,
                     body,
@@ -1288,9 +1279,6 @@ impl Timeline {
                     }
                 }
                 Stmt::Always { body, .. } => {
-                    self.modifiers.extend(body.clone());
-                }
-                Stmt::LabeledAlways { label: _, body, .. } => {
                     self.modifiers.extend(body.clone());
                 }
                 Stmt::Drive { label, body, .. } => {

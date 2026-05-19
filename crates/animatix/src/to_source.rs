@@ -453,11 +453,6 @@ impl ToSource for Stmt {
                 let indented = indent(&body_str, 1);
                 format!("always {{\n{}\n}}", indented)
             }
-            Stmt::LabeledAlways { label, body, .. } => {
-                let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
-                let indented = indent(&body_str, 1);
-                format!("{}: always {{\n{}\n}}", label, indented)
-            }
             Stmt::Drive { label, body, .. } => {
                 let body_str = body.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n");
                 let indented = indent(&body_str, 1);

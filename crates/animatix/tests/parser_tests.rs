@@ -1171,43 +1171,6 @@ fn test_legacy_loop_syntax_rejected() {
 }
 
 #[test]
-fn test_labeled_always() {
-    let result = parse_single_stmt("reactive: always { btn.color = red }");
-    assert_eq!(
-        result,
-        Stmt::LabeledAlways {
-            label: "reactive".to_string(),
-            body: vec![Stmt::Assignment {
-                target: vec!["btn".to_string()],
-                property: "color".to_string(),
-                value: Expr::Ident("red".to_string()),
-                modifiers: vec![],
-                value_span: Some(ByteSpan { start: 31, end: 35 }),
-            span: None,
-            }],
-            span: None,
-        }
-    );
-}
-
-#[test]
-fn test_labeled_always_simple() {
-    let result = parse_single_stmt("reactive: always { let x = 1 }");
-    assert_eq!(
-        result,
-        Stmt::LabeledAlways {
-            label: "reactive".to_string(),
-            body: vec![Stmt::LetDecl { is_pub: false,
-                name: "x".to_string(),
-                value: Expr::Num(1.0),
-            span: None,
-            }],
-            span: None,
-        }
-    );
-}
-
-#[test]
 fn test_conditional() {
     let result = parse_single_stmt("if active { appear btn }");
     assert_eq!(

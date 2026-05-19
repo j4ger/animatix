@@ -129,7 +129,6 @@ impl SourceIndex {
                 | Stmt::Sequence { body, .. }
                 | Stmt::Stagger { body, .. }
                 | Stmt::Always { body, .. }
-                | Stmt::LabeledAlways { body, .. }
                 | Stmt::Drive { body, .. }
                 | Stmt::Conditional { then_branch: body, .. }
                 | Stmt::ForLoop { body, .. } => {

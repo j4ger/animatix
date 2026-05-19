@@ -49,7 +49,7 @@ pub enum LabelKind {
     Let,
     /// For loop variable: `for item in ...`
     For,
-    /// Labeled always block: `label: always { ... }`
+    /// Always block: `always { ... }`
     Always,
     /// Component definition: `component Name { ... }`
     Component,
@@ -290,20 +290,6 @@ impl SymbolTable {
                 self.labels.insert(var.clone(), LabelInfo {
                     name: var.clone(),
                     kind: LabelKind::For,
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    ty: None,
-                });
-
-                for stmt in body {
-                    self.collect_stmt(stmt);
-                }
-            }
-
-            Stmt::LabeledAlways { label, body, .. } => {
-                self.labels.insert(label.clone(), LabelInfo {
-                    name: label.clone(),
-                    kind: LabelKind::Always,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
                     ty: None,

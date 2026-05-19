@@ -187,22 +187,14 @@ pub(super) fn rewrite_stmt(
                 .collect(),
             span: None,
         },
-        Stmt::Always { body, .. } => Stmt::Always {
-            body: body
-                .iter()
-                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
-                .collect(),
-            span: None,
-        },
-        Stmt::LabeledAlways { label, body, .. } => Stmt::LabeledAlways {
-            label: rewrite_label(label, prefix, root_label, known_labels),
-            body: body
-                .iter()
-                .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
-                .collect(),
-            span: None,
-        },
-        Stmt::Drive { label, body, .. } => Stmt::Drive {
+Stmt::Always { body, .. } => Stmt::Always {
+			body: body
+				.iter()
+				.map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+				.collect(),
+			span: None,
+		},
+		Stmt::Drive { label, body, .. } => Stmt::Drive {
             label: rewrite_label(label, prefix, root_label, known_labels),
             body: body
                 .iter()

@@ -475,14 +475,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Labeled Always: job: always { ... }
-    LabeledAlways {
-        label: String,
-        body: Vec<Stmt>,
-        
-        span: Option<Span>,
-    },
-
     /// Drive: drive actor { ... }
     /// Per-actor reactive block where assignments are implicitly scoped.
     Drive {

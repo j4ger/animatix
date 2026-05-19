@@ -17,20 +17,6 @@ Per-frame allocation tracking, staging belt growth monitoring, and renderer cach
 
 ## 2. Architectural Cleanup
 
-### 2.1 Remove or Repurpose `LabeledAlways`
-
-**Location:** `crates/animatix/src/ast.rs`, `crates/animatix/src/parser.rs`, `crates/animatix/src/timeline/build/mod.rs`
-
-`LabeledAlways` (`job: always { ... }`) currently ignores its label — it behaves identically to `always { ... }`. The original design intent was to support `stop <label>` / `pause <label>` control flow over labeled reactive blocks, but the spec matrix explicitly removed `loop` / `yield` / `stop` / `pause` / `resume`.
-
-**Options:**
-- Remove `LabeledAlways` entirely (users should use `drive` for labeled reactive blocks)
-- Repurpose the label for conditional modifier filtering
-
-**Effort:** Low. Parser + AST + module system cleanup.
-
----
-
 ### 2.2 Generic `duration_seconds` Aggregation
 
 **Location:** `crates/animatix/src/timeline/mod.rs`
@@ -92,7 +78,6 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | GPU memory profiling | Medium | Medium |
-| 2 | Remove / repurpose `LabeledAlways` (2.1) | Low | Low (cleanup) |
-| 3 | Generic `duration_seconds` aggregation (2.2) | Low | Low (cleanup) |
-| 4 | Primitive `Property` factory helpers (2.3) | Low | Low (cleanup) |
-| 5 | Green tree / trivia AST (3.2) | Very High | Low (polish) |
+| 2 | Generic `duration_seconds` aggregation (2.2) | Low | Low (cleanup) |
+| 3 | Primitive `Property` factory helpers (2.3) | Low | Low (cleanup) |
+| 4 | Green tree / trivia AST (3.2) | Very High | Low (polish) |

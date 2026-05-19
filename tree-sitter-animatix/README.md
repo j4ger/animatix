@@ -20,7 +20,7 @@ That means this grammar covers shipped syntax such as:
 - actions
 - actor declarations and inline children
 - `Text`, `Math`, `Code`, `Svg`, and `Image` statements
-- `always` / labeled `always`
+- `always`
 - `if` / `else`
 - `for`
 - `import`

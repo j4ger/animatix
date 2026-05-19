@@ -274,7 +274,6 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::LabeledAlways { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if update_assignment(body, actor, property, value.clone()) {
@@ -680,7 +679,6 @@ fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool
         | Stmt::Sequence { body, .. }
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
-        | Stmt::LabeledAlways { body, .. }
         | Stmt::ComponentDef(ComponentDef { body, .. }, _)
         | Stmt::ComponentAction { body, .. } => {
             for child in body.iter_mut() {
@@ -740,7 +738,6 @@ pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::LabeledAlways { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if let Some(found) = find_actor_decl(body, label) {
@@ -789,7 +786,6 @@ fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::LabeledAlways { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if let Some(found) = find_actor_decl_mut(body, label) {
@@ -846,7 +842,6 @@ fn find_assignment_mut<'a>(
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::LabeledAlways { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 if let Some(found) = find_assignment_mut(body, actor, property) {
@@ -986,7 +981,6 @@ fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
         | Stmt::Sequence { body, .. }
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
-        | Stmt::LabeledAlways { body, .. }
         | Stmt::ComponentDef(ComponentDef { body, .. }, _)
         | Stmt::ComponentAction { body, .. } => {
             rename_all_references(body, old_label, new_label);
@@ -1412,7 +1406,6 @@ btn.position = (200, 100)"#);
                     | Stmt::Sequence { body, .. }
                     | Stmt::Stagger { body, .. }
                     | Stmt::Always { body, .. }
-                    | Stmt::LabeledAlways { body, .. }
                     | Stmt::ComponentAction { body, .. } => {
                         walk(body, found_color, found_position);
                     }
