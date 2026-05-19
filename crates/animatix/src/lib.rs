@@ -2,6 +2,7 @@ pub mod ast;
 pub mod composition;
 pub mod diagnostics;
 pub mod easing;
+pub mod icon_glyphs;
 pub mod ir;
 pub mod module;
 pub mod parser;

@@ -1024,16 +1024,15 @@ fn inline_item_to_stmt(item: InlineItem) -> Stmt {
             children,
             span: None,
         },
-        InlineItem::SlotFill { slot, items, .. } => {
-
-                label: format!("__slot_{}", slot),
-                ty: "Group".into(),
-                props: vec![],
-                modifiers: vec![],
-                children: items,
-                span: None,
-            }
-        }
+        InlineItem::SlotFill { slot, items, .. } => Stmt::ActorDecl {
+            is_pub: false,
+            label: format!("__slot_{}", slot),
+            ty: "Group".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: items,
+            span: None,
+        },
         InlineItem::SlotMarker => {
             // Slot markers can't be converted to statements
             Stmt::ActorDecl {

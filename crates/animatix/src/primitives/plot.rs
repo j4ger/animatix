@@ -13,7 +13,7 @@ impl Primitive for GraphPrimitive {
     fn type_name(&self) -> &'static str { "Graph" }
     fn display_name(&self) -> &'static str { "Graph" }
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
-    fn icon_id(&self) -> &'static str { "chart-bar" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CHART_BAR }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Graph }
 
     fn build(
@@ -51,7 +51,7 @@ impl Primitive for PlotCurvePrimitive {
     fn type_name(&self) -> &'static str { "PlotCurve" }
     fn display_name(&self) -> &'static str { "Plot Curve" }
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
-    fn icon_id(&self) -> &'static str { "chart-line-up" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CHART_LINE_UP }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::PlotCurve }
 
@@ -99,7 +99,7 @@ impl Primitive for VectorFieldPrimitive {
     fn type_name(&self) -> &'static str { "VectorField" }
     fn display_name(&self) -> &'static str { "Vector Field" }
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
-    fn icon_id(&self) -> &'static str { "arrows-out-cardinal" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::ARROWS_OUT_CARDINAL }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::VectorField }
 
@@ -146,7 +146,7 @@ impl Primitive for HeatmapPrimitive {
     fn type_name(&self) -> &'static str { "Heatmap" }
     fn display_name(&self) -> &'static str { "Heatmap" }
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
-    fn icon_id(&self) -> &'static str { "gradient" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::GRADIENT }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Heatmap }
 
@@ -193,7 +193,7 @@ impl Primitive for ContourSetPrimitive {
     fn type_name(&self) -> &'static str { "ContourSet" }
     fn display_name(&self) -> &'static str { "Contour Set" }
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
-    fn icon_id(&self) -> &'static str { "chart-donut" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CHART_DONUT }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::ContourSet }
 
