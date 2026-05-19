@@ -17,6 +17,30 @@ fn transition_type_label(id: &str) -> &'static str {
     animatix::transition_registry::display_name(id)
 }
 
+/// Compute a "nice" tick interval for ruler marks.
+/// Produces round numbers (1, 2, 5, 10, 20, 50, 100, ...).
+fn nice_tick_interval(visible_range: f32, target_ticks: f32) -> f32 {
+    let raw = (visible_range / target_ticks).abs();
+    if raw <= 0.0 {
+        return 1.0;
+    }
+    let magnitude = 10.0_f32.powf(raw.log10().floor());
+    let normalized = raw / magnitude;
+    let nice_mul = if normalized < 1.5 {
+        1.0
+    } else if normalized < 3.5 {
+        2.0
+    } else if normalized < 7.5 {
+        5.0
+    } else {
+        10.0
+    };
+    nice_mul * magnitude
+}
+
+const RULER_SIZE: f32 = 20.0;
+const SNAP_THRESHOLD: f32 = 5.0; // scene pixels
+
 use crate::app::components;
 use crate::app::components::widgets;
 use crate::app::icons::actor_icon_str;
@@ -1198,6 +1222,80 @@ self.selected_actors,
                             ny = (ny / grid).round() * grid;
                         }
 
+                        // ── Guide snap ──
+                        let mut snapped_guide_h = false;
+                        let mut snapped_guide_v = false;
+                        for &guide_y in &self.preview.horizontal_guides {
+                            if (ny - guide_y).abs() < SNAP_THRESHOLD {
+                                ny = guide_y;
+                                snapped_guide_h = true;
+                            }
+                        }
+                        for &guide_x in &self.preview.vertical_guides {
+                            if (nx - guide_x).abs() < SNAP_THRESHOLD {
+                                nx = guide_x;
+                                snapped_guide_v = true;
+                            }
+                        }
+
+                        // ── Actor-to-actor snap ──
+                        // Get dragged actor's half-size for edge computation
+                        let dragged_props = self.get_actor_props(&actor);
+                        let half_w = dragged_props.as_ref().map(|p| p.size[0] / 2.0).unwrap_or(0.0);
+                        let half_h = dragged_props.as_ref().map(|p| p.size[1] / 2.0).unwrap_or(0.0);
+                        let dragged_x_edges = [nx - half_w, nx, nx + half_w];
+                        let dragged_y_edges = [ny - half_h, ny, ny + half_h];
+
+                        let mut snapped_actor_h = false;
+                        let mut snapped_actor_v = false;
+                        for (other_label, other_bounds) in self.hit_regions.iter() {
+                            if other_label == &actor { continue; }
+                            let other_x_edges = [
+                                other_bounds.x0 as f32,
+                                (other_bounds.x0 + other_bounds.x1) as f32 / 2.0,
+                                other_bounds.x1 as f32,
+                            ];
+                            let other_y_edges = [
+                                other_bounds.y0 as f32,
+                                (other_bounds.y0 + other_bounds.y1) as f32 / 2.0,
+                                other_bounds.y1 as f32,
+                            ];
+
+                            // X snap
+                            for &de in &dragged_x_edges {
+                                for &oe in &other_x_edges {
+                                    let candidate_nx: f32 = nx + (oe - de);
+                                    if (candidate_nx - nx).abs() < SNAP_THRESHOLD && (candidate_nx - nx).abs() > 0.001 {
+                                        nx = candidate_nx;
+                                        snapped_actor_v = true;
+                                    }
+                                }
+                            }
+                            // Y snap
+                            for &de in &dragged_y_edges {
+                                for &oe in &other_y_edges {
+                                    let candidate_ny: f32 = ny + (oe - de);
+                                    if (candidate_ny - ny).abs() < SNAP_THRESHOLD && (candidate_ny - ny).abs() > 0.001 {
+                                        ny = candidate_ny;
+                                        snapped_actor_h = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Record snap lines for rendering ──
+                        if snapped_guide_h || snapped_actor_h {
+                            self.preview.snap_lines_h.push(ny);
+                        }
+                        if snapped_guide_v || snapped_actor_v {
+                            self.preview.snap_lines_v.push(nx);
+                        }
+                        if snapped_guide_h || snapped_guide_v || snapped_actor_h || snapped_actor_v {
+                            // Guide snap = AMBER, actor snap = GREEN; if both, use AMBER
+                            let use_guide_color = snapped_guide_h || snapped_guide_v;
+                            self.preview.snap_line_color = Some(if use_guide_color { AMBER } else { GREEN });
+                        }
+
                         let binding = self
                             .timeline
                             .and_then(|t| t.get_track(&actor))
@@ -2042,6 +2140,206 @@ self.selected_actors,
             );
             ui.painter().rect_filled(preview_rect, RADIUS_L, BG_BASE);
 
+            // ── Rulers ──
+            let ruler_bg = BG_PANEL;
+            let ruler_tick_color = TEXT_MUTED;
+            let ruler_text_color = TEXT_MUTED;
+            let ruler_label_color = TEXT_SECONDARY;
+
+            // Ruler rects around the preview
+            let h_ruler_rect = egui::Rect::from_min_size(
+                egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
+                Vec2::new(preview_rect.width(), RULER_SIZE),
+            );
+            let v_ruler_rect = egui::Rect::from_min_size(
+                egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
+                Vec2::new(RULER_SIZE, preview_rect.height()),
+            );
+            let corner_rect = egui::Rect::from_min_size(
+                egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
+                Vec2::new(RULER_SIZE, RULER_SIZE),
+            );
+            let ruler_stroke = Stroke::new(1.0, BORDER);
+
+            // Corner filler
+            ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
+            ui.painter().rect_stroke(corner_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
+
+            // Compute visible scene bounds
+            let scene_tl = preview_screen_to_scene(
+                self.scene_dimensions, preview_rect, preview_rect.left_top(),
+                self.preview.preview_zoom, self.preview.preview_pan,
+            );
+            let scene_br = preview_screen_to_scene(
+                self.scene_dimensions, preview_rect, preview_rect.right_bottom(),
+                self.preview.preview_zoom, self.preview.preview_pan,
+            );
+            let visible_w = (scene_br.x - scene_tl.x) as f32;
+            let visible_h = (scene_br.y - scene_tl.y) as f32;
+
+            // Horizontal ruler
+            ui.painter().rect_filled(h_ruler_rect, 0.0, ruler_bg);
+            ui.painter().rect_stroke(h_ruler_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
+            let h_interval = nice_tick_interval(visible_w, h_ruler_rect.width() / 60.0).max(1.0);
+            let h_start = ((scene_tl.x as f32) / h_interval).floor() as i32 * h_interval as i32;
+            let h_end = ((scene_br.x as f32) / h_interval).ceil() as i32 * h_interval as i32;
+            let mut tick_x = h_start as f32;
+            while tick_x <= h_end as f32 {
+                let screen_pt = preview_scene_to_screen(
+                    self.scene_dimensions, preview_rect,
+                    kurbo::Point::new(tick_x as f64, scene_tl.y),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
+                    let rel_x = screen_pt.x - h_ruler_rect.min.x;
+                    let is_major = (tick_x as i32) % (h_interval as i32 * 5) == 0;
+                    let tick_h = if is_major { RULER_SIZE * 0.6 } else { RULER_SIZE * 0.3 };
+                    ui.painter().line_segment(
+                        [egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y),
+                         egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y - tick_h)],
+                        Stroke::new(1.0, if is_major { ruler_label_color } else { ruler_tick_color }),
+                    );
+                    if is_major {
+                        let label = format!("{}", tick_x as i32);
+                        ui.painter().text(
+                            egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.min.y + RULER_SIZE * 0.3),
+                            egui::Align2::CENTER_CENTER,
+                            label,
+                            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                            ruler_text_color,
+                        );
+                    }
+                }
+                tick_x += h_interval;
+            }
+
+            // Vertical ruler
+            ui.painter().rect_filled(v_ruler_rect, 0.0, ruler_bg);
+            ui.painter().rect_stroke(v_ruler_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
+            let v_interval = nice_tick_interval(visible_h, v_ruler_rect.height() / 60.0).max(1.0);
+            let v_start = ((scene_tl.y as f32) / v_interval).floor() as i32 * v_interval as i32;
+            let v_end = ((scene_br.y as f32) / v_interval).ceil() as i32 * v_interval as i32;
+            let mut tick_y = v_start as f32;
+            while tick_y <= v_end as f32 {
+                let screen_pt = preview_scene_to_screen(
+                    self.scene_dimensions, preview_rect,
+                    kurbo::Point::new(scene_tl.x, tick_y as f64),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
+                    let rel_y = screen_pt.y - v_ruler_rect.min.y;
+                    let is_major = (tick_y as i32) % (v_interval as i32 * 5) == 0;
+                    let tick_w = if is_major { RULER_SIZE * 0.6 } else { RULER_SIZE * 0.3 };
+                    ui.painter().line_segment(
+                        [egui::pos2(v_ruler_rect.max.x, v_ruler_rect.min.y + rel_y),
+                         egui::pos2(v_ruler_rect.max.x - tick_w, v_ruler_rect.min.y + rel_y)],
+                        Stroke::new(1.0, if is_major { ruler_label_color } else { ruler_tick_color }),
+                    );
+                    if is_major {
+                        let label = format!("{}", tick_y as i32);
+                        ui.painter().text(
+                            egui::pos2(v_ruler_rect.min.x + RULER_SIZE * 0.3, v_ruler_rect.min.y + rel_y),
+                            egui::Align2::CENTER_CENTER,
+                            label,
+                            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                            ruler_text_color,
+                        );
+                    }
+                }
+                tick_y += v_interval;
+            }
+
+            // ── Ruler drag interaction ──
+            let ruler_drag_id = ui.id().with("guide_ruler_drag");
+            let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+            let h_ruler_resp = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
+            let v_ruler_resp = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
+
+            // Track ruler drag: (is_vertical, start_scene_value)
+            if h_ruler_resp.drag_started() {
+                if let Some(mouse) = raw_pointer_pos {
+                    let scene = self.preview_screen_to_scene(preview_rect, mouse);
+                    ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((false, scene.y as f32))));
+                }
+            }
+            if v_ruler_resp.drag_started() {
+                if let Some(mouse) = raw_pointer_pos {
+                    let scene = self.preview_screen_to_scene(preview_rect, mouse);
+                    ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((true, scene.x as f32))));
+                }
+            }
+
+            // While dragging from ruler, show ghost guide line at current scene position
+            let ruler_drag_active: Option<(bool, f32)> = ui.data(|d| d.get_temp(ruler_drag_id));
+            if let Some((is_vertical, _start_val)) = ruler_drag_active {
+                if let Some(mouse) = raw_pointer_pos {
+                    let scene = self.preview_screen_to_scene(preview_rect, mouse);
+                    let guide_color = AMBER;
+                    if is_vertical {
+                        // Vertical ghost guide
+                        let ghost_screen = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene.x, 0.0));
+                        if ghost_screen.x >= preview_rect.min.x && ghost_screen.x <= preview_rect.max.x {
+                            ui.painter().line_segment(
+                                [egui::pos2(ghost_screen.x, preview_rect.min.y),
+                                 egui::pos2(ghost_screen.x, preview_rect.max.y)],
+                                Stroke::new(1.0, guide_color),
+                            );
+                        }
+                    } else {
+                        // Horizontal ghost guide
+                        let ghost_screen = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, scene.y));
+                        if ghost_screen.y >= preview_rect.min.y && ghost_screen.y <= preview_rect.max.y {
+                            ui.painter().line_segment(
+                                [egui::pos2(preview_rect.min.x, ghost_screen.y),
+                                 egui::pos2(preview_rect.max.x, ghost_screen.y)],
+                                Stroke::new(1.0, guide_color),
+                            );
+                        }
+                    }
+                }
+            }
+
+            // When ruler drag ends, create a guide
+            let pointer_released = ui.input(|i| i.pointer.any_released());
+            if let Some((is_vertical, _start_val)) = ruler_drag_active {
+                if pointer_released || h_ruler_resp.drag_stopped() || v_ruler_resp.drag_stopped() {
+                    if let Some(mouse) = raw_pointer_pos {
+                        if preview_rect.contains(mouse) {
+                            let scene = self.preview_screen_to_scene(preview_rect, mouse);
+                            if is_vertical {
+                                self.preview.vertical_guides.push(scene.x as f32);
+                            } else {
+                                self.preview.horizontal_guides.push(scene.y as f32);
+                            }
+                        }
+                    }
+                    ui.data_mut(|d| d.remove::<Option<(bool, f32)>>(ruler_drag_id));
+                }
+            }
+
+            // ── Draw existing guides ──
+            let guide_color = AMBER;
+            for &guide_y in &self.preview.horizontal_guides {
+                let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
+                if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
+                    ui.painter().line_segment(
+                        [egui::pos2(preview_rect.min.x, screen_pt.y),
+                         egui::pos2(preview_rect.max.x, screen_pt.y)],
+                        Stroke::new(1.0, guide_color),
+                    );
+                }
+            }
+            for &guide_x in &self.preview.vertical_guides {
+                let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
+                if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
+                    ui.painter().line_segment(
+                        [egui::pos2(screen_pt.x, preview_rect.min.y),
+                         egui::pos2(screen_pt.x, preview_rect.max.y)],
+                        Stroke::new(1.0, guide_color),
+                    );
+                }
+            }
+
             // ── Scroll zoom ──
             if response.hovered() {
                 let scroll = ui.input(|i| i.smooth_scroll_delta);
@@ -2101,6 +2399,11 @@ self.selected_actors,
                     }
                 }
             }
+
+            // Clear snap lines from previous frame
+            self.preview.snap_lines_h.clear();
+            self.preview.snap_lines_v.clear();
+            self.preview.snap_line_color = None;
 
             let is_dragging = !matches!(self.drag_state, DragState::None);
             if self.handle_preview_drag(ui, preview_rect, &response) {
@@ -2183,6 +2486,31 @@ self.selected_actors,
                     y += grid;
                 }
             }
+
+            // ── Draw snap indicator lines ──
+            if let Some(color) = self.preview.snap_line_color {
+                for &sy in &self.preview.snap_lines_h {
+                    let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, sy as f64));
+                    if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
+                        ui.painter().line_segment(
+                            [egui::pos2(preview_rect.min.x, screen_pt.y),
+                             egui::pos2(preview_rect.max.x, screen_pt.y)],
+                            Stroke::new(1.0, color),
+                        );
+                    }
+                }
+                for &sx in &self.preview.snap_lines_v {
+                    let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(sx as f64, 0.0));
+                    if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
+                        ui.painter().line_segment(
+                            [egui::pos2(screen_pt.x, preview_rect.min.y),
+                             egui::pos2(screen_pt.x, preview_rect.max.y)],
+                            Stroke::new(1.0, color),
+                        );
+                    }
+                }
+            }
+
             self.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
             // NOTE: errors are shown in the diagnostics banner above the canvas,

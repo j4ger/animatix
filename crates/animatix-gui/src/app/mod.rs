@@ -89,6 +89,16 @@ struct PreviewPaneState {
     loop_start_s: Option<f64>,
     /// Loop region end time (B marker). None = not set.
     loop_end_s: Option<f64>,
+    /// Horizontal guide positions in scene y-coordinates (pixels).
+    horizontal_guides: Vec<f32>,
+    /// Vertical guide positions in scene x-coordinates (pixels).
+    vertical_guides: Vec<f32>,
+    /// Snap lines to draw this frame (cleared at start of each preview_ui).
+    snap_lines_h: Vec<f32>,
+    /// Snap lines to draw this frame (cleared at start of each preview_ui).
+    snap_lines_v: Vec<f32>,
+    /// Color of the current snap lines.
+    snap_line_color: Option<Color32>,
 }
 
 impl PreviewPaneState {
@@ -106,6 +116,11 @@ impl PreviewPaneState {
             playback_speed: 1.0,
             loop_start_s: None,
             loop_end_s: None,
+            horizontal_guides: vec![],
+            vertical_guides: vec![],
+            snap_lines_h: vec![],
+            snap_lines_v: vec![],
+            snap_line_color: None,
         }
     }
 
