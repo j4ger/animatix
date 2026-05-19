@@ -71,9 +71,9 @@ impl Primitive for MathPrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "at".into(), value: Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)]), value_span: None, trailing_comment: None },
-            Property { name: "text".into(), value: Expr::Str("x^2".into()), value_span: None, trailing_comment: None },
-            Property { name: "font_size".into(), value: Expr::Num(48.0), value_span: None, trailing_comment: None },
+            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new("text", Expr::Str("x^2".into())),
+            Property::new("font_size", Expr::Num(48.0)),
         ]
     }
 }

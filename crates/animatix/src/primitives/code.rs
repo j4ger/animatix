@@ -71,9 +71,9 @@ impl Primitive for CodePrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "at".into(), value: Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)]), value_span: None, trailing_comment: None },
-            Property { name: "text".into(), value: Expr::Str("fn main() {}".into()), value_span: None, trailing_comment: None },
-            Property { name: "font_size".into(), value: Expr::Num(24.0), value_span: None, trailing_comment: None },
+            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new("text", Expr::Str("fn main() {}".into())),
+            Property::new("font_size", Expr::Num(24.0)),
         ]
     }
 }

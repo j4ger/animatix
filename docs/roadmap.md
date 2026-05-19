@@ -15,33 +15,7 @@ Per-frame allocation tracking, staging belt growth monitoring, and renderer cach
 
 ---
 
-## 2. Architectural Cleanup
-
-### 2.2 Generic `duration_seconds` Aggregation
-
-**Location:** `crates/animatix/src/timeline/mod.rs`
-
-`duration_seconds` manually aggregates max keyframe times from `tracks`, `background_color`, `child_orders`, and `variable_tracks`. Every new track-like collection requires a human to remember to update this function.
-
-**Fix:** Store all duration-contributing collections behind a common trait (`HasDuration`) or iterate over a registry.
-
-**Effort:** Low.
-
----
-
-### 2.3 Primitive `default_props` Factory Helpers
-
-**Location:** `crates/animatix/src/primitives/`
-
-Every primitive defines `default_props()` by manually constructing `Property { name: ..., value: ..., value_span: None, trailing_comment: None }`. Only `plot.rs` has a `property()` helper. Adding any new field to `Property` requires touching ~67 construction sites.
-
-**Fix:** Add a `Property::new(name, value)` constructor and migrate all primitive definitions to use it.
-
-**Effort:** Low. Mechanical refactor.
-
----
-
-## 3. Long-Term / Speculative
+## 2. Long-Term / Speculative
 
 ### 3.1 FFI / Web Canvas Integration
 
@@ -78,6 +52,4 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
 | 1 | GPU memory profiling | Medium | Medium |
-| 2 | Generic `duration_seconds` aggregation (2.2) | Low | Low (cleanup) |
-| 3 | Primitive `Property` factory helpers (2.3) | Low | Low (cleanup) |
-| 4 | Green tree / trivia AST (3.2) | Very High | Low (polish) |
+| 2 | Green tree / trivia AST (3.2) | Very High | Low (polish) |

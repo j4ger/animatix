@@ -33,19 +33,14 @@ impl Primitive for PathPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property {
-                name: "commands".into(),
-                value: Expr::Tuple(vec![
-                    Expr::Call("move_to".into(), vec![Expr::Num(-50.0), Expr::Num(-50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(-50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                    Expr::Call("line_to".into(), vec![Expr::Num(-50.0), Expr::Num(50.0)]),
-                    Expr::Call("close".into(), vec![]),
-                ]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
+            Property::new("commands", Expr::Tuple(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(-50.0), Expr::Num(-50.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(-50.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(-50.0), Expr::Num(50.0)]),
+                Expr::Call("close".into(), vec![]),
+            ])),
+            Property::new("color", Expr::Ident("accent.primary".into())),
         ]
     }
 

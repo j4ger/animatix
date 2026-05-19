@@ -28,9 +28,9 @@ impl Primitive for RowPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "gap".into(), value: Expr::Num(0.0), value_span: None, trailing_comment: None },
-            Property { name: "padding".into(), value: Expr::Num(0.0), value_span: None, trailing_comment: None },
-            Property { name: "align".into(), value: Expr::Str("center".into()), value_span: None, trailing_comment: None },
+            Property::new("gap", Expr::Num(0.0)),
+            Property::new("padding", Expr::Num(0.0)),
+            Property::new("align", Expr::Str("center".into())),
         ]
     }
 }

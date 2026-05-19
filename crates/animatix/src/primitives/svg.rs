@@ -94,9 +94,9 @@ impl Primitive for SvgPrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "at".into(), value: Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)]), value_span: None, trailing_comment: None },
-            Property { name: "url".into(), value: Expr::Str(String::new()), value_span: None, trailing_comment: None },
-            Property { name: "size".into(), value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(160.0)]), value_span: None, trailing_comment: None },
+            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new("url", Expr::Str(String::new())),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(160.0)])),
         ]
     }
 }

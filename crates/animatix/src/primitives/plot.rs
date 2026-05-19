@@ -3,15 +3,6 @@ use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
-fn property(name: &str, value: Expr) -> Property {
-    Property {
-        name: name.into(),
-        value,
-        value_span: None,
-        trailing_comment: None,
-    }
-}
-
 pub struct GraphPrimitive;
 pub const GRAPH: GraphPrimitive = GraphPrimitive;
 
@@ -48,10 +39,10 @@ impl Primitive for GraphPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            property("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            property("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
-            property("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
         ]
     }
 }
@@ -87,16 +78,16 @@ impl Primitive for PlotCurvePrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            property("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            property("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
-            property("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("t_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("kind", Expr::Str("cartesian".into())),
-            property("func", Expr::Closure(vec!["x".into()], Box::new(Expr::Ident("x".into())))),
-            property("tolerance", Expr::Num(0.5)),
-            property("max_depth", Expr::Num(10.0)),
-            property("resolution", Expr::Num(96.0)),
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("t_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("kind", Expr::Str("cartesian".into())),
+            Property::new("func", Expr::Closure(vec!["x".into()], Box::new(Expr::Ident("x".into())))),
+            Property::new("tolerance", Expr::Num(0.5)),
+            Property::new("max_depth", Expr::Num(10.0)),
+            Property::new("resolution", Expr::Num(96.0)),
         ]
     }
 }
@@ -135,12 +126,12 @@ impl Primitive for VectorFieldPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            property("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            property("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
-            property("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("density", Expr::Num(16.0)),
-            property("func", Expr::Closure(
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("density", Expr::Num(16.0)),
+            Property::new("func", Expr::Closure(
                 vec!["x".into(), "y".into()],
                 Box::new(Expr::Tuple(vec![Expr::Ident("x".into()), Expr::Ident("y".into())])),
             )),
@@ -182,12 +173,12 @@ impl Primitive for HeatmapPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            property("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            property("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
-            property("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("resolution", Expr::Num(64.0)),
-            property("func", Expr::Closure(
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("resolution", Expr::Num(64.0)),
+            Property::new("func", Expr::Closure(
                 vec!["x".into(), "y".into()],
                 Box::new(Expr::Num(0.0)),
             )),
@@ -229,13 +220,13 @@ impl Primitive for ContourSetPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            property("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            property("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
-            property("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
-            property("resolution", Expr::Num(96.0)),
-            property("levels", Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(0.0), Expr::Num(2.0)])),
-            property("func", Expr::Closure(
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("resolution", Expr::Num(96.0)),
+            Property::new("levels", Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(0.0), Expr::Num(2.0)])),
+            Property::new("func", Expr::Closure(
                 vec!["x".into(), "y".into()],
                 Box::new(Expr::Num(0.0)),
             )),

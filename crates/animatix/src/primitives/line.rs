@@ -39,10 +39,10 @@ impl Primitive for LinePrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "from".into(), value: Expr::Tuple(vec![Expr::Num(-100.0), Expr::Num(0.0)]), value_span: None, trailing_comment: None },
-            Property { name: "to".into(), value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(0.0)]), value_span: None, trailing_comment: None },
-            Property { name: "stroke_width".into(), value: Expr::Num(4.0), value_span: None, trailing_comment: None },
-            Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
+            Property::new("from", Expr::Tuple(vec![Expr::Num(-100.0), Expr::Num(0.0)])),
+            Property::new("to", Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(0.0)])),
+            Property::new("stroke_width", Expr::Num(4.0)),
+            Property::new("color", Expr::Ident("accent.primary".into())),
         ]
     }
 

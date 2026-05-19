@@ -40,9 +40,9 @@ impl Primitive for EllipsePrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property { name: "at".into(), value: Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)]), value_span: None, trailing_comment: None },
-            Property { name: "size".into(), value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)]), value_span: None, trailing_comment: None },
-            Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)])),
+            Property::new("color", Expr::Ident("accent.primary".into())),
         ]
     }
 

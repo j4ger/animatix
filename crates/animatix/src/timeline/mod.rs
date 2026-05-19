@@ -258,6 +258,30 @@ impl VariableTrack {
     }
 }
 
+/// Trait for types that have a notion of their maximum keyframe time.
+pub trait HasDuration {
+    /// Returns the maximum keyframe time in milliseconds.
+    fn max_keyframe_time_ms(&self) -> u64;
+}
+
+impl HasDuration for AnimationTrack {
+    fn max_keyframe_time_ms(&self) -> u64 {
+        self.max_keyframe_time().unwrap_or(0)
+    }
+}
+
+impl<T: Interpolate + Clone> HasDuration for PropertyTrack<T> {
+    fn max_keyframe_time_ms(&self) -> u64 {
+        self.last_keyframe_time().unwrap_or(0)
+    }
+}
+
+impl HasDuration for VariableTrack {
+    fn max_keyframe_time_ms(&self) -> u64 {
+        self.keyframes.keys().next_back().copied().unwrap_or(0)
+    }
+}
+
 pub struct Timeline {
     pub tracks: BTreeMap<String, AnimationTrack>,
     pub background_color: PropertyTrack<[f32; 4]>,
@@ -368,26 +392,27 @@ impl Timeline {
     /// Duration of the authored animation in seconds, derived from the latest
     /// keyframe across all tracks, background, and child order animations.
     pub fn duration_seconds(&self) -> f64 {
-        let max_track_ms = self
+        let max_ms = self
             .tracks
             .values()
-            .filter_map(|track| track.max_keyframe_time())
+            .map(|t| t.max_keyframe_time_ms())
             .max()
-            .unwrap_or(0);
-        let max_bg_ms = self.background_color.last_keyframe_time().unwrap_or(0);
-        let max_order_ms = self
-            .child_orders
-            .values()
-            .filter_map(|track| track.last_keyframe_time())
-            .max()
-            .unwrap_or(0);
-        let max_var_ms = self
-            .variable_tracks
-            .values()
-            .filter_map(|track| track.keyframes.keys().next_back().copied())
-            .max()
-            .unwrap_or(0);
-        let max_ms = max_track_ms.max(max_bg_ms).max(max_order_ms).max(max_var_ms);
+            .unwrap_or(0)
+            .max(self.background_color.max_keyframe_time_ms())
+            .max(
+                self.child_orders
+                    .values()
+                    .map(|t| t.max_keyframe_time_ms())
+                    .max()
+                    .unwrap_or(0),
+            )
+            .max(
+                self.variable_tracks
+                    .values()
+                    .map(|t| t.max_keyframe_time_ms())
+                    .max()
+                    .unwrap_or(0),
+            );
         (max_ms as f64) / 1000.0
     }
 

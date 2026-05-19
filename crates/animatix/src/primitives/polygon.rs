@@ -43,17 +43,12 @@ impl Primitive for PolygonPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property {
-                name: "points".into(),
-                value: Expr::Tuple(vec![
-                    Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(60.0)]),
-                    Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-60.0)]),
-                    Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(60.0)]),
-                ]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property { name: "color".into(), value: Expr::Ident("accent.primary".into()), value_span: None, trailing_comment: None },
+            Property::new("points", Expr::Tuple(vec![
+                Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(60.0)]),
+                Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-60.0)]),
+                Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(60.0)]),
+            ])),
+            Property::new("color", Expr::Ident("accent.primary".into())),
         ]
     }
 

@@ -205,6 +205,17 @@ pub struct Property {
     pub trailing_comment: Option<String>,
 }
 
+impl Property {
+    pub fn new(name: impl Into<String>, value: Expr) -> Self {
+        Self {
+            name: name.into(),
+            value,
+            value_span: None,
+            trailing_comment: None,
+        }
+    }
+}
+
 impl Default for Property {
     fn default() -> Self {
         Self {
