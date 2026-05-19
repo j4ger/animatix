@@ -8,6 +8,68 @@ use crate::app::theme::*;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, FontId, Pos2, Stroke, Vec2};
 
+// ─── Preview Transform ──────────────────────────────────────────────────────
+
+/// Bundles all coordinate-space conversion state for the preview canvas.
+///
+/// Instead of threading `zoom`, `pan`, `preview_rect`, and `scene_dimensions`
+/// through every helper function, callers build one `PreviewTransform` and
+/// pass a reference.
+#[derive(Clone, Copy, Debug)]
+pub struct PreviewTransform {
+    pub scene_dimensions: SceneDimensions,
+    pub preview_rect: egui::Rect,
+    pub zoom: f32,
+    pub pan: Vec2,
+}
+
+impl PreviewTransform {
+    pub fn new(
+        scene_dimensions: SceneDimensions,
+        preview_rect: egui::Rect,
+        zoom: f32,
+        pan: Vec2,
+    ) -> Self {
+        Self {
+            scene_dimensions,
+            preview_rect,
+            zoom,
+            pan,
+        }
+    }
+
+    /// Compute the scale factors used for scene ↔ screen conversion.
+    fn scale(&self) -> (f64, f64) {
+        let desired = self.preview_rect.size();
+        let base_scale_x = self.scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
+        let base_scale_y = self.scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+        let z = self.zoom.max(0.01) as f64;
+        (base_scale_x / z, base_scale_y / z)
+    }
+
+    /// Convert a screen position (e.g. mouse cursor) to scene coordinates.
+    pub fn screen_to_scene(&self, screen: Pos2) -> kurbo::Point {
+        let (scale_x, scale_y) = self.scale();
+        let center_x = self.preview_rect.center().x as f64;
+        let center_y = self.preview_rect.center().y as f64;
+        kurbo::Point::new(
+            self.pan.x as f64 + (screen.x as f64 - center_x) * scale_x,
+            self.pan.y as f64 + (screen.y as f64 - center_y) * scale_y,
+        )
+    }
+
+    /// Convert a scene coordinate to a screen position.
+    pub fn scene_to_screen(&self, scene: kurbo::Point) -> Pos2 {
+        let (scale_x, scale_y) = self.scale();
+        let center_x = self.preview_rect.center().x as f64;
+        let center_y = self.preview_rect.center().y as f64;
+        Pos2::new(
+            (center_x + (scene.x - self.pan.x as f64) / scale_x) as f32,
+            (center_y + (scene.y - self.pan.y as f64) / scale_y) as f32,
+        )
+    }
+}
+
 // ─── Drag State ─────────────────────────────────────────────────────────────
 
 /// Which spatial property a scale drag should mutate.
@@ -237,24 +299,18 @@ pub(super) fn rotation_handle_world(props: &ActorProps) -> kurbo::Point {
 // ─── Scene ↔ Screen mapping ─────────────────────────────────────────────────
 
 /// Convert scene coordinates to screen coordinates for the preview canvas.
+///
+/// Deprecated: prefer `PreviewTransform::scene_to_screen`.
 pub(super) fn scene_to_screen(
     scene_pos: kurbo::Point,
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
-    desired: Vec2,
+    _desired: Vec2,
     zoom: f32,
     pan: Vec2,
 ) -> Pos2 {
-    let base_scale_x = desired.x as f64 / scene_dimensions.width as f64;
-    let base_scale_y = desired.y as f64 / scene_dimensions.height as f64;
-    let scale_x = base_scale_x * zoom.max(0.01) as f64;
-    let scale_y = base_scale_y * zoom.max(0.01) as f64;
-    let center_x = preview_rect.center().x as f64;
-    let center_y = preview_rect.center().y as f64;
-    Pos2::new(
-        (center_x + (scene_pos.x - pan.x as f64) * scale_x) as f32,
-        (center_y + (scene_pos.y - pan.y as f64) * scale_y) as f32,
-    )
+    let tx = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
+    tx.scene_to_screen(scene_pos)
 }
 
 // ─── Selection Bounds (fallback when props unavailable) ─────────────────────

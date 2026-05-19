@@ -254,19 +254,8 @@ fn preview_screen_to_scene(
     zoom: f32,
     pan: Vec2,
 ) -> kurbo::Point {
-    let desired = preview_rect.size();
-    let base_scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
-    let base_scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
-    let scale_x = base_scale_x / zoom.max(0.01) as f64;
-    let scale_y = base_scale_y / zoom.max(0.01) as f64;
-
-    let center_x = preview_rect.center().x as f64;
-    let center_y = preview_rect.center().y as f64;
-
-    kurbo::Point::new(
-        pan.x as f64 + (screen.x as f64 - center_x) * scale_x,
-        pan.y as f64 + (screen.y as f64 - center_y) * scale_y,
-    )
+    let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
+    tx.screen_to_scene(screen)
 }
 
 fn preview_scene_to_screen(
@@ -276,19 +265,8 @@ fn preview_scene_to_screen(
     zoom: f32,
     pan: Vec2,
 ) -> egui::Pos2 {
-    let desired = preview_rect.size();
-    let base_scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
-    let base_scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
-    let scale_x = base_scale_x / zoom.max(0.01) as f64;
-    let scale_y = base_scale_y / zoom.max(0.01) as f64;
-
-    let center_x = preview_rect.center().x as f64;
-    let center_y = preview_rect.center().y as f64;
-
-    Pos2::new(
-        (center_x + (scene.x - pan.x as f64) / scale_x) as f32,
-        (center_y + (scene.y - pan.y as f64) / scale_y) as f32,
-    )
+    let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
+    tx.scene_to_screen(scene)
 }
 
 impl WorkspaceViewer<'_> {
@@ -862,12 +840,21 @@ self.selected_actors,
         });
     }
 
+    fn preview_transform(&self, preview_rect: egui::Rect) -> preview::PreviewTransform {
+        preview::PreviewTransform::new(
+            self.scene_dimensions,
+            preview_rect,
+            self.preview.preview_zoom,
+            self.preview.preview_pan,
+        )
+    }
+
     fn preview_screen_to_scene(&self, preview_rect: egui::Rect, screen: egui::Pos2) -> kurbo::Point {
-        preview_screen_to_scene(self.scene_dimensions, preview_rect, screen, self.preview.preview_zoom, self.preview.preview_pan)
+        self.preview_transform(preview_rect).screen_to_scene(screen)
     }
 
     fn preview_scene_to_screen(&self, preview_rect: egui::Rect, scene: kurbo::Point) -> egui::Pos2 {
-        preview_scene_to_screen(self.scene_dimensions, preview_rect, scene, self.preview.preview_zoom, self.preview.preview_pan)
+        self.preview_transform(preview_rect).scene_to_screen(scene)
     }
 
     /// Handle drag start/update/end for the preview.
