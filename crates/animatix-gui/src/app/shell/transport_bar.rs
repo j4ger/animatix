@@ -528,7 +528,15 @@ fn paint_transport_scrubber(
                     let right = egui::lerp(track_rect.left()..=track_rect.right(), (end_s / total).clamp(0.0, 1.0) as f32);
                     if pos.x >= left && pos.x <= right && pos.y >= track_rect.top() && pos.y <= track_rect.bottom() {
                         actions.select_scene = Some(scene_name.clone());
-                        *current_time_s = start_s;
+                        // Jump past any incoming transition to land in the stable part
+                        let mut target_time = start_s;
+                        for edge in composition.edges.values() {
+                            if edge.to_scene == *scene_name {
+                                target_time += edge.transition.duration_ms as f64 / 1000.0;
+                                break;
+                            }
+                        }
+                        *current_time_s = target_time;
                         return true;
                     }
                 }

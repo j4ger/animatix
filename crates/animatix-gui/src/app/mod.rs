@@ -693,7 +693,15 @@ impl GuiShell {
                 if composition.scenes.contains_key(&scene) {
                     self.document.active_scene = Some(scene.clone());
                     if let Some(start) = composition.scene_start_times.get(&scene) {
-                        self.preview.current_time_s = *start;
+                        let mut target_time = *start;
+                        // Jump past any incoming transition to land in the stable part of the scene
+                        for edge in composition.edges.values() {
+                            if edge.to_scene == scene {
+                                target_time += edge.transition.duration_ms as f64 / 1000.0;
+                                break;
+                            }
+                        }
+                        self.preview.current_time_s = target_time;
                         self.preview.clamp_time();
                         self.preview.is_playing = false;
                         self.preview_dirty = true;

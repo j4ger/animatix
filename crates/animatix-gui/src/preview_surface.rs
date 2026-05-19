@@ -288,20 +288,23 @@ impl PreviewSurface {
                 // Render from scene to render_texture, then drop scene_a
                 {
                     let scene_a = from.timeline.evaluate_with_debug(local_time_s, self.dimensions, debug_options);
-                    self.hit_regions = from.timeline.hit_regions();
+                    let mut from_hit_regions = from.timeline.hit_regions();
                     self.renderer.render_vello_scene(
                         device, queue, render_view,
                         self.dimensions.width, self.dimensions.height, &scene_a,
                     ).map_err(|e| e.to_string())?;
-                }
 
-                // Render to scene to render_texture_b
-                {
+                    // Render to scene to render_texture_b
                     let scene_b = to.timeline.evaluate_with_debug(to_local, self.dimensions, debug_options);
+                    let to_hit_regions = to.timeline.hit_regions();
                     self.renderer.render_vello_scene(
                         device, queue, render_view_b,
                         self.dimensions.width, self.dimensions.height, &scene_b,
                     ).map_err(|e| e.to_string())?;
+
+                    // Merge hit regions: from scene first, then to scene (to scene is on top)
+                    from_hit_regions.extend(to_hit_regions);
+                    self.hit_regions = from_hit_regions;
                 }
 
                 // Composite both scenes

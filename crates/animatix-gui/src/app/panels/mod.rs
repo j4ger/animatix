@@ -245,7 +245,11 @@ fn preview_scene_to_screen(
 
 impl WorkspaceViewer<'_> {
     fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
-        let timeline = self.timeline?;
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene.as_ref()?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        })?;
         let track = timeline.get_track(actor)?;
         let time_ms = (self.preview.current_time_s * 1000.0) as u64;
         let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
@@ -261,13 +265,22 @@ impl WorkspaceViewer<'_> {
     }
 
     fn is_layout_managed(&self, actor: &str) -> bool {
-        let Some(timeline) = self.timeline else { return false; };
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene.as_ref()?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        });
+        let Some(timeline) = timeline else { return false; };
         let time_ms = (self.preview.current_time_s * 1000.0) as u64;
         preview::is_layout_managed(actor, timeline, time_ms)
     }
 
     fn find_layout_container(&self, actor: &str) -> Option<(String, animatix::timeline::LayoutType, usize)> {
-        let timeline = self.timeline?;
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene.as_ref()?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        })?;
         let container = timeline
             .tracks
             .iter()
@@ -360,7 +373,13 @@ impl WorkspaceViewer<'_> {
     }
 
     fn layers_content_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(timeline) = self.timeline else {
+        // For compositions, use the active scene's timeline
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene.as_ref()?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        });
+        let Some(timeline) = timeline else {
             ui.vertical_centered(|ui| {
                 ui.add_space(SPACE_XL * 3.0);
                 ui.add(
@@ -1511,6 +1530,23 @@ self.selected_actors,
                     move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen),
                     &modifiers,
                 );
+                // During a transition, if the clicked actor is not in the active scene,
+                // switch to the scene that contains it
+                if let Some(comp) = self.composition {
+                    if let Some(actor) = self.selected_actors.iter().next().cloned() {
+                        let active_has_actor = self.active_scene.as_ref().is_some_and(|scene| {
+                            comp.scenes.get(scene).is_some_and(|s| s.timeline.has_actor(&actor))
+                        });
+                        if !active_has_actor {
+                            for (scene_name, scene) in &comp.scenes {
+                                if scene.timeline.has_actor(&actor) {
+                                    self.actions.select_scene = Some(scene_name.clone());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1906,7 +1942,13 @@ self.selected_actors,
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
             let current_time_s = self.preview.current_time_s;
-            inspector::inspector_ui(ui, self.timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
+            // For compositions, use the active scene's timeline
+            let timeline = self.timeline.or_else(|| {
+                let comp = self.composition?;
+                let scene_name = self.active_scene.as_ref()?;
+                comp.scenes.get(scene_name).map(|s| &s.timeline)
+            });
+            inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
         });
     }
 }
