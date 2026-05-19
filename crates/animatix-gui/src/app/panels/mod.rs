@@ -404,6 +404,24 @@ impl WorkspaceViewer<'_> {
             return;
         };
 
+        // Show which scene's actors are being displayed
+        if self.is_composition {
+            if let Some(scene_name) = self.active_scene.as_ref() {
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_MUTED),
+                        )
+                        .selectable(false),
+                    );
+                });
+                ui.add_space(4.0);
+            }
+        }
+
         let root_nodes = timeline.root_actor_labels();
         if root_nodes.is_empty() {
             ui.vertical_centered(|ui| {
