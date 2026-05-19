@@ -86,9 +86,87 @@ Known gaps and polish items from UI inspection.
 
 ---
 
-## 2. Long-Term / Speculative
+## 2. Transition & Easing GUI
 
-### 2.1 FFI / Web Canvas Integration
+Shipped: inline transition editor with type/duration/easing, transition badge readout, easing registry.
+Known gaps from usability analysis.
+
+### 2.1 Transition Editor Redesign
+
+**Location:** `crates/animatix-gui/src/app/panels/mod.rs:653-720`
+
+**Issues:**
+- The inline editor squeezes 3 dropdowns + 2 buttons into a single horizontal row. At typical sidebar width (~250px) each control is cramped.
+- Duration uses seconds (`0.0..=10.0`, speed `0.1`) — far too coarse for 100–1000ms transitions. Users overshoot constantly.
+- **Target scene is read-only.** The badge shows `→ Outro [fade · 300ms]`, but the editor can only mutate type/duration/easing. To change `Outro`, users must hand-edit source. This breaks the mental model.
+- No easing preview — the dropdown is text-only (`linear`, `elastic`, `back`). Users cannot see what a curve looks like without playing the animation.
+- Inline expansion pushes subsequent scenes down, which is fine for renaming (single field) but jarring for a 5-control form.
+
+**Fix:** Refactor to a vertical popover/card layout:
+```
+Target scene: [Scene B ▼]
+Transition:   [Fade    ▼]  Duration: [500] ms
+Easing:       [Ease Out ▼]  [~curve preview~]
+```
+- Add target scene dropdown (wire up existing `SourceEdit::SetPlayTarget`)
+- Change duration to milliseconds (`clamp_range(0..=10_000)`, `speed(10)`)
+- Add mini easing curve preview (sample `apply_easing` at 20 points, draw 40×20px curve)
+- Keep ✓/✕ buttons; support Enter/Escape
+
+**Effort:** Medium.
+
+---
+
+### 2.2 Reusable EasingPicker Component
+
+**Location:** New file `crates/animatix-gui/src/app/components/easing_picker.rs`
+
+**Issue:** Easing selection is duplicated inline in the transition editor. Every context that needs easing (transitions, keyframes, actions) will reimplement the same dropdown.
+
+**Fix:** Extract a reusable `easing_picker` component that renders:
+- `ComboBox` populated from `animatix::easing::EASING_REGISTRY`
+- 40×20px mini curve preview next to the label (sampled from `apply_easing`)
+
+Wire into: transition editor, keyframe dope sheet, future action blocks.
+
+**Effort:** Medium.
+
+---
+
+### 2.3 Keyframe Easing Editor
+
+**Location:** `crates/animatix-gui/src/app/panels/inspector/keyframe_table.rs`, `crates/animatix-gui/src/source_edit.rs`
+
+**Issue:** Every `PropertyTrack<T>` stores `(value, Easing)` per keyframe (`timeline/track.rs:285`), but `PropertyTrackInfo` throws the easing away. The dope sheet shows time + value only. Users cannot see or edit which easing a keyframe uses.
+
+**Fix:**
+- Extend `PropertyTrackInfo` to carry `easing: Easing`
+- Add `SourceEdit::SetKeyframeEasing { actor, property, time_s, easing }` variant
+- Render easing in the dope sheet (compact: small curve icon on dot hover; expanded: easing column)
+- Right-click on keyframe dot → "Easing" submenu with the 8 options
+
+**Effort:** Medium.
+
+---
+
+### 2.4 Scrubber Transition Interaction
+
+**Location:** `crates/animatix-gui/src/app/shell/transport_bar.rs:402-437`
+
+**Issue:** The transport bar draws transition overlaps with diagonal hatching, but they are inert. Hovering or clicking an overlap does nothing. There's no bidirectional linkage between the scrubber and the transition editor.
+
+**Fix:**
+- Hover tooltip on overlap: `Fade to "Outro" — 300ms — Ease Out`
+- Click overlap → `select_scene` on the source scene + open its transition card
+- Distinguish transition types visually (e.g. small icon glyph for wipe direction)
+
+**Effort:** Low.
+
+---
+
+## 3. Long-Term / Speculative
+
+### 3.1 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
@@ -96,7 +174,7 @@ Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
 ---
 
-### 2.2 Lossless Syntax Tree (Green Tree)
+### 3.2 Lossless Syntax Tree (Green Tree)
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -106,7 +184,7 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 
 ---
 
-### 2.3 Trivia-Inspired AST
+### 3.3 Trivia-Inspired AST
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -124,9 +202,13 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 |----------|------|--------|--------|
 | 1 | Scene selection should jump to start time (1.1) | Low | High |
 | 2 | Transition hit_regions + inspector dual-scene support (1.2) | Medium | High |
-| 3 | Global keyframe navigation across scenes (1.3) | Low | Medium |
-| 4 | Scene deletion in GUI (1.5) | Medium | Medium |
-| 5 | Scene reorder drop precision (1.4) | Low | Low |
-| 6 | Status bar scene name + layers scene indicator (1.1) | Low | Low |
-| 7 | Transition easing registry (1.6) | Very Low | Low |
-| 8 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
+| 3 | Transition editor redesign: target scene + vertical card + ms + easing preview (2.1) | Medium | High |
+| 4 | Global keyframe navigation across scenes (1.3) | Low | Medium |
+| 5 | Scene deletion in GUI (1.5) | Medium | Medium |
+| 6 | Reusable EasingPicker component with curve preview (2.2) | Medium | Medium |
+| 7 | Keyframe easing editor in dope sheet (2.3) | Medium | Medium |
+| 8 | Scene reorder drop precision (1.4) | Low | Low |
+| 9 | Status bar scene name + layers scene indicator (1.1) | Low | Low |
+| 10 | Scrubber transition hover/click interaction (2.4) | Low | Low |
+| 11 | Transition easing registry (1.6) | Very Low | Low |
+| 12 | Green tree / trivia AST (3.2) | Very High | Low (polish) |
