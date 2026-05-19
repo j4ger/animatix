@@ -562,6 +562,33 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
     }
 }
 
+/// Returns the easing at a specific keyframe time for a property.
+pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
+    match field {
+        ActorField::Position => track.position.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::MotionOffset => track.motion_offset.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Size => track.size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::LayoutSize => track.layout_size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Rotation => track.rotation.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Scale => track.scale.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Color => track.color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Opacity => track.opacity.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::StrokeWidth => track.stroke_width.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::StrokeColor => track.stroke_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::StrokeProgress => track.stroke_progress.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::FillOpacity => track.fill_opacity.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::ShapeType => track.shape_type.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::LineFrom => track.line_from.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::LineTo => track.line_to.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::ArcAngles => track.arc_angles.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::Commands => track.commands.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::TextContent => track.text_content.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::FontFamily => track.font_family.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::FontSize => track.font_size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        _ => None,
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Environment injection
 // ─────────────────────────────────────────────────────────────

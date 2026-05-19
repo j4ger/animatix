@@ -25,6 +25,7 @@ use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
+use animatix::easing::Easing;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, RichText, Stroke, Vec2};
 use std::collections::{HashMap, HashSet};
@@ -154,8 +155,14 @@ pub(crate) struct UiActions {
     pub(super) duplicate_actor: Option<String>,
     /// Set transition on a scene: (from_scene, transition)
     pub(super) set_transition: Option<(String, animatix::ast::Transition)>,
-    /// Open the export dialog.
+    /// Set the play target for a scene: (from_scene, target_scene)
+    pub(super) set_play_target: Option<(String, Option<String>)>,
+/// Open the export dialog.
     pub(super) open_export_dialog: bool,
+    /// Set keyframe easing: (actor, property, time_s, easing)
+    pub(super) set_keyframe_easing: Option<(String, String, f64, Easing)>,
+    /// Request opening the transition editor for the given scene (set by transport bar).
+    pub(super) open_transition_editor: Option<String>,
 }
 
 pub(crate) struct WorkspaceViewer<'a> {
@@ -654,44 +661,92 @@ self.selected_actors,
                     if let Some(comp) = self.composition {
                         if let Some(edge) = comp.edges.get(&scene_name) {
                             let trans_edit_id = row_id.with("trans_edit");
+
+                            // If the transport bar requested opening this scene's transition editor, open it
+                            if self.preview.open_transition_editor.as_deref() == Some(scene_name.as_str()) {
+                                ui.data_mut(|d| d.insert_temp(trans_edit_id, true));
+                                self.preview.open_transition_editor = None;
+                            }
+
                             let is_editing_trans = ui.data(|d| d.get_temp::<bool>(trans_edit_id)).unwrap_or(false);
 
                             if is_editing_trans {
+                                let mut new_target = edge.to_scene.clone();
                                 let mut new_type = edge.transition.id.clone();
-                                let mut new_duration = edge.transition.duration_ms as f64 / 1000.0;
-                                let mut new_easing = format!("{:?}", edge.transition.easing).to_lowercase();
-                                ui.horizontal(|ui| {
-                                    ui.add_space(24.0);
-                                    egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
-                                        .width(90.0)
-                                        .selected_text(animatix::transition_registry::display_name(&new_type))
-                                        .show_ui(ui, |ui| {
-                                            for def in animatix::transition_registry::REGISTRY {
-                                                ui.selectable_value(&mut new_type, def.id.to_string(), def.display_name);
-                                            }
-                                        });
-                                    ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").range(0.0..=10.0));
-                                    egui::ComboBox::from_id_salt(trans_edit_id.with("easing"))
-                                        .width(90.0)
-                                        .selected_text(&new_easing)
-                                        .show_ui(ui, |ui| {
-                                            for (id, display_name) in animatix::easing::EASING_REGISTRY {
-                                                ui.selectable_value(&mut new_easing, id.to_string(), *display_name);
-                                            }
-                                        });
-                                    if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                        let easing = animatix::timeline::parse_easing_name(&new_easing)
-                                            .unwrap_or(animatix::easing::Easing::Linear);
-                                        self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
-                                            id: new_type,
-                                            duration_ms: (new_duration * 1000.0).round() as u64,
-                                            easing,
-                                        }));
-                                        ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
-                                    }
-                                    if ui.button("✕").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                                        ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
-                                    }
+                                let mut new_duration_ms = edge.transition.duration_ms;
+                                let mut new_easing = edge.transition.easing;
+
+                                ui.add_space(24.0);
+                                components::card(ui, |ui| {
+                                    ui.set_width(ui.available_width().min(340.0));
+
+                                    // Target scene dropdown
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new("Target:").size(FONT_SIZE_S).color(TEXT_MUTED));
+                                        egui::ComboBox::from_id_salt(trans_edit_id.with("target"))
+                                            .width(160.0)
+                                            .selected_text(&new_target)
+                                            .show_ui(ui, |ui| {
+                                                for s in &self.scene_names {
+                                                    ui.selectable_value(&mut new_target, s.clone(), s.as_str());
+                                                }
+                                            });
+                                    });
+
+                                    ui.add_space(SPACE_S);
+
+                                    // Transition type and duration in ms
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new("Type:").size(FONT_SIZE_S).color(TEXT_MUTED));
+                                        egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
+                                            .width(100.0)
+                                            .selected_text(animatix::transition_registry::display_name(&new_type))
+                                            .show_ui(ui, |ui| {
+                                                for def in animatix::transition_registry::REGISTRY {
+                                                    ui.selectable_value(&mut new_type, def.id.to_string(), def.display_name);
+                                                }
+                                            });
+                                        ui.add_space(SPACE_M);
+                                        ui.label(RichText::new("Duration:").size(FONT_SIZE_S).color(TEXT_MUTED));
+                                        ui.add_sized(
+                                            [60.0, 0.0],
+                                            egui::DragValue::new(&mut new_duration_ms)
+                                                .speed(10)
+                                                .suffix(" ms")
+                                                .range(0..=10_000u64),
+                                        );
+                                    });
+
+                                    ui.add_space(SPACE_S);
+
+                                    // Easing picker
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new("Easing:").size(FONT_SIZE_S).color(TEXT_MUTED));
+                                        components::easing_picker::easing_picker(
+                                            ui,
+                                            trans_edit_id.with("easing"),
+                                            &mut new_easing,
+                                        );
+                                    });
+
+                                    ui.add_space(SPACE_S);
+
+                                    // Action buttons
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(ui.available_width() - 80.0);
+                                        if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                            self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
+                                                id: new_type,
+                                                duration_ms: new_duration_ms,
+                                                easing: new_easing,
+                                            }));
+                                            self.actions.set_play_target = Some((scene_name.clone(), Some(new_target)));
+                                            ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
+                                        }
+                                        if ui.button("✕").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                                            ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
+                                        }
+                                    });
                                 });
                             } else {
                                 let transition_label = if edge.transition.duration_ms > 0 {

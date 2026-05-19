@@ -77,6 +77,8 @@ struct PreviewPaneState {
     status: String,
     error: Option<String>,
     dimensions: SceneDimensions,
+    /// When set, the scene list panel should open the transition editor for this scene.
+    open_transition_editor: Option<String>,
 }
 
 impl PreviewPaneState {
@@ -88,6 +90,7 @@ impl PreviewPaneState {
             status: "Loaded file".to_string(),
             error: None,
             dimensions,
+            open_transition_editor: None,
         }
     }
 
@@ -816,11 +819,20 @@ impl GuiShell {
         if let Some((from_scene, transition)) = actions.set_transition {
             self.handle_set_transition(&from_scene, transition);
         }
+        if let Some((from_scene, target)) = actions.set_play_target {
+            self.handle_set_play_target(&from_scene, target);
+        }
         if let Some((old_label, new_label)) = actions.rename_actor {
             self.handle_rename_actor(&old_label, &new_label);
         }
+        if let Some((actor, property, time_s, easing)) = actions.set_keyframe_easing {
+            self.handle_set_keyframe_easing(&actor, &property, time_s, easing);
+        }
         if actions.inspector_input_drag_started {
             self.inspector_input_drag_active = true;
+        }
+        if let Some(scene) = actions.open_transition_editor {
+            self.preview.open_transition_editor = Some(scene);
         }
         for edit in actions.property_edits {
             self.handle_property_edit(edit);
@@ -1250,6 +1262,69 @@ impl GuiShell {
             );
         } else {
             self.preview.status = format!("Failed to set transition on '{}'", from_scene);
+        }
+    }
+
+    /// Update the play target for a scene.
+    fn handle_set_play_target(&mut self, from_scene: &str, target: Option<String>) {
+        self.snapshot();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to set play target — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::SetPlayTarget {
+            scene: from_scene.into(),
+            target: target.clone(),
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            if let Some(ref t) = target {
+                self.preview.status = format!("Set play target: '{}' → '{}'", from_scene, t);
+            } else {
+                self.preview.status = format!("Removed play target from '{}'", from_scene);
+            }
+        } else {
+            self.preview.status = format!("Failed to set play target on '{}'", from_scene);
+        }
+    }
+
+    /// Handle a keyframe easing change request.
+    fn handle_set_keyframe_easing(&mut self, actor: &str, property: &str, time_s: f64, easing: animatix::easing::Easing) {
+        self.snapshot();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to set keyframe easing — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::SetKeyframeEasing {
+            actor: actor.into(),
+            property: property.into(),
+            time_s,
+            easing,
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            self.preview.status = format!("Set easing on '{}.{}' @ {:.2}s", actor, property, time_s);
+        } else {
+            self.preview.status = format!(
+                "Failed to set easing on '{}.{}' @ {:.2}s — keyframe not found",
+                actor, property, time_s
+            );
         }
     }
 

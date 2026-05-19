@@ -184,6 +184,7 @@ pub(crate) fn transport_bar_ui(
                     cursor_time_s,
                     composition,
                     actions,
+                    preview,
                 ) {
                     actions.scrub_to = Some(scrub);
                 }
@@ -344,6 +345,7 @@ fn paint_transport_scrubber(
     cursor_time_s: Option<f64>,
     composition: Option<&Composition>,
     actions: &mut UiActions,
+    preview: &mut PreviewPaneState,
 ) -> bool {
     let height = ROW_S;
     let desired_size = Vec2::new(width.max(120.0), height);
@@ -397,8 +399,7 @@ fn paint_transport_scrubber(
             }
         }
 
-        // Draw transition overlaps as brighter stripes at the boundary between scenes
-        let transition_stripe_color = Color32::from_rgba_unmultiplied(255, 255, 255, 40);
+        // Draw transition overlaps as interactive stripe regions at the boundary between scenes
         for scene_name in &composition.declaration_order {
             let Some(edge) = composition.edges.get(scene_name) else { continue; };
             if edge.transition.duration_ms == 0 {
@@ -419,19 +420,76 @@ fn paint_transport_scrubber(
                 egui::pos2(left, track_rect.top()),
                 egui::pos2(right, track_rect.bottom()),
             );
-            // Stripe pattern: draw diagonal hatching to indicate overlap
-            painter.rect_filled(overlap_rect, 0.0, transition_stripe_color);
+
+            // Interaction region for hover + click
+            let overlap_id = ui.id().with("overlap").with(scene_name);
+            let overlap_base = ui.interact(overlap_rect, overlap_id, egui::Sense::click());
+
+            // Hover tooltip: "Fade to \"Outro\" — 300ms — Ease Out"
+            let easing_name = format!("{:?}", edge.transition.easing);
+            let tooltip = format!(
+                "{} to \"{}\" — {}ms — {}",
+                transition_type_label(&edge.transition.id),
+                edge.to_scene,
+                edge.transition.duration_ms,
+                easing_name,
+            );
+            let overlap_response = overlap_base.on_hover_text(tooltip);
+
+            // Click → select source scene + signal transition editor open
+            if overlap_response.clicked() {
+                actions.select_scene = Some(scene_name.clone());
+                preview.open_transition_editor = Some(scene_name.clone());
+                return true;
+            }
+
+            // Transition-specific stripe color (brighter on hover)
+            let base_color = transition_stripe_color(&edge.transition.id);
+            let stripe_color = if overlap_response.hovered() {
+                // Make it more visible on hover
+                Color32::from_rgba_unmultiplied(
+                    base_color.r().saturating_add(60),
+                    base_color.g().saturating_add(60),
+                    base_color.b().saturating_add(60),
+                    120,
+                )
+            } else {
+                base_color
+            };
+            painter.rect_filled(overlap_rect, 0.0, stripe_color);
+
+            // Draw diagonal hatching lines for visual distinction
+            let hatch_spacing = 6.0_f32;
+            let mut y = overlap_rect.top();
+            while y < overlap_rect.bottom() {
+                let x_start = overlap_rect.left();
+                let t = (y - overlap_rect.top()) / overlap_rect.height();
+                let offset = t * hatch_spacing;
+                painter.line_segment(
+                    [
+                        egui::pos2(x_start + offset, y),
+                        egui::pos2(x_start + offset - hatch_spacing, y + hatch_spacing),
+                    ],
+                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 30)),
+                );
+                y += hatch_spacing;
+            }
 
             // Transition label if wide enough
             let width = overlap_rect.width();
             if width > 40.0 {
                 let label = format!("{}", transition_type_label(&edge.transition.id));
+                let label_color = if overlap_response.hovered() {
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 220)
+                } else {
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 160)
+                };
                 painter.text(
                     overlap_rect.center(),
                     Align2::CENTER_CENTER,
                     label,
                     FontId::monospace(8.0),
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 160),
+                    label_color,
                 );
             }
         }
@@ -560,6 +618,19 @@ fn paint_transport_scrubber(
     }
 
     false
+}
+
+fn transition_stripe_color(id: &str) -> Color32 {
+    let palette = [
+        Color32::from_rgba_unmultiplied(255, 200, 100, 50),  // warm gold
+        Color32::from_rgba_unmultiplied(100, 200, 255, 50),  // sky blue
+        Color32::from_rgba_unmultiplied(255, 120, 120, 50),  // soft red
+        Color32::from_rgba_unmultiplied(120, 255, 160, 50),  // mint
+        Color32::from_rgba_unmultiplied(200, 140, 255, 50),  // lavender
+        Color32::from_rgba_unmultiplied(255, 180, 50, 50),   // orange
+    ];
+    let idx = id.bytes().fold(0u8, |acc, b| acc.wrapping_add(b)) as usize % palette.len();
+    palette[idx]
 }
 
 fn transition_type_label(id: &str) -> &'static str {

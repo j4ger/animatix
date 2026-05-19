@@ -245,6 +245,7 @@ pub(super) fn inspector_ui(
                         timeline,
                         track,
                         (current_time_s * 1000.0) as u64,
+                        sel,
                         actions,
                     );
                 });

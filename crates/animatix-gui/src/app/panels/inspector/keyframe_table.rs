@@ -1,6 +1,7 @@
+use animatix::easing::Easing;
 use animatix::timeline::{
     ActorField, AnimationTrack, PropertyValue, ShapeType, Timeline,
-    property_has_keyframes, property_keyframe_times,
+    property_has_keyframes, property_keyframe_times, property_keyframe_easing,
     read_property_value, allowed_property_indices, PROPERTY_REGISTRY,
 };
 use egui::Vec2;
@@ -12,7 +13,7 @@ use crate::app::panels::UiActions;
 
 struct PropertyTrackInfo {
     name: &'static str,
-    keyframes: Vec<(u64, String)>, // time_ms, formatted_value
+    keyframes: Vec<(u64, String, animatix::easing::Easing)>, // time_ms, formatted_value, easing
 }
 
 struct TrackGroup {
@@ -43,6 +44,7 @@ pub(super) fn render_dope_sheet(
     timeline: &Timeline,
     track: &AnimationTrack,
     current_time_ms: u64,
+    actor_label: &str,
     actions: &mut UiActions,
 ) {
     let groups = collect_track_groups(track);
@@ -56,7 +58,7 @@ pub(super) fn render_dope_sheet(
     ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
     for group in &groups {
         for track_info in &group.tracks {
-            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actions);
+            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actor_label, actions);
         }
     }
     ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
@@ -113,12 +115,26 @@ fn render_empty_state(ui: &mut egui::Ui) {
 
 // ─── Compact Track Row ────────────────────────────────────────────────────
 
+fn easing_display_name(easing: Easing) -> &'static str {
+    match easing {
+        Easing::Linear => "Linear",
+        Easing::EaseIn => "Ease In",
+        Easing::EaseOut => "Ease Out",
+        Easing::EaseInOut => "Ease In Out",
+        Easing::Bounce => "Bounce",
+        Easing::Elastic => "Elastic",
+        Easing::Back => "Back",
+        Easing::Expo => "Expo",
+    }
+}
+
 fn render_compact_track_row(
     ui: &mut egui::Ui,
     group: &TrackGroup,
     track: &PropertyTrackInfo,
     current_time_ms: u64,
     timeline: &Timeline,
+    actor_label: &str,
     actions: &mut UiActions,
 ) {
     let row_height = ROW_S;
@@ -175,13 +191,59 @@ fn render_compact_track_row(
         ui.painter().rect_filled(strip_rect, RADIUS_S, BG_WIDGET);
 
         // Keyframe dots on the strip
-        for (time_ms, _) in &track.keyframes {
+        for (time_ms, value, easing) in &track.keyframes {
             let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
             let color = if is_current { AMBER } else { TEXT_MUTED };
             let size = if is_current { 3.5 } else { 2.5 };
-            ui.painter().circle_filled(egui::pos2(x, strip_rect.center().y), size, color);
+            let dot_pos = egui::pos2(x, strip_rect.center().y);
+            let dot_rect = egui::Rect::from_center_size(dot_pos, egui::vec2(8.0, 8.0));
+            let dot_id = ui.id().with(("kf_dot", track.name, *time_ms));
+            let dot_response = ui.interact(dot_rect, dot_id, egui::Sense::click());
+            ui.painter().circle_filled(dot_pos, size, color);
+
+            // Right-click: show easing context menu
+            dot_response.context_menu(|ui| {
+                ui.set_min_width(120.0);
+                ui.strong("Easing");
+                ui.separator();
+                let current_easing = *easing;
+                for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
+                    let variant = match id_str {
+                        "linear" => Easing::Linear,
+                        "easein" => Easing::EaseIn,
+                        "easeout" => Easing::EaseOut,
+                        "easeinout" => Easing::EaseInOut,
+                        "bounce" => Easing::Bounce,
+                        "elastic" => Easing::Elastic,
+                        "back" => Easing::Back,
+                        "expo" => Easing::Expo,
+                        _ => Easing::Linear,
+                    };
+                    let is_selected = variant == current_easing;
+                    if ui.selectable_label(is_selected, display_name).clicked() {
+                        actions.set_keyframe_easing = Some((
+                            actor_label.to_string(),
+                            track.name.to_string(),
+                            *time_ms as f64 / 1000.0,
+                            variant,
+                        ));
+                        ui.close();
+                    }
+                }
+            });
+
+            // Per-dot hover tooltip with value and easing info
+            dot_response.on_hover_ui(|ui| {
+                ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
+                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY));
+                ui.label(
+                    egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
+                        .size(FONT_SIZE_XS)
+                        .color(TEXT_MUTED),
+                );
+            });
         }
 
         // Current time indicator
@@ -219,7 +281,7 @@ fn render_compact_track_row(
             );
         });
         ui.add_space(SPACE_XS);
-        for (time_ms, value) in &track.keyframes {
+        for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
             let color = if is_current { AMBER } else { TEXT_SECONDARY };
             ui.horizontal(|ui| {
@@ -233,6 +295,11 @@ fn render_compact_track_row(
                 );
                 ui.label(
                     egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY),
+                );
+                ui.label(
+                    egui::RichText::new(easing_display_name(*easing))
+                        .size(FONT_SIZE_XS)
+                        .color(TEXT_MUTED),
                 );
             });
         }
@@ -259,7 +326,9 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
         let mut keyframes = Vec::new();
         for time_ms in property_keyframe_times(track, schema.field) {
             if let Some(value) = read_property_value(track, schema.field, time_ms) {
-                keyframes.push((time_ms, format_value(&value, schema.name)));
+                let easing = property_keyframe_easing(track, schema.field, time_ms)
+                    .unwrap_or(animatix::easing::Easing::Linear);
+                keyframes.push((time_ms, format_value(&value, schema.name), easing));
             }
         }
         if keyframes.is_empty() {

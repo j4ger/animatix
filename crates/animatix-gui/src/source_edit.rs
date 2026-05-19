@@ -108,6 +108,14 @@ pub enum SourceEdit {
     DeleteScene {
         name: String,
     },
+    /// Update the easing of an existing keyframe's assignment.
+    SetKeyframeEasing {
+        actor: String,
+        property: String,
+        /// Absolute time in seconds.
+        time_s: f64,
+        easing: animatix::easing::Easing,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -163,6 +171,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         }
         SourceEdit::AddScene { name } => add_scene(stmts, &name),
         SourceEdit::DeleteScene { name } => delete_scene(stmts, &name),
+        SourceEdit::SetKeyframeEasing { actor, property, time_s, easing } => {
+            set_keyframe_easing(stmts, &actor, &property, time_s, easing)
+        }
     }
 }
 
@@ -304,6 +315,104 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
         }
     }
 
+    false
+}
+
+// ---------------------------------------------------------------------------
+// SetKeyframeEasing
+// ---------------------------------------------------------------------------
+
+fn set_keyframe_easing(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    time_s: f64,
+    easing: animatix::easing::Easing,
+) -> bool {
+    let source_prop = canonical_to_source(property);
+    let easing_name = match easing {
+        animatix::easing::Easing::Linear => "linear",
+        animatix::easing::Easing::EaseIn => "easein",
+        animatix::easing::Easing::EaseOut => "easeout",
+        animatix::easing::Easing::EaseInOut => "easeinout",
+        animatix::easing::Easing::Bounce => "bounce",
+        animatix::easing::Easing::Elastic => "elastic",
+        animatix::easing::Easing::Back => "back",
+        animatix::easing::Easing::Expo => "expo",
+    };
+    let easing_expr = animatix::ast::Expr::Ident(easing_name.to_string());
+
+    // Walk through keyframes looking for the match
+    let mut current_time = 0.0f64;
+
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            Stmt::Keyframe { time, body, .. } => {
+                current_time = time_to_seconds(time);
+                if (current_time - time_s).abs() < 0.001 {
+                    return update_assignment_easing(body, actor, source_prop, &easing_expr);
+                }
+            }
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                current_time += time_to_seconds(offset);
+                if (current_time - time_s).abs() < 0.001 {
+                    return update_assignment_easing(body, actor, source_prop, &easing_expr);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    false
+}
+
+/// Walk into an assignment at the given time and set its easing modifier.
+fn update_assignment_easing(body: &mut [Stmt], actor: &str, property: &str, easing_expr: &animatix::ast::Expr) -> bool {
+    for stmt in body.iter_mut() {
+        match stmt {
+            Stmt::Assignment { target, property: prop, modifiers, .. }
+                if target.iter().any(|t| t == actor) && prop == property =>
+            {
+                // Find existing ease modifier or add new one
+                if let Some(existing) = modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease")) {
+                    existing.value = easing_expr.clone();
+                } else {
+                    modifiers.push(animatix::ast::Modifier {
+                        name: Some("ease".into()),
+                        value: easing_expr.clone(),
+                    });
+                }
+                return true;
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. } => {
+                if update_assignment_easing(body, actor, property, easing_expr) {
+                    return true;
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if update_assignment_easing(then_branch, actor, property, easing_expr) {
+                    return true;
+                }
+                if let Some(else_b) = else_branch {
+                    if update_assignment_easing(else_b, actor, property, easing_expr) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if update_assignment_easing(body, actor, property, easing_expr) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
     false
 }
 

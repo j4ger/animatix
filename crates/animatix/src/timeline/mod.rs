@@ -58,6 +58,7 @@ pub use property_engine::{
     PropertyValue, read_property_value, read_property_value_or_default,
     property_has_keyframes, property_has_keyframe_at,
     property_keyframe_count, property_keyframe_times,
+    property_keyframe_easing,
 };
 
 // Re-export property registry types for the GUI
