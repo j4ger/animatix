@@ -422,7 +422,11 @@ impl GuiShell {
             .map(|t| t.tracks.len())
             .unwrap_or(0);
         let timeline_markers = timeline_keyframe_times_s(
-            self.document.active_timeline(),
+            if self.document.composition.is_some() {
+                None
+            } else {
+                self.document.active_timeline()
+            },
             self.document.composition.as_ref(),
             self.document.active_scene.as_deref(),
         );
@@ -622,7 +626,11 @@ impl GuiShell {
         }
         if actions.prev_keyframe {
             let keyframes = timeline_keyframe_times_s(
-                self.document.active_timeline(),
+                if self.document.composition.is_some() {
+                    None
+                } else {
+                    self.document.active_timeline()
+                },
                 self.document.composition.as_ref(),
                 self.document.active_scene.as_deref(),
             );
@@ -642,7 +650,11 @@ impl GuiShell {
         }
         if actions.next_keyframe {
             let keyframes = timeline_keyframe_times_s(
-                self.document.active_timeline(),
+                if self.document.composition.is_some() {
+                    None
+                } else {
+                    self.document.active_timeline()
+                },
                 self.document.composition.as_ref(),
                 self.document.active_scene.as_deref(),
             );
