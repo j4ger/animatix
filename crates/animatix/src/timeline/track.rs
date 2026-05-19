@@ -430,6 +430,7 @@ pub struct AnimationTrack {
     pub shadow_color: Option<PropertyTrack<[f32; 4]>>,
     pub glow_radius: Option<PropertyTrack<f32>>,
     pub glow_color: Option<PropertyTrack<[f32; 4]>>,
+    pub backdrop_blur: Option<PropertyTrack<f32>>,
 
     // ── Shape payload (flat compat fields) ──
     pub shape_type: Option<PropertyTrack<ShapeType>>,
@@ -488,6 +489,7 @@ impl AnimationTrack {
             shadow_color: None,
             glow_radius: None,
             glow_color: None,
+            backdrop_blur: None,
 
             // Shape flat fields
             shape_type: None,
@@ -568,7 +570,7 @@ impl AnimationTrack {
             self.font_family.last_time(), self.font_size.last_time(),
             self.shadow_offset.last_time(), self.shadow_blur.last_time(),
             self.shadow_color.last_time(), self.glow_radius.last_time(),
-            self.glow_color.last_time(),
+            self.glow_color.last_time(), self.backdrop_blur.last_time(),
         ];
         times.into_iter().flatten().max()
     }

@@ -360,6 +360,7 @@ impl Timeline {
             let mut shadow_color_val = track.shadow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
             let mut glow_radius = track.glow_radius.get(time_ms, 0.0);
             let mut glow_color_val = track.glow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
+            let mut backdrop_blur = track.backdrop_blur.get(time_ms, 0.0);
 
             if let Some(node_overrides) = node_overrides {
                 if let Some(Value::Vec2(from)) = node_overrides.get("from") {
@@ -402,6 +403,9 @@ impl Timeline {
                 }
                 if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("glow_color") {
                     glow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                }
+                if let Some(Value::Num(blur)) = node_overrides.get("backdrop_blur") {
+                    backdrop_blur = *blur as f32;
                 }
             }
 
@@ -487,6 +491,64 @@ impl Timeline {
                     // Use a thick stroke to approximate glow expansion around the path
                     let glow_stroke = vello::kurbo::Stroke::new(glow_expand * 2.0);
                     scene.stroke(&glow_stroke, local_transform, gc, None, &vector_path.path);
+                }
+            }
+
+            // ── Backdrop blur rendering ──
+            // Draw a frosted-glass visual approximation behind the actor.
+            // True backdrop blur requires offscreen rendering + Gaussian blur, which
+            // is not yet implemented in the Vello-based renderer. This approximation
+            // draws a semi-transparent overlay scaled to the actor's bounding rect.
+            // TODO: Full implementation requires:
+            //   1. Render scene behind actor to an offscreen texture
+            //   2. Apply a Gaussian blur shader to the texture
+            //   3. Draw the blurred texture as the actor's background
+            //   4. Draw the actor on top
+            // This would reuse the transition compositor's blur infrastructure.
+            if backdrop_blur > 0.0 {
+                let blur_alpha = (backdrop_blur * 0.06).clamp(0.0, 0.35);
+                let full_w = half_size[0] as f64 * 2.0;
+                let full_h = half_size[1] as f64 * 2.0;
+                let rect = kurbo::Rect::from_origin_size(
+                    kurbo::Point::new(-half_size[0] as f64, -half_size[1] as f64),
+                    kurbo::Size::new(full_w, full_h),
+                );
+                // Frosted glass: semi-transparent white overlay
+                let mut bg = vello::peniko::Color::from_rgba8(255, 255, 255, (blur_alpha * 255.0) as u8);
+                if local_opacity < 1.0 {
+                    bg = bg.with_alpha(bg.components[3] * local_opacity);
+                }
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    local_transform,
+                    bg,
+                    None,
+                    &rect,
+                );
+                // Blur spread: draw slightly expanded rects with lower alpha
+                let spread_steps = (backdrop_blur as usize).min(8);
+                for i in 1..=spread_steps {
+                    let spread = i as f64 * 2.0;
+                    let step_alpha = (blur_alpha * 0.3 / (i as f32 + 1.0)).clamp(0.0, 0.12);
+                    let expanded_rect = kurbo::Rect::from_origin_size(
+                        kurbo::Point::new(
+                            -half_size[0] as f64 - spread,
+                            -half_size[1] as f64 - spread,
+                        ),
+                        kurbo::Size::new(full_w + spread * 2.0, full_h + spread * 2.0),
+                    );
+                    let mut step_color =
+                        vello::peniko::Color::from_rgba8(255, 255, 255, (step_alpha * 255.0) as u8);
+                    if local_opacity < 1.0 {
+                        step_color = step_color.with_alpha(step_color.components[3] * local_opacity);
+                    }
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        local_transform,
+                        step_color,
+                        None,
+                        &expanded_rect,
+                    );
                 }
             }
 

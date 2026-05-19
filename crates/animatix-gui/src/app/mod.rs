@@ -85,6 +85,10 @@ struct PreviewPaneState {
     preview_pan: Vec2,
     /// Playback speed multiplier (0.25, 0.5, 1.0, 2.0).
     playback_speed: f32,
+    /// Loop region start time (A marker). None = not set.
+    loop_start_s: Option<f64>,
+    /// Loop region end time (B marker). None = not set.
+    loop_end_s: Option<f64>,
 }
 
 impl PreviewPaneState {
@@ -100,6 +104,8 @@ impl PreviewPaneState {
             preview_zoom: 1.0,
             preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
             playback_speed: 1.0,
+            loop_start_s: None,
+            loop_end_s: None,
         }
     }
 
@@ -150,6 +156,14 @@ impl PreviewPaneState {
         }
 
         self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64;
+
+        // Loop region: if A and B are set and we've reached B, jump back to A.
+        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
+            if end > start && self.current_time_s >= end {
+                self.current_time_s = start;
+            }
+        }
+
         if self.current_time_s >= self.duration_s {
             self.current_time_s = self.duration_s;
             self.is_playing = false;

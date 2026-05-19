@@ -187,6 +187,77 @@ pub(crate) fn transport_bar_ui(
                     actions.toggle_keyframe_mode = true;
                 }
 
+                ui.add_space(SPACE_S);
+
+                // ── Loop region: A / B markers ──
+                let loop_active = preview.loop_start_s.is_some() && preview.loop_end_s.is_some();
+                let a_active = preview.loop_start_s.is_some();
+                let b_active = preview.loop_end_s.is_some();
+
+                // A button — set loop start to current time
+                let a_color = if loop_active { ACCENT_CYAN } else if a_active { AMBER } else { TEXT_MUTED };
+                let a_btn = egui::Button::new(
+                    RichText::new("A")
+                        .size(FONT_SIZE_S)
+                        .color(a_color),
+                )
+                .fill(if a_active { BG_WIDGET } else { Color32::TRANSPARENT })
+                .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
+                .min_size(Vec2::new(22.0, ROW_S));
+                if ui.add(a_btn).on_hover_text(
+                    if a_active {
+                        format!("Loop start: {:.2}s — click to clear", preview.loop_start_s.unwrap())
+                    } else {
+                        "Set loop start (A) at current time".to_string()
+                    }
+                ).clicked() {
+                    if preview.loop_start_s.is_some() {
+                        preview.loop_start_s = None;
+                    } else {
+                        preview.loop_start_s = Some(preview.current_time_s);
+                    }
+                }
+
+                // B button — set loop end to current time
+                let b_color = if loop_active { ACCENT_CYAN } else if b_active { AMBER } else { TEXT_MUTED };
+                let b_btn = egui::Button::new(
+                    RichText::new("B")
+                        .size(FONT_SIZE_S)
+                        .color(b_color),
+                )
+                .fill(if b_active { BG_WIDGET } else { Color32::TRANSPARENT })
+                .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
+                .min_size(Vec2::new(22.0, ROW_S));
+                if ui.add(b_btn).on_hover_text(
+                    if b_active {
+                        format!("Loop end: {:.2}s — click to clear", preview.loop_end_s.unwrap())
+                    } else {
+                        "Set loop end (B) at current time".to_string()
+                    }
+                ).clicked() {
+                    if preview.loop_end_s.is_some() {
+                        preview.loop_end_s = None;
+                    } else {
+                        preview.loop_end_s = Some(preview.current_time_s);
+                    }
+                }
+
+                // Clear loop button — visible when either marker is set
+                if a_active || b_active {
+                    let clear_btn = egui::Button::new(
+                        RichText::new(egui_phosphor::regular::X)
+                            .size(FONT_SIZE_XS)
+                            .color(TEXT_MUTED),
+                    )
+                    .fill(Color32::TRANSPARENT)
+                    .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
+                    .min_size(Vec2::new(16.0, ROW_S));
+                    if ui.add(clear_btn).on_hover_text("Clear loop region").clicked() {
+                        preview.loop_start_s = None;
+                        preview.loop_end_s = None;
+                    }
+                }
+
                 ui.add_space(10.0);
 
                 // Scrubber — the hero element
@@ -516,6 +587,19 @@ fn paint_transport_scrubber(
                     label_color,
                 );
             }
+        }
+    }
+
+    // ── Loop region highlight ──
+    if let (Some(start), Some(end)) = (preview.loop_start_s, preview.loop_end_s) {
+        if end > start && end >= 0.0 && start <= duration_s {
+            let left = egui::lerp(track_rect.left()..=track_rect.right(), (start / duration_s).clamp(0.0, 1.0) as f32);
+            let right = egui::lerp(track_rect.left()..=track_rect.right(), (end / duration_s).clamp(0.0, 1.0) as f32);
+            let loop_rect = egui::Rect::from_min_max(
+                egui::pos2(left, track_rect.top()),
+                egui::pos2(right, track_rect.bottom()),
+            );
+            painter.rect_filled(loop_rect, 0.0, Color32::from_rgba_unmultiplied(100, 200, 255, 40));
         }
     }
 

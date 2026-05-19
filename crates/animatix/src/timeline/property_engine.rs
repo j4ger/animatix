@@ -204,6 +204,7 @@ pub(crate) fn write_property_field(
         ActorField::ShadowColor => write_vec4(&mut track.shadow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
         ActorField::GlowRadius => write_f32(&mut track.glow_radius, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
         ActorField::GlowColor => write_vec4(&mut track.glow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
+        ActorField::BackdropBlur => write_f32(&mut track.backdrop_blur, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
 
         // ── Shape payload ──
         ActorField::ShapeType => {
@@ -446,6 +447,7 @@ fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms:
         ActorField::ShadowColor => track.shadow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
         ActorField::GlowRadius => track.glow_radius.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
         ActorField::GlowColor => track.glow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
         // Groups and unsupported fields
         _ => None,
     }
@@ -523,6 +525,7 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
         ActorField::ShadowColor => track.shadow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::GlowRadius => track.glow_radius.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::GlowColor => track.glow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         _ => false,
     }
 }
@@ -556,6 +559,7 @@ pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usi
         ActorField::ShadowColor => track.shadow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::GlowRadius => track.glow_radius.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::GlowColor => track.glow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(0, |pt| pt.keyframes.len()),
         _ => 0,
     }
 }
@@ -589,6 +593,7 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
         ActorField::ShadowColor => track.shadow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::GlowRadius => track.glow_radius.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::GlowColor => track.glow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::BackdropBlur => track.backdrop_blur.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         _ => Vec::new(),
     }
 }
@@ -622,6 +627,7 @@ pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_
         ActorField::ShadowColor => track.shadow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         ActorField::GlowRadius => track.glow_radius.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         ActorField::GlowColor => track.glow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::BackdropBlur => track.backdrop_blur.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         _ => None,
     }
 }
@@ -674,6 +680,7 @@ pub(crate) fn inject_property_into_env(
     inject_color_env(env, label, "shadow_color",    &track.shadow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
     inject_scalar_env(env, label, "glow_radius",    &track.glow_radius, time_ms, 0.0);
     inject_color_env(env, label, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
+    inject_scalar_env(env, label, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
 }
 
 fn inject_scalar_env(

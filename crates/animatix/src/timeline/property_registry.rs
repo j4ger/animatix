@@ -145,6 +145,7 @@ pub enum ActorField {
     ShadowColor,
     GlowRadius,
     GlowColor,
+    BackdropBlur,
 
     // ── Compound resolution groups (handled by GroupHandler) ──
     PositionBindingGroup,
@@ -302,6 +303,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("align",         ValueType::String,      F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::String("center".to_string())),
     schema!("anchor",        ValueType::SceneAnchor, F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::String("center".to_string())),
     schema!("at",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
+    schema!("backdrop_blur", ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::BackdropBlur,        None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("background_color", ValueType::Color,    F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::Never, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 1.0])),
     schema!("code",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Code]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("color",         ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::AllDrawables, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
