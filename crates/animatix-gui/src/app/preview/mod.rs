@@ -242,12 +242,18 @@ pub(super) fn scene_to_screen(
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
     desired: Vec2,
+    zoom: f32,
+    pan: Vec2,
 ) -> Pos2 {
-    let scale_x = desired.x as f64 / scene_dimensions.width as f64;
-    let scale_y = desired.y as f64 / scene_dimensions.height as f64;
+    let base_scale_x = desired.x as f64 / scene_dimensions.width as f64;
+    let base_scale_y = desired.y as f64 / scene_dimensions.height as f64;
+    let scale_x = base_scale_x * zoom.max(0.01) as f64;
+    let scale_y = base_scale_y * zoom.max(0.01) as f64;
+    let center_x = preview_rect.center().x as f64;
+    let center_y = preview_rect.center().y as f64;
     Pos2::new(
-        (preview_rect.min.x as f64 + scene_pos.x * scale_x) as f32,
-        (preview_rect.min.y as f64 + scene_pos.y * scale_y) as f32,
+        (center_x + (scene_pos.x - pan.x as f64) * scale_x) as f32,
+        (center_y + (scene_pos.y - pan.y as f64) * scale_y) as f32,
     )
 }
 
@@ -261,6 +267,8 @@ pub(super) fn selection_screen_rect(
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
     desired: Vec2,
+    zoom: f32,
+    pan: Vec2,
 ) -> Option<egui::Rect> {
     let first = selected_actors.iter().next()?;
     let (_, bounds) = hit_regions.iter().find(|(l, _)| l == first)?;
@@ -269,12 +277,16 @@ pub(super) fn selection_screen_rect(
         preview_rect,
         scene_dimensions,
         desired,
+        zoom,
+        pan,
     );
     let bottom_right = scene_to_screen(
         kurbo::Point::new(bounds.x1, bounds.y1),
         preview_rect,
         scene_dimensions,
         desired,
+        zoom,
+        pan,
     );
     Some(egui::Rect::from_min_max(top_left, bottom_right))
 }
@@ -295,6 +307,8 @@ pub(super) fn draw_selection_overlay(
     scene_dimensions: SceneDimensions,
     desired: Vec2,
     pixels_per_point: f32,
+    zoom: f32,
+    pan: Vec2,
 ) {
     let stroke = if is_dragging {
         Stroke::new(
@@ -323,7 +337,7 @@ pub(super) fn draw_selection_overlay(
 
         // Convert to screen space
         let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
-            scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired)
+            scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
         });
 
         // Draw the four edges of the rotated bounding box
@@ -363,7 +377,7 @@ pub(super) fn draw_selection_overlay(
         // Scale handles (rotated)
         let handle_world = world_handle_positions(p);
         let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
-            scene_to_screen(handle_world[i], preview_rect, scene_dimensions, desired)
+            scene_to_screen(handle_world[i], preview_rect, scene_dimensions, desired, zoom, pan)
         });
         let handle_px = HANDLE_SIZE * pixels_per_point;
         for pos in &handle_screen {
@@ -380,13 +394,13 @@ pub(super) fn draw_selection_overlay(
 
         // Rotation handle: on the line from centre to above top-edge, offset by ROTATION_OFFSET
         let rot_world = rotation_handle_world(p);
-        let rot_screen = scene_to_screen(rot_world, preview_rect, scene_dimensions, desired);
+        let rot_screen = scene_to_screen(rot_world, preview_rect, scene_dimensions, desired, zoom, pan);
 
         // Line from top-centre to rotation handle
         let top_center_local = [0.0_f32, -hh];
         let top_center_world = local_to_world(top_center_local, p.position, p.rotation);
         let top_center_screen =
-            scene_to_screen(top_center_world, preview_rect, scene_dimensions, desired);
+            scene_to_screen(top_center_world, preview_rect, scene_dimensions, desired, zoom, pan);
         painter.line_segment(
             [top_center_screen, rot_screen],
             Stroke::new(1.0, SELECTION_COLOR),
@@ -407,6 +421,8 @@ pub(super) fn draw_selection_overlay(
                 preview_rect,
                 scene_dimensions,
                 desired,
+                zoom,
+                pan,
             );
             let cross_size = 6.0 * pixels_per_point;
             let cross_color = AMBER;
@@ -495,6 +511,8 @@ pub(super) fn draw_reorder_overlay(
     scene_dimensions: SceneDimensions,
     desired: egui::Vec2,
     is_row: bool,
+    zoom: f32,
+    pan: Vec2,
 ) {
     let ghost_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 153);
     let hw = props.size[0] / 2.0;
@@ -504,7 +522,7 @@ pub(super) fn draw_reorder_overlay(
         local_to_world(local_corners[i], props.position, props.rotation)
     });
     let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
-        scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired)
+        scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
     });
     for i in 0..4 {
         let next = (i + 1) % 4;
@@ -536,22 +554,34 @@ pub(super) fn draw_reorder_overlay(
     };
 
     let accent = ACCENT_BLUE;
-    let scale_x = desired.x as f64 / scene_dimensions.width as f64;
-    let scale_y = desired.y as f64 / scene_dimensions.height as f64;
     let insertion_screen = if is_row {
-        let x = (preview_rect.min.x as f64 + insertion_coord as f64 * scale_x) as f32;
+        let insertion_pt = scene_to_screen(
+            kurbo::Point::new(insertion_coord as f64, 0.0),
+            preview_rect,
+            scene_dimensions,
+            desired,
+            zoom,
+            pan,
+        );
         painter.line_segment(
-            [Pos2::new(x, preview_rect.top()), Pos2::new(x, preview_rect.bottom())],
+            [Pos2::new(insertion_pt.x, preview_rect.top()), Pos2::new(insertion_pt.x, preview_rect.bottom())],
             Stroke::new(2.5, accent),
         );
-        Pos2::new(x, preview_rect.top() + 16.0)
+        Pos2::new(insertion_pt.x, preview_rect.top() + 16.0)
     } else {
-        let y = (preview_rect.min.y as f64 + insertion_coord as f64 * scale_y) as f32;
+        let insertion_pt = scene_to_screen(
+            kurbo::Point::new(0.0, insertion_coord as f64),
+            preview_rect,
+            scene_dimensions,
+            desired,
+            zoom,
+            pan,
+        );
         painter.line_segment(
-            [Pos2::new(preview_rect.left(), y), Pos2::new(preview_rect.right(), y)],
+            [Pos2::new(preview_rect.left(), insertion_pt.y), Pos2::new(preview_rect.right(), insertion_pt.y)],
             Stroke::new(2.5, accent),
         );
-        Pos2::new(preview_rect.left() + 16.0, y)
+        Pos2::new(preview_rect.left() + 16.0, insertion_pt.y)
     };
 
     // Draw target index badge on the insertion line
@@ -571,6 +601,8 @@ pub(super) fn draw_reorder_overlay(
             preview_rect,
             scene_dimensions,
             desired,
+            zoom,
+            pan,
         );
         let arrow_size = 8.0;
         if i == target_index {
@@ -665,10 +697,12 @@ pub(super) fn hit_test_vertex(
     scene_dimensions: SceneDimensions,
     desired: Vec2,
     hit_radius: f32,
+    zoom: f32,
+    pan: Vec2,
 ) -> Option<usize> {
     for (i, &pt) in points.iter().enumerate() {
         let world = local_to_world(pt, props.position, props.rotation);
-        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired);
+        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
         if screen_point.distance(screen) <= hit_radius + 2.0 {
             return Some(i);
         }
@@ -687,11 +721,13 @@ pub(super) fn draw_vertex_handles(
     desired: Vec2,
     active_vertex: Option<usize>,
     pixels_per_point: f32,
+    zoom: f32,
+    pan: Vec2,
 ) {
     const VERTEX_RADIUS: f32 = 4.0;
     for (i, &pt) in points.iter().enumerate() {
         let world = local_to_world(pt, props.position, props.rotation);
-        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired);
+        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
         let is_active = active_vertex == Some(i);
         let fill = if is_active { ACCENT_BLUE } else { TEXT_PRIMARY };
         let stroke_color = if is_active { AMBER } else { SELECTION_COLOR };

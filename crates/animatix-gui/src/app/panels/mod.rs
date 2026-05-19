@@ -225,14 +225,21 @@ fn preview_screen_to_scene(
     scene_dimensions: SceneDimensions,
     preview_rect: egui::Rect,
     screen: egui::Pos2,
+    zoom: f32,
+    pan: Vec2,
 ) -> kurbo::Point {
     let desired = preview_rect.size();
-    let scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
-    let scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+    let base_scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
+    let base_scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+    let scale_x = base_scale_x / zoom.max(0.01) as f64;
+    let scale_y = base_scale_y / zoom.max(0.01) as f64;
+
+    let center_x = preview_rect.center().x as f64;
+    let center_y = preview_rect.center().y as f64;
 
     kurbo::Point::new(
-        (screen.x - preview_rect.min.x) as f64 * scale_x,
-        (screen.y - preview_rect.min.y) as f64 * scale_y,
+        pan.x as f64 + (screen.x as f64 - center_x) * scale_x,
+        pan.y as f64 + (screen.y as f64 - center_y) * scale_y,
     )
 }
 
@@ -240,14 +247,21 @@ fn preview_scene_to_screen(
     scene_dimensions: SceneDimensions,
     preview_rect: egui::Rect,
     scene: kurbo::Point,
+    zoom: f32,
+    pan: Vec2,
 ) -> egui::Pos2 {
     let desired = preview_rect.size();
-    let scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
-    let scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+    let base_scale_x = scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
+    let base_scale_y = scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+    let scale_x = base_scale_x / zoom.max(0.01) as f64;
+    let scale_y = base_scale_y / zoom.max(0.01) as f64;
+
+    let center_x = preview_rect.center().x as f64;
+    let center_y = preview_rect.center().y as f64;
 
     Pos2::new(
-        (preview_rect.min.x as f64 + scene.x / scale_x) as f32,
-        (preview_rect.min.y as f64 + scene.y / scale_y) as f32,
+        (center_x + (scene.x - pan.x as f64) / scale_x) as f32,
+        (center_y + (scene.y - pan.y as f64) / scale_y) as f32,
     )
 }
 
@@ -823,11 +837,11 @@ self.selected_actors,
     }
 
     fn preview_screen_to_scene(&self, preview_rect: egui::Rect, screen: egui::Pos2) -> kurbo::Point {
-        preview_screen_to_scene(self.scene_dimensions, preview_rect, screen)
+        preview_screen_to_scene(self.scene_dimensions, preview_rect, screen, self.preview.preview_zoom, self.preview.preview_pan)
     }
 
     fn preview_scene_to_screen(&self, preview_rect: egui::Rect, scene: kurbo::Point) -> egui::Pos2 {
-        preview_scene_to_screen(self.scene_dimensions, preview_rect, scene)
+        preview_scene_to_screen(self.scene_dimensions, preview_rect, scene, self.preview.preview_zoom, self.preview.preview_pan)
     }
 
     /// Handle drag start/update/end for the preview.
@@ -863,7 +877,7 @@ self.selected_actors,
                         preview::ToolMode::Vertex => {
                             if let Some(ref points) = vertex_points {
                                 // Find nearest vertex even if not directly hitting it
-                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius * 2.0) {
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius * 2.0, self.preview.preview_zoom, self.preview.preview_pan) {
                                     *self.drag_state = DragState::EditVertices {
                                         actor,
                                         vertex: vidx,
@@ -952,7 +966,7 @@ self.selected_actors,
                         preview::ToolMode::Select => {
                             // Standard auto-detect priority
                             if let Some(ref points) = vertex_points {
-                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius) {
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius, self.preview.preview_zoom, self.preview.preview_pan) {
                                     *self.drag_state = DragState::EditVertices {
                                         actor: actor.clone(),
                                         vertex: vidx,
@@ -1571,11 +1585,13 @@ self.selected_actors,
         if response.secondary_clicked() && !is_dragging {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
+                let zoom = self.preview.preview_zoom;
+                let pan = self.preview.preview_pan;
                 selection::handle_right_click(
                     self.selection,
                     self.hit_regions,
                     click_pos,
-                    move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen),
+                    move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen, zoom, pan),
                 );
             }
         }
@@ -1609,13 +1625,15 @@ self.selected_actors,
         if response.clicked() && !is_dragging && !self.selection.context_menu_open && !suppress_click {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
+                let zoom = self.preview.preview_zoom;
+                let pan = self.preview.preview_pan;
                 let modifiers = ui.ctx().input(|i| i.modifiers);
                 selection::handle_click(
                     self.selection,
                     self.selected_actors,
                     self.hit_regions,
                     click_pos,
-                    move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen),
+                    move |screen| preview_screen_to_scene(scene_dimensions, _preview_rect, screen, zoom, pan),
                     &modifiers,
                 );
                 // During a transition, if the clicked actor is not in the active scene,
@@ -1752,6 +1770,8 @@ self.selected_actors,
                     preview_rect,
                     self.scene_dimensions,
                     preview_rect.size(),
+                    self.preview.preview_zoom,
+                    self.preview.preview_pan,
                 ) {
                     selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
                 }
@@ -1772,7 +1792,26 @@ self.selected_actors,
     fn render_preview_content(&self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
         match self.preview_texture_id {
             Some(texture_id) => {
-                ui.put(preview_rect, egui::Image::new((texture_id, preview_rect.size())));
+                let zoom = self.preview.preview_zoom;
+                let pan = self.preview.preview_pan;
+                let scene_w = self.scene_dimensions.width.max(1) as f32;
+                let scene_h = self.scene_dimensions.height.max(1) as f32;
+
+                if (zoom - 1.0).abs() > 0.001 || pan != Vec2::new(scene_w / 2.0, scene_h / 2.0) {
+                    // Apply zoom/pan via UV coordinates
+                    let half_inv_zx = 0.5 / zoom.max(0.01);
+                    let half_inv_zy = 0.5 / zoom.max(0.01);
+                    let uv_cx = (pan.x / scene_w).clamp(0.0, 1.0);
+                    let uv_cy = (pan.y / scene_h).clamp(0.0, 1.0);
+                    let uv_rect = egui::Rect::from_min_max(
+                        egui::pos2((uv_cx - half_inv_zx).clamp(0.0, 1.0), (uv_cy - half_inv_zy).clamp(0.0, 1.0)),
+                        egui::pos2((uv_cx + half_inv_zx).clamp(0.0, 1.0), (uv_cy + half_inv_zy).clamp(0.0, 1.0)),
+                    );
+                    let image = egui::Image::new((texture_id, preview_rect.size())).uv(uv_rect);
+                    ui.put(preview_rect, image);
+                } else {
+                    ui.put(preview_rect, egui::Image::new((texture_id, preview_rect.size())));
+                }
             }
             None => {
                 ui.painter().text(
@@ -1804,12 +1843,16 @@ self.selected_actors,
                         preview_rect,
                         self.scene_dimensions,
                         preview_rect.size(),
+                        self.preview.preview_zoom,
+                        self.preview.preview_pan,
                     );
                     let bottom_right = preview::scene_to_screen(
                         kurbo::Point::new(bounds.x1, bounds.y1),
                         preview_rect,
                         self.scene_dimensions,
                         preview_rect.size(),
+                        self.preview.preview_zoom,
+                        self.preview.preview_pan,
                     );
                     egui::Rect::from_min_max(top_left, bottom_right)
                 });
@@ -1822,6 +1865,8 @@ self.selected_actors,
                 self.scene_dimensions,
                 preview_rect.size(),
                 ui.ctx().pixels_per_point(),
+                self.preview.preview_zoom,
+                self.preview.preview_pan,
             );
 
             // Draw polygon vertex handles
@@ -1846,6 +1891,8 @@ self.selected_actors,
                     preview_rect.size(),
                     active_vertex,
                     ui.ctx().pixels_per_point(),
+                    self.preview.preview_zoom,
+                    self.preview.preview_pan,
                 );
             }
 
@@ -1876,6 +1923,8 @@ self.selected_actors,
                                 self.scene_dimensions,
                                 preview_rect.size(),
                                 layout_type == animatix::timeline::LayoutType::Row,
+                                self.preview.preview_zoom,
+                                self.preview.preview_pan,
                             );
                         }
                     }
@@ -1953,6 +2002,30 @@ self.selected_actors,
                 *self.grid_enabled = !*self.grid_enabled;
             }
 
+            // Reset zoom/pan button (left of grid toggle)
+            let reset_btn_rect = egui::Rect::from_min_size(
+                egui::pos2(grid_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
+                Vec2::new(header_h, header_h - 4.0),
+            );
+            let reset_btn = ui.allocate_rect(reset_btn_rect, egui::Sense::click());
+            let reset_color = if self.preview.preview_zoom != 1.0 || self.preview.preview_pan != Vec2::ZERO {
+                ACCENT_BLUE
+            } else {
+                TEXT_MUTED
+            };
+            ui.painter().text(
+                reset_btn_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                reset_color,
+            );
+            if reset_btn.clicked() {
+                self.preview.preview_zoom = 1.0;
+                self.preview.preview_pan = Vec2::ZERO;
+                self.preview.status = "Zoom/Pan reset".to_string();
+            }
+
             ui.add_space(SPACE_S);
 
             let available = ui.available_size_before_wrap();
@@ -1969,6 +2042,66 @@ self.selected_actors,
             );
             ui.painter().rect_filled(preview_rect, RADIUS_L, BG_BASE);
 
+            // ── Scroll zoom ──
+            if response.hovered() {
+                let scroll = ui.input(|i| i.smooth_scroll_delta);
+                if scroll.y != 0.0 {
+                    let zoom_factor = 1.0 + scroll.y * 0.001;
+                    let new_zoom = (self.preview.preview_zoom * zoom_factor).clamp(0.1, 10.0);
+                    let prev_zoom = self.preview.preview_zoom;
+                    // Zoom toward cursor: keep the scene point under cursor fixed
+                    if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                        let cursor_in_rect = preview_rect.contains(cursor);
+                        if cursor_in_rect && prev_zoom > 0.01 {
+                            let center = preview_rect.center().to_vec2();
+                            let cursor_offset = cursor - preview_rect.min;
+                            let rel = cursor_offset - center;
+                            // Compute the scene point at cursor (pre-zoom)
+                            let base_scale_x = self.scene_dimensions.width as f64 / preview_rect.width().max(1.0) as f64;
+                            let base_scale_y = self.scene_dimensions.height as f64 / preview_rect.height().max(1.0) as f64;
+                            let old_scale_x = base_scale_x / prev_zoom as f64;
+                            let old_scale_y = base_scale_y / prev_zoom as f64;
+                            let scene_at_cursor = kurbo::Point::new(
+                                self.preview.preview_pan.x as f64 + rel.x as f64 * old_scale_x,
+                                self.preview.preview_pan.y as f64 + rel.y as f64 * old_scale_y,
+                            );
+                            // Set new zoom
+                            self.preview.preview_zoom = new_zoom;
+                            // Adjust pan so cursor stays on the same scene point
+                            let new_scale_x = base_scale_x / new_zoom as f64;
+                            let new_scale_y = base_scale_y / new_zoom as f64;
+                            self.preview.preview_pan = Vec2::new(
+                                (scene_at_cursor.x - rel.x as f64 * new_scale_x) as f32,
+                                (scene_at_cursor.y - rel.y as f64 * new_scale_y) as f32,
+                            );
+                            self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
+                        }
+                    } else {
+                        self.preview.preview_zoom = new_zoom;
+                        self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
+                    }
+                }
+            }
+
+            // ── Middle-click pan ──
+            if ui.input(|i| i.pointer.middle_down()) {
+                if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                    if preview_rect.contains(mouse) {
+                        let delta = ui.input(|i| i.pointer.delta());
+                        if delta != Vec2::ZERO {
+                            let base_scale_x = self.scene_dimensions.width as f64 / preview_rect.width().max(1.0) as f64;
+                            let base_scale_y = self.scene_dimensions.height as f64 / preview_rect.height().max(1.0) as f64;
+                            let scale_x = base_scale_x / self.preview.preview_zoom.max(0.01) as f64;
+                            let scale_y = base_scale_y / self.preview.preview_zoom.max(0.01) as f64;
+                            self.preview.preview_pan = Vec2::new(
+                                self.preview.preview_pan.x - delta.x as f32 * scale_x as f32,
+                                self.preview.preview_pan.y - delta.y as f32 * scale_y as f32,
+                            );
+                        }
+                    }
+                }
+            }
+
             let is_dragging = !matches!(self.drag_state, DragState::None);
             if self.handle_preview_drag(ui, preview_rect, &response) {
                 return;
@@ -1979,7 +2112,9 @@ self.selected_actors,
                 .input(|i| i.pointer.latest_pos())
                 .filter(|p| preview_rect.contains(*p));
             let scene_dimensions = self.scene_dimensions;
-            let screen_to_scene = move |screen: egui::Pos2| preview_screen_to_scene(scene_dimensions, preview_rect, screen);
+            let zoom = self.preview.preview_zoom;
+            let pan = self.preview.preview_pan;
+            let screen_to_scene = move |screen: egui::Pos2| preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan);
 
             if !self.selection.context_menu_open {
                 selection::update_hover(
@@ -2001,25 +2136,51 @@ self.selected_actors,
             // Draw grid overlay
             if *self.grid_enabled {
                 let grid = *self.grid_size;
-                let scale_x = preview_rect.width() / self.scene_dimensions.width.max(1) as f32;
-                let scale_y = preview_rect.height() / self.scene_dimensions.height.max(1) as f32;
                 let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 12);
 
-                let mut x = preview_rect.min.x;
-                while x < preview_rect.max.x {
-                    ui.painter().line_segment(
-                        [egui::pos2(x, preview_rect.min.y), egui::pos2(x, preview_rect.max.y)],
-                        Stroke::new(1.0, grid_color),
+                // Compute the visible scene bounds from preview rect corners
+                let scene_tl = preview_screen_to_scene(
+                    self.scene_dimensions, preview_rect, preview_rect.left_top(),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                let scene_br = preview_screen_to_scene(
+                    self.scene_dimensions, preview_rect, preview_rect.right_bottom(),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                let x0 = (scene_tl.x / grid as f64).floor() as i32 * grid as i32;
+                let y0 = (scene_tl.y / grid as f64).floor() as i32 * grid as i32;
+                let x1 = (scene_br.x / grid as f64).ceil() as i32 * grid as i32;
+                let y1 = (scene_br.y / grid as f64).ceil() as i32 * grid as i32;
+
+                let mut x = x0 as f32;
+                while x <= x1 as f32 {
+                    let screen_pt = preview_scene_to_screen(
+                        self.scene_dimensions, preview_rect,
+                        kurbo::Point::new(x as f64, 0.0),
+                        self.preview.preview_zoom, self.preview.preview_pan,
                     );
-                    x += grid * scale_x;
+                    if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
+                        ui.painter().line_segment(
+                            [egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)],
+                            Stroke::new(1.0, grid_color),
+                        );
+                    }
+                    x += grid;
                 }
-                let mut y = preview_rect.min.y;
-                while y < preview_rect.max.y {
-                    ui.painter().line_segment(
-                        [egui::pos2(preview_rect.min.x, y), egui::pos2(preview_rect.max.x, y)],
-                        Stroke::new(1.0, grid_color),
+                let mut y = y0 as f32;
+                while y <= y1 as f32 {
+                    let screen_pt = preview_scene_to_screen(
+                        self.scene_dimensions, preview_rect,
+                        kurbo::Point::new(0.0, y as f64),
+                        self.preview.preview_zoom, self.preview.preview_pan,
                     );
-                    y += grid * scale_y;
+                    if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
+                        ui.painter().line_segment(
+                            [egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)],
+                            Stroke::new(1.0, grid_color),
+                        );
+                    }
+                    y += grid;
                 }
             }
             self.render_preview_selection_overlay(ui, preview_rect, is_dragging);

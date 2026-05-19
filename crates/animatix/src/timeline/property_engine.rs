@@ -198,6 +198,13 @@ pub(crate) fn write_property_field(
             // MorphOptions is set via group resolution
         }
 
+        // ── Effects tier ──
+        ActorField::ShadowOffset => write_vec2(&mut track.shadow_offset, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
+        ActorField::ShadowBlur => write_f32(&mut track.shadow_blur, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
+        ActorField::ShadowColor => write_vec4(&mut track.shadow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
+        ActorField::GlowRadius => write_f32(&mut track.glow_radius, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
+        ActorField::GlowColor => write_vec4(&mut track.glow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
+
         // ── Shape payload ──
         ActorField::ShapeType => {
             if let PropertyValue::U32(v) = value {
@@ -433,6 +440,12 @@ fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms:
         ActorField::Points => track.points.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
         ActorField::PlacementMode => track.placement_mode.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate(time_ms))),
         ActorField::MorphOptions => track.morph_options.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate(time_ms))),
+        // Effects tier
+        ActorField::ShadowOffset => track.shadow_offset.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
+        ActorField::ShadowBlur => track.shadow_blur.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::ShadowColor => track.shadow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        ActorField::GlowRadius => track.glow_radius.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
+        ActorField::GlowColor => track.glow_color.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
         // Groups and unsupported fields
         _ => None,
     }
@@ -504,6 +517,12 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
         ActorField::TextContent => track.text_content.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::FontFamily => track.font_family.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         ActorField::FontSize => track.font_size.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        // Effects tier
+        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        ActorField::GlowColor => track.glow_color.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         _ => false,
     }
 }
@@ -531,6 +550,12 @@ pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usi
         ActorField::TextContent => track.text_content.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::FontFamily => track.font_family.as_ref().map_or(0, |pt| pt.keyframes.len()),
         ActorField::FontSize => track.font_size.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        // Effects tier
+        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        ActorField::GlowColor => track.glow_color.as_ref().map_or(0, |pt| pt.keyframes.len()),
         _ => 0,
     }
 }
@@ -558,6 +583,12 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
         ActorField::TextContent => track.text_content.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::FontFamily => track.font_family.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         ActorField::FontSize => track.font_size.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        // Effects tier
+        ActorField::ShadowOffset => track.shadow_offset.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::ShadowBlur => track.shadow_blur.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::ShadowColor => track.shadow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::GlowRadius => track.glow_radius.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        ActorField::GlowColor => track.glow_color.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         _ => Vec::new(),
     }
 }
@@ -585,6 +616,12 @@ pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_
         ActorField::TextContent => track.text_content.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         ActorField::FontFamily => track.font_family.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         ActorField::FontSize => track.font_size.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        // Effects tier
+        ActorField::ShadowOffset => track.shadow_offset.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::ShadowBlur => track.shadow_blur.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::ShadowColor => track.shadow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::GlowRadius => track.glow_radius.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        ActorField::GlowColor => track.glow_color.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         _ => None,
     }
 }
@@ -630,6 +667,13 @@ pub(crate) fn inject_property_into_env(
     // Line from/to
     inject_vec2_env(env, label, "from", &track.line_from, time_ms, [-50.0, 0.0]);
     inject_vec2_env(env, label, "to",   &track.line_to, time_ms, [50.0, 0.0]);
+
+    // Effects
+    inject_vec2_env(env, label, "shadow_offset",   &track.shadow_offset, time_ms, [0.0, 0.0]);
+    inject_scalar_env(env, label, "shadow_blur",    &track.shadow_blur, time_ms, 0.0);
+    inject_color_env(env, label, "shadow_color",    &track.shadow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
+    inject_scalar_env(env, label, "glow_radius",    &track.glow_radius, time_ms, 0.0);
+    inject_color_env(env, label, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
 }
 
 fn inject_scalar_env(

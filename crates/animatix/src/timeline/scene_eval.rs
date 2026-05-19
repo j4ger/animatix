@@ -353,6 +353,13 @@ impl Timeline {
             let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
             let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
 
+            // ── Effects properties ──
+            let mut shadow_offset = track.shadow_offset.get(time_ms, [0.0, 0.0]);
+            let mut shadow_blur = track.shadow_blur.get(time_ms, 0.0);
+            let mut shadow_color_val = track.shadow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
+            let mut glow_radius = track.glow_radius.get(time_ms, 0.0);
+            let mut glow_color_val = track.glow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
+
             if let Some(node_overrides) = node_overrides {
                 if let Some(Value::Vec2(from)) = node_overrides.get("from") {
                     line_from = [from[0] as f32, from[1] as f32];
@@ -377,6 +384,23 @@ impl Timeline {
                 }
                 if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
                     fill_opacity = *opacity as f32;
+                }
+
+                // Effects overrides
+                if let Some(Value::Vec2(off)) = node_overrides.get("shadow_offset") {
+                    shadow_offset = [off[0] as f32, off[1] as f32];
+                }
+                if let Some(Value::Num(blur)) = node_overrides.get("shadow_blur") {
+                    shadow_blur = *blur as f32;
+                }
+                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("shadow_color") {
+                    shadow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                }
+                if let Some(Value::Num(radius)) = node_overrides.get("glow_radius") {
+                    glow_radius = *radius as f32;
+                }
+                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("glow_color") {
+                    glow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
                 }
             }
 
@@ -411,6 +435,59 @@ impl Timeline {
             let local_opacity = opacity;
             let image = track.image.get(time_ms, None);
             let has_image = image.is_some();
+
+            // ── Drop shadow rendering ──
+            // Draw a semi-transparent copy of each vector path offset by shadow_offset
+            if shadow_color_val[3] > 0.0 || shadow_blur > 0.0 {
+                let shadow_transform = local_transform
+                    * kurbo::Affine::translate((shadow_offset[0] as f64, shadow_offset[1] as f64));
+                let shadow_alpha = (shadow_color_val[3] * 0.5).clamp(0.0, 1.0);
+                let mut sc = vello::peniko::Color::from_rgba8(
+                    (shadow_color_val[0] * 255.0) as u8,
+                    (shadow_color_val[1] * 255.0) as u8,
+                    (shadow_color_val[2] * 255.0) as u8,
+                    (shadow_alpha * 255.0) as u8,
+                );
+                if local_opacity < 1.0 {
+                    sc = sc.with_alpha(sc.components[3] * local_opacity);
+                }
+                for vector_path in &vector_paths {
+                    // Draw shadow fill
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        shadow_transform,
+                        sc,
+                        None,
+                        &vector_path.path,
+                    );
+                    // Draw shadow stroke if the path has one
+                    if let Some((_, stroke_width)) = vector_path.stroke {
+                        let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                        scene.stroke(&stroke, shadow_transform, sc, None, &vector_path.path);
+                    }
+                }
+            }
+
+            // ── Glow rendering ──
+            // Draw a semi-transparent expanded copy of each vector path
+            if glow_color_val[3] > 0.0 && glow_radius > 0.0 {
+                let glow_alpha = (glow_color_val[3] * 0.4).clamp(0.0, 1.0);
+                let glow_expand = glow_radius as f64;
+                let mut gc = vello::peniko::Color::from_rgba8(
+                    (glow_color_val[0] * 255.0) as u8,
+                    (glow_color_val[1] * 255.0) as u8,
+                    (glow_color_val[2] * 255.0) as u8,
+                    (glow_alpha * 255.0) as u8,
+                );
+                if local_opacity < 1.0 {
+                    gc = gc.with_alpha(gc.components[3] * local_opacity);
+                }
+                for vector_path in &vector_paths {
+                    // Use a thick stroke to approximate glow expansion around the path
+                    let glow_stroke = vello::kurbo::Stroke::new(glow_expand * 2.0);
+                    scene.stroke(&glow_stroke, local_transform, gc, None, &vector_path.path);
+                }
+            }
 
             for vector_path in &vector_paths {
                 let transform = local_transform;

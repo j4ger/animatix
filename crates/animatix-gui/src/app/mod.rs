@@ -79,6 +79,10 @@ struct PreviewPaneState {
     dimensions: SceneDimensions,
     /// When set, the scene list panel should open the transition editor for this scene.
     open_transition_editor: Option<String>,
+    /// Preview canvas zoom level (1.0 = 100%).
+    preview_zoom: f32,
+    /// Preview canvas pan offset in scene coordinates (scene point centered in preview).
+    preview_pan: Vec2,
 }
 
 impl PreviewPaneState {
@@ -91,6 +95,8 @@ impl PreviewPaneState {
             error: None,
             dimensions,
             open_transition_editor: None,
+            preview_zoom: 1.0,
+            preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
         }
     }
 
@@ -988,6 +994,11 @@ impl GuiShell {
         self.preview.dimensions = self.document.scene_dimensions;
         if reset_time {
             self.preview.current_time_s = 0.0;
+            self.preview.preview_zoom = 1.0;
+            self.preview.preview_pan = Vec2::new(
+                self.document.scene_dimensions.width as f32 / 2.0,
+                self.document.scene_dimensions.height as f32 / 2.0,
+            );
         } else {
             self.preview.clamp_time();
         }

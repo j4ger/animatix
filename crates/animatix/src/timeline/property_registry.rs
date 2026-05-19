@@ -139,6 +139,13 @@ pub enum ActorField {
     ImageData,
     SvgPaths,
 
+    // ── Effects tier ──
+    ShadowOffset,
+    ShadowBlur,
+    ShadowColor,
+    GlowRadius,
+    GlowColor,
+
     // ── Compound resolution groups (handled by GroupHandler) ──
     PositionBindingGroup,
     VectorShapeGroup,
@@ -307,6 +314,8 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("from",          ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineFrom,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("func",          ValueType::BuildTimeOnly, F::empty(),                 ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("gap",           ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("glow_color",    ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::GlowColor,           None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.0])),
+    schema!("glow_radius",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::GlowRadius,          None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("grid",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),
@@ -323,6 +332,9 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("resolution",    ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::F32(100.0)),
     schema!("rotation",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Rotation,            None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("scale",         ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Scale,               None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("shadow_blur",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::ShadowBlur,          None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("shadow_color",  ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::ShadowColor,         None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.0])),
+    schema!("shadow_offset", ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::ShadowOffset,        None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
     schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
