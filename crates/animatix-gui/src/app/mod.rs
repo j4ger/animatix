@@ -421,11 +421,11 @@ impl GuiShell {
             .active_timeline()
             .map(|t| t.tracks.len())
             .unwrap_or(0);
-        let timeline_markers = self
-            .document
-            .active_timeline()
-            .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
-            .unwrap_or_default();
+        let timeline_markers = timeline_keyframe_times_s(
+            self.document.active_timeline(),
+            self.document.composition.as_ref(),
+            self.document.active_scene.as_deref(),
+        );
         let has_error = self.preview.error.is_some();
         let diagnostics = self.combined_diagnostics();
 
@@ -621,11 +621,11 @@ impl GuiShell {
             self.preview_dirty = true;
         }
         if actions.prev_keyframe {
-            let keyframes = self
-                .document
-                .active_timeline()
-                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
-                .unwrap_or_default();
+            let keyframes = timeline_keyframe_times_s(
+                self.document.active_timeline(),
+                self.document.composition.as_ref(),
+                self.document.active_scene.as_deref(),
+            );
             self.preview.go_to_previous_keyframe(&keyframes);
             self.preview.status = format!(
                 "Previous keyframe • t = {:.2}s / {:.2}s",
@@ -641,11 +641,11 @@ impl GuiShell {
             }
         }
         if actions.next_keyframe {
-            let keyframes = self
-                .document
-                .active_timeline()
-                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
-                .unwrap_or_default();
+            let keyframes = timeline_keyframe_times_s(
+                self.document.active_timeline(),
+                self.document.composition.as_ref(),
+                self.document.active_scene.as_deref(),
+            );
             self.preview.go_to_next_keyframe(&keyframes);
             self.preview.status = format!(
                 "Next keyframe • t = {:.2}s / {:.2}s",
