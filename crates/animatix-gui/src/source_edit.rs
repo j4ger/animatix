@@ -116,6 +116,12 @@ pub enum SourceEdit {
         time_s: f64,
         easing: animatix::easing::Easing,
     },
+    /// Move an actor to a new parent container (or to top-level if None).
+    /// If the target is not a container, both are wrapped in a new Group.
+    Reparent {
+        actor: String,
+        new_parent: Option<String>,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -173,6 +179,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         SourceEdit::DeleteScene { name } => delete_scene(stmts, &name),
         SourceEdit::SetKeyframeEasing { actor, property, time_s, easing } => {
             set_keyframe_easing(stmts, &actor, &property, time_s, easing)
+        }
+        SourceEdit::Reparent { actor, new_parent } => {
+            reparent_actor(stmts, &actor, new_parent.as_deref())
         }
     }
 }
@@ -854,6 +863,273 @@ fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> bool {
         }
     }
     removed
+}
+
+// ---------------------------------------------------------------------------
+// Reparent
+// ---------------------------------------------------------------------------
+
+fn reparent_actor(stmts: &mut Vec<Stmt>, actor: &str, new_parent: Option<&str>) -> bool {
+    // 1. Find and extract the actor from its current location.
+    let extracted = extract_inline_item(stmts, actor);
+    let Some(item) = extracted else {
+        // Actor not found as an inline child — try top-level Stmt.
+        let idx = stmts.iter().position(|s| stmt_has_label(s, actor));
+        let Some(idx) = idx else { return false; };
+        let stmt = stmts.remove(idx);
+        let item = stmt_to_inline_item(stmt);
+        return insert_under_parent(stmts, item, new_parent);
+    };
+
+    insert_under_parent(stmts, item, new_parent)
+}
+
+fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Option<&str>) -> bool {
+    match new_parent {
+        None => {
+            // Make top-level
+            stmts.push(inline_item_to_stmt(item));
+            true
+        }
+        Some(parent_label) => {
+            if let Some(parent_stmt) = find_actor_decl_mut(stmts, parent_label) {
+                match parent_stmt {
+                    Stmt::ActorDecl { ty, children, .. }
+                        if is_container_type(ty) =>
+                    {
+                        children.push(item);
+                        return true;
+                    }
+                    _ => {
+                        // Target is not a container — wrap both in a new Group.
+                        // First, extract the target actor too.
+                        let target_extracted = extract_inline_item(stmts, parent_label);
+                        let target_item = if let Some(target) = target_extracted {
+                            target
+                        } else {
+                            // Target is top-level
+                            let idx = stmts.iter().position(|s| stmt_has_label(s, parent_label));
+                            let Some(idx) = idx else { return false; };
+                            let stmt = stmts.remove(idx);
+                            stmt_to_inline_item(stmt)
+                        };
+
+                        let group = InlineItem::Labeled {
+                            label: format!("{}_group", parent_label),
+                            ty: "Group".into(),
+                            props: vec![],
+                            modifiers: vec![],
+                            children: vec![target_item, item],
+                        };
+                        stmts.push(inline_item_to_stmt(group));
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+    }
+}
+
+fn is_container_type(ty: &str) -> bool {
+    matches!(ty, "Row" | "Col" | "Grid" | "Stack" | "Group" | "Mask")
+}
+
+fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
+    match stmt {
+        Stmt::ActorDecl { label: l, .. } if l == label => true,
+        Stmt::Text { label: Some(l), .. } if l == label => true,
+        Stmt::Math { label: Some(l), .. } if l == label => true,
+        Stmt::Code { label: Some(l), .. } if l == label => true,
+        Stmt::Svg { label: Some(l), .. } if l == label => true,
+        Stmt::Image { label: Some(l), .. } if l == label => true,
+        _ => false,
+    }
+}
+
+fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
+    match stmt {
+        Stmt::ActorDecl { label, ty, props, modifiers, children, .. } => InlineItem::Labeled {
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+        },
+        Stmt::Text { label, props, .. } => InlineItem::Labeled {
+            label: label.unwrap_or_default(),
+            ty: "Text".into(),
+            props,
+            modifiers: vec![],
+            children: vec![],
+        },
+        Stmt::Math { label, props, .. } => InlineItem::Labeled {
+            label: label.unwrap_or_default(),
+            ty: "Math".into(),
+            props,
+            modifiers: vec![],
+            children: vec![],
+        },
+        Stmt::Code { label, props, .. } => InlineItem::Labeled {
+            label: label.unwrap_or_default(),
+            ty: "Code".into(),
+            props,
+            modifiers: vec![],
+            children: vec![],
+        },
+        Stmt::Svg { label, .. } => InlineItem::Labeled {
+            label: label.unwrap_or_default(),
+            ty: "Svg".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+        },
+        Stmt::Image { label, .. } => InlineItem::Labeled {
+            label: label.unwrap_or_default(),
+            ty: "Image".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+        },
+        _ => InlineItem::Anonymous {
+            ty: "Group".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+        },
+    }
+}
+
+fn inline_item_to_stmt(item: InlineItem) -> Stmt {
+    match item {
+        InlineItem::Labeled { label, ty, props, modifiers, children } => Stmt::ActorDecl {
+            is_pub: false,
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            span: None,
+        },
+        InlineItem::Anonymous { ty, props, modifiers, children } => Stmt::ActorDecl {
+            is_pub: false,
+            label: format!("__anon_{}", {
+                use std::sync::atomic::{AtomicUsize, Ordering};
+                static COUNTER: AtomicUsize = AtomicUsize::new(0);
+                COUNTER.fetch_add(1, Ordering::SeqCst)
+            }),
+            ty,
+            props,
+            modifiers,
+            children,
+            span: None,
+        },
+        InlineItem::SlotFill { slot_name, items, .. } => {
+            // Convert slot fill to a group containing the items
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: format!("__slot_{}", slot_name),
+                ty: "Group".into(),
+                props: vec![],
+                modifiers: vec![],
+                children: items,
+                span: None,
+            }
+        }
+        InlineItem::SlotMarker => {
+            // Slot markers can't be converted to statements
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "__slot_marker".into(),
+                ty: "Group".into(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }
+        }
+    }
+}
+
+fn extract_inline_item(stmts: &mut Vec<Stmt>, label: &str) -> Option<InlineItem> {
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            Stmt::ActorDecl { children, .. } => {
+                if let Some(idx) = children.iter().position(|c| inline_item_has_label(c, label)) {
+                    return Some(children.remove(idx));
+                }
+                // Recurse into children
+                for child in children.iter_mut() {
+                    if let Some(extracted) = extract_from_inline_item(child, label) {
+                        return Some(extracted);
+                    }
+                }
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. } => {
+                if let Some(extracted) = extract_inline_item(body, label) {
+                    return Some(extracted);
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if let Some(extracted) = extract_inline_item(then_branch, label) {
+                    return Some(extracted);
+                }
+                if let Some(else_branch) = else_branch {
+                    if let Some(extracted) = extract_inline_item(else_branch, label) {
+                        return Some(extracted);
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if let Some(extracted) = extract_inline_item(body, label) {
+                    return Some(extracted);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<InlineItem> {
+    match item {
+        InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
+            if let Some(idx) = children.iter().position(|c| inline_item_has_label(c, label)) {
+                return Some(children.remove(idx));
+            }
+            for child in children.iter_mut() {
+                if let Some(extracted) = extract_from_inline_item(child, label) {
+                    return Some(extracted);
+                }
+            }
+            None
+        }
+        InlineItem::SlotFill { items, .. } => {
+            if let Some(idx) = items.iter().position(|c| inline_item_has_label(c, label)) {
+                return Some(items.remove(idx));
+            }
+            for item in items.iter_mut() {
+                if let Some(extracted) = extract_from_inline_item(item, label) {
+                    return Some(extracted);
+                }
+            }
+            None
+        }
+        InlineItem::SlotMarker { .. } => None,
+    }
+}
+
+fn inline_item_has_label(item: &InlineItem, label: &str) -> bool {
+    match item {
+        InlineItem::Labeled { label: l, .. } if l == label => true,
+        _ => false,
+    }
 }
 
 // ---------------------------------------------------------------------------

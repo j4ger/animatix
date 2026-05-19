@@ -104,6 +104,9 @@ fn phosphor_icon(id: &str) -> &'static str {
         "squares-four" => egui_phosphor::regular::SQUARES_FOUR,
         "stack" => egui_phosphor::regular::STACK,
         "folder" => egui_phosphor::regular::FOLDER,
+        "typst" => egui_phosphor::regular::ARTICLE,
+        "mask" => egui_phosphor::regular::MASK_HAPPY,
+        "audio" => egui_phosphor::regular::SPEAKER_HIGH,
         _ => egui_phosphor::regular::QUESTION,
     }
 }

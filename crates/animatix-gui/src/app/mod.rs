@@ -887,6 +887,9 @@ impl GuiShell {
         if let Some(scene) = actions.open_transition_editor {
             self.preview.open_transition_editor = Some(scene);
         }
+        if let Some((actor, new_parent)) = actions.reparent_actor {
+            self.handle_reparent_actor(&actor, new_parent);
+        }
         for edit in actions.property_edits {
             self.handle_property_edit(edit);
         }
@@ -1383,6 +1386,37 @@ impl GuiShell {
                 "Failed to set easing on '{}.{}' @ {:.2}s — keyframe not found",
                 actor, property, time_s
             );
+        }
+    }
+
+    /// Reparent an actor under a new parent (or to top-level).
+    fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
+        self.snapshot();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to reparent — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::Reparent {
+            actor: actor.into(),
+            new_parent: new_parent.clone(),
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            if let Some(ref parent) = new_parent {
+                self.preview.status = format!("Reparented '{}' under '{}'", actor, parent);
+            } else {
+                self.preview.status = format!("Reparented '{}' to top level", actor);
+            }
+        } else {
+            self.preview.status = format!("Failed to reparent '{}'", actor);
         }
     }
 

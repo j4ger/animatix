@@ -187,6 +187,8 @@ pub(crate) struct UiActions {
     pub(super) set_keyframe_easing: Option<(String, String, f64, Easing)>,
     /// Request opening the transition editor for the given scene (set by transport bar).
     pub(super) open_transition_editor: Option<String>,
+    /// Reparent an actor: (actor_label, new_parent_label_or_none)
+    pub(super) reparent_actor: Option<(String, Option<String>)>,
 }
 
 pub(crate) struct WorkspaceViewer<'a> {
@@ -2623,6 +2625,56 @@ fn render_actor_tree(
             }
         })
         .show(ui, row_id);
+
+    // ── Drag-and-drop reparenting ──
+    let drag_id = ui.id().with("layer_drag");
+    let drag_data_id = drag_id.with("data");
+
+    // Detect drag start on this row
+    let drag_response = ui.interact(response.row_rect, row_id.with("drag"), egui::Sense::drag());
+    if drag_response.drag_started() && !is_anonymous {
+        ui.data_mut(|d| d.insert_temp(drag_data_id, label.to_string()));
+    }
+
+    // Detect drop target
+    let is_dragging = ui.data(|d| d.get_temp::<String>(drag_data_id)).is_some();
+    let is_drop_target = is_dragging && drag_response.hovered() && !is_anonymous;
+    if is_drop_target {
+        let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
+        if dragged != label {
+            // Highlight as drop target
+            ui.painter().rect_stroke(
+                response.row_rect.expand(1.0),
+                2,
+                Stroke::new(1.5, ACCENT_BLUE),
+                egui::StrokeKind::Outside,
+            );
+        }
+    }
+
+    // Handle drop (pointer released while dragging)
+    if is_dragging && ui.input(|i| i.pointer.any_released()) {
+        let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
+        if !dragged.is_empty() && dragged != label {
+            let pointer_pos = ui.input(|i| i.pointer.latest_pos());
+            let over_this_row = pointer_pos.map_or(false, |p| response.row_rect.contains(p));
+            if over_this_row && is_drop_target {
+                // Dropped on this row — reparent under this actor
+                actions.reparent_actor = Some((dragged, Some(label.to_string())));
+            } else if !over_this_row && depth == 0 {
+                // Dropped outside any row at root level — reparent to top-level
+                // Only the root-level rows handle this to avoid duplicates
+                let over_any_root = pointer_pos.map_or(false, |p| {
+                    // Check if pointer is within the scroll area at all
+                    response.row_rect.expand(100.0).contains(p)
+                });
+                if over_any_root {
+                    actions.reparent_actor = Some((dragged, None));
+                }
+            }
+        }
+        ui.data_mut(|d| d.remove::<String>(drag_data_id));
+    }
 
     if response.chevron_clicked {
         if collapsed_actors.contains(&label_owned) {
