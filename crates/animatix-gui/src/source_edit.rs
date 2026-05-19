@@ -104,6 +104,10 @@ pub enum SourceEdit {
     AddScene {
         name: String,
     },
+    /// Delete a scene declaration and all play references to it.
+    DeleteScene {
+        name: String,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -158,6 +162,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             rename_scene(stmts, &old_name, &new_name)
         }
         SourceEdit::AddScene { name } => add_scene(stmts, &name),
+        SourceEdit::DeleteScene { name } => delete_scene(stmts, &name),
     }
 }
 
@@ -716,6 +721,30 @@ fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> bool {
         span: None,
     });
     true
+}
+
+fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> bool {
+    let mut removed = false;
+    // 1. Remove the Scene declaration and any Play statements targeting it
+    stmts.retain(|stmt| match stmt {
+        Stmt::Scene { name: scene_name, .. } => {
+            if scene_name == name {
+                removed = true;
+                false
+            } else {
+                true
+            }
+        }
+        Stmt::Play { scene_name, .. } => scene_name != name,
+        _ => true,
+    });
+    // 2. Also remove Play statements from within remaining Scene bodies
+    for stmt in stmts.iter_mut() {
+        if let Stmt::Scene { body, .. } = stmt {
+            body.retain(|child| !matches!(child, Stmt::Play { scene_name, .. } if scene_name == name));
+        }
+    }
+    removed
 }
 
 // ---------------------------------------------------------------------------
@@ -1505,6 +1534,29 @@ btn.position = (200, 100)"#);
         assert!(src.contains("# Finale"));
         assert!(src.contains("play Finale"));
         assert!(!src.contains("Outro"));
+    }
+
+    #[test]
+    fn delete_scene_removes_declaration_and_play_references() {
+        let mut stmts = parse("# Intro\nplay Outro\n\n# Middle\n\n# Outro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::DeleteScene { name: "Outro".into() }
+        ));
+        let src = stmts_to_source(&stmts);
+        assert!(!src.contains("# Outro"));
+        assert!(!src.contains("play Outro"));
+        assert!(src.contains("# Intro"));
+        assert!(src.contains("# Middle"));
+    }
+
+    #[test]
+    fn delete_scene_returns_false_when_scene_missing() {
+        let mut stmts = parse("# Intro");
+        assert!(!apply_edit(
+            &mut stmts,
+            SourceEdit::DeleteScene { name: "Missing".into() }
+        ));
     }
 
     #[test]

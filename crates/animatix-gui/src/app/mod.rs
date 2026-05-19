@@ -713,6 +713,26 @@ impl GuiShell {
                 }
             }
         }
+        if let Some(scene) = actions.delete_scene {
+            if let Some(ref mut stmts) = self.document.raw_statements {
+                let edit = crate::source_edit::SourceEdit::DeleteScene {
+                    name: scene.clone(),
+                };
+                if crate::source_edit::apply_edit(stmts, edit) {
+                    let new_source = animatix::to_source::stmts_to_source(stmts);
+                    self.document.source_text = new_source.clone();
+                    self.editor.replace_text(new_source);
+                    self.document.is_dirty = true;
+                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+                    self.preview.status = format!("Deleted scene {}", scene);
+                    // Clear active scene if it was the deleted one
+                    if self.document.active_scene.as_ref() == Some(&scene) {
+                        self.document.active_scene = None;
+                    }
+                }
+            }
+        }
         if actions.add_scene {
             let existing: std::collections::HashSet<String> =
                 self.document.scene_names().into_iter().collect();

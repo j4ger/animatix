@@ -129,6 +129,7 @@ pub(crate) struct UiActions {
     pub(super) next_scene: bool,
     pub(super) select_scene: Option<String>,
     pub(super) add_scene: bool,
+    pub(super) delete_scene: Option<String>,
     pub(super) rename_scene: Option<(String, String)>,
     pub(super) reorder_scenes: Option<Vec<String>>,
     pub(super) property_edits: Vec<PropertyEdit>,
@@ -597,9 +598,20 @@ self.selected_actors,
                         }
                         ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
                     } else {
+                        let delete_id = row_id.with("delete");
                         let response = components::Row::new(&scene_name)
                             .selected(is_active)
+                            .right(|ui| {
+                                if components::icon_button(ui, egui_phosphor::regular::TRASH, "Delete scene").clicked() {
+                                    ui.data_mut(|d| d.insert_temp(delete_id, true));
+                                }
+                            })
                             .show(ui, row_id);
+
+                        if ui.data(|d| d.get_temp::<bool>(delete_id)).unwrap_or(false) {
+                            self.actions.delete_scene = Some(scene_name.clone());
+                            ui.data_mut(|d| d.remove::<bool>(delete_id));
+                        }
 
                         if response.row_double_clicked || response.row_secondary_clicked {
                             ui.data_mut(|d| {
