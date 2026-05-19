@@ -1,5 +1,5 @@
 use super::{
-    AnimationTrack, Diagnostic, Easing, Expr, Timeline, apply_explicit_position_binding,
+    AnimationTrack, AudioSegment, Diagnostic, Easing, Expr, Timeline, apply_explicit_position_binding,
     evaluate_expr_with_lookup_diagnostic, resolve_position_binding_with_lookup_diagnostic,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
@@ -360,5 +360,91 @@ impl Timeline {
             }
             _ => unreachable!("process_media_statement only handles svg/image statements"),
         }
+    }
+
+    /// Process an Audio actor declaration. Audio is non-visual — it stores
+    /// metadata on `Timeline::audio_segments` for muxing during export.
+    pub fn process_audio_actor_decl(
+        &mut self,
+        label: &str,
+        props: &[Property],
+        modifiers: &[crate::ast::Modifier],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        self.add_node(label.to_string(), parent_label);
+        let track = self
+            .tracks
+            .entry(label.to_string())
+            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+        track.kind = super::ActorKindId::Audio;
+
+        if track.first_seen_ms == u64::MAX {
+            track.first_seen_ms = time_ms as u64;
+        }
+
+        let eval_env = self.build_eval_env(time_ms as u64);
+        let mut source = String::new();
+        let mut volume = 1.0f32;
+
+        for prop in props {
+            let prop_subject = format!("{}.{}", label, prop.name);
+            match prop.name.as_str() {
+                "source" => {
+                    source = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_default();
+                }
+                "volume" => {
+                    volume = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(1.0))
+                    .as_num() as f32;
+                }
+                _ => {}
+            }
+        }
+
+        if source.is_empty() {
+            diagnostics.push(
+                Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::InvalidConfigValue,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!("Audio actor '{label}' has no 'source' property; no audio will be played."),
+                )
+                .with_subject(label),
+            );
+            return;
+        }
+
+        // Parse timing modifiers to determine start time and duration
+        use crate::timeline::timing::{
+            parse_timing_modifiers, ModifierHost, ParsedTimingModifiers,
+        };
+        let ParsedTimingModifiers {
+            duration_ms,
+            delay_ms,
+            ..
+        } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
+
+        let start_time_s = (time_ms + delay_ms) / 1000.0;
+        let duration_s = if duration_ms > 0.0 { duration_ms / 1000.0 } else { 0.0 };
+
+        self.audio_segments.push(AudioSegment {
+            source,
+            start_time_s,
+            duration_s,
+            volume: volume.clamp(0.0, 1.0),
+        });
     }
 }

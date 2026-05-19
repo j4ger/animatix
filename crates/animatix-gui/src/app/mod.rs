@@ -187,6 +187,8 @@ struct GuiShell {
     hot_reloader: Option<HotReloader>,
     last_reload_time: Option<Instant>,
     selected_actors: HashSet<String>,
+    /// Actor labels stored in the clipboard (for Ctrl+C/V paste).
+    clipboard_actors: Vec<String>,
     /// Per-actor hit regions from the last render (for click-to-select).
     hit_regions: Vec<(String, kurbo::Rect)>,
     /// Current drag interaction state on the preview canvas.
@@ -336,6 +338,7 @@ impl GuiShell {
             hot_reloader,
             last_reload_time: None,
             selected_actors: HashSet::new(),
+            clipboard_actors: Vec::new(),
             hit_regions: Vec::new(),
             drag_state: DragState::None,
             selection: crate::app::preview::selection::SelectionState::default(),
@@ -428,6 +431,18 @@ impl GuiShell {
             }
             if i.key_pressed(egui::Key::K) && !i.modifiers.command {
                 actions.toggle_keyframe_mode = true;
+            }
+            // Copy selected actors (Ctrl+C)
+            if i.modifiers.command && i.key_pressed(egui::Key::C) {
+                if !self.selected_actors.is_empty() {
+                    self.copy_selected_actors();
+                }
+            }
+            // Paste actors (Ctrl+V)
+            if i.modifiers.command && i.key_pressed(egui::Key::V) {
+                if !self.clipboard_actors.is_empty() {
+                    self.paste_actors();
+                }
             }
         });
 
@@ -1356,6 +1371,150 @@ impl GuiShell {
         }
     }
 
+    /// Copy currently selected actor labels into the clipboard buffer.
+    fn copy_selected_actors(&mut self) {
+        let count = self.selected_actors.len();
+        self.clipboard_actors = self.selected_actors.iter().cloned().collect();
+        self.preview.status = format!("Copied {} actor(s)", count);
+    }
+
+    /// Paste actors from the clipboard into the current scene.
+    ///
+    /// For each clipboard actor:
+    ///   - Clones the declaration with a unique label (`_copy` suffix + dedup)
+    ///   - Clones all keyframe assignment statements referencing the original actor
+    ///   - Renames references to the new label
+    ///   - Shifts absolute keyframe times by `current_time_s`
+    ///   - Inserts everything into the AST at the end
+    fn paste_actors(&mut self) {
+        self.snapshot();
+
+        let current_time_s = self.preview.current_time_s;
+        let clipboard = self.clipboard_actors.clone();
+
+        // Pre-generate all unique labels before mutating the AST.
+        let label_map: Vec<(String, String)> = clipboard
+            .iter()
+            .map(|orig| (orig.clone(), self.paste_unique_label(orig)))
+            .collect();
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to paste — no AST available".to_string();
+            return;
+        };
+
+        let mut pasted_labels = Vec::new();
+
+        for (original_label, new_label) in &label_map {
+            // Find the original actor declaration
+            let original_stmt = crate::source_edit::find_actor_decl(stmts, original_label).cloned();
+            let Some(mut new_stmt) = original_stmt else {
+                continue;
+            };
+
+            // Update label in the new statement
+            match &mut new_stmt {
+                animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
+                animatix::ast::Stmt::Text { label, .. } => *label = Some(new_label.clone()),
+                animatix::ast::Stmt::Math { label, .. } => *label = Some(new_label.clone()),
+                animatix::ast::Stmt::Code { label, .. } => *label = Some(new_label.clone()),
+                animatix::ast::Stmt::Svg { label, .. } => *label = Some(new_label.clone()),
+                animatix::ast::Stmt::Image { label, .. } => *label = Some(new_label.clone()),
+                _ => continue,
+            }
+
+            // Insert the declaration at the end (or after the original)
+            if let Some(pos) = stmts.iter().position(|s| {
+                match s {
+                    animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
+                    animatix::ast::Stmt::Text { label: Some(l), .. } if l == original_label => true,
+                    animatix::ast::Stmt::Math { label: Some(l), .. } if l == original_label => true,
+                    animatix::ast::Stmt::Code { label: Some(l), .. } if l == original_label => true,
+                    animatix::ast::Stmt::Svg { label: Some(l), .. } if l == original_label => true,
+                    animatix::ast::Stmt::Image { label: Some(l), .. } if l == original_label => true,
+                    _ => false,
+                }
+            }) {
+                stmts.insert(pos + 1, new_stmt);
+            } else {
+                stmts.push(new_stmt);
+            }
+
+            // Find and clone all keyframe assignments referencing the original actor
+            let keyframe_stmts = find_keyframes_for_actor(stmts, original_label);
+            for mut kf in keyframe_stmts {
+                // Rename references within the keyframe
+                crate::source_edit::rename_all_references(
+                    std::slice::from_mut(&mut kf),
+                    original_label,
+                    new_label,
+                );
+                // Shift absolute keyframe times by current_time_s
+                shift_keyframe_times(std::slice::from_mut(&mut kf), current_time_s);
+                stmts.push(kf);
+            }
+
+            pasted_labels.push(new_label.clone());
+        }
+
+        if pasted_labels.is_empty() {
+            self.preview.status = "Failed to paste — actor(s) not found in AST".to_string();
+            return;
+        }
+
+        // Update source
+        let new_source = animatix::to_source::stmts_to_source(stmts);
+        self.document.source_text = new_source.clone();
+        self.editor.replace_text(new_source);
+        self.document.is_dirty = true;
+        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+        self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+
+        // Select the pasted actors
+        self.selected_actors.clear();
+        for label in &pasted_labels {
+            self.selected_actors.insert(label.clone());
+        }
+        self.preview_dirty = true;
+        self.preview.status = format!("Pasted {} actor(s)", pasted_labels.len());
+    }
+
+    /// Generate a unique label for pasted actors using `_copy` suffix.
+    fn paste_unique_label(&self, base: &str) -> String {
+        let candidate = format!("{}_copy", base);
+        if !self.has_actor_label(&candidate) {
+            return candidate;
+        }
+        for i in 1.. {
+            let candidate = format!("{}_{}", base, i);
+            if !self.has_actor_label(&candidate) {
+                return candidate;
+            }
+        }
+        format!("{}_{}", base, 999)
+    }
+
+    /// Check if an actor label already exists in the timeline (or in clipboard).
+    fn has_actor_label(&self, label: &str) -> bool {
+        if self
+            .document
+            .timeline
+            .as_ref()
+            .map_or(false, |t| t.has_actor(label))
+        {
+            return true;
+        }
+        if self.clipboard_actors.contains(&label.to_string()) {
+            return true;
+        }
+        if let Some(ref stmts) = self.document.raw_statements {
+            if crate::source_edit::find_actor_decl(stmts, label).is_some() {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Generate a unique label for a new actor of the given type.
     fn unique_label(&self, ty: &str) -> String {
         let base = ty.to_lowercase();
@@ -1372,6 +1531,97 @@ impl GuiShell {
             }
         }
         format!("{}{}", base, existing.len() + 1)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for copy/paste
+// ---------------------------------------------------------------------------
+
+/// Find all top-level keyframe or relative-keyframe statements whose body
+/// contains an assignment targeting the given actor label.
+fn find_keyframes_for_actor(stmts: &[animatix::ast::Stmt], actor: &str) -> Vec<animatix::ast::Stmt> {
+    let mut result = Vec::new();
+    for stmt in stmts {
+        match stmt {
+            animatix::ast::Stmt::Keyframe { .. } | animatix::ast::Stmt::RelativeKeyframe { .. } => {
+                if keyframe_references_actor(stmt, actor) {
+                    result.push(stmt.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
+/// Check if a keyframe statement (or any nested child) references the given actor.
+fn keyframe_references_actor(stmt: &animatix::ast::Stmt, actor: &str) -> bool {
+    match stmt {
+        animatix::ast::Stmt::Assignment { target, .. } => {
+            target.iter().any(|t| t == actor)
+        }
+        animatix::ast::Stmt::Keyframe { body, .. }
+        | animatix::ast::Stmt::RelativeKeyframe { body, .. }
+        | animatix::ast::Stmt::Sequence { body, .. }
+        | animatix::ast::Stmt::Stagger { body, .. }
+        | animatix::ast::Stmt::Always { body, .. }
+        | animatix::ast::Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
+        | animatix::ast::Stmt::ComponentAction { body, .. } => {
+            body.iter().any(|child| keyframe_references_actor(child, actor))
+        }
+        animatix::ast::Stmt::Conditional { then_branch, else_branch, .. } => {
+            then_branch.iter().any(|child| keyframe_references_actor(child, actor))
+                || else_branch.as_ref().map_or(false, |eb| eb.iter().any(|child| keyframe_references_actor(child, actor)))
+        }
+        animatix::ast::Stmt::ForLoop { body, .. } => {
+            body.iter().any(|child| keyframe_references_actor(child, actor))
+        }
+        _ => false,
+    }
+}
+
+/// Shift absolute keyframe times by `offset_s` seconds. Relative keyframes
+/// and non-keyframe statements are left untouched.
+fn shift_keyframe_times(stmts: &mut [animatix::ast::Stmt], offset_s: f64) {
+    if offset_s.abs() < 0.001 {
+        return;
+    }
+    for stmt in stmts.iter_mut() {
+        match stmt {
+            animatix::ast::Stmt::Keyframe { time, .. } => {
+                let t = match time {
+                    animatix::ast::Time::Seconds(s) => *s,
+                    animatix::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                };
+                let new_t = t + offset_s;
+                *time = if new_t.fract() == 0.0 && new_t == new_t.trunc() {
+                    animatix::ast::Time::Seconds(new_t)
+                } else {
+                    animatix::ast::Time::Seconds(new_t)
+                };
+            }
+            animatix::ast::Stmt::RelativeKeyframe { .. } => {
+                // Relative keyframes keep their relative offset
+            }
+            animatix::ast::Stmt::Sequence { body, .. }
+            | animatix::ast::Stmt::Stagger { body, .. }
+            | animatix::ast::Stmt::Always { body, .. }
+            | animatix::ast::Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
+            | animatix::ast::Stmt::ComponentAction { body, .. } => {
+                shift_keyframe_times(body, offset_s);
+            }
+            animatix::ast::Stmt::Conditional { then_branch, else_branch, .. } => {
+                shift_keyframe_times(then_branch, offset_s);
+                if let Some(eb) = else_branch {
+                    shift_keyframe_times(eb, offset_s);
+                }
+            }
+            animatix::ast::Stmt::ForLoop { body, .. } => {
+                shift_keyframe_times(body, offset_s);
+            }
+            _ => {}
+        }
     }
 }
 

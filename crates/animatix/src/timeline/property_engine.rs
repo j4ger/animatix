@@ -231,7 +231,7 @@ pub(crate) fn write_property_field(
         }
 
         // ── Media payload ──
-        ActorField::ImageData | ActorField::SvgPaths => {}
+        ActorField::ImageData | ActorField::SvgPaths | ActorField::AudioSource | ActorField::AudioVolume => {}
 
         // ── Group fields (handled by group resolvers, not direct write) ──
         ActorField::PositionBindingGroup

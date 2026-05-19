@@ -237,6 +237,15 @@ impl Default for SceneDimensions {
     }
 }
 
+/// A single audio segment to be muxed during export.
+#[derive(Clone, Debug)]
+pub struct AudioSegment {
+    pub source: String,
+    pub start_time_s: f64,
+    pub duration_s: f64,
+    pub volume: f32,
+}
+
 /// A piecewise-constant variable track defined by `let` declarations in keyframes.
 /// Evaluates to the value of the most recent keyframe at or before the query time.
 #[derive(Clone, Debug, Default)]
@@ -317,6 +326,9 @@ pub struct Timeline {
     /// piecewise-constant functions of time, injected into the frame environment
     /// during modifier evaluation.
     pub variable_tracks: BTreeMap<String, VariableTrack>,
+    /// Audio segments collected from Audio actor declarations.
+    /// These are muxed into the output during video export.
+    pub audio_segments: Vec<AudioSegment>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -354,6 +366,7 @@ impl Clone for Timeline {
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: self.variable_tracks.clone(),
+            audio_segments: self.audio_segments.clone(),
         }
     }
 }
@@ -388,6 +401,7 @@ impl Timeline {
             frame_cache: std::cell::RefCell::new(None),
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: BTreeMap::new(),
+            audio_segments: Vec::new(),
         }
     }
 

@@ -1,7 +1,7 @@
 use super::offscreen::{OffscreenRenderer, RenderedFrame};
 use crate::ast::Stmt;
 use crate::composition::Composition;
-use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use crate::timeline::{AudioSegment, DebugRenderOptions, SceneDimensions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
@@ -194,6 +194,94 @@ impl std::str::FromStr for H264Preset {
             )),
         }
     }
+}
+
+// ----------------------------------------------------------------------------
+// Audio muxing via ffmpeg CLI
+// ----------------------------------------------------------------------------
+
+/// Mux audio segments into the rendered video using ffmpeg CLI.
+/// Creates a temporary file and renames it on success.
+///
+/// For MVP, only a single audio segment is supported. Multiple segments
+/// are concatenated via ffmpeg's concat filter.
+fn mux_audio_segments(
+    video_path: &std::path::Path,
+    segments: &[AudioSegment],
+    output_path: &std::path::Path,
+) -> Result<(), ExportError> {
+    if segments.is_empty() {
+        return Ok(());
+    }
+
+    let temp_path = output_path.with_extension("tmp_muxed.mp4");
+
+    // For MVP: support a single audio file
+    if segments.len() == 1 {
+        let seg = &segments[0];
+        let status = std::process::Command::new("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(video_path)
+            .arg("-i")
+            .arg(&seg.source)
+            .arg("-c:v").arg("copy")
+            .arg("-c:a").arg("aac")
+            .arg("-map").arg("0:v:0")
+            .arg("-map").arg("1:a:0")
+            .arg("-shortest")
+            .arg(&temp_path)
+            .status()
+            .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
+
+        if !status.success() {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(ExportError::VideoEncode(
+                "ffmpeg audio muxing failed".into(),
+            ));
+        }
+    } else {
+        // Multiple audio segments: use concat filter
+        let mut filter_parts: Vec<String> = Vec::new();
+        let mut inputs_args: Vec<std::ffi::OsString> = Vec::new();
+        for (i, seg) in segments.iter().enumerate() {
+            inputs_args.push(std::ffi::OsString::from("-i"));
+            inputs_args.push(std::ffi::OsString::from(&seg.source));
+            filter_parts.push(format!("[{}:a:0]", i + 1));
+        }
+        let filter_desc = format!("{}concat=n={}:v=0:a=1[outa]", filter_parts.join(""), segments.len());
+
+        let mut cmd = std::process::Command::new("ffmpeg");
+        cmd.arg("-y");
+        cmd.arg("-i").arg(video_path);
+        for arg in inputs_args {
+            cmd.arg(arg);
+        }
+        cmd.arg("-filter_complex").arg(&filter_desc);
+        cmd.arg("-map").arg("0:v:0");
+        cmd.arg("-map").arg("[outa]");
+        cmd.arg("-c:v").arg("copy");
+        cmd.arg("-shortest");
+        cmd.arg(&temp_path);
+
+        let status = cmd
+            .status()
+            .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
+
+        if !status.success() {
+            let _ = std::fs::remove_file(&temp_path);
+            return Err(ExportError::VideoEncode(
+                "ffmpeg audio muxing failed".into(),
+            ));
+        }
+    }
+
+    // Replace original with muxed version
+    std::fs::rename(&temp_path, output_path)
+        .map_err(|e| ExportError::VideoEncode(format!("Failed to replace video with muxed version: {e}")))?;
+
+    info!("Audio muxed into {}", output_path.display());
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -769,6 +857,12 @@ async fn render_video_async(
         .write_trailer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
+    // Mux audio segments if any are present
+    let audio_segments: Vec<AudioSegment> = timeline.audio_segments.clone();
+    if !audio_segments.is_empty() {
+        mux_audio_segments(output_file, &audio_segments, output_file)?;
+    }
+
     info!("Render complete!");
     Ok(())
 }
@@ -1338,13 +1432,19 @@ async fn render_video_composition_async(
         .write_trailer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
+    // Mux audio segments from all scenes in the composition
+    let audio_segments: Vec<AudioSegment> = composition
+        .scenes
+        .values()
+        .flat_map(|s| s.timeline.audio_segments.clone())
+        .collect();
+    if !audio_segments.is_empty() {
+        mux_audio_segments(output_file, &audio_segments, output_file)?;
+    }
+
     info!("Render complete!");
     Ok(())
 }
-
-// ----------------------------------------------------------------------------
-// Multi-Scene Composition GIF Export
-// ----------------------------------------------------------------------------
 
 /// Render a multi-scene composition to an animated GIF file.
 pub fn render_gif_composition(

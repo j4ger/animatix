@@ -138,6 +138,8 @@ pub enum ActorField {
     // ── Media payload ──
     ImageData,
     SvgPaths,
+    AudioSource,
+    AudioVolume,
 
     // ── Effects tier ──
     ShadowOffset,
@@ -338,6 +340,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("shadow_color",  ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::ShadowColor,         None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.0])),
     schema!("shadow_offset", ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::ShadowOffset,        None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
+    schema!("source",        ValueType::String,      F::empty(),                   ActorField::AudioSource,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
@@ -348,6 +351,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),
     schema!("tolerance",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::F32(0.1)),
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("volume",        ValueType::F32,         F::empty(),                   ActorField::AudioVolume,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("x_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
     schema!("y_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
 ];

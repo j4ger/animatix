@@ -1047,7 +1047,7 @@ fn find_inline_item_mut<'a>(
 // ---------------------------------------------------------------------------
 
 /// Rename all references to `old_label` into `new_label` throughout the AST.
-fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
+pub(crate) fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
     for stmt in stmts.iter_mut() {
         rename_in_stmt(stmt, old_label, new_label);
     }
