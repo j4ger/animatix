@@ -16,6 +16,7 @@ enum TextDeclarationKind {
     Text,
     Math,
     Code,
+    Typst,
 }
 
 impl TextDeclarationKind {
@@ -24,6 +25,7 @@ impl TextDeclarationKind {
             Self::Text => "unnamed_text",
             Self::Math => "unnamed_math",
             Self::Code => "unnamed_code",
+            Self::Typst => "unnamed_typst",
         }
     }
 
@@ -32,13 +34,14 @@ impl TextDeclarationKind {
             Self::Text => ModifierHost::Text,
             Self::Math => ModifierHost::Math,
             Self::Code => ModifierHost::Code,
+            Self::Typst => ModifierHost::Text,
         }
     }
 
     fn default_font_size(self) -> f32 {
         match self {
             Self::Code => 24.0,
-            Self::Text | Self::Math => 48.0,
+            Self::Text | Self::Math | Self::Typst => 48.0,
         }
     }
 
@@ -47,6 +50,7 @@ impl TextDeclarationKind {
             Self::Text => property_name == "text",
             Self::Math => matches!(property_name, "latex" | "math"),
             Self::Code => property_name == "code",
+            Self::Typst => property_name == "content",
         }
     }
 
@@ -60,6 +64,9 @@ impl TextDeclarationKind {
             }
             Self::Code => {
                 "Morph-specific modifiers on code declaration require a re-declaration with non-zero duration; ignoring them for now."
+            }
+            Self::Typst => {
+                "Morph-specific modifiers on typst declaration require a re-declaration with non-zero duration; ignoring them for now."
             }
         }
     }
@@ -227,6 +234,7 @@ impl Timeline {
                 TextDeclarationKind::Text => "Text",
                 TextDeclarationKind::Math => "Math",
                 TextDeclarationKind::Code => "Code",
+                TextDeclarationKind::Typst => "Typst",
             };
             if let Some(primitive) = crate::primitives::find_primitive(primitive_type) {
                 if let Some(scheme_color) = self.get_default_color(primitive, "color") {
@@ -252,6 +260,7 @@ impl Timeline {
             TextDeclarationKind::Text => super::ActorKindId::Text,
             TextDeclarationKind::Math => super::ActorKindId::Math,
             TextDeclarationKind::Code => super::ActorKindId::Code,
+            TextDeclarationKind::Typst => super::ActorKindId::Typst,
         };
 
         // Record first declaration time so scene evaluation can hide
@@ -326,6 +335,9 @@ impl Timeline {
             TextDeclarationKind::Code => {
                 crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, &self.font_context)
             }
+            TextDeclarationKind::Typst => {
+                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, &self.font_context)
+            }
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);
         let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
@@ -375,6 +387,7 @@ impl Timeline {
             "Text" => TextDeclarationKind::Text,
             "Math" => TextDeclarationKind::Math,
             "Code" => TextDeclarationKind::Code,
+            "Typst" => TextDeclarationKind::Typst,
             _ => return,
         };
 

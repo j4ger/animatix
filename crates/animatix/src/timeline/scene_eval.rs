@@ -201,7 +201,7 @@ impl Timeline {
         let mut color = track.color.get(time_ms, DEFAULT_WHITE);
 
         if let Some(ov) = node_overrides {
-            if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")) {
+            if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")).or_else(|| ov.get("content")) {
                 content = s.clone();
             }
             if let Some(Value::Str(s)) = ov.get("font_family") {
@@ -220,6 +220,7 @@ impl Timeline {
                 super::ActorKindId::Text => TextKind::Text,
                 super::ActorKindId::Math => TextKind::Math,
                 super::ActorKindId::Code => TextKind::Code,
+                super::ActorKindId::Typst => TextKind::Typst,
                 _ => TextKind::Text,
             };
             self.text_compiler

@@ -268,6 +268,23 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
     document.pages[0].frame.clone()
 }
 
+pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+    let font = resolve_font_family(font_family, font_ctx);
+    let markup = format!(
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{}",
+        font_size,
+        color.to_hex(),
+        font,
+        typst_markup
+    );
+
+    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+
+    document.pages[0].frame.clone()
+}
+
 pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
     let font = resolve_font_family(font_family, font_ctx);
     let escaped = text
@@ -472,6 +489,7 @@ pub enum TextKind {
     Text,
     Math,
     Code,
+    Typst,
 }
 
 /// Cache key for compiled text paths.
@@ -533,6 +551,7 @@ impl TextCompiler {
             TextKind::Text => compile_text(content, font_size, typst_color, font_family, font_ctx),
             TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx),
             TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx),
+            TextKind::Typst => compile_typst(content, font_size, typst_color, font_family, font_ctx),
         };
         let paths = extract_glyphs(&frame);
         self.cache.insert(key, paths.clone());

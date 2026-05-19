@@ -83,6 +83,8 @@ struct PreviewPaneState {
     preview_zoom: f32,
     /// Preview canvas pan offset in scene coordinates (scene point centered in preview).
     preview_pan: Vec2,
+    /// Playback speed multiplier (0.25, 0.5, 1.0, 2.0).
+    playback_speed: f32,
 }
 
 impl PreviewPaneState {
@@ -97,6 +99,7 @@ impl PreviewPaneState {
             open_transition_editor: None,
             preview_zoom: 1.0,
             preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
+            playback_speed: 1.0,
         }
     }
 
@@ -146,7 +149,7 @@ impl PreviewPaneState {
             return;
         }
 
-        self.current_time_s += delta.as_secs_f64();
+        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64;
         if self.current_time_s >= self.duration_s {
             self.current_time_s = self.duration_s;
             self.is_playing = false;

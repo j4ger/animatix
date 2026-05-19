@@ -58,6 +58,25 @@ pub(crate) fn transport_bar_ui(
                     actions.toggle_playback = true;
                 }
 
+                // Speed control — compact segmented buttons
+                ui.add_space(SPACE_S);
+                let speeds: [(f32, &str); 4] = [(0.25, "¼×"), (0.5, "½×"), (1.0, "1×"), (2.0, "2×")];
+                let current_speed = preview.playback_speed;
+                for (speed_val, label) in speeds {
+                    let is_active = (speed_val - current_speed).abs() < f32::EPSILON;
+                    let btn = egui::Button::new(
+                        RichText::new(label)
+                            .size(FONT_SIZE_S)
+                            .color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED }),
+                    )
+                    .fill(if is_active { BG_WIDGET } else { Color32::TRANSPARENT })
+                    .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
+                    .min_size(Vec2::new(28.0, ROW_S));
+                    if ui.add(btn).on_hover_text(format!("Speed: {}×", speed_val)).clicked() {
+                        preview.playback_speed = speed_val;
+                    }
+                }
+
                 // Skip back
                 let prev_btn = egui::Button::new(
                     RichText::new(egui_phosphor::regular::SKIP_BACK)
@@ -297,10 +316,15 @@ pub(crate) fn transport_bar_ui(
                     } else {
                         None
                     };
-                    let time_text = if let Some(scene) = active_scene_label.as_deref() {
-                        format!("{scene} • {:.2}s / {:.2}s", preview.current_time_s, preview.duration_s)
+                    let speed_suffix = if (preview.playback_speed - 1.0).abs() > f32::EPSILON {
+                        format!(" @ {}×", preview.playback_speed)
                     } else {
-                        format!("{:.2}s / {:.2}s", preview.current_time_s, preview.duration_s)
+                        String::new()
+                    };
+                    let time_text = if let Some(scene) = active_scene_label.as_deref() {
+                        format!("{scene} • {:.2}s / {:.2}s{}", preview.current_time_s, preview.duration_s, speed_suffix)
+                    } else {
+                        format!("{:.2}s / {:.2}s{}", preview.current_time_s, preview.duration_s, speed_suffix)
                     };
                     egui::Frame::new()
                         .fill(BG_SURFACE)

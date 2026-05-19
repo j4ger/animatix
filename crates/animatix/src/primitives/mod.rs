@@ -64,6 +64,8 @@ mod grid;       pub use grid::GRID;
 mod stack;      pub use stack::STACK;
 mod group;      pub use group::GROUP;
 
+mod typst;      pub use typst::TYPST;
+
 // ── Primitive trait ─────────────────────────────────────────────────────
 
 /// Context passed to `Primitive::build()`.
@@ -236,7 +238,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Shapes
     &RECT, &ELLIPSE, &LINE, &POLYGON, &PATH,
     // Text
-    &TEXT, &MATH, &CODE,
+    &TEXT, &MATH, &CODE, &TYPST,
     // Media
     &IMAGE, &SVG,
     // Plots
@@ -365,7 +367,7 @@ mod tests {
         }
 
         for id in [
-            ActorKindId::Text, ActorKindId::Math, ActorKindId::Code,
+            ActorKindId::Text, ActorKindId::Math, ActorKindId::Code, ActorKindId::Typst,
             ActorKindId::Image, ActorKindId::Svg,
             ActorKindId::Graph, ActorKindId::PlotCurve,
             ActorKindId::VectorField, ActorKindId::Heatmap, ActorKindId::ContourSet,
