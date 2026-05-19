@@ -570,7 +570,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         }
                         FlatItem::SlotFill(name, items) => {
                             result.push(InlineItem::SlotFill {
-                                slot_name: name,
+                                slot: name,
                                 items,
                             });
                         }

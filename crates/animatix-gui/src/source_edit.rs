@@ -1024,11 +1024,9 @@ fn inline_item_to_stmt(item: InlineItem) -> Stmt {
             children,
             span: None,
         },
-        InlineItem::SlotFill { slot_name, items, .. } => {
-            // Convert slot fill to a group containing the items
-            Stmt::ActorDecl {
-                is_pub: false,
-                label: format!("__slot_{}", slot_name),
+        InlineItem::SlotFill { slot, items, .. } => {
+
+                label: format!("__slot_{}", slot),
                 ty: "Group".into(),
                 props: vec![],
                 modifiers: vec![],

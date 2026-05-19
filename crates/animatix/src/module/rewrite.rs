@@ -337,8 +337,8 @@ pub(super) fn rewrite_inline_items(
                 ),
             },
             InlineItem::SlotMarker => InlineItem::SlotMarker,
-            InlineItem::SlotFill { slot_name, items } => InlineItem::SlotFill {
-                slot_name: slot_name.clone(),
+            InlineItem::SlotFill { slot, items } => InlineItem::SlotFill {
+                slot: slot.clone(),
                 items: rewrite_inline_items(items, prefix, root_label, known_labels, bindings),
             },
         })

@@ -1370,8 +1370,8 @@ fn test_slot_fill_parsing() {
         assert_eq!(children.len(), 2);
 
         match &children[0] {
-            InlineItem::SlotFill { slot_name, items } => {
-                assert_eq!(slot_name, "header");
+            InlineItem::SlotFill { slot, items } => {
+                assert_eq!(slot, "header");
                 assert_eq!(items.len(), 1);
                 match &items[0] {
                     InlineItem::Labeled { label, ty, .. } => {
@@ -1385,8 +1385,8 @@ fn test_slot_fill_parsing() {
         }
 
         match &children[1] {
-            InlineItem::SlotFill { slot_name, items } => {
-                assert_eq!(slot_name, "body");
+            InlineItem::SlotFill { slot, items } => {
+                assert_eq!(slot, "body");
                 assert_eq!(items.len(), 1);
             }
             _ => panic!("Expected SlotFill, got {:?}", children[1]),
@@ -1408,8 +1408,8 @@ fn test_mixed_slot_fill_parsing() {
     if let Stmt::ActorDecl { children, .. } = stmt {
         assert_eq!(children.len(), 1);
         match &children[0] {
-            InlineItem::SlotFill { slot_name, items } => {
-                assert_eq!(slot_name, "slot");
+            InlineItem::SlotFill { slot, items } => {
+                assert_eq!(slot, "slot");
                 assert_eq!(items.len(), 1);
             }
             _ => panic!("Expected SlotFill"),
@@ -1431,8 +1431,8 @@ fn test_empty_slot_fill() {
         assert_eq!(ty, "Dialog");
         assert_eq!(children.len(), 1);
         match &children[0] {
-            InlineItem::SlotFill { slot_name, items } => {
-                assert_eq!(slot_name, "slot");
+            InlineItem::SlotFill { slot, items } => {
+                assert_eq!(slot, "slot");
                 assert!(items.is_empty());
             }
             _ => panic!("Expected SlotFill"),
@@ -1457,8 +1457,8 @@ fn test_slot_fill_with_multiple_items() {
         assert_eq!(ty, "Header");
         assert_eq!(children.len(), 1);
         match &children[0] {
-            InlineItem::SlotFill { slot_name, items } => {
-                assert_eq!(slot_name, "title");
+            InlineItem::SlotFill { slot, items } => {
+                assert_eq!(slot, "title");
                 assert_eq!(items.len(), 2);
             }
             _ => panic!("Expected SlotFill"),

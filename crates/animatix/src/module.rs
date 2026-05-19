@@ -215,7 +215,7 @@ pub enum ModuleError {
     },
     UnfilledSlot {
         component: String,
-        slot_name: String,
+        slot: String,
     },
     IoError(std::io::Error),
 }
@@ -252,16 +252,12 @@ impl fmt::Display for ModuleError {
                 first_path.display(),
                 second_path.display()
             ),
-            ModuleError::UnfilledSlot {
+            ModuleError::UnfilledSlot { component, slot } => write!(
+                f,
+                "Component '{}' has unfilled slot '{}'",
                 component,
-                slot_name,
-            } => {
-                write!(
-                    f,
-                    "Unfilled slot: component '{}' requires slot '{}' but no fill provided and no defaults exist",
-                    component, slot_name
-                )
-            }
+                slot
+            ),
             ModuleError::IoError(e) => {
                 write!(f, "IO error: {}", e)
             }

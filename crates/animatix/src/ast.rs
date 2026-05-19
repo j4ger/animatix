@@ -326,7 +326,7 @@ pub enum InlineItem {
     /// Maps to a container label inside the component body (e.g. `header { ... }` maps to the
     /// container named `header` that contains a `@slot` marker).
     SlotFill {
-        slot_name: String,
+        slot: String,
         items: Vec<InlineItem>,
     },
 }

@@ -167,8 +167,8 @@ fn expand_component_instance(
     // Extract slot fills from instance children (keyed by original slot name)
     let mut slot_fills: HashMap<String, Vec<InlineItem>> = HashMap::new();
     for item in instance_children {
-        if let InlineItem::SlotFill { slot_name, items } = item {
-            slot_fills.insert(slot_name.clone(), items.clone());
+        if let InlineItem::SlotFill { slot, items } = item {
+            slot_fills.insert(slot.clone(), items.clone());
         }
     }
 

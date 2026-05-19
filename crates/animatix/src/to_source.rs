@@ -312,14 +312,14 @@ impl ToSource for InlineItem {
                 parts.join("")
             }
             InlineItem::SlotMarker => "@slot".into(),
-            InlineItem::SlotFill { slot_name, items } => {
+            InlineItem::SlotFill { slot, items } => {
                 let items_str = items
                     .iter()
                     .map(|i| i.to_source())
                     .collect::<Vec<_>>()
                     .join("\n");
                 let indented = indent(&items_str, 1);
-                format!("@{} {{\n{}\n}}", slot_name, indented)
+                format!("@{} {{\n{}\n}}", slot, indented)
             }
         }
     }
