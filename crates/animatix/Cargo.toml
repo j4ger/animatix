@@ -16,6 +16,7 @@ mitex = "0.2.4"
 naga = { version = "29.0.0", features = ["termcolor"] }
 pollster = "0.4.0"
 rand = "0.10.0"
+roxmltree = "0.20.0"
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"] }
 ttf-parser = "0.25.1"
 typst = "0.14.2"

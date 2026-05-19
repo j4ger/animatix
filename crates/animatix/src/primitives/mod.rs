@@ -35,7 +35,7 @@
 //! | Text | Text, Math, Code |
 //! | Media | Image, Svg |
 //! | Plots | Graph, PlotCurve |
-//! | Containers | Row, Col, Grid, Stack, Group |
+//! | Containers | Row, Col, Grid, Stack, Group, Mask |
 //!
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
@@ -63,6 +63,7 @@ mod col;        pub use col::COL;
 mod grid;       pub use grid::GRID;
 mod stack;      pub use stack::STACK;
 mod group;      pub use group::GROUP;
+mod mask;       pub use mask::MASK;
 
 mod typst;      pub use typst::TYPST;
 
@@ -244,7 +245,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Plots
     &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET,
     // Containers
-    &ROW, &COL, &GRID, &STACK, &GROUP,
+    &ROW, &COL, &GRID, &STACK, &GROUP, &MASK,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -372,7 +373,7 @@ mod tests {
             ActorKindId::Graph, ActorKindId::PlotCurve,
             ActorKindId::VectorField, ActorKindId::Heatmap, ActorKindId::ContourSet,
             ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
-            ActorKindId::Stack, ActorKindId::Group,
+            ActorKindId::Stack, ActorKindId::Group, ActorKindId::Mask,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }

@@ -38,6 +38,11 @@ impl PrimitiveDescriptor {
                     family: PrimitiveFamily::Group,
                     capabilities: PrimitiveCapabilities::default(),
                 },
+                "Mask" => Self {
+                    actor_type: "Mask",
+                    family: PrimitiveFamily::Group,
+                    capabilities: PrimitiveCapabilities::default(),
+                },
                 "Graph" => Self {
                     actor_type: "Graph",
                     family: PrimitiveFamily::Plot,

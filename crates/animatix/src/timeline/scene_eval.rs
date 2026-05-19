@@ -1,5 +1,5 @@
 use super::{
-    AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
+    ActorKindId, AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
@@ -686,19 +686,79 @@ impl Timeline {
                 std::collections::BTreeMap::new()
             };
 
-            for child in &track.children.clone() {
-                self.evaluate_node(
-                    child,
-                    time_ms,
-                    global_transform,
-                    global_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
-                    &child_layout_positions,
-                    hit_regions,
-                );
+            // ── Mask container: first child defines clip geometry ──
+            if track.kind == ActorKindId::Mask {
+                let children = track.children.clone();
+                if !children.is_empty() {
+                    // Render first child normally (defines the mask shape visually)
+                    let first_child = &children[0];
+                    self.evaluate_node(
+                        first_child,
+                        time_ms,
+                        global_transform,
+                        global_opacity,
+                        scene_dimensions,
+                        debug_options,
+                        scene,
+                        overrides,
+                        &child_layout_positions,
+                        hit_regions,
+                    );
+
+                    // Get the first child's vector paths to use as clip shapes
+                    let clip_paths: Vec<VelloPath> = self
+                        .tracks
+                        .get(first_child)
+                        .map(|t| t.evaluate_vector_paths(time_ms))
+                        .unwrap_or_default();
+
+                    // Render remaining children clipped to the first child's paths
+                    for child in children.iter().skip(1) {
+                        // Push clip layer for each path in the first child
+                        let clip_count = clip_paths.len();
+                        for vp in &clip_paths {
+                            scene.push_layer(
+                                vello::peniko::Fill::NonZero,
+                                vello::peniko::BlendMode::default(),
+                                1.0,
+                                kurbo::Affine::IDENTITY,
+                                &vp.path,
+                            );
+                        }
+                        self.evaluate_node(
+                            child,
+                            time_ms,
+                            global_transform,
+                            global_opacity,
+                            scene_dimensions,
+                            debug_options,
+                            scene,
+                            overrides,
+                            &child_layout_positions,
+                            hit_regions,
+                        );
+                        // Pop clip layers
+                        for _ in 0..clip_count {
+                            scene.pop_layer();
+                        }
+                    }
+                }
+            } else {
+                // Normal container: render all children unchanged
+                for child in &track.children.clone() {
+                    self.evaluate_node(
+                        child,
+                        time_ms,
+                        global_transform,
+                        global_opacity,
+                        scene_dimensions,
+                        debug_options,
+                        scene,
+                        overrides,
+                        &child_layout_positions,
+                        hit_regions,
+                    );
+                }
             }
         }
     }

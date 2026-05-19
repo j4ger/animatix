@@ -74,6 +74,7 @@ mod scene_eval;
 mod sequence;
 pub mod shapes;
 pub mod svg;
+pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
 pub mod track;
@@ -120,6 +121,7 @@ pub use shapes::{
     vector_shape_uses_custom_path, ShapeType,
 };
 pub use svg::parse_svg;
+pub use svg_import::{import_svg, SvgImportError};
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
 use timing::{
     config_string_value, has_non_default_morph_options, parse_stagger_interval_ms,

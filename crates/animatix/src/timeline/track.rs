@@ -35,6 +35,7 @@ pub enum ActorKindId {
     Grid,
     Stack,
     Group,
+    Mask,
     Audio,
 }
 

@@ -143,6 +143,7 @@ dependencies = [
  "naga",
  "pollster",
  "rand 0.10.0",
+ "roxmltree 0.20.0",
  "rsmpeg",
  "taffy",
  "tracing",
