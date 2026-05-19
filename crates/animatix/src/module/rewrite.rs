@@ -119,6 +119,7 @@ pub(super) fn rewrite_stmt(
             property,
             value,
             modifiers,
+            
             value_span,
             ..
         } => Stmt::Assignment {

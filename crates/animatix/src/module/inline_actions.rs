@@ -107,6 +107,7 @@ fn apply_modifiers_to_body(
                 target,
                 property,
                 value,
+                
                 value_span,
                 ..
             } => Stmt::Assignment {
@@ -114,6 +115,7 @@ fn apply_modifiers_to_body(
                 property,
                 value,
                 modifiers: invocation_modifiers.to_vec(),
+                
                 value_span,
                 span,
             },

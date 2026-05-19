@@ -39,12 +39,12 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Property registry auto-dispatch (6.1) | Medium | High |
-| 2 | Coordinate Transform struct (6.3) | Low | High |
-| 3 | Icon mapping simplification (6.4) | Low | Medium |
-| 4 | Panel state persistence (6.5) | Low | Medium |
+| 1 | ~~Property registry auto-dispatch (6.1)~~ | Medium | High |
+| 2 | ~~Coordinate Transform struct (6.3)~~ | Low | High |
+| 3 | ~~Icon mapping simplification (6.4)~~ | Low | Medium |
+| 4 | ~~Panel state persistence (6.5)~~ | Low | Medium |
 | 5 | Easing in AST assignments (6.6) | Medium | Medium |
-| 6 | InlineItem naming cleanup (6.2) | Low | Low |
+| 6 | ~~InlineItem naming cleanup (6.2)~~ | Low | Low |
 | 7 | Uniform AST actor abstraction (6.7) | High | Medium |
 | 8 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
@@ -57,6 +57,8 @@ Discovered during implementation of chapters 1 & 3.
 ### 6.1 Property Registry Auto-Dispatch
 
 **Location:** `crates/animatix/src/timeline/property_engine.rs`, `property_registry.rs`, `track.rs`
+
+**Status:** Partially complete. `TrackFieldRef`/`TrackFieldMut` enums and `AnimationTrack::field_ref`/`field_mut` methods centralize the field-to-variant mapping. The 5 read-only dispatch functions (`read_property_value`, `has_keyframe_at`, `count`, `times`, `easing`) now use these enums, eliminating ~200 repetitive match arms. `write_property_field` still has per-field defaults and requires manual updating.
 
 **Issue:** Adding one new property requires coordinated changes in 4+ files and ~7 separate match arms (write, read, has_keyframe_at, count, times, easing, inject). This is the #1 source of "forgot to update X" bugs. Both 3.7 (shadow/glow) and 3.8 (backdrop_blur) hit this.
 
