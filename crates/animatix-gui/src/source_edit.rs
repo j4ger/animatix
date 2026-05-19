@@ -910,30 +910,6 @@ fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property>
     props.iter_mut().find(|p| p.name == name)
 }
 
-/// Recursively search for a labeled InlineItem. (Used for finding nested actors.)
-fn find_inline_item<'a>(
-    items: &'a [InlineItem],
-    label: &str,
-) -> Option<&'a InlineItem> {
-    for item in items.iter() {
-        match item {
-            InlineItem::Labeled { label: l, .. } if l == label => return Some(item),
-            InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
-                if let Some(found) = find_inline_item(children, label) {
-                    return Some(found);
-                }
-            }
-            InlineItem::SlotFill { items: slot_items, .. } => {
-                if let Some(found) = find_inline_item(slot_items, label) {
-                    return Some(found);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 fn find_inline_item_mut<'a>(
     items: &'a mut [InlineItem],
     label: &str,

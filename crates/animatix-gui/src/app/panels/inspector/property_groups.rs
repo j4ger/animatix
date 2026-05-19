@@ -1,7 +1,7 @@
 use animatix::timeline::{
     allowed_property_indices, PROPERTY_REGISTRY, read_property_value_or_default,
     AnimationTrack, ValueType, ShapeType, ActorField,
-    property_has_keyframes, property_has_keyframe_at,
+    property_has_keyframes,
     PropertyValue,
 };
 use egui::{Color32, Stroke, Vec2};

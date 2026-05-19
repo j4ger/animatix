@@ -5,7 +5,7 @@ use animatix::timeline::load_standard_library;
 use crate::app::panels::PropertyValue;
 
 /// Verify that an expression round-trips correctly.
-pub fn validate_roundtrip(expr: &Expr, expected: &PropertyValue) -> Result<(), String> {
+pub(crate) fn validate_roundtrip(expr: &Expr, expected: &PropertyValue) -> Result<(), String> {
     let mut env = Environment::new();
     load_standard_library(&mut env);
 

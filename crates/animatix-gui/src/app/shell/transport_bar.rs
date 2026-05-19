@@ -399,7 +399,7 @@ fn paint_transport_scrubber(
 
         // Draw transition overlaps as brighter stripes at the boundary between scenes
         let transition_stripe_color = Color32::from_rgba_unmultiplied(255, 255, 255, 40);
-        for (idx, scene_name) in composition.declaration_order.iter().enumerate() {
+        for scene_name in &composition.declaration_order {
             let Some(edge) = composition.edges.get(scene_name) else { continue; };
             if edge.transition.duration_ms == 0 {
                 continue;

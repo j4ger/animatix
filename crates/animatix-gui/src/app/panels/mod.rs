@@ -158,7 +158,7 @@ pub(crate) struct UiActions {
     pub(super) open_export_dialog: bool,
 }
 
-pub(super) struct WorkspaceViewer<'a> {
+pub(crate) struct WorkspaceViewer<'a> {
     pub(super) scene_names: Vec<String>,
     pub(super) import_aliases: Vec<String>,
     pub(super) active_scene: Option<String>,
@@ -670,7 +670,7 @@ self.selected_actors,
                                                 ui.selectable_value(&mut new_type, def.id.to_string(), def.display_name);
                                             }
                                         });
-                                    ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").clamp_range(0.0..=10.0));
+                                    ui.add(egui::DragValue::new(&mut new_duration).speed(0.1).suffix("s").range(0.0..=10.0));
                                     egui::ComboBox::from_id_salt(trans_edit_id.with("easing"))
                                         .width(90.0)
                                         .selected_text(&new_easing)
@@ -1636,7 +1636,13 @@ self.selected_actors,
                         _ => (egui::CursorIcon::Default, ""),
                     };
                     ui.ctx().set_cursor_icon(icon);
-                    egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), egui::Id::new("handle_tooltip"), |ui| {
+                    egui::Tooltip::always_open(
+                        ui.ctx().clone(),
+                        ui.layer_id(),
+                        egui::Id::new("handle_tooltip"),
+                        egui::PopupAnchor::Pointer,
+                    )
+                    .show(|ui| {
                         ui.label(egui::RichText::new(tooltip).size(crate::app::theme::FONT_SIZE_S));
                     });
                 } else {
@@ -1732,8 +1738,6 @@ self.selected_actors,
         is_dragging: bool,
     ) {
         // Draw selection overlay for all selected actors.
-        // Only the first (primary) actor gets scale/rotate handles.
-        let mut is_first = true;
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
             let fallback = self.hit_regions
@@ -1764,7 +1768,6 @@ self.selected_actors,
                 preview_rect.size(),
                 ui.ctx().pixels_per_point(),
             );
-            is_first = false;
 
             // Draw polygon vertex handles
             let time_ms = (self.preview.current_time_s * 1000.0) as u64;

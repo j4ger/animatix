@@ -1,4 +1,4 @@
-use egui::{Color32, RichText, Stroke, Vec2};
+use egui::{Color32, RichText, Stroke};
 
 use crate::app::components;
 use crate::app::theme::*;
