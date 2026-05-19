@@ -494,11 +494,14 @@ self.selected_actors,
             let drag_idx: Option<usize> = ui.data(|d| d.get_temp(drag_id));
             let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
             let mut drop_target: Option<usize> = None;
+            // Track actual row top/bottom positions for accurate drop targeting
+            let mut row_positions: Vec<(f32, f32)> = Vec::new();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
 
                 for (idx, scene_name) in self.scene_names.clone().into_iter().enumerate() {
+                    let row_top = ui.cursor().top();
                     let is_active = self.active_scene.as_deref() == Some(scene_name.as_str());
                     let row_id = ui.id().with(&scene_name);
                     let edit_id = row_id.with("scene_name_edit");
@@ -529,9 +532,7 @@ self.selected_actors,
                         ui.data_mut(|d| d.insert_temp(drag_id, idx));
                     }
                     if handle_response.dragged() {
-                        if let Some(pointer) = pointer_pos {
-                            // Calculate drop target from pointer Y relative to list top
-                            let row_y = handle_rect.min.y + row_height / 2.0;
+                        if pointer_pos.is_some() {
                             drop_target = Some(idx);
                         }
                     }
@@ -540,10 +541,18 @@ self.selected_actors,
                         ui.data_mut(|d| d.remove::<usize>(drag_id));
                         if let Some(dragged_idx) = drag_idx {
                             if let Some(pointer) = pointer_pos {
-                                // Compute drop target from pointer Y position
-                                let list_top = ui.min_rect().top();
-                                let relative_y = pointer.y - list_top;
-                                let target_idx = (relative_y / row_height).max(0.0) as usize;
+                                // Compute drop target from actual row positions
+                                let mut target_idx = 0;
+                                for (i, &(top, bottom)) in row_positions.iter().enumerate() {
+                                    if pointer.y >= top && pointer.y <= bottom {
+                                        target_idx = i;
+                                        break;
+                                    }
+                                    if pointer.y < top {
+                                        break;
+                                    }
+                                    target_idx = i;
+                                }
                                 let target_idx = target_idx.min(self.scene_names.len().saturating_sub(1));
                                 if dragged_idx != target_idx {
                                     let mut new_order = self.scene_names.clone();
@@ -556,7 +565,7 @@ self.selected_actors,
                         }
                     }
 
-                    // Drop target indicator
+                    // Drop target indicator (uses handle_rect for the main row area)
                     if drag_idx.is_some() {
                         if let Some(pointer) = pointer_pos {
                             let row_top = handle_rect.min.y;
@@ -703,6 +712,9 @@ self.selected_actors,
                             }
                         }
                     }
+                    // Record actual row bounds for accurate drop targeting
+                    let row_bottom = ui.cursor().top();
+                    row_positions.push((row_top, row_bottom));
                 }
             });
 
