@@ -194,7 +194,7 @@ mod tests {
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
     use crate::timeline::{
-        AnimationTrack, ContainerLayoutChild, ContainerMetadata, LayoutType, PropertyTrack,
+        AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack,
     };
 
     #[test]

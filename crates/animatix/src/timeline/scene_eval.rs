@@ -369,7 +369,7 @@ impl Timeline {
             let _points = track.points.get(time_ms, Vec::new());
             let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
             let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
-            let mut arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+            let arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
             let mut color = track.color.get(time_ms, DEFAULT_WHITE);
             let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
             let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);

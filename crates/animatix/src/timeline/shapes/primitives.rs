@@ -148,9 +148,8 @@ use crate::timeline::evaluate_expr;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::timeline::VectorShapeState;
-    use crate::timeline::shapes::{EllipseState, LineState, PolygonState, RectState};
+    use crate::timeline::shapes::EllipseState;
 
     #[test]
     fn ellipse_default_size_is_standard() {

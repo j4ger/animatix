@@ -498,7 +498,7 @@ fn test_drive_block_scopes_assignments() {
     let timeline = report.output;
 
     // Evaluate at t=0s — tracker should be at (740, 460) because cos(0)=1, sin(0)=0
-    let scene_0s = timeline.evaluate(0.0, SceneDimensions { width: 1280, height: 720 });
+    let _scene_0s = timeline.evaluate(0.0, SceneDimensions { width: 1280, height: 720 });
 
     // The drive block should have produced an override for tracker.at
     // We can verify by checking the environment or by examining the scene

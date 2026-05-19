@@ -540,7 +540,7 @@ impl Composition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{parser, group_scenes};
+    use crate::parser::parser;
     use chumsky::Parser;
 
     #[test]
