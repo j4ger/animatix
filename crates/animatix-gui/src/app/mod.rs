@@ -77,8 +77,6 @@ struct PreviewPaneState {
     status: String,
     error: Option<String>,
     dimensions: SceneDimensions,
-    /// When set, the scene list panel should open the transition editor for this scene.
-    open_transition_editor: Option<String>,
     /// Preview canvas zoom level (1.0 = 100%).
     preview_zoom: f32,
     /// Preview canvas pan offset in scene coordinates (scene point centered in preview).
@@ -101,6 +99,20 @@ struct PreviewPaneState {
     snap_line_color: Option<Color32>,
 }
 
+/// Transient UI state for panels (not preview/playback state).
+pub(crate) struct PanelState {
+    /// When set, the scene list panel should open the transition editor for this scene.
+    pub open_transition_editor: Option<String>,
+}
+
+impl Default for PanelState {
+    fn default() -> Self {
+        Self {
+            open_transition_editor: None,
+        }
+    }
+}
+
 impl PreviewPaneState {
     fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
         Self {
@@ -110,7 +122,6 @@ impl PreviewPaneState {
             status: "Loaded file".to_string(),
             error: None,
             dimensions,
-            open_transition_editor: None,
             preview_zoom: 1.0,
             preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
             playback_speed: 1.0,
@@ -195,6 +206,7 @@ struct GuiShell {
     file_tree: Vec<FileTreeEntry>,
     tree: Tree<WorkspaceTab>,
     preview: PreviewPaneState,
+    panel_state: PanelState,
     preview_dirty: bool,
     pending_rebuild_at: Option<Instant>,
     last_frame_at: Instant,
@@ -346,6 +358,7 @@ impl GuiShell {
             file_tree,
             tree,
             preview,
+            panel_state: PanelState::default(),
             preview_dirty: true,
             pending_rebuild_at: None,
             last_frame_at: Instant::now(),
@@ -495,6 +508,7 @@ impl GuiShell {
                 shell::transport_bar::transport_bar_ui(
                     ui,
                     &mut self.preview,
+                    &mut self.panel_state,
                     self.document.scene_dimensions,
                     &timeline_markers,
                     actor_count,
@@ -576,6 +590,7 @@ impl GuiShell {
             file_tree: &self.file_tree,
             editor: &mut self.editor,
             preview: &mut self.preview,
+            panel_state: &mut self.panel_state,
             diagnostics: &diagnostics,
             preview_texture_id,
             actions,
@@ -885,7 +900,7 @@ impl GuiShell {
             self.inspector_input_drag_active = true;
         }
         if let Some(scene) = actions.open_transition_editor {
-            self.preview.open_transition_editor = Some(scene);
+            self.panel_state.open_transition_editor = Some(scene);
         }
         if let Some((actor, new_parent)) = actions.reparent_actor {
             self.handle_reparent_actor(&actor, new_parent);

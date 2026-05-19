@@ -1,6 +1,6 @@
 use crate::app::panels::UiActions;
 use crate::app::theme::*;
-use crate::app::PreviewPaneState;
+use crate::app::{PanelState, PreviewPaneState};
 use animatix::composition::Composition;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::SceneDimensions;
@@ -12,6 +12,7 @@ use egui::{Align, Align2, Color32, FontId, RichText, Stroke, Vec2};
 pub(crate) fn transport_bar_ui(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
+    panel_state: &mut PanelState,
     scene_dimensions: SceneDimensions,
     timeline_markers: &[f64],
     actor_count: usize,
@@ -275,6 +276,7 @@ pub(crate) fn transport_bar_ui(
                     composition,
                     actions,
                     preview,
+                    panel_state,
                 ) {
                     actions.scrub_to = Some(scrub);
                 }
@@ -441,6 +443,7 @@ fn paint_transport_scrubber(
     composition: Option<&Composition>,
     actions: &mut UiActions,
     preview: &mut PreviewPaneState,
+    panel_state: &mut PanelState,
 ) -> bool {
     let height = ROW_S;
     let desired_size = Vec2::new(width.max(120.0), height);
@@ -534,7 +537,7 @@ fn paint_transport_scrubber(
             // Click → select source scene + signal transition editor open
             if overlap_response.clicked() {
                 actions.select_scene = Some(scene_name.clone());
-                preview.open_transition_editor = Some(scene_name.clone());
+                panel_state.open_transition_editor = Some(scene_name.clone());
                 return true;
             }
 

@@ -203,6 +203,7 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) file_tree: &'a [FileTreeEntry],
     pub(super) editor: &'a mut EditorBuffer,
     pub(super) preview: &'a mut PreviewPaneState,
+    pub(super) panel_state: &'a mut crate::app::PanelState,
     pub(super) diagnostics: &'a [Diagnostic],
     pub(super) preview_texture_id: Option<egui::TextureId>,
     pub(super) actions: &'a mut UiActions,
@@ -215,7 +216,7 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) selection: &'a mut selection::SelectionState,
     /// When true, property edits should create keyframes instead of overwriting defaults.
     pub(super) keyframe_mode: bool,
-    /// Actor labels that the user has explicitly collapsed in the layer tree.
+    /// Actor labels that the user have explicitly collapsed in the layer tree.
     pub(super) collapsed_actors: &'a mut HashSet<String>,
     /// Whether grid snapping is enabled in the preview canvas.
     pub(super) grid_enabled: &'a mut bool,
@@ -681,9 +682,9 @@ self.selected_actors,
                             let trans_edit_id = row_id.with("trans_edit");
 
                             // If the transport bar requested opening this scene's transition editor, open it
-                            if self.preview.open_transition_editor.as_deref() == Some(scene_name.as_str()) {
+                            if self.panel_state.open_transition_editor.as_deref() == Some(scene_name.as_str()) {
                                 ui.data_mut(|d| d.insert_temp(trans_edit_id, true));
-                                self.preview.open_transition_editor = None;
+                                self.panel_state.open_transition_editor = None;
                             }
 
                             let is_editing_trans = ui.data(|d| d.get_temp::<bool>(trans_edit_id)).unwrap_or(false);
