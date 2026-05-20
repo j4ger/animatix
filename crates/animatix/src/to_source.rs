@@ -476,7 +476,9 @@ fn serialize_actor_like_stmt(
     children: &[InlineItem],
 ) -> String {
     let mut parts = Vec::new();
-    if let Some(lbl) = label {
+    // Anonymous items have synthetic labels like __anon_parent_0 — emit without label.
+    let is_anonymous = label.map_or(false, |l| l.starts_with("__anon"));
+    if let Some(lbl) = label.filter(|_| !is_anonymous) {
         parts.push(format!("{}: {}", lbl, ty));
     } else {
         parts.push(ty.to_string());

@@ -944,6 +944,14 @@ fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
 
 fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
     match stmt {
+        Stmt::ActorDecl { label, ty, props, modifiers, children, .. } if label.starts_with("__anon") => {
+            InlineItem::Anonymous {
+                ty,
+                props,
+                modifiers,
+                children,
+            }
+        }
         Stmt::ActorDecl { label, ty, props, modifiers, children, .. } => InlineItem::Labeled {
             label,
             ty,
