@@ -302,6 +302,7 @@ pub struct ComponentDef {
 // ----------------------------------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum InlineItem {
     // Anonymous: Button, text: "OK" (Only exists within container)
     Anonymous {

@@ -424,7 +424,7 @@ impl Timeline {
         parent_label: &str,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        for item in items {
+        for (index, item) in items.iter().enumerate() {
             match item {
                 crate::ast::InlineItem::Anonymous {
                     ty,
@@ -432,8 +432,7 @@ impl Timeline {
                     modifiers,
                     children,
                 } => {
-                    let id = format!("__anon_{}", self.anon_counter);
-                    self.anon_counter += 1;
+                    let id = format!("__anon_{}_{}", parent_label, index);
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
                         label: id.clone(),

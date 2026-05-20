@@ -887,8 +887,9 @@ fn reparent_actor(stmts: &mut Vec<Stmt>, actor: &str, new_parent: Option<&str>) 
 fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Option<&str>) -> bool {
     match new_parent {
         None => {
-            // Make top-level
-            stmts.push(inline_item_to_stmt(item));
+            // Make top-level — anonymous items need a deterministic label.
+            let index = stmts.len();
+            stmts.push(inline_item_to_stmt(item, index));
             true
         }
         Some(parent_label) => {
@@ -921,7 +922,7 @@ fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Opti
                             modifiers: vec![],
                             children: vec![target_item, item],
                         };
-                        stmts.push(inline_item_to_stmt(group));
+                        stmts.push(inline_item_to_stmt(group, stmts.len()));
                         return true;
                     }
                 }
@@ -1000,7 +1001,7 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
     }
 }
 
-fn inline_item_to_stmt(item: InlineItem) -> Stmt {
+fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
     match item {
         InlineItem::Labeled { label, ty, props, modifiers, children } => Stmt::ActorDecl {
             is_pub: false,
@@ -1013,11 +1014,7 @@ fn inline_item_to_stmt(item: InlineItem) -> Stmt {
         },
         InlineItem::Anonymous { ty, props, modifiers, children } => Stmt::ActorDecl {
             is_pub: false,
-            label: format!("__anon_{}", {
-                use std::sync::atomic::{AtomicUsize, Ordering};
-                static COUNTER: AtomicUsize = AtomicUsize::new(0);
-                COUNTER.fetch_add(1, Ordering::SeqCst)
-            }),
+            label: format!("__anon_root_{}", index),
             ty,
             props,
             modifiers,
@@ -1045,6 +1042,7 @@ fn inline_item_to_stmt(item: InlineItem) -> Stmt {
                 span: None,
             }
         }
+        _ => unreachable!("unexpected InlineItem variant"),
     }
 }
 
@@ -1119,6 +1117,7 @@ fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<Inline
             None
         }
         InlineItem::SlotMarker { .. } => None,
+        _ => None,
     }
 }
 
