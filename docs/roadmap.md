@@ -46,9 +46,9 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 5 | ~~Easing in AST assignments (6.6)~~ | Medium | Medium |
 | 6 | ~~InlineItem naming cleanup (6.2)~~ | Low | Low |
 | 7 | ~~Uniform AST actor abstraction (6.7)~~ | High | Medium |
-| 8 | Finish property registry write dispatch (6.8) | Medium | High |
-| 9 | Wire up easing extraction from modifiers (6.9) | Low | Medium |
-| 10 | Anonymous label round-trip in source editor (6.10) | Medium | Medium |
+| 8 | ~~Finish property registry write dispatch (6.8)~~ | Medium | High |
+| 9 | ~~Wire up easing extraction from modifiers (6.9)~~ | Low | Medium |
+| 10 | ~~Anonymous label round-trip in source editor (6.10)~~ | Medium | Medium |
 | 11 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
 ---
@@ -156,11 +156,11 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix/src/timeline/property_engine.rs`
 
-**Status:** Partially complete (read path done).
+**Status:** Fixed.
 
-**Issue:** `TrackFieldRef`/`TrackFieldMut` enums eliminated ~200 repetitive match arms from the 5 read-only dispatch functions (`read_property_value`, `has_keyframe_at`, `count`, `times`, `easing`). But `write_property_field` still has per-field defaults and requires manual updating. Adding a new property means touching `write_property_field` plus the read functions — the read path is auto-dispatched, the write path is not.
+**Issue:** `TrackFieldRef`/`TrackFieldMut` enums eliminated ~200 repetitive match arms from the 5 read-only dispatch functions. But `write_property_field` still had per-field defaults and required manual updating.
 
-**Fix:** Extend the `TrackFieldRef`/`TrackFieldMut` approach to writes. Each `ActorField` variant already maps to a track field; the missing piece is a per-field default value that can be looked up generically. Once writes use the enum dispatch, adding a property requires updating only the enum definition.
+**Fix:** ~~Extend the `TrackFieldRef`/`TrackFieldMut` approach to writes.~~ Added `ActorField::default_value()` that maps each field to its default `PropertyValue`. Refactored `write_property_field` to use `track.field_mut(field)` → `TrackFieldMut` → typed write helper with the default from `ActorField::default_value()`. Special cases (group field diagnostics, shape type conversion) handled explicitly before the uniform path.
 
 **Effort:** Medium.
 
@@ -170,11 +170,11 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix/src/parser.rs`, `timeline/build/mod.rs`
 
-**Status:** Partially complete (AST field added, not populated).
+**Status:** Fixed.
 
-**Issue:** `Stmt::Assignment` now has `easing: Option<Easing>`, but the parser always sets it to `None`. The easing value is still buried in `Assignment.modifiers` as `Modifier { name: Some("ease"), value }`. The timeline builder reads easing from modifiers, not from the new field. This means the field exists but nothing uses it — the old path and the new path are parallel but disconnected.
+**Issue:** `Stmt::Assignment` had `easing: Option<Easing>`, but the parser always set it to `None`. The easing value was still buried in `Assignment.modifiers`.
 
-**Fix:** Have the parser extract `ease: ...` modifiers and populate `easing` directly. Update the timeline builder to read `easing` from the field first, falling back to modifiers. Eventually deprecate the modifier-based path for assignment easing.
+**Fix:** ~~Have the parser extract `ease: ...` modifiers and populate `easing` directly.~~ Added `extract_easing()` helper in the parser that scans modifiers for `ease: ...`, removes the modifier, and populates the `easing` field. Updated `process_assignment_statement` to accept an `explicit_easing` parameter and use it, falling back to modifier parsing if `None`.
 
 **Effort:** Low.
 
@@ -182,13 +182,15 @@ The test catches misses, but it's pure duplication.
 
 ### 6.10 Anonymous Label Round-Trip in Source Editor
 
-**Location:** `crates/animatix-gui/src/source_edit.rs`
+**Location:** `crates/animatix-gui/src/source_edit.rs`, `to_source.rs`
 
-**Issue:** The source language supports anonymous items (e.g. `Button, text: "OK"` without a label), but `Stmt::ActorDecl` requires a `String` label. When the source editor inserts an anonymous item at top level, it must invent a synthetic label (`__anon_root_N`). This means anonymous items cannot round-trip cleanly through the editor — they gain labels on the way back to source.
+**Status:** Fixed.
 
-**Fix:** Two options: (1) Allow `ActorDecl.label` to be `Option<String>` and teach the serializer to emit anonymous syntax when `label` is `None`; or (2) preserve anonymity via a flag on `ActorDecl` (e.g. `is_anonymous: bool`). Option 1 is cleaner but touches many label-assuming sites. Option 2 is narrower.
+**Issue:** Anonymous items (e.g. `Button, text: "OK"`) got synthetic `__anon_*` labels when converted to `Stmt` by the source editor. On serialization back to source, they retained these labels instead of becoming anonymous again.
 
-**Effort:** Medium.
+**Fix:** Use the `__anon` prefix convention to detect anonymous items. `stmt_to_inline_item` creates `InlineItem::Anonymous` for labels starting with `__anon`. `serialize_actor_like_stmt` emits anonymous syntax (no label) for these labels. This preserves anonymity through edit round-trips without changing `ActorDecl`'s structure.
+
+**Effort:** Low.
 
 ---
 
@@ -198,6 +200,6 @@ The test catches misses, but it's pure duplication.
 
 **Status:** Fixed as part of 6.7.
 
-**Issue:** The timeline builder had special-case dispatch for Text/Math/Code/Svg/Image that bypassed the primitive system's `ActorKind::build()` methods. The primitives existed but weren't used — the builder and the primitive system duplicated knowledge about actor types. This was fixed by 6.7: all actors now flow through `ActorDecl` → `process_actor_decl` → `find_actor_kind` → primitive `build()`.
+**Issue:** The timeline builder had special-case dispatch for Text/Math/Code/Svg/Image that bypassed the primitive system's `ActorKind::build()` methods. The primitives existed but weren't used.
 
-**Fix:** N/A — resolved by 6.7.
+**Fix:** Resolved by 6.7: all actors now flow through `ActorDecl` → `process_actor_decl` → `find_actor_kind` → primitive `build()`.
