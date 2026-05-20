@@ -24,6 +24,7 @@ impl Timeline {
         property: &str,
         value: &super::Expr,
         modifiers: &[super::Modifier],
+        explicit_easing: Option<super::Easing>,
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -42,7 +43,7 @@ impl Timeline {
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,
-            easing,
+            easing: modifier_easing,
             ..
         } = parse_timing_modifiers(
             modifiers,
@@ -50,6 +51,7 @@ impl Timeline {
             Some(&assignment_subject),
             diagnostics,
         );
+        let easing = explicit_easing.unwrap_or(modifier_easing);
 
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;

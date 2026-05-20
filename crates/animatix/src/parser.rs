@@ -26,9 +26,27 @@
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
 
 use crate::ast::*;
+use crate::timeline::parse_easing_name;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 use std::ops::Range;
+
+/// Scan modifiers for `ease: ...` and extract the easing value.
+/// Removes the ease modifier from the list so it doesn't get processed twice.
+fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing> {
+    let mut easing = None;
+    modifiers.retain(|m| {
+        if m.name.as_deref() == Some("ease") {
+            if let Expr::Ident(raw) = &m.value {
+                easing = parse_easing_name(raw);
+            }
+            false // remove the modifier
+        } else {
+            true
+        }
+    });
+    easing
+}
 
 /// A structured parse error with human-readable location and context.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -635,7 +653,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 (value, ByteSpan { start: span.start, end: span.end })
             }))
             .then(modifiers.clone())
-            .try_map(|((path, (value, value_span)), modifiers), span| {
+            .try_map(|((path, (value, value_span)), mut modifiers), span| {
                 if path.is_empty() {
                     Err(Rich::custom(
                         span,
@@ -644,24 +662,26 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 } else if path.len() == 1 {
                     // Single-segment assignment: e.g. `at = expr` inside a drive block
                     let property = path[0].clone();
+                    let easing = extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
                         target: vec![],
                         property,
                         value,
                         modifiers,
-                        easing: None,
+                        easing,
                         value_span: Some(value_span),
                         span: None,
                     })
                 } else {
                     let property = path.last().cloned().unwrap_or_default();
                     let target = path[..path.len() - 1].to_vec();
+                    let easing = extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
                         target,
                         property,
                         value,
                         modifiers,
-                        easing: None,
+                        easing,
                         value_span: Some(value_span),
                         span: None,
                     })

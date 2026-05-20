@@ -1251,6 +1251,7 @@ impl Timeline {
                     property,
                     value,
                     modifiers,
+                    easing,
                     value_span: _,
                     ..
                 } => {
@@ -1268,6 +1269,7 @@ impl Timeline {
                             property,
                             value,
                             modifiers,
+                            *easing,
                             time_ms,
                             diagnostics,
                         );

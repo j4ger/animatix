@@ -131,12 +131,8 @@ fn test_assignments_and_paths() {
                     name: None,
                     value: Expr::Ident("2s".to_string()),
                 },
-                Modifier {
-                    name: Some("ease".to_string()),
-                    value: Expr::Ident("ease-out".to_string()),
-                },
-],
-            easing: None,
+            ],
+            easing: Some(animatix::easing::Easing::EaseOut),
             value_span: Some(ByteSpan { start: 15, end: 26 }),
             span: None,
         }
