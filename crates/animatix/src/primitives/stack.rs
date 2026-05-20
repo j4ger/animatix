@@ -10,7 +10,7 @@ impl Primitive for StackPrimitive {
     fn type_name(&self) -> &'static str { "Stack" }
     fn display_name(&self) -> &'static str { "Stack" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "stack" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::STACK }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Stack }
 

@@ -10,7 +10,7 @@ impl Primitive for MaskPrimitive {
     fn type_name(&self) -> &'static str { "Mask" }
     fn display_name(&self) -> &'static str { "Mask" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "mask" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::MASK_HAPPY }
     fn is_advanced(&self) -> bool { true }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Mask }

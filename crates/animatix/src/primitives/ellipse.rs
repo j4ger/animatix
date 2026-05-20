@@ -14,7 +14,7 @@ impl Primitive for EllipsePrimitive {
     fn type_name(&self) -> &'static str { "Ellipse" }
     fn display_name(&self) -> &'static str { "Ellipse" }
     fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { "circle-notch" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CIRCLE_NOTCH }
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse) }
 

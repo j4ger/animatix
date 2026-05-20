@@ -12,7 +12,7 @@ impl Primitive for PathPrimitive {
     fn type_name(&self) -> &'static str { "Path" }
     fn display_name(&self) -> &'static str { "Path" }
     fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { "pen" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::PEN }
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Path) }
 

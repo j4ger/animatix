@@ -10,7 +10,7 @@ impl Primitive for GridPrimitive {
     fn type_name(&self) -> &'static str { "Grid" }
     fn display_name(&self) -> &'static str { "Grid" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "squares-four" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::SQUARES_FOUR }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Grid }
 

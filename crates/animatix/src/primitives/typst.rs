@@ -11,7 +11,7 @@ impl Primitive for TypstPrimitive {
     fn type_name(&self) -> &'static str { "Typst" }
     fn display_name(&self) -> &'static str { "Typst" }
     fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { "typst" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::ARTICLE }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Typst }
 

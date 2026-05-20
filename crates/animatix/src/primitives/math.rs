@@ -11,7 +11,7 @@ impl Primitive for MathPrimitive {
     fn type_name(&self) -> &'static str { "Math" }
     fn display_name(&self) -> &'static str { "Math" }
     fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { "function" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::FUNCTION }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Math }
 

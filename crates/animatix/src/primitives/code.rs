@@ -11,7 +11,7 @@ impl Primitive for CodePrimitive {
     fn type_name(&self) -> &'static str { "Code" }
     fn display_name(&self) -> &'static str { "Code" }
     fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { "code" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CODE }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Code }
 
@@ -46,7 +46,7 @@ impl Primitive for CodePrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text" | "latex" | "math" | "code") {
+        if !matches!(property, "text" | "latex" | "math" | crate::icon_glyphs::CODE) {
             return false;
         }
         let target_text = evaluate_expr_with_lookup_diagnostic(

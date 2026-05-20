@@ -15,7 +15,7 @@ impl Primitive for ImagePrimitive {
     fn type_name(&self) -> &'static str { "Image" }
     fn display_name(&self) -> &'static str { "Image" }
     fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { "image" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::IMAGE }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Image }
 
     fn build(

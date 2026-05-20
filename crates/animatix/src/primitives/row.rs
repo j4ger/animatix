@@ -10,7 +10,7 @@ impl Primitive for RowPrimitive {
     fn type_name(&self) -> &'static str { "Row" }
     fn display_name(&self) -> &'static str { "Row" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "rows" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::ROWS }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Row }
 

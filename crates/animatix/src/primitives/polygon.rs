@@ -12,7 +12,7 @@ impl Primitive for PolygonPrimitive {
     fn type_name(&self) -> &'static str { "Polygon" }
     fn display_name(&self) -> &'static str { "Polygon" }
     fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { "polygon" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::POLYGON }
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Polygon) }
 

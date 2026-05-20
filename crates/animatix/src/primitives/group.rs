@@ -10,7 +10,7 @@ impl Primitive for GroupPrimitive {
     fn type_name(&self) -> &'static str { "Group" }
     fn display_name(&self) -> &'static str { "Group" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "folder" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::FOLDER }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Group }
 

@@ -11,7 +11,7 @@ impl Primitive for TextPrimitive {
     fn type_name(&self) -> &'static str { "Text" }
     fn display_name(&self) -> &'static str { "Text" }
     fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { "text-t" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::TEXT_T }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Text }
 
     fn build(

@@ -14,7 +14,7 @@ impl Primitive for LinePrimitive {
     fn type_name(&self) -> &'static str { "Line" }
     fn display_name(&self) -> &'static str { "Line" }
     fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { "minus" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::MINUS }
     fn is_shape(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Line) }
 

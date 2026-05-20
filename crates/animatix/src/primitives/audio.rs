@@ -10,7 +10,7 @@ impl Primitive for AudioPrimitive {
     fn type_name(&self) -> &'static str { "Audio" }
     fn display_name(&self) -> &'static str { "Audio" }
     fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { "audio" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::SPEAKER_HIGH }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Audio }
 

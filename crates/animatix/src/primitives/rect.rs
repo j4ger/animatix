@@ -23,7 +23,7 @@ impl Primitive for RectPrimitive {
     }
 
     fn icon_id(&self) -> &'static str {
-        "square"
+        crate::icon_glyphs::SQUARE
     }
 
     fn is_shape(&self) -> bool {

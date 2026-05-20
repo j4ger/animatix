@@ -10,7 +10,7 @@ impl Primitive for ColPrimitive {
     fn type_name(&self) -> &'static str { "Col" }
     fn display_name(&self) -> &'static str { "Column" }
     fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { "columns" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::COLUMNS }
     fn is_container(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Col }
 

@@ -12,7 +12,7 @@ impl Primitive for SvgPrimitive {
     fn type_name(&self) -> &'static str { "Svg" }
     fn display_name(&self) -> &'static str { "SVG" }
     fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { "vector-three" }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::VECTOR_THREE }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Svg }
 
