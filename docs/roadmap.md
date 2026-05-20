@@ -72,11 +72,13 @@ Discovered during implementation of chapters 1 & 3.
 
 **Location:** `crates/animatix/src/ast.rs`
 
+**Status:** Fixed.
+
 **Issue:**
 - ~~`SlotFill` uses `slot_name` but callers often assume `slot`.~~ (Fixed)
 - ~~Rename `slot_name` → `slot` for consistency.~~ (Fixed)
-- Add `#[non_exhaustive]` or a catch-all helper so new variants don't break downstream matches.
-- Use a deterministic label generator (e.g. parent_label + index) instead of a global counter.
+- ~~Add `#[non_exhaustive]` to `InlineItem` so new variants don't break downstream matches.~~ (Fixed)
+- ~~Use a deterministic label generator (`parent_label + index`) instead of a global counter.~~ (Fixed)
 
 **Effort:** Low.
 

@@ -649,6 +649,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         property,
                         value,
                         modifiers,
+                        easing: None,
                         value_span: Some(value_span),
                         span: None,
                     })
@@ -660,6 +661,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         property,
                         value,
                         modifiers,
+                        easing: None,
                         value_span: Some(value_span),
                         span: None,
                     })

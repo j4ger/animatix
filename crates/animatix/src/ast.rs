@@ -456,6 +456,7 @@ pub enum Stmt {
         property: String,
         value: Expr,
         modifiers: Vec<Modifier>,
+        easing: Option<crate::easing::Easing>,
         /// Byte-offset span of the value expression within the source text.
         /// Used for surgical source edits (writing back to .amx file).
         

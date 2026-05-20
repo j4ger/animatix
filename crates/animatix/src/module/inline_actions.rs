@@ -115,7 +115,7 @@ fn apply_modifiers_to_body(
                 property,
                 value,
                 modifiers: invocation_modifiers.to_vec(),
-                
+                easing: None,
                 value_span,
                 span,
             },

@@ -127,6 +127,7 @@ pub(super) fn rewrite_stmt(
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
+            easing: None,
             value_span: *value_span,
             span: None,
         },

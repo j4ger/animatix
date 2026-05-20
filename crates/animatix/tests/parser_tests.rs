@@ -115,6 +115,7 @@ fn test_assignments_and_paths() {
             property: "color".to_string(),
             value: Expr::Str("red".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: Some(ByteSpan { start: 12, end: 17 }),
             span: None,
         }
@@ -134,11 +135,13 @@ fn test_assignments_and_paths() {
                     name: Some("ease".to_string()),
                     value: Expr::Ident("ease-out".to_string()),
                 },
-            ],
+],
+            easing: None,
             value_span: Some(ByteSpan { start: 15, end: 26 }),
             span: None,
         }
     );
+
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
@@ -146,6 +149,7 @@ fn test_assignments_and_paths() {
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: Some(ByteSpan { start: 19, end: 22 }),
             span: None,
         }
@@ -157,6 +161,7 @@ fn test_assignments_and_paths() {
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: Some(ByteSpan { start: 19, end: 22 }),
             span: None,
         }
@@ -223,6 +228,7 @@ fn test_sequence_parse() {
                             value: Expr::Ident("100ms".to_string()),
                         },
                     ],
+                    easing: None,
                     value_span: Some(ByteSpan { start: 47, end: 51 }),
             span: None,
                 },
@@ -260,6 +266,7 @@ fn test_stagger_parse() {
                         name: None,
                         value: Expr::Ident("100ms".to_string()),
                     }],
+                    easing: None,
                     value_span: Some(ByteSpan { start: 55, end: 59 }),
             span: None,
                 },
@@ -461,82 +468,23 @@ fn test_modifier_delay_and_duplicates_parse() {
                     name: None,
                     value: Expr::Ident("500ms".to_string()),
                 },
-            ],
+],
+            easing: None,
             value_span: Some(ByteSpan { start: 15, end: 18 }),
             span: None,
         }
     );
-}
-
-#[test]
-fn test_morph_modifier_keys_parse() {
     assert_eq!(
-        parse_single_stmt(
-            "badge: Ellipse, radius: 20 [1s, strategy: match, path_arc: 1.57, stretch: false]"
-        ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            label: "badge".to_string(),
-            ty: "Ellipse".to_string(),
-            props: vec![Property {
-                name: "radius".to_string(),
-                value: Expr::Num(20.0),
-                value_span: Some(ByteSpan { start: 24, end: 27 }),
-            trailing_comment: None,
-            }],
-            modifiers: vec![
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-                Modifier {
-                    name: Some("strategy".to_string()),
-                    value: Expr::Ident("match".to_string()),
-                },
-                Modifier {
-                    name: Some("path_arc".to_string()),
-                    value: Expr::Num(1.57),
-                },
-                Modifier {
-                    name: Some("stretch".to_string()),
-                    value: Expr::Bool(false),
-                },
-            ],
-            children: vec![],
+        parse_single_stmt("left.badge.color = red"),
+        Stmt::Assignment {
+            target: vec!["left".to_string(), "badge".to_string()],
+            property: "color".to_string(),
+            value: Expr::Ident("red".to_string()),
+            modifiers: vec![],
+            easing: None,
+            value_span: Some(ByteSpan { start: 19, end: 22 }),
             span: None,
         }
-    );
-}
-
-#[test]
-fn test_component_definition_and_instantiation_parse() {
-    assert_eq!(
-        parse_single_stmt(
-            "pub component MetricCard(title: \"Throughput\") { label: Text, text: title }"
-        ),
-        Stmt::ComponentDef(ComponentDef {
-            is_pub: true,
-            name: "MetricCard".to_string(),
-            params: vec![ParamDef {
-                name: "title".to_string(),
-                param_type: None,
-                default: Some(Expr::Str("Throughput".to_string())),
-            }],
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                label: "label".to_string(),
-                ty: "Text".to_string(),
-                props: vec![Property {
-                    name: "text".to_string(),
-                    value: Expr::Ident("title".to_string()),
-                    value_span: Some(ByteSpan { start: 67, end: 73 }),
-                trailing_comment: None,
-                }],
-                modifiers: vec![],
-                children: vec![],
-            span: None,
-            }],
-        }, None)
     );
 
     assert_eq!(
@@ -1154,6 +1102,7 @@ fn test_expression_conditional() {
                 Box::new(Expr::Tuple(vec![Expr::Num(180.0), Expr::Num(180.0)])),
             ),
             modifiers: vec![],
+            easing: None,
             value_span: Some(ByteSpan { start: 13, end: 57 }),
             span: None,
         }

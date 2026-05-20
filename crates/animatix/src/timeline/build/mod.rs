@@ -1161,6 +1161,7 @@ impl Timeline {
                     property,
                     value,
                     modifiers,
+                    easing,
                     value_span,
                     span,
                 } if target.is_empty() => Stmt::Assignment {
@@ -1168,6 +1169,7 @@ impl Timeline {
                     property: property.clone(),
                     value: value.clone(),
                     modifiers: modifiers.clone(),
+                    easing: *easing,
                     value_span: *value_span,
                     span: *span,
                 },
@@ -1296,6 +1298,7 @@ impl Timeline {
                         property: property.clone(),
                         value: value.clone(),
                         modifiers: vec![],
+                        easing: None,
                         value_span: *value_span,
                         span: None,
                     });

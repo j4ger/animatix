@@ -1560,6 +1560,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
                 property: "rotation".to_string(),
                 value: Expr::Num(1.0),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -2169,6 +2170,7 @@ fn test_image_properties_are_animatable() {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
+                    easing: None,
                     value_span: None,
             span: None,
                 },
@@ -2180,6 +2182,7 @@ fn test_image_properties_are_animatable() {
                         name: None,
                         value: Expr::Ident("1s".to_string()),
                     }],
+                    easing: None,
                     value_span: None,
             span: None,
                 },
@@ -2464,6 +2467,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
                 property: "url".to_string(),
                 value: Expr::Str("/definitely/missing/animatix-image.png".to_string()),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -2501,6 +2505,7 @@ fn test_svg_url_assignment_succeeds() {
                 property: "url".to_string(),
                 value: Expr::Str(example_path("vector.svg")),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -2835,6 +2840,7 @@ fn test_line_assignments_rebuild_runtime_path() {
                 property: "to".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(20.0), Expr::Num(40.0)]),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -2888,6 +2894,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
                 property: "radius_y".to_string(),
                 value: Expr::Num(60.0),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -2941,6 +2948,7 @@ fn test_ellipse_radius_assignments_rebuild_runtime_path() {
                 property: "radius_y".to_string(),
                 value: Expr::Num(80.0),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -3032,6 +3040,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
                     Expr::Num(1.0),
                 ]),
                 modifiers: vec![],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -3246,6 +3255,7 @@ fn test_path_commands_assignment_with_duration_morphs() {
                     Expr::Call("close".into(), vec![]),
                 ]),
                 modifiers: vec![Modifier { name: None, value: Expr::Ident("1s".to_string()) }],
+                easing: None,
                 value_span: None,
                 span: None,
             }],
@@ -3468,6 +3478,7 @@ Stmt::ActorDecl {
                                 value: Expr::Ident("200ms".to_string()),
                             },
                         ],
+                        easing: None,
                         value_span: None,
             span: None,
                     },
@@ -3681,6 +3692,7 @@ fn test_nested_sequence_timing() {
                                     name: None,
                                     value: Expr::Ident("200ms".to_string()),
                                 }],
+                                easing: None,
                                 value_span: None,
                                 span: None,
                             },
@@ -3839,7 +3851,7 @@ fn test_rotation_assignment_animates_track() {
             }],
             span: None,
         },
-        Stmt::RelativeKeyframe {
+Stmt::RelativeKeyframe {
             offset: Time::Seconds(0.0),
             body: vec![Stmt::Assignment {
                 target: vec!["panel".to_string()],
@@ -3849,6 +3861,7 @@ fn test_rotation_assignment_animates_track() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -3865,7 +3878,66 @@ fn test_rotation_assignment_animates_track() {
 
     assert!(report.diagnostics.is_empty());
     assert!((track.rotation.evaluate(0) - 0.0).abs() < f32::EPSILON);
-    assert!((track.rotation.evaluate(1000) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+
+    // Evaluate at t=1s — should be PI/2
+    let at_1s = track.rotation.evaluate(1000);
+    assert!(
+        (at_1s - std::f32::consts::PI / 2.0).abs() < 0.01,
+        "expected PI/2 at 1s, got {at_1s}"
+    );
+}
+
+#[test]
+fn test_scales_animate_over_time() {
+    let ast = vec![
+        Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "panel".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
+                    trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            span: None,
+            }],
+            span: None,
+        },
+        Stmt::RelativeKeyframe {
+            offset: Time::Seconds(0.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["panel".to_string()],
+                property: "scale".to_string(),
+                value: Expr::Num(1.75),
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string()),
+                }],
+                easing: None,
+                value_span: None,
+            span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let track = report
+        .output
+        .tracks
+        .get("panel")
+        .expect("panel track should exist");
+
+    assert!(report.diagnostics.is_empty());
+    assert!((track.scale.evaluate(0) - 1.0).abs() < f32::EPSILON);
+    assert!((track.scale.evaluate(1000) - 1.75).abs() < 0.0001);
 }
 
 #[test]
@@ -3899,6 +3971,7 @@ fn test_scale_assignment_animates_track() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -4761,6 +4834,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
                     name: None,
                     value: Expr::Ident("1s".to_string()),
                 }],
+                easing: None,
                 value_span: None,
             span: None,
             }],
@@ -5969,6 +6043,7 @@ fn test_timeline_with_expr_call_properties() {
                 Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
             ]),
             modifiers: vec![],
+            easing: None,
             value_span: None,
             span: None,
         }],

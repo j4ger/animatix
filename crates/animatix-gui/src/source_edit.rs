@@ -458,6 +458,7 @@ fn insert_keyframe(
         property: source_prop.into(),
         value,
         modifiers: vec![],
+        easing: None,
         value_span: None,
         span: None,
     };

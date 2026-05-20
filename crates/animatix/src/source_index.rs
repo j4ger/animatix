@@ -236,6 +236,7 @@ mod tests {
             property: "color".to_string(),
             value: Expr::Ident("blue".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: Some(make_byte_span(50, 60)),
             span: None,
         }];
@@ -284,6 +285,7 @@ mod tests {
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: Some(make_byte_span(100, 110)),
             span: None,
         }];
@@ -328,6 +330,7 @@ mod tests {
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
+            easing: None,
             value_span: None,
             span: None,
         }];
