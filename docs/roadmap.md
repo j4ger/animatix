@@ -127,11 +127,11 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix/src/ast.rs`, `timeline/track.rs`, `source_edit.rs`
 
+**Status:** Fixed.
+
 **Issue:** `PropertyTrack<T>` stores `(value, Easing)` per keyframe, but the AST represents easing via `Assignment.modifiers`. This impedance mismatch made 1.3 (keyframe easing editor) complex — `SourceEdit::SetKeyframeEasing` must find the right assignment and mutate its modifier list, which may not round-trip cleanly.
 
-**Fix:** Add an `easing: Option<Easing>` field directly to `Stmt::Assignment`. Update the parser and `to_source` serializer. Modifiers can remain for advanced use, but the common case gets a first-class field.
-
-**Effort:** Medium. Parser + serializer + all modifier-based tests need updating.
+**Fix:** ~~Add an `easing: Option<Easing>` field directly to `Stmt::Assignment`. Update the parser and `to_source` serializer. Modifiers can remain for advanced use, but the common case gets a first-class field.~~ (Fixed)
 
 ---
 
