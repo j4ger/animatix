@@ -49,7 +49,11 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 8 | ~~Finish property registry write dispatch (6.8)~~ | Medium | High |
 | 9 | ~~Wire up easing extraction from modifiers (6.9)~~ | Low | Medium |
 | 10 | ~~Anonymous label round-trip in source editor (6.10)~~ | Medium | Medium |
-| 11 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
+| 11 | Analyzer integration (7.1) | Medium | Low |
+| 12 | Unify property default sources (7.2) | Low | Medium |
+| 13 | Robust anonymous detection (7.3) | Low | Low |
+| 14 | Parser easing test coverage (7.4) | Low | Low |
+| 15 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
 ---
 
@@ -203,3 +207,53 @@ The test catches misses, but it's pure duplication.
 **Issue:** The timeline builder had special-case dispatch for Text/Math/Code/Svg/Image that bypassed the primitive system's `ActorKind::build()` methods. The primitives existed but weren't used.
 
 **Fix:** Resolved by 6.7: all actors now flow through `ActorDecl` → `process_actor_decl` → `find_actor_kind` → primitive `build()`.
+
+---
+
+## 7. Issues Discovered During Chapter 6
+
+### 7.1 Analyzer Integration
+
+**Location:** `crates/animatix-analyzer/`
+
+**Issue:** The analyzer crate has symbol table and diagnostics code, but it's not wired into the LSP or GUI. `collect_actor_properties` and `check_actor_properties` were dead code (removed during warning cleanup). The analyzer collects symbols but nothing consumes them.
+
+**Fix:** Either wire the analyzer into the LSP for completions/diagnostics, or remove the crate if it's not serving a purpose yet.
+
+**Effort:** Medium.
+
+---
+
+### 7.2 Unify Property Default Sources
+
+**Location:** `crates/animatix/src/timeline/property_registry.rs`, `primitives/`
+
+**Issue:** `ActorField::default_value()` (added for 6.8) and primitive `default_props()` methods define the same defaults in two places. For example, `FontSize` defaults to `48.0` in both. If one changes, the other won't.
+
+**Fix:** Make `default_props()` derive from `ActorField::default_value()`, or vice versa. The primitive should own the defaults since they're type-specific.
+
+**Effort:** Low.
+
+---
+
+### 7.3 Robust Anonymous Detection
+
+**Location:** `crates/animatix/src/to_source.rs`, `crates/animatix-gui/src/source_edit.rs`
+
+**Issue:** Anonymous items are detected by `label.starts_with("__anon")`. This is a heuristic — a user could name an actor `__anon_decorator` and it would be serialized without a label.
+
+**Fix:** Add an explicit `is_anonymous: bool` field to `ActorDecl`. The serializer and source editor check the flag instead of the label prefix.
+
+**Effort:** Low.
+
+---
+
+### 7.4 Parser Easing Test Coverage
+
+**Location:** `crates/animatix/tests/parser_tests.rs`
+
+**Issue:** Only one test asserts the new easing extraction (`ease-out`). Edge cases — conflicting ease modifiers, invalid ease values, bare ease without colon — aren't explicitly tested.
+
+**Fix:** Add tests for: duplicate ease modifiers, unsupported ease values, and assignments without ease modifiers.
+
+**Effort:** Low.
