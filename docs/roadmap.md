@@ -50,9 +50,9 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 9 | ~~Wire up easing extraction from modifiers (6.9)~~ | Low | Medium |
 | 10 | ~~Anonymous label round-trip in source editor (6.10)~~ | Medium | Medium |
 | 11 | Analyzer integration (7.1) | Medium | Low |
-| 12 | Unify property default sources (7.2) | Low | Medium |
-| 13 | Robust anonymous detection (7.3) | Low | Low |
-| 14 | Parser easing test coverage (7.4) | Low | Low |
+| 12 | ~~Unify property default sources (7.2)~~ | — | By design |
+| 13 | ~~Robust anonymous detection (7.3)~~ | Low | Low |
+| 14 | ~~Parser easing test coverage (7.4)~~ | Low | Low |
 | 15 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
 ---
@@ -216,11 +216,13 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix-analyzer/`
 
-**Issue:** The analyzer crate has symbol table and diagnostics code, but it's not wired into the LSP or GUI. `collect_actor_properties` and `check_actor_properties` were dead code (removed during warning cleanup). The analyzer collects symbols but nothing consumes them.
+**Status:** Deferred.
 
-**Fix:** Either wire the analyzer into the LSP for completions/diagnostics, or remove the crate if it's not serving a purpose yet.
+**Issue:** The analyzer crate has symbol table and diagnostics code, but it's not wired into the LSP or GUI. The analyzer collects symbols but nothing consumes them yet.
 
-**Effort:** Medium.
+**Fix:** Wire the analyzer into the LSP for completions/diagnostics, or into the GUI for inline error display. The infrastructure exists but the integration layer is missing.
+
+**Effort:** Medium. Not blocking any current work.
 
 ---
 
