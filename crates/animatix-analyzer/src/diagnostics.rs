@@ -273,33 +273,6 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
     }
 }
 
-/// Check properties for an actor type.
-fn check_actor_properties(
-    ty: &str,
-    props: &[Property],
-    symbols: &SymbolTable,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if let Some(known_props) = symbols.properties.get(ty) {
-        for prop in props {
-            if !known_props.contains(&prop.name) {
-                diagnostics.push(Diagnostic {
-                    severity: DiagnosticSeverity::Info,
-                    line: 0,
-                    col: 0,
-                    end_line: 0,
-                    end_col: 0,
-                    message: format!(
-                        "Property '{}' not commonly used on {} (may still be valid)",
-                        prop.name, ty
-                    ),
-                    code: Some("unknown-property".to_string()),
-                });
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,7 +5,7 @@ use super::{
 };
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
-use crate::ast::{Property, Stmt};
+use crate::ast::Property;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Value;
 

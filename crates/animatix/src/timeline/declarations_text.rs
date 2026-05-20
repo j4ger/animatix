@@ -4,7 +4,7 @@ use super::{
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_modifier_diagnostic,
     resolve_position_binding_with_lookup_diagnostic, AnimationTrack, Diagnostic, DiagnosticCode,
-    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Stmt, Timeline,
+    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Timeline,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use super::property_engine::{parse_property_value, write_property_field};

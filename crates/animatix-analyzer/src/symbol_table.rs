@@ -294,16 +294,6 @@ impl SymbolTable {
         }
     }
 
-    /// Collect properties seen in an actor declaration.
-    fn collect_actor_properties(&mut self, ty: &str, props: &[Property]) {
-        let entry = self.properties.entry(ty.to_string()).or_default();
-        for prop in props {
-            if !entry.contains(&prop.name) {
-                entry.push(prop.name.clone());
-            }
-        }
-    }
-
     /// Merge symbols from another table into this one.
     /// Used for cross-file analysis: imported file symbols are merged
     /// into the local symbol table.

@@ -743,7 +743,7 @@ pub enum TrackFieldMut<'a> {
 
 impl AnimationTrack {
     /// Get an immutable reference to the track field identified by `field`.
-    pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef> {
+    pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef<'_>> {
         use ActorField::*;
         Some(match field {
             Position => TrackFieldRef::Vec2(&self.position),
@@ -780,7 +780,7 @@ impl AnimationTrack {
     }
 
     /// Get a mutable reference to the track field identified by `field`.
-    pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut> {
+    pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
         use ActorField::*;
         Some(match field {
             Position => TrackFieldMut::Vec2(&mut self.position),
