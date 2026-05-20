@@ -37,6 +37,8 @@ pub struct RowResponse {
     pub chevron_clicked: bool,
     pub row_double_clicked: bool,
     pub row_secondary_clicked: bool,
+    pub drag_started: bool,
+    pub hovered: bool,
     pub row_rect: Rect,
 }
 
@@ -51,6 +53,7 @@ pub struct Row<'a> {
     pub label: &'a str,
     pub label_color: Option<Color32>,
     pub right: Option<Box<dyn FnOnce(&mut egui::Ui) + 'a>>,
+    pub sense: egui::Sense,
 }
 
 impl<'a> Row<'a> {
@@ -65,7 +68,13 @@ impl<'a> Row<'a> {
             label,
             label_color: None,
             right: None,
+            sense: egui::Sense::click(),
         }
+    }
+
+    pub fn sense(mut self, sense: egui::Sense) -> Self {
+        self.sense = sense;
+        self
     }
 
     pub fn height(mut self, h: f32) -> Self {
@@ -111,7 +120,7 @@ impl<'a> Row<'a> {
     pub fn show(self, ui: &mut egui::Ui, row_id: Id) -> RowResponse {
         let available = ui.available_width();
         let (row_rect, row_response) =
-            ui.allocate_exact_size(Vec2::new(available, self.height), Sense::click());
+            ui.allocate_exact_size(Vec2::new(available, self.height), self.sense);
 
         // Background
         let bg = if self.is_selected {
@@ -216,6 +225,8 @@ impl<'a> Row<'a> {
             chevron_clicked: chevron_response.clicked(),
             row_double_clicked: row_response.double_clicked(),
             row_secondary_clicked: row_response.secondary_clicked(),
+            drag_started: row_response.drag_started(),
+            hovered: row_response.hovered(),
             row_rect,
         }
     }

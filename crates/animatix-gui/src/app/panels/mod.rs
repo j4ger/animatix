@@ -2594,6 +2594,7 @@ fn render_actor_tree(
         .label_color(label_color.unwrap_or(if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED }))
         .has_children(has_children)
         .expanded(is_expanded)
+        .sense(egui::Sense::click_and_drag())
         .right(|ui| {
             let eye_btn = components::icon_button_colored(
                 ui,
@@ -2619,14 +2620,13 @@ fn render_actor_tree(
     let drag_data_id = drag_id.with("data");
 
     // Detect drag start on this row
-    let drag_response = ui.interact(response.row_rect, row_id.with("drag"), egui::Sense::drag());
-    if drag_response.drag_started() && !is_anonymous {
+    if response.drag_started && !is_anonymous {
         ui.data_mut(|d| d.insert_temp(drag_data_id, label.to_string()));
     }
 
     // Detect drop target
     let is_dragging = ui.data(|d| d.get_temp::<String>(drag_data_id)).is_some();
-    let is_drop_target = is_dragging && drag_response.hovered() && !is_anonymous;
+    let is_drop_target = is_dragging && response.hovered && !is_anonymous;
     if is_drop_target {
         let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
         if dragged != label {
