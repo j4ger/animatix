@@ -156,6 +156,73 @@ pub enum ActorField {
     ContainerLayoutGroup,
 }
 
+impl ActorField {
+    /// Returns the default `PropertyValue` for this field.
+    ///
+    /// Returns `None` for fields that don't support direct keyframing
+    /// (group fields, compound types like PlacementMode/PositionBinding,
+    /// and generated payloads like VectorPaths/TextPaths).
+    pub fn default_value(self) -> Option<super::property_engine::PropertyValue> {
+        use super::property_engine::PropertyValue;
+        use super::track::{DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE};
+        Some(match self {
+            // ── Geometry tier ──
+            ActorField::Position => PropertyValue::Vec2([0.0, 0.0]),
+            ActorField::MotionOffset => PropertyValue::Vec2([0.0, 0.0]),
+            ActorField::Size => PropertyValue::Vec2(DEFAULT_LAYOUT_HALF_SIZE),
+            ActorField::LayoutSize => PropertyValue::Vec2(DEFAULT_LAYOUT_HALF_SIZE),
+            ActorField::Rotation => PropertyValue::F32(0.0),
+            ActorField::Scale => PropertyValue::F32(1.0),
+            ActorField::PlacementMode => return None,
+            ActorField::PositionBinding => return None,
+
+            // ── Style tier ──
+            ActorField::Color => PropertyValue::Vec4(DEFAULT_WHITE),
+            ActorField::Opacity => PropertyValue::F32(1.0),
+            ActorField::StrokeWidth => PropertyValue::F32(2.0),
+            ActorField::StrokeColor => PropertyValue::Vec4(DEFAULT_WHITE),
+            ActorField::StrokeProgress => PropertyValue::F32(1.0),
+            ActorField::FillOpacity => PropertyValue::F32(1.0),
+            ActorField::MorphOptions => return None,
+
+            // ── Effects tier ──
+            ActorField::ShadowOffset => PropertyValue::Vec2([0.0, 0.0]),
+            ActorField::ShadowBlur => PropertyValue::F32(0.0),
+            ActorField::ShadowColor => PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0]),
+            ActorField::GlowRadius => PropertyValue::F32(0.0),
+            ActorField::GlowColor => PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0]),
+            ActorField::BackdropBlur => PropertyValue::F32(0.0),
+
+            // ── Shape payload ──
+            ActorField::ShapeType => PropertyValue::U32(0),
+            ActorField::LineFrom => PropertyValue::Vec2([-50.0, 0.0]),
+            ActorField::LineTo => PropertyValue::Vec2([50.0, 0.0]),
+            ActorField::ArcAngles => PropertyValue::Vec2([0.0, std::f32::consts::PI]),
+            ActorField::Points => PropertyValue::PointList(Vec::new()),
+            ActorField::Commands => PropertyValue::CommandList(String::new()),
+            ActorField::VectorPaths => return None,
+
+            // ── Text payload ──
+            ActorField::TextContent => PropertyValue::String(String::new()),
+            ActorField::TextPaths => return None,
+            ActorField::FontFamily => PropertyValue::String(String::new()),
+            ActorField::FontSize => PropertyValue::F32(48.0),
+
+            // ── Media payload ──
+            ActorField::ImageData => return None,
+            ActorField::SvgPaths => return None,
+            ActorField::AudioSource => return None,
+            ActorField::AudioVolume => PropertyValue::F32(1.0),
+
+            // ── Group fields ──
+            ActorField::PositionBindingGroup
+            | ActorField::VectorShapeGroup
+            | ActorField::PlotDomainGroup
+            | ActorField::ContainerLayoutGroup => return None,
+        })
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Group resolution
 // ─────────────────────────────────────────────────────────────

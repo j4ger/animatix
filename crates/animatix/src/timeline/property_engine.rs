@@ -160,6 +160,10 @@ pub(crate) fn parse_property_value(
 ///
 /// This is the central dispatch that replaces the repetitive per-property
 /// pattern in build.rs, assignments.rs, and declarations_text.rs.
+///
+/// The dispatch works in two tiers:
+/// 1. Special cases that need custom extraction/conversion (ShapeType, no-ops, group diagnostics)
+/// 2. Uniform dispatch via `ActorField::default_value()` + `TrackFieldMut` for standard fields
 pub(crate) fn write_property_field(
     track: &mut AnimationTrack,
     field: ActorField,
@@ -172,68 +176,30 @@ pub(crate) fn write_property_field(
     let has_duration = t_end_ms > t_start_ms;
     let has_delay = t_start_ms > 0 && !has_duration;
 
+    // ── Tier 1: Special cases ──
     match field {
-        // ── Geometry tier ──
-        ActorField::Position => write_vec2(&mut track.position, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
-        ActorField::MotionOffset => write_vec2(&mut track.motion_offset, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
-        ActorField::Size => write_vec2(&mut track.size, value, t_start_ms, t_end_ms, easing, DEFAULT_LAYOUT_HALF_SIZE, has_duration, has_delay),
-        ActorField::LayoutSize => write_vec2(&mut track.layout_size, value, t_start_ms, t_end_ms, easing, DEFAULT_LAYOUT_HALF_SIZE, has_duration, has_delay),
-        ActorField::Rotation => write_f32(&mut track.rotation, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
-        ActorField::Scale => write_f32(&mut track.scale, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
-        ActorField::PlacementMode => {
-            // PlacementMode is set directly, not keyframed
-        }
-        ActorField::PositionBinding => {
-            // PositionBinding is set via group resolution
-        }
-
-        // ── Style tier ──
-        ActorField::Color => write_vec4(&mut track.color, value, t_start_ms, t_end_ms, easing, DEFAULT_WHITE, has_duration, has_delay),
-        ActorField::Opacity => write_f32(&mut track.opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
-        ActorField::StrokeWidth => write_f32(&mut track.stroke_width, value, t_start_ms, t_end_ms, easing, 2.0, has_duration, has_delay),
-        ActorField::StrokeColor => write_vec4(&mut track.stroke_color, value, t_start_ms, t_end_ms, easing, DEFAULT_WHITE, has_duration, has_delay),
-        ActorField::StrokeProgress => write_f32(&mut track.stroke_progress, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
-        ActorField::FillOpacity => write_f32(&mut track.fill_opacity, value, t_start_ms, t_end_ms, easing, 1.0, has_duration, has_delay),
-        ActorField::MorphOptions => {
-            // MorphOptions is set via group resolution
-        }
-
-        // ── Effects tier ──
-        ActorField::ShadowOffset => write_vec2(&mut track.shadow_offset, value, t_start_ms, t_end_ms, easing, [0.0, 0.0], has_duration, has_delay),
-        ActorField::ShadowBlur => write_f32(&mut track.shadow_blur, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
-        ActorField::ShadowColor => write_vec4(&mut track.shadow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
-        ActorField::GlowRadius => write_f32(&mut track.glow_radius, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
-        ActorField::GlowColor => write_vec4(&mut track.glow_color, value, t_start_ms, t_end_ms, easing, [0.0, 0.0, 0.0, 0.0], has_duration, has_delay),
-        ActorField::BackdropBlur => write_f32(&mut track.backdrop_blur, value, t_start_ms, t_end_ms, easing, 0.0, has_duration, has_delay),
-
-        // ── Shape payload ──
+        // ShapeType needs U32 -> ShapeType conversion
         ActorField::ShapeType => {
             if let PropertyValue::U32(v) = value {
                 let st = ShapeType::from(v);
-                write_shape_type(&mut track.shape_type, st, t_start_ms, t_end_ms, easing, ShapeType::Rect, has_duration, has_delay);
+                write_shape_type(
+                    &mut track.shape_type, st, t_start_ms, t_end_ms, easing,
+                    ShapeType::Rect, has_duration, has_delay,
+                );
             }
+            return;
         }
-        ActorField::LineFrom => write_vec2(&mut track.line_from, value, t_start_ms, t_end_ms, easing, [-50.0, 0.0], has_duration, has_delay),
-        ActorField::LineTo => write_vec2(&mut track.line_to, value, t_start_ms, t_end_ms, easing, [50.0, 0.0], has_duration, has_delay),
-        ActorField::ArcAngles => write_vec2(&mut track.arc_angles, value, t_start_ms, t_end_ms, easing, [0.0, std::f32::consts::PI], has_duration, has_delay),
-        ActorField::Points => write_point_list(&mut track.points, value, t_start_ms, t_end_ms, easing, Vec::new(), has_duration, has_delay),
-        ActorField::Commands => write_command_list(&mut track.commands, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
-        ActorField::VectorPaths => {
-            // Vector paths are generated from shape state, not parsed directly
-        }
-
-        // ── Text payload ──
-        ActorField::TextContent => write_string(&mut track.text_content, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
-        ActorField::FontFamily => write_string(&mut track.font_family, value, t_start_ms, t_end_ms, easing, String::new(), has_duration, has_delay),
-        ActorField::FontSize => write_f32(&mut track.font_size, value, t_start_ms, t_end_ms, easing, 48.0, has_duration, has_delay),
-        ActorField::TextPaths => {
-            // Text paths are generated from text content during build
-        }
-
-        // ── Media payload ──
-        ActorField::ImageData | ActorField::SvgPaths | ActorField::AudioSource | ActorField::AudioVolume => {}
-
-        // ── Group fields (handled by group resolvers, not direct write) ──
+        // No-ops: set via other means, not keyframed directly
+        ActorField::PlacementMode
+        | ActorField::PositionBinding
+        | ActorField::MorphOptions
+        | ActorField::VectorPaths
+        | ActorField::TextPaths
+        | ActorField::ImageData
+        | ActorField::SvgPaths
+        | ActorField::AudioSource
+        | ActorField::AudioVolume => return,
+        // Group fields: produce a diagnostic
         ActorField::PositionBindingGroup
         | ActorField::VectorShapeGroup
         | ActorField::PlotDomainGroup
@@ -255,6 +221,89 @@ pub(crate) fn write_property_field(
                     ),
                 )
             );
+            return;
+        }
+        _ => {} // Fall through to tier 2
+    }
+
+    // ── Tier 2: Uniform dispatch via TrackFieldMut ──
+    use crate::timeline::track::TrackFieldMut;
+    let pv_default = ActorField::default_value(field);
+    if let Some(tf) = track.field_mut(field) {
+        match tf {
+            TrackFieldMut::F32(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::F32(d)) => d,
+                    _ => 0.0,
+                };
+                write_f32(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::Vec2(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::Vec2(d)) => d,
+                    _ => [0.0, 0.0],
+                };
+                write_vec2(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::Vec4(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::Vec4(d)) => d,
+                    _ => [1.0, 1.0, 1.0, 1.0],
+                };
+                write_vec4(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::String(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::String(d)) => d,
+                    _ => String::new(),
+                };
+                write_string(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::U32(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::U32(d)) => d,
+                    _ => 0,
+                };
+                // U32 uses write_f32 under the hood (PropertyValue uses F32 for numeric keyframes)
+                // Handle by extracting and writing via the f32 track
+                if let PropertyValue::F32(v) = value {
+                    let v_u32 = v.max(0.0) as u32;
+                    if has_duration {
+                        let start_val = f.get(t_start_ms, default);
+                        f.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    } else if has_delay {
+                        preserve_instant_delayed_value(f, t_start_ms);
+                    }
+                    f.ensure(default).add_keyframe(t_end_ms, v_u32, easing);
+                } else if let PropertyValue::U32(v) = value {
+                    if has_duration {
+                        let start_val = f.get(t_start_ms, default);
+                        f.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+                    } else if has_delay {
+                        preserve_instant_delayed_value(f, t_start_ms);
+                    }
+                    f.ensure(default).add_keyframe(t_end_ms, v, easing);
+                }
+            }
+            TrackFieldMut::PointList(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::PointList(d)) => d,
+                    _ => Vec::new(),
+                };
+                write_point_list(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::CommandList(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::CommandList(d)) => d,
+                    _ => String::new(),
+                };
+                write_command_list(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            // PlacementMode and MorphOptions are handled in tier 1 (no-ops),
+            // but field_mut returns them, so this arm is here for exhaustiveness.
+            TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {}
+            // ShapeType is handled in tier 1 above
+            TrackFieldMut::ShapeType(_) => {}
         }
     }
 }
@@ -263,7 +312,7 @@ pub(crate) fn write_property_field(
 // Internal write helpers
 // ─────────────────────────────────────────────────────────────
 
-fn write_f32(
+pub(crate) fn write_f32(
     field: &mut Option<PropertyTrack<f32>>,
     value: PropertyValue,
     t_start_ms: u64,
@@ -283,7 +332,7 @@ fn write_f32(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
-fn write_vec2(
+pub(crate) fn write_vec2(
     field: &mut Option<PropertyTrack<[f32; 2]>>,
     value: PropertyValue,
     t_start_ms: u64,
@@ -303,7 +352,7 @@ fn write_vec2(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
-fn write_vec4(
+pub(crate) fn write_vec4(
     field: &mut Option<PropertyTrack<[f32; 4]>>,
     value: PropertyValue,
     t_start_ms: u64,
@@ -327,7 +376,7 @@ fn write_vec4(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
-fn write_point_list(
+pub(crate) fn write_point_list(
     field: &mut Option<PropertyTrack<Vec<[f32; 2]>>>,
     value: PropertyValue,
     t_start_ms: u64,
@@ -347,7 +396,7 @@ fn write_point_list(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
-fn write_command_list(
+pub(crate) fn write_command_list(
     field: &mut Option<PropertyTrack<String>>,
     value: PropertyValue,
     t_start_ms: u64,
@@ -367,7 +416,7 @@ fn write_command_list(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
-fn write_shape_type(
+pub(crate) fn write_shape_type(
     field: &mut Option<PropertyTrack<ShapeType>>,
     value: ShapeType,
     t_start_ms: u64,
@@ -386,7 +435,7 @@ fn write_shape_type(
     field.ensure(default).add_keyframe(t_end_ms, value, easing);
 }
 
-fn write_string(
+pub(crate) fn write_string(
     field: &mut Option<PropertyTrack<String>>,
     value: PropertyValue,
     t_start_ms: u64,
