@@ -237,16 +237,6 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
             }
         }
 
-        Stmt::Text { props, .. } => {
-            check_actor_properties("Text", props, symbols, diagnostics);
-        }
-        Stmt::Math { props, .. } => {
-            check_actor_properties("Math", props, symbols, diagnostics);
-        }
-        Stmt::Code { props, .. } => {
-            check_actor_properties("Code", props, symbols, diagnostics);
-        }
-
         // Recurse into blocks
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
             for stmt in body {

@@ -1201,11 +1201,6 @@ impl GuiShell {
         // Update label in the new statement
         match &mut new_stmt {
             animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
-            animatix::ast::Stmt::Text { label, .. } => *label = Some(new_label.clone()),
-            animatix::ast::Stmt::Math { label, .. } => *label = Some(new_label.clone()),
-            animatix::ast::Stmt::Code { label, .. } => *label = Some(new_label.clone()),
-            animatix::ast::Stmt::Svg { label, .. } => *label = Some(new_label.clone()),
-            animatix::ast::Stmt::Image { label, .. } => *label = Some(new_label.clone()),
             _ => {
                 self.preview.status = "Failed to duplicate — unsupported actor type".to_string();
                 return;
@@ -1216,11 +1211,6 @@ impl GuiShell {
         if let Some(pos) = stmts.iter().position(|s| {
             match s {
                 animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
-                animatix::ast::Stmt::Text { label: Some(l), .. } if l == original_label => true,
-                animatix::ast::Stmt::Math { label: Some(l), .. } if l == original_label => true,
-                animatix::ast::Stmt::Code { label: Some(l), .. } if l == original_label => true,
-                animatix::ast::Stmt::Svg { label: Some(l), .. } if l == original_label => true,
-                animatix::ast::Stmt::Image { label: Some(l), .. } if l == original_label => true,
                 _ => false,
             }
         }) {
@@ -1277,11 +1267,6 @@ impl GuiShell {
             let pos = stmts.iter().position(|s| {
                 match s {
                     animatix::ast::Stmt::ActorDecl { label: l, .. } if l == label => true,
-                    animatix::ast::Stmt::Text { label: Some(l), .. } if l == label => true,
-                    animatix::ast::Stmt::Math { label: Some(l), .. } if l == label => true,
-                    animatix::ast::Stmt::Code { label: Some(l), .. } if l == label => true,
-                    animatix::ast::Stmt::Svg { label: Some(l), .. } if l == label => true,
-                    animatix::ast::Stmt::Image { label: Some(l), .. } if l == label => true,
                     _ => false,
                 }
             });
@@ -1479,11 +1464,6 @@ impl GuiShell {
             // Update label in the new statement
             match &mut new_stmt {
                 animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
-                animatix::ast::Stmt::Text { label, .. } => *label = Some(new_label.clone()),
-                animatix::ast::Stmt::Math { label, .. } => *label = Some(new_label.clone()),
-                animatix::ast::Stmt::Code { label, .. } => *label = Some(new_label.clone()),
-                animatix::ast::Stmt::Svg { label, .. } => *label = Some(new_label.clone()),
-                animatix::ast::Stmt::Image { label, .. } => *label = Some(new_label.clone()),
                 _ => continue,
             }
 
@@ -1491,11 +1471,6 @@ impl GuiShell {
             if let Some(pos) = stmts.iter().position(|s| {
                 match s {
                     animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
-                    animatix::ast::Stmt::Text { label: Some(l), .. } if l == original_label => true,
-                    animatix::ast::Stmt::Math { label: Some(l), .. } if l == original_label => true,
-                    animatix::ast::Stmt::Code { label: Some(l), .. } if l == original_label => true,
-                    animatix::ast::Stmt::Svg { label: Some(l), .. } if l == original_label => true,
-                    animatix::ast::Stmt::Image { label: Some(l), .. } if l == original_label => true,
                     _ => false,
                 }
             }) {

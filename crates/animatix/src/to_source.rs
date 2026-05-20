@@ -333,67 +333,6 @@ impl ToSource for Stmt {
                 let pub_kw = if *is_pub { "pub " } else { "" };
                 format!("{}let {} = {}", pub_kw, name, value.to_source())
             }
-            Stmt::Text { label, props, modifiers, .. } => {
-                serialize_actor_like_stmt(label.as_deref(), "Text", props, modifiers, &[])
-            }
-            Stmt::Math { label, props, modifiers, .. } => {
-                serialize_actor_like_stmt(label.as_deref(), "Math", props, modifiers, &[])
-            }
-            Stmt::Code { label, props, modifiers, .. } => {
-                serialize_actor_like_stmt(label.as_deref(), "Code", props, modifiers, &[])
-            }
-            Stmt::Svg { label, url, at, anchor, offset, scale, .. } => {
-                let mut props: Vec<Property> = vec![Property {
-                    name: "url".into(),
-                    value: Expr::Str(url.clone()),
-                    value_span: None,
-                    trailing_comment: None,
-                }];
-                if let Some(expr) = at {
-                    props.push(Property { name: "at".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if let Some(expr) = anchor {
-                    props.push(Property { name: "anchor".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if let Some(expr) = offset {
-                    props.push(Property { name: "offset".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if *scale != 1.0 {
-                    props.push(Property {
-                        name: "scale".into(),
-                        value: Expr::Num(*scale as f64),
-                        value_span: None,
-                        trailing_comment: None,
-                    });
-                }
-                serialize_actor_like_stmt(label.as_deref(), "Svg", &props, &[], &[])
-            }
-            Stmt::Image { label, url, at, anchor, offset, size, .. } => {
-                let mut props: Vec<Property> = vec![Property {
-                    name: "url".into(),
-                    value: Expr::Str(url.clone()),
-                    value_span: None,
-                    trailing_comment: None,
-                }];
-                if let Some(expr) = at {
-                    props.push(Property { name: "at".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if let Some(expr) = anchor {
-                    props.push(Property { name: "anchor".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if let Some(expr) = offset {
-                    props.push(Property { name: "offset".into(), value: expr.clone(), value_span: None, trailing_comment: None });
-                }
-                if let Some((w, h)) = size {
-                    props.push(Property {
-                        name: "size".into(),
-                        value: Expr::Tuple(vec![Expr::Num(*w as f64), Expr::Num(*h as f64)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    });
-                }
-                serialize_actor_like_stmt(label.as_deref(), "Image", &props, &[], &[])
-            }
             Stmt::ActorDecl { is_pub, label, ty, props, modifiers, children, .. } => {
                 let s = serialize_actor_like_stmt(
                     Some(label),

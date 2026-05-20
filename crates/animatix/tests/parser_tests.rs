@@ -541,13 +541,32 @@ fn test_image_stmt() {
         parse_single_stmt(
             "photo: Image { url: \"examples/checker.ppm\", at: (100, 120), size: (240, 180) }"
         ),
-        Stmt::Image {
-            label: Some("photo".to_string()),
-            url: "examples/checker.ppm".to_string(),
-            at: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)])),
-            anchor: None,
-            offset: None,
-            size: Some((240.0, 180.0)),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "photo".to_string(),
+            ty: "Image".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("examples/checker.ppm".to_string()),
+                    value_span: Some(ByteSpan { start: 20, end: 42 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)]),
+                    value_span: Some(ByteSpan { start: 48, end: 58 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
+                    value_span: Some(ByteSpan { start: 66, end: 77 }),
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }
     );
@@ -559,13 +578,38 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
         parse_single_stmt(
             "icon: Svg { url: \"examples/vector.svg\", anchor: scene.top, offset: (0, 24), scale: 1.5 }"
         ),
-        Stmt::Svg {
-            label: Some("icon".to_string()),
-            url: "examples/vector.svg".to_string(),
-            at: None,
-            anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
-            offset: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)])),
-            scale: 1.5,
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "icon".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("examples/vector.svg".to_string()),
+                    value_span: Some(ByteSpan { start: 17, end: 38 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "anchor".to_string(),
+                    value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
+                    value_span: Some(ByteSpan { start: 48, end: 57 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "offset".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)]),
+                    value_span: Some(ByteSpan { start: 67, end: 74 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(1.5),
+                    value_span: Some(ByteSpan { start: 83, end: 87 }),
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }
     );
@@ -577,16 +621,41 @@ fn test_image_stmt_preserves_anchor_and_offset() {
         parse_single_stmt(
             "photo: Image { url: \"examples/checker.ppm\", anchor: scene.bottom, offset: (0, -40), size: (240, 180) }"
         ),
-        Stmt::Image {
-            label: Some("photo".to_string()),
-            url: "examples/checker.ppm".to_string(),
-            at: None,
-            anchor: Some(Expr::Path(vec!["scene".to_string(), "bottom".to_string()])),
-            offset: Some(Expr::Tuple(vec![
-                Expr::Num(0.0),
-                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
-            ])),
-            size: Some((240.0, 180.0)),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: "photo".to_string(),
+            ty: "Image".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("examples/checker.ppm".to_string()),
+                    value_span: Some(ByteSpan { start: 20, end: 42 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "anchor".to_string(),
+                    value: Expr::Path(vec!["scene".to_string(), "bottom".to_string()]),
+                    value_span: Some(ByteSpan { start: 52, end: 64 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "offset".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Num(0.0),
+                        Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
+                    ]),
+                    value_span: Some(ByteSpan { start: 74, end: 82 }),
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
+                    value_span: Some(ByteSpan { start: 90, end: 101 }),
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }
     );

@@ -139,12 +139,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
         Stmt::ForLoop { .. } => Err(IrLowerError::UnsupportedStatement("for loop")),
         Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
-        Stmt::Text { .. }
-        | Stmt::Math { .. }
-        | Stmt::Code { .. }
-        | Stmt::Svg { .. }
-        | Stmt::Image { .. }
-        | Stmt::ActorDecl { .. }
+        Stmt::ActorDecl { .. }
         | Stmt::Import { .. }
         | Stmt::Use { .. }
         | Stmt::Keyframe { .. }

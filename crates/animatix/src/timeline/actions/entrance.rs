@@ -175,29 +175,32 @@ mod tests {
     }
 
     fn text_decl(label: &str) -> Stmt {
-        Stmt::Text {
-            label: Some(label.to_string()),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: label.to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("Hello".to_string()),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(32.0),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
+            children: vec![],
             span: None,
         }
     }
@@ -220,29 +223,32 @@ mod tests {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
-                Stmt::Text {
-                    label: Some("headline".to_string()),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    label: "headline".to_string(),
+                    ty: "Text".to_string(),
                     props: vec![
                         Property {
                             name: "text".to_string(),
                             value: Expr::Str("Hello".to_string()),
                             value_span: None,
-                        trailing_comment: None,
+                            trailing_comment: None,
                         },
                         Property {
                             name: "font_size".to_string(),
                             value: Expr::Num(32.0),
                             value_span: None,
-                        trailing_comment: None,
+                            trailing_comment: None,
                         },
                         Property {
                             name: "at".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
                             value_span: None,
-                        trailing_comment: None,
+                            trailing_comment: None,
                         },
                     ],
                     modifiers: vec![],
+                    children: vec![],
                     span: None,
                 },
                 Stmt::Action(Action {

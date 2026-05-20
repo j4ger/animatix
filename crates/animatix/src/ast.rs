@@ -356,54 +356,9 @@ pub enum Stmt {
     },
 
     // === Actors/Nodes ===
-    Text {
-        label: Option<String>,
-        props: Vec<Property>,
-        modifiers: Vec<Modifier>,
-        
-        span: Option<Span>,
-    },
-
-    Math {
-        label: Option<String>,
-        props: Vec<Property>,
-        modifiers: Vec<Modifier>,
-        
-        span: Option<Span>,
-    },
-
-    Code {
-        label: Option<String>,
-        props: Vec<Property>,
-        modifiers: Vec<Modifier>,
-        
-        span: Option<Span>,
-    },
-
-    Svg {
-        label: Option<String>,
-        url: String,
-        at: Option<Expr>,
-        anchor: Option<Expr>,
-        offset: Option<Expr>,
-        scale: f32,
-        
-        span: Option<Span>,
-    },
-
-    Image {
-        label: Option<String>,
-        url: String,
-        at: Option<Expr>,
-        anchor: Option<Expr>,
-        offset: Option<Expr>,
-        size: Option<(f32, f32)>,
-        
-        span: Option<Span>,
-    },
-
     /// Actor: btn: Button, text: "OK"
-    /// Re-declaring an existing label triggers morphing logic in compiler
+    /// Also used for Text, Math, Code, Svg, Image declarations.
+    /// Re-declaring an existing label triggers morphing logic in compiler.
     ActorDecl {
         is_pub: bool,
         label: String,

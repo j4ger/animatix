@@ -1228,12 +1228,6 @@ impl Timeline {
     ) {
         for stmt in body {
             match stmt {
-                Stmt::Text { .. } | Stmt::Math { .. } | Stmt::Code { .. } => {
-                    self.process_text_like_statement(stmt, time_ms, parent_label, diagnostics)
-                }
-                Stmt::Svg { .. } | Stmt::Image { .. } => {
-                    self.process_media_statement(stmt, time_ms, parent_label, diagnostics)
-                }
                 Stmt::ActorDecl {
                     is_pub: _,
                     label,

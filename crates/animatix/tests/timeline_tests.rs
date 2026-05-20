@@ -2148,14 +2148,33 @@ fn test_image_properties_are_animatable() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Image {
-                label: Some("photo".to_string()),
-                url: example_path("checker.ppm"),
-                at: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)])),
-                anchor: None,
-                offset: None,
-                size: Some((48.0, 48.0)),
-            span: None,
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "photo".to_string(),
+                ty: "Image".to_string(),
+                props: vec![
+                    Property {
+                        name: "url".to_string(),
+                        value: Expr::Str(example_path("checker.ppm")),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(120.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(48.0), Expr::Num(48.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
             }],
             span: None,
         },
@@ -2209,13 +2228,26 @@ fn test_image_properties_are_animatable() {
 fn test_missing_image_statement_reports_media_load_failure() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Image {
-            label: Some("photo".to_string()),
-            url: "/definitely/missing/animatix-image.png".to_string(),
-            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-            anchor: None,
-            offset: None,
-            size: None,
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "photo".to_string(),
+            ty: "Image".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("/definitely/missing/animatix-image.png".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }],
         span: None,
@@ -2236,13 +2268,32 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
 
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Svg {
-            label: Some("icon".to_string()),
-            url: invalid_svg.display().to_string(),
-            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-            anchor: None,
-            offset: None,
-            scale: 1.0,
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "icon".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str(invalid_svg.display().to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(1.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }],
         span: None,
@@ -2449,14 +2500,33 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Image {
-                label: Some("photo".to_string()),
-                url: example_path("checker.ppm"),
-                at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-                anchor: None,
-                offset: None,
-                size: Some((32.0, 32.0)),
-            span: None,
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "photo".to_string(),
+                ty: "Image".to_string(),
+                props: vec![
+                    Property {
+                        name: "url".to_string(),
+                        value: Expr::Str(example_path("checker.ppm")),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(32.0), Expr::Num(32.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
             }],
             span: None,
         },
@@ -2487,14 +2557,33 @@ fn test_svg_url_assignment_succeeds() {
     let ast = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Svg {
-                label: Some("icon".to_string()),
-                url: example_path("vector.svg"),
-                at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-                anchor: None,
-                offset: None,
-                scale: 1.0,
-            span: None,
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                label: "icon".to_string(),
+                ty: "Svg".to_string(),
+                props: vec![
+                    Property {
+                        name: "url".to_string(),
+                        value: Expr::Str(example_path("vector.svg")),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "scale".to_string(),
+                        value: Expr::Num(1.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
             }],
             span: None,
         },
@@ -4341,13 +4430,32 @@ fn test_svg_primitive_reports_measured_size() {
     let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Svg {
-            label: Some("logo".to_string()),
-            url: svg_path,
-            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-            anchor: None,
-            offset: None,
-            scale: 1.0,
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "logo".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str(svg_path),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(1.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }],
         span: None,
@@ -4365,13 +4473,32 @@ fn test_scaled_svg_primitive_reports_scaled_size() {
     let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Svg {
-            label: Some("logo".to_string()),
-            url: svg_path,
-            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-            anchor: None,
-            offset: None,
-            scale: 2.0,
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "logo".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str(svg_path),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(2.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }],
         span: None,
@@ -4388,13 +4515,32 @@ fn test_svg_paths_are_centered_around_origin() {
     let svg_path = format!("{}/../../examples/vector.svg", env!("CARGO_MANIFEST_DIR"));
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
-        body: vec![Stmt::Svg {
-            label: Some("logo".to_string()),
-            url: svg_path,
-            at: Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
-            anchor: None,
-            offset: None,
-            scale: 1.0,
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            label: "logo".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str(svg_path),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(1.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }],
         span: None,

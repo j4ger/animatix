@@ -712,45 +712,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .then_ignore(text::keyword("Svg"))
             .then(block_props.clone())
-            .map(|(label, props)| {
-                let mut url = String::new();
-                let mut at = None;
-                let mut anchor = None;
-                let mut offset = None;
-                let mut scale = 1.0;
-                for p in props {
-                    match p.name.as_str() {
-                        "url" => {
-                            if let Expr::Str(s) = p.value {
-                                url = s;
-                            }
-                        }
-                        "at" => {
-                            at = Some(p.value);
-                        }
-                        "anchor" => {
-                            anchor = Some(p.value);
-                        }
-                        "offset" => {
-                            offset = Some(p.value);
-                        }
-                        "scale" => {
-                            if let Expr::Num(n) = p.value {
-                                scale = n as f32;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Stmt::Svg {
-                    label,
-                    url,
-                    at,
-                    anchor,
-                    offset,
-                    scale,
-                    span: None,
-                }
+            .map(|(label, props)| Stmt::ActorDecl {
+                is_pub: false,
+                label: label.unwrap_or_else(|| "unnamed_svg".to_string()),
+                ty: "Svg".to_string(),
+                props,
+                modifiers: vec![],
+                children: vec![],
+                span: None,
             })
             .padded();
 
@@ -760,51 +729,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .then_ignore(text::keyword("Image"))
             .then(block_props.clone())
-            .map(|(label, props)| {
-                let mut url = String::new();
-                let mut at = None;
-                let mut anchor = None;
-                let mut offset = None;
-                let mut size = None;
-                for p in props {
-                    match p.name.as_str() {
-                        "url" => {
-                            if let Expr::Str(s) = p.value {
-                                url = s;
-                            }
-                        }
-                        "at" => {
-                            at = Some(p.value);
-                        }
-                        "anchor" => {
-                            anchor = Some(p.value);
-                        }
-                        "offset" => {
-                            offset = Some(p.value);
-                        }
-                        "size" => {
-                            if let Expr::Tuple(t) = p.value {
-                                if t.len() == 2 {
-                                    if let Expr::Num(width) = t[0] {
-                                        if let Expr::Num(height) = t[1] {
-                                            size = Some((width as f32, height as f32));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Stmt::Image {
-                    label,
-                    url,
-                    at,
-                    anchor,
-                    offset,
-                    size,
-                    span: None,
-                }
+            .map(|(label, props)| Stmt::ActorDecl {
+                is_pub: false,
+                label: label.unwrap_or_else(|| "unnamed_image".to_string()),
+                ty: "Image".to_string(),
+                props,
+                modifiers: vec![],
+                children: vec![],
+                span: None,
             })
             .padded();
 

@@ -227,21 +227,19 @@ fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr)
         }
         // Add new property
         match actor_decl {
-            Stmt::ActorDecl { props, .. }
-            | Stmt::Text { props, .. }
-            | Stmt::Math { props, .. }
-            | Stmt::Code { props, .. } => {
+            Stmt::ActorDecl { ty, props, .. } => {
+                // Text, Math, Code types use generic props; Svg/Image use fixed schemas
+                if ty == "Svg" || ty == "Image" {
+                    // These use fixed prop schemas; insertion not supported.
+                    return false;
+                }
                 props.push(Property {
                     name: source_prop.into(),
                     value,
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 });
                 return true;
-            }
-            Stmt::Svg { .. } | Stmt::Image { .. } => {
-                // These use fixed prop schemas; insertion not supported.
-                return false;
             }
             _ => {}
         }
@@ -940,11 +938,6 @@ fn is_container_type(ty: &str) -> bool {
 fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
     match stmt {
         Stmt::ActorDecl { label: l, .. } if l == label => true,
-        Stmt::Text { label: Some(l), .. } if l == label => true,
-        Stmt::Math { label: Some(l), .. } if l == label => true,
-        Stmt::Code { label: Some(l), .. } if l == label => true,
-        Stmt::Svg { label: Some(l), .. } if l == label => true,
-        Stmt::Image { label: Some(l), .. } if l == label => true,
         _ => false,
     }
 }
@@ -957,41 +950,6 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
             props,
             modifiers,
             children,
-        },
-        Stmt::Text { label, props, .. } => InlineItem::Labeled {
-            label: label.unwrap_or_default(),
-            ty: "Text".into(),
-            props,
-            modifiers: vec![],
-            children: vec![],
-        },
-        Stmt::Math { label, props, .. } => InlineItem::Labeled {
-            label: label.unwrap_or_default(),
-            ty: "Math".into(),
-            props,
-            modifiers: vec![],
-            children: vec![],
-        },
-        Stmt::Code { label, props, .. } => InlineItem::Labeled {
-            label: label.unwrap_or_default(),
-            ty: "Code".into(),
-            props,
-            modifiers: vec![],
-            children: vec![],
-        },
-        Stmt::Svg { label, .. } => InlineItem::Labeled {
-            label: label.unwrap_or_default(),
-            ty: "Svg".into(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-        },
-        Stmt::Image { label, .. } => InlineItem::Labeled {
-            label: label.unwrap_or_default(),
-            ty: "Image".into(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
         },
         _ => InlineItem::Anonymous {
             ty: "Group".into(),
@@ -1139,11 +1097,6 @@ pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
     for stmt in stmts.iter() {
         match stmt {
             Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            Stmt::Text { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Math { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Code { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Svg { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Image { label: Some(l), .. } if l == label => return Some(stmt),
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -1186,11 +1139,6 @@ fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut
     for stmt in stmts.iter_mut() {
         match stmt {
             Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            Stmt::Text { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Math { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Code { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Svg { label: Some(l), .. } if l == label => return Some(stmt),
-            Stmt::Image { label: Some(l), .. } if l == label => return Some(stmt),
             // Recurse into containers
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
@@ -1283,10 +1231,7 @@ fn find_assignment_mut<'a>(
 /// Find a property by name inside an actor-like statement.
 fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property> {
     let props: &mut Vec<Property> = match stmt {
-        Stmt::ActorDecl { props, .. }
-        | Stmt::Text { props, .. }
-        | Stmt::Math { props, .. }
-        | Stmt::Code { props, .. } => props,
+        Stmt::ActorDecl { props, .. } => props,
         _ => return None,
     };
     props.iter_mut().find(|p| p.name == name)
@@ -1334,17 +1279,6 @@ fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
                 *label = new_label.into();
             }
             rename_in_inline_items(children, old_label, new_label);
-        }
-        Stmt::Text { label, .. }
-        | Stmt::Math { label, .. }
-        | Stmt::Code { label, .. }
-        | Stmt::Svg { label, .. }
-        | Stmt::Image { label, .. } => {
-            if let Some(l) = label {
-                if l == old_label {
-                    *l = new_label.into();
-                }
-            }
         }
         // Assignments: target = [..., "actor"] ; property = "prop"
         Stmt::Assignment { target, .. } => {

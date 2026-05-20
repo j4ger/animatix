@@ -227,22 +227,7 @@ fn component_bindings(params: &[ParamDef], instance_props: &[Property]) -> HashM
 fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
     for stmt in body {
         match stmt {
-            Stmt::Text {
-                label: Some(label), ..
-            }
-            | Stmt::Math {
-                label: Some(label), ..
-            }
-            | Stmt::Code {
-                label: Some(label), ..
-            }
-            | Stmt::ActorDecl { label, .. } => return Some(label.clone()),
-            Stmt::Svg {
-                label: Some(label), ..
-            }
-            | Stmt::Image {
-                label: Some(label), ..
-            } => return Some(label.clone()),
+            Stmt::ActorDecl { label, .. } => return Some(label.clone()),
             _ => {}
         }
     }
@@ -259,24 +244,7 @@ fn collect_labels(body: &[Stmt]) -> HashSet<String> {
 
 fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
     match stmt {
-        Stmt::Text {
-            label: Some(label), ..
-        }
-        | Stmt::Math {
-            label: Some(label), ..
-        }
-        | Stmt::Code {
-            label: Some(label), ..
-        }
-        | Stmt::ActorDecl { label, .. } => {
-            labels.insert(label.clone());
-        }
-        Stmt::Svg {
-            label: Some(label), ..
-        }
-        | Stmt::Image {
-            label: Some(label), ..
-        } => {
+        Stmt::ActorDecl { label, .. } => {
             labels.insert(label.clone());
         }
         Stmt::Drive { label, body, .. } => {

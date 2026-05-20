@@ -73,30 +73,6 @@ impl TextDeclarationKind {
 }
 
 impl Timeline {
-    pub(super) fn process_text_like_statement(
-        &mut self,
-        stmt: &Stmt,
-        time_ms: f64,
-        parent_label: Option<&str>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let kind = match stmt {
-            Stmt::Text { .. } => TextDeclarationKind::Text,
-            Stmt::Math { .. } => TextDeclarationKind::Math,
-            Stmt::Code { .. } => TextDeclarationKind::Code,
-            _ => unreachable!("process_text_like_statement only handles text-like statements"),
-        };
-        let (label, props, modifiers) = match stmt {
-            Stmt::Text { label, props, modifiers, .. }
-            | Stmt::Math { label, props, modifiers, .. }
-            | Stmt::Code { label, props, modifiers, .. } => {
-                (label.as_deref(), props, modifiers)
-            }
-            _ => unreachable!(),
-        };
-        self.process_text_declaration(kind, label, props, modifiers, time_ms, parent_label, diagnostics)
-    }
-
     fn process_text_declaration(
         &mut self,
         kind: TextDeclarationKind,

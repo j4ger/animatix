@@ -229,46 +229,6 @@ impl SymbolTable {
                 });
             }
 
-            Stmt::Text { label, props, .. } => {
-                if let Some(label) = label {
-                    self.labels.insert(label.clone(), LabelInfo {
-                        name: label.clone(),
-                        kind: LabelKind::Actor,
-                        line: 0,
-                        col: 0,
-                        ty: Some("Text".to_string()),
-                    });
-                    // Collect properties seen in this actor
-                    self.collect_actor_properties("Text", props);
-                }
-            }
-
-            Stmt::Math { label, props, .. } => {
-                if let Some(label) = label {
-                    self.labels.insert(label.clone(), LabelInfo {
-                        name: label.clone(),
-                        kind: LabelKind::Actor,
-                        line: 0,
-                        col: 0,
-                        ty: Some("Math".to_string()),
-                    });
-                    self.collect_actor_properties("Math", props);
-                }
-            }
-
-            Stmt::Code { label, props, .. } => {
-                if let Some(label) = label {
-                    self.labels.insert(label.clone(), LabelInfo {
-                        name: label.clone(),
-                        kind: LabelKind::Actor,
-                        line: 0,
-                        col: 0,
-                        ty: Some("Code".to_string()),
-                    });
-                    self.collect_actor_properties("Code", props);
-                }
-            }
-
             Stmt::ComponentDef(def, ..) => {
                 self.components.insert(def.name.clone(), ComponentInfo {
                     name: def.name.clone(),
@@ -439,23 +399,26 @@ mod tests {
     #[test]
     fn collects_properties_from_actors() {
         let stmts = vec![
-            Stmt::Text {
-                label: Some("title".to_string()),
+            Stmt::ActorDecl {
+                is_pub: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
                 props: vec![
                     Property {
                         name: "content".to_string(),
                         value: Expr::Str("Hello".to_string()),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                     Property {
                         name: "font_size".to_string(),
                         value: Expr::Num(24.0),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                 ],
                 modifiers: vec![],
+                children: vec![],
                 span: None,
             },
         ];

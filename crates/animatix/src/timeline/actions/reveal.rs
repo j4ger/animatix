@@ -470,41 +470,63 @@ mod tests {
     }
 
     fn image_decl(label: &str) -> Stmt {
-        Stmt::Image {
-            label: Some(label.to_string()),
-            url: "../../examples/checker.ppm".to_string(),
-            at: Some(Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)])),
-            anchor: None,
-            offset: None,
-            size: Some((120.0, 120.0)),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: label.to_string(),
+            ty: "Image".to_string(),
+            props: vec![
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("../../examples/checker.ppm".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         }
     }
 
     fn text_decl(label: &str) -> Stmt {
-        Stmt::Text {
-            label: Some(label.to_string()),
+        Stmt::ActorDecl {
+            is_pub: false,
+            label: label.to_string(),
+            ty: "Text".to_string(),
             props: vec![
                 Property {
                     name: "text".to_string(),
                     value: Expr::Str("Hello".to_string()),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(32.0),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
+            children: vec![],
             span: None,
         }
     }

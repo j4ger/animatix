@@ -8,95 +8,6 @@ pub(super) fn rewrite_stmt(
     bindings: &HashMap<String, Expr>,
 ) -> Stmt {
     match stmt {
-        Stmt::Text {
-            label,
-            props,
-            modifiers,
-            ..
-        } => Stmt::Text {
-            label: label
-                .as_ref()
-                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
-            props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
-            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            span: None,
-        },
-        Stmt::Math {
-            label,
-            props,
-            modifiers,
-            ..
-        } => Stmt::Math {
-            label: label
-                .as_ref()
-                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
-            props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
-            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            span: None,
-        },
-        Stmt::Code {
-            label,
-            props,
-            modifiers,
-            ..
-        } => Stmt::Code {
-            label: label
-                .as_ref()
-                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
-            props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
-            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            span: None,
-        },
-        Stmt::Svg {
-            label,
-            url,
-            at,
-            anchor,
-            offset,
-            scale,
-            ..
-        } => Stmt::Svg {
-            label: label
-                .as_ref()
-                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
-            url: url.clone(),
-            at: at
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            anchor: anchor
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            offset: offset
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            scale: *scale,
-            span: None,
-        },
-        Stmt::Image {
-            label,
-            url,
-            at,
-            anchor,
-            offset,
-            size,
-            ..
-        } => Stmt::Image {
-            label: label
-                .as_ref()
-                .map(|label| rewrite_label(label, prefix, root_label, known_labels)),
-            url: url.clone(),
-            at: at
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            anchor: anchor
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            offset: offset
-                .as_ref()
-                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
-            size: *size,
-            span: None,
-        },
         Stmt::ActorDecl {
             is_pub,
             label,
@@ -596,16 +507,22 @@ mod tests {
 
     #[test]
     fn rewrite_media_statement_position_expressions() {
-        let stmt = Stmt::Svg {
-            label: Some("logo".to_string()),
-            url: "examples/vector.svg".to_string(),
-            at: Some(Expr::Ident("badge".to_string())),
-            anchor: Some(Expr::Path(vec!["scene".to_string(), "top".to_string()])),
-            offset: Some(Expr::Tuple(vec![
-                Expr::Num(0.0),
-                Expr::Ident("delta".to_string()),
-            ])),
-            scale: 1.0,
+        let stmt = Stmt::ActorDecl {
+            is_pub: false,
+            label: "logo".to_string(),
+            ty: "Svg".to_string(),
+            props: vec![
+                Property { name: "url".to_string(), value: Expr::Str("examples/vector.svg".to_string()), value_span: None, trailing_comment: None },
+                Property { name: "at".to_string(), value: Expr::Ident("badge".to_string()), value_span: None, trailing_comment: None },
+                Property { name: "anchor".to_string(), value: Expr::Path(vec!["scene".to_string(), "top".to_string()]), value_span: None, trailing_comment: None },
+                Property { name: "offset".to_string(), value: Expr::Tuple(vec![
+                    Expr::Num(0.0),
+                    Expr::Ident("delta".to_string()),
+                ]), value_span: None, trailing_comment: None },
+                Property { name: "scale".to_string(), value: Expr::Num(1.0), value_span: None, trailing_comment: None },
+            ],
+            modifiers: vec![],
+            children: vec![],
             span: None,
         };
         let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);
@@ -614,25 +531,28 @@ mod tests {
         let rewritten = rewrite_stmt(&stmt, "hero", None, &known_labels, &bindings);
 
         match rewritten {
-            Stmt::Svg {
+            Stmt::ActorDecl {
                 label,
-                at,
-                anchor,
-                offset,
+                ty,
+                props,
                 ..
             } => {
-                assert_eq!(label.as_deref(), Some("hero.logo"));
-                assert_eq!(at, Some(Expr::Ident("hero.badge".to_string())));
+                assert_eq!(label, "hero.logo");
+                assert_eq!(ty, "Svg");
+                let get_prop = |name: &str| -> Option<&Expr> {
+                    props.iter().find(|p| p.name == name).map(|p| &p.value)
+                };
+                assert_eq!(get_prop("at"), Some(&Expr::Ident("hero.badge".to_string())));
                 assert_eq!(
-                    anchor,
-                    Some(Expr::Path(vec!["scene".to_string(), "top".to_string()]))
+                    get_prop("anchor"),
+                    Some(&Expr::Path(vec!["scene".to_string(), "top".to_string()]))
                 );
                 assert_eq!(
-                    offset,
-                    Some(Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]))
+                    get_prop("offset"),
+                    Some(&Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]))
                 );
             }
-            other => panic!("expected rewritten svg statement, got {other:?}"),
+            other => panic!("expected rewritten actor decl statement, got {other:?}"),
         }
     }
 }
