@@ -138,6 +138,33 @@ fn test_assignments_and_paths() {
         }
     );
 
+    // Easing extraction: linear
+    assert_eq!(
+        parse_single_stmt("btn.at = (100, 100) [ease: linear]"),
+        Stmt::Assignment {
+            target: vec!["btn".to_string()],
+            property: "at".to_string(),
+            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+            modifiers: vec![],
+            easing: Some(animatix::easing::Easing::Linear),
+            value_span: Some(ByteSpan { start: 9, end: 20 }),
+            span: None,
+        }
+    );
+    // Easing extraction: bounce
+    assert_eq!(
+        parse_single_stmt("btn.opacity = 0.5 [ease: bounce]"),
+        Stmt::Assignment {
+            target: vec!["btn".to_string()],
+            property: "opacity".to_string(),
+            value: Expr::Num(0.5),
+            modifiers: vec![],
+            easing: Some(animatix::easing::Easing::Bounce),
+            value_span: Some(ByteSpan { start: 14, end: 18 }),
+            span: None,
+        }
+    );
+    // No easing
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
