@@ -159,6 +159,7 @@ fn test_timeline_build_and_evaluate() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "actor1".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -185,6 +186,7 @@ fn test_timeline_build_and_evaluate() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "actor1".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![
@@ -299,6 +301,7 @@ fn config_colorscheme_seeds_scene_background_and_text_alias() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "title".to_string(),
                 ty: "Text".to_string(),
                 props: vec![
@@ -351,6 +354,7 @@ fn explicit_color_beats_colorscheme_alias() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -398,6 +402,7 @@ fn explicit_stroke_beats_stroke_alias() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "axis".to_string(),
                 ty: "Line".to_string(),
                 props: vec![
@@ -446,6 +451,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "alice".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
@@ -460,6 +466,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "bob".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
@@ -479,6 +486,7 @@ fn auto_color_alias_assigns_distinct_colors_and_keeps_identity() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "alice".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -520,6 +528,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "title".to_string(),
                     ty: "Text".to_string(),
                     props: vec![
@@ -542,6 +551,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "formula".to_string(),
                     ty: "Math".to_string(),
                     props: vec![
@@ -564,6 +574,7 @@ fn auto_color_assigns_deterministic_colors_to_text_math_and_code() {
                 },
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "snippet".to_string(),
                     ty: "Code".to_string(),
                     props: vec![
@@ -621,6 +632,7 @@ fn unknown_colorscheme_and_color_reference_report_diagnostics() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -666,6 +678,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                 // Text without explicit color should get text.primary
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "title".to_string(),
                     ty: "Text".to_string(),
                     props: vec![Property {
@@ -681,6 +694,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                 // Circle without explicit color should get surface.primary
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "badge".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
@@ -696,6 +710,7 @@ fn primitive_default_colors_apply_when_no_explicit_color() {
                 // Line without explicit stroke should get stroke.default
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "axis".to_string(),
                     ty: "Line".to_string(),
                     props: vec![
@@ -758,6 +773,7 @@ fn explicit_color_beats_primitive_default() {
                 // Circle with explicit color should keep it
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "explicit".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![
@@ -786,6 +802,7 @@ fn explicit_color_beats_primitive_default() {
                 // Circle with auto should use auto pool, not surface.primary
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "auto_color".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![
@@ -834,6 +851,7 @@ fn default_scheme_applies_primitive_defaults() {
             // Text without explicit color should get text.primary from default-dark
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "title".to_string(),
                 ty: "Text".to_string(),
                 props: vec![Property {
@@ -849,6 +867,7 @@ fn default_scheme_applies_primitive_defaults() {
             // Circle without explicit color should get surface.primary from default-dark
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -921,6 +940,7 @@ fn test_text_spacing_preserves_space_width() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "spaced".to_string(),
             ty: "Text".to_string(),
             props: vec![
@@ -948,6 +968,7 @@ fn test_text_spacing_preserves_space_width() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "tight".to_string(),
             ty: "Text".to_string(),
             props: vec![
@@ -996,6 +1017,7 @@ fn test_code_primitive_builds_text_paths() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "snippet".to_string(),
             ty: "Code".to_string(),
             props: vec![
@@ -1036,6 +1058,7 @@ fn test_code_primitive_respects_position_binding() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "anchored_code".to_string(),
             ty: "Code".to_string(),
             props: vec![
@@ -1130,6 +1153,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "snippet".to_string(),
                 ty: "Code".to_string(),
                 props: vec![Property {
@@ -1148,6 +1172,7 @@ fn test_code_primitive_redeclaration_updates_text_paths() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "snippet".to_string(),
                 ty: "Code".to_string(),
                 props: vec![Property {
@@ -1206,6 +1231,7 @@ fn test_rect_size_property_builds_shape() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "sq".to_string(),
             ty: "Rect".to_string(),
             props: vec![Property {
@@ -1237,6 +1263,7 @@ fn test_ellipse_uses_default_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "ell".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![],
@@ -1260,6 +1287,7 @@ fn test_polygon_sides_property_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "hex".to_string(),
             ty: "Polygon".to_string(),
             props: vec![
@@ -1296,6 +1324,7 @@ fn test_line_tip_properties_build_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "arrow".to_string(),
             ty: "Line".to_string(),
             props: vec![
@@ -1335,6 +1364,7 @@ fn test_line_size_track_defaults_to_zero() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "line".to_string(),
             ty: "Line".to_string(),
             props: vec![],
@@ -1361,6 +1391,7 @@ fn test_parametric_plot_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "graph".to_string(),
             ty: "Graph".to_string(),
             props: vec![
@@ -1443,6 +1474,7 @@ fn test_implicit_plot_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "graph".to_string(),
             ty: "Graph".to_string(),
             props: vec![
@@ -1539,6 +1571,7 @@ fn test_timeline_duration_seconds_uses_latest_keyframe() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "box".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![Property {
@@ -1691,6 +1724,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "source".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -1713,6 +1747,7 @@ fn rhs_path_lookup_reads_existing_actor_properties() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "mirror".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -1758,6 +1793,7 @@ fn rhs_path_lookup_supports_vector_components() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "source".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -1772,6 +1808,7 @@ fn rhs_path_lookup_supports_vector_components() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "target".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -2150,6 +2187,7 @@ fn test_image_properties_are_animatable() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "photo".to_string(),
                 ty: "Image".to_string(),
                 props: vec![
@@ -2230,6 +2268,7 @@ fn test_missing_image_statement_reports_media_load_failure() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "photo".to_string(),
             ty: "Image".to_string(),
             props: vec![
@@ -2270,6 +2309,7 @@ fn test_invalid_svg_statement_reports_media_load_failure() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "icon".to_string(),
             ty: "Svg".to_string(),
             props: vec![
@@ -2452,6 +2492,7 @@ fn test_media_actor_declaration_modifiers_report_unsupported_keys() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "photo".to_string(),
             ty: "Image".to_string(),
             props: vec![Property {
@@ -2502,6 +2543,7 @@ fn test_missing_image_url_assignment_reports_media_load_failure() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "photo".to_string(),
                 ty: "Image".to_string(),
                 props: vec![
@@ -2559,6 +2601,7 @@ fn test_svg_url_assignment_succeeds() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "icon".to_string(),
                 ty: "Svg".to_string(),
                 props: vec![
@@ -2616,6 +2659,7 @@ fn test_line_actor_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "axis".to_string(),
             ty: "Line".to_string(),
             props: vec![
@@ -2668,6 +2712,7 @@ fn test_ellipse_actor_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "halo".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -2712,6 +2757,7 @@ fn test_ellipse_radius_properties_build_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "ring".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -2756,6 +2802,7 @@ fn test_polygon_actor_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Polygon".to_string(),
             props: vec![Property {
@@ -2798,6 +2845,7 @@ fn test_path_actor_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "guide".to_string(),
             ty: "Path".to_string(),
             props: vec![Property {
@@ -2856,6 +2904,7 @@ fn test_path_quad_to_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "quad".to_string(),
             ty: "Path".to_string(),
             props: vec![Property {
@@ -2900,6 +2949,7 @@ fn test_line_assignments_rebuild_runtime_path() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "axis".to_string(),
                 ty: "Line".to_string(),
                 props: vec![
@@ -2954,6 +3004,7 @@ fn test_ellipse_assignments_rebuild_runtime_path() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "halo".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -3008,6 +3059,7 @@ fn test_ellipse_radius_assignments_rebuild_runtime_path() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "ring".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -3062,6 +3114,7 @@ fn test_ellipse_arc_negative_sweep_builds_runtime_path() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "ring".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -3098,6 +3151,7 @@ fn test_polygon_style_assignment_preserves_geometry() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Polygon".to_string(),
                 props: vec![Property {
@@ -3154,6 +3208,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Polygon".to_string(),
                 props: vec![Property {
@@ -3177,6 +3232,7 @@ fn test_polygon_redeclaration_rebuilds_geometry() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Polygon".to_string(),
                 props: vec![Property {
@@ -3222,6 +3278,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "guide".to_string(),
                 ty: "Path".to_string(),
                 props: vec![Property {
@@ -3250,6 +3307,7 @@ fn test_path_redeclaration_rebuilds_geometry() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "guide".to_string(),
                 ty: "Path".to_string(),
                 props: vec![Property {
@@ -3310,6 +3368,7 @@ fn test_path_commands_assignment_with_duration_morphs() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "guide".to_string(),
                 ty: "Path".to_string(),
                 props: vec![Property {
@@ -3372,6 +3431,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3390,6 +3450,7 @@ fn test_actor_morph_modifiers_require_timed_redeclaration() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3427,6 +3488,7 @@ fn test_action_reports_morph_only_modifier_keys_as_unsupported() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3473,6 +3535,7 @@ fn test_action_delay_starts_later() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3529,6 +3592,7 @@ fn test_sequence_advances_statement_timing() {
         body: vec![
 Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3599,6 +3663,7 @@ fn test_sequence_reports_unsupported_statements() {
         body: vec![Stmt::Sequence {
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "late_badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3629,6 +3694,7 @@ fn test_sequence_reports_unsupported_statements() {
 fn test_stagger_offsets_statement_start_times() {
     let actor = |label: &str| Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label: label.to_string(),
         ty: "Ellipse".to_string(),
         props: vec![Property {
@@ -3697,6 +3763,7 @@ fn test_stagger_reports_unsupported_statements() {
             }],
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "late_badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3737,6 +3804,7 @@ fn test_nested_sequence_timing() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -3826,6 +3894,7 @@ fn test_nested_stagger_timing() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "a".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![],
@@ -3835,6 +3904,7 @@ fn test_nested_stagger_timing() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "b".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![],
@@ -3844,6 +3914,7 @@ fn test_nested_stagger_timing() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "c".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![],
@@ -3926,6 +3997,7 @@ fn test_rotation_assignment_animates_track() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "panel".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![Property {
@@ -3983,6 +4055,7 @@ fn test_scales_animate_over_time() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "panel".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![
@@ -4036,6 +4109,7 @@ fn test_scale_assignment_animates_track() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "panel".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![Property {
@@ -4086,6 +4160,7 @@ fn test_delayed_first_declaration_stays_hidden_until_apply_time() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
@@ -4122,6 +4197,7 @@ fn test_duplicate_timing_modifiers_warn_and_last_value_wins() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
@@ -4180,6 +4256,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "shape".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -4206,6 +4283,7 @@ fn test_timed_redeclaration_stores_and_uses_morph_options() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "shape".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![
@@ -4270,6 +4348,7 @@ fn test_row_child_with_explicit_origin_stays_manual() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -4320,6 +4399,7 @@ fn test_text_primitive_reports_measured_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "title".to_string(),
             ty: "Text".to_string(),
             props: vec![
@@ -4357,6 +4437,7 @@ fn test_math_primitive_reports_measured_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "formula".to_string(),
             ty: "Math".to_string(),
             props: vec![
@@ -4394,6 +4475,7 @@ fn test_code_primitive_reports_measured_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "snippet".to_string(),
             ty: "Code".to_string(),
             props: vec![
@@ -4432,6 +4514,7 @@ fn test_svg_primitive_reports_measured_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "logo".to_string(),
             ty: "Svg".to_string(),
             props: vec![
@@ -4475,6 +4558,7 @@ fn test_scaled_svg_primitive_reports_scaled_size() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "logo".to_string(),
             ty: "Svg".to_string(),
             props: vec![
@@ -4517,6 +4601,7 @@ fn test_svg_paths_are_centered_around_origin() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "logo".to_string(),
             ty: "Svg".to_string(),
             props: vec![
@@ -4710,6 +4795,7 @@ fn test_row_child_without_at_is_layout_managed() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![
@@ -4763,6 +4849,7 @@ fn test_row_mixed_manual_and_layout_children() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![
@@ -4847,6 +4934,7 @@ fn test_col_child_with_explicit_origin_stays_manual() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "col".to_string(),
             ty: "Col".to_string(),
             props: vec![
@@ -4905,6 +4993,7 @@ fn test_row_child_with_explicit_non_origin_stays_manual() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -4956,6 +5045,7 @@ fn test_assignment_at_marks_manual_from_assignment_start() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "child".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -5010,6 +5100,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "child".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -5028,6 +5119,7 @@ fn test_redeclaration_binding_change_does_not_apply_before_keyframe() {
             offset: Time::Seconds(1.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "child".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -5079,6 +5171,7 @@ fn test_root_row_without_at_uses_container_default_center_binding() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -5111,6 +5204,7 @@ fn test_grid_layout_positions_children_in_cells() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "grid".to_string(),
             ty: "Grid".to_string(),
             props: vec![
@@ -5228,6 +5322,7 @@ fn test_stack_layout_overlaps_children_by_default() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "stack".to_string(),
             ty: "Stack".to_string(),
             props: vec![],
@@ -5290,6 +5385,7 @@ fn test_row_with_text_children_uses_measured_bounds() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -5570,6 +5666,7 @@ fn test_col_with_code_child_uses_measured_bounds() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "col".to_string(),
             ty: "Col".to_string(),
             props: vec![Property {
@@ -5636,6 +5733,7 @@ fn test_row_with_mixed_authored_and_measured_children() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -5740,6 +5838,7 @@ fn test_row_align_start_uses_measured_child_height() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "row".to_string(),
             ty: "Row".to_string(),
             props: vec![Property {
@@ -5806,6 +5905,7 @@ fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "grid".to_string(),
                 ty: "Grid".to_string(),
                 props: vec![],
@@ -5815,6 +5915,7 @@ fn test_root_grid_and_stack_without_at_use_container_default_center_binding() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "stack".to_string(),
                 ty: "Stack".to_string(),
                 props: vec![],
@@ -5886,6 +5987,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "anchored".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![
@@ -5908,6 +6010,7 @@ fn test_scene_relative_bindings_are_recorded_on_tracks() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "percent".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![Property {
@@ -5958,6 +6061,7 @@ fn test_plot_without_at_stays_local_to_parent_graph() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "graph".to_string(),
             ty: "Graph".to_string(),
             props: vec![Property {
@@ -6505,6 +6609,7 @@ fn test_namespace_export_resolution_in_expressions() {
         },
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "panel".to_string(),
             ty: "Rect".to_string(),
             props: vec![
@@ -7294,6 +7399,7 @@ fn test_graph_with_parametric_plot_in_grid_is_layout_managed() {
         time: Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "graph_grid".to_string(),
             ty: "Grid".to_string(),
             props: vec![

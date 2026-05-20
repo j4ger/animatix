@@ -579,6 +579,7 @@ fn insert_actor(
     // Insert at top-level
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label: label.into(),
         ty: ty.into(),
         props,
@@ -944,7 +945,7 @@ fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
 
 fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
     match stmt {
-        Stmt::ActorDecl { label, ty, props, modifiers, children, .. } if label.starts_with("__anon") => {
+        Stmt::ActorDecl { is_anonymous: true, ty, props, modifiers, children, .. } => {
             InlineItem::Anonymous {
                 ty,
                 props,
@@ -972,6 +973,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
     match item {
         InlineItem::Labeled { label, ty, props, modifiers, children } => Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label,
             ty,
             props,
@@ -981,6 +983,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
         },
         InlineItem::Anonymous { ty, props, modifiers, children } => Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: true,
             label: format!("__anon_root_{}", index),
             ty,
             props,
@@ -990,6 +993,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
         },
         InlineItem::SlotFill { slot, items, .. } => Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: format!("__slot_{}", slot),
             ty: "Group".into(),
             props: vec![],
@@ -1001,6 +1005,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
             // Slot markers can't be converted to statements
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "__slot_marker".into(),
                 ty: "Group".into(),
                 props: vec![],

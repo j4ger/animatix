@@ -18,6 +18,7 @@ pub(super) fn rewrite_stmt(
             ..
         } => Stmt::ActorDecl {
             is_pub: *is_pub,
+            is_anonymous: false,
             label: rewrite_label(label, prefix, root_label, known_labels),
             ty: ty.clone(),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
@@ -509,6 +510,7 @@ mod tests {
     fn rewrite_media_statement_position_expressions() {
         let stmt = Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "logo".to_string(),
             ty: "Svg".to_string(),
             props: vec![

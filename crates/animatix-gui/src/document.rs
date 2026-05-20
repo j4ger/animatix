@@ -442,6 +442,7 @@ mod tests {
                 time: Time::Seconds(0.0),
                 body: vec![Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "box".to_string(),
                     ty: "Rect".to_string(),
                     props: vec![Property {
@@ -513,6 +514,7 @@ mod tests {
                 time: Time::Seconds(0.0),
                 body: vec![Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "box".to_string(),
                     ty: "Rect".to_string(),
                     props: vec![Property {

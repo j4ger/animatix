@@ -396,6 +396,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
         body: vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "panel.badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
@@ -424,6 +425,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
             },
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "echo".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![

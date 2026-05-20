@@ -568,6 +568,7 @@ fn convert_group(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Group".into(),
         props,
@@ -611,6 +612,7 @@ fn convert_rect(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Rect".into(),
         props,
@@ -650,6 +652,7 @@ fn convert_circle(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Ellipse".into(),
         props,
@@ -692,6 +695,7 @@ fn convert_ellipse(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Ellipse".into(),
         props,
@@ -733,6 +737,7 @@ fn convert_path(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Path".into(),
         props,
@@ -784,6 +789,7 @@ fn convert_line(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Line".into(),
         props,
@@ -840,6 +846,7 @@ fn convert_poly(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Path".into(),
         props,
@@ -881,6 +888,7 @@ fn convert_text(
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
+        is_anonymous: false,
         label,
         ty: "Text".into(),
         props,

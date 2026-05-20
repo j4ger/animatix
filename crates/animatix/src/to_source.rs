@@ -333,9 +333,10 @@ impl ToSource for Stmt {
                 let pub_kw = if *is_pub { "pub " } else { "" };
                 format!("{}let {} = {}", pub_kw, name, value.to_source())
             }
-            Stmt::ActorDecl { is_pub, label, ty, props, modifiers, children, .. } => {
+            Stmt::ActorDecl { is_pub, is_anonymous, label, ty, props, modifiers, children, .. } => {
                 let s = serialize_actor_like_stmt(
                     Some(label),
+                    *is_anonymous,
                     ty,
                     props,
                     modifiers,
@@ -470,14 +471,14 @@ impl ToSource for Stmt {
 /// Serialize actor-like statements (Text, Math, Code, Svg, Image, ActorDecl).
 fn serialize_actor_like_stmt(
     label: Option<&str>,
+    is_anonymous: bool,
     ty: &str,
     props: &[Property],
     modifiers: &[Modifier],
     children: &[InlineItem],
 ) -> String {
     let mut parts = Vec::new();
-    // Anonymous items have synthetic labels like __anon_parent_0 — emit without label.
-    let is_anonymous = label.map_or(false, |l| l.starts_with("__anon"));
+    // Anonymous items have synthetic labels — emit without label.
     if let Some(lbl) = label.filter(|_| !is_anonymous) {
         parts.push(format!("{}: {}", lbl, ty));
     } else {

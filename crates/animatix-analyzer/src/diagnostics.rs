@@ -342,6 +342,7 @@ mod tests {
         let stmts = vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "thing".to_string(),
                 ty: "UnknownType".to_string(),
                 props: vec![],

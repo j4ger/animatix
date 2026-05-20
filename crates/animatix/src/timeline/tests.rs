@@ -292,6 +292,7 @@ fn test_colorscheme_auto_cycle() {
         },
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "a".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
@@ -306,6 +307,7 @@ fn test_colorscheme_auto_cycle() {
         },
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "b".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
@@ -349,6 +351,7 @@ fn test_runtime_text_recompilation() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "counter".to_string(),
                     ty: "Text".to_string(),
                     props: vec![
@@ -430,6 +433,7 @@ fn test_drive_block_scopes_assignments() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "tracker".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![
@@ -603,6 +607,7 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "tracker".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![
@@ -721,6 +726,7 @@ fn test_reactive_binding_desugars_to_modifier() {
             body: vec![
                 Stmt::ActorDecl {
                     is_pub: false,
+                    is_anonymous: false,
                     label: "orbiter".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![

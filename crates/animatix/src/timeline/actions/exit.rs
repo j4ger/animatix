@@ -77,6 +77,7 @@ mod tests {
     fn text_decl(label: &str) -> Stmt {
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: label.to_string(),
             ty: "Text".to_string(),
             props: vec![

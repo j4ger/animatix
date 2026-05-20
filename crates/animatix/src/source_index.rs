@@ -198,6 +198,7 @@ mod tests {
     fn source_index_indexes_actor_decl_properties() {
         let stmts = vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "btn".to_string(),
             ty: "Button".to_string(),
             props: vec![
@@ -252,6 +253,7 @@ mod tests {
     fn source_index_handles_at_position_aliasing() {
         let stmts = vec![Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "icon".to_string(),
             ty: "Image".to_string(),
             props: vec![Property {
@@ -347,6 +349,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "card".to_string(),
                 ty: "Rect".to_string(),
                 props: vec![Property {

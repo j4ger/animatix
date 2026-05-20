@@ -337,6 +337,7 @@ mod tests {
         let stmts = vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "btn".to_string(),
                 ty: "Button".to_string(),
                 props: vec![],
@@ -391,6 +392,7 @@ mod tests {
         let stmts = vec![
             Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: "title".to_string(),
                 ty: "Text".to_string(),
                 props: vec![

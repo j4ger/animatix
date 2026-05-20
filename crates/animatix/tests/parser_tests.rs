@@ -329,6 +329,7 @@ fn test_actor_decl_full() {
         parse_single_stmt("circle: Ellipse, radius: 50, color: blue [2s, ease: bounce]"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "circle".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -391,6 +392,7 @@ fn test_actor_decl_colorscheme_alias_parse() {
         parse_single_stmt("badge: Ellipse, color: auto, stroke: stroke.default"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -420,6 +422,7 @@ fn test_text_colorscheme_alias_parse() {
         parse_single_stmt("title: Text, text: \"Animatix\", color: text.primary"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "title".to_string(),
             ty: "Text".to_string(),
             props: vec![
@@ -449,6 +452,7 @@ fn test_modifier_delay_and_duplicates_parse() {
         parse_single_stmt("badge: Ellipse, radius: 20 [delay: 250ms, ease: ease-in, ease: bounce]"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![Property {
@@ -514,6 +518,7 @@ fn test_modifier_delay_and_duplicates_parse() {
         parse_single_stmt("card: MetricCard, title: \"Latency\""),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "card".to_string(),
             ty: "MetricCard".to_string(),
             props: vec![Property {
@@ -535,6 +540,7 @@ fn test_code_stmt_parse() {
         parse_single_stmt("snippet: Code, code: \"fn main() {}\", font_size: 18"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "snippet".to_string(),
             ty: "Code".to_string(),
             props: vec![
@@ -566,6 +572,7 @@ fn test_image_stmt() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "photo".to_string(),
             ty: "Image".to_string(),
             props: vec![
@@ -603,6 +610,7 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "icon".to_string(),
             ty: "Svg".to_string(),
             props: vec![
@@ -646,6 +654,7 @@ fn test_image_stmt_preserves_anchor_and_offset() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "photo".to_string(),
             ty: "Image".to_string(),
             props: vec![
@@ -690,6 +699,7 @@ fn test_line_actor_decl() {
         parse_single_stmt("axis: Line, from: (-40, 0), to: (40, 0), stroke: blue, stroke_width: 3"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "axis".to_string(),
             ty: "Line".to_string(),
             props: vec![
@@ -734,6 +744,7 @@ fn test_ellipse_actor_decl() {
         parse_single_stmt("halo: Ellipse, radius_x: 80, radius_y: 30, color: green"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "halo".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -771,6 +782,7 @@ fn test_arc_actor_decl() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "ring".to_string(),
             ty: "Ellipse".to_string(),
             props: vec![
@@ -820,6 +832,7 @@ fn test_polygon_actor_decl() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "badge".to_string(),
             ty: "Polygon".to_string(),
             props: vec![
@@ -862,6 +875,7 @@ fn test_path_actor_decl() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "guide".to_string(),
             ty: "Path".to_string(),
             props: vec![
@@ -918,6 +932,7 @@ fn test_actor_decl_nested() {
         parse_single_stmt("group: Group { a: Ellipse, size: 10, b: Rect, size: 20 }"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "group".to_string(),
             ty: "Group".to_string(),
             props: vec![],
@@ -959,6 +974,7 @@ fn test_actor_decl_anonymous() {
         parse_single_stmt("group: Group { Ellipse, size: 10, Rect, size: 20 }"),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "group".to_string(),
             ty: "Group".to_string(),
             props: vec![],
@@ -1002,6 +1018,7 @@ fn test_actor_decl_nested_with_children() {
         ),
         Stmt::ActorDecl {
             is_pub: false,
+            is_anonymous: false,
             label: "group".to_string(),
             ty: "Group".to_string(),
             props: vec![],

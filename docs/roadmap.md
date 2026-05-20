@@ -228,11 +228,13 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix/src/timeline/property_registry.rs`, `primitives/`
 
-**Issue:** `ActorField::default_value()` (added for 6.8) and primitive `default_props()` methods define the same defaults in two places. For example, `FontSize` defaults to `48.0` in both. If one changes, the other won't.
+**Status:** By design.
 
-**Fix:** Make `default_props()` derive from `ActorField::default_value()`, or vice versa. The primitive should own the defaults since they're type-specific.
+**Issue:** `ActorField::default_value()` and primitive `default_props()` appear to duplicate defaults.
 
-**Effort:** Low.
+**Resolution:** The two systems serve different purposes. `ActorField::default_value()` is the engine's safe fallback when a track field has no value. Primitive `default_props()` are type-specific starting values for new actors (e.g., `font_size` is 48.0 for Text but 24.0 for Code). They are allowed to diverge intentionally.
+
+**Effort:** N/A.
 
 ---
 

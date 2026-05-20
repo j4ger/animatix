@@ -734,6 +734,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(block_props.clone())
             .map(|(label, props)| Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: label.unwrap_or_else(|| "unnamed_svg".to_string()),
                 ty: "Svg".to_string(),
                 props,
@@ -751,6 +752,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(block_props.clone())
             .map(|(label, props)| Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label: label.unwrap_or_else(|| "unnamed_image".to_string()),
                 ty: "Image".to_string(),
                 props,
@@ -768,6 +770,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(modifiers.clone())
             .map(|((label, text), modifiers)| Stmt::ActorDecl {
                 is_pub: false,
+                is_anonymous: false,
                 label,
                 ty: "Text".to_string(),
                 props: vec![Property {
@@ -812,6 +815,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .map(
                 |(((((is_pub, label), ty), props), modifiers), children)| Stmt::ActorDecl {
                     is_pub,
+                    is_anonymous: false,
                     label,
                     ty,
                     props,

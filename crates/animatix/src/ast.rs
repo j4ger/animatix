@@ -361,6 +361,7 @@ pub enum Stmt {
     /// Re-declaring an existing label triggers morphing logic in compiler.
     ActorDecl {
         is_pub: bool,
+        is_anonymous: bool,
         label: String,
         ty: String,
         props: Vec<Property>,

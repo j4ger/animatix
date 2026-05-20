@@ -331,6 +331,7 @@ fn resolve_slots(
 
                     Stmt::ActorDecl {
                         is_pub: *is_pub,
+                        is_anonymous: false,
                         label: label.clone(),
                         ty: ty.clone(),
                         props: props.clone(),

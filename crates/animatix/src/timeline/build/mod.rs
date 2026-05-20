@@ -435,6 +435,7 @@ impl Timeline {
                     let id = format!("__anon_{}_{}", parent_label, index);
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
+                        is_anonymous: true,
                         label: id.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
@@ -453,6 +454,7 @@ impl Timeline {
                 } => {
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
+                        is_anonymous: false,
                         label: label.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
