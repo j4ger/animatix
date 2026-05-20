@@ -43,9 +43,9 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 2 | ~~Coordinate Transform struct (6.3)~~ | Low | High |
 | 3 | ~~Icon mapping simplification (6.4)~~ | Low | Medium |
 | 4 | ~~Panel state persistence (6.5)~~ | Low | Medium |
-| 5 | Easing in AST assignments (6.6) | Medium | Medium |
+| 5 | ~~Easing in AST assignments (6.6)~~ | Medium | Medium |
 | 6 | ~~InlineItem naming cleanup (6.2)~~ | Low | Low |
-| 7 | Uniform AST actor abstraction (6.7) | High | Medium |
+| 7 | ~~Uniform AST actor abstraction (6.7)~~ | High | Medium |
 | 8 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
 ---
@@ -139,8 +139,10 @@ The test catches misses, but it's pure duplication.
 
 **Location:** `crates/animatix/src/ast.rs`
 
-**Issue:** `Stmt` has 6+ actor-like variants (`ActorDecl`, `Text`, `Math`, `Code`, `Svg`, `Image`) with inconsistent fields. Generic operations like reparenting (3.13) require large manual match blocks, and some variants lack `props` entirely (`Svg`, `Image`).
+**Status:** Fixed.
 
-**Fix:** Introduce a uniform `ActorDecl`-like structure that all actor statements share. Specialized variants (`Svg`, `Image`) should store their extra fields *inside* a common `ActorDecl` via `props` or a typed extension, rather than being parallel enum variants.
+**Issue:** `Stmt` had 6+ actor-like variants (`ActorDecl`, `Text`, `Math`, `Code`, `Svg`, `Image`) with inconsistent fields. Generic operations like reparenting required large manual match blocks, and some variants lacked `props` entirely (`Svg`, `Image`).
 
-**Effort:** High. Massive AST refactor touching parser, serializer, timeline builder, and renderer.
+**Fix:** ~~Introduce a uniform `ActorDecl`-like structure that all actor statements share.~~ All actor types (`Text`, `Math`, `Code`, `Svg`, `Image`) are now represented as `Stmt::ActorDecl` with their type in the `ty` field. The parser emits `ActorDecl` for all actors; the timeline builder dispatches by type name via the primitive system. This eliminated 5 enum variants and ~40 redundant match arms.
+
+**Effort:** High. Massive AST refactor touching parser, serializer, timeline builder, module system, source editor, analyzer, and renderer.
