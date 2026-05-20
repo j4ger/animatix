@@ -7,8 +7,7 @@
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Analyzer integration (7.1) | Medium | Low |
-| 2 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
+| 1 | Green tree / trivia AST (2.2) | Very High | Low (polish) |
 
 ---
 
@@ -39,17 +38,3 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
 
 **Effort:** High. Massive parser rewrite.
-
----
-
-## 7. Deferred Work
-
-### 7.1 Analyzer Integration
-
-**Location:** `crates/animatix-analyzer/`
-
-**Issue:** The analyzer crate has symbol table and diagnostics code, but it's not wired into the LSP or GUI. The analyzer collects symbols but nothing consumes them yet.
-
-**Fix:** Wire the analyzer into the LSP for completions/diagnostics, or into the GUI for inline error display. The infrastructure exists but the integration layer is missing.
-
-**Effort:** Medium. Not blocking any current work.
