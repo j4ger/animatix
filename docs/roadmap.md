@@ -3,28 +3,6 @@
 > Forward-looking view of known gaps, planned features, and deferred work.
 > For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
 
-## 3. Code Quality
-
-### 3.1 Reduce unwrap/expect/panic Usage
-
-**Issue:** ~403 unwrap/expect/panic instances across the codebase (293 unwrap + 89 expect + 21 panic). CLI crashes on bad input; long renders can fail mid-way losing all progress.
-
-**Fix:** Layered error handling — parser uses `Diagnostic` for syntax errors; build uses `BuildReport` for semantic errors; runtime uses `Result` for frame errors. Prioritize high-frequency modules: `renderer/*`, `timeline/build.rs`, `parser.rs`.
-
-**Effort:** High. Large refactor.
-
----
-
-### 3.2 video.rs Unsafe Code Cleanup
-
-**Issue:** Duplicated `rgba.as_ptr() as *mut u8` pointer casts in video export. Potential aliasing violations with `rsmpeg::ffi`.
-
-**Fix:** Extract shared `fill_rgba_frame(ptr, w, h)` helper. Audit whether `rsmpeg::AVFrame::fill_arrays` truly requires mutable pointer. Add `// SAFETY:` comments.
-
-**Effort:** Low.
-
----
-
 ## 4. Long-Term / Speculative
 
 ### 4.1 Per-Actor Updater with `dt`
@@ -67,8 +45,6 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Reduce unwrap/panic (3.1) | High | Medium |
-| 2 | video.rs unsafe cleanup (3.2) | Low | Low |
-| 3 | Per-actor updater (4.1) | High | Medium |
-| 4 | Green tree / trivia AST (4.3) | Very High | Low |
-| 5 | Web Canvas (4.2) | Very High | Low |
+| 1 | Per-actor updater (4.1) | High | Medium |
+| 2 | Green tree / trivia AST (4.3) | Very High | Low |
+| 3 | Web Canvas (4.2) | Very High | Low |
