@@ -5,28 +5,18 @@
 
 ## 1. Quick Wins
 
-Low effort, high user value. Can be done in 1-2 sessions.
+### ~~1.1 Document `always` Built-in Variables~~
 
-### 1.1 Document `always` Built-in Variables
-
-**Issue:** The `t` variable (scene-local time in seconds) is available in `always` blocks but not documented. Users cannot tell whether `t` is global or scene-local, or whether it accumulates across scenes.
-
-**Fix:** Add a "Built-in Variables" section to `spec.md` documenting `t` (scene-local, 0 at scene start), `dt` (if available), and any other frame-local bindings.
-
-**Effort:** Low.
+**Status:** Fixed. Added "Built-in Variables" section to `spec.md` documenting `t` (scene-local time in seconds), `scene_width`, `scene_height`, and scene anchor points.
 
 ---
 
-### 1.2 Add Missing Examples
+### ~~1.2 Add Missing Examples~~
 
-**Issue:** Several implemented features have no example files:
-- `Arrow` shape (has `from`/`to`/`tip_length`/`tip_width`, but no `.amx` demo)
-- `VectorField`, `Heatmap`, `ContourSet` (implemented, spec mentions them, but `plotting.amx` only shows `Graph` + `PlotCurve`)
-- `pub component` as a template/reuse mechanism (users don't discover it)
-
-**Fix:** Add `examples/arrow_demo.amx`, extend `examples/plotting.amx` with vector field and heatmap, add `examples/component_template_demo.amx` showing parameterized reusable definitions.
-
-**Effort:** Low.
+**Status:** Fixed.
+- `examples/arrow_demo.amx` — demonstrates Line with arrowheads via `size: (tip_len*2, tip_width*2)`
+- `examples/plotting.amx` — extended with `VectorField` and `Heatmap`
+- `examples/component_template_demo.amx` — demonstrates `pub component` as reusable parameterized templates
 
 ---
 
@@ -176,8 +166,8 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Document `always` variables (1.1) | Low | High |
-| 2 | Add missing examples (1.2) | Low | High |
+| 1 | ~~Document `always` variables (1.1)~~ | Low | High |
+| 2 | ~~Add missing examples (1.2)~~ | Low | High |
 | 3 | Expand builtin functions (2.7) | Low | High |
 | 4 | NumberPlane component (2.1) | Medium | High |
 | 5 | Math coordinate mapping (2.2) | Medium | High |
