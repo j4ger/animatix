@@ -621,7 +621,7 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 
 (x, y) => x + y      // multiple params
 ```
 
-**Built-in math:** `sin(x)`, `cos(x)`, `lerp(a, b, t)`, `rand()`, `format("template {}", value, ...)`
+**Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `atan2(y, x)`, `clamp(val, min, max)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `floor(x)`, `ceil(x)`, `lerp(a, b, t)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
 
 ---
 

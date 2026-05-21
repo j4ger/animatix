@@ -9,6 +9,17 @@ pub enum BuiltinFn {
     Cos,
     Lerp,
     Format,
+    Tan,
+    Sqrt,
+    Exp,
+    Log,
+    Atan2,
+    Clamp,
+    Abs,
+    Min,
+    Max,
+    Floor,
+    Ceil,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -197,6 +208,17 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
                 "cos" => BuiltinFn::Cos,
                 "lerp" => BuiltinFn::Lerp,
                 "format" => BuiltinFn::Format,
+                "tan" => BuiltinFn::Tan,
+                "sqrt" => BuiltinFn::Sqrt,
+                "exp" => BuiltinFn::Exp,
+                "log" => BuiltinFn::Log,
+                "atan2" => BuiltinFn::Atan2,
+                "clamp" => BuiltinFn::Clamp,
+                "abs" => BuiltinFn::Abs,
+                "min" => BuiltinFn::Min,
+                "max" => BuiltinFn::Max,
+                "floor" => BuiltinFn::Floor,
+                "ceil" => BuiltinFn::Ceil,
                 _ => return None,
             };
             Some(CompiledExpr::CallBuiltin(
@@ -322,6 +344,17 @@ pub fn evaluate_compiled_expr(expr: &CompiledExpr, env: &Environment) -> Result<
                 BuiltinFn::Cos => eval_cos(&args),
                 BuiltinFn::Lerp => eval_lerp(&args),
                 BuiltinFn::Format => eval_format(&args),
+                BuiltinFn::Tan => eval_tan(&args),
+                BuiltinFn::Sqrt => eval_sqrt(&args),
+                BuiltinFn::Exp => eval_exp(&args),
+                BuiltinFn::Log => eval_log(&args),
+                BuiltinFn::Atan2 => eval_atan2(&args),
+                BuiltinFn::Clamp => eval_clamp(&args),
+                BuiltinFn::Abs => eval_abs(&args),
+                BuiltinFn::Min => eval_min(&args),
+                BuiltinFn::Max => eval_max(&args),
+                BuiltinFn::Floor => eval_floor(&args),
+                BuiltinFn::Ceil => eval_ceil(&args),
             }
         }
     }
@@ -385,6 +418,107 @@ pub(crate) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
         output = output.replacen("{}", &replacement, 1);
     }
     Ok(Value::Str(output))
+}
+
+pub(crate) fn eval_tan(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "tan expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().tan()))
+}
+
+pub(crate) fn eval_sqrt(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "sqrt expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().sqrt()))
+}
+
+pub(crate) fn eval_exp(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "exp expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().exp()))
+}
+
+pub(crate) fn eval_log(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "log expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().ln()))
+}
+
+pub(crate) fn eval_atan2(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::TypeMismatch(
+            "atan2 expects 2 arguments".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().atan2(args[1].as_num())))
+}
+
+pub(crate) fn eval_clamp(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 3 {
+        return Err(EvalError::TypeMismatch(
+            "clamp expects 3 arguments".to_string(),
+        ));
+    }
+    Ok(Value::Num(
+        args[0].as_num().clamp(args[1].as_num(), args[2].as_num()),
+    ))
+}
+
+pub(crate) fn eval_abs(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "abs expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().abs()))
+}
+
+pub(crate) fn eval_min(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::TypeMismatch(
+            "min expects 2 arguments".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().min(args[1].as_num())))
+}
+
+pub(crate) fn eval_max(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::TypeMismatch(
+            "max expects 2 arguments".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().max(args[1].as_num())))
+}
+
+pub(crate) fn eval_floor(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "floor expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().floor()))
+}
+
+pub(crate) fn eval_ceil(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "ceil expects 1 argument".to_string(),
+        ));
+    }
+    Ok(Value::Num(args[0].as_num().ceil()))
 }
 
 pub(crate) fn apply_binary_op(

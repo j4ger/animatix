@@ -1,6 +1,8 @@
 use super::ir::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
-    apply_binary_op, eval_cos, eval_format, eval_lerp, eval_sin, make_vec_value,
+    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_exp, eval_floor,
+    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_sin, eval_sqrt, eval_tan,
+    make_vec_value,
 };
 use crate::ast::BinaryOp;
 use crate::timeline::{Environment, EvalError, Value};
@@ -262,6 +264,17 @@ impl ModifierVm {
                         BuiltinFn::Cos => eval_cos(&args),
                         BuiltinFn::Lerp => eval_lerp(&args),
                         BuiltinFn::Format => eval_format(&args),
+                        BuiltinFn::Tan => eval_tan(&args),
+                        BuiltinFn::Sqrt => eval_sqrt(&args),
+                        BuiltinFn::Exp => eval_exp(&args),
+                        BuiltinFn::Log => eval_log(&args),
+                        BuiltinFn::Atan2 => eval_atan2(&args),
+                        BuiltinFn::Clamp => eval_clamp(&args),
+                        BuiltinFn::Abs => eval_abs(&args),
+                        BuiltinFn::Min => eval_min(&args),
+                        BuiltinFn::Max => eval_max(&args),
+                        BuiltinFn::Floor => eval_floor(&args),
+                        BuiltinFn::Ceil => eval_ceil(&args),
                     }?;
                     self.stack.push(result);
                     self.ip += 1;
