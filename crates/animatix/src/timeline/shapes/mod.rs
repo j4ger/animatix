@@ -256,6 +256,7 @@ pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
 
     match ty {
         "Graph" => Some(ShapeType::Graph),
+        "NumberPlane" => Some(ShapeType::Graph),
         "PlotCurve" => Some(ShapeType::Plot),
         _ => None,
     }

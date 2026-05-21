@@ -723,8 +723,8 @@ impl Timeline {
             return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color, false, false);
         }
 
-        // VectorField, Heatmap, ContourSet are build-time only; no runtime re-evaluation.
-        if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" {
+        // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime re-evaluation.
+        if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" || ty == "NumberPlane" {
             return vec![];
         }
 

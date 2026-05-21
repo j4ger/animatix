@@ -1,0 +1,50 @@
+// NumberPlane demo: coordinate system with axes, grid lines, and tick marks.
+// x_range and y_range control where grid lines and ticks appear.
+// x_domain and y_domain control the visible portion of the coordinate plane.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+
+// Basic NumberPlane with grid and ticks at every 2 units
+plane1: NumberPlane,
+  x_domain: (-6, 6), y_domain: (-6, 6),
+  x_range: (-6, 6, 2), y_range: (-6, 6, 2),
+  size: (400, 400),
+  at: (360, 360)
+
+// NumberPlane with finer grid (step 0.5) on a smaller domain
+plane2: NumberPlane,
+  x_domain: (-3, 3), y_domain: (-3, 3),
+  x_range: (-3, 3, 0.5), y_range: (-3, 3, 0.5),
+  size: (380, 380),
+  at: (960, 360)
+
+// NumberPlane with asymmetric ranges (grid is denser on X than Y)
+plane3: NumberPlane,
+  x_domain: (-5, 5), y_domain: (-4, 4),
+  x_range: (-5, 5, 1), y_range: (-4, 4, 2),
+  size: (400, 400),
+  at: (360, 850)
+
+// NumberPlane with custom color via stroke property
+plane4: NumberPlane,
+  x_domain: (-5, 5), y_domain: (-5, 5),
+  x_range: (-5, 5, 1), y_range: (-5, 5, 1),
+  size: (380, 380),
+  stroke: accent.success,
+  at: (960, 850)
+
+label1: Text, text: "NumberPlane — step=2", font_size: 16, color: text.secondary, at: (360, 160)
+label2: Text, text: "NumberPlane — step=0.5", font_size: 16, color: text.secondary, at: (960, 160)
+label3: Text, text: "NumberPlane — asymmetric", font_size: 16, color: text.secondary, at: (360, 650)
+label4: Text, text: "NumberPlane — custom color", font_size: 16, color: accent.success, at: (960, 650)
+
+title: Text, text: "NumberPlane Demo", font_size: 32, color: text.primary, at: (660, 60)
+
+// Animate plane3 size over time
+#2s
+plane3.size = (480, 480) [2s, ease: ease-in-out]
+
+#4s
+plane4.at = (1000, 850) [1.5s]

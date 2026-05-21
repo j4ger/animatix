@@ -398,6 +398,9 @@ impl Timeline {
         let mut levels: Vec<f64> = vec![];
         let mut grid = false;
         let mut ticks = false;
+        let mut x_range = [-10.0, 10.0, 2.0];
+        let mut y_range = [-10.0, 10.0, 2.0];
+        let is_number_plane = ty == "NumberPlane";
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Start with track defaults, override from props.
@@ -603,6 +606,30 @@ impl Timeline {
                         }
                     }
                 }
+                "x_range" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec3([min, max, step]) = v {
+                        x_range = [min, max, step];
+                    }
+                }
+                "y_range" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let Value::Vec3([min, max, step]) = v {
+                        y_range = [min, max, step];
+                    }
+                }
                 _ => {}
             }
         }
@@ -752,6 +779,10 @@ impl Timeline {
                     stroke_width,
                 );
             }
+        } else if is_number_plane {
+            vello_paths = build_number_plane_paths(
+                size, x_domain, y_domain, x_range, y_range, stroke_color,
+            );
         } else if primitive.is_plot_curve() {
             let p_label = parent_label.unwrap_or("").to_string();
             let mut p_x_domain = [-10.0, 10.0];
@@ -839,8 +870,148 @@ fn evaluate_with_binding(
 
 // ── Helpers for VectorField, Heatmap, ContourSet ────────────────────────
 
-/// Transform math coordinates to screen coordinates.
-/// `full_size` is the full width/height of the plot area (not half-size).
+/// Build NumberPlane VelloPaths: axes, grid lines, tick marks.
+///
+/// Uses `x_range` and `y_range` (min, max, step) for grid/ticks placement,
+/// mapped to screen coordinates via `x_domain`/`y_domain` and `size`.
+pub(super) fn build_number_plane_paths(
+    size: [f32; 2],
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    x_range: [f64; 3],
+    y_range: [f64; 3],
+    axis_color: [f32; 4],
+) -> Vec<VelloPath> {
+    let mut paths = Vec::new();
+    let full_w = size[0] as f64 * 2.0;
+    let full_h = size[1] as f64 * 2.0;
+
+    // Helper: math coords → screen coords (local to plot center)
+    let math_to_screen = |mx: f64, my: f64| -> (f64, f64) {
+        let sx = -(full_w / 2.0) + full_w * ((mx - x_domain[0]) / (x_domain[1] - x_domain[0]));
+        let sy = (full_h / 2.0) - full_h * ((my - y_domain[0]) / (y_domain[1] - y_domain[0]));
+        (sx, sy)
+    };
+
+    let [x_min, x_max, x_step] = x_range;
+    let [y_min, y_max, y_step] = y_range;
+    let step_x = x_step.max(0.001);
+    let step_y = y_step.max(0.001);
+
+    let axis_c = vello::peniko::Color::from_rgba8(
+        (axis_color[0] * 255.0) as u8,
+        (axis_color[1] * 255.0) as u8,
+        (axis_color[2] * 255.0) as u8,
+        (axis_color[3] * 255.0) as u8,
+    );
+    let grid_c = vello::peniko::Color::from_rgba8(
+        (axis_color[0] * 255.0) as u8,
+        (axis_color[1] * 255.0) as u8,
+        (axis_color[2] * 255.0) as u8,
+        (axis_color[3] * 255.0) as u8 / 4,
+    );
+
+    // ── Grid lines ──
+    let mut grid_path = kurbo::BezPath::new();
+
+    // Vertical grid lines at each x step
+    let mut x = (x_min / step_x).ceil() * step_x;
+    while x <= x_max {
+        let (sx, _) = math_to_screen(x, 0.0);
+        grid_path.move_to((sx, -(full_h / 2.0)));
+        grid_path.line_to((sx, full_h / 2.0));
+        x += step_x;
+    }
+
+    // Horizontal grid lines at each y step
+    let mut y = (y_min / step_y).ceil() * step_y;
+    while y <= y_max {
+        let (_, sy) = math_to_screen(0.0, y);
+        grid_path.move_to((-(full_w / 2.0), sy));
+        grid_path.line_to((full_w / 2.0, sy));
+        y += step_y;
+    }
+
+    if !grid_path.elements().is_empty() {
+        paths.push(VelloPath {
+            path: grid_path,
+            fill: None,
+            stroke: Some((grid_c, 1.0)),
+        });
+    }
+
+    // ── Axes (X-axis at y=0, Y-axis at x=0) ──
+    let mut axis_path = kurbo::BezPath::new();
+    let mut has_axis = false;
+
+    // X-axis: y=0 in math coords
+    if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+        let (sx0, sy) = math_to_screen(x_domain[0], 0.0);
+        let (sx1, _) = math_to_screen(x_domain[1], 0.0);
+        axis_path.move_to((sx0, sy));
+        axis_path.line_to((sx1, sy));
+        has_axis = true;
+    }
+
+    // Y-axis: x=0 in math coords
+    if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+        let (sx, sy0) = math_to_screen(0.0, y_domain[0]);
+        let (_, sy1) = math_to_screen(0.0, y_domain[1]);
+        axis_path.move_to((sx, sy0));
+        axis_path.line_to((sx, sy1));
+        has_axis = true;
+    }
+
+    if has_axis {
+        paths.push(VelloPath {
+            path: axis_path,
+            fill: None,
+            stroke: Some((axis_c, 2.0)),
+        });
+    }
+
+    // ── Tick marks (4px perpendicular lines at each step on axes) ──
+    let mut tick_path = kurbo::BezPath::new();
+    let tick_len = 4.0;
+
+    // Ticks on X-axis (at each x step, if axis is visible)
+    if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+        let (_, axis_y) = math_to_screen(0.0, 0.0);
+        let mut tx = (x_min / step_x).ceil() * step_x;
+        while tx <= x_max {
+            if tx != 0.0 {
+                let (sx, _) = math_to_screen(tx, 0.0);
+                tick_path.move_to((sx, axis_y - tick_len));
+                tick_path.line_to((sx, axis_y + tick_len));
+            }
+            tx += step_x;
+        }
+    }
+
+    // Ticks on Y-axis (at each y step, if axis is visible)
+    if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+        let (axis_x, _) = math_to_screen(0.0, 0.0);
+        let mut ty = (y_min / step_y).ceil() * step_y;
+        while ty <= y_max {
+            if ty != 0.0 {
+                let (_, sy) = math_to_screen(0.0, ty);
+                tick_path.move_to((axis_x - tick_len, sy));
+                tick_path.line_to((axis_x + tick_len, sy));
+            }
+            ty += step_y;
+        }
+    }
+
+    if !tick_path.elements().is_empty() {
+        paths.push(VelloPath {
+            path: tick_path,
+            fill: None,
+            stroke: Some((axis_c, 1.5)),
+        });
+    }
+
+    paths
+}
 fn math_to_screen(
     x: f64,
     y: f64,

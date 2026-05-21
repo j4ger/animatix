@@ -300,7 +300,7 @@ impl Applicable {
                 matches!(kind, Shape(_) | Text | Math | Code)
             }
             Applicable::SizedActors => {
-                matches!(kind, Shape(_) | Image | Graph | PlotCurve | VectorField | Heatmap | ContourSet | Row | Col | Grid | Stack)
+                matches!(kind, Shape(_) | Image | Graph | PlotCurve | VectorField | Heatmap | ContourSet | NumberPlane | Row | Col | Grid | Stack)
             }
             Applicable::ShapeKinds(kinds) => {
                 matches!(kind, Shape(sk) if kinds.contains(&sk))
@@ -419,8 +419,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("tolerance",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::F32(0.1)),
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("volume",        ValueType::F32,         F::empty(),                   ActorField::AudioVolume,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::F32(1.0)),
-    schema!("x_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
-    schema!("y_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
+    schema!("x_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet, A::NumberPlane]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
+    schema!("x_range",       ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::NumberPlane]), |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])),
+    schema!("y_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet, A::NumberPlane]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
+    schema!("y_range",       ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::NumberPlane]), |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])),
 ];
 
 // ─────────────────────────────────────────────────────────────

@@ -233,3 +233,46 @@ impl Primitive for ContourSetPrimitive {
         ]
     }
 }
+
+pub struct NumberPlanePrimitive;
+pub const NUMBER_PLANE: NumberPlanePrimitive = NumberPlanePrimitive;
+
+impl Primitive for NumberPlanePrimitive {
+    fn type_name(&self) -> &'static str { "NumberPlane" }
+    fn display_name(&self) -> &'static str { "Number Plane" }
+    fn category(&self) -> ActorCategory { ActorCategory::Plot }
+    fn icon_id(&self) -> &'static str { crate::icon_glyphs::SQUARES_FOUR }
+    fn kind_id(&self) -> ActorKindId { ActorKindId::NumberPlane }
+
+    fn build(
+        &self,
+        ctx: &mut BuildCtx,
+        label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
+        ctx.timeline.process_plot_actor_dispatch(
+            label,
+            self.type_name(),
+            props,
+            modifiers,
+            children,
+            ctx.time_ms,
+            ctx.parent_label,
+            ctx.diagnostics,
+        );
+        Ok(())
+    }
+
+    fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
+        vec![
+            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+            Property::new("size", Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(500.0)])),
+            Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
+            Property::new("x_range", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0), Expr::Num(2.0)])),
+            Property::new("y_range", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0), Expr::Num(2.0)])),
+        ]
+    }
+}

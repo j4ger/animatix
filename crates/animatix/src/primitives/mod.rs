@@ -57,7 +57,7 @@ mod math;       pub use math::MATH;
 mod code;       pub use code::CODE;
 mod image;      pub use image::IMAGE;
 mod svg;        pub use svg::SVG;
-mod plot;       pub use plot::{GRAPH, PLOT_CURVE, VECTOR_FIELD, HEATMAP, CONTOUR_SET};
+mod plot;       pub use plot::{GRAPH, PLOT_CURVE, VECTOR_FIELD, HEATMAP, CONTOUR_SET, NUMBER_PLANE};
 mod row;        pub use row::ROW;
 mod col;        pub use col::COL;
 mod grid;       pub use grid::GRID;
@@ -243,7 +243,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Media
     &IMAGE, &SVG,
     // Plots
-    &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET,
+    &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE,
     // Containers
     &ROW, &COL, &GRID, &STACK, &GROUP, &MASK,
 ];
@@ -372,6 +372,7 @@ mod tests {
             ActorKindId::Image, ActorKindId::Svg,
             ActorKindId::Graph, ActorKindId::PlotCurve,
             ActorKindId::VectorField, ActorKindId::Heatmap, ActorKindId::ContourSet,
+            ActorKindId::NumberPlane,
             ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
             ActorKindId::Stack, ActorKindId::Group, ActorKindId::Mask,
         ] {

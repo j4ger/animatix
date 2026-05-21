@@ -282,6 +282,30 @@ Multiple level-set curves for a scalar function.
 - `size`: Tuple `(width, height)`
 - `color` / `stroke`: Color
 
+## NumberPlane
+**Status:** Implemented in runtime.
+
+Math coordinate system that auto-generates axes, grid lines, and tick marks. Unlike `Graph`, it does not host child plots — it is a standalone visual coordinate plane.
+
+**Properties:**
+- `x_domain`: Tuple `(min, max)` — visible x-axis range
+- `y_domain`: Tuple `(min, max)` — visible y-axis range
+- `x_range`: Tuple `(min, max, step)` — grid/ticks x placement range and interval
+- `y_range`: Tuple `(min, max, step)` — grid/ticks y placement range and interval
+- `size`: Tuple `(width, height)`
+- `at`: Tuple `(x, y)`
+- `stroke` / `stroke_color`: Color — axis and grid color
+
+Grid lines are drawn at each step interval within the specified range. Axes (horizontal at y=0, vertical at x=0) are drawn with thicker strokes. Tick marks appear at each step interval on both axes.
+
+**Example:**
+```animatix
+plane: NumberPlane,
+  x_domain: (-6, 6), y_domain: (-6, 6),
+  x_range: (-6, 6, 2), y_range: (-6, 6, 2),
+  size: (400, 400), at: (640, 360)
+```
+
 **Example:**
 ```animatix
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400), at: (400, 300), grid: true, ticks: true {
