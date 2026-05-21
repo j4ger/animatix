@@ -56,6 +56,24 @@ impl From<std::ffi::NulError> for ExportError {
     }
 }
 
+/// Fill an `AVFrame` with a borrowed RGBA buffer.
+///
+/// # Safety
+///
+/// `rgba` must remain alive and unchanged for the lifetime of `frame`.
+/// `fill_arrays` does not take ownership; it only stores the pointer.
+fn fill_rgba_frame(
+    frame: &mut AVFrame,
+    rgba: &[u8],
+    width: i32,
+    height: i32,
+) -> Result<(), RsmpegError> {
+    let data_ptr = rgba.as_ptr() as *mut u8;
+    // SAFETY: `data_ptr` points to `rgba`, which outlives this call.
+    // `fill_arrays` only stores the pointer; the caller must keep `rgba` alive.
+    unsafe { frame.fill_arrays(data_ptr, rsmpeg::ffi::AV_PIX_FMT_RGBA, width, height) }
+}
+
 // ----------------------------------------------------------------------------
 // Export settings
 // ----------------------------------------------------------------------------
@@ -793,18 +811,8 @@ async fn render_video_async(
         cancel,
         |frame, scene_frame| {
             let mut rgba_frame = AVFrame::new();
-            let data_ptr = scene_frame.rgba.as_ptr() as *mut u8;
-
-            unsafe {
-                rgba_frame
-                    .fill_arrays(
-                        data_ptr,
-                        rsmpeg::ffi::AV_PIX_FMT_RGBA,
-                        width as i32,
-                        height as i32,
-                    )
-                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            }
+            fill_rgba_frame(&mut rgba_frame, &scene_frame.rgba, width as i32, height as i32)
+                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
             sws_context
                 .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
@@ -1367,18 +1375,8 @@ async fn render_video_composition_async(
         cancel,
         |frame, scene_frame| {
             let mut rgba_frame = AVFrame::new();
-            let data_ptr = scene_frame.rgba.as_ptr() as *mut u8;
-
-            unsafe {
-                rgba_frame
-                    .fill_arrays(
-                        data_ptr,
-                        rsmpeg::ffi::AV_PIX_FMT_RGBA,
-                        width as i32,
-                        height as i32,
-                    )
-                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            }
+            fill_rgba_frame(&mut rgba_frame, &scene_frame.rgba, width as i32, height as i32)
+                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
             sws_context
                 .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
