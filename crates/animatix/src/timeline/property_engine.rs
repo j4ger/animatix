@@ -641,6 +641,29 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, label, "glow_radius",    &track.glow_radius, time_ms, 0.0);
     inject_color_env(env, label, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
     inject_scalar_env(env, label, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
+
+    // Animation-state flags: inject `_animating_{property}` booleans so `always`
+    // blocks can detect when a keyframe track exists for a property.
+    inject_scalar_animating(env, label, "at",         &track.position);
+    inject_scalar_animating(env, label, "position",   &track.position);
+    inject_scalar_animating(env, label, "shift",      &track.motion_offset);
+    inject_scalar_animating(env, label, "size",       &track.size);
+    inject_scalar_animating(env, label, "rotation",   &track.rotation);
+    inject_scalar_animating(env, label, "scale",      &track.scale);
+    inject_scalar_animating(env, label, "color",      &track.color);
+    inject_scalar_animating(env, label, "opacity",    &track.opacity);
+    inject_scalar_animating(env, label, "stroke_color", &track.stroke_color);
+    inject_scalar_animating(env, label, "stroke_width", &track.stroke_width);
+    inject_scalar_animating(env, label, "stroke_progress", &track.stroke_progress);
+    inject_scalar_animating(env, label, "fill_opacity", &track.fill_opacity);
+    inject_scalar_animating(env, label, "from",       &track.line_from);
+    inject_scalar_animating(env, label, "to",         &track.line_to);
+    inject_scalar_animating(env, label, "shadow_offset", &track.shadow_offset);
+    inject_scalar_animating(env, label, "shadow_blur",   &track.shadow_blur);
+    inject_scalar_animating(env, label, "shadow_color",  &track.shadow_color);
+    inject_scalar_animating(env, label, "glow_radius",   &track.glow_radius);
+    inject_scalar_animating(env, label, "glow_color",    &track.glow_color);
+    inject_scalar_animating(env, label, "backdrop_blur", &track.backdrop_blur);
 }
 
 fn inject_scalar_env(
@@ -685,4 +708,18 @@ fn inject_color_env(
     env.set(&format!("{label}.{key}.g"), Value::Num(f(val[1])));
     env.set(&format!("{label}.{key}.b"), Value::Num(f(val[2])));
     env.set(&format!("{label}.{key}.a"), Value::Num(f(val[3])));
+}
+
+/// Inject an `_animating_{key}` boolean flag (1.0 = has keyframes, 0.0 = none).
+fn inject_scalar_animating<T: Clone>(
+    env: &mut Environment,
+    label: &str,
+    key: &str,
+    field: &Option<PropertyTrack<T>>,
+) {
+    let has_keyframes = field.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false);
+    env.set(
+        &format!("{label}._animating_{key}"),
+        Value::Num(if has_keyframes { 1.0 } else { 0.0 }),
+    );
 }
