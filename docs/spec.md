@@ -449,7 +449,7 @@ scene.bottom_left  scene.bottom    scene.bottom_right
 
 **Actor property lookups:** Any actor label and property is accessible: `ball.position`, `title.color`, etc.
 
-> **Note:** There is no `dt` (delta time) variable yet. Physics-style integration (velocity → position) requires manual time bookkeeping or keyframe tracks.
+> **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See `docs/roadmap.md` §4.1 (dropped).
 
 ### Animation State Flags
 

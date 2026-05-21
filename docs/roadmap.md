@@ -5,16 +5,6 @@
 
 ## 4. Long-Term / Speculative
 
-### 4.1 Per-Actor Updater with `dt`
-
-**Issue:** No delta-time variable. Cannot do physics integration (velocity → position). No per-actor updater — only global `always`.
-
-**Fix:** Inject `dt` into `frame_eval_env`. Introduce `updater actor { ... }` syntax for actor-local reactive logic.
-
-**Effort:** High.
-
----
-
 ### 4.2 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
@@ -45,6 +35,5 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Per-actor updater (4.1) | High | Medium |
-| 2 | Green tree / trivia AST (4.3) | Very High | Low |
-| 3 | Web Canvas (4.2) | Very High | Low |
+| 1 | Green tree / trivia AST (4.3) | Very High | Low |
+| 2 | Web Canvas (4.2) | Very High | Low |
