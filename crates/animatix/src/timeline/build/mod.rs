@@ -849,6 +849,100 @@ impl Timeline {
         );
     }
 
+    /// When an actor is declared inside a Graph, map its position properties
+    /// from math coordinates to screen pixels based on the parent's domain and size.
+    fn map_props_to_graph_parent(
+        &self,
+        parent_label: &str,
+        props: &[Property],
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Vec<Property> {
+        let eval_env = self.build_eval_env(time_ms as u64);
+
+        // Look up parent's coordinate system from the environment.
+        let x_domain = self
+            .env
+            .get(&format!("{}_x_domain", parent_label))
+            .and_then(|v| match v {
+                Value::Vec2(d) => Some(d),
+                _ => None,
+            })
+            .unwrap_or([-10.0, 10.0]);
+        let y_domain = self
+            .env
+            .get(&format!("{}_y_domain", parent_label))
+            .and_then(|v| match v {
+                Value::Vec2(d) => Some(d),
+                _ => None,
+            })
+            .unwrap_or([-10.0, 10.0]);
+        let p_size = self
+            .env
+            .get(&format!("{}_size", parent_label))
+            .and_then(|v| match v {
+                Value::Vec2(s) => Some(s),
+                _ => None,
+            })
+            .unwrap_or([500.0, 500.0]);
+        let parent_pos = self
+            .tracks
+            .get(parent_label)
+            .map(|t| t.position.last([0.0, 0.0]))
+            .unwrap_or([0.0, 0.0]);
+
+        let half_w = p_size[0] / 2.0;
+        let half_h = p_size[1] / 2.0;
+
+        props
+            .iter()
+            .map(|prop| {
+                let needs_mapping = prop.name == "at"
+                    || prop.name == "position"
+                    || prop.name == "from"
+                    || prop.name == "to";
+                if !needs_mapping {
+                    return prop.clone();
+                }
+
+                let val = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &format!("{}.{}", parent_label, prop.name),
+                );
+                let (mx, my) = match val {
+                    Some(Value::Vec2([x, y])) => (x, y),
+                    _ => return prop.clone(),
+                };
+
+                // Math-to-screen mapping (same formula as plot curves):
+                // offset_x = half_w * (-1.0 + 2.0 * (mx - x_min) / (x_max - x_min))
+                // offset_y = half_h * (1.0 - 2.0 * (my - y_min) / (y_max - y_min))
+                let x_range = x_domain[1] - x_domain[0];
+                let y_range = y_domain[1] - y_domain[0];
+                let offset_x = if x_range != 0.0 {
+                    half_w * (-1.0 + 2.0 * (mx - x_domain[0]) / x_range)
+                } else {
+                    0.0
+                };
+                let offset_y = if y_range != 0.0 {
+                    half_h * (1.0 - 2.0 * (my - y_domain[0]) / y_range)
+                } else {
+                    0.0
+                };
+
+                let screen_x = parent_pos[0] as f64 + offset_x;
+                let screen_y = parent_pos[1] as f64 + offset_y;
+
+                Property::new(
+                    &prop.name,
+                    Expr::Tuple(vec![Expr::Num(screen_x), Expr::Num(screen_y)]),
+                )
+            })
+            .collect()
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn process_actor_decl(
         &mut self,
@@ -886,7 +980,21 @@ impl Timeline {
             .get(label)
             .cloned()
             .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
-        let extracted = self.extract_actor_properties(label, ty, props, time_ms, &existing_track, diagnostics);
+
+        // Math coordinate auto-mapping: if parent is a Graph, map child positions
+        // from math coordinates to screen pixels.
+        let mapped_props = if let Some(p_label) = parent_label {
+            if self.env.get(&format!("{}_x_domain", p_label)).is_some() {
+                self.map_props_to_graph_parent(p_label, props, time_ms, diagnostics)
+            } else {
+                props.to_vec()
+            }
+        } else {
+            props.to_vec()
+        };
+        let props_ref: &[Property] = &mapped_props;
+
+        let extracted = self.extract_actor_properties(label, ty, props_ref, time_ms, &existing_track, diagnostics);
 
         if primitive.is_graph_host() {
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(extracted.x_domain));
