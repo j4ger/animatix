@@ -97,11 +97,22 @@ impl Timeline {
         let opacity = track.opacity.get(time_ms, 1.0);
         let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
+        let transform = track.transform.get(time_ms, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        let transform_affine = kurbo::Affine::new([
+            transform[0] as f64,
+            transform[1] as f64,
+            transform[2] as f64,
+            transform[3] as f64,
+            transform[4] as f64,
+            transform[5] as f64,
+        ]);
+
         let local_transform = parent_transform
             * kurbo::Affine::translate((
                 position[0] as f64 + motion_offset[0] as f64,
                 position[1] as f64 + motion_offset[1] as f64,
             ))
+            * transform_affine
             * kurbo::Affine::rotate(rotation)
             * kurbo::Affine::scale(scale);
 

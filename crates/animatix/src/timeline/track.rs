@@ -161,6 +161,20 @@ impl Interpolate for [f32; 4] {
     }
 }
 
+impl Interpolate for [f32; 6] {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        [
+            self[0] + (other[0] - self[0]) * t,
+            self[1] + (other[1] - self[1]) * t,
+            self[2] + (other[2] - self[2]) * t,
+            self[3] + (other[3] - self[3]) * t,
+            self[4] + (other[4] - self[4]) * t,
+            self[5] + (other[5] - self[5]) * t,
+        ]
+    }
+}
+
 impl Interpolate for u32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { *self } else { *other }
@@ -414,6 +428,7 @@ pub struct AnimationTrack {
     pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
     pub rotation: Option<PropertyTrack<f32>>,
     pub scale: Option<PropertyTrack<f32>>,
+    pub transform: Option<PropertyTrack<[f32; 6]>>,
     pub placement_mode: Option<PropertyTrack<PlacementMode>>,
     pub position_binding: Option<PropertyTrack<PositionBinding>>,
     pub size: Option<PropertyTrack<[f32; 2]>>,
@@ -473,6 +488,7 @@ impl AnimationTrack {
             motion_offset: None,
             rotation: None,
             scale: None,
+            transform: None,
             placement_mode: None,
             position_binding: None,
             size: None,
@@ -719,6 +735,7 @@ pub enum TrackFieldRef<'a> {
     F32(&'a Option<PropertyTrack<f32>>),
     Vec2(&'a Option<PropertyTrack<[f32; 2]>>),
     Vec4(&'a Option<PropertyTrack<[f32; 4]>>),
+    Transform(&'a Option<PropertyTrack<[f32; 6]>>),
     String(&'a Option<PropertyTrack<String>>),
     U32(&'a Option<PropertyTrack<u32>>),
     PointList(&'a Option<PropertyTrack<Vec<[f32; 2]>>>),
@@ -733,6 +750,7 @@ pub enum TrackFieldMut<'a> {
     F32(&'a mut Option<PropertyTrack<f32>>),
     Vec2(&'a mut Option<PropertyTrack<[f32; 2]>>),
     Vec4(&'a mut Option<PropertyTrack<[f32; 4]>>),
+    Transform(&'a mut Option<PropertyTrack<[f32; 6]>>),
     String(&'a mut Option<PropertyTrack<String>>),
     U32(&'a mut Option<PropertyTrack<u32>>),
     PointList(&'a mut Option<PropertyTrack<Vec<[f32; 2]>>>),
@@ -753,6 +771,7 @@ impl AnimationTrack {
             LayoutSize => TrackFieldRef::Vec2(&self.layout_size),
             Rotation => TrackFieldRef::F32(&self.rotation),
             Scale => TrackFieldRef::F32(&self.scale),
+            Transform => TrackFieldRef::Transform(&self.transform),
             Color => TrackFieldRef::Vec4(&self.color),
             Opacity => TrackFieldRef::F32(&self.opacity),
             StrokeWidth => TrackFieldRef::F32(&self.stroke_width),
@@ -790,6 +809,7 @@ impl AnimationTrack {
             LayoutSize => TrackFieldMut::Vec2(&mut self.layout_size),
             Rotation => TrackFieldMut::F32(&mut self.rotation),
             Scale => TrackFieldMut::F32(&mut self.scale),
+            Transform => TrackFieldMut::Transform(&mut self.transform),
             Color => TrackFieldMut::Vec4(&mut self.color),
             Opacity => TrackFieldMut::F32(&mut self.opacity),
             StrokeWidth => TrackFieldMut::F32(&mut self.stroke_width),

@@ -65,6 +65,7 @@ pub enum PropertyValue {
     String(String),
     PlacementMode(super::PlacementMode),
     MorphOptions(super::MorphOptions),
+    Transform([f32; 6]),
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -140,6 +141,21 @@ pub(crate) fn parse_property_value(
         ValueType::CommandList => {
             crate::timeline::parse_path_commands_expr(expr, env)
                 .map(|path| PropertyValue::CommandList(path.to_svg()))
+        }
+        ValueType::Transform => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            match v {
+                Value::Vec2([a, b]) => Some(PropertyValue::Transform([a as f32, b as f32, 0.0, 1.0, 0.0, 0.0])),
+                Value::Vec4([a, b, c, d]) => Some(PropertyValue::Transform([a as f32, b as f32, c as f32, d as f32, 0.0, 0.0])),
+                Value::List(items) if items.len() == 6 => {
+                    let mut arr = [0.0f32; 6];
+                    for (i, item) in items.iter().enumerate() {
+                        arr[i] = item.as_num() as f32;
+                    }
+                    Some(PropertyValue::Transform(arr))
+                }
+                _ => None,
+            }
         }
         // These types require context-specific handling (group resolution)
         ValueType::ShapeType
@@ -251,6 +267,13 @@ pub(crate) fn write_property_field(
                     _ => [1.0, 1.0, 1.0, 1.0],
                 };
                 write_vec4(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+            }
+            TrackFieldMut::Transform(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::Transform(d)) => d,
+                    _ => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                };
+                write_transform(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
             }
             TrackFieldMut::String(f) => {
                 let default = match pv_default {
@@ -376,6 +399,26 @@ pub(crate) fn write_vec4(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
+pub(crate) fn write_transform(
+    field: &mut Option<PropertyTrack<[f32; 6]>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: [f32; 6],
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::Transform(v) = value else { return };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default);
+        field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+    }
+    field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
 pub(crate) fn write_point_list(
     field: &mut Option<PropertyTrack<Vec<[f32; 2]>>>,
     value: PropertyValue,
@@ -471,6 +514,7 @@ fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms:
         TrackFieldRef::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
         TrackFieldRef::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
         TrackFieldRef::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
+        TrackFieldRef::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate(time_ms))),
         TrackFieldRef::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
         TrackFieldRef::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate(time_ms))),
         TrackFieldRef::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
@@ -531,6 +575,7 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
         TrackFieldRef::F32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         TrackFieldRef::String(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         TrackFieldRef::U32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
         TrackFieldRef::PointList(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
@@ -548,6 +593,7 @@ pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usi
         TrackFieldRef::F32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         TrackFieldRef::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         TrackFieldRef::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         TrackFieldRef::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -565,6 +611,7 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
         TrackFieldRef::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         TrackFieldRef::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         TrackFieldRef::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
         TrackFieldRef::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
@@ -582,6 +629,7 @@ pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_
         TrackFieldRef::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         TrackFieldRef::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         TrackFieldRef::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        TrackFieldRef::Transform(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         TrackFieldRef::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         TrackFieldRef::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
         TrackFieldRef::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
@@ -616,6 +664,7 @@ pub(crate) fn inject_property_into_env(
     env.set(&format!("{label}.height"), Value::Num(full_size[1] as f64));
     inject_scalar_env(env, label, "rotation", &track.rotation, time_ms, 0.0);
     inject_scalar_env(env, label, "scale",   &track.scale, time_ms, 1.0);
+    inject_transform_env(env, label, &track.transform, time_ms);
 
     // Style
     inject_color_env(env, label, "color",           &track.color, time_ms, DEFAULT_WHITE);
@@ -664,6 +713,7 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_animating(env, label, "glow_radius",   &track.glow_radius);
     inject_scalar_animating(env, label, "glow_color",    &track.glow_color);
     inject_scalar_animating(env, label, "backdrop_blur", &track.backdrop_blur);
+    inject_scalar_animating(env, label, "transform",     &track.transform);
 }
 
 fn inject_scalar_env(
@@ -708,6 +758,24 @@ fn inject_color_env(
     env.set(&format!("{label}.{key}.g"), Value::Num(f(val[1])));
     env.set(&format!("{label}.{key}.b"), Value::Num(f(val[2])));
     env.set(&format!("{label}.{key}.a"), Value::Num(f(val[3])));
+}
+
+fn inject_transform_env(
+    env: &mut Environment,
+    label: &str,
+    field: &Option<PropertyTrack<[f32; 6]>>,
+    time_ms: u64,
+) {
+    let val = field.get(time_ms, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+    let f = |x: f32| x as f64;
+    env.set(&format!("{label}.transform"), Value::List(vec![
+        Value::Num(f(val[0])),
+        Value::Num(f(val[1])),
+        Value::Num(f(val[2])),
+        Value::Num(f(val[3])),
+        Value::Num(f(val[4])),
+        Value::Num(f(val[5])),
+    ]));
 }
 
 /// Inject an `_animating_{key}` boolean flag (1.0 = has keyframes, 0.0 = none).
