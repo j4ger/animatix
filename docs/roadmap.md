@@ -11,33 +11,21 @@
 
 ---
 
-### 2.2 Math Coordinate Auto-Mapping
+### ~~2.2 Math Coordinate Auto-Mapping~~
 
-**Issue:** `Graph` has `x_domain`/`y_domain`, but child actors (e.g., `PlotCurve`, manual `Line` overlays) still use screen-pixel coordinates. Changing resolution breaks layout. Users must manually map `(2, 2)` → `(806, 180)`.
-
-**Fix:** Make `Graph { ... }` a coordinate container. All children inside a `Graph` use math coordinates that are auto-mapped to screen pixels based on the graph's domain and size.
-
-**Effort:** Medium. Requires coordinate transform propagation to child actors.
+**Status:** Fixed. Actors declared inside a `Graph` now have their `at`/`position`/`from`/`to` properties automatically mapped from math coordinates to screen pixels based on the parent's `x_domain`, `y_domain`, and `size`.
 
 ---
 
-### 2.3 Full Affine Transform Matrix
+### ~~2.3 Full Affine Transform Matrix~~
 
-**Issue:** `rotation: f32` and `scale: f32` are scalars. Cannot express shear, non-uniform scale, rotation about arbitrary points, reflection, or arbitrary 2×2 linear maps. `kurbo::Affine` supports full matrices, but the DSL only exposes 2 scalars.
-
-**Fix:** Add `transform: [f64; 6]` property (full 2D affine matrix `[a, b, c, d, tx, ty]`). Coexists with existing `rotation`/`scale` as independent transform layers. Multiplication order: `parent × translate(position) × transform(matrix) × rotate(rotation) × scale(scale)`.
-
-**Effort:** Medium. Requires property engine support for 6-element arrays and renderer integration.
+**Status:** Fixed. Added `transform` property accepting a 6-element array `[a, b, c, d, tx, ty]` (full 2D affine matrix). Coexists with `rotation`/`scale` as independent transform layers. Multiplication order: `parent × translate(position) × transform(matrix) × rotate(rotation) × scale(scale)`.
 
 ---
 
-### 2.4 Expand Modifier IR Expression Support
+### ~~2.4 Expand Modifier IR Expression Support~~
 
-**Issue:** Build-time `evaluate_expr` supports conditionals, function calls, methods, indexing, and object construction. The `always`/modifier IR (`compile_expr`) only supports arithmetic, ternary conditionals, `Sin`/`Cos`/`Lerp`/`Format`. Writing the same expression in a keyframe vs. `always` produces different behavior — silent degradation to `ModifierExpr::Unsupported` with fallback to `evaluate_expr` (performance hit).
-
-**Fix:** Extend modifier IR to support at least `Index` (array indexing), `Method` (method calls), and `Closure` (closure literals). Priority: `Index` > `Method` > `Closure`.
-
-**Effort:** Medium. Requires new IR variants and evaluator branches.
+**Status:** Fixed. Modifier IR now compiles `Index` (`list[i]`, `vec[0]`) and `Method` (`str.length()`, `list.get(0)`, `num.abs()`) expressions into the fast bytecode path. `Closure` remains unsupported by design (would need statement-level IR support).
 
 ---
 
@@ -47,13 +35,9 @@
 
 ---
 
-### 2.6 `always`/Keyframe Conflict Mechanism
+### ~~2.6 `always`/Keyframe Conflict Mechanism~~
 
-**Issue:** When both `always` and keyframes write the same property, behavior is unspecified. `architecture.md` states "`always` overrides keyframes" as a composition rule, but there's no explicit priority system and no way for `always` to detect when a keyframe is actively animating a property.
-
-**Fix:** Introduce explicit priority layers (e.g., `always` as base priority 0, keyframes as override priority 100). Alternatively, expose `is_animating(property)` predicate in `always` so reactive blocks can defer to keyframe interpolation.
-
-**Effort:** Medium. Requires design decision on API shape.
+**Status:** Fixed. For every track property, an `_animating_{property}` boolean is injected into the frame environment (e.g., `circle._animating_opacity`). `always` blocks can check this flag to defer to active keyframe interpolation.
 
 ---
 
@@ -135,12 +119,12 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 |----------|------|--------|--------|
 | 1 | ~~Expand builtin functions (2.7)~~ | Low | High |
 | 2 | ~~NumberPlane component (2.1)~~ | Medium | High |
-| 3 | Math coordinate mapping (2.2) | Medium | High |
-| 4 | Affine transform matrix (2.3) | Medium | High |
+| 3 | ~~Math coordinate mapping (2.2)~~ | Medium | High |
+| 4 | ~~Affine transform matrix (2.3)~~ | Medium | High |
 | 5 | ~~Group batch operations (2.8)~~ | Medium | Medium |
-| 6 | Modifier IR expression expansion (2.4) | Medium | Medium |
+| 6 | ~~Modifier IR expression expansion (2.4)~~ | Medium | Medium |
 | 7 | ~~`for` in `always` (2.5)~~ | Medium | Medium |
-| 8 | `always`/keyframe priority (2.6) | Medium | Medium |
+| 8 | ~~`always`/keyframe priority (2.6)~~ | Medium | Medium |
 | 9 | Reduce unwrap/panic (3.1) | High | Medium |
 | 10 | video.rs unsafe cleanup (3.2) | Low | Low |
 | 11 | Per-actor updater (4.1) | High | Medium |

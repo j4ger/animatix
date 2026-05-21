@@ -372,6 +372,36 @@ title: "Hello"                    // desugars to: title: Text, text: "Hello"
 title: "Hello" [2s, ease: bounce] // with modifiers
 ```
 
+### Transform Property
+
+All actors support a `transform` property: a 6-element array `[a, b, c, d, tx, ty]` representing a full 2D affine matrix. This coexists with `rotation` and `scale` as independent transform layers.
+
+```animatix
+sheared: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0)
+```
+
+Multiplication order (left to right, applied right-to-left to points):
+```
+parent × translate(position) × transform(matrix) × rotate(rotation) × scale(scale)
+```
+
+Shorthand forms are accepted:
+- `transform: (sx, sy)` → `[sx, 0, 0, sy, 0, 0]` (non-uniform scale)
+- `transform: (a, b, c, d)` → `[a, b, c, d, 0, 0]` (linear map only)
+- `transform: (a, b, c, d, tx, ty)` → full affine matrix
+
+### Graph Coordinate Mapping
+
+Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` properties automatically mapped from math coordinates to screen pixels.
+
+```animatix
+graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (-10, 10) {
+  // These are math coordinates, mapped to screen automatically
+  point: Circle, at: (2, 2), size: (10, 10)
+  arrow: Line, from: (0, 0), to: (5, 5)
+}
+```
+
 ---
 
 ## 10. Reactive System
@@ -420,6 +450,21 @@ scene.bottom_left  scene.bottom    scene.bottom_right
 **Actor property lookups:** Any actor label and property is accessible: `ball.position`, `title.color`, etc.
 
 > **Note:** There is no `dt` (delta time) variable yet. Physics-style integration (velocity → position) requires manual time bookkeeping or keyframe tracks.
+
+### Animation State Flags
+
+For every actor property that has keyframes, a boolean flag `{label}._animating_{property}` is injected into the `always` evaluation environment. This lets reactive blocks detect when a property is being driven by keyframes and defer to interpolation.
+
+```animatix
+always {
+  // Only override opacity when no keyframe is animating it
+  if circle._animating_opacity == 0 {
+    circle.opacity = 0.5
+  }
+}
+```
+
+Available flags follow the property name: `_animating_at`, `_animating_position`, `_animating_size`, `_animating_rotation`, `_animating_scale`, `_animating_transform`, `_animating_color`, `_animating_opacity`, etc.
 
 ---
 

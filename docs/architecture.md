@@ -67,7 +67,7 @@ Timeline {
 Per-actor storage is organized into three tiers:
 
 - **Header**: `label`, `kind: ActorKindId`, `first_seen_ms`, `children`
-- **Geometry tier**: `position`, `motion_offset`, `size`, `layout_size`, `rotation`, `scale`, `placement_mode`, `position_binding`
+- **Geometry tier**: `position`, `motion_offset`, `size`, `layout_size`, `rotation`, `scale`, `transform`, `placement_mode`, `position_binding`
 - **Style tier**: `color`, `opacity`, `stroke_width`, `stroke_color`, `stroke_progress`, `fill_opacity`, `morph_options`
 - **Payload** (kind-specific): `Shape { shape_type, line_from, line_to, arc_angles, points, vector_paths }`, `Text { content, text_paths }`, `Image { image }`, `Svg { svg_paths }`, `Plot { vector_paths }`, or `Empty`
 
