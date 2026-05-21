@@ -3,23 +3,6 @@
 > Forward-looking view of known gaps, planned features, and deferred work.
 > For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
 
-## 1. Quick Wins
-
-### ~~1.1 Document `always` Built-in Variables~~
-
-**Status:** Fixed. Added "Built-in Variables" section to `spec.md` documenting `t` (scene-local time in seconds), `scene_width`, `scene_height`, and scene anchor points.
-
----
-
-### ~~1.2 Add Missing Examples~~
-
-**Status:** Fixed.
-- `examples/arrow_demo.amx` — demonstrates Line with arrowheads via `size: (tip_len*2, tip_width*2)`
-- `examples/plotting.amx` — extended with `VectorField` and `Heatmap`
-- `examples/component_template_demo.amx` — demonstrates `pub component` as reusable parameterized templates
-
----
-
 ## 2. Language Features
 
 ### 2.1 NumberPlane Component
@@ -166,18 +149,16 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | ~~Document `always` variables (1.1)~~ | Low | High |
-| 2 | ~~Add missing examples (1.2)~~ | Low | High |
-| 3 | Expand builtin functions (2.7) | Low | High |
-| 4 | NumberPlane component (2.1) | Medium | High |
-| 5 | Math coordinate mapping (2.2) | Medium | High |
-| 6 | Affine transform matrix (2.3) | Medium | High |
-| 7 | Group batch operations (2.8) | Medium | Medium |
-| 8 | Modifier IR expression expansion (2.4) | Medium | Medium |
-| 9 | `for` in `always` (2.5) | Medium | Medium |
-| 10 | `always`/keyframe priority (2.6) | Medium | Medium |
-| 11 | Reduce unwrap/panic (3.1) | High | Medium |
-| 12 | video.rs unsafe cleanup (3.2) | Low | Low |
-| 13 | Per-actor updater (4.1) | High | Medium |
-| 14 | Green tree / trivia AST (4.3) | Very High | Low |
-| 15 | Web Canvas (4.2) | Very High | Low |
+| 1 | Expand builtin functions (2.7) | Low | High |
+| 2 | NumberPlane component (2.1) | Medium | High |
+| 3 | Math coordinate mapping (2.2) | Medium | High |
+| 4 | Affine transform matrix (2.3) | Medium | High |
+| 5 | Group batch operations (2.8) | Medium | Medium |
+| 6 | Modifier IR expression expansion (2.4) | Medium | Medium |
+| 7 | `for` in `always` (2.5) | Medium | Medium |
+| 8 | `always`/keyframe priority (2.6) | Medium | Medium |
+| 9 | Reduce unwrap/panic (3.1) | High | Medium |
+| 10 | video.rs unsafe cleanup (3.2) | Low | Low |
+| 11 | Per-actor updater (4.1) | High | Medium |
+| 12 | Green tree / trivia AST (4.3) | Very High | Low |
+| 13 | Web Canvas (4.2) | Very High | Low |
