@@ -400,6 +400,27 @@ pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
 
+### Built-in Variables
+
+The following variables are automatically available in `always` blocks and expression evaluation contexts:
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `t` | `Num` | Scene-local time in **seconds**, starting at `0.0` when the scene begins. In multi-scene compositions, `t` resets to `0` at each scene boundary; it does **not** accumulate across scenes. |
+| `scene_width` | `Num` | Scene width in pixels (from `config { resolution: (w, h) }`). |
+| `scene_height` | `Num` | Scene height in pixels. |
+
+**Scene anchor points** (available as `Vec2`):
+```animatix
+scene.top_left     scene.top       scene.top_right
+scene.left         scene.center    scene.right
+scene.bottom_left  scene.bottom    scene.bottom_right
+```
+
+**Actor property lookups:** Any actor label and property is accessible: `ball.position`, `title.color`, etc.
+
+> **Note:** There is no `dt` (delta time) variable yet. Physics-style integration (velocity → position) requires manual time bookkeeping or keyframe tracks.
+
 ---
 
 ## 11. Imports, Modules & Namespaces
