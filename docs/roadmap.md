@@ -5,13 +5,9 @@
 
 ## 2. Language Features
 
-### 2.1 NumberPlane Component
+### ~~2.1 NumberPlane Component~~
 
-**Issue:** No dedicated math coordinate system. Drawing axes, grid lines, and tick labels requires ~20 manual `Line` actors. The existing `Grid` primitive is a UI layout container (CSS Grid semantics), not a math grid.
-
-**Fix:** Add `NumberPlane` primitive with `x_range: (min, max, step)`, `y_range: (min, max, step)` that auto-generates axes + grid lines + tick labels. Support `fade-in grid` for bulk control.
-
-**Effort:** Medium.
+**Status:** Fixed. Added `NumberPlane` primitive with `x_range`/`y_range` properties that auto-generate axes, grid lines, and tick marks at build time. See `examples/numberplane_demo.amx`.
 
 ---
 
@@ -45,13 +41,9 @@
 
 ---
 
-### 2.5 `for` Loop in `always`
+### ~~2.5 `for` Loop in `always`~~
 
-**Issue:** `lower_modifier_stmt` returns `UnsupportedStatement` for `ForLoop`. Cannot batch-update a group of objects (e.g., 10 particles) in a reactive block.
-
-**Fix:** Add `For` instruction to modifier IR. Iterate over arrays or `Range` values.
-
-**Effort:** Medium.
+**Status:** Fixed. `ForLoop` is now supported in `always` blocks via both the modifier IR fast path (bytecode VM with `BeginFor`/`CheckFor` instructions) and the runtime fallback path. Iterates over lists, arrays, and vec values.
 
 ---
 
@@ -65,23 +57,15 @@
 
 ---
 
-### 2.7 Expand Built-in Function Library
+### ~~2.7 Expand Built-in Function Library~~
 
-**Issue:** Only 4 built-ins: `Sin`, `Cos`, `Lerp`, `Format`. Missing basic math: `tan`, `sqrt`, `exp`, `log`, `atan2`, `clamp`, `abs`, `min`/`max`, `random`, `floor`, `ceil`.
-
-**Fix:** Add to `BuiltinFn` enum and `CallBuiltin` handler. ~20 lines per function.
-
-**Effort:** Low.
+**Status:** Fixed. Added 11 new builtins to modifier IR: `tan`, `sqrt`, `exp`, `log`, `atan2`, `clamp`, `abs`, `min`, `max`, `floor`, `ceil`. Build-time environment already had these plus `asin`, `acos`, `round`, `log10`, `signum`, `fract`, `deg_to_rad`, `rad_to_deg`, `pow`, `hypot`, `rem`, `step`, `smoothstep`, `rand`, `seeded_rand`.
 
 ---
 
-### 2.8 Group Batch Operations
+### ~~2.8 Group Batch Operations~~
 
-**Issue:** `ActorKindId::Group` exists for logical grouping and hierarchy, but actions cannot target a group. Winding scene exit requires 9 separate `fade-out` lines.
-
-**Fix:** Allow `fade-in`/`fade-out`/`opacity`/`transform` to target a `Group`, recursively applying to all children. `Group` itself should support `transform` for bulk move/rotate/deform.
-
-**Effort:** Medium.
+**Status:** Fixed. Actions targeting a Group with children are automatically expanded to target all leaf descendants. Container-only actions (`reorder`, `swap`) skip expansion and target the container itself.
 
 ---
 
@@ -149,13 +133,13 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Expand builtin functions (2.7) | Low | High |
-| 2 | NumberPlane component (2.1) | Medium | High |
+| 1 | ~~Expand builtin functions (2.7)~~ | Low | High |
+| 2 | ~~NumberPlane component (2.1)~~ | Medium | High |
 | 3 | Math coordinate mapping (2.2) | Medium | High |
 | 4 | Affine transform matrix (2.3) | Medium | High |
-| 5 | Group batch operations (2.8) | Medium | Medium |
+| 5 | ~~Group batch operations (2.8)~~ | Medium | Medium |
 | 6 | Modifier IR expression expansion (2.4) | Medium | Medium |
-| 7 | `for` in `always` (2.5) | Medium | Medium |
+| 7 | ~~`for` in `always` (2.5)~~ | Medium | Medium |
 | 8 | `always`/keyframe priority (2.6) | Medium | Medium |
 | 9 | Reduce unwrap/panic (3.1) | High | Medium |
 | 10 | video.rs unsafe cleanup (3.2) | Low | Low |
