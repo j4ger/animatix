@@ -76,6 +76,46 @@ pub(crate) fn ensure_target_exists(
     false
 }
 
+/// Expand group targets into their leaf children recursively.
+/// A Group is identified by having children in its track. The group itself
+/// is skipped; only non-group descendants are returned.
+///
+/// Container-only actions (reorder, swap) skip expansion — they need
+/// to target the container itself.
+pub(crate) fn expand_group_targets(
+    timeline: &Timeline,
+    targets: &[String],
+    verb: &str,
+) -> Vec<String> {
+    // These actions operate on containers, not leaves
+    let container_actions = ["reorder", "swap"];
+    if container_actions.contains(&verb) {
+        return targets.to_vec();
+    }
+
+    let mut result = Vec::new();
+    let mut stack: Vec<String> = targets.to_vec();
+
+    while let Some(label) = stack.pop() {
+        if let Some(track) = timeline.tracks.get(&label) {
+            if track.children.is_empty() {
+                // Leaf actor — keep it
+                result.push(label);
+            } else {
+                // Group — recurse into children (push in reverse to maintain order)
+                for child in track.children.iter().rev() {
+                    stack.push(child.clone());
+                }
+            }
+        } else {
+            // Target doesn't exist — pass through and let the action handler report it
+            result.push(label);
+        }
+    }
+
+    result
+}
+
 pub(crate) fn ensure_vector_reveal_target(
     timeline: &Timeline,
     target: &str,
@@ -160,6 +200,7 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
 }
 
 /// Looks up the action by verb and executes it if found.
+/// Group targets are automatically expanded into their leaf children.
 #[instrument(skip(timeline, diagnostics), fields(verb = %action.verb, targets = ?action.targets))]
 pub fn process_action(
     action: &Action,
@@ -171,8 +212,16 @@ pub fn process_action(
     let actions = get_builtin_actions();
     for builtin in actions {
         if builtin.signature().name == action.verb {
-            debug!("Executing builtin action '{}' on targets {:?}", action.verb, action.targets);
-            builtin.execute(action, time_ms, timeline, diagnostics);
+            let expanded_targets = expand_group_targets(timeline, &action.targets, &action.verb);
+            if expanded_targets != action.targets {
+                debug!(
+                    "Expanded group targets for '{}': {:?} -> {:?}",
+                    action.verb, action.targets, expanded_targets
+                );
+            }
+            let mut expanded_action = action.clone();
+            expanded_action.targets = expanded_targets;
+            builtin.execute(&expanded_action, time_ms, timeline, diagnostics);
             return;
         }
     }
