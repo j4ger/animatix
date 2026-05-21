@@ -55,6 +55,11 @@ pub enum ModifierIrStmt {
         then_branch: Vec<ModifierIrStmt>,
         else_branch: Vec<ModifierIrStmt>,
     },
+    For {
+        var: String,
+        iterable: CompiledExpr,
+        body: Vec<ModifierIrStmt>,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -148,7 +153,15 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
         }),
         Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
-        Stmt::ForLoop { .. } => Err(IrLowerError::UnsupportedStatement("for loop")),
+        Stmt::ForLoop { var, iterable, body, .. } => {
+            let compiled_iterable = compile_expr(iterable)
+                .ok_or(IrLowerError::UnsupportedStatement("for loop with unsupported iterable expression"))?;
+            Ok(ModifierIrStmt::For {
+                var: var.clone(),
+                iterable: compiled_iterable,
+                body: lower_modifier_block(body)?,
+            })
+        }
         Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
         Stmt::ActorDecl { .. }
         | Stmt::Import { .. }
@@ -295,6 +308,23 @@ where
             };
             for stmt in branch {
                 execute_modifier_stmt(stmt, frame_env, overrides, refresh_env)?;
+            }
+            Ok(())
+        }
+        ModifierIrStmt::For { var, iterable, body } => {
+            let values = evaluate_compiled_expr(iterable, frame_env)?;
+            let items: Vec<Value> = match values {
+                Value::List(list) => list,
+                Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
+                Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
+                Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
+                other => vec![other],
+            };
+            for item in items {
+                frame_env.set(var, item);
+                for stmt in body {
+                    execute_modifier_stmt(stmt, frame_env, overrides, refresh_env)?;
+                }
             }
             Ok(())
         }
@@ -782,6 +812,16 @@ impl fmt::Display for DisplayStmt<'_> {
                     write!(f, " }}")?;
                 }
                 Ok(())
+            }
+            ModifierIrStmt::For { var, iterable, body } => {
+                write!(f, "for {} in {} {{ ", var, DisplayCompiledExpr(iterable))?;
+                for (idx, stmt) in body.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{}", DisplayStmt(stmt))?;
+                }
+                write!(f, " }}")
             }
         }
     }

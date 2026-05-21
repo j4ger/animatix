@@ -189,6 +189,29 @@ impl Timeline {
                     }
                 }
             }
+            Stmt::ForLoop { var, iterable, body, .. } => {
+                if let Ok(values) = evaluate_expr(iterable, frame_env) {
+                    let items: Vec<Value> = match values {
+                        Value::List(list) => list,
+                        Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
+                        Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
+                        Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
+                        other => vec![other],
+                    };
+                    for item in items {
+                        frame_env.set(var, item);
+                        for stmt in body {
+                            self.apply_modifier_stmt(
+                                stmt,
+                                time_ms,
+                                scene_dimensions,
+                                frame_env,
+                                overrides,
+                            );
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }

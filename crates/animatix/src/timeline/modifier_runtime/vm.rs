@@ -20,6 +20,8 @@ pub enum Instruction {
     CallBuiltin(BuiltinFn, usize),
     JumpIfFalse(usize),
     Jump(usize),
+    BeginFor(String),       // var name; pops iterable from stack
+    CheckFor(String, usize), // var name, end jump; advances iterator, sets var, jumps to end if exhausted
     WriteOverride { target: String, property: String },
     Halt,
 }
@@ -129,6 +131,18 @@ impl BytecodeCompiler {
                 let end = self.instructions.len();
                 self.instructions[jump_if_false_idx] = Instruction::JumpIfFalse(else_start);
                 self.instructions[jump_idx] = Instruction::Jump(end);
+            }
+            ModifierIrStmt::For { var, iterable, body } => {
+                self.compile_expr(iterable)?;
+                self.instructions.push(Instruction::BeginFor(var.clone()));
+                let check_idx = self.instructions.len();
+                self.instructions.push(Instruction::CheckFor(var.clone(), usize::MAX));
+                for stmt in body {
+                    self.compile_stmt(stmt)?;
+                }
+                self.instructions.push(Instruction::Jump(check_idx));
+                let end = self.instructions.len();
+                self.instructions[check_idx] = Instruction::CheckFor(var.clone(), end);
             }
         }
         Ok(())
@@ -290,6 +304,38 @@ impl ModifierVm {
                 Instruction::Jump(target) => {
                     self.ip = *target;
                 }
+                Instruction::BeginFor(var) => {
+                    let iterable = self.pop()?;
+                    let items: Vec<Value> = match iterable {
+                        Value::List(list) => list,
+                        Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
+                        Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
+                        Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
+                        other => vec![other],
+                    };
+                    frame_env.set(&format!("__for_iter_{var}"), Value::List(items));
+                    frame_env.set(&format!("__for_idx_{var}"), Value::Num(0.0));
+                    self.ip += 1;
+                }
+                Instruction::CheckFor(var, end) => {
+                    let iter_key = format!("__for_iter_{var}");
+                    let idx_key = format!("__for_idx_{var}");
+                    let items = frame_env
+                        .get(&iter_key)
+                        .and_then(|v| match v { Value::List(l) => Some(l.clone()), _ => None })
+                        .unwrap_or_default();
+                    let idx = frame_env
+                        .get(&idx_key)
+                        .map(|v| v.as_num() as usize)
+                        .unwrap_or(0);
+                    if idx < items.len() {
+                        frame_env.set(var, items[idx].clone());
+                        frame_env.set(&idx_key, Value::Num((idx + 1) as f64));
+                        self.ip += 1;
+                    } else {
+                        self.ip = *end;
+                    }
+                }
                 Instruction::WriteOverride { target, property } => {
                     let value = self.pop()?;
                     overrides
@@ -330,6 +376,8 @@ impl fmt::Display for ModifierBytecodeProgram {
                 }
                 Instruction::JumpIfFalse(target) => writeln!(f, "{idx}: JumpIfFalse {target}")?,
                 Instruction::Jump(target) => writeln!(f, "{idx}: Jump {target}")?,
+                Instruction::BeginFor(var) => writeln!(f, "{idx}: BeginFor {var}")?,
+                Instruction::CheckFor(var, end) => writeln!(f, "{idx}: CheckFor {var} {end}")?,
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
                 }
