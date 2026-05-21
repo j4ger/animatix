@@ -1,8 +1,8 @@
 use super::ir::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
     apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_exp, eval_floor,
-    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_sin, eval_sqrt, eval_tan,
-    make_vec_value,
+    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_method, eval_sin, eval_sqrt,
+    eval_tan, make_vec_value,
 };
 use crate::ast::BinaryOp;
 use crate::timeline::{Environment, EvalError, Value};
@@ -18,6 +18,8 @@ pub enum Instruction {
     UnaryNot,
     Binary(BinaryOp),
     CallBuiltin(BuiltinFn, usize),
+    Index,
+    CallMethod(String, usize),
     JumpIfFalse(usize),
     Jump(usize),
     BeginFor(String),       // var name; pops iterable from stack
@@ -202,6 +204,19 @@ impl BytecodeCompiler {
                 self.instructions
                     .push(Instruction::CallBuiltin(builtin.clone(), args.len()));
             }
+            CompiledExpr::Index(container, index) => {
+                self.compile_expr(container)?;
+                self.compile_expr(index)?;
+                self.instructions.push(Instruction::Index);
+            }
+            CompiledExpr::Method(receiver, name, args) => {
+                self.compile_expr(receiver)?;
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.instructions
+                    .push(Instruction::CallMethod(name.clone(), args.len()));
+            }
         }
         Ok(())
     }
@@ -293,6 +308,84 @@ impl ModifierVm {
                     self.stack.push(result);
                     self.ip += 1;
                 }
+                Instruction::Index => {
+                    let index_val = self.pop()?;
+                    let container_val = self.pop()?;
+                    let idx = index_val.as_num() as usize;
+                    let result = match container_val {
+                        Value::List(items) => items
+                            .get(idx)
+                            .cloned()
+                            .ok_or_else(|| EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for list of length {}",
+                                idx,
+                                items.len()
+                            ))),
+                        Value::Str(s) => s
+                            .chars()
+                            .nth(idx)
+                            .map(|c| Value::Str(c.to_string()))
+                            .ok_or_else(|| EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for string of length {}",
+                                idx,
+                                s.len()
+                            ))),
+                        Value::Vec2(v) => match idx {
+                            0 => Ok(Value::Num(v[0])),
+                            1 => Ok(Value::Num(v[1])),
+                            _ => Err(EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for Vec2",
+                                idx
+                            ))),
+                        },
+                        Value::Vec3(v) => match idx {
+                            0 => Ok(Value::Num(v[0])),
+                            1 => Ok(Value::Num(v[1])),
+                            2 => Ok(Value::Num(v[2])),
+                            _ => Err(EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for Vec3",
+                                idx
+                            ))),
+                        },
+                        Value::Vec4(v) => match idx {
+                            0 => Ok(Value::Num(v[0])),
+                            1 => Ok(Value::Num(v[1])),
+                            2 => Ok(Value::Num(v[2])),
+                            3 => Ok(Value::Num(v[3])),
+                            _ => Err(EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for Vec4",
+                                idx
+                            ))),
+                        },
+                        Value::Color(c) => match idx {
+                            0 => Ok(Value::Num(c[0])),
+                            1 => Ok(Value::Num(c[1])),
+                            2 => Ok(Value::Num(c[2])),
+                            3 => Ok(Value::Num(c[3])),
+                            _ => Err(EvalError::TypeMismatch(format!(
+                                "Index {} out of bounds for Color",
+                                idx
+                            ))),
+                        },
+                        other => Err(EvalError::TypeMismatch(format!(
+                            "Cannot index into {:?}",
+                            other
+                        ))),
+                    }?;
+                    self.stack.push(result);
+                    self.ip += 1;
+                }
+                Instruction::CallMethod(name, arity) => {
+                    let mut args = Vec::with_capacity(*arity);
+                    for _ in 0..*arity {
+                        args.push(self.pop()?);
+                    }
+                    args.reverse();
+                    let receiver = self.pop()?;
+                    let result = super::ir::eval_method(receiver, name, &args)?;
+                    self.stack.push(result);
+                    self.ip += 1;
+                }
                 Instruction::JumpIfFalse(target) => {
                     let cond = self.pop()?;
                     if cond.as_num() == 0.0 {
@@ -373,6 +466,10 @@ impl fmt::Display for ModifierBytecodeProgram {
                 Instruction::Binary(op) => writeln!(f, "{idx}: Binary {op:?}")?,
                 Instruction::CallBuiltin(builtin, arity) => {
                     writeln!(f, "{idx}: CallBuiltin {builtin:?} {arity}")?
+                }
+                Instruction::Index => writeln!(f, "{idx}: Index")?,
+                Instruction::CallMethod(name, arity) => {
+                    writeln!(f, "{idx}: CallMethod {name} {arity}")?
                 }
                 Instruction::JumpIfFalse(target) => writeln!(f, "{idx}: JumpIfFalse {target}")?,
                 Instruction::Jump(target) => writeln!(f, "{idx}: Jump {target}")?,

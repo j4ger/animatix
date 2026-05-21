@@ -97,16 +97,15 @@ fn ir_lowering_rejects_unsupported_statement_forms() {
 
 #[test]
 fn ir_lowering_rejects_unsupported_expression_forms() {
-    let expr = Expr::Method(
-        Box::new(Expr::Ident("graph".to_string())),
-        "plot".to_string(),
+    let expr = Expr::Construct(
+        "Point".to_string(),
         vec![],
     );
 
     let compiled = compile_modifier_expr(&expr);
     assert!(matches!(
         compiled,
-        ModifierExpr::Unsupported(Expr::Method(_, _, _))
+        ModifierExpr::Unsupported(Expr::Construct(_, _))
     ));
 }
 
@@ -330,9 +329,8 @@ fn modifier_bytecode_rejects_unsupported_ir_expr() {
         body: vec![Stmt::Assignment {
             target: vec!["pulse".to_string()],
             property: "opacity".to_string(),
-            value: Expr::Method(
-                Box::new(Expr::Ident("graph".to_string())),
-                "plot".to_string(),
+            value: Expr::Construct(
+                "Point".to_string(),
                 vec![],
             ),
             modifiers: vec![],
