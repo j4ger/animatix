@@ -343,10 +343,10 @@ impl ModuleGraph {
 
             let result = self.load_file(&import_path, visiting, source_override)?;
             all_import_ids.push(
-                self.paths
+                    self.paths
                     .get(&fs::canonicalize(&import_path).map_err(ModuleError::IoError)?)
                     .copied()
-                    .unwrap(),
+                    .expect("path was just inserted by load_file"),
             );
             all_import_ids.extend(result.import_ids);
         }

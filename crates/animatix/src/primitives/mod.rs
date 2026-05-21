@@ -289,7 +289,7 @@ pub fn actor_kind_meta(kind: ActorKindId) -> &'static ActorKindMeta {
     actor_kind_registry()
         .iter()
         .find(|m| m.kind == kind)
-        .unwrap_or_else(|| panic!("ActorKindMeta missing for {:?}", kind))
+        .expect("actor_kind_meta: ActorKindId variant not found in PRIMITIVES array — add it to PRIMITIVES and ActorKindId enum")
 }
 
 /// Look up metadata by type name.

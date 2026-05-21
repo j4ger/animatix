@@ -225,7 +225,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .delimited_by(just('(').padded(), just(')').padded())
             .map(|items| {
                 if items.len() == 1 {
-                    items.into_iter().next().unwrap()
+                    items.into_iter().next().expect("tuple with len==1 has one item")
                 } else {
                     Expr::Tuple(items)
                 }

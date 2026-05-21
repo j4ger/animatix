@@ -252,7 +252,7 @@ impl World for TypstWorld {
 
 pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
     let text_font = resolve_font_family(font_family, font_ctx);
-    let typst_markup = convert_math(latex, None).unwrap();
+    let typst_markup = convert_math(latex, None).expect("failed to convert LaTeX math to Typst markup");
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
@@ -263,7 +263,7 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst math document");
 
     document.pages[0].frame.clone()
 }
@@ -280,7 +280,7 @@ pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst document");
 
     document.pages[0].frame.clone()
 }
@@ -301,7 +301,7 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst text document");
 
     document.pages[0].frame.clone()
 }
@@ -322,7 +322,7 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.unwrap();
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst code document");
 
     document.pages[0].frame.clone()
 }

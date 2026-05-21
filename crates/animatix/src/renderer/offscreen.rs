@@ -141,7 +141,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_a.as_ref().unwrap())
+        Ok(self.texture_a.as_ref().expect("texture_a initialized by ensure_targets"))
     }
 
     /// Render a timeline to the secondary offscreen texture (texture_b).
@@ -167,7 +167,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_b.as_ref().unwrap())
+        Ok(self.texture_b.as_ref().expect("texture_b initialized by ensure_targets"))
     }
 
     /// Render a transition between two timelines by compositing them with the
@@ -194,7 +194,7 @@ impl OffscreenRenderer {
         if self.compositor.is_none() {
             self.compositor = Some(TransitionCompositor::new(&self.device).map_err(|e| e.to_string())?);
         }
-        let compositor = self.compositor.as_ref().unwrap();
+        let compositor = self.compositor.as_ref().expect("compositor lazily initialized above");
 
         // Render from scene to texture_a, then drop scene_a before creating scene_b
         // to avoid holding both large vello::Scene objects simultaneously.

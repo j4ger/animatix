@@ -74,7 +74,7 @@ pub fn compute_taffy_linear_layout(
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
 
     for child in children {
-        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).unwrap();
+        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).expect("taffy new_leaf should succeed for valid child size");
         child_nodes.push(node);
     }
 
@@ -103,15 +103,15 @@ pub fn compute_taffy_linear_layout(
         ..Default::default()
     };
 
-    let container_node = taffy.new_with_children(container_style, &child_nodes).unwrap();
-    taffy.compute_layout(container_node, Size::MAX_CONTENT).unwrap();
+    let container_node = taffy.new_with_children(container_style, &child_nodes).expect("taffy new_with_children should succeed for valid style and children");
+    taffy.compute_layout(container_node, Size::MAX_CONTENT).expect("taffy compute_layout should succeed");
 
-    let container_layout = taffy.layout(container_node).unwrap();
+    let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed container node");
     children
         .iter()
         .zip(child_nodes)
         .map(|(_child, node)| {
-            let child_layout = taffy.layout(node).unwrap();
+            let child_layout = taffy.layout(node).expect("taffy layout should exist for computed child node");
             TaffyLayoutResult {
                 position: center_relative_position(container_layout, child_layout),
             }
@@ -139,7 +139,7 @@ pub fn compute_taffy_grid_layout(
     // remain identical even when some children are manually positioned.
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
     for child in children {
-        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).unwrap();
+        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).expect("taffy new_leaf should succeed for valid child size");
         child_nodes.push(node);
     }
 
@@ -175,11 +175,11 @@ pub fn compute_taffy_grid_layout(
         ..Default::default()
     };
 
-    let container_node = taffy.new_leaf(container_style).unwrap();
+    let container_node = taffy.new_leaf(container_style).expect("taffy new_leaf should succeed for grid container style");
 
     // Add children with grid placement
     for (i, child_node) in child_nodes.iter().enumerate() {
-        taffy.add_child(container_node, *child_node).unwrap();
+        taffy.add_child(container_node, *child_node).expect("taffy add_child should succeed for valid parent and child nodes");
         // Set grid placement using the line() helper from prelude
         let row = i / cols;
         let col = i % cols;
@@ -191,20 +191,20 @@ pub fn compute_taffy_grid_layout(
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("taffy set_style should succeed for valid child node and grid placement");
     }
 
     // Compute layout
     taffy
         .compute_layout(container_node, Size::MAX_CONTENT)
-        .unwrap();
+        .expect("taffy compute_layout should succeed for grid");
 
     // Extract positions
-    let container_layout = taffy.layout(container_node).unwrap();
+    let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed grid container");
     let mut results: Vec<TaffyLayoutResult> = Vec::with_capacity(children.len());
 
     for (i, _child) in children.iter().enumerate() {
-        let child_layout = taffy.layout(child_nodes[i]).unwrap();
+        let child_layout = taffy.layout(child_nodes[i]).expect("taffy layout should exist for computed grid child node");
 
         results.push(TaffyLayoutResult {
             position: center_relative_position(container_layout, child_layout),

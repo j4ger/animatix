@@ -223,8 +223,8 @@ impl Composition {
                     let timeline = build_report.output;
                     let duration_s = timeline.duration_seconds();
 
-                    if let Some((_target, _)) = &play_target {
-                        play_targets.insert(name.clone(), play_target.unwrap());
+                    if let Some(target) = play_target {
+                        play_targets.insert(name.clone(), target);
                     }
 
                     scenes.insert(
