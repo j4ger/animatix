@@ -223,7 +223,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 3.2 Cell Editor Visual Redesign
+### 4.2 Cell Editor Visual Redesign
 
 - Accent left border on focus.
 - Large, prominent keyframe timestamp (accent color, clickable edit).
@@ -235,7 +235,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 3.3 Preview Overlay System
+### 4.3 Preview Overlay System
 
 ```rust
 pub struct PreviewOverlay {
@@ -251,7 +251,7 @@ pub struct PreviewOverlay {
 
 ---
 
-### 3.4 Semantic Highlighting + Refactoring Tools
+### 4.4 Semantic Highlighting + Refactoring Tools
 
 Deep `animatix_analyzer` integration:
 - `SymbolTable`: actor / scene / component definitions.
@@ -262,9 +262,9 @@ Deep `animatix_analyzer` integration:
 
 ---
 
-## 4. Long-Term / Speculative
+## 5. Long-Term / Speculative
 
-### 4.1 FFI / Web Canvas Integration
+### 5.1 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
@@ -272,7 +272,7 @@ Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
 ---
 
-### 4.2 Lossless Syntax Tree (Green Tree)
+### 5.2 Lossless Syntax Tree (Green Tree)
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -282,7 +282,7 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 
 ---
 
-### 4.3 Trivia-Inspired AST
+### 5.3 Trivia-Inspired AST
 
 Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
 
@@ -290,7 +290,7 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 5. Priority Order
+## 6. Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
