@@ -55,15 +55,17 @@ Badge rendering is inlined in `preview/mod.rs` (target-index badge) and `inspect
 
 ### 2.1 Design Token System
 
-Colors, spacing, radius, and typography are currently hard-coded and scattered.
+Most colors are now tokenized in `theme.rs` (base colors, alpha-tinted variants, backgrounds, semantic colors). Remaining work:
+
+- Formalize token groups with generated documentation.
+- Add `lint_theme.py` to catch regressions.
+- Rename `theme.rs` → `design_tokens.rs` for clarity.
 
 Token groups:
 - `color`: `SURFACE_BASE`, `ELEVATED`, `WIDGET`, `TEXT_PRIMARY`, `TEXT_SECONDARY`, `ACCENT`, `SUCCESS`, `WARNING`, `ERROR`
 - `spacing`: `XS`, `S`, `M`, `L`, `XL`, `XXL`
 - `radius`: `NONE`, `SM`, `MD`, `LG`, `FULL`
 - `typography`: `H1`, `H2`, `BODY`, `CAPTION`, `MONO`
-
-Helper: `lint_theme.py` scans for hard-coded values.
 
 **Key files:** `app/theme.rs` → `app/design_tokens.rs`
 
@@ -82,6 +84,8 @@ Helper: `lint_theme.py` scans for hard-coded values.
 ---
 
 ### 2.3 Preview Overlay System
+
+Individual overlays exist (grid, snap guides, hover highlight, selection boxes, ghost/onion skin, diff mode split, ruler guides) but there is no unified toggle system.
 
 ```rust
 pub struct PreviewOverlay {
