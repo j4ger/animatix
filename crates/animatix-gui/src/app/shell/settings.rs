@@ -80,7 +80,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.grid_size)
+                            egui::DragValue::new(&mut self.preview.overlay.grid_size)
                                 .speed(1.0)
                                 .range(1.0..=200.0)
                                 .suffix(" px"),

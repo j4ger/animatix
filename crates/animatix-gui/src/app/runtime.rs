@@ -147,8 +147,8 @@ impl AnimatixApp {
         if has_selection && (arrow_left || arrow_right || arrow_up || arrow_down) {
             let nudge_step = if ctx.input(|i| i.modifiers.shift) {
                 self.shell.nudge_step_shift_px
-            } else if self.shell.grid_enabled {
-                self.shell.grid_size
+            } else if self.shell.preview.overlay.show_grid {
+                self.shell.preview.overlay.grid_size
             } else {
                 self.shell.nudge_step_px
             };

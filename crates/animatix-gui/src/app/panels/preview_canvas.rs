@@ -392,8 +392,8 @@ impl WorkspaceViewer<'_> {
                         let mut nx = start_position[0] + dx;
                         let mut ny = start_position[1] + dy;
 
-                        if *self.grid_enabled {
-                            let grid = *self.grid_size;
+                        if self.preview.overlay.show_grid {
+                            let grid = self.preview.overlay.grid_size;
                             nx = (nx / grid).round() * grid;
                             ny = (ny / grid).round() * grid;
                         }
@@ -1128,50 +1128,59 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
         }
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p));
-        if let Some(hovered) = self.selection.hovered_actor.as_ref() {
-            if !self.selected_actors.contains(hovered) {
-                if let Some(hover_rect) = preview::selection_screen_rect(
-                    &HashSet::from([hovered.clone()]),
-                    self.hit_regions,
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.preview_zoom,
-                    self.preview.preview_pan,
-                ) {
-                    selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
+
+        // Hover highlight
+        if self.preview.overlay.show_hover_highlight {
+            if let Some(hovered) = self.selection.hovered_actor.as_ref() {
+                if !self.selected_actors.contains(hovered) {
+                    if let Some(hover_rect) = preview::selection_screen_rect(
+                        &HashSet::from([hovered.clone()]),
+                        self.hit_regions,
+                        preview_rect,
+                        self.scene_dimensions,
+                        preview_rect.size(),
+                        self.preview.preview_zoom,
+                        self.preview.preview_pan,
+                    ) {
+                        selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
+                    }
                 }
             }
         }
 
         // Smart snap guides during drag
-        if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } = &self.drag_state {
-            self.draw_snap_guides(ui, preview_rect, primary);
-        }
-
-        // ── Snap HUD label ──
-        if let Some(ref label) = self.preview.snap_hud_label {
-            if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-                let hud_pos = mouse + Vec2::new(12.0, -24.0);
-                let galley = ui.painter().layout_no_wrap(
-                    label.clone(),
-                    egui::FontId::proportional(FONT_SIZE_S),
-                    GREEN,
-                );
-                let padding = Vec2::new(8.0, 4.0);
-                let bg_size = galley.size() + padding * 2.0;
-                let bg_rect = egui::Rect::from_min_size(hud_pos, bg_size);
-                ui.painter().rect_filled(bg_rect, 3.0, snap_guide_label_bg());
-                ui.painter().rect_stroke(
-                    bg_rect,
-                    3.0,
-                    egui::Stroke::new(1.0, snap_guide_line()),
-                    egui::StrokeKind::Outside,
-                );
-                ui.painter().galley(hud_pos + padding, galley, GREEN);
+        if self.preview.overlay.show_snap_guides {
+            if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } = &self.drag_state {
+                self.draw_snap_guides(ui, preview_rect, primary);
             }
         }
 
+        // ── Snap HUD label ──
+        if self.preview.overlay.show_snap_guides {
+            if let Some(ref label) = self.preview.snap_hud_label {
+                if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                    let hud_pos = mouse + Vec2::new(12.0, -24.0);
+                    let galley = ui.painter().layout_no_wrap(
+                        label.clone(),
+                        egui::FontId::proportional(FONT_SIZE_S),
+                        GREEN,
+                    );
+                    let padding = Vec2::new(8.0, 4.0);
+                    let bg_size = galley.size() + padding * 2.0;
+                    let bg_rect = egui::Rect::from_min_size(hud_pos, bg_size);
+                    ui.painter().rect_filled(bg_rect, 3.0, snap_guide_label_bg());
+                    ui.painter().rect_stroke(
+                        bg_rect,
+                        3.0,
+                        egui::Stroke::new(1.0, snap_guide_line()),
+                        egui::StrokeKind::Outside,
+                    );
+                    ui.painter().galley(hud_pos + padding, galley, GREEN);
+                }
+            }
+        }
+
+        // Cycle indicator (click-through multiple overlapping actors)
         if let Some(mouse) = pointer_pos {
             selection::draw_cycle_indicator(
                 ui.painter(),
@@ -1550,12 +1559,12 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 Vec2::new(header_h, header_h - 4.0),
             );
             let grid_btn = ui.allocate_rect(grid_btn_rect, egui::Sense::click());
-            let grid_icon = if *self.grid_enabled {
+            let grid_icon = if self.preview.overlay.show_grid {
                 egui_phosphor::regular::GRID_FOUR
             } else {
                 egui_phosphor::regular::GRID_NINE
             };
-            let grid_color = if *self.grid_enabled { ACCENT_BLUE } else { TEXT_MUTED };
+            let grid_color = if self.preview.overlay.show_grid { ACCENT_BLUE } else { TEXT_MUTED };
             ui.painter().text(
                 grid_btn_rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -1564,7 +1573,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 grid_color,
             );
             if grid_btn.clicked() {
-                *self.grid_enabled = !*self.grid_enabled;
+                self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
             }
 
             // Reset zoom/pan button (left of grid toggle)
@@ -1637,6 +1646,37 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     "Scene slices disabled".to_string()
                 };
             }
+
+            // Overlay toggle menu (left of slices)
+            let overlay_btn_rect = egui::Rect::from_min_size(
+                egui::pos2(slices_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
+                Vec2::new(header_h, header_h - 4.0),
+            );
+            let overlay_btn = ui.allocate_rect(overlay_btn_rect, egui::Sense::click());
+            let any_overlay_on = self.preview.overlay.show_grid
+                || self.preview.overlay.show_guides
+                || self.preview.overlay.show_hover_highlight
+                || self.preview.overlay.show_snap_guides;
+            let overlay_color = if any_overlay_on { ACCENT_BLUE } else { TEXT_MUTED };
+            ui.painter().text(
+                overlay_btn_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::EYE,
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                overlay_color,
+            );
+            if overlay_btn.clicked() {
+                self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
+            }
+            overlay_btn.context_menu(|ui| {
+                ui.checkbox(&mut self.preview.overlay.show_scene_bounds, "Scene bounds");
+                ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
+                ui.checkbox(&mut self.preview.overlay.show_guides, "Guides");
+                ui.checkbox(&mut self.preview.overlay.show_actor_labels, "Actor labels");
+                ui.checkbox(&mut self.preview.overlay.show_safe_area, "Safe area");
+                ui.checkbox(&mut self.preview.overlay.show_snap_guides, "Snap guides");
+                ui.checkbox(&mut self.preview.overlay.show_hover_highlight, "Hover highlight");
+            });
 
             ui.add_space(SPACE_S);
 
@@ -1838,25 +1878,27 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             }
 
             // ── Draw existing guides ──
-            let guide_color = AMBER;
-            for &guide_y in &self.preview.horizontal_guides {
-                let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
-                if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                    ui.painter().line_segment(
-                        [egui::pos2(preview_rect.min.x, screen_pt.y),
-                         egui::pos2(preview_rect.max.x, screen_pt.y)],
-                        Stroke::new(1.0, guide_color),
-                    );
+            if self.preview.overlay.show_guides {
+                let guide_color = AMBER;
+                for &guide_y in &self.preview.horizontal_guides {
+                    let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
+                    if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
+                        ui.painter().line_segment(
+                            [egui::pos2(preview_rect.min.x, screen_pt.y),
+                             egui::pos2(preview_rect.max.x, screen_pt.y)],
+                            Stroke::new(1.0, guide_color),
+                        );
+                    }
                 }
-            }
-            for &guide_x in &self.preview.vertical_guides {
-                let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
-                if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                    ui.painter().line_segment(
-                        [egui::pos2(screen_pt.x, preview_rect.min.y),
-                         egui::pos2(screen_pt.x, preview_rect.max.y)],
-                        Stroke::new(1.0, guide_color),
-                    );
+                for &guide_x in &self.preview.vertical_guides {
+                    let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
+                    if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
+                        ui.painter().line_segment(
+                            [egui::pos2(screen_pt.x, preview_rect.min.y),
+                             egui::pos2(screen_pt.x, preview_rect.max.y)],
+                            Stroke::new(1.0, guide_color),
+                        );
+                    }
                 }
             }
 
@@ -1978,6 +2020,45 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             self.render_preview_overlays(ui, preview_rect);
             self.render_preview_content(ui, preview_rect);
 
+            // ── Scene bounds overlay ──
+            if self.preview.overlay.show_scene_bounds {
+                let bounds_rect = preview::scene_to_screen(
+                    kurbo::Point::new(0.0, 0.0),
+                    preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                let bounds_br = preview::scene_to_screen(
+                    kurbo::Point::new(self.scene_dimensions.width as f64, self.scene_dimensions.height as f64),
+                    preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                let bounds_screen = egui::Rect::from_min_max(bounds_rect, bounds_br);
+                ui.painter().rect_stroke(
+                    bounds_screen,
+                    0.0,
+                    Stroke::new(1.0, BORDER_HOVER),
+                    egui::StrokeKind::Inside,
+                );
+            }
+
+            // ── Actor labels overlay ──
+            if self.preview.overlay.show_actor_labels {
+                for (label, bounds) in self.hit_regions {
+                    let center = preview::scene_to_screen(
+                        kurbo::Point::new((bounds.x0 + bounds.x1) / 2.0, bounds.y0 - 4.0),
+                        preview_rect, self.scene_dimensions, preview_rect.size(),
+                        self.preview.preview_zoom, self.preview.preview_pan,
+                    );
+                    ui.painter().text(
+                        center,
+                        egui::Align2::CENTER_BOTTOM,
+                        label,
+                        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                        TEXT_MUTED,
+                    );
+                }
+            }
+
             // ── Diff mode overlay ──
             if self.preview.diff_mode {
                 let split_x = preview_rect.center().x;
@@ -2006,14 +2087,14 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             }
 
             // Draw grid overlay
-            if *self.grid_enabled {
+            if self.preview.overlay.show_grid {
                 preview::grid::draw_grid(
                     ui.painter(),
                     self.scene_dimensions,
                     preview_rect,
                     self.preview.preview_zoom,
                     self.preview.preview_pan,
-                    *self.grid_size,
+                    self.preview.overlay.grid_size,
                 );
             }
 

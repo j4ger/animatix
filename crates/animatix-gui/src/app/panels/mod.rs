@@ -91,10 +91,6 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) keyframe_mode: bool,
     /// Actor labels that the user have explicitly collapsed in the layer tree.
     pub(super) collapsed_actors: &'a mut HashSet<String>,
-    /// Whether grid snapping is enabled in the preview canvas.
-    pub(super) grid_enabled: &'a mut bool,
-    /// Grid size in pixels.
-    pub(super) grid_size: &'a mut f32,
     /// Per-actor pivot offsets in object-local space (relative to actor centre).
     pub(super) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     /// Active tool mode for preview interactions.

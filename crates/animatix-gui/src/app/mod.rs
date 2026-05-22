@@ -115,6 +115,8 @@ pub(crate) struct PreviewPaneState {
     pub diff_before_source: Option<String>,
     /// Scene slice state (A/B/C side-by-side comparison).
     pub scene_slices: crate::app::preview::scene_slices::SceneSliceState,
+    /// Overlay toggle state.
+    pub overlay: crate::app::preview::overlay::PreviewOverlay,
 }
 
 /// Transient UI state for panels (not preview/playback state).
@@ -157,6 +159,7 @@ impl PreviewPaneState {
             diff_mode: false,
             diff_before_source: None,
             scene_slices: crate::app::preview::scene_slices::SceneSliceState::default(),
+            overlay: crate::app::preview::overlay::PreviewOverlay::default(),
         }
     }
 
@@ -291,10 +294,6 @@ struct GuiShell {
     /// Keyframe merge window in seconds. Edits within this window of the
     /// previous keyframe are merged instead of creating a new timestamp.
     keyframe_merge_window_s: f64,
-    /// Whether grid snapping is enabled in the preview canvas.
-    grid_enabled: bool,
-    /// Grid size in pixels.
-    grid_size: f32,
     /// Per-actor pivot offsets in object-local space (relative to actor centre).
     pivot_offsets: HashMap<String, [f32; 2]>,
     /// Active tool mode for preview canvas interactions.
@@ -423,8 +422,6 @@ impl GuiShell {
             export_total_frames: 0,
             debug_bounds: false,
             keyframe_merge_window_s: 0.05,
-            grid_enabled: true,
-            grid_size: 20.0,
             pivot_offsets: HashMap::new(),
             tool_mode: preview::ToolMode::Select,
             scrub_step_s: 0.1,
@@ -645,8 +642,6 @@ impl GuiShell {
             selection: &mut self.selection,
             keyframe_mode: self.keyframe_mode,
             collapsed_actors: &mut self.collapsed_actors,
-            grid_enabled: &mut self.grid_enabled,
-            grid_size: &mut self.grid_size,
             pivot_offsets: &mut self.pivot_offsets,
             tool_mode: &mut self.tool_mode,
             rotation_snap_degrees: self.rotation_snap_degrees,
