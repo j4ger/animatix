@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod floating_card;
+pub mod grid;
 pub mod selection;
 pub mod time_lens;
 pub mod scene_slices;

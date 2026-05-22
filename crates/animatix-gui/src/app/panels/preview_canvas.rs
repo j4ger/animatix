@@ -2007,53 +2007,14 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
 
             // Draw grid overlay
             if *self.grid_enabled {
-                let grid = *self.grid_size;
-                let grid_color = grid_line();
-
-                // Compute the visible scene bounds from preview rect corners
-                let scene_tl = preview_screen_to_scene(
-                    self.scene_dimensions, preview_rect, preview_rect.left_top(),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                preview::grid::draw_grid(
+                    ui.painter(),
+                    self.scene_dimensions,
+                    preview_rect,
+                    self.preview.preview_zoom,
+                    self.preview.preview_pan,
+                    *self.grid_size,
                 );
-                let scene_br = preview_screen_to_scene(
-                    self.scene_dimensions, preview_rect, preview_rect.right_bottom(),
-                    self.preview.preview_zoom, self.preview.preview_pan,
-                );
-                let x0 = (scene_tl.x / grid as f64).floor() as i32 * grid as i32;
-                let y0 = (scene_tl.y / grid as f64).floor() as i32 * grid as i32;
-                let x1 = (scene_br.x / grid as f64).ceil() as i32 * grid as i32;
-                let y1 = (scene_br.y / grid as f64).ceil() as i32 * grid as i32;
-
-                let mut x = x0 as f32;
-                while x <= x1 as f32 {
-                    let screen_pt = preview_scene_to_screen(
-                        self.scene_dimensions, preview_rect,
-                        kurbo::Point::new(x as f64, 0.0),
-                        self.preview.preview_zoom, self.preview.preview_pan,
-                    );
-                    if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                        ui.painter().line_segment(
-                            [egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)],
-                            Stroke::new(1.0, grid_color),
-                        );
-                    }
-                    x += grid;
-                }
-                let mut y = y0 as f32;
-                while y <= y1 as f32 {
-                    let screen_pt = preview_scene_to_screen(
-                        self.scene_dimensions, preview_rect,
-                        kurbo::Point::new(0.0, y as f64),
-                        self.preview.preview_zoom, self.preview.preview_pan,
-                    );
-                    if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                        ui.painter().line_segment(
-                            [egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)],
-                            Stroke::new(1.0, grid_color),
-                        );
-                    }
-                    y += grid;
-                }
             }
 
             // ── Draw snap indicator lines ──
