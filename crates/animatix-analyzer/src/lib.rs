@@ -19,7 +19,7 @@ pub use symbol_table::*;
 pub use completer::*;
 pub use diagnostics::*;
 
-use animatix::ast::Stmt;
+use animatix::ast::{Span, Stmt};
 use animatix::parser::parser;
 use chumsky::Parser;
 use std::collections::HashMap;
@@ -260,30 +260,69 @@ impl Analyzer {
             "let_declaration" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let pos = name_node.start_position();
+                    let start = name_node.start_position();
+                    let end = name_node.end_position();
                     if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = pos.row + 1; // tree-sitter is 0-based
-                        info.col = pos.column + 1;
+                        info.line = start.row + 1; // tree-sitter is 0-based
+                        info.col = start.column + 1;
+                        info.span = Some(Span {
+                            start_line: start.row + 1,
+                            start_col: start.column + 1,
+                            end_line: end.row + 1,
+                            end_col: end.column + 1,
+                        });
                     }
                 }
             }
             "actor_declaration" | "text_shorthand" => {
                 if let Some(label_node) = node.child_by_field_name("label") {
                     let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let pos = label_node.start_position();
+                    let start = label_node.start_position();
+                    let end = label_node.end_position();
                     if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = pos.row + 1;
-                        info.col = pos.column + 1;
+                        info.line = start.row + 1;
+                        info.col = start.column + 1;
+                        info.span = Some(Span {
+                            start_line: start.row + 1,
+                            start_col: start.column + 1,
+                            end_line: end.row + 1,
+                            end_col: end.column + 1,
+                        });
                     }
                 }
             }
             "component_definition" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let pos = name_node.start_position();
+                    let start = name_node.start_position();
+                    let end = name_node.end_position();
                     if let Some(info) = table.components.get_mut(&name) {
-                        info.line = pos.row + 1;
-                        info.col = pos.column + 1;
+                        info.line = start.row + 1;
+                        info.col = start.column + 1;
+                        info.span = Some(Span {
+                            start_line: start.row + 1,
+                            start_col: start.column + 1,
+                            end_line: end.row + 1,
+                            end_col: end.column + 1,
+                        });
+                    }
+                }
+            }
+            "import_statement" => {
+                if let Some(path_node) = node.child_by_field_name("path") {
+                    let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = node.start_position();
+                    let end = node.end_position();
+                    for info in &mut table.imports {
+                        if info.path == path {
+                            info.span = Some(Span {
+                                start_line: start.row + 1,
+                                start_col: start.column + 1,
+                                end_line: end.row + 1,
+                                end_col: end.column + 1,
+                            });
+                            break;
+                        }
                     }
                 }
             }

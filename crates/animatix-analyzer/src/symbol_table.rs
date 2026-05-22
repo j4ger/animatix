@@ -27,6 +27,8 @@ pub struct SymbolTable {
 pub struct ImportInfo {
     pub path: String,
     pub alias: Option<String>,
+    /// Full source span of the import statement.
+    pub span: Option<Span>,
 }
 
 /// Information about a labeled entity.
@@ -36,6 +38,8 @@ pub struct LabelInfo {
     pub kind: LabelKind,
     pub line: usize,
     pub col: usize,
+    /// Full source span (line/col range) for precise source write-back.
+    pub span: Option<Span>,
     /// The type of the actor (e.g., "Text", "Button"), if applicable.
     pub ty: Option<String>,
 }
@@ -62,6 +66,8 @@ pub struct ComponentInfo {
     pub params: Vec<ParamInfo>,
     pub line: usize,
     pub col: usize,
+    /// Full source span (line/col range) for precise source write-back.
+    pub span: Option<Span>,
 }
 
 /// Information about a component parameter.
@@ -209,27 +215,29 @@ impl SymbolTable {
 
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::LetDecl { name, .. } => {
+            Stmt::LetDecl { name, span, .. } => {
                 self.labels.insert(name.clone(), LabelInfo {
                     name: name.clone(),
                     kind: LabelKind::Let,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                    span: span.clone(),
                     ty: None,
                 });
             }
 
-            Stmt::ActorDecl { label, ty, .. } => {
+            Stmt::ActorDecl { label, ty, span, .. } => {
                 self.labels.insert(label.clone(), LabelInfo {
                     name: label.clone(),
                     kind: LabelKind::Actor,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                    span: span.clone(),
                     ty: Some(ty.clone()),
                 });
             }
 
-            Stmt::ComponentDef(def, ..) => {
+            Stmt::ComponentDef(def, span) => {
                 self.components.insert(def.name.clone(), ComponentInfo {
                     name: def.name.clone(),
                     params: def.params.iter().map(|p| ParamInfo {
@@ -238,6 +246,7 @@ impl SymbolTable {
                     }).collect(),
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                    span: span.clone(),
                 });
 
                 // Recurse into component body
@@ -246,12 +255,13 @@ impl SymbolTable {
                 }
             }
 
-            Stmt::ForLoop { var, body, .. } => {
+            Stmt::ForLoop { var, body, span, .. } => {
                 self.labels.insert(var.clone(), LabelInfo {
                     name: var.clone(),
                     kind: LabelKind::For,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                    span: span.clone(),
                     ty: None,
                 });
 
@@ -282,10 +292,11 @@ impl SymbolTable {
                 }
             }
 
-            Stmt::Import { path, alias, .. } => {
+            Stmt::Import { path, alias, span, .. } => {
                 self.imports.push(ImportInfo {
                     path: path.clone(),
                     alias: alias.clone(),
+                    span: span.clone(),
                 });
             }
 
