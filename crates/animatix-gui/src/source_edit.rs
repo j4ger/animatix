@@ -331,7 +331,6 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
             _ => {}
         }
     }
-
     false
 }
 
@@ -384,13 +383,17 @@ fn set_keyframe_easing(
 }
 
 /// Walk into an assignment at the given time and set its easing modifier.
-fn update_assignment_easing(body: &mut [Stmt], actor: &str, property: &str, easing_expr: &animatix::ast::Expr) -> bool {
+fn update_assignment_easing(
+    body: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    easing_expr: &animatix::ast::Expr,
+) -> bool {
     for stmt in body.iter_mut() {
         match stmt {
             Stmt::Assignment { target, property: prop, modifiers, .. }
                 if target.iter().any(|t| t == actor) && prop == property =>
             {
-                // Find existing ease modifier or add new one
                 if let Some(existing) = modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease")) {
                     existing.value = easing_expr.clone();
                 } else {
@@ -694,10 +697,6 @@ fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Ve
 // Scene helpers
 // ---------------------------------------------------------------------------
 
-fn find_scene_mut<'a>(stmts: &'a mut [Stmt], name: &str) -> Option<&'a mut Stmt> {
-    stmts.iter_mut().find(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
-}
-
 fn scene_names(stmts: &[Stmt]) -> Vec<String> {
     stmts
         .iter()
@@ -841,54 +840,26 @@ fn rename_scene(stmts: &mut [Stmt], old_name: &str, new_name: &str) -> bool {
     }
 
     let mut renamed = false;
-    for stmt in stmts.iter_mut() {
+    walk_stmts_mut(stmts, &mut |stmt| {
         renamed |= rename_scene_in_stmt(stmt, old_name, new_name);
-    }
+    });
     renamed
 }
 
+/// Rename scene references inside a single statement (non-recursive).
 fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool {
     let mut renamed = false;
     match stmt {
-        Stmt::Scene { name, body, .. } => {
+        Stmt::Scene { name, .. } => {
             if name == old_name {
                 *name = new_name.into();
                 renamed = true;
-            }
-            for child in body.iter_mut() {
-                renamed |= rename_scene_in_stmt(child, old_name, new_name);
             }
         }
         Stmt::Play { scene_name, .. } => {
             if scene_name == old_name {
                 *scene_name = new_name.into();
                 renamed = true;
-            }
-        }
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. } => {
-            for child in body.iter_mut() {
-                renamed |= rename_scene_in_stmt(child, old_name, new_name);
-            }
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
-            for child in then_branch.iter_mut() {
-                renamed |= rename_scene_in_stmt(child, old_name, new_name);
-            }
-            if let Some(else_branch) = else_branch {
-                for child in else_branch.iter_mut() {
-                    renamed |= rename_scene_in_stmt(child, old_name, new_name);
-                }
-            }
-        }
-        Stmt::ForLoop { body, .. } => {
-            for child in body.iter_mut() {
-                renamed |= rename_scene_in_stmt(child, old_name, new_name);
             }
         }
         _ => {}
@@ -1169,11 +1140,43 @@ fn inline_item_has_label(item: &InlineItem, label: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Generic AST traversal
+// ---------------------------------------------------------------------------
+
+/// Depth-first mutable visitor over every statement.
+fn walk_stmts_mut(stmts: &mut [Stmt], visitor: &mut dyn FnMut(&mut Stmt)) {
+    for stmt in stmts.iter_mut() {
+        visitor(stmt);
+        match stmt {
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. }
+            | Stmt::Scene { body, .. } => {
+                walk_stmts_mut(body, visitor);
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                walk_stmts_mut(then_branch, visitor);
+                if let Some(else_b) = else_branch {
+                    walk_stmts_mut(else_b, visitor);
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                walk_stmts_mut(body, visitor);
+            }
+            _ => {}
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AST traversal helpers
 // ---------------------------------------------------------------------------
 
-/// Find a mutable reference to an ActorDecl (or Text/Math/Code/Svg/Image) with
-/// the given label anywhere in the statement tree.
+/// Find an ActorDecl with the given label anywhere in the statement tree.
 pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
     for stmt in stmts.iter() {
         match stmt {
@@ -1204,12 +1207,6 @@ pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
                     return Some(found);
                 }
             }
-            Stmt::ActorDecl { children, .. } => {
-                // Inline items are not Stmts, so we can't return them here.
-                // This is a limitation — nested children aren't editable via
-                // this path. For now, we only support top-level actors.
-                let _ = children;
-            }
             _ => {}
         }
     }
@@ -1220,7 +1217,6 @@ fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut
     for stmt in stmts.iter_mut() {
         match stmt {
             Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            // Recurse into containers
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -1247,15 +1243,6 @@ fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut
                     return Some(found);
                 }
             }
-            Stmt::ActorDecl { children, .. } => {
-                if let Some(found) = find_inline_item_mut(children, label) {
-                    // We found the inline item but need to return it as a Stmt.
-                    // Inline items are not Stmts, so we can't return them here.
-                    // This is a limitation — nested children aren't editable via
-                    // this path. For now, we only support top-level actors.
-                    let _ = found;
-                }
-            }
             _ => {}
         }
     }
@@ -1276,7 +1263,6 @@ fn find_assignment_mut<'a>(
             {
                 return Some(stmt);
             }
-            // Recurse
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -1309,6 +1295,11 @@ fn find_assignment_mut<'a>(
     None
 }
 
+/// Find a scene declaration by name.
+fn find_scene_mut<'a>(stmts: &'a mut [Stmt], name: &str) -> Option<&'a mut Stmt> {
+    stmts.iter_mut().find(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
+}
+
 /// Find a property by name inside an actor-like statement.
 fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property> {
     let props: &mut Vec<Property> = match stmt {
@@ -1318,50 +1309,26 @@ fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property>
     props.iter_mut().find(|p| p.name == name)
 }
 
-fn find_inline_item_mut<'a>(
-    items: &'a mut [InlineItem],
-    label: &str,
-) -> Option<&'a mut InlineItem> {
-    for item in items.iter_mut() {
-        match item {
-            InlineItem::Labeled { label: l, children, .. } if l == label => return Some(item),
-            InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
-                if let Some(found) = find_inline_item_mut(children, label) {
-                    return Some(found);
-                }
-            }
-            InlineItem::SlotFill { items: slot_items, .. } => {
-                if let Some(found) = find_inline_item_mut(slot_items, label) {
-                    return Some(found);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 // ---------------------------------------------------------------------------
 // Rename
 // ---------------------------------------------------------------------------
 
 /// Rename all references to `old_label` into `new_label` throughout the AST.
 pub(crate) fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
-    for stmt in stmts.iter_mut() {
+    walk_stmts_mut(stmts, &mut |stmt| {
         rename_in_stmt(stmt, old_label, new_label);
-    }
+    });
 }
 
+/// Rename actor references inside a single statement (non-recursive).
 fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
     match stmt {
-        // Actor declarations
         Stmt::ActorDecl { label, children, .. } => {
             if label == old_label {
                 *label = new_label.into();
             }
             rename_in_inline_items(children, old_label, new_label);
         }
-        // Assignments: target = [..., "actor"] ; property = "prop"
         Stmt::Assignment { target, .. } => {
             if let Some(last) = target.last_mut() {
                 if last == old_label {
@@ -1369,32 +1336,12 @@ fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
                 }
             }
         }
-        // Action: action.verb targets
         Stmt::Action(action, _) => {
             for t in action.targets.iter_mut() {
                 if t == old_label {
                     *t = new_label.into();
                 }
             }
-        }
-        // Containers / bodies
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. } => {
-            rename_all_references(body, old_label, new_label);
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
-            rename_all_references(then_branch, old_label, new_label);
-            if let Some(else_b) = else_branch {
-                rename_all_references(else_b, old_label, new_label);
-            }
-        }
-        Stmt::ForLoop { body, .. } => {
-            rename_all_references(body, old_label, new_label);
         }
         _ => {}
     }
