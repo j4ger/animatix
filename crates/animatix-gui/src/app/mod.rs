@@ -305,13 +305,19 @@ impl GuiShell {
         if let Some(ref mut reloader) = self.hot_reloader {
             match reloader.update(app_time) {
                 ReloadStatus::ShouldReload { path: _ } => {
+                    // LiveDocument: editor is the source of truth. If the editor
+                    // has unsaved changes, do NOT silently overwrite them.
+                    if self.document.is_dirty {
+                        self.preview.status = "External file changed • reload blocked (unsaved edits)".to_string();
+                        return;
+                    }
                     if let Err(err) = self.document.reload_from_disk() {
                         self.preview.error = Some(err);
                         self.preview.status = "Hot reload failed".to_string();
-                } else {
-                    self.editor
-                        .set_document(&self.document.file_path, self.document.source_text.clone());
-                    self.last_reload_time = Some(app_time);
+                    } else {
+                        self.editor
+                            .set_document(&self.document.file_path, self.document.source_text.clone());
+                        self.last_reload_time = Some(app_time);
                         self.preview.status = "File reloaded".to_string();
                         self.preview.error = None;
                     }
@@ -943,7 +949,11 @@ impl GuiShell {
     }
 
     fn save(&mut self) -> Result<(), String> {
-        self.document.save_to_disk()?;
+        let text = self.editor.text().to_string();
+        std::fs::write(&self.document.file_path, &text)
+            .map_err(|err| format!("Failed to save {}: {err}", self.document.file_path.display()))?;
+        self.document.source_text = text;
+        self.document.is_dirty = false;
         self.preview.status = format!("Saved {}", self.document.file_path.display());
         Ok(())
     }
