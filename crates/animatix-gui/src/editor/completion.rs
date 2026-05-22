@@ -1,8 +1,8 @@
 //! Completion popup support for the code editor.
 
 use crate::cell_editor::parse_cells;
+use crate::cell_editor::CellEditorState;
 use crate::editor::EditorBuffer;
-use crate::CellEditorState;
 
 impl EditorBuffer {
     /// Trigger completion at current cursor position.
