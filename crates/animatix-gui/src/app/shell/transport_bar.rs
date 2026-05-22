@@ -461,7 +461,7 @@ fn paint_transport_scrubber(
         let palette = [
             track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5(),
         ];
-        let label_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 180);
+        let label_color = text_dim();
         let total = duration_s.max(0.1);
 
         for (idx, scene_name) in composition.declaration_order.iter().enumerate() {
@@ -574,9 +574,9 @@ fn paint_transport_scrubber(
             if width > 40.0 {
                 let label = format!("{}", transition_type_label(&edge.transition.id));
                 let label_color = if overlap_response.hovered() {
-                    Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 220)
+                    text_hover()
                 } else {
-                    Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 160)
+                    text_subtle()
                 };
                 painter.text(
                     overlap_rect.center(),

@@ -3,9 +3,9 @@
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
         primary_diagnostic_phase,
     };
+    use crate::app::theme::DIAGNOSTIC_RED;
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
-    use egui::Color32;
     use egui::Vec2;
     use std::path::PathBuf;
 
@@ -77,7 +77,7 @@
 
         assert_eq!(
             diagnostics_summary_color(&diagnostics),
-            Color32::from_rgb(255, 136, 136)
+            DIAGNOSTIC_RED
         );
     }
 

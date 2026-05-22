@@ -22,7 +22,7 @@ use crate::app::theme::*;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
 /// Width of the track label column on the left.
 const LABEL_COL_WIDTH: f32 = 120.0;
@@ -285,12 +285,7 @@ pub(crate) fn timeline_panel_ui(
                         Align2::CENTER_CENTER,
                         scene_name.as_str(),
                         FontId::monospace(FONT_SIZE_XS),
-                        Color32::from_rgba_unmultiplied(
-                            TEXT_PRIMARY.r(),
-                            TEXT_PRIMARY.g(),
-                            TEXT_PRIMARY.b(),
-                            180,
-                        ),
+                        text_dim(),
                     );
                 }
             }
@@ -331,7 +326,7 @@ pub(crate) fn timeline_panel_ui(
 
             // Alternating row background
             if track_idx % 2 == 0 {
-                painter.rect_filled(track_rect, 0.0, Color32::from_rgba_unmultiplied(255, 255, 255, 2));
+                painter.rect_filled(track_rect, 0.0, row_alt());
             }
 
             // Label background
@@ -503,12 +498,7 @@ pub(crate) fn timeline_panel_ui(
                     Pos2::new(playhead_x, bar_area.top()),
                     Pos2::new(playhead_x, bar_area.bottom()),
                 ],
-                Stroke::new(1.0, Color32::from_rgba_unmultiplied(
-                    TEXT_PRIMARY.r(),
-                    TEXT_PRIMARY.g(),
-                    TEXT_PRIMARY.b(),
-                    80,
-                )),
+                Stroke::new(1.0, text_faint()),
             );
 
             // Bottom hairline

@@ -1,4 +1,4 @@
-use egui::{Color32, RichText, Stroke};
+use egui::{RichText, Stroke};
 
 use crate::app::components;
 use crate::app::theme::*;
@@ -15,7 +15,7 @@ impl GuiShell {
         ui.painter().rect_filled(
             screen_rect,
             0.0,
-            Color32::from_rgba_unmultiplied(0, 0, 0, 120),
+            overlay_backdrop(),
         );
 
         // Capture clicks on backdrop to close

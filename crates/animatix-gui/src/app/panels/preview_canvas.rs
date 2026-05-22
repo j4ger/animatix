@@ -1220,7 +1220,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
         };
 
         let threshold = 8.0; // pixels
-        let guide_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120);
+        let guide_color = accent_subtle();
         let guide_stroke = Stroke::new(1.0, guide_color);
 
         for (label, bounds) in self.hit_regions {
@@ -1500,15 +1500,15 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
         // Draw marquee selection rectangle
         if let (Some(start), Some(current)) = (self.selection.marquee_start, self.selection.marquee_current) {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
-            let fill = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 30);
-            let stroke = Stroke::new(1.0, Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120));
+            let fill = accent_faint();
+            let stroke = Stroke::new(1.0, accent_subtle());
             ui.painter().rect_filled(marquee_rect, 0.0, fill);
             ui.painter().rect_stroke(marquee_rect, 0.0, stroke, egui::StrokeKind::Outside);
         }
     }
 
     pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
-        const PLAYING_TEXT: Color32 = Color32::from_rgb(216, 249, 235);
+        const PLAYING_TEXT: Color32 = crate::app::theme::PLAYING_TEXT;
 
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {

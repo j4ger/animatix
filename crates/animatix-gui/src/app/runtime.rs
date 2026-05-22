@@ -473,7 +473,7 @@ fn install_theme(ctx: &egui::Context) {
     style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
 
     // Selection
-    style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 60);
+    style.visuals.selection.bg_fill = accent_selection();
     style.visuals.selection.stroke = Stroke::new(1.0, ACCENT_BLUE);
 
     // Text colors

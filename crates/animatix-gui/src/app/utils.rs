@@ -5,9 +5,6 @@ use egui::{Color32, Vec2};
 use crate::app::theme::*;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_summary_by_phase};
 
-const DIAGNOSTIC_RED: Color32 = Color32::from_rgb(255, 136, 136);
-const DIAGNOSTIC_AMBER: Color32 = Color32::from_rgb(255, 214, 102);
-
 pub(super) fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
     let button = if primary {
         egui::Button::new(label).fill(ACCENT_BLUE)

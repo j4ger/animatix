@@ -167,7 +167,7 @@ pub fn render_inline_suggestion(
     let reject_resp = ui.interact(reject_rect, reject_id, egui::Sense::click());
 
     // Accept button (green)
-    let accept_bg = if accept_resp.hovered() { GREEN } else { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 60) };
+    let accept_bg = if accept_resp.hovered() { GREEN } else { green_faint() };
     ui.painter().rect_filled(accept_rect, RADIUS_S, accept_bg);
     ui.painter().text(
         accept_rect.center(),
@@ -178,7 +178,7 @@ pub fn render_inline_suggestion(
     );
 
     // Reject button (red)
-    let reject_bg = if reject_resp.hovered() { RED } else { Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 60) };
+    let reject_bg = if reject_resp.hovered() { RED } else { red_faint() };
     ui.painter().rect_filled(reject_rect, RADIUS_S, reject_bg);
     ui.painter().text(
         reject_rect.center(),
@@ -242,7 +242,7 @@ pub fn render_diff_card(
         Pos2::new(rect.min.x + padding.x, code_y),
         Vec2::new(col_w, line_h * before_lines as f32 + SPACE_S),
     );
-    ui.painter().rect_filled(before_rect, RADIUS_S, Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 20));
+    ui.painter().rect_filled(before_rect, RADIUS_S, red_ultra_faint());
     ui.painter().text(
         Pos2::new(before_rect.min.x + SPACE_S, before_rect.min.y + 2.0),
         egui::Align2::LEFT_TOP,
@@ -263,7 +263,7 @@ pub fn render_diff_card(
         Pos2::new(rect.min.x + padding.x * 2.0 + col_w, code_y),
         Vec2::new(col_w, line_h * after_lines as f32 + SPACE_S),
     );
-    ui.painter().rect_filled(after_rect, RADIUS_S, Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 20));
+    ui.painter().rect_filled(after_rect, RADIUS_S, green_ultra_faint());
     ui.painter().text(
         Pos2::new(after_rect.min.x + SPACE_S, after_rect.min.y + 2.0),
         egui::Align2::LEFT_TOP,
@@ -287,7 +287,7 @@ pub fn render_diff_card(
     );
     let btn_id = ui.id().with("diff_accept");
     let btn_resp = ui.interact(btn_rect, btn_id, egui::Sense::click());
-    let btn_bg = if btn_resp.hovered() { GREEN } else { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 60) };
+    let btn_bg = if btn_resp.hovered() { GREEN } else { green_faint() };
     ui.painter().rect_filled(btn_rect, RADIUS_S, btn_bg);
     ui.painter().text(
         btn_rect.center(),

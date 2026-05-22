@@ -370,10 +370,7 @@ pub(super) fn draw_selection_overlay(
     pan: Vec2,
 ) {
     let stroke = if is_dragging {
-        Stroke::new(
-            1.5,
-            Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140),
-        )
+        Stroke::new(1.5, accent_hover())
     } else {
         Stroke::new(1.5, SELECTION_COLOR)
     };
@@ -409,8 +406,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
-            let dash_stroke = Stroke::new(1.0, dash_color);
+            let dash_stroke = Stroke::new(1.0, text_faint());
             for i in 0..4 {
                 let start = screen_corners[i];
                 let end = screen_corners[(i + 1) % 4];
@@ -504,8 +500,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
-            let dash_stroke = Stroke::new(1.0, dash_color);
+            let dash_stroke = Stroke::new(1.0, text_faint());
             let corners = [
                 sel_rect.left_top(),
                 sel_rect.right_top(),
@@ -584,10 +579,7 @@ pub(super) fn draw_multi_selection_overlay(
     let union_rect = egui::Rect::from_min_max(min, max);
 
     let stroke = if is_dragging {
-        Stroke::new(
-            1.5,
-            Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140),
-        )
+        Stroke::new(1.5, accent_hover())
     } else {
         Stroke::new(1.5, SELECTION_COLOR)
     };
@@ -598,8 +590,7 @@ pub(super) fn draw_multi_selection_overlay(
     if is_dragging {
         let dash_len = 6.0;
         let gap_len = 4.0;
-        let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
-        let dash_stroke = Stroke::new(1.0, dash_color);
+        let dash_stroke = Stroke::new(1.0, text_faint());
         let corners = [
             union_rect.left_top(),
             union_rect.right_top(),
@@ -710,7 +701,7 @@ pub(super) fn draw_reorder_overlay(
     zoom: f32,
     pan: Vec2,
 ) {
-    let ghost_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 153);
+    let ghost_color = accent_hover();
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
@@ -785,12 +776,12 @@ pub(super) fn draw_reorder_overlay(
     let badge_galley = painter.layout_no_wrap(badge_text, FontId::proportional(FONT_SIZE_S), TEXT_PRIMARY);
     let badge_size = badge_galley.size() + Vec2::new(8.0, 4.0);
     let badge_rect = egui::Rect::from_min_size(insertion_screen, badge_size);
-    painter.rect_filled(badge_rect, 3.0, Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220));
+    painter.rect_filled(badge_rect, 3.0, badge_bg());
     painter.rect_stroke(badge_rect, 3.0, Stroke::new(1.0, accent), egui::StrokeKind::Outside);
     painter.galley(badge_rect.min + Vec2::new(4.0, 2.0), badge_galley, TEXT_PRIMARY);
 
     // Draw subtle shift arrows on affected siblings
-    let shift_color = Color32::from_rgba_unmultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 120);
+    let shift_color = amber_subtle();
     for (i, (_, pos)) in sibling_positions.iter().enumerate() {
         let screen_pos = scene_to_screen(
             kurbo::Point::new(pos[0] as f64, pos[1] as f64),
@@ -824,7 +815,7 @@ pub(super) fn draw_reorder_overlay(
     let tooltip_text = format!("Reorder: move to position {}", target_index + 1);
     let galley = painter.layout_no_wrap(tooltip_text, FontId::proportional(FONT_SIZE_S), TEXT_PRIMARY);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
-    painter.rect_filled(tooltip_rect, 4.0, Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 235));
+    painter.rect_filled(tooltip_rect, 4.0, tooltip_bg());
     painter.rect_stroke(
         tooltip_rect,
         4.0,

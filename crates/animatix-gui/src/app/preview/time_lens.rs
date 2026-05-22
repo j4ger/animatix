@@ -5,7 +5,7 @@
 //! Scroll wheel zooms time range. Release `Space` → lens vanishes.
 
 use crate::app::theme::*;
-use egui::{Color32, FontId, Pos2, Stroke};
+use egui::{FontId, Pos2, Stroke};
 
 /// Radius of the time lens ring.
 const LENS_RADIUS: f32 = 60.0;
@@ -109,7 +109,7 @@ impl TimeLens {
 
         // Backdrop dim
         let screen_rect = ui.ctx().viewport_rect();
-        painter.rect_filled(screen_rect, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 40));
+        painter.rect_filled(screen_rect, 0.0, overlay_backdrop());
 
         // Outer ring background
         painter.circle_filled(center, LENS_RADIUS, BG_PANEL);

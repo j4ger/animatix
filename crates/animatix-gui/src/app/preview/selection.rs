@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use super::*;
 use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
 use crate::app::theme::*;
-use egui::{Color32, Pos2, Vec2};
+use egui::{Pos2, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
@@ -211,7 +211,7 @@ pub(crate) fn draw_hover_highlight(
     hover_rect: egui::Rect,
 ) {
     // Subtle dashed outline for hover
-    let hover_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 80);
+    let hover_color = accent_ghost();
     let dash_len = 4.0;
     let gap_len = 3.0;
     let corners = [
@@ -256,7 +256,7 @@ pub(crate) fn draw_hover_highlight(
     painter.rect_filled(
         tooltip_rect,
         RADIUS_M,
-        Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220),
+        badge_bg(),
     );
     painter.rect_stroke(
         tooltip_rect,
@@ -298,7 +298,7 @@ pub(crate) fn draw_cycle_indicator(
     painter.rect_filled(
         rect,
         RADIUS_M,
-        Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 200),
+        accent_strong(),
     );
     painter.galley(
         rect.left_center() + Vec2::new(3.0, -size.y / 2.0),

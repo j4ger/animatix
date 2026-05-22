@@ -125,7 +125,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
-        Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 20)
+        accent_faint()
     }
 
     fn paint_on_top_of_tile(

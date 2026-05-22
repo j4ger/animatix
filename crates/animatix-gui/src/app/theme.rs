@@ -70,6 +70,41 @@ pub fn overlay_backdrop() -> Color32 { Color32::from_rgba_unmultiplied(0, 0, 0, 
 // ── Floating Card ──
 pub fn floating_card_bg() -> Color32 { Color32::from_rgba_unmultiplied(30, 30, 35, 220) }
 
+// ── Alpha-tinted accents ──
+pub fn accent_faint() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 30) }
+pub fn accent_ghost() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 80) }
+pub fn accent_subtle() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120) }
+pub fn accent_hover() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140) }
+pub fn accent_strong() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 200) }
+pub fn accent_selection() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 60) }
+
+// ── Alpha-tinted text ──
+pub fn text_faint() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80) }
+pub fn text_subtle() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 160) }
+pub fn text_hover() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 220) }
+pub fn text_dim() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 180) }
+
+// ── Alpha-tinted amber ──
+pub fn amber_subtle() -> Color32 { Color32::from_rgba_unmultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 120) }
+
+// ── Alpha-tinted green / red ──
+pub fn green_faint() -> Color32 { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 60) }
+pub fn green_ultra_faint() -> Color32 { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 20) }
+pub fn red_faint() -> Color32 { Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 60) }
+pub fn red_ultra_faint() -> Color32 { Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 20) }
+
+// ── Status colors ──
+pub const PLAYING_TEXT: Color32 = Color32::from_rgb(216, 249, 235);
+pub const DIAGNOSTIC_RED: Color32 = Color32::from_rgb(255, 136, 136);
+pub const DIAGNOSTIC_AMBER: Color32 = Color32::from_rgb(255, 214, 102);
+
+// ── Badge / Tooltip backgrounds ──
+pub fn badge_bg() -> Color32 { Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220) }
+pub fn tooltip_bg() -> Color32 { Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 235) }
+
+// ── Alternating row backgrounds ──
+pub fn row_alt() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 2) }
+
 // ── Shadows (layered: ambient + direct) ──
 // Using const fn because from_rgba_unmultiplied is not a const fn in egui 0.34
 pub fn shadow_ambient() -> Color32 {
