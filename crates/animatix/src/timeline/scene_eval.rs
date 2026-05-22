@@ -510,12 +510,9 @@ impl Timeline {
             // True backdrop blur requires offscreen rendering + Gaussian blur, which
             // is not yet implemented in the Vello-based renderer. This approximation
             // draws a semi-transparent overlay scaled to the actor's bounding rect.
-            // TODO: Full implementation requires:
-            //   1. Render scene behind actor to an offscreen texture
-            //   2. Apply a Gaussian blur shader to the texture
-            //   3. Draw the blurred texture as the actor's background
-            //   4. Draw the actor on top
-            // This would reuse the transition compositor's blur infrastructure.
+            // Backdrop blur is approximated with a semi-transparent overlay.
+            // Full implementation would use the transition compositor's blur
+            // infrastructure (offscreen texture + Gaussian blur shader).
             if backdrop_blur > 0.0 {
                 let blur_alpha = (backdrop_blur * 0.06).clamp(0.0, 0.35);
                 let full_w = half_size[0] as f64 * 2.0;

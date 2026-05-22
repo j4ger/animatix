@@ -2,6 +2,7 @@
 name = "animatix-lsp"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 description = "LSP server for Animatix DSL — provides language intelligence to external editors"
 
 [[bin]]

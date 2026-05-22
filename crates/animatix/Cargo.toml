@@ -2,6 +2,7 @@
 name = "animatix"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 
 [features]
 default = ["render", "video", "text", "svg"]
@@ -38,6 +39,19 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 chumsky = "0.12.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "timeline_eval"
+harness = false
+
+[[bench]]
+name = "property_interpolation"
+harness = false
+
+[[bench]]
+name = "modifier_runtime"
+harness = false
 
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }

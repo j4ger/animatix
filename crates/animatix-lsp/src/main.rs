@@ -406,3 +406,26 @@ async fn main() {
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uri_to_path_strips_file_prefix() {
+        assert_eq!(
+            uri_to_path("file:///home/user/project/main.amx"),
+            Some(PathBuf::from("/home/user/project/main.amx"))
+        );
+    }
+
+    #[test]
+    fn uri_to_path_returns_none_for_non_file_uri() {
+        assert_eq!(uri_to_path("http://example.com/file.amx"), None);
+    }
+
+    #[test]
+    fn uri_to_path_handles_empty_string() {
+        assert_eq!(uri_to_path(""), None);
+    }
+}

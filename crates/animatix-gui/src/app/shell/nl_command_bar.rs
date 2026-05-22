@@ -60,8 +60,9 @@ pub(crate) fn nl_command_bar_ui(
         // Handle Enter / Escape
         if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             if !text.trim().is_empty() {
-                // TODO: Send command to agent for processing
-                // commands.push_back(Command::AgentRequest(text.clone()));
+                // Agent command processing is deferred — the natural-language
+                // command bar accepts input but does not yet dispatch to an
+                // agent backend.
                 tracing::info!("Agent request: {}", text);
             }
             text.clear();

@@ -42,10 +42,6 @@ pub struct Workspace {
 
 #[derive(Debug, Clone)]
 struct FileEntry {
-    #[allow(dead_code)]
-    source: String,
-    #[allow(dead_code)]
-    ast: Option<Vec<Stmt>>,
     symbols: SymbolTable,
 }
 
@@ -65,8 +61,6 @@ impl Workspace {
         self.files.insert(
             path,
             FileEntry {
-                source: source.to_string(),
-                ast,
                 symbols,
             },
         );
