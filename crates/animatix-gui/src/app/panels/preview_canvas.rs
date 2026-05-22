@@ -1591,6 +1591,30 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 self.preview.status = "Zoom/Pan reset".to_string();
             }
 
+            // Diff mode toggle (left of reset)
+            let diff_btn_rect = egui::Rect::from_min_size(
+                egui::pos2(reset_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
+                Vec2::new(header_h, header_h - 4.0),
+            );
+            let diff_btn = ui.allocate_rect(diff_btn_rect, egui::Sense::click());
+            let diff_color = if self.preview.diff_mode { ACCENT_BLUE } else { TEXT_MUTED };
+            ui.painter().text(
+                diff_btn_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::COLUMNS,
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                diff_color,
+            );
+            if diff_btn.clicked() {
+                self.preview.diff_mode = !self.preview.diff_mode;
+                if self.preview.diff_mode {
+                    self.preview.status = "Diff mode: showing before/after".to_string();
+                } else {
+                    self.preview.diff_before_source = None;
+                    self.preview.status = "Diff mode off".to_string();
+                }
+            }
+
             ui.add_space(SPACE_S);
 
             let available = ui.available_size_before_wrap();
@@ -1924,6 +1948,33 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             self.render_preview_cursor_feedback(ui, preview_rect);
             self.render_preview_overlays(ui, preview_rect);
             self.render_preview_content(ui, preview_rect);
+
+            // ── Diff mode overlay ──
+            if self.preview.diff_mode {
+                let split_x = preview_rect.center().x;
+                // Vertical divider
+                ui.painter().line_segment(
+                    [egui::pos2(split_x, preview_rect.min.y), egui::pos2(split_x, preview_rect.max.y)],
+                    Stroke::new(2.0, AMBER),
+                );
+                // Labels
+                ui.painter().text(
+                    egui::pos2(preview_rect.min.x + SPACE_M, preview_rect.min.y + SPACE_S),
+                    egui::Align2::LEFT_TOP,
+                    format!("{} Before", egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE),
+                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TEXT_SECONDARY,
+                );
+                ui.painter().text(
+                    egui::pos2(preview_rect.max.x - SPACE_M, preview_rect.min.y + SPACE_S),
+                    egui::Align2::RIGHT_TOP,
+                    format!("After {}", egui_phosphor::regular::CLOCK_CLOCKWISE),
+                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    ACCENT_BLUE,
+                );
+                // Note: true dual rendering requires a second preview texture.
+                // The left half currently shows the same as the right half.
+            }
 
             // Draw grid overlay
             if *self.grid_enabled {
