@@ -143,13 +143,17 @@ fn preview_scene_to_screen(
 
 impl WorkspaceViewer<'_> {
     fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
+        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        self.get_actor_props_at_time(actor, time_ms)
+    }
+
+    fn get_actor_props_at_time(&self, actor: &str, time_ms: u64) -> Option<ActorProps> {
         let timeline = self.timeline.or_else(|| {
             let comp = self.composition?;
             let scene_name = self.active_scene.as_ref()?;
             comp.scenes.get(scene_name).map(|s| &s.timeline)
         })?;
         let track = timeline.get_track(actor)?;
-        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
         let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
         let local_size = [half[0] * 2.0, half[1] * 2.0];
         let world_affine = timeline.actor_world_affine(actor, time_ms, self.scene_dimensions)?;
@@ -1735,6 +1739,11 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             }
         }
 
+        // Smart snap guides during drag
+        if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } = &self.drag_state {
+            self.draw_snap_guides(ui, preview_rect, primary);
+        }
+
         if let Some(mouse) = pointer_pos {
             selection::draw_cycle_indicator(
                 ui.painter(),
@@ -1742,6 +1751,90 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 self.selection.cycle_index,
                 self.selection.click_candidates.len(),
             );
+        }
+    }
+
+    /// Draw alignment guides when dragging an actor near other actors' edges or centers.
+    fn draw_snap_guides(&self, ui: &mut egui::Ui, preview_rect: egui::Rect, primary: &str) {
+        let primary_props = self.get_actor_props(primary);
+        let primary_rect = if let Some(p) = primary_props {
+            let hw = p.size[0] / 2.0;
+            let hh = p.size[1] / 2.0;
+            let corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+            let mut min_x = f32::INFINITY;
+            let mut min_y = f32::INFINITY;
+            let mut max_x = f32::NEG_INFINITY;
+            let mut max_y = f32::NEG_INFINITY;
+            for corner in &corners {
+                let world = preview::local_to_world(*corner, p.position, p.rotation);
+                let screen = preview::scene_to_screen(
+                    world, preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                min_x = min_x.min(screen.x);
+                min_y = min_y.min(screen.y);
+                max_x = max_x.max(screen.x);
+                max_y = max_y.max(screen.y);
+            }
+            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y))
+        } else {
+            self.hit_regions.iter().find(|(l, _)| l == primary).map(|(_, bounds)| {
+                let tl = preview::scene_to_screen(
+                    kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
+                    preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                let br = preview::scene_to_screen(
+                    kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
+                    preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                );
+                egui::Rect::from_min_max(tl, br)
+            }).unwrap_or(preview_rect)
+        };
+
+        let threshold = 8.0; // pixels
+        let guide_color = Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120);
+        let guide_stroke = Stroke::new(1.0, guide_color);
+
+        for (label, bounds) in self.hit_regions {
+            if label == primary || self.selected_actors.contains(label) {
+                continue;
+            }
+            let tl = preview::scene_to_screen(
+                kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
+                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+            );
+            let br = preview::scene_to_screen(
+                kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
+                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+            );
+            let other_rect = egui::Rect::from_min_max(tl, br);
+
+            // Check alignments
+            let px = [primary_rect.min.x, primary_rect.max.x, primary_rect.center().x];
+            let py = [primary_rect.min.y, primary_rect.max.y, primary_rect.center().y];
+            let ox = [other_rect.min.x, other_rect.max.x, other_rect.center().x];
+            let oy = [other_rect.min.y, other_rect.max.y, other_rect.center().y];
+
+            for &px in &px {
+                for &ox in &ox {
+                    if (px - ox).abs() < threshold {
+                        ui.painter().line_segment(
+                            [egui::pos2(px, preview_rect.min.y), egui::pos2(px, preview_rect.max.y)],
+                            guide_stroke,
+                        );
+                    }
+                }
+            }
+            for &py in &py {
+                for &oy in &oy {
+                    if (py - oy).abs() < threshold {
+                        ui.painter().line_segment(
+                            [egui::pos2(preview_rect.min.x, py), egui::pos2(preview_rect.max.x, py)],
+                            guide_stroke,
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -1788,7 +1881,53 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
         preview_rect: egui::Rect,
         is_dragging: bool,
     ) {
-        // Draw selection overlay for all selected actors.
+        // Multi-selection: draw union bounding box with shared handles
+        if self.selected_actors.len() > 1 {
+            let mut screen_rects = Vec::new();
+            for actor in self.selected_actors.iter() {
+                if let Some(props) = self.get_actor_props(actor) {
+                    let hw = props.size[0] / 2.0;
+                    let hh = props.size[1] / 2.0;
+                    let local_corners: [[f32; 2]; 4] = [
+                        [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+                    ];
+                    let mut min_x = f32::INFINITY;
+                    let mut min_y = f32::INFINITY;
+                    let mut max_x = f32::NEG_INFINITY;
+                    let mut max_y = f32::NEG_INFINITY;
+                    for corner in &local_corners {
+                        let world = preview::local_to_world(*corner, props.position, props.rotation);
+                        let screen = preview::scene_to_screen(
+                            world, preview_rect, self.scene_dimensions,
+                            preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                        );
+                        min_x = min_x.min(screen.x);
+                        min_y = min_y.min(screen.y);
+                        max_x = max_x.max(screen.x);
+                        max_y = max_y.max(screen.y);
+                    }
+                    screen_rects.push(egui::Rect::from_min_max(
+                        egui::pos2(min_x, min_y), egui::pos2(max_x, max_y),
+                    ));
+                } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
+                    let top_left = preview::scene_to_screen(
+                        kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
+                        preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                    );
+                    let bottom_right = preview::scene_to_screen(
+                        kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
+                        preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                    );
+                    screen_rects.push(egui::Rect::from_min_max(top_left, bottom_right));
+                }
+            }
+            preview::draw_multi_selection_overlay(
+                ui.painter(), &screen_rects, is_dragging, ui.ctx().pixels_per_point(),
+            );
+            return;
+        }
+
+        // Single selection: draw per-actor overlay with handles
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
             let fallback = self.hit_regions
@@ -1851,6 +1990,47 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     self.preview.preview_zoom,
                     self.preview.preview_pan,
                 );
+            }
+
+            // Ghost Edit / Onion Skin: show outlines at prev/next keyframe times
+            if !is_dragging {
+                if let Some(timeline) = self.timeline {
+                    let current_time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let keyframe_times = timeline.keyframe_times_s();
+                    let mut prev_time_ms: Option<u64> = None;
+                    let mut next_time_ms: Option<u64> = None;
+                    for &time_s in &keyframe_times {
+                        let time_ms = (time_s * 1000.0) as u64;
+                        if time_ms < current_time_ms {
+                            prev_time_ms = Some(time_ms);
+                        } else if time_ms > current_time_ms && next_time_ms.is_none() {
+                            next_time_ms = Some(time_ms);
+                        }
+                    }
+
+                    // Draw prev keyframe ghost (green, 30% opacity)
+                    if let Some(prev_ms) = prev_time_ms {
+                        if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
+                            let ghost_color = Color32::from_rgba_unmultiplied(80, 220, 120, 77);
+                            preview::draw_ghost_overlay(
+                                ui.painter(), &prev_props, preview_rect, self.scene_dimensions,
+                                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                                ghost_color,
+                            );
+                        }
+                    }
+                    // Draw next keyframe ghost (blue, 30% opacity)
+                    if let Some(next_ms) = next_time_ms {
+                        if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
+                            let ghost_color = Color32::from_rgba_unmultiplied(80, 160, 255, 77);
+                            preview::draw_ghost_overlay(
+                                ui.painter(), &next_props, preview_rect, self.scene_dimensions,
+                                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                                ghost_color,
+                            );
+                        }
+                    }
+                }
             }
 
             if let DragState::Reorder {

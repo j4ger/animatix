@@ -276,7 +276,7 @@ fn rotate_vec(v: [f32; 2], angle: f32) -> [f32; 2] {
 }
 
 /// Transform a local‑space point to world space.
-fn local_to_world(local: [f32; 2], position: [f32; 2], rotation: f32) -> kurbo::Point {
+pub(super) fn local_to_world(local: [f32; 2], position: [f32; 2], rotation: f32) -> kurbo::Point {
     let rotated = rotate_vec(local, rotation);
     kurbo::Point::new(
         (position[0] + rotated[0]) as f64,
@@ -555,6 +555,143 @@ pub(super) fn draw_selection_overlay(
             ROTATION_RADIUS,
             Stroke::new(1.0, SELECTION_COLOR),
         );
+    }
+}
+
+/// Draw a union bounding box and handles for multi-selection.
+pub(super) fn draw_multi_selection_overlay(
+    painter: &egui::Painter,
+    screen_rects: &[egui::Rect],
+    is_dragging: bool,
+    pixels_per_point: f32,
+) {
+    if screen_rects.is_empty() {
+        return;
+    }
+
+    // Compute union bounding box
+    let mut min = screen_rects[0].min;
+    let mut max = screen_rects[0].max;
+    for rect in &screen_rects[1..] {
+        min.x = min.x.min(rect.min.x);
+        min.y = min.y.min(rect.min.y);
+        max.x = max.x.max(rect.max.x);
+        max.y = max.y.max(rect.max.y);
+    }
+    let union_rect = egui::Rect::from_min_max(min, max);
+
+    let stroke = if is_dragging {
+        Stroke::new(
+            1.5,
+            Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140),
+        )
+    } else {
+        Stroke::new(1.5, SELECTION_COLOR)
+    };
+
+    painter.rect_stroke(union_rect, 0.0, stroke, egui::StrokeKind::Outside);
+
+    // Dashed overlay during drag
+    if is_dragging {
+        let dash_len = 6.0;
+        let gap_len = 4.0;
+        let dash_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80);
+        let dash_stroke = Stroke::new(1.0, dash_color);
+        let corners = [
+            union_rect.left_top(),
+            union_rect.right_top(),
+            union_rect.right_bottom(),
+            union_rect.left_bottom(),
+        ];
+        for i in 0..4 {
+            let start = corners[i];
+            let end = corners[(i + 1) % 4];
+            let total = start.distance(end);
+            let mut pos = 0.0;
+            while pos < total {
+                let t0 = pos / total;
+                let t1 = ((pos + dash_len).min(total)) / total;
+                let p0 = Pos2::new(
+                    start.x + (end.x - start.x) * t0,
+                    start.y + (end.y - start.y) * t0,
+                );
+                let p1 = Pos2::new(
+                    start.x + (end.x - start.x) * t1,
+                    start.y + (end.y - start.y) * t1,
+                );
+                painter.line_segment([p0, p1], dash_stroke);
+                pos += dash_len + gap_len;
+            }
+        }
+    }
+
+    // Handles on the union bounding box
+    let handle_positions = scale_handle_positions(union_rect);
+    let handle_px = HANDLE_SIZE * pixels_per_point;
+    for pos in &handle_positions {
+        let handle_rect = egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
+        painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
+        painter.rect_stroke(
+            handle_rect,
+            1.0,
+            Stroke::new(1.0, SELECTION_COLOR),
+            egui::StrokeKind::Outside,
+        );
+    }
+}
+
+/// Draw ghost outlines of an actor at a different point in time.
+/// Used for onion-skin / ghost edit context.
+pub(super) fn draw_ghost_overlay(
+    painter: &egui::Painter,
+    props: &ActorProps,
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: Vec2,
+    zoom: f32,
+    pan: Vec2,
+    color: Color32,
+) {
+    let hw = props.size[0] / 2.0;
+    let hh = props.size[1] / 2.0;
+
+    let local_corners: [[f32; 2]; 4] = [
+        [-hw, -hh],
+        [hw, -hh],
+        [hw, hh],
+        [-hw, hh],
+    ];
+    let world_corners: [kurbo::Point; 4] = std::array::from_fn(|i| {
+        local_to_world(local_corners[i], props.position, props.rotation)
+    });
+
+    let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
+        scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
+    });
+
+    let dash_len = 6.0;
+    let gap_len = 4.0;
+    let dash_stroke = Stroke::new(1.0, color);
+
+    for i in 0..4 {
+        let start = screen_corners[i];
+        let end = screen_corners[(i + 1) % 4];
+        let total = start.distance(end);
+        let mut pos = 0.0;
+        while pos < total {
+            let t0 = pos / total;
+            let t1 = ((pos + dash_len).min(total)) / total;
+            let p0 = Pos2::new(
+                start.x + (end.x - start.x) * t0,
+                start.y + (end.y - start.y) * t0,
+            );
+            let p1 = Pos2::new(
+                start.x + (end.x - start.x) * t1,
+                start.y + (end.y - start.y) * t1,
+            );
+            painter.line_segment([p0, p1], dash_stroke);
+            pos += dash_len + gap_len;
+        }
     }
 }
 

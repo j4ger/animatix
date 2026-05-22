@@ -11,63 +11,9 @@
 
 ---
 
-## 1. Core Architecture (P0)
+## 1. Canvas & Direct Manipulation (P1)
 
-### 1.1 LiveDocument — Unified Document Model
-
-Merge `EditorBuffer` and `DocumentSession` into a single source of truth. The editor holds the canonical text; the file-system middle layer is removed.
-
-- `cells: Vec<Cell>` owned by the editor.
-- `last_valid_timeline: Timeline` caches the last successful parse.
-- `diagnostics: Vec<Diagnostic>` for current errors.
-
-Visual edits (dragging on canvas) sync back into Cell text via precise AST span replacement, not string find-and-replace.
-
-**Key files:** `editor.rs`, `document.rs`, `app/mod.rs`
-
----
-
-### 1.2 Command Pattern + Undo System
-
-Replace the 40+ `Option<T>` fields in `UiActions` with a unified `Command` enum consumed from a `VecDeque<Command>` per frame. Undo stack stores `Command` reversals, not full text snapshots.
-
-```rust
-pub enum Command {
-    Actor(ActorCommand),
-    Scene(SceneCommand),
-    Timeline(TimelineCommand),
-    Property(PropertyCommand),
-}
-```
-
-**Key files:** `app/mod.rs` (`update()` loop)
-
----
-
-### 1.3 Store Architecture Split
-
-Split the monolithic `AppState` into four independent stores, mutated via Command dispatch:
-
-- `DocumentStore` — cells + lazy timeline parse.
-- `RuntimeStore` — preview + playback.
-- `UiStore` — panels, selection.
-- `WorkspaceStore` — file tree, settings.
-
-**Key files:** `app/mod.rs` (`AppState` struct)
-
----
-
-### 1.4 Source Span System
-
-`animatix_analyzer` must emit exact source locations (line, column, length) for every AST node. This is the foundation for all reverse edits (canvas → code).
-
-**Key files:** `animatix_analyzer` crate (new output)
-
----
-
-## 2. Canvas & Direct Manipulation (P1)
-
-### 2.1 Canvas-Centric Layout Rebuild
+### 1.1 Canvas-Centric Layout Rebuild
 
 Current: Editor 55 % | Preview + stacked panels 45 %.  
 Target: Canvas dominates (60–70 %), with collapsible bottom bars.
@@ -93,7 +39,7 @@ Responsive breakpoints:
 
 ---
 
-### 2.2 Floating Property Cards
+### 1.2 Floating Property Cards
 
 Replace the right-side Inspector panel. Selecting an actor pops a translucent card next to it with direct manipulators (color wheel, XY sliders, rotation dial). Edits reflect live in code. `Esc` dismisses.
 
@@ -101,7 +47,7 @@ Replace the right-side Inspector panel. Selecting an actor pops a translucent ca
 
 ---
 
-### 2.3 2D Gizmo System
+### 1.3 2D Gizmo System
 
 Add transform handles, bounding boxes, snap-line feedback, and multi-selection batch operations.
 
@@ -123,7 +69,7 @@ Interactions:
 
 ---
 
-### 2.4 Ghost Edit / Onion Skin
+### 1.4 Ghost Edit / Onion Skin
 
 Not a manual toggle. Selecting a keyframe automatically shows context:
 - Prior frame outline (green dashed, 30 % opacity).
@@ -135,9 +81,9 @@ Not a manual toggle. Selecting a keyframe automatically shows context:
 
 ---
 
-## 3. Timeline & Time Controls (P1)
+## 2. Timeline & Time Controls (P1)
 
-### 3.1 Time Lens — Space-Drag HUD
+### 2.1 Time Lens — Space-Drag HUD
 
 Timeline panel eats permanent space, but scrubbing is frequent yet brief. Make time an on-demand HUD:
 
@@ -151,7 +97,7 @@ Timeline panel eats permanent space, but scrubbing is frequent yet brief. Make t
 
 ---
 
-### 3.2 Global Timeline Panel
+### 2.2 Global Timeline Panel
 
 Consolidate the scattered transport bar, keyframe table, and dope sheet into a single bottom-right panel:
 
@@ -166,7 +112,7 @@ Consolidate the scattered transport bar, keyframe table, and dope sheet into a s
 
 ---
 
-### 3.3 Time-Aware Inspector
+### 2.3 Time-Aware Inspector
 
 Users cannot tell whether they are editing the default value or a keyframe value. Add diamond status per property row:
 
@@ -184,7 +130,7 @@ Scale     [ 1.0 ]        ○         ← no keyframe; edits default
 
 ---
 
-### 3.4 Property Stream
+### 2.4 Property Stream
 
 Sort properties by animation intensity, not semantic grouping (Transform / Style / Shape / Text / Media).
 
@@ -203,7 +149,7 @@ Sort properties by animation intensity, not semantic grouping (Transform / Style
 
 ---
 
-### 3.5 Graph Editor (F-Curve)
+### 2.5 Graph Editor (F-Curve)
 
 Missing: value-over-time curves, making easing strength tuning guesswork.
 
@@ -213,9 +159,9 @@ Add view toggle in Inspector keyframe area: List | Curve | Strip. Simplified fir
 
 ---
 
-## 4. Differentiating Features (P2)
+## 3. Differentiating Features (P2)
 
-### 4.1 Natural-Language Command Bar
+### 3.1 Natural-Language Command Bar
 
 Persistent lightweight input bar at the top:
 
@@ -232,7 +178,7 @@ File  Edit  View  │  [让 Circle_1 绕中心旋转一周]  │  ⌘K
 
 ---
 
-### 4.2 Agent Inline Suggestions
+### 3.2 Agent Inline Suggestions
 
 Agent surfaces in four shapes:
 
@@ -247,7 +193,7 @@ Agent surfaces in four shapes:
 
 ---
 
-### 4.3 Diff Preview
+### 3.3 Diff Preview
 
 On property change, auto A/B split-screen:
 
@@ -264,7 +210,7 @@ Leverage AMX fast reparse: compile two timeline versions and render both.
 
 ---
 
-### 4.4 Smart Snap
+### 3.4 Smart Snap
 
 Not pixel snap — semantic snap. While dragging, auto-snap to:
 
@@ -279,7 +225,7 @@ HUD shows the specific snap target on contact.
 
 ---
 
-### 4.5 Scene Slices
+### 3.5 Scene Slices
 
 Figma-Variants / Photoshop-Artboards style: compare animation scenes A/B/C side by side.
 
@@ -289,9 +235,9 @@ Operations: duplicate slice, drag actor across slices, `1`/`2`/`3` hotkeys to sw
 
 ---
 
-## 5. Visual Polish & Tooling (P3)
+## 4. Visual Polish & Tooling (P3)
 
-### 5.1 Design Token System
+### 4.1 Design Token System
 
 Colors, spacing, radius, and typography are currently hard-coded and scattered.
 
@@ -307,7 +253,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 5.2 Cell Editor Visual Redesign
+### 4.2 Cell Editor Visual Redesign
 
 - Accent left border on focus.
 - Large, prominent keyframe timestamp (accent color, clickable edit).
@@ -319,7 +265,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 5.3 Preview Overlay System
+### 4.3 Preview Overlay System
 
 ```rust
 pub struct PreviewOverlay {
@@ -335,7 +281,7 @@ pub struct PreviewOverlay {
 
 ---
 
-### 5.4 Semantic Highlighting + Refactoring Tools
+### 4.4 Semantic Highlighting + Refactoring Tools
 
 Deep `animatix_analyzer` integration:
 - `SymbolTable`: actor / scene / component definitions.
@@ -346,9 +292,9 @@ Deep `animatix_analyzer` integration:
 
 ---
 
-## 6. Long-Term / Speculative
+## 5. Long-Term / Speculative
 
-### 6.1 FFI / Web Canvas Integration
+### 5.1 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
@@ -356,7 +302,7 @@ Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
 ---
 
-### 6.2 Lossless Syntax Tree (Green Tree)
+### 5.2 Lossless Syntax Tree (Green Tree)
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -366,7 +312,7 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 
 ---
 
-### 6.3 Trivia-Inspired AST
+### 5.3 Trivia-Inspired AST
 
 Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
 
@@ -374,32 +320,28 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 7. Priority Order
+## 6. Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | LiveDocument unified model (1.1) | High | Very High |
-| 2 | Command pattern + undo (1.2) | High | Very High |
-| 3 | Store architecture split (1.3) | Medium | High |
-| 4 | Source span system (1.4) | Medium | High |
-| 5 | Canvas-centric layout (2.1) | Medium | High |
-| 6 | 2D gizmo system (2.3) | Medium | High |
-| 7 | Floating property cards (2.2) | Medium | Medium |
-| 8 | Global timeline panel (3.2) | Medium | High |
-| 9 | Time-aware inspector (3.3) | Low | Medium |
-| 10 | Property stream (3.4) | Low | Medium |
-| 11 | Time lens HUD (3.1) | Medium | Medium |
-| 12 | Graph editor / F-curve (3.5) | High | Medium |
-| 13 | Ghost edit / onion skin (2.4) | Medium | Medium |
-| 14 | Smart snap (4.4) | Medium | Medium |
-| 15 | Diff preview (4.3) | Medium | Medium |
-| 16 | Design token system (5.1) | Low | Medium |
-| 17 | Cell editor visual redesign (5.2) | Low | Medium |
-| 18 | Preview overlay system (5.3) | Low | Low |
-| 19 | Semantic highlighting + refactor (5.4) | High | Medium |
-| 20 | NL command bar (4.1) | High | High |
-| 21 | Agent inline suggestions (4.2) | High | High |
-| 22 | Scene slices (4.5) | Medium | Medium |
-| 23 | Green tree / trivia AST (6.2) | Very High | Low |
-| 24 | Web Canvas (6.1) | Very High | Low |
-| 25 | Trivia-inspired AST (6.3) | High | Low |
+| 1 | Canvas-centric layout (1.1) | Medium | High |
+| 2 | 2D gizmo system (1.3) | Medium | High |
+| 3 | Floating property cards (1.2) | Medium | Medium |
+| 4 | Global timeline panel (2.2) | Medium | High |
+| 5 | Time-aware inspector (2.3) | Low | Medium |
+| 6 | Property stream (2.4) | Low | Medium |
+| 7 | Time lens HUD (2.1) | Medium | Medium |
+| 8 | Graph editor / F-curve (2.5) | High | Medium |
+| 9 | Ghost edit / onion skin (1.4) | Medium | Medium |
+| 10 | Smart snap (3.4) | Medium | Medium |
+| 11 | Diff preview (3.3) | Medium | Medium |
+| 12 | Design token system (4.1) | Low | Medium |
+| 13 | Cell editor visual redesign (4.2) | Low | Medium |
+| 14 | Preview overlay system (4.3) | Low | Low |
+| 15 | Semantic highlighting + refactor (4.4) | High | Medium |
+| 16 | NL command bar (3.1) | High | High |
+| 17 | Agent inline suggestions (3.2) | High | High |
+| 18 | Scene slices (3.5) | Medium | Medium |
+| 19 | Green tree / trivia AST (5.2) | Very High | Low |
+| 20 | Web Canvas (5.1) | Very High | Low |
+| 21 | Trivia-inspired AST (5.3) | High | Low |
