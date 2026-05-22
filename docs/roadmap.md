@@ -165,9 +165,49 @@ Operations: duplicate slice, drag actor across slices, `1`/`2`/`3` hotkeys to sw
 
 ---
 
-## 3. Visual Polish & Tooling (P3)
+## 3. Code Health & Maintainability
 
-### 3.1 Design Token System
+### 3.1 Generic AST Walker for source_edit.rs
+
+`source_edit.rs` (1,884 lines) contains half a dozen near-identical tree walks:
+`find_actor_decl_mut`, `find_assignment_mut`, `extract_inline_item`, `rename_in_stmt`, etc.
+Build a generic `AstWalker` trait or macro so each operation only declares *what* it wants to find, not *how* to recurse.
+
+**Key files:** `source_edit.rs`
+
+---
+
+### 3.2 Migrate deprecated `tree_row` → `components::Row`
+
+`app/components/widgets.rs::tree_row` is a deprecated duplicate of `components::Row`.
+Migrate remaining callers and delete the file.
+
+**Key files:** `app/components/widgets.rs`, callers in `panels/` and `shell/`
+
+---
+
+### 3.3 Split `editor.rs` mixed responsibilities
+
+`editor.rs` (~700 lines) currently holds cell editor, completion popup, diagnostics, and timeline sync. Split into:
+- `editor/core.rs` — buffer + cells
+- `editor/completion.rs` — completion popup logic
+- `editor/diagnostics.rs` — diagnostic mapping + scrolling
+
+**Key files:** `editor.rs` → `editor/`
+
+---
+
+### 3.4 Unify badge rendering
+
+Badge rendering is inlined in `preview/mod.rs` (target-index badge) and `inspector/mod.rs` (index badge). Both should use `utils::badge()` or `components::badge_button()`.
+
+**Key files:** `app/preview/mod.rs`, `app/panels/inspector/mod.rs`
+
+---
+
+## 4. Visual Polish & Tooling (P3)
+
+### 4.1 Design Token System
 
 Colors, spacing, radius, and typography are currently hard-coded and scattered.
 
@@ -261,13 +301,17 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 | 5 | Graph editor / F-curve (1.5) | High | Medium |
 | 6 | Smart snap (2.4) | Medium | Medium |
 | 7 | Diff preview (2.3) | Medium | Medium |
-| 8 | Design token system (3.1) | Low | Medium |
-| 9 | Cell editor visual redesign (3.2) | Low | Medium |
-| 10 | Preview overlay system (3.3) | Low | Low |
-| 11 | Semantic highlighting + refactor (3.4) | High | Medium |
+| 8 | Design token system (4.1) | Low | Medium |
+| 9 | Cell editor visual redesign (4.2) | Low | Medium |
+| 10 | Preview overlay system (4.3) | Low | Low |
+| 11 | Semantic highlighting + refactor (4.4) | High | Medium |
 | 12 | NL command bar (2.1) | High | High |
 | 13 | Agent inline suggestions (2.2) | High | High |
 | 14 | Scene slices (2.5) | Medium | Medium |
-| 15 | Green tree / trivia AST (4.2) | Very High | Low |
-| 16 | Web Canvas (4.1) | Very High | Low |
-| 17 | Trivia-inspired AST (4.3) | High | Low |
+| 15 | AST walker for source_edit (3.1) | Medium | Medium |
+| 16 | Migrate tree_row → Row (3.2) | Low | Low |
+| 17 | Split editor.rs (3.3) | Medium | Low |
+| 18 | Unify badge rendering (3.4) | Low | Low |
+| 19 | Green tree / trivia AST (5.2) | Very High | Low |
+| 20 | Web Canvas (5.1) | Very High | Low |
+| 21 | Trivia-inspired AST (5.3) | High | Low |
