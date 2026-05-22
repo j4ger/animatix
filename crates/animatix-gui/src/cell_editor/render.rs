@@ -141,17 +141,17 @@ fn ghost_icon_btn(
     let bg = if pressed {
         dt::AMBER
     } else {
-        lerp_color(GHOST_BG_IDLE, GHOST_BG_HOVER, t)
+        crate::app::design_tokens::lerp_color(GHOST_BG_IDLE, GHOST_BG_HOVER, t)
     };
 
     let icon_color = if pressed {
         Color32::from_rgb(24, 27, 33)
     } else {
-        lerp_color(GHOST_ICON_IDLE, GHOST_ICON_HOVER, t)
+        crate::app::design_tokens::lerp_color(GHOST_ICON_IDLE, GHOST_ICON_HOVER, t)
     };
 
-    let bg = multiply_alpha(bg, alpha);
-    let icon_color = multiply_alpha(icon_color, alpha);
+    let bg = crate::app::design_tokens::multiply_alpha(bg, alpha);
+    let icon_color = crate::app::design_tokens::multiply_alpha(icon_color, alpha);
 
     ui.painter()
         .rect_filled(rect, 5.0, bg);
@@ -169,26 +169,6 @@ fn ghost_icon_btn(
         response.on_hover_text(tooltip);
     }
     clicked
-}
-
-fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
-    let t = t.clamp(0.0, 1.0);
-    Color32::from_rgba_premultiplied(
-        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
-        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
-        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
-        (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
-    )
-}
-
-fn multiply_alpha(c: Color32, factor: f32) -> Color32 {
-    let factor = factor.clamp(0.0, 1.0);
-    Color32::from_rgba_premultiplied(
-        (c.r() as f32 * factor) as u8,
-        (c.g() as f32 * factor) as u8,
-        (c.b() as f32 * factor) as u8,
-        (c.a() as f32 * factor) as u8,
-    )
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -697,7 +677,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let bg = if pressed {
         dt::AMBER
     } else {
-        lerp_color(bg_idle, bg_hover, btn_t)
+        crate::app::design_tokens::lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)

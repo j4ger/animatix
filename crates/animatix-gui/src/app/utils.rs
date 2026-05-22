@@ -114,3 +114,24 @@ pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<S
 
     None
 }
+
+/// Draw an icon button at a specific rect using the painter (for toolbar headers).
+///
+/// This is for absolute-position buttons (e.g. in the preview header) where
+/// egui's layout system isn't used. Returns the click response.
+pub(super) fn painter_icon_button(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    icon: &'static str,
+    color: Color32,
+) -> egui::Response {
+    let response = ui.allocate_rect(rect, egui::Sense::click());
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::new(crate::app::design_tokens::FONT_SIZE_L, egui::FontFamily::Proportional),
+        color,
+    );
+    response
+}

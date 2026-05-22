@@ -1553,68 +1553,33 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 badge_text,
             );
 
-            // Grid toggle button in header (right of badge)
-            let grid_btn_rect = egui::Rect::from_min_size(
-                egui::pos2(badge_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
-                Vec2::new(header_h, header_h - 4.0),
-            );
-            let grid_btn = ui.allocate_rect(grid_btn_rect, egui::Sense::click());
-            let grid_icon = if self.preview.overlay.show_grid {
-                egui_phosphor::regular::GRID_FOUR
-            } else {
-                egui_phosphor::regular::GRID_NINE
-            };
+            // Toolbar buttons (right to left)
+            let mut btn_x = badge_rect.min.x - header_h - 4.0;
+            let btn_size = Vec2::new(header_h, header_h - 4.0);
+
+            // Grid toggle
+            let grid_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
+            let grid_icon = if self.preview.overlay.show_grid { egui_phosphor::regular::GRID_FOUR } else { egui_phosphor::regular::GRID_NINE };
             let grid_color = if self.preview.overlay.show_grid { ACCENT_BLUE } else { TEXT_MUTED };
-            ui.painter().text(
-                grid_btn_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                grid_icon,
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                grid_color,
-            );
-            if grid_btn.clicked() {
+            if crate::app::utils::painter_icon_button(ui, grid_btn_rect, grid_icon, grid_color).clicked() {
                 self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
             }
+            btn_x -= header_h + 4.0;
 
-            // Reset zoom/pan button (left of grid toggle)
-            let reset_btn_rect = egui::Rect::from_min_size(
-                egui::pos2(grid_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
-                Vec2::new(header_h, header_h - 4.0),
-            );
-            let reset_btn = ui.allocate_rect(reset_btn_rect, egui::Sense::click());
-            let reset_color = if self.preview.preview_zoom != 1.0 || self.preview.preview_pan != Vec2::ZERO {
-                ACCENT_BLUE
-            } else {
-                TEXT_MUTED
-            };
-            ui.painter().text(
-                reset_btn_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                egui_phosphor::regular::ARROWS_OUT_CARDINAL,
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                reset_color,
-            );
-            if reset_btn.clicked() {
+            // Reset zoom/pan
+            let reset_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
+            let reset_color = if self.preview.preview_zoom != 1.0 || self.preview.preview_pan != Vec2::ZERO { ACCENT_BLUE } else { TEXT_MUTED };
+            if crate::app::utils::painter_icon_button(ui, reset_btn_rect, egui_phosphor::regular::ARROWS_OUT_CARDINAL, reset_color).clicked() {
                 self.preview.preview_zoom = 1.0;
                 self.preview.preview_pan = Vec2::ZERO;
                 self.preview.status = "Zoom/Pan reset".to_string();
             }
+            btn_x -= header_h + 4.0;
 
-            // Diff mode toggle (left of reset)
-            let diff_btn_rect = egui::Rect::from_min_size(
-                egui::pos2(reset_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
-                Vec2::new(header_h, header_h - 4.0),
-            );
-            let diff_btn = ui.allocate_rect(diff_btn_rect, egui::Sense::click());
+            // Diff mode toggle
+            let diff_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
             let diff_color = if self.preview.diff_mode { ACCENT_BLUE } else { TEXT_MUTED };
-            ui.painter().text(
-                diff_btn_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                egui_phosphor::regular::COLUMNS,
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                diff_color,
-            );
-            if diff_btn.clicked() {
+            if crate::app::utils::painter_icon_button(ui, diff_btn_rect, egui_phosphor::regular::COLUMNS, diff_color).clicked() {
                 self.preview.diff_mode = !self.preview.diff_mode;
                 if self.preview.diff_mode {
                     self.preview.status = "Diff mode: showing before/after".to_string();
@@ -1623,22 +1588,12 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     self.preview.status = "Diff mode off".to_string();
                 }
             }
+            btn_x -= header_h + 4.0;
 
-            // Scene slices toggle (left of diff)
-            let slices_btn_rect = egui::Rect::from_min_size(
-                egui::pos2(diff_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
-                Vec2::new(header_h, header_h - 4.0),
-            );
-            let slices_btn = ui.allocate_rect(slices_btn_rect, egui::Sense::click());
+            // Scene slices toggle
+            let slices_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
             let slices_color = if self.preview.scene_slices.enabled { ACCENT_BLUE } else { TEXT_MUTED };
-            ui.painter().text(
-                slices_btn_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL,
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                slices_color,
-            );
-            if slices_btn.clicked() {
+            if crate::app::utils::painter_icon_button(ui, slices_btn_rect, egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL, slices_color).clicked() {
                 self.preview.scene_slices.toggle();
                 self.preview.status = if self.preview.scene_slices.enabled {
                     "Scene slices enabled".to_string()
@@ -1646,25 +1601,16 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     "Scene slices disabled".to_string()
                 };
             }
+            btn_x -= header_h + 4.0;
 
-            // Overlay toggle menu (left of slices)
-            let overlay_btn_rect = egui::Rect::from_min_size(
-                egui::pos2(slices_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
-                Vec2::new(header_h, header_h - 4.0),
-            );
-            let overlay_btn = ui.allocate_rect(overlay_btn_rect, egui::Sense::click());
+            // Overlay toggle menu
+            let overlay_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
             let any_overlay_on = self.preview.overlay.show_grid
                 || self.preview.overlay.show_guides
                 || self.preview.overlay.show_hover_highlight
                 || self.preview.overlay.show_snap_guides;
             let overlay_color = if any_overlay_on { ACCENT_BLUE } else { TEXT_MUTED };
-            ui.painter().text(
-                overlay_btn_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                egui_phosphor::regular::EYE,
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                overlay_color,
-            );
+            let overlay_btn = crate::app::utils::painter_icon_button(ui, overlay_btn_rect, egui_phosphor::regular::EYE, overlay_color);
             if overlay_btn.clicked() {
                 self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
             }
