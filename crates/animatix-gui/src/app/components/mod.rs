@@ -20,6 +20,7 @@
 
 #![allow(dead_code)]
 
+pub mod agent_suggestions;
 pub mod context_menu;
 pub mod easing_picker;
 pub mod widgets;

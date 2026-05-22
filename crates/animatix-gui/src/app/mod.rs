@@ -505,6 +505,13 @@ impl GuiShell {
             .resizable(false)
             .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
 
+        // NL Command Bar
+        egui::Panel::top("nl_command_bar")
+            .resizable(false)
+            .show_inside(ui, |ui| {
+                shell::nl_command_bar::nl_command_bar_ui(ui, &mut commands);
+            });
+
         // Transport bar at the very bottom
         let keyframe_count = self
             .document
