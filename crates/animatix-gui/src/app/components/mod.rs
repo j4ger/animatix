@@ -23,7 +23,7 @@
 pub mod agent_suggestions;
 pub mod context_menu;
 pub mod easing_picker;
-pub mod widgets;
+
 
 use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};
 
@@ -865,4 +865,66 @@ fn phase_color(phase: DiagnosticPhase) -> Color32 {
         DiagnosticPhase::Build => DIAG_PHASE_RESOLVE,
         DiagnosticPhase::Render => DIAG_PHASE_COMPILE,
     }
+}
+
+// ─── Pill Tab Bar ─────────────────────────────────────────────────────────
+
+/// Reusable pill-style segmented tab bar.
+///
+/// `tabs` is a slice of `(tab_value, icon, label)` tuples.
+/// Returns `Some(new_tab)` if a different tab was clicked, else `None`.
+pub fn pill_tab_bar<T: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    active_tab: T,
+    tabs: &[(T, &'static str, &'static str)],
+) -> Option<T> {
+    let available = ui.available_width();
+    let tab_h = 26.0;
+    let gap = 2.0;
+    let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
+
+    let bar_rect = ui
+        .allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover())
+        .0;
+    ui.painter().rect_filled(bar_rect, RADIUS_M, BG_WIDGET);
+
+    let mut clicked_tab = None;
+
+    for (idx, (tab, icon, label)) in tabs.iter().enumerate() {
+        let is_active = active_tab == *tab;
+        let x = bar_rect.min.x + idx as f32 * (tab_w + gap);
+        let tab_rect =
+            egui::Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
+
+        let response = ui.interact(tab_rect, ui.id().with(("pill_tab", idx)), egui::Sense::click());
+
+        if is_active {
+            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
+            ui.painter().rect_filled(pill, RADIUS_M, BG_SURFACE);
+        } else if response.hovered() {
+            let hover_bg = BG_WIDGET;
+            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
+            ui.painter().rect_filled(pill, RADIUS_M, hover_bg);
+        }
+
+        let text_color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
+        let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
+        let full_text = format!("{}  {}", icon, label);
+        let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
+        let show_label = galley.size().x + 12.0 <= tab_w; // 12px padding
+        let display_text = if show_label { full_text } else { icon.to_string() };
+        ui.painter().text(
+            tab_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            display_text,
+            font_id,
+            text_color,
+        );
+
+        if response.clicked() {
+            clicked_tab = Some(*tab);
+        }
+    }
+
+    clicked_tab
 }

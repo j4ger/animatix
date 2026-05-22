@@ -16,6 +16,9 @@ mod highlight {
 #[allow(unused_imports)]
 use highlight::highlight_source;
 
+mod completion;
+mod diagnostics;
+
 pub struct EditorBuffer {
     text: String,
     document_path: PathBuf,

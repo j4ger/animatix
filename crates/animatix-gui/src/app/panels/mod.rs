@@ -45,7 +45,7 @@ const SNAP_THRESHOLD: f32 = 5.0; // scene pixels
 
 pub use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
-use crate::app::components::widgets;
+
 use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
@@ -116,7 +116,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
         (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
     ];
-    if let Some(new_tab) = widgets::pill_tab_bar(ui, *active_tab, &tabs) {
+    if let Some(new_tab) = components::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
     }
 }

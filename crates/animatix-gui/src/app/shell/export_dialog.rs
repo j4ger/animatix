@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use crate::app::theme::*;
 use crate::app::components;
-use crate::app::components::widgets::pill_tab_bar;
 use crate::app::GuiShell;
 
 
@@ -181,7 +180,7 @@ impl GuiShell {
                 Vec2::new(content_rect.width(), ROW_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
-                if let Some(new_fmt) = pill_tab_bar(ui, self.export_state.format, &tabs) {
+                if let Some(new_fmt) = components::pill_tab_bar(ui, self.export_state.format, &tabs) {
                     self.export_state.format = new_fmt;
                     if self.export_state.output_path.is_empty() {
                         self.update_default_export_filename();
