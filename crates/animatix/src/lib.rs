@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+
+//! Core animation engine: timeline, renderer, and evaluation.
+
 // Re-export syntax modules from animatix-syntax for backward compatibility
 pub use animatix_syntax::ast;
 pub use animatix_syntax::diagnostics;

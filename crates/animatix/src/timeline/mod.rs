@@ -129,7 +129,7 @@ use timing::{
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use track::{
-    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode, ActorHeader, GeometryTier, StyleTier, ActorPayload,
+    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
@@ -296,40 +296,40 @@ impl HasDuration for VariableTrack {
 }
 
 pub struct Timeline {
-    pub tracks: BTreeMap<String, AnimationTrack>,
-    pub background_color: PropertyTrack<[f32; 4]>,
-    pub root_nodes: Vec<String>,
-    pub env: Environment,
-    pub modifiers: Vec<Stmt>,
-    pub modifier_programs: Vec<ModifierIrProgram>,
+    pub(crate) tracks: BTreeMap<String, AnimationTrack>,
+    pub(crate) background_color: PropertyTrack<[f32; 4]>,
+    pub(crate) root_nodes: Vec<String>,
+    pub(crate) env: Environment,
+    pub(crate) modifiers: Vec<Stmt>,
+    pub(crate) modifier_programs: Vec<ModifierIrProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     auto_color_assignments: BTreeMap<String, usize>,
     next_auto_color_index: usize,
-    pub container_metadata: BTreeMap<String, ContainerMetadata>,
-    pub layout_engine: LayoutEngine,
-    pub dynamic_layout: bool,
-    pub asset_cache: assets::AssetCache,
-    pub font_context: crate::renderer::text::FontContext,
+    pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
+    pub(crate) layout_engine: LayoutEngine,
+    pub(crate) dynamic_layout: bool,
+    pub(crate) asset_cache: assets::AssetCache,
+    pub(crate) font_context: crate::renderer::text::FontContext,
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
-    pub child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
+    pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
     /// Runtime text compiler with cache. Enables `always` blocks to change
     /// text content / font_family / font_size and have glyphs recompiled on-demand.
-    pub text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
+    text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
     /// Each entry is (actor_label, world_bounds). Populated during evaluate.
-    pub hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
     /// during modifier evaluation.
-    pub variable_tracks: BTreeMap<String, VariableTrack>,
+    pub(crate) variable_tracks: BTreeMap<String, VariableTrack>,
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
-    pub audio_segments: Vec<AudioSegment>,
+    pub(crate) audio_segments: Vec<AudioSegment>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -669,6 +669,41 @@ impl Timeline {
     /// Returns a reference to the track for the given label, if it exists.
     pub fn get_track(&self, label: &str) -> Option<&AnimationTrack> {
         self.tracks.get(label)
+    }
+
+    /// Returns a mutable reference to the track for the given label, if it exists.
+    pub fn get_track_mut(&mut self, label: &str) -> Option<&mut AnimationTrack> {
+        self.tracks.get_mut(label)
+    }
+
+    /// Returns a reference to all tracks.
+    pub fn tracks(&self) -> &BTreeMap<String, AnimationTrack> {
+        &self.tracks
+    }
+
+    /// Returns a mutable reference to all tracks.
+    pub fn tracks_mut(&mut self) -> &mut BTreeMap<String, AnimationTrack> {
+        &mut self.tracks
+    }
+
+    /// Returns a reference to the container metadata map.
+    pub fn container_metadata(&self) -> &BTreeMap<String, ContainerMetadata> {
+        &self.container_metadata
+    }
+
+    /// Returns a mutable reference to the container metadata map.
+    pub fn container_metadata_mut(&mut self) -> &mut BTreeMap<String, ContainerMetadata> {
+        &mut self.container_metadata
+    }
+
+    /// Returns a reference to the environment.
+    pub fn env(&self) -> &Environment {
+        &self.env
+    }
+
+    /// Returns a mutable reference to the environment.
+    pub fn env_mut(&mut self) -> &mut Environment {
+        &mut self.env
     }
 
     /// Invalidate the frame evaluation cache.

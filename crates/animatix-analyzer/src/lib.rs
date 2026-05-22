@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 //! # animatix-analyzer
 //!
 //! Shared language intelligence for the Animatix DSL.
@@ -15,9 +17,11 @@ mod symbol_table;
 mod completer;
 mod diagnostics;
 
-pub use symbol_table::*;
-pub use completer::*;
-pub use diagnostics::*;
+pub use symbol_table::{
+    SymbolTable, ImportInfo, LabelInfo, LabelKind, ComponentInfo, ParamInfo, SceneInfo,
+};
+pub use completer::{CompletionItem, CompletionKind, completions_at};
+pub use diagnostics::{Diagnostic, DiagnosticSeverity, collect_diagnostics};
 
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::parser;

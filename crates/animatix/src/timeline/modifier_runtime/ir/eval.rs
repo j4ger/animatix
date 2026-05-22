@@ -1,263 +1,14 @@
-use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, UnaryOp};
 use crate::timeline::{Environment, EvalError, Value};
-use std::collections::HashMap;
-use std::fmt;
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum BuiltinFn {
-    Sin,
-    Cos,
-    Lerp,
-    Format,
-    Tan,
-    Sqrt,
-    Exp,
-    Log,
-    Atan2,
-    Clamp,
-    Abs,
-    Min,
-    Max,
-    Floor,
-    Ceil,
-}
+use super::types::{
+    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum CompiledExpr {
-    Const(Value),
-    LoadEnv(String),
-    MakeVec(Vec<CompiledExpr>),
-    Unary(UnaryOp, Box<CompiledExpr>),
-    Binary(Box<CompiledExpr>, BinaryOp, Box<CompiledExpr>),
-    Select(Box<CompiledExpr>, Box<CompiledExpr>, Box<CompiledExpr>),
-    CallBuiltin(BuiltinFn, Vec<CompiledExpr>),
-    Index(Box<CompiledExpr>, Box<CompiledExpr>),
-    Method(Box<CompiledExpr>, String, Vec<CompiledExpr>),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ModifierExpr {
-    Compiled(CompiledExpr),
-    Unsupported(Expr),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ModifierIrStmt {
-    Assign {
-        target: Vec<String>,
-        property: String,
-        value: ModifierExpr,
-    },
-    Let {
-        name: String,
-        value: ModifierExpr,
-    },
-    If {
-        condition: ModifierExpr,
-        then_branch: Vec<ModifierIrStmt>,
-        else_branch: Vec<ModifierIrStmt>,
-    },
-    For {
-        var: String,
-        iterable: CompiledExpr,
-        body: Vec<ModifierIrStmt>,
-    },
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ModifierIrProgram {
-    pub statements: Vec<ModifierIrStmt>,
-}
-
-pub type ModifierOverrides = HashMap<String, HashMap<String, Value>>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum IrLowerError {
-    UnsupportedStatement(&'static str),
-}
-
-impl fmt::Display for IrLowerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IrLowerError::UnsupportedStatement(kind) => {
-                write!(f, "Unsupported IR statement: {kind}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for IrLowerError {}
-
-/// Convenience wrapper that unwraps `Always` / `Drive`
-/// statements and lowers their bodies. Kept for test compatibility.
-pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
-    let mut statements = Vec::new();
-    for stmt in program {
-        lower_modifier_roots(stmt, &mut statements)?;
-    }
-    Ok(ModifierIrProgram { statements })
-}
-
-fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result<(), IrLowerError> {
-    match stmt {
-        Stmt::Always { body, .. }
-        | Stmt::Drive { body, .. } => {
-            output.extend(lower_modifier_block(body)?);
-        }
-        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-            for stmt in body {
-                lower_modifier_roots(stmt, output)?;
-            }
-        }
-        Stmt::Comment(..) => {}
-        _ => {}
-    }
-    Ok(())
-}
-
-pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
-    body.iter().map(lower_modifier_stmt).collect()
-}
-
-/// Lower a flat list of modifier body statements (assignments, conditionals, lets)
-/// into a ModifierIrProgram. Unlike `lower_modifier_ir`, this does not expect
-/// Always/Drive wrapper statements.
-pub fn lower_modifier_body(statements: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
-    Ok(ModifierIrProgram {
-        statements: lower_modifier_block(statements)?,
-    })
-}
-
-fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
-    match stmt {
-        Stmt::Assignment {
-            target,
-            property,
-            value,
-            ..
-        } => Ok(ModifierIrStmt::Assign {
-            target: target.clone(),
-            property: property.clone(),
-            value: compile_modifier_expr(value),
-        }),
-        Stmt::LetDecl { name, value, is_pub: _, .. } => Ok(ModifierIrStmt::Let {
-            name: name.clone(),
-            value: compile_modifier_expr(value),
-        }),
-        Stmt::Conditional {
-            condition,
-            then_branch,
-            else_branch,
-            ..
-        } => Ok(ModifierIrStmt::If {
-            condition: compile_modifier_expr(condition),
-            then_branch: lower_modifier_block(then_branch)?,
-            else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
-        }),
-        Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
-        Stmt::ForLoop { var, iterable, body, .. } => {
-            let compiled_iterable = compile_expr(iterable)
-                .ok_or(IrLowerError::UnsupportedStatement("for loop with unsupported iterable expression"))?;
-            Ok(ModifierIrStmt::For {
-                var: var.clone(),
-                iterable: compiled_iterable,
-                body: lower_modifier_block(body)?,
-            })
-        }
-        Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
-        Stmt::ActorDecl { .. }
-        | Stmt::Import { .. }
-        | Stmt::Use { .. }
-        | Stmt::Keyframe { .. }
-        | Stmt::RelativeKeyframe { .. }
-        | Stmt::Sequence { .. }
-        | Stmt::Stagger { .. }
-        | Stmt::Always { .. }
-        | Stmt::Drive { .. }
-        | Stmt::ReactiveBinding { .. }
-        | Stmt::ComponentDef(..)
-        | Stmt::ComponentAction { .. }
-        | Stmt::Config { .. }
-        | Stmt::Scene { .. }
-        | Stmt::Play { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),
-    }
-}
-
-pub fn compile_modifier_expr(expr: &Expr) -> ModifierExpr {
-    compile_expr(expr)
-        .map(ModifierExpr::Compiled)
-        .unwrap_or_else(|| ModifierExpr::Unsupported(expr.clone()))
-}
-
-pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
-    match expr {
-        Expr::Num(n) => Some(CompiledExpr::Const(Value::Num(*n))),
-        Expr::Percent(n) => Some(CompiledExpr::Const(Value::Num(*n / 100.0))),
-        Expr::Str(s) => Some(CompiledExpr::Const(Value::Str(s.clone()))),
-        Expr::Bool(b) => Some(CompiledExpr::Const(Value::Bool(*b))),
-        Expr::Null => Some(CompiledExpr::Const(Value::Num(0.0))),
-        Expr::Ident(name) => Some(CompiledExpr::LoadEnv(name.clone())),
-        Expr::Path(parts) => Some(CompiledExpr::LoadEnv(parts.join("."))),
-        Expr::Tuple(items) => items
-            .iter()
-            .map(compile_expr)
-            .collect::<Option<Vec<_>>>()
-            .map(CompiledExpr::MakeVec),
-        Expr::Unary(op, expr) => Some(CompiledExpr::Unary(
-            op.clone(),
-            Box::new(compile_expr(expr)?),
-        )),
-        Expr::Binary(left, op, right) => Some(CompiledExpr::Binary(
-            Box::new(compile_expr(left)?),
-            op.clone(),
-            Box::new(compile_expr(right)?),
-        )),
-        Expr::Conditional(cond, then_expr, else_expr) => Some(CompiledExpr::Select(
-            Box::new(compile_expr(cond)?),
-            Box::new(compile_expr(then_expr)?),
-            Box::new(compile_expr(else_expr)?),
-        )),
-        Expr::Call(name, args) => {
-            let builtin = match name.as_str() {
-                "sin" => BuiltinFn::Sin,
-                "cos" => BuiltinFn::Cos,
-                "lerp" => BuiltinFn::Lerp,
-                "format" => BuiltinFn::Format,
-                "tan" => BuiltinFn::Tan,
-                "sqrt" => BuiltinFn::Sqrt,
-                "exp" => BuiltinFn::Exp,
-                "log" => BuiltinFn::Log,
-                "atan2" => BuiltinFn::Atan2,
-                "clamp" => BuiltinFn::Clamp,
-                "abs" => BuiltinFn::Abs,
-                "min" => BuiltinFn::Min,
-                "max" => BuiltinFn::Max,
-                "floor" => BuiltinFn::Floor,
-                "ceil" => BuiltinFn::Ceil,
-                _ => return None,
-            };
-            Some(CompiledExpr::CallBuiltin(
-                builtin,
-                args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?,
-            ))
-        }
-        Expr::Index(container, index) => {
-            let container = compile_expr(container)?;
-            let index = compile_expr(index)?;
-            Some(CompiledExpr::Index(Box::new(container), Box::new(index)))
-        }
-        Expr::Method(receiver, name, args) => {
-            let receiver = compile_expr(receiver)?;
-            let args: Vec<_> = args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?;
-            Some(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
-        }
-        Expr::Closure(_, _) | Expr::Construct(_, _) => {
-            None
-        }
-    }
-}
-
-pub fn evaluate_modifier_expr(expr: &ModifierExpr, env: &Environment) -> Result<Value, EvalError> {
+pub fn evaluate_modifier_expr(
+    expr: &ModifierExpr,
+    env: &Environment,
+) -> Result<Value, EvalError> {
     match expr {
         ModifierExpr::Compiled(expr) => evaluate_compiled_expr(expr, env),
         ModifierExpr::Unsupported(expr) => crate::timeline::evaluate_expr(expr, env),
@@ -323,7 +74,11 @@ where
             }
             Ok(())
         }
-        ModifierIrStmt::For { var, iterable, body } => {
+        ModifierIrStmt::For {
+            var,
+            iterable,
+            body,
+        } => {
             let values = evaluate_compiled_expr(iterable, frame_env)?;
             let items: Vec<Value> = match values {
                 Value::List(list) => list,
@@ -343,7 +98,10 @@ where
     }
 }
 
-pub fn evaluate_compiled_expr(expr: &CompiledExpr, env: &Environment) -> Result<Value, EvalError> {
+pub fn evaluate_compiled_expr(
+    expr: &CompiledExpr,
+    env: &Environment,
+) -> Result<Value, EvalError> {
     match expr {
         CompiledExpr::Const(value) => Ok(value.clone()),
         CompiledExpr::LoadEnv(name) => env
@@ -404,23 +162,24 @@ pub fn evaluate_compiled_expr(expr: &CompiledExpr, env: &Environment) -> Result<
             let index_val = evaluate_compiled_expr(index, env)?;
             let idx = index_val.as_num() as usize;
             match container_val {
-                Value::List(items) => items
-                    .get(idx)
-                    .cloned()
-                    .ok_or_else(|| EvalError::TypeMismatch(format!(
+                Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
+                    EvalError::TypeMismatch(format!(
                         "Index {} out of bounds for list of length {}",
                         idx,
                         items.len()
-                    ))),
+                    ))
+                }),
                 Value::Str(s) => s
                     .chars()
                     .nth(idx)
                     .map(|c| Value::Str(c.to_string()))
-                    .ok_or_else(|| EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for string of length {}",
-                        idx,
-                        s.len()
-                    ))),
+                    .ok_or_else(|| {
+                        EvalError::TypeMismatch(format!(
+                            "Index {} out of bounds for string of length {}",
+                            idx,
+                            s.len()
+                        ))
+                    }),
                 Value::Vec2(v) => match idx {
                     0 => Ok(Value::Num(v[0])),
                     1 => Ok(Value::Num(v[1])),
@@ -714,16 +473,13 @@ pub(crate) fn eval_method(
                 ));
             }
             let idx = args[0].as_num() as usize;
-            items
-                .get(idx)
-                .cloned()
-                .ok_or_else(|| {
-                    EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for list of length {}",
-                        idx,
-                        items.len()
-                    ))
-                })
+            items.get(idx).cloned().ok_or_else(|| {
+                EvalError::TypeMismatch(format!(
+                    "Index {} out of bounds for list of length {}",
+                    idx,
+                    items.len()
+                ))
+            })
         }
         (Value::List(items), "contains") => {
             if args.len() != 1 {
@@ -991,15 +747,6 @@ pub(crate) fn apply_binary_op(
     }
 }
 
-impl fmt::Display for ModifierIrProgram {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for stmt in &self.statements {
-            writeln!(f, "{}", DisplayStmt(stmt))?;
-        }
-        Ok(())
-    }
-}
-
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
     match values.len() {
         2 => Value::Vec2([values[0].as_num(), values[1].as_num()]),
@@ -1011,132 +758,5 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
             values[3].as_num(),
         ]),
         _ => Value::List(values),
-    }
-}
-
-struct DisplayStmt<'a>(&'a ModifierIrStmt);
-
-impl fmt::Display for DisplayStmt<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            ModifierIrStmt::Assign {
-                target,
-                property,
-                value,
-            } => write!(
-                f,
-                "assign {}.{} = {}",
-                target.join("."),
-                property,
-                DisplayExpr(value)
-            ),
-            ModifierIrStmt::Let { name, value } => {
-                write!(f, "let {} = {}", name, DisplayExpr(value))
-            }
-            ModifierIrStmt::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => {
-                write!(f, "if {} {{ ", DisplayExpr(condition))?;
-                for (idx, stmt) in then_branch.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, "; ")?;
-                    }
-                    write!(f, "{}", DisplayStmt(stmt))?;
-                }
-                write!(f, " }}")?;
-                if !else_branch.is_empty() {
-                    write!(f, " else {{ ")?;
-                    for (idx, stmt) in else_branch.iter().enumerate() {
-                        if idx > 0 {
-                            write!(f, "; ")?;
-                        }
-                        write!(f, "{}", DisplayStmt(stmt))?;
-                    }
-                    write!(f, " }}")?;
-                }
-                Ok(())
-            }
-            ModifierIrStmt::For { var, iterable, body } => {
-                write!(f, "for {} in {} {{ ", var, DisplayCompiledExpr(iterable))?;
-                for (idx, stmt) in body.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, "; ")?;
-                    }
-                    write!(f, "{}", DisplayStmt(stmt))?;
-                }
-                write!(f, " }}")
-            }
-        }
-    }
-}
-
-struct DisplayExpr<'a>(&'a ModifierExpr);
-
-impl fmt::Display for DisplayExpr<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            ModifierExpr::Compiled(expr) => write!(f, "{}", DisplayCompiledExpr(expr)),
-            ModifierExpr::Unsupported(expr) => write!(f, "unsupported({expr:?})"),
-        }
-    }
-}
-
-struct DisplayCompiledExpr<'a>(&'a CompiledExpr);
-
-impl fmt::Display for DisplayCompiledExpr<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            CompiledExpr::Const(value) => write!(f, "const({value:?})"),
-            CompiledExpr::LoadEnv(name) => write!(f, "load({name})"),
-            CompiledExpr::MakeVec(items) => {
-                write!(f, "vec(")?;
-                for (idx, item) in items.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", DisplayCompiledExpr(item))?;
-                }
-                write!(f, ")")
-            }
-            CompiledExpr::Unary(op, expr) => write!(f, "({op:?} {})", DisplayCompiledExpr(expr)),
-            CompiledExpr::Binary(left, op, right) => write!(
-                f,
-                "({} {op:?} {})",
-                DisplayCompiledExpr(left),
-                DisplayCompiledExpr(right)
-            ),
-            CompiledExpr::Select(cond, then_expr, else_expr) => write!(
-                f,
-                "if {} then {} else {}",
-                DisplayCompiledExpr(cond),
-                DisplayCompiledExpr(then_expr),
-                DisplayCompiledExpr(else_expr)
-            ),
-            CompiledExpr::CallBuiltin(name, args) => {
-                write!(f, "{name:?}(")?;
-                for (idx, arg) in args.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", DisplayCompiledExpr(arg))?;
-                }
-                write!(f, ")")
-            }
-            CompiledExpr::Index(container, index) => {
-                write!(f, "{}[{}]", DisplayCompiledExpr(container), DisplayCompiledExpr(index))
-            }
-            CompiledExpr::Method(receiver, name, args) => {
-                write!(f, "{}.{name}(", DisplayCompiledExpr(receiver))?;
-                for (idx, arg) in args.iter().enumerate() {
-                    if idx > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", DisplayCompiledExpr(arg))?;
-                }
-                write!(f, ")")
-            }
-        }
     }
 }

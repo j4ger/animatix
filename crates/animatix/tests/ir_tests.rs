@@ -177,7 +177,7 @@ fn modifier_ir_can_lower_post_expansion_program() {
 #[test]
 fn modifier_ir_matches_statement_modifier_execution() {
     let mut timeline = Timeline::new();
-    load_standard_library(&mut timeline.env);
+    load_standard_library(timeline.env_mut());
 
     let modifier = Stmt::Conditional {
         condition: Expr::Binary(
@@ -307,7 +307,7 @@ fn modifier_bytecode_executes_let_and_if() {
     let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     let mut timeline = Timeline::new();
-    load_standard_library(&mut timeline.env);
+    load_standard_library(timeline.env_mut());
     let mut overrides = HashMap::new();
     let mut env = timeline.frame(500, SceneDimensions::default(), &overrides);
     timeline

@@ -142,7 +142,7 @@ card: MetricCard, title: "Latency"
     assert!(expanded_debug.contains("Latency"));
 
     let timeline = Timeline::build(&expanded);
-    assert!(timeline.tracks.contains_key("card"));
+    assert!(timeline.tracks().contains_key("card"));
 }
 
 #[test]
@@ -426,13 +426,13 @@ sequence {
 
       // Build timeline to verify sequence timing works with inlined actions
       let timeline = animatix::timeline::Timeline::build(&expanded);
-      let track_names: Vec<_> = timeline.tracks.keys().collect();
+      let track_names: Vec<_> = timeline.tracks().keys().collect();
       assert!(
-          timeline.tracks.contains_key("badge1"),
+          timeline.tracks().contains_key("badge1"),
           "badge1 should exist. Tracks: {:?}",
           track_names
       );
-      let track = timeline.tracks.get("badge1").unwrap();
+      let track = timeline.tracks().get("badge1").unwrap();
       // bounce at 0-200ms (scale), fade-in at 200-500ms (opacity)
       let scale = track.scale.as_ref().expect("scale should exist");
       // At 100ms, first scale assignment is halfway: 1.0 → 1.5 = 1.25

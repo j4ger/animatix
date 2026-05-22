@@ -519,7 +519,7 @@ impl GuiShell {
         let actor_count = self
             .document
             .active_timeline()
-            .map(|t| t.tracks.len())
+            .map(|t| t.tracks().len())
             .unwrap_or(0);
         let timeline_markers = timeline_keyframe_times_s(
             if self.document.composition.is_some() {
@@ -1365,7 +1365,7 @@ impl GuiShell {
             .document
             .timeline
             .as_ref()
-            .map(|t| t.tracks.keys().cloned().collect())
+            .map(|t| t.tracks().keys().cloned().collect())
             .unwrap_or_default();
         for i in 1.. {
             let candidate = format!("{}{}", base, i);

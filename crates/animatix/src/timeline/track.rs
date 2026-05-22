@@ -333,87 +333,8 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// NEW: Tier 1 — Always-present header (alongside old fields)
+// AnimationTrack
 // ─────────────────────────────────────────────────────────────
-
-#[derive(Clone, Debug)]
-pub struct ActorHeader {
-    pub label: String,
-    pub kind: ActorKindId,
-    pub first_seen_ms: u64,
-    pub children: Vec<String>,
-    pub parent_label: Option<String>,
-}
-
-// ─────────────────────────────────────────────────────────────
-// NEW: Tier 2 — Universal geometry + style (alongside old fields)
-// ─────────────────────────────────────────────────────────────
-
-#[derive(Clone)]
-pub struct GeometryTier {
-    pub position: Option<PropertyTrack<[f32; 2]>>,
-    pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
-    pub size: Option<PropertyTrack<[f32; 2]>>,
-    pub layout_size: Option<PropertyTrack<[f32; 2]>>,
-    pub rotation: Option<PropertyTrack<f32>>,
-    pub scale: Option<PropertyTrack<f32>>,
-    pub placement_mode: Option<PropertyTrack<PlacementMode>>,
-    pub position_binding: Option<PropertyTrack<PositionBinding>>,
-}
-
-#[derive(Clone)]
-pub struct StyleTier {
-    pub color: Option<PropertyTrack<[f32; 4]>>,
-    pub opacity: Option<PropertyTrack<f32>>,
-    pub stroke_width: Option<PropertyTrack<f32>>,
-    pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
-    pub stroke_progress: Option<PropertyTrack<f32>>,
-    pub fill_opacity: Option<PropertyTrack<f32>>,
-    pub morph_options: Option<PropertyTrack<MorphOptions>>,
-}
-
-// ─────────────────────────────────────────────────────────────
-// NEW: Tier 3 — Kind-specific payload (alongside old fields)
-// ─────────────────────────────────────────────────────────────
-
-#[derive(Clone)]
-pub enum ActorPayload {
-    Empty,
-    Shape {
-        shape_type: Option<PropertyTrack<ShapeType>>,
-        line_from: Option<PropertyTrack<[f32; 2]>>,
-        line_to: Option<PropertyTrack<[f32; 2]>>,
-        arc_angles: Option<PropertyTrack<[f32; 2]>>,
-        points: Option<PropertyTrack<Vec<[f32; 2]>>>,
-        vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
-    },
-    Text {
-        content: Option<PropertyTrack<String>>,
-        text_paths: Option<PropertyTrack<Vec<TextPath>>>,
-    },
-    Image {
-        image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
-    },
-    Svg {
-        svg_paths: Vec<VelloPath>,
-    },
-    Plot {
-        vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
-    },
-}
-
-// ─────────────────────────────────────────────────────────────
-// AnimationTrack — ORIGINAL flat struct preserved for compat
-// ─────────────────────────────────────────────────────────────
-// The old flat fields remain so all existing code compiles without changes.
-// The NEW tiered fields (`geom`, `sty`, `pay`) are also present for gradual
-// migration. New code should use the tiered fields; old code continues to
-// use the flat fields.
-//
-// MIGRATION:
-//   Phase 2: Keep both. All code compiles.
-//   Phase 3: Migrate call sites from flat fields to tiered fields.
-//   Phase 4: Remove flat fields.
 
 #[derive(Clone)]
 pub struct AnimationTrack {
@@ -1043,5 +964,60 @@ mod tests {
         let result = interpolate_vello_paths(&source, &target, 0.75, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 50); // 200 * 0.25
+    }
+
+    #[test]
+    fn test_interpolation() {
+        let p1: [f32; 2] = [0.0, 0.0];
+        let p2: [f32; 2] = [100.0, 50.0];
+
+        let interpolated = p1.interpolate(&p2, 0.5);
+        assert_eq!(interpolated, [50.0, 25.0]);
+    }
+
+    #[test]
+    fn test_property_track_evaluation() {
+        let mut track = PropertyTrack::new([0.0, 0.0]);
+
+        track.add_keyframe(0, [0.0, 0.0], Easing::Linear);
+        track.add_keyframe(1000, [100.0, 0.0], Easing::Linear);
+        track.add_keyframe(2000, [100.0, 100.0], Easing::Linear);
+
+        // Exactly at first keyframe
+        assert_eq!(track.evaluate(0), [0.0, 0.0]);
+
+        // Midway between 1st and 2nd
+        assert_eq!(track.evaluate(500), [50.0, 0.0]);
+
+        // Exactly at 2nd keyframe
+        assert_eq!(track.evaluate(1000), [100.0, 0.0]);
+
+        // Midway between 2nd and 3rd
+        assert_eq!(track.evaluate(1500), [100.0, 50.0]);
+
+        // Beyond last keyframe
+        assert_eq!(track.evaluate(2500), [100.0, 100.0]);
+    }
+
+    #[test]
+    fn test_missing_properties() {
+        let track = AnimationTrack::new("empty_actor".to_string());
+
+        assert_eq!(track.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(
+            track.placement_mode.get(0, PlacementMode::LayoutManaged),
+            PlacementMode::LayoutManaged
+        );
+        assert_eq!(
+            track.position_binding.get(0, PositionBinding::Absolute),
+            PositionBinding::Absolute
+        );
+        assert_eq!(track.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
+        assert_eq!(track.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
+        assert_eq!(track.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
+        assert_eq!(track.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
+        assert_eq!(track.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(track.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
+        assert_eq!(track.opacity.get(0, 1.0), 1.0);
     }
 }

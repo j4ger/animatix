@@ -2,7 +2,7 @@ use super::*;
 
 /// Capture current track values and insert start keyframes at `t_start_ms`.
 /// Used when an actor declaration has a non-zero duration animation.
-pub(super) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64) {
+pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, std::f32::consts::PI];
 
@@ -79,7 +79,7 @@ pub(super) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
 
 /// Preserve current track values at `t_start_ms` for delayed animations.
 /// Used when an actor declaration has a delay but no duration.
-pub(super) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u64) {
+pub(crate) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u64) {
     preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
     preserve_instant_delayed_value(&mut track.position, t_start_ms);
     preserve_instant_delayed_value(&mut track.size, t_start_ms);
@@ -98,7 +98,7 @@ pub(super) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u6
 
 /// Insert end keyframes at `t_end_ms` with the given values and easing.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn insert_end_keyframes(
+pub(crate) fn insert_end_keyframes(
     track: &mut AnimationTrack,
     t_end_ms: u64,
     position: [f32; 2],

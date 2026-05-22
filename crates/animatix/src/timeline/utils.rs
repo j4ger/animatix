@@ -654,6 +654,9 @@ pub fn time_to_ms(time: &Time) -> f64 {
 mod tests {
     use super::*;
     use crate::ast::BinaryOp;
+    use crate::timeline::load_standard_library;
+    use crate::timeline::track::TrackAccessor;
+    use chumsky::Parser;
 
     #[test]
     fn test_evaluate_closure() {
@@ -877,5 +880,522 @@ mod tests {
         let result = evaluate_expr(&expr, &env).expect("path lookup should succeed");
 
         assert_eq!(result, Value::Num(320.0));
+    }
+
+    #[test]
+    fn test_time_to_ms() {
+        assert_eq!(time_to_ms(&Time::Seconds(2.5)), 2500.0);
+        assert_eq!(time_to_ms(&Time::Milliseconds(500)), 500.0);
+    }
+
+    #[test]
+    fn test_parse_color() {
+        assert_eq!(
+            parse_color(&Expr::Ident("red".to_string())),
+            [1.0, 0.0, 0.0, 1.0]
+        );
+        assert_eq!(
+            parse_color(&Expr::Ident("unknown".to_string())),
+            [0.8, 0.8, 0.8, 1.0]
+        );
+        assert_eq!(parse_color(&Expr::Num(1.0)), [0.8, 0.8, 0.8, 1.0]);
+    }
+
+    #[test]
+    fn test_evaluate_expr_sin_cos() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        // sin(0) = 0
+        let result = evaluate_expr(&Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]), &env)
+            .unwrap_or(Value::Num(0.0));
+        assert!({
+            let v = result.as_num();
+            v.abs() < 1e-10
+        });
+
+        // sin(PI/2) ≈ 1
+        let result = evaluate_expr(
+            &Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_2)]),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+        // cos(0) = 1
+        let result = evaluate_expr(&Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]), &env)
+            .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+        // cos(PI) ≈ -1
+        let result = evaluate_expr(
+            &Expr::Call("cos".to_string(), vec![Expr::Num(std::f64::consts::PI)]),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() + 1.0).abs() < 1e-10);
+
+        // sin nested: sin(PI/6) * 2
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Call(
+                    "sin".to_string(),
+                    vec![Expr::Num(std::f64::consts::FRAC_PI_6)],
+                )),
+                BinaryOp::Mul,
+                Box::new(Expr::Num(2.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_evaluate_expr_format() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        // format("value: {}", 42)
+        let result = evaluate_expr(
+            &Expr::Call(
+                "format".to_string(),
+                vec![Expr::Str("value: {}".to_string()), Expr::Num(42.0)],
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_str(), "value: 42");
+
+        // format("x={}, y={}", 10, 20)
+        let result = evaluate_expr(
+            &Expr::Call(
+                "format".to_string(),
+                vec![
+                    Expr::Str("x={}, y={}".to_string()),
+                    Expr::Num(10.0),
+                    Expr::Num(20.0),
+                ],
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_str(), "x=10, y=20");
+
+        // format with no args
+        let result = evaluate_expr(&Expr::Call("format".to_string(), vec![]), &env)
+            .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_str(), "");
+
+        // format with text and sin
+        let result = evaluate_expr(
+            &Expr::Call(
+                "format".to_string(),
+                vec![
+                    Expr::Str("sin(π/2) = {}".to_string()),
+                    Expr::Call(
+                        "sin".to_string(),
+                        vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+                    ),
+                ],
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_str(), "sin(π/2) = 1");
+    }
+
+    #[test]
+    fn test_evaluate_expr_path_uses_dotted_environment_lookup() {
+        let mut env = Environment::new();
+        env.set("left.badge.color", Value::Num(7.0));
+
+        let result = evaluate_expr(
+            &Expr::Path(vec!["left".to_string(), "badge".to_string(), "color".to_string()]),
+            &env,
+        )
+        .expect("path lookup should resolve from dotted environment key");
+
+        assert_eq!(result.as_num(), 7.0);
+    }
+
+    #[test]
+    fn test_evaluate_expr_constants() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        assert!(
+            (evaluate_expr(&Expr::Ident("PI".to_string()), &env)
+                .unwrap_or(Value::Num(0.0))
+                .as_num()
+                - std::f64::consts::PI)
+                .abs()
+                < 1e-10
+        );
+        assert!(
+            (evaluate_expr(&Expr::Ident("TAU".to_string()), &env)
+                .unwrap_or(Value::Num(0.0))
+                .as_num()
+                - std::f64::consts::TAU)
+                .abs()
+                < 1e-10
+        );
+    }
+
+    #[test]
+    fn test_evaluate_expr_tuple() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let result = evaluate_expr(&Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]), &env)
+            .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [100.0, 200.0]);
+
+        // Tuple with call expressions
+        let result = evaluate_expr(
+            &Expr::Tuple(vec![
+                Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+                Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+            ]),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_evaluate_expr_modulo() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+
+        // Basic modulo: 10 % 3 = 1
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Num(10.0)),
+                BinaryOp::Mod,
+                Box::new(Expr::Num(3.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+        // Modulo with division: 7 % 2 = 1
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Num(7.0)),
+                BinaryOp::Mod,
+                Box::new(Expr::Num(2.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+        // Modulo with sin result: sin(PI/2) % 2 = 1 % 2 = 1
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Call(
+                    "sin".to_string(),
+                    vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
+                )),
+                BinaryOp::Mod,
+                Box::new(Expr::Num(2.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+
+        // Nested modulo: (10 % 3) % 2 = 1 % 2 = 1
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Num(10.0)),
+                    BinaryOp::Mod,
+                    Box::new(Expr::Num(3.0)),
+                )),
+                BinaryOp::Mod,
+                Box::new(Expr::Num(2.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert!((result.as_num() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_evaluate_expr_vec2_operations() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+
+        // Vec2 addition: (10, 20) + (5, 5) = (15, 25)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+                BinaryOp::Add,
+                Box::new(Expr::Tuple(vec![Expr::Num(5.0), Expr::Num(5.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [15.0, 25.0]);
+
+        // Vec2 subtraction: (10, 20) - (3, 8) = (7, 12)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+                BinaryOp::Sub,
+                Box::new(Expr::Tuple(vec![Expr::Num(3.0), Expr::Num(8.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [7.0, 12.0]);
+
+        // Vec2 multiplication: (10, 20) * (2, 3) = (20, 60)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+                BinaryOp::Mul,
+                Box::new(Expr::Tuple(vec![Expr::Num(2.0), Expr::Num(3.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [20.0, 60.0]);
+
+        // Vec2 division: (10, 20) / (2, 4) = (5, 5)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+                BinaryOp::Div,
+                Box::new(Expr::Tuple(vec![Expr::Num(2.0), Expr::Num(4.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [5.0, 5.0]);
+
+        // Vec2 modulo: (10, 21) % (3, 4) = (1, 1)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(21.0)])),
+                BinaryOp::Mod,
+                Box::new(Expr::Tuple(vec![Expr::Num(3.0), Expr::Num(4.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [1.0, 1.0]);
+
+        // Scalar-Vec2 multiplication: 2 * (10, 20) = (20, 40)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Num(2.0)),
+                BinaryOp::Mul,
+                Box::new(Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [20.0, 40.0]);
+
+        // Vec2 with sin/cos: (sin(0), cos(0)) = (0, 1)
+        let result = evaluate_expr(
+            &Expr::Tuple(vec![
+                Expr::Call("sin".to_string(), vec![Expr::Num(0.0)]),
+                Expr::Call("cos".to_string(), vec![Expr::Num(0.0)]),
+            ]),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec2(), [0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_evaluate_expr_vec3_operations() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+
+        // Vec3 addition: (1, 2, 3) + (4, 5, 6) = (5, 7, 9)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Tuple(vec![
+                    Expr::Num(1.0),
+                    Expr::Num(2.0),
+                    Expr::Num(3.0),
+                ])),
+                BinaryOp::Add,
+                Box::new(Expr::Tuple(vec![
+                    Expr::Num(4.0),
+                    Expr::Num(5.0),
+                    Expr::Num(6.0),
+                ])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec3(), [5.0, 7.0, 9.0]);
+
+        // Vec3 scalar multiplication: 2 * (1, 2, 3) = (2, 4, 6)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Num(2.0)),
+                BinaryOp::Mul,
+                Box::new(Expr::Tuple(vec![
+                    Expr::Num(1.0),
+                    Expr::Num(2.0),
+                    Expr::Num(3.0),
+                ])),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        assert_eq!(result.as_vec3(), [2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_evaluate_expr_color_operations() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+
+        // Color addition: RED + GREEN = (1, 1, 0, 2)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Ident("RED".to_string())),
+                BinaryOp::Add,
+                Box::new(Expr::Ident("GREEN".to_string())),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        let color = result.as_color();
+        assert!((color[0] - 1.0).abs() < 1e-10);
+        assert!((color[1] - 1.0).abs() < 1e-10);
+        assert!((color[2] - 0.0).abs() < 1e-10);
+        assert!((color[3] - 2.0).abs() < 1e-10);
+
+        // Color scalar multiplication: 0.5 * BLUE = (0, 0, 0.5, 0.5)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Num(0.5)),
+                BinaryOp::Mul,
+                Box::new(Expr::Ident("BLUE".to_string())),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        let color = result.as_color();
+        assert!((color[0] - 0.0).abs() < 1e-10);
+        assert!((color[1] - 0.0).abs() < 1e-10);
+        assert!((color[2] - 0.5).abs() < 1e-10);
+        assert!((color[3] - 0.5).abs() < 1e-10);
+
+        // Color subtraction: WHITE - RED = (0, 1, 1, 0) - alpha fades out
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Ident("WHITE".to_string())),
+                BinaryOp::Sub,
+                Box::new(Expr::Ident("RED".to_string())),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        let color = result.as_color();
+        assert!((color[0] - 0.0).abs() < 1e-10);
+        assert!((color[1] - 1.0).abs() < 1e-10);
+        assert!((color[2] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_evaluate_expr_rand() {
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+
+        // rand() should return a value between 0 and 1
+        let result = evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env)
+            .unwrap_or(Value::Num(0.0));
+        let val = result.as_num();
+        assert!(
+            val >= 0.0 && val < 1.0,
+            "rand() should return value in [0, 1), got {}",
+            val
+        );
+
+        // rand() with expressions: rand() * 100 should be in [0, 100)
+        let result = evaluate_expr(
+            &Expr::Binary(
+                Box::new(Expr::Call("rand".to_string(), vec![])),
+                BinaryOp::Mul,
+                Box::new(Expr::Num(100.0)),
+            ),
+            &env,
+        )
+        .unwrap_or(Value::Num(0.0));
+        let val = result.as_num();
+        assert!(
+            val >= 0.0 && val < 100.0,
+            "rand() * 100 should be in [0, 100), got {}",
+            val
+        );
+    }
+
+    #[test]
+    fn seeded_rand_is_deterministic() {
+        let source = r#"
+            c: Ellipse, radius: 50, color: red
+            always {
+                c.position = (seeded_rand(1.0) * 100, seeded_rand(2.0) * 100)
+            }
+        "#;
+        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let timeline = super::super::Timeline::build(&ast);
+        let pos1 = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+
+        // Rebuild and re-evaluate — same seed must produce same value
+        let timeline2 = super::super::Timeline::build(&ast);
+        let pos2 = timeline2.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+        assert_eq!(pos1, pos2, "seeded_rand must be deterministic for the same seed");
+    }
+
+    #[test]
+    fn seeded_rand_returns_value_in_range() {
+        let source = r#"
+            c: Ellipse, radius: 50, color: red
+            always {
+                c.position = (seeded_rand(42.0) * 100, seeded_rand(42.0) * 100)
+            }
+        "#;
+        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let timeline = super::super::Timeline::build(&ast);
+        let pos = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+        assert!(
+            pos[0] >= 0.0 && pos[0] <= 100.0,
+            "seeded_rand should return value in [0,1] range, got {}",
+            pos[0]
+        );
+        assert!(
+            pos[1] >= 0.0 && pos[1] <= 100.0,
+            "seeded_rand should return value in [0,1] range, got {}",
+            pos[1]
+        );
+    }
+
+    #[test]
+    fn seeded_rand_different_seeds_produce_different_values() {
+        let source = r#"
+            c: Ellipse, radius: 50, color: red
+        "#;
+        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let timeline = super::super::Timeline::build(&ast);
+
+        // Evaluate seeded_rand with different seeds directly in the timeline's env
+        let expr1 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(1.0)]);
+        let expr2 = Expr::Call("seeded_rand".to_string(), vec![Expr::Num(2.0)]);
+
+        let val1 = evaluate_expr(&expr1, &timeline.env).unwrap();
+        let val2 = evaluate_expr(&expr2, &timeline.env).unwrap();
+
+        let n1 = match val1 { Value::Num(n) => n, _ => panic!("expected num") };
+        let n2 = match val2 { Value::Num(n) => n, _ => panic!("expected num") };
+
+        assert_ne!(n1, n2, "different seeds should produce different values");
     }
 }

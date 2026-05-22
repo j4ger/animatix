@@ -160,12 +160,12 @@ impl WorkspaceViewer<'_> {
             comp.scenes.get(scene_name).map(|s| &s.timeline)
         })?;
         let container = timeline
-            .tracks
+            .tracks()
             .iter()
             .find(|(_, track)| track.children.iter().any(|child| child == actor))?
             .0
             .clone();
-        let metadata = timeline.container_metadata.get(&container)?;
+        let metadata = timeline.container_metadata().get(&container)?;
         let source_index = timeline
             .get_track(&container)?
             .children

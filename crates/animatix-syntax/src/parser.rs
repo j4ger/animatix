@@ -6,8 +6,8 @@
 //!
 //! ## Entry Points
 //!
-//! - [`parse_program()`] — parses a full `.amx` file into `Vec<Stmt>`
-//! - [`parse_expr()`] — parses a single expression
+//! - [`parser()`] — parses a full `.amx` file into `Vec<Stmt>`
+//! - `parse_expr()` — parses a single expression (not yet exported)
 //!
 //! ## Key Design Notes
 //!

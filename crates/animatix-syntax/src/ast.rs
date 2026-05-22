@@ -341,7 +341,7 @@ pub enum InlineItem {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     // === Actions ===
-    /// Action invocation: move btn to (100, 100) [2s]
+    /// Action invocation: `move btn to (100, 100) [2s]`
     Action(Action,  Option<Span>),
 
     // === Declarations ===
@@ -427,7 +427,7 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Composition helper: stagger [150ms] { ... }
+    /// Composition helper: `stagger [150ms] { ... }`
     Stagger {
         modifiers: Vec<Modifier>,
         body: Vec<Stmt>,

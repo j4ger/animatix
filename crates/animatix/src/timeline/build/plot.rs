@@ -12,7 +12,7 @@ use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
 use crate::timeline::vello_path::VelloPath;
 
 /// Parameters for building plot curve paths.
-pub(super) struct PlotCurveParams<'a> {
+pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
     pub(super) func: &'a Option<(Vec<String>, Box<Expr>)>,
     pub(super) p_x_domain: [f64; 2],
@@ -30,7 +30,7 @@ pub(super) struct PlotCurveParams<'a> {
 /// Build plot curve VelloPaths from the given parameters.
 /// This is the shared implementation used by both `process_plot_actor` and the
 /// `process_body` ActorDecl fallback path.
-pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloPath> {
+pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
     if let Some((args, body)) = params.func {
@@ -220,7 +220,7 @@ pub(super) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 
 /// Build graph axis VelloPaths (X and Y axes, optional grid and ticks).
 /// Omits an axis entirely when zero is not in its domain.
-pub(super) fn build_graph_axis_paths(
+pub(crate) fn build_graph_axis_paths(
     size: [f32; 2],
     x_domain: [f64; 2],
     y_domain: [f64; 2],
@@ -873,7 +873,7 @@ fn evaluate_with_binding(
 ///
 /// Uses `x_range` and `y_range` (min, max, step) for grid/ticks placement,
 /// mapped to screen coordinates via `x_domain`/`y_domain` and `size`.
-pub(super) fn build_number_plane_paths(
+pub(crate) fn build_number_plane_paths(
     size: [f32; 2],
     x_domain: [f64; 2],
     y_domain: [f64; 2],

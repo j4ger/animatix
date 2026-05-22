@@ -338,7 +338,7 @@ pub fn timeline_duration_seconds(
 ) -> f64 {
     if let Some(timeline) = timeline {
         timeline
-            .tracks
+            .tracks()
             .values()
             .map(track_max_ms)
             .max()

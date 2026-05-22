@@ -1,3 +1,7 @@
+#![warn(missing_docs)]
+
+//! Parser and AST for the Animatix animation DSL.
+
 pub mod ast;
 pub mod diagnostics;
 pub mod easing;

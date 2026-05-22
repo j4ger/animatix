@@ -71,6 +71,7 @@ fn fill_rgba_frame(
     let data_ptr = rgba.as_ptr() as *mut u8;
     // SAFETY: `data_ptr` points to `rgba`, which outlives this call.
     // `fill_arrays` only stores the pointer; the caller must keep `rgba` alive.
+    // The RGBA buffer is valid for the lifetime of `frame` as ensured by the caller.
     unsafe { frame.fill_arrays(data_ptr, rsmpeg::ffi::AV_PIX_FMT_RGBA, width, height) }
 }
 

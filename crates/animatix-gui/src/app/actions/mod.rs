@@ -13,7 +13,7 @@ impl GuiShell {
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
         if let Some(ref mut timeline) = self.document.timeline {
-            if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
+            if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
                 timeline.invalidate_frame_cache();
@@ -70,7 +70,7 @@ impl GuiShell {
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
         if let Some(ref mut timeline) = self.document.timeline {
-            if let Some(track) = timeline.tracks.get_mut(&edit.actor) {
+            if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
@@ -116,7 +116,7 @@ impl GuiShell {
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
         use crate::app::panels::PropertyValue as PV;
         let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document.timeline.as_mut(), edit.value.clone()) {
-            if let Some(metadata) = timeline.container_metadata.get_mut(&edit.actor) {
+            if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                 metadata.child_order = order.clone();
                 // layout_children is computed on demand via Timeline::layout_children_for
                 timeline.invalidate_frame_cache();

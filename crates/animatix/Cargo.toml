@@ -3,28 +3,34 @@ name = "animatix"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["render", "video", "text", "svg"]
+render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster"]
+video = ["dep:rsmpeg", "dep:image"]
+text = ["dep:typst", "dep:typst-layout", "dep:mitex", "dep:fontdue", "dep:fontdb", "dep:ttf-parser"]
+svg = ["dep:usvg", "dep:roxmltree"]
+
 [dependencies]
 animatix-syntax = { path = "../animatix-syntax" }
-bytemuck = { version = "1.25.0", features = ["derive"] }
+bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
 chrono = "0.4.44"
 clap = { version = "4.5.0", features = ["derive"] }
-fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
-fontdue = "0.9.3"
-image = "0.25.10"
+fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
+fontdue = { version = "0.9.3", optional = true }
+image = { version = "0.25.10", optional = true }
 kurbo = "0.13.0"
-mitex = "0.2.4"
-naga = { version = "29.0.0", features = ["termcolor"] }
-pollster = "0.4.0"
+mitex = { version = "0.2.4", optional = true }
+pollster = { version = "0.4.0", optional = true }
 rand = "0.10.0"
-roxmltree = "0.20.0"
-rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"] }
-ttf-parser = "0.25.1"
-typst = "0.14.2"
-typst-layout = "0.14.2"
+roxmltree = { version = "0.20.0", optional = true }
+rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"], optional = true }
+ttf-parser = { version = "0.25.1", optional = true }
+typst = { version = "0.14.2", optional = true }
+typst-layout = { version = "0.14.2", optional = true }
 typst-syntax = "0.14.2"
-usvg = "0.47.0"
-vello = { git = "https://github.com/linebender/vello", branch = "main" }
-wgpu = "29.0.0"
+usvg = { version = "0.47.0", optional = true }
+vello = { git = "https://github.com/linebender/vello", rev = "17166312", optional = true }
+wgpu = { version = "29.0.0", optional = true }
 winit = "0.30.13"
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 tracing = "0.1"

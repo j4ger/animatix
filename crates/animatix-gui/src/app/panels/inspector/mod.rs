@@ -236,7 +236,7 @@ pub(super) fn inspector_ui(
                 }
 
                 // ── Container Children ──
-                if timeline.container_metadata.contains_key(sel) {
+                if timeline.container_metadata().contains_key(sel) {
                     components::card(ui, |ui| {
                         components::section_header(
                             ui,

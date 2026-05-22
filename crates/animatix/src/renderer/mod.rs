@@ -1,14 +1,23 @@
-pub mod core;
 pub mod error;
-pub mod offscreen;
-pub mod text;
 pub mod transition;
 pub mod types;
+
+#[cfg(feature = "render")]
+pub mod core;
+#[cfg(feature = "render")]
+pub mod offscreen;
+#[cfg(feature = "text")]
+pub mod text;
+#[cfg(feature = "video")]
 pub mod video;
+#[cfg(feature = "render")]
 pub mod window;
 
+#[cfg(feature = "render")]
 pub use offscreen::{OffscreenRenderer, RenderedFrame};
 pub use transition::TransitionCompositor;
+
+#[cfg(feature = "video")]
 pub use video::{
     render_gif_composition, render_gif_composition_with_settings,
     render_gif_composition_with_progress,
@@ -23,4 +32,6 @@ pub use video::{
     render_video_timeline_with_progress,
     ExportSettings, H264Preset, MaxRenderThreads, VideoCodec,
 };
+
+#[cfg(feature = "render")]
 pub use window::{run, run_timeline, run_timeline_with_options};
