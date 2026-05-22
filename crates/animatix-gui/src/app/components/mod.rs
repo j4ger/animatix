@@ -624,7 +624,7 @@ impl<'a> TimelineStrip<'a> {
                     egui::pos2(x, track.top() + 2.0),
                     egui::pos2(x, track.bottom() - 2.0),
                 ],
-                Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 15)),
+                Stroke::new(1.0, grid_line()),
             );
             sec += sec_step;
         }
@@ -860,8 +860,8 @@ fn phase_label(phase: DiagnosticPhase) -> &'static str {
 
 fn phase_color(phase: DiagnosticPhase) -> Color32 {
     match phase {
-        DiagnosticPhase::Parse => Color32::from_rgb(137, 180, 250),
-        DiagnosticPhase::Build => Color32::from_rgb(180, 190, 254),
-        DiagnosticPhase::Render => Color32::from_rgb(203, 166, 126),
+        DiagnosticPhase::Parse => DIAG_PHASE_PARSE,
+        DiagnosticPhase::Build => DIAG_PHASE_RESOLVE,
+        DiagnosticPhase::Render => DIAG_PHASE_COMPILE,
     }
 }

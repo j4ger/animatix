@@ -72,7 +72,7 @@ impl GuiShell {
         ui.painter().rect_filled(
             screen_rect,
             0.0,
-            Color32::from_rgba_unmultiplied(0, 0, 0, 120),
+            overlay_backdrop(),
         );
 
         let is_running = matches!(self.export_status, ExportStatus::Running);
@@ -643,7 +643,7 @@ impl GuiShell {
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
 
                 let btn_bg = if btn_resp.hovered() {
-                    Color32::from_rgb(220, 170, 60)
+                    AMBER
                 } else {
                     AMBER
                 };

@@ -459,11 +459,7 @@ fn paint_transport_scrubber(
 
     if let Some(composition) = composition {
         let palette = [
-            Color32::from_rgba_unmultiplied(92, 140, 255, 60),
-            Color32::from_rgba_unmultiplied(145, 104, 255, 60),
-            Color32::from_rgba_unmultiplied(84, 191, 123, 60),
-            Color32::from_rgba_unmultiplied(245, 179, 78, 60),
-            Color32::from_rgba_unmultiplied(233, 108, 122, 60),
+            track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5(),
         ];
         let label_color = Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 180);
         let total = duration_s.max(0.1);
@@ -568,7 +564,7 @@ fn paint_transport_scrubber(
                         egui::pos2(x_start + offset, y),
                         egui::pos2(x_start + offset - hatch_spacing, y + hatch_spacing),
                     ],
-                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 30)),
+                    Stroke::new(1.0, hatch_line()),
                 );
                 y += hatch_spacing;
             }
@@ -578,9 +574,9 @@ fn paint_transport_scrubber(
             if width > 40.0 {
                 let label = format!("{}", transition_type_label(&edge.transition.id));
                 let label_color = if overlap_response.hovered() {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 220)
+                    Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 220)
                 } else {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 160)
+                    Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 160)
                 };
                 painter.text(
                     overlap_rect.center(),
@@ -602,7 +598,7 @@ fn paint_transport_scrubber(
                 egui::pos2(left, track_rect.top()),
                 egui::pos2(right, track_rect.bottom()),
             );
-            painter.rect_filled(loop_rect, 0.0, Color32::from_rgba_unmultiplied(100, 200, 255, 40));
+            painter.rect_filled(loop_rect, 0.0, loop_region());
         }
     }
 
@@ -632,7 +628,7 @@ fn paint_transport_scrubber(
                 egui::pos2(x, track_rect.top() + 3.0),
                 egui::pos2(x, track_rect.bottom() - 3.0),
             ],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 12)),
+            Stroke::new(1.0, grid_line()),
         );
     }
 
@@ -733,12 +729,8 @@ fn paint_transport_scrubber(
 
 fn transition_stripe_color(id: &str) -> Color32 {
     let palette = [
-        Color32::from_rgba_unmultiplied(255, 200, 100, 50),  // warm gold
-        Color32::from_rgba_unmultiplied(100, 200, 255, 50),  // sky blue
-        Color32::from_rgba_unmultiplied(255, 120, 120, 50),  // soft red
-        Color32::from_rgba_unmultiplied(120, 255, 160, 50),  // mint
-        Color32::from_rgba_unmultiplied(200, 140, 255, 50),  // lavender
-        Color32::from_rgba_unmultiplied(255, 180, 50, 50),   // orange
+        transition_stripe_1(), transition_stripe_2(), transition_stripe_3(),
+        transition_stripe_4(), transition_stripe_5(), transition_stripe_6(),
     ];
     let idx = id.bytes().fold(0u8, |acc, b| acc.wrapping_add(b)) as usize % palette.len();
     palette[idx]

@@ -431,7 +431,7 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
 }
 
 fn install_theme(ctx: &egui::Context) {
-    const WIDGET_HOVER: Color32 = Color32::from_rgb(42, 47, 57);
+    const WIDGET_HOVER: Color32 = BG_HOVER;
 
     let mut style = (*ctx.global_style()).clone();
 

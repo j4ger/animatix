@@ -2011,7 +2011,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     // Draw prev keyframe ghost (green, 30% opacity)
                     if let Some(prev_ms) = prev_time_ms {
                         if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
-                            let ghost_color = Color32::from_rgba_unmultiplied(80, 220, 120, 77);
+                            let ghost_color = ghost_prev();
                             preview::draw_ghost_overlay(
                                 ui.painter(), &prev_props, preview_rect, self.scene_dimensions,
                                 preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
@@ -2022,7 +2022,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                     // Draw next keyframe ghost (blue, 30% opacity)
                     if let Some(next_ms) = next_time_ms {
                         if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
-                            let ghost_color = Color32::from_rgba_unmultiplied(80, 160, 255, 77);
+                            let ghost_color = ghost_next();
                             preview::draw_ghost_overlay(
                                 ui.painter(), &next_props, preview_rect, self.scene_dimensions,
                                 preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
@@ -2478,7 +2478,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             // Draw grid overlay
             if *self.grid_enabled {
                 let grid = *self.grid_size;
-                let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 12);
+                let grid_color = grid_line();
 
                 // Compute the visible scene bounds from preview rect corners
                 let scene_tl = preview_screen_to_scene(

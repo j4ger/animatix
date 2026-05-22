@@ -32,6 +32,40 @@ pub const BORDER: Color32 = Color32::from_rgb(40, 44, 52);
 pub const BORDER_HOVER: Color32 = Color32::from_rgb(60, 66, 78);
 pub const BORDER_FOCUS: Color32 = ACCENT_BLUE;
 
+// ── Ghost / Onion Skin ──
+pub fn ghost_prev() -> Color32 { Color32::from_rgba_unmultiplied(80, 220, 120, 77) }
+pub fn ghost_next() -> Color32 { Color32::from_rgba_unmultiplied(80, 160, 255, 77) }
+
+// ── Grid & Guides ──
+pub fn grid_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 12) }
+pub fn guide_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
+pub fn hatch_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
+
+// ── Transport Bar ──
+pub fn track_block_1() -> Color32 { Color32::from_rgba_unmultiplied(92, 140, 255, 60) }
+pub fn track_block_2() -> Color32 { Color32::from_rgba_unmultiplied(145, 104, 255, 60) }
+pub fn track_block_3() -> Color32 { Color32::from_rgba_unmultiplied(84, 191, 123, 60) }
+pub fn track_block_4() -> Color32 { Color32::from_rgba_unmultiplied(245, 179, 78, 60) }
+pub fn track_block_5() -> Color32 { Color32::from_rgba_unmultiplied(233, 108, 122, 60) }
+pub fn loop_region() -> Color32 { Color32::from_rgba_unmultiplied(100, 200, 255, 40) }
+pub fn transition_stripe_1() -> Color32 { Color32::from_rgba_unmultiplied(255, 200, 100, 50) }
+pub fn transition_stripe_2() -> Color32 { Color32::from_rgba_unmultiplied(100, 200, 255, 50) }
+pub fn transition_stripe_3() -> Color32 { Color32::from_rgba_unmultiplied(255, 120, 120, 50) }
+pub fn transition_stripe_4() -> Color32 { Color32::from_rgba_unmultiplied(120, 255, 160, 50) }
+pub fn transition_stripe_5() -> Color32 { Color32::from_rgba_unmultiplied(200, 140, 255, 50) }
+pub fn transition_stripe_6() -> Color32 { Color32::from_rgba_unmultiplied(255, 180, 50, 50) }
+
+// ── Diagnostic Phases ──
+pub const DIAG_PHASE_PARSE: Color32 = Color32::from_rgb(137, 180, 250);
+pub const DIAG_PHASE_RESOLVE: Color32 = Color32::from_rgb(180, 190, 254);
+pub const DIAG_PHASE_COMPILE: Color32 = Color32::from_rgb(203, 166, 126);
+
+// ── Overlay ──
+pub fn overlay_backdrop() -> Color32 { Color32::from_rgba_unmultiplied(0, 0, 0, 120) }
+
+// ── Floating Card ──
+pub fn floating_card_bg() -> Color32 { Color32::from_rgba_unmultiplied(30, 30, 35, 220) }
+
 // ── Shadows (layered: ambient + direct) ──
 // Using const fn because from_rgba_unmultiplied is not a const fn in egui 0.34
 pub fn shadow_ambient() -> Color32 {

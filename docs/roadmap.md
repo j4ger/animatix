@@ -11,79 +11,9 @@
 
 ---
 
-## 1. Canvas & Direct Manipulation (P1)
+## 1. Timeline & Time Controls (P1)
 
-### 1.1 Canvas-Centric Layout Rebuild
-
-Current: Editor 55 % | Preview + stacked panels 45 %.  
-Target: Canvas dominates (60–70 %), with collapsible bottom bars.
-
-```
-┌─────────────────────────────────────────┐
-│ Toolbar                                  │
-├─────────────────────────────────────────┤
-│              CANVAS (60-70%)            │
-│          Preview + floating cards        │
-├────────────────────┬────────────────────┤
-│ Property Stream    │ Timeline Panel     │
-│ (collapsible)      │ (Dope/Graph/Strip) │
-└────────────────────┴────────────────────┘
-```
-
-Responsive breakpoints:
-- > 1600 px: Canvas 70 % | Stream 15 % | Timeline 15 %
-- 1200–1600 px: Canvas 65 % | Stream 20 % (collapsible) | Timeline 15 %
-- < 1200 px: Canvas 100 % | Stream hidden (tab-summoned) | Timeline compressed strip
-
-**Key files:** `app/mod.rs` (egui_tiles layout config)
-
----
-
-### 1.2 Floating Property Cards
-
-Replace the right-side Inspector panel. Selecting an actor pops a translucent card next to it with direct manipulators (color wheel, XY sliders, rotation dial). Edits reflect live in code. `Esc` dismisses.
-
-**Key files:** new `app/preview/floating_card.rs`
-
----
-
-### 1.3 2D Gizmo System
-
-Add transform handles, bounding boxes, snap-line feedback, and multi-selection batch operations.
-
-```rust
-pub enum Handle {
-    TranslateX, TranslateY, TranslateXY,
-    Rotate,
-    ScaleCorner, ScaleEdge,
-}
-```
-
-Interactions:
-- Drag actor = move (syncs Cell position).
-- Shift + corner = uniform scale.
-- Show alignment guides / grid-snap feedback.
-- Multi-select = union bounding box.
-
-**Key files:** new `app/preview/gizmo.rs`, `app/preview/mod.rs`
-
----
-
-### 1.4 Ghost Edit / Onion Skin
-
-Not a manual toggle. Selecting a keyframe automatically shows context:
-- Prior frame outline (green dashed, 30 % opacity).
-- Next frame outline (blue dashed, 30 % opacity).
-- Motion-path line.
-- Ghost stays fixed as reference while dragging.
-
-**Key files:** `app/preview/mod.rs` (render overlay)
-
----
-
-## 2. Timeline & Time Controls (P1)
-
-### 2.1 Time Lens — Space-Drag HUD
+### 1.1 Time Lens — Space-Drag HUD
 
 Timeline panel eats permanent space, but scrubbing is frequent yet brief. Make time an on-demand HUD:
 
@@ -97,7 +27,7 @@ Timeline panel eats permanent space, but scrubbing is frequent yet brief. Make t
 
 ---
 
-### 2.2 Global Timeline Panel
+### 1.2 Global Timeline Panel
 
 Consolidate the scattered transport bar, keyframe table, and dope sheet into a single bottom-right panel:
 
@@ -112,7 +42,7 @@ Consolidate the scattered transport bar, keyframe table, and dope sheet into a s
 
 ---
 
-### 2.3 Time-Aware Inspector
+### 1.3 Time-Aware Inspector
 
 Users cannot tell whether they are editing the default value or a keyframe value. Add diamond status per property row:
 
@@ -130,7 +60,7 @@ Scale     [ 1.0 ]        ○         ← no keyframe; edits default
 
 ---
 
-### 2.4 Property Stream
+### 1.4 Property Stream
 
 Sort properties by animation intensity, not semantic grouping (Transform / Style / Shape / Text / Media).
 
@@ -149,7 +79,7 @@ Sort properties by animation intensity, not semantic grouping (Transform / Style
 
 ---
 
-### 2.5 Graph Editor (F-Curve)
+### 1.5 Graph Editor (F-Curve)
 
 Missing: value-over-time curves, making easing strength tuning guesswork.
 
@@ -159,9 +89,9 @@ Add view toggle in Inspector keyframe area: List | Curve | Strip. Simplified fir
 
 ---
 
-## 3. Differentiating Features (P2)
+## 2. Differentiating Features (P2)
 
-### 3.1 Natural-Language Command Bar
+### 2.1 Natural-Language Command Bar
 
 Persistent lightweight input bar at the top:
 
@@ -178,7 +108,7 @@ File  Edit  View  │  [让 Circle_1 绕中心旋转一周]  │  ⌘K
 
 ---
 
-### 3.2 Agent Inline Suggestions
+### 2.2 Agent Inline Suggestions
 
 Agent surfaces in four shapes:
 
@@ -193,7 +123,7 @@ Agent surfaces in four shapes:
 
 ---
 
-### 3.3 Diff Preview
+### 2.3 Diff Preview
 
 On property change, auto A/B split-screen:
 
@@ -210,7 +140,7 @@ Leverage AMX fast reparse: compile two timeline versions and render both.
 
 ---
 
-### 3.4 Smart Snap
+### 2.4 Smart Snap
 
 Not pixel snap — semantic snap. While dragging, auto-snap to:
 
@@ -225,7 +155,7 @@ HUD shows the specific snap target on contact.
 
 ---
 
-### 3.5 Scene Slices
+### 2.5 Scene Slices
 
 Figma-Variants / Photoshop-Artboards style: compare animation scenes A/B/C side by side.
 
@@ -235,9 +165,9 @@ Operations: duplicate slice, drag actor across slices, `1`/`2`/`3` hotkeys to sw
 
 ---
 
-## 4. Visual Polish & Tooling (P3)
+## 3. Visual Polish & Tooling (P3)
 
-### 4.1 Design Token System
+### 3.1 Design Token System
 
 Colors, spacing, radius, and typography are currently hard-coded and scattered.
 
@@ -253,7 +183,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 4.2 Cell Editor Visual Redesign
+### 3.2 Cell Editor Visual Redesign
 
 - Accent left border on focus.
 - Large, prominent keyframe timestamp (accent color, clickable edit).
@@ -265,7 +195,7 @@ Helper: `lint_theme.py` scans for hard-coded values.
 
 ---
 
-### 4.3 Preview Overlay System
+### 3.3 Preview Overlay System
 
 ```rust
 pub struct PreviewOverlay {
@@ -281,7 +211,7 @@ pub struct PreviewOverlay {
 
 ---
 
-### 4.4 Semantic Highlighting + Refactoring Tools
+### 3.4 Semantic Highlighting + Refactoring Tools
 
 Deep `animatix_analyzer` integration:
 - `SymbolTable`: actor / scene / component definitions.
@@ -292,9 +222,9 @@ Deep `animatix_analyzer` integration:
 
 ---
 
-## 5. Long-Term / Speculative
+## 4. Long-Term / Speculative
 
-### 5.1 FFI / Web Canvas Integration
+### 4.1 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
@@ -302,7 +232,7 @@ Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
 ---
 
-### 5.2 Lossless Syntax Tree (Green Tree)
+### 4.2 Lossless Syntax Tree (Green Tree)
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -312,7 +242,7 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 
 ---
 
-### 5.3 Trivia-Inspired AST
+### 4.3 Trivia-Inspired AST
 
 Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
 
@@ -320,28 +250,24 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 6. Priority Order
+## 5. Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Canvas-centric layout (1.1) | Medium | High |
-| 2 | 2D gizmo system (1.3) | Medium | High |
-| 3 | Floating property cards (1.2) | Medium | Medium |
-| 4 | Global timeline panel (2.2) | Medium | High |
-| 5 | Time-aware inspector (2.3) | Low | Medium |
-| 6 | Property stream (2.4) | Low | Medium |
-| 7 | Time lens HUD (2.1) | Medium | Medium |
-| 8 | Graph editor / F-curve (2.5) | High | Medium |
-| 9 | Ghost edit / onion skin (1.4) | Medium | Medium |
-| 10 | Smart snap (3.4) | Medium | Medium |
-| 11 | Diff preview (3.3) | Medium | Medium |
-| 12 | Design token system (4.1) | Low | Medium |
-| 13 | Cell editor visual redesign (4.2) | Low | Medium |
-| 14 | Preview overlay system (4.3) | Low | Low |
-| 15 | Semantic highlighting + refactor (4.4) | High | Medium |
-| 16 | NL command bar (3.1) | High | High |
-| 17 | Agent inline suggestions (3.2) | High | High |
-| 18 | Scene slices (3.5) | Medium | Medium |
-| 19 | Green tree / trivia AST (5.2) | Very High | Low |
-| 20 | Web Canvas (5.1) | Very High | Low |
-| 21 | Trivia-inspired AST (5.3) | High | Low |
+| 1 | Global timeline panel (1.2) | Medium | High |
+| 2 | Time-aware inspector (1.3) | Low | Medium |
+| 3 | Property stream (1.4) | Low | Medium |
+| 4 | Time lens HUD (1.1) | Medium | Medium |
+| 5 | Graph editor / F-curve (1.5) | High | Medium |
+| 6 | Smart snap (2.4) | Medium | Medium |
+| 7 | Diff preview (2.3) | Medium | Medium |
+| 8 | Design token system (3.1) | Low | Medium |
+| 9 | Cell editor visual redesign (3.2) | Low | Medium |
+| 10 | Preview overlay system (3.3) | Low | Low |
+| 11 | Semantic highlighting + refactor (3.4) | High | Medium |
+| 12 | NL command bar (2.1) | High | High |
+| 13 | Agent inline suggestions (2.2) | High | High |
+| 14 | Scene slices (2.5) | Medium | Medium |
+| 15 | Green tree / trivia AST (4.2) | Very High | Low |
+| 16 | Web Canvas (4.1) | Very High | Low |
+| 17 | Trivia-inspired AST (4.3) | High | Low |

@@ -1,7 +1,7 @@
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::preview::ActorProps;
 use crate::app::theme::*;
-use egui::{Color32, Vec2, Pos2, Stroke, RichText};
+use egui::{Vec2, Pos2, Stroke, RichText};
 
 /// A translucent floating card that appears next to a selected actor
 /// on the preview canvas, offering direct manipulation of key properties.
@@ -28,7 +28,7 @@ pub fn show_floating_card(
     ui.painter().rect_filled(
         clamped_rect,
         6.0,
-        Color32::from_rgba_unmultiplied(30, 30, 35, 220),
+        floating_card_bg(),
     );
     ui.painter().rect_stroke(
         clamped_rect,
