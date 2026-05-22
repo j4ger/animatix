@@ -3,14 +3,11 @@ Timeline and reactive runtime
 ================================================================================
 
 #0s
-scene.background_color = (0.05, 0.07, 0.11, 1.0)
-center: Circle, radius: 8, color: WHITE, at: (640, 360)
+a.b = (0.05, 0.07, 0.11, 1.0)
 
 #+500ms
 always {
-  orbiter.at = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
-  pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
-  echo.radius = pulse.size.x / 6
+  x = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
 }
 
 --------------------------------------------------------------------------------
@@ -19,80 +16,33 @@ always {
   (absolute_keyframe
     time: (duration_literal)
     (assignment
-      target: (assignment_target
+      target: (dotted_identifier
         base: (identifier)
         segment: (identifier))
       value: (tuple_expression
         (number)
         (number)
         (number)
-        (number)))
-    (actor_declaration
-      label: (identifier)
-      type: (type_identifier)
-      properties: (property_list
-        (property
-          name: (identifier)
-          value: (number))
-        (property
-          name: (identifier)
-          value: (identifier))
-        (property
-          name: (identifier)
-          value: (tuple_expression
-            (number)
-            (number))))))
+        (number))))
   (relative_keyframe
     offset: (duration_literal)
     (always_statement
-      body: (block
-        (assignment
-          target: (assignment_target
-            base: (identifier)
-            segment: (identifier))
-          value: (tuple_expression
-            (sum_expression
+      (assignment
+        target: (identifier)
+        value: (tuple_expression
+          (sum_expression
+            left: (number)
+            right: (product_expression
               left: (number)
-              right: (product_expression
-                left: (number)
-                right: (call_expression
-                  function: (identifier)
-                  arguments: (argument_list
-                    (identifier)))))
-            (sum_expression
+              right: (call_expression
+                function: (identifier)
+                (identifier))))
+          (sum_expression
+            left: (number)
+            right: (product_expression
               left: (number)
-              right: (product_expression
-                left: (number)
-                right: (call_expression
-                  function: (identifier)
-                  arguments: (argument_list
-                    (product_expression
-                      left: (identifier)
-                      right: (number))))))))
-        (assignment
-          target: (assignment_target
-            base: (identifier)
-            segment: (identifier))
-          value: (conditional_expression
-            condition: (comparison_expression
-              left: (parenthesized_expression
+              right: (call_expression
+                function: (identifier)
                 (product_expression
                   left: (identifier)
-                  right: (number)))
-              right: (number))
-            consequence: (tuple_expression
-              (number)
-              (number))
-            alternative: (tuple_expression
-              (number)
-              (number))))
-        (assignment
-          target: (assignment_target
-            base: (identifier)
-            segment: (identifier))
-          value: (product_expression
-            left: (path_expression
-              base: (identifier)
-              segment: (identifier)
-              segment: (identifier))
-            right: (number)))))))
+                  right: (number))))))))))

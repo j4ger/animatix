@@ -13,6 +13,8 @@ const PREC = {
 module.exports = grammar({
   name: 'animatix',
 
+  word: $ => $.identifier,
+
   extras: $ => [
     /[\s\uFEFF\u2060\u200B]+/,
   ],
@@ -21,6 +23,7 @@ module.exports = grammar({
     [$.closure_expression, $.parenthesized_expression],
     [$.closure_parameters, $.parenthesized_expression],
     [$.closure_parameters, $._expression],
+    [$.action_statement, $._expression],
   ],
 
   rules: {
@@ -37,6 +40,7 @@ module.exports = grammar({
       $.config_statement,
       $.let_declaration,
       $.import_statement,
+      $.use_statement,
       $.labeled_always_statement,
       $.always_statement,
       $.if_statement,
@@ -45,11 +49,14 @@ module.exports = grammar({
       $.svg_statement,
       $.image_statement,
       $.assignment,
+      $.reactive_assignment,
       $.actor_declaration,
       $.text_shorthand,
       $.action_statement,
       $.sequence_statement,
       $.stagger_statement,
+      $.play_statement,
+      $.drive_statement,
     ),
 
     comment: _ => token(seq('//', /[^\r\n]*/)),
@@ -58,7 +65,7 @@ module.exports = grammar({
     // Config: config { colorscheme: "editorial-dark" }
     // ============================================================
     config_statement: $ => seq(
-      'config',
+      token('config'),
       '{',
       commaSepTrailing($.property),
       '}',
@@ -83,24 +90,33 @@ module.exports = grammar({
     // Declarations
     // ============================================================
     let_declaration: $ => seq(
-      optional('pub'),
-      'let',
+      optional(token('pub')),
+      token('let'),
       field('name', $.identifier),
       '=',
       field('value', $._expression),
     ),
 
     import_statement: $ => seq(
-      'import',
+      token('import'),
       field('path', $.string),
-      optional(seq('as', field('alias', $.identifier))),
+      optional(seq(token('as'), field('alias', $.identifier))),
+    ),
+
+    use_statement: $ => seq(
+      token('use'),
+      field('path', $.identifier),
+      '.',
+      '{',
+      commaSepTrailing(field('item', $.identifier)),
+      '}',
     ),
 
     // ============================================================
     // Assignments: auto1.radius = 48 [700ms, ease: ease-in-out]
     // ============================================================
     assignment: $ => seq(
-      field('target', $.dotted_identifier),
+      field('target', choice($.identifier, $.dotted_identifier)),
       '=',
       field('value', $._expression),
       optional(field('modifiers', $.modifier_list)),
@@ -168,15 +184,36 @@ module.exports = grammar({
     // ============================================================
     action_statement: $ => prec.right(seq(
       field('verb', $.identifier),
-      repeat1(field('target', $.identifier)),
+      repeat(field('target', $.identifier)),
+      repeat(field('arg', $._expression)),
       optional(field('modifiers', $.modifier_list)),
     )),
+
+    play_statement: $ => seq(
+      token('play'),
+      field('scene', $.identifier),
+      optional(field('transition', $.modifier_list)),
+    ),
+
+    drive_statement: $ => seq(
+      token('drive'),
+      field('label', $.identifier),
+      '{',
+      repeat($._statement),
+      '}',
+    ),
+
+    reactive_assignment: $ => seq(
+      field('target', $.dotted_identifier),
+      ':=',
+      field('value', $._expression),
+    ),
 
     // ============================================================
     // Sequence: sequence { ... }
     // ============================================================
     sequence_statement: $ => seq(
-      'sequence',
+      token('sequence'),
       '{',
       repeat($._statement),
       '}',
@@ -186,7 +223,7 @@ module.exports = grammar({
     // Stagger: stagger [150ms] { ... }
     // ============================================================
     stagger_statement: $ => seq(
-      'stagger',
+      token('stagger'),
       optional(field('modifiers', $.modifier_list)),
       '{',
       repeat($._statement),
@@ -197,7 +234,7 @@ module.exports = grammar({
     // Always blocks
     // ============================================================
     always_statement: $ => seq(
-      'always',
+      token('always'),
       '{',
       repeat($._statement),
       '}',
@@ -206,7 +243,7 @@ module.exports = grammar({
     labeled_always_statement: $ => seq(
       field('label', $.identifier),
       ':',
-      'always',
+      token('always'),
       '{',
       repeat($._statement),
       '}',
@@ -216,13 +253,13 @@ module.exports = grammar({
     // Conditionals
     // ============================================================
     if_statement: $ => seq(
-      'if',
+      token('if'),
       field('condition', $._expression),
       '{',
       field('consequence', repeat($._statement)),
       '}',
       optional(seq(
-        'else',
+        token('else'),
         '{',
         field('alternative', repeat($._statement)),
         '}',
@@ -233,9 +270,9 @@ module.exports = grammar({
     // For loop
     // ============================================================
     for_statement: $ => seq(
-      'for',
+      token('for'),
       field('variable', $.identifier),
-      'in',
+      token('in'),
       field('iterable', $._expression),
       '{',
       field('body', repeat($._statement)),
@@ -246,8 +283,8 @@ module.exports = grammar({
     // Component definition
     // ============================================================
     component_definition: $ => seq(
-      optional('pub'),
-      'component',
+      optional(token('pub')),
+      token('component'),
       field('name', $.identifier),
       optional(seq(
         '(',
@@ -277,10 +314,20 @@ module.exports = grammar({
 
     // Inline items - no commas between items, commas are part of items with properties
     _inline_item: $ => choice(
+      $.inline_slot_fill,
       $.inline_labeled_item_with_props,
       $.inline_anon_with_props,
       $.inline_labeled_item,
       $.inline_anon,
+      $.property,
+    ),
+
+    inline_slot_fill: $ => seq(
+      '@',
+      field('name', $.identifier),
+      '{',
+      repeat($._inline_item),
+      '}',
     ),
 
     // Labeled inline item with properties: label: Type, prop1: val1, prop2: val2
@@ -352,6 +399,7 @@ module.exports = grammar({
       $.product_expression,
       $.power_expression,
       $.unary_expression,
+      $.index_expression,
       $.call_expression,
       $.path_expression,
       $.parenthesized_expression,
@@ -377,12 +425,12 @@ module.exports = grammar({
     ),
 
     conditional_expression: $ => prec.right(PREC.conditional, seq(
-      'if',
+      token('if'),
       field('condition', $._expression),
       '{',
       field('consequence', $._expression),
       '}',
-      'else',
+      token('else'),
       '{',
       field('alternative', $._expression),
       '}',
@@ -424,6 +472,13 @@ module.exports = grammar({
       ')',
     )),
 
+    index_expression: $ => prec(PREC.call, seq(
+      field('container', $._expression),
+      '[',
+      field('index', $._expression),
+      ']',
+    )),
+
     path_expression: $ => prec.left(PREC.path, seq(
       field('base', $.identifier),
       repeat1(seq('.', field('segment', $.identifier))),
@@ -447,8 +502,8 @@ module.exports = grammar({
       '}',
     ),
 
-    boolean: _ => choice('true', 'false'),
-    null: _ => 'null',
+    boolean: _ => choice(token('true'), token('false')),
+    null: _ => token('null'),
 
     string: _ => token(seq('"', repeat(/[^"\r\n]/), '"')),
 

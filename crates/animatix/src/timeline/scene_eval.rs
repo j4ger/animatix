@@ -301,459 +301,496 @@ impl Timeline {
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
     ) {
-        let (global_transform, global_opacity) = if let Some(track) = self.tracks.get(node_label) {
-            // Skip actors that haven't been declared yet.
-            // They are not clickable in the preview canvas before they appear;
-            // selection is still possible via the layers / inspector tab.
-            if time_ms < track.first_seen_ms {
-                // Still recurse into children so they are also hidden
-                if let Some(track) = self.tracks.get(node_label) {
-                    for child_label in &track.children.clone() {
-                        self.evaluate_node(
-                            child_label,
-                            time_ms,
-                            parent_transform,
-                            parent_opacity,
-                            scene_dimensions,
-                            debug_options,
-                            scene,
-                            overrides,
-                            layout_positions,
-                            hit_regions,
-                        );
-                    }
-                }
-                return;
-            }
+        let (global_transform, global_opacity) =
+            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions);
 
-            let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
-            let mut vector_paths = track.evaluate_vector_paths(time_ms);
+        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions);
+    }
 
-            // Re-sample procedural plots at frame time so they can reference `t`.
-            if let Some(procedural_plot) = track.procedural_plot.as_ref() {
-                let frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
-                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &frame_env);
-            }
-            let layout_pos = if self.dynamic_layout {
-                layout_positions.get(node_label).copied()
-            } else {
-                None
-            };
-            let node_overrides = overrides.get(node_label);
-            let node_transform = self.evaluate_node_transform(
-                track,
-                time_ms,
-                parent_opacity,
-                parent_transform,
-                scene_dimensions,
-                layout_pos,
-            );
-            let _position = node_transform.position;
-            let half_size = node_transform.half_size;
-            let opacity = node_transform.opacity;
-            let _rotation = node_transform.rotation;
-            let _scale = node_transform.scale;
-            let _motion_offset = node_transform.motion_offset;
-            let local_transform = node_transform.local_transform;
-
-            let _points = track.points.get(time_ms, Vec::new());
-            let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
-            let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
-            let arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-            let mut color = track.color.get(time_ms, DEFAULT_WHITE);
-            let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
-            let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
-            let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
-
-            // ── Effects properties ──
-            let mut shadow_offset = track.shadow_offset.get(time_ms, [0.0, 0.0]);
-            let mut shadow_blur = track.shadow_blur.get(time_ms, 0.0);
-            let mut shadow_color_val = track.shadow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
-            let mut glow_radius = track.glow_radius.get(time_ms, 0.0);
-            let mut glow_color_val = track.glow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
-            let mut backdrop_blur = track.backdrop_blur.get(time_ms, 0.0);
-
-            if let Some(node_overrides) = node_overrides {
-                if let Some(Value::Vec2(from)) = node_overrides.get("from") {
-                    line_from = [from[0] as f32, from[1] as f32];
-                }
-                if let Some(Value::Vec2(to)) = node_overrides.get("to") {
-                    line_to = [to[0] as f32, to[1] as f32];
-                }
-                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
-                    color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-                }
-                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides
-                    .get("stroke_color")
-                    .or_else(|| node_overrides.get("stroke"))
-                {
-                    stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-                }
-                if let Some(Value::Num(width)) = node_overrides
-                    .get("stroke_width")
-                    .or_else(|| node_overrides.get("width"))
-                {
-                    stroke_width = *width as f32;
-                }
-                if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
-                    fill_opacity = *opacity as f32;
-                }
-
-                // Effects overrides
-                if let Some(Value::Vec2(off)) = node_overrides.get("shadow_offset") {
-                    shadow_offset = [off[0] as f32, off[1] as f32];
-                }
-                if let Some(Value::Num(blur)) = node_overrides.get("shadow_blur") {
-                    shadow_blur = *blur as f32;
-                }
-                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("shadow_color") {
-                    shadow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-                }
-                if let Some(Value::Num(radius)) = node_overrides.get("glow_radius") {
-                    glow_radius = *radius as f32;
-                }
-                if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("glow_color") {
-                    glow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-                }
-                if let Some(Value::Num(blur)) = node_overrides.get("backdrop_blur") {
-                    backdrop_blur = *blur as f32;
-                }
-            }
-
-            // ── Runtime text recompilation (Phase 2) ──
-            // If text content has changed since build time (e.g. via `always` blocks),
-            // recompile glyph paths on-demand using the TextCompiler cache.
-            let text_paths = self.evaluate_text_node(
-                track,
-                time_ms,
-                node_overrides,
-                &local_transform,
-                opacity,
-                scene,
-                &mut Vec::new(),
-            ).unwrap_or_default();
-
-            self.build_shape_vector_paths(
-                track,
-                time_ms,
-                half_size,
-                line_from,
-                line_to,
-                arc_angles,
-                color,
-                stroke_width,
-                stroke_color,
-                fill_opacity,
-                shape_type,
-                &mut vector_paths,
-            );
-
-            let local_opacity = opacity;
-            let image = track.image.get(time_ms, None);
-            let has_image = image.is_some();
-
-            // ── Drop shadow rendering ──
-            // Draw a semi-transparent copy of each vector path offset by shadow_offset
-            if shadow_color_val[3] > 0.0 || shadow_blur > 0.0 {
-                let shadow_transform = local_transform
-                    * kurbo::Affine::translate((shadow_offset[0] as f64, shadow_offset[1] as f64));
-                let shadow_alpha = (shadow_color_val[3] * 0.5).clamp(0.0, 1.0);
-                let mut sc = vello::peniko::Color::from_rgba8(
-                    (shadow_color_val[0] * 255.0) as u8,
-                    (shadow_color_val[1] * 255.0) as u8,
-                    (shadow_color_val[2] * 255.0) as u8,
-                    (shadow_alpha * 255.0) as u8,
-                );
-                if local_opacity < 1.0 {
-                    sc = sc.with_alpha(sc.components[3] * local_opacity);
-                }
-                for vector_path in &vector_paths {
-                    // Draw shadow fill
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        shadow_transform,
-                        sc,
-                        None,
-                        &vector_path.path,
-                    );
-                    // Draw shadow stroke if the path has one
-                    if let Some((_, stroke_width)) = vector_path.stroke {
-                        let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                        scene.stroke(&stroke, shadow_transform, sc, None, &vector_path.path);
-                    }
-                }
-            }
-
-            // ── Glow rendering ──
-            // Draw a semi-transparent expanded copy of each vector path
-            if glow_color_val[3] > 0.0 && glow_radius > 0.0 {
-                let glow_alpha = (glow_color_val[3] * 0.4).clamp(0.0, 1.0);
-                let glow_expand = glow_radius as f64;
-                let mut gc = vello::peniko::Color::from_rgba8(
-                    (glow_color_val[0] * 255.0) as u8,
-                    (glow_color_val[1] * 255.0) as u8,
-                    (glow_color_val[2] * 255.0) as u8,
-                    (glow_alpha * 255.0) as u8,
-                );
-                if local_opacity < 1.0 {
-                    gc = gc.with_alpha(gc.components[3] * local_opacity);
-                }
-                for vector_path in &vector_paths {
-                    // Use a thick stroke to approximate glow expansion around the path
-                    let glow_stroke = vello::kurbo::Stroke::new(glow_expand * 2.0);
-                    scene.stroke(&glow_stroke, local_transform, gc, None, &vector_path.path);
-                }
-            }
-
-            // ── Backdrop blur rendering ──
-            // Draw a frosted-glass visual approximation behind the actor.
-            // True backdrop blur requires offscreen rendering + Gaussian blur, which
-            // is not yet implemented in the Vello-based renderer. This approximation
-            // draws a semi-transparent overlay scaled to the actor's bounding rect.
-            // Backdrop blur is approximated with a semi-transparent overlay.
-            // Full implementation would use the transition compositor's blur
-            // infrastructure (offscreen texture + Gaussian blur shader).
-            if backdrop_blur > 0.0 {
-                let blur_alpha = (backdrop_blur * 0.06).clamp(0.0, 0.35);
-                let full_w = half_size[0] as f64 * 2.0;
-                let full_h = half_size[1] as f64 * 2.0;
-                let rect = kurbo::Rect::from_origin_size(
-                    kurbo::Point::new(-half_size[0] as f64, -half_size[1] as f64),
-                    kurbo::Size::new(full_w, full_h),
-                );
-                // Frosted glass: semi-transparent white overlay
-                let mut bg = vello::peniko::Color::from_rgba8(255, 255, 255, (blur_alpha * 255.0) as u8);
-                if local_opacity < 1.0 {
-                    bg = bg.with_alpha(bg.components[3] * local_opacity);
-                }
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    local_transform,
-                    bg,
-                    None,
-                    &rect,
-                );
-                // Blur spread: draw slightly expanded rects with lower alpha
-                let spread_steps = (backdrop_blur as usize).min(8);
-                for i in 1..=spread_steps {
-                    let spread = i as f64 * 2.0;
-                    let step_alpha = (blur_alpha * 0.3 / (i as f32 + 1.0)).clamp(0.0, 0.12);
-                    let expanded_rect = kurbo::Rect::from_origin_size(
-                        kurbo::Point::new(
-                            -half_size[0] as f64 - spread,
-                            -half_size[1] as f64 - spread,
-                        ),
-                        kurbo::Size::new(full_w + spread * 2.0, full_h + spread * 2.0),
-                    );
-                    let mut step_color =
-                        vello::peniko::Color::from_rgba8(255, 255, 255, (step_alpha * 255.0) as u8);
-                    if local_opacity < 1.0 {
-                        step_color = step_color.with_alpha(step_color.components[3] * local_opacity);
-                    }
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        local_transform,
-                        step_color,
-                        None,
-                        &expanded_rect,
-                    );
-                }
-            }
-
-            for vector_path in &vector_paths {
-                let transform = local_transform;
-                if let Some(mut fill_color) = vector_path.fill {
-                    if local_opacity < 1.0 {
-                        fill_color =
-                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
-                    }
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        transform,
-                        fill_color,
-                        None,
-                        &vector_path.path,
-                    );
-                }
-
-                if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
-                    if local_opacity < 1.0 {
-                        stroke_color =
-                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
-                    }
-                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                    scene.stroke(&stroke, transform, stroke_color, None, &vector_path.path);
-                }
-            }
-
-            for text_path in &text_paths {
-                let color = match &text_path.color {
-                    typst::visualize::Paint::Solid(color) => {
-                        let rgba = color.to_vec4_u8();
-                        vello::peniko::Color::from_rgba8(
-                            rgba[0],
-                            rgba[1],
-                            rgba[2],
-                            (rgba[3] as f32 * local_opacity * text_path.opacity) as u8,
-                        )
-                    }
-                    _ => vello::peniko::Color::WHITE,
-                };
-
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    local_transform,
-                    color,
-                    None,
-                    &text_path.path,
-                );
-            }
-
-            for svg_path in &track.svg_paths {
-                let transform = local_transform;
-                if let Some(mut fill_color) = svg_path.fill {
-                    if local_opacity < 1.0 {
-                        fill_color =
-                            fill_color.with_alpha(fill_color.components[3] * local_opacity);
-                    }
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        transform,
-                        fill_color,
-                        None,
-                        &svg_path.path,
-                    );
-                }
-
-                if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
-                    if local_opacity < 1.0 {
-                        stroke_color =
-                            stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
-                    }
-                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                    scene.stroke(&stroke, transform, stroke_color, None, &svg_path.path);
-                }
-            }
-
-            if let Some(image) = image {
-                let [natural_width, natural_height] = image.natural_size;
-                let display_width = half_size[0] * 2.0;
-                let display_height = half_size[1] * 2.0;
-                let image_transform = local_transform
-                    * kurbo::Affine::scale_non_uniform(
-                        (display_width / natural_width) as f64,
-                        (display_height / natural_height) as f64,
-                    );
-
-                let brush = vello::peniko::ImageBrush::new(image.data.clone())
-                    .with_extend(vello::peniko::Extend::Pad)
-                    .with_quality(vello::peniko::ImageQuality::Medium)
-                    .with_alpha(local_opacity);
-
-                scene.draw_image(&brush, image_transform);
-            }
-
-            if debug_options.draw_bounds {
-                let _ = self.add_node_debug_overlays(
-                    track,
-                    half_size,
-                    &local_transform,
-                    scene,
-                    &vector_paths,
-                    &text_paths,
-                    has_image,
-                );
-            }
-
-            // Collect world-space hit region for click-to-select
-            let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
-            let world_bounds = if let Some(local_bounds) = lb {
-                transform_rect_bbox(&local_transform, local_bounds)
-            } else {
-                // Fall back to half-size based bounds
-                let default_bounds = kurbo::Rect::new(
-                    (-half_size[0]) as f64,
-                    (-half_size[1]) as f64,
-                    half_size[0] as f64,
-                    half_size[1] as f64,
-                );
-                transform_rect_bbox(&local_transform, default_bounds)
-            };
-            hit_regions.push((node_label.to_string(), world_bounds));
-
-            (local_transform, local_opacity)
-        } else {
-            (parent_transform, parent_opacity)
+    /// Evaluate a single actor node and render it to the scene.
+    /// Returns the (transform, opacity) to use for child rendering.
+    fn render_actor_node(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
+    ) -> (kurbo::Affine, f32) {
+        let Some(track) = self.tracks.get(node_label) else {
+            return (parent_transform, parent_opacity);
         };
 
-        if let Some(track) = self.tracks.get(node_label) {
-            // Compute dynamic layout for this container's children
-            let child_layout_positions = if self.dynamic_layout {
-                self.compute_animated_layout(node_label, time_ms)
-            } else {
-                std::collections::BTreeMap::new()
-            };
+        // Skip actors that haven't been declared yet.
+        // They are not clickable in the preview canvas before they appear;
+        // selection is still possible via the layers / inspector tab.
+        if time_ms < track.first_seen_ms {
+            // Still recurse into children so they are also hidden
+            for child_label in &track.children.clone() {
+                self.evaluate_node(
+                    child_label,
+                    time_ms,
+                    parent_transform,
+                    parent_opacity,
+                    scene_dimensions,
+                    debug_options,
+                    scene,
+                    overrides,
+                    layout_positions,
+                    hit_regions,
+                );
+            }
+            return (parent_transform, parent_opacity);
+        }
 
-            // ── Mask container: first child defines clip geometry ──
-            if track.kind == ActorKindId::Mask {
-                let children = track.children.clone();
-                if !children.is_empty() {
-                    // Render first child normally (defines the mask shape visually)
-                    let first_child = &children[0];
-                    self.evaluate_node(
-                        first_child,
-                        time_ms,
-                        global_transform,
-                        global_opacity,
-                        scene_dimensions,
-                        debug_options,
-                        scene,
-                        overrides,
-                        &child_layout_positions,
-                        hit_regions,
-                    );
+        let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
+        let mut vector_paths = track.evaluate_vector_paths(time_ms);
 
-                    // Get the first child's vector paths to use as clip shapes
-                    let clip_paths: Vec<VelloPath> = self
-                        .tracks
-                        .get(first_child)
-                        .map(|t| t.evaluate_vector_paths(time_ms))
-                        .unwrap_or_default();
+        // Re-sample procedural plots at frame time so they can reference `t`.
+        if let Some(procedural_plot) = track.procedural_plot.as_ref() {
+            let frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
+            vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &frame_env);
+        }
+        let layout_pos = if self.dynamic_layout {
+            layout_positions.get(node_label).copied()
+        } else {
+            None
+        };
+        let node_overrides = overrides.get(node_label);
+        let node_transform = self.evaluate_node_transform(
+            track,
+            time_ms,
+            parent_opacity,
+            parent_transform,
+            scene_dimensions,
+            layout_pos,
+        );
+        let half_size = node_transform.half_size;
+        let opacity = node_transform.opacity;
+        let local_transform = node_transform.local_transform;
 
-                    // Render remaining children clipped to the first child's paths
-                    for child in children.iter().skip(1) {
-                        // Push clip layer for each path in the first child
-                        let clip_count = clip_paths.len();
-                        for vp in &clip_paths {
-                            scene.push_layer(
-                                vello::peniko::Fill::NonZero,
-                                vello::peniko::BlendMode::default(),
-                                1.0,
-                                kurbo::Affine::IDENTITY,
-                                &vp.path,
-                            );
-                        }
-                        self.evaluate_node(
-                            child,
-                            time_ms,
-                            global_transform,
-                            global_opacity,
-                            scene_dimensions,
-                            debug_options,
-                            scene,
-                            overrides,
-                            &child_layout_positions,
-                            hit_regions,
-                        );
-                        // Pop clip layers
-                        for _ in 0..clip_count {
-                            scene.pop_layer();
-                        }
-                    }
+        let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
+        let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
+        let arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+        let mut color = track.color.get(time_ms, DEFAULT_WHITE);
+        let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
+        let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
+        let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
+
+        // ── Effects properties ──
+        let mut shadow_offset = track.shadow_offset.get(time_ms, [0.0, 0.0]);
+        let mut shadow_blur = track.shadow_blur.get(time_ms, 0.0);
+        let mut shadow_color_val = track.shadow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
+        let mut glow_radius = track.glow_radius.get(time_ms, 0.0);
+        let mut glow_color_val = track.glow_color.get(time_ms, [0.0, 0.0, 0.0, 0.0]);
+        let mut backdrop_blur = track.backdrop_blur.get(time_ms, 0.0);
+
+        if let Some(node_overrides) = node_overrides {
+            if let Some(Value::Vec2(from)) = node_overrides.get("from") {
+                line_from = [from[0] as f32, from[1] as f32];
+            }
+            if let Some(Value::Vec2(to)) = node_overrides.get("to") {
+                line_to = [to[0] as f32, to[1] as f32];
+            }
+            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
+                color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+            }
+            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides
+                .get("stroke_color")
+                .or_else(|| node_overrides.get("stroke"))
+            {
+                stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+            }
+            if let Some(Value::Num(width)) = node_overrides
+                .get("stroke_width")
+                .or_else(|| node_overrides.get("width"))
+            {
+                stroke_width = *width as f32;
+            }
+            if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
+                fill_opacity = *opacity as f32;
+            }
+
+            // Effects overrides
+            if let Some(Value::Vec2(off)) = node_overrides.get("shadow_offset") {
+                shadow_offset = [off[0] as f32, off[1] as f32];
+            }
+            if let Some(Value::Num(blur)) = node_overrides.get("shadow_blur") {
+                shadow_blur = *blur as f32;
+            }
+            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("shadow_color") {
+                shadow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+            }
+            if let Some(Value::Num(radius)) = node_overrides.get("glow_radius") {
+                glow_radius = *radius as f32;
+            }
+            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("glow_color") {
+                glow_color_val = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+            }
+            if let Some(Value::Num(blur)) = node_overrides.get("backdrop_blur") {
+                backdrop_blur = *blur as f32;
+            }
+        }
+
+        // ── Runtime text recompilation ──
+        let text_paths = self.evaluate_text_node(
+            track,
+            time_ms,
+            node_overrides,
+            &local_transform,
+            opacity,
+            scene,
+            &mut Vec::new(),
+        ).unwrap_or_default();
+
+        self.build_shape_vector_paths(
+            track,
+            time_ms,
+            half_size,
+            line_from,
+            line_to,
+            arc_angles,
+            color,
+            stroke_width,
+            stroke_color,
+            fill_opacity,
+            shape_type,
+            &mut vector_paths,
+        );
+
+        let local_opacity = opacity;
+        let image = track.image.get(time_ms, None);
+        let has_image = image.is_some();
+
+        // ── Effects rendering ──
+        self.render_node_effects(
+            scene,
+            &vector_paths,
+            local_transform,
+            local_opacity,
+            half_size,
+            shadow_offset,
+            shadow_blur,
+            shadow_color_val,
+            glow_radius,
+            glow_color_val,
+            backdrop_blur,
+        );
+
+        // ── Content rendering ──
+        self.render_node_content(
+            scene,
+            track,
+            &vector_paths,
+            &text_paths,
+            image,
+            local_transform,
+            local_opacity,
+            half_size,
+        );
+
+        // ── Debug overlays ──
+        if debug_options.draw_bounds {
+            let _ = self.add_node_debug_overlays(
+                track,
+                half_size,
+                &local_transform,
+                scene,
+                &vector_paths,
+                &text_paths,
+                has_image,
+            );
+        }
+
+        // ── Hit region collection ──
+        let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
+        let world_bounds = if let Some(local_bounds) = lb {
+            transform_rect_bbox(&local_transform, local_bounds)
+        } else {
+            let default_bounds = kurbo::Rect::new(
+                (-half_size[0]) as f64,
+                (-half_size[1]) as f64,
+                half_size[0] as f64,
+                half_size[1] as f64,
+            );
+            transform_rect_bbox(&local_transform, default_bounds)
+        };
+        hit_regions.push((node_label.to_string(), world_bounds));
+
+        (local_transform, local_opacity)
+    }
+
+    /// Render drop shadow, glow, and backdrop blur effects for a node.
+    #[allow(clippy::too_many_arguments)]
+    fn render_node_effects(
+        &self,
+        scene: &mut vello::Scene,
+        vector_paths: &[VelloPath],
+        local_transform: kurbo::Affine,
+        local_opacity: f32,
+        half_size: [f32; 2],
+        shadow_offset: [f32; 2],
+        shadow_blur: f32,
+        shadow_color_val: [f32; 4],
+        glow_radius: f32,
+        glow_color_val: [f32; 4],
+        backdrop_blur: f32,
+    ) {
+        // Drop shadow
+        if shadow_color_val[3] > 0.0 || shadow_blur > 0.0 {
+            let shadow_transform = local_transform
+                * kurbo::Affine::translate((shadow_offset[0] as f64, shadow_offset[1] as f64));
+            let shadow_alpha = (shadow_color_val[3] * 0.5).clamp(0.0, 1.0);
+            let mut sc = vello::peniko::Color::from_rgba8(
+                (shadow_color_val[0] * 255.0) as u8,
+                (shadow_color_val[1] * 255.0) as u8,
+                (shadow_color_val[2] * 255.0) as u8,
+                (shadow_alpha * 255.0) as u8,
+            );
+            if local_opacity < 1.0 {
+                sc = sc.with_alpha(sc.components[3] * local_opacity);
+            }
+            for vector_path in vector_paths {
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    shadow_transform,
+                    sc,
+                    None,
+                    &vector_path.path,
+                );
+                if let Some((_, stroke_width)) = vector_path.stroke {
+                    let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                    scene.stroke(&stroke, shadow_transform, sc, None, &vector_path.path);
                 }
-            } else {
-                // Normal container: render all children unchanged
-                for child in &track.children.clone() {
+            }
+        }
+
+        // Glow
+        if glow_color_val[3] > 0.0 && glow_radius > 0.0 {
+            let glow_alpha = (glow_color_val[3] * 0.4).clamp(0.0, 1.0);
+            let glow_expand = glow_radius as f64;
+            let mut gc = vello::peniko::Color::from_rgba8(
+                (glow_color_val[0] * 255.0) as u8,
+                (glow_color_val[1] * 255.0) as u8,
+                (glow_color_val[2] * 255.0) as u8,
+                (glow_alpha * 255.0) as u8,
+            );
+            if local_opacity < 1.0 {
+                gc = gc.with_alpha(gc.components[3] * local_opacity);
+            }
+            for vector_path in vector_paths {
+                let glow_stroke = vello::kurbo::Stroke::new(glow_expand * 2.0);
+                scene.stroke(&glow_stroke, local_transform, gc, None, &vector_path.path);
+            }
+        }
+
+        // Backdrop blur (approximated)
+        if backdrop_blur > 0.0 {
+            let blur_alpha = (backdrop_blur * 0.06).clamp(0.0, 0.35);
+            let full_w = half_size[0] as f64 * 2.0;
+            let full_h = half_size[1] as f64 * 2.0;
+            let rect = kurbo::Rect::from_origin_size(
+                kurbo::Point::new(-half_size[0] as f64, -half_size[1] as f64),
+                kurbo::Size::new(full_w, full_h),
+            );
+            let mut bg = vello::peniko::Color::from_rgba8(255, 255, 255, (blur_alpha * 255.0) as u8);
+            if local_opacity < 1.0 {
+                bg = bg.with_alpha(bg.components[3] * local_opacity);
+            }
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                local_transform,
+                bg,
+                None,
+                &rect,
+            );
+            let spread_steps = (backdrop_blur as usize).min(8);
+            for i in 1..=spread_steps {
+                let spread = i as f64 * 2.0;
+                let step_alpha = (blur_alpha * 0.3 / (i as f32 + 1.0)).clamp(0.0, 0.12);
+                let expanded_rect = kurbo::Rect::from_origin_size(
+                    kurbo::Point::new(
+                        -half_size[0] as f64 - spread,
+                        -half_size[1] as f64 - spread,
+                    ),
+                    kurbo::Size::new(full_w + spread * 2.0, full_h + spread * 2.0),
+                );
+                let mut step_color =
+                    vello::peniko::Color::from_rgba8(255, 255, 255, (step_alpha * 255.0) as u8);
+                if local_opacity < 1.0 {
+                    step_color = step_color.with_alpha(step_color.components[3] * local_opacity);
+                }
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    local_transform,
+                    step_color,
+                    None,
+                    &expanded_rect,
+                );
+            }
+        }
+    }
+
+    /// Render vector paths, text, SVG, and image content for a node.
+    fn render_node_content(
+        &self,
+        scene: &mut vello::Scene,
+        track: &AnimationTrack,
+        vector_paths: &[VelloPath],
+        text_paths: &[TextPath],
+        image: Option<crate::timeline::image::SceneImage>,
+        local_transform: kurbo::Affine,
+        local_opacity: f32,
+        half_size: [f32; 2],
+    ) {
+        for vector_path in vector_paths {
+            if let Some(mut fill_color) = vector_path.fill {
+                if local_opacity < 1.0 {
+                    fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                }
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    local_transform,
+                    fill_color,
+                    None,
+                    &vector_path.path,
+                );
+            }
+            if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
+                if local_opacity < 1.0 {
+                    stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                }
+                let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                scene.stroke(&stroke, local_transform, stroke_color, None, &vector_path.path);
+            }
+        }
+
+        for text_path in text_paths {
+            let color = match &text_path.color {
+                typst::visualize::Paint::Solid(color) => {
+                    let rgba = color.to_vec4_u8();
+                    vello::peniko::Color::from_rgba8(
+                        rgba[0],
+                        rgba[1],
+                        rgba[2],
+                        (rgba[3] as f32 * local_opacity * text_path.opacity) as u8,
+                    )
+                }
+                _ => vello::peniko::Color::WHITE,
+            };
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                local_transform,
+                color,
+                None,
+                &text_path.path,
+            );
+        }
+
+        for svg_path in &track.svg_paths {
+            if let Some(mut fill_color) = svg_path.fill {
+                if local_opacity < 1.0 {
+                    fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
+                }
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    local_transform,
+                    fill_color,
+                    None,
+                    &svg_path.path,
+                );
+            }
+            if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
+                if local_opacity < 1.0 {
+                    stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
+                }
+                let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
+                scene.stroke(&stroke, local_transform, stroke_color, None, &svg_path.path);
+            }
+        }
+
+        if let Some(image) = image {
+            let [natural_width, natural_height] = image.natural_size;
+            let display_width = half_size[0] * 2.0;
+            let display_height = half_size[1] * 2.0;
+            let image_transform = local_transform
+                * kurbo::Affine::scale_non_uniform(
+                    (display_width / natural_width) as f64,
+                    (display_height / natural_height) as f64,
+                );
+            let brush = vello::peniko::ImageBrush::new(image.data.clone())
+                .with_extend(vello::peniko::Extend::Pad)
+                .with_quality(vello::peniko::ImageQuality::Medium)
+                .with_alpha(local_opacity);
+            scene.draw_image(&brush, image_transform);
+        }
+    }
+
+    /// Recursively render child nodes, with special handling for mask containers.
+    fn render_node_children(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
+    ) {
+        let Some(track) = self.tracks.get(node_label) else {
+            return;
+        };
+
+        let child_layout_positions = if self.dynamic_layout {
+            self.compute_animated_layout(node_label, time_ms)
+        } else {
+            std::collections::BTreeMap::new()
+        };
+
+        if track.kind == ActorKindId::Mask {
+            let children = track.children.clone();
+            if !children.is_empty() {
+                // Render first child normally (defines the mask shape visually)
+                let first_child = &children[0];
+                self.evaluate_node(
+                    first_child,
+                    time_ms,
+                    global_transform,
+                    global_opacity,
+                    scene_dimensions,
+                    debug_options,
+                    scene,
+                    overrides,
+                    &child_layout_positions,
+                    hit_regions,
+                );
+
+                // Get the first child's vector paths to use as clip shapes
+                let clip_paths: Vec<VelloPath> = self
+                    .tracks
+                    .get(first_child)
+                    .map(|t| t.evaluate_vector_paths(time_ms))
+                    .unwrap_or_default();
+
+                // Render remaining children clipped to the first child's paths
+                for child in children.iter().skip(1) {
+                    let clip_count = clip_paths.len();
+                    for vp in &clip_paths {
+                        scene.push_layer(
+                            vello::peniko::Fill::NonZero,
+                            vello::peniko::BlendMode::default(),
+                            1.0,
+                            kurbo::Affine::IDENTITY,
+                            &vp.path,
+                        );
+                    }
                     self.evaluate_node(
                         child,
                         time_ms,
@@ -766,7 +803,25 @@ impl Timeline {
                         &child_layout_positions,
                         hit_regions,
                     );
+                    for _ in 0..clip_count {
+                        scene.pop_layer();
+                    }
                 }
+            }
+        } else {
+            for child in &track.children.clone() {
+                self.evaluate_node(
+                    child,
+                    time_ms,
+                    global_transform,
+                    global_opacity,
+                    scene_dimensions,
+                    debug_options,
+                    scene,
+                    overrides,
+                    &child_layout_positions,
+                    hit_regions,
+                );
             }
         }
     }

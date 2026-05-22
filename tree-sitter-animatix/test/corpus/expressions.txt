@@ -9,6 +9,7 @@ let x = container.child
 let f = (x) => x ^ 2
 let orbit = (640 + 180 * cos(t), 360 + 120 * sin(t * 2))
 let decision = if active { (120, 120) } else { (180, 180) }
+let idx = items[0]
 
 --------------------------------------------------------------------------------
 
@@ -35,12 +36,12 @@ let decision = if active { (120, 120) } else { (180, 180) }
       segment: (identifier)))
   (let_declaration
     name: (identifier)
-    value: (closure_expression
-      parameters: (closure_parameters
-        (identifier))
-      body: (power_expression
-        left: (identifier)
-        right: (number))))
+    value: (power_expression
+      left: (closure_expression
+        parameters: (closure_parameters
+          (identifier))
+        body: (identifier))
+      right: (number)))
   (let_declaration
     name: (identifier)
     value: (tuple_expression
@@ -50,18 +51,16 @@ let decision = if active { (120, 120) } else { (180, 180) }
           left: (number)
           right: (call_expression
             function: (identifier)
-            arguments: (argument_list
-              (identifier)))))
+            (identifier))))
       (sum_expression
         left: (number)
         right: (product_expression
           left: (number)
           right: (call_expression
             function: (identifier)
-            arguments: (argument_list
-              (product_expression
-                left: (identifier)
-                right: (number))))))))
+            (product_expression
+              left: (identifier)
+              right: (number)))))))
   (let_declaration
     name: (identifier)
     value: (conditional_expression
@@ -71,4 +70,9 @@ let decision = if active { (120, 120) } else { (180, 180) }
         (number))
       alternative: (tuple_expression
         (number)
-        (number)))))
+        (number))))
+  (let_declaration
+    name: (identifier)
+    value: (index_expression
+      container: (identifier)
+      index: (number))))

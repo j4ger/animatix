@@ -16,12 +16,20 @@
 mod symbol_table;
 mod completer;
 mod diagnostics;
+mod workspace;
+mod types;
+mod hover;
+mod definition;
+mod references;
+mod document_symbol;
 
 pub use symbol_table::{
     SymbolTable, ImportInfo, LabelInfo, LabelKind, ComponentInfo, ParamInfo, SceneInfo,
 };
 pub use completer::{CompletionItem, CompletionKind, completions_at};
 pub use diagnostics::{Diagnostic, DiagnosticSeverity, collect_diagnostics};
+pub use workspace::Workspace;
+pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::parser;
@@ -29,95 +37,6 @@ use chumsky::Parser;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tree_sitter::{Parser as TsParser, Tree};
-
-/// A workspace holds multiple files and their cross-file relationships.
-///
-/// Used for cross-file analysis: each file is parsed independently,
-/// but imports are resolved against the workspace to provide completions,
-/// hover, and go-to-definition across file boundaries.
-#[derive(Debug, Clone, Default)]
-pub struct Workspace {
-    files: HashMap<PathBuf, FileEntry>,
-}
-
-#[derive(Debug, Clone)]
-struct FileEntry {
-    symbols: SymbolTable,
-}
-
-impl Workspace {
-    /// Create an empty workspace.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add or update a file in the workspace.
-    pub fn add_file(&mut self, path: PathBuf, source: &str) {
-        let (ast, _) = parser().parse(source).into_output_errors();
-        let symbols = ast
-            .as_ref()
-            .map(|stmts| SymbolTable::build_from_ast(stmts))
-            .unwrap_or_default();
-        self.files.insert(
-            path,
-            FileEntry {
-                symbols,
-            },
-        );
-    }
-
-    /// Remove a file from the workspace.
-    pub fn remove_file(&mut self, path: &Path) {
-        self.files.remove(path);
-    }
-
-    /// Resolve imports for a file and return a merged symbol table
-    /// containing local symbols plus exported symbols from imported files.
-    pub fn resolve_symbols(&self, path: &Path) -> SymbolTable {
-        let mut merged = self
-            .files
-            .get(path)
-            .map(|e| e.symbols.clone())
-            .unwrap_or_default();
-
-        for import in &merged.imports.clone() {
-            // Try to find the imported file by path
-            let import_path = Self::resolve_import_path(path, &import.path);
-            if let Some(entry) = self.files.get(&import_path) {
-                if import.alias.is_some() {
-                    // Aliased import: symbols are accessed via alias.namespace
-                    // For now, include all symbols but track the alias for qualified access
-                    merged.merge(&entry.symbols);
-                } else {
-                    // Direct import: merge all exported symbols
-                    merged.merge(&entry.symbols);
-                }
-            }
-        }
-
-        merged
-    }
-
-    /// Check if a file exists in the workspace.
-    pub fn has_file(&self, path: &Path) -> bool {
-        self.files.contains_key(path)
-    }
-
-    /// Get the symbol table for a specific file.
-    pub fn file_symbols(&self, path: &Path) -> Option<SymbolTable> {
-        self.files.get(path).map(|e| e.symbols.clone())
-    }
-
-    /// Resolve an import path relative to a base path.
-    pub fn resolve_import_path(base: &Path, import_path: &str) -> PathBuf {
-        let trimmed = import_path.trim_matches('"');
-        if let Some(parent) = base.parent() {
-            parent.join(trimmed)
-        } else {
-            PathBuf::from(trimmed)
-        }
-    }
-}
 
 /// The main entry point for language intelligence.
 ///
@@ -160,42 +79,7 @@ impl Analyzer {
     pub fn set_workspace(&mut self, workspace: std::sync::Arc<Workspace>) {
         self.workspace = Some(workspace);
         // Force re-build of symbols with workspace context
-        self.force_rebuild_symbols();
-    }
-
-    /// Force re-parsing and symbol resolution without source change.
-    fn force_rebuild_symbols(&mut self) {
-        // Parse with chumsky (source of truth for AST)
-        let (ast, errors): (Option<Vec<Stmt>>, _) = parser().parse(&self.source).into_output_errors();
-        self.ast = ast;
-        self.parse_errors = errors.iter().map(|e| format!("{:?}", e)).collect();
-
-        // Build symbol table from AST
-        let mut table = if let Some(ref stmts) = self.ast {
-            let mut table = SymbolTable::build_from_ast(stmts);
-            // Enrich with real positions from tree-sitter
-            if let Some(ref tree) = self.tree {
-                Self::enrich_positions(tree, &self.source, &mut table);
-            }
-            table
-        } else {
-            SymbolTable::default()
-        };
-
-        // Resolve cross-file symbols if workspace is attached
-        if let Some(ref workspace) = self.workspace {
-            if let Some(ref path) = self.path {
-                let resolved = workspace.resolve_symbols(path);
-                table.merge(&resolved);
-            }
-        }
-
-        self.symbols = table;
-    }
-
-    /// Get the file path, if any.
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
+        self.rebuild_symbols();
     }
 
     /// Update the source text. Re-parses if changed.
@@ -206,17 +90,25 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        // Parse with chumsky (source of truth for AST)
-        let (ast, errors): (Option<Vec<Stmt>>, _) = parser().parse(source).into_output_errors();
-        self.ast = ast;
-        self.parse_errors = errors.iter().map(|e| format!("{:?}", e)).collect();
-
         // Parse with tree-sitter (for position-based queries)
         let mut ts_parser = TsParser::new();
         ts_parser
             .set_language(&tree_sitter_animatix::language())
             .expect("Failed to set tree-sitter language");
         self.tree = ts_parser.parse(source, None);
+
+        self.rebuild_symbols();
+    }
+
+    /// Rebuild the symbol table from the current source and tree.
+    /// Shared logic between `update()` and `set_workspace()`.
+    fn rebuild_symbols(&mut self) {
+        let source = &self.source;
+
+        // Parse with chumsky (source of truth for AST)
+        let (ast, errors): (Option<Vec<Stmt>>, _) = parser().parse(source).into_output_errors();
+        self.ast = ast;
+        self.parse_errors = errors.iter().map(|e| format!("{:?}", e)).collect();
 
         // Build symbol table from AST
         let mut table = if let Some(ref stmts) = self.ast {
@@ -234,7 +126,6 @@ impl Analyzer {
         if let Some(ref workspace) = self.workspace {
             if let Some(ref path) = self.path {
                 let resolved = workspace.resolve_symbols(path);
-                // Merge imported symbols into local table
                 table.merge(&resolved);
             }
         }
@@ -339,6 +230,11 @@ impl Analyzer {
         }
     }
 
+    /// Get the file path, if any.
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
     /// Get the current source text.
     pub fn source(&self) -> &str {
         &self.source
@@ -376,325 +272,31 @@ impl Analyzer {
 
     /// Hover information at cursor position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
-        let tree = self.tree.as_ref()?;
-        let point = tree_sitter::Point::new(line, col);
-        let node = tree.root_node().descendant_for_point_range(point, point)?;
-
-        let text = &self.source[node.byte_range()];
-
-        // Check what kind of node we're hovering over
-        match node.kind() {
-            "identifier" => {
-                // Check if it's a label
-                if let Some(info) = self.symbols.labels.get(text) {
-                    let kind = match info.kind {
-                        LabelKind::Actor => "Actor",
-                        LabelKind::Let => "Variable",
-                        LabelKind::For => "Loop variable",
-                        LabelKind::Always => "Always block",
-                        LabelKind::Component => "Component",
-                    };
-                    let ty = info.ty.as_deref().unwrap_or("unknown");
-                    Some(HoverInfo {
-                        contents: format!("**{}** `{}`\n\nType: {}", kind, text, ty),
-                        range: Some((node.start_position().row, node.start_position().column,
-                                     node.end_position().row, node.end_position().column)),
-                    })
-                }
-                // Check if it's a type
-                else if self.symbols.types.contains(text) {
-                    let doc = type_documentation(text);
-                    Some(HoverInfo {
-                        contents: format!("**Type** `{}`\n\n{}", text, doc),
-                        range: Some((node.start_position().row, node.start_position().column,
-                                     node.end_position().row, node.end_position().column)),
-                    })
-                }
-                // Check if it's an action
-                else if self.symbols.actions.contains(text) {
-                    let doc = action_documentation(text);
-                    Some(HoverInfo {
-                        contents: format!("**Action** `{}`\n\n{}", text, doc),
-                        range: Some((node.start_position().row, node.start_position().column,
-                                     node.end_position().row, node.end_position().column)),
-                    })
-                }
-                // Check if it's a keyword
-                else if self.symbols.keywords.contains(text) {
-                    let doc = keyword_documentation(text);
-                    Some(HoverInfo {
-                        contents: format!("**Keyword** `{}`\n\n{}", text, doc),
-                        range: Some((node.start_position().row, node.start_position().column,
-                                     node.end_position().row, node.end_position().column)),
-                    })
-                }
-                else {
-                    None
-                }
-            }
-            "type_identifier" => {
-                let doc = type_documentation(text);
-                Some(HoverInfo {
-                    contents: format!("**Type** `{}`\n\n{}", text, doc),
-                    range: Some((node.start_position().row, node.start_position().column,
-                                 node.end_position().row, node.end_position().column)),
-                })
-            }
-            "string" => {
-                Some(HoverInfo {
-                    contents: format!("**String** `{}`", text),
-                    range: Some((node.start_position().row, node.start_position().column,
-                                 node.end_position().row, node.end_position().column)),
-                })
-            }
-            "number" | "duration_literal" | "percentage" => {
-                Some(HoverInfo {
-                    contents: format!("**Number** `{}`", text),
-                    range: Some((node.start_position().row, node.start_position().column,
-                                 node.end_position().row, node.end_position().column)),
-                })
-            }
-            "comment" => {
-                Some(HoverInfo {
-                    contents: format!("*Comment*\n\n{}", text),
-                    range: Some((node.start_position().row, node.start_position().column,
-                                 node.end_position().row, node.end_position().column)),
-                })
-            }
-            _ => None,
-        }
+        hover::hover_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
     }
 
     /// Go-to-definition at cursor position.
     pub fn definition_at(&self, line: usize, col: usize) -> Option<Location> {
-        let tree = self.tree.as_ref()?;
-        let point = tree_sitter::Point::new(line, col);
-        let node = tree.root_node().descendant_for_point_range(point, point)?;
-
-        let text = &self.source[node.byte_range()];
-
-        // Only handle identifiers
-        if node.kind() != "identifier" && node.kind() != "type_identifier" {
-            return None;
-        }
-
-        // Check if it's a label defined in this file
-        if let Some(info) = self.symbols.labels.get(text) {
-            return Some(Location {
-                file: None, // Same file
-                line: info.line,
-                col: info.col,
-            });
-        }
-
-        // Check if it's a component defined in this file
-        if let Some(info) = self.symbols.components.get(text) {
-            return Some(Location {
-                file: None,
-                line: info.line,
-                col: info.col,
-            });
-        }
-
-        // Check imported files for cross-file definitions
-        if let Some(ref workspace) = self.workspace {
-            if let Some(ref path) = self.path {
-                for import in &self.symbols.imports {
-                    let import_path = Workspace::resolve_import_path(path, &import.path);
-                    if let Some(symbols) = (**workspace).file_symbols(&import_path) {
-                        // Check labels in imported file
-                        if let Some(info) = symbols.labels.get(text) {
-                            return Some(Location {
-                                file: Some(import_path.display().to_string()),
-                                line: info.line,
-                                col: info.col,
-                            });
-                        }
-                        // Check components in imported file
-                        if let Some(info) = symbols.components.get(text) {
-                            return Some(Location {
-                                file: Some(import_path.display().to_string()),
-                                line: info.line,
-                                col: info.col,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        None
+        definition::definition_at(
+            &self.symbols,
+            self.tree.as_ref(),
+            &self.source,
+            self.workspace.as_deref(),
+            self.path.as_deref(),
+            line,
+            col,
+        )
     }
 
     /// Find all references to a symbol name in this file.
     /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
     pub fn find_references(&self, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
-        let mut refs = Vec::new();
-
-        if let Some(tree) = self.tree.as_ref() {
-            let mut cursor = tree.walk();
-            Self::collect_references(&mut cursor, &self.source, symbol_name, &mut refs);
-        }
-
-        refs
-    }
-
-    fn collect_references(
-        cursor: &mut tree_sitter::TreeCursor,
-        source: &str,
-        symbol_name: &str,
-        refs: &mut Vec<(usize, usize, usize, usize)>,
-    ) {
-        let node = cursor.node();
-
-        if (node.kind() == "identifier" || node.kind() == "type_identifier")
-            && node.utf8_text(source.as_bytes()).unwrap_or("") == symbol_name
-        {
-            refs.push((
-                node.start_position().row,
-                node.start_position().column,
-                node.end_position().row,
-                node.end_position().column,
-            ));
-        }
-
-        if cursor.goto_first_child() {
-            loop {
-                Self::collect_references(cursor, source, symbol_name, refs);
-                if !cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-            cursor.goto_parent();
-        }
+        references::find_references(self.tree.as_ref(), &self.source, symbol_name)
     }
 
     /// Document symbols (outline view).
     pub fn document_symbols(&self) -> Vec<DocumentSymbol> {
-        let mut symbols = Vec::new();
-
-        for (name, info) in &self.symbols.labels {
-            let kind = match info.kind {
-                LabelKind::Actor => SymbolKind::Actor,
-                LabelKind::Let => SymbolKind::Variable,
-                LabelKind::For => SymbolKind::Variable,
-                LabelKind::Always => SymbolKind::Block,
-                LabelKind::Component => SymbolKind::Component,
-            };
-            symbols.push(DocumentSymbol {
-                name: name.clone(),
-                kind,
-                line: info.line,
-                col: info.col,
-                detail: info.ty.clone(),
-            });
-        }
-
-        for (name, info) in &self.symbols.components {
-            symbols.push(DocumentSymbol {
-                name: name.clone(),
-                kind: SymbolKind::Component,
-                line: info.line,
-                col: info.col,
-                detail: Some(format!("({} params)", info.params.len())),
-            });
-        }
-
-        symbols.sort_by(|a, b| a.line.cmp(&b.line));
-        symbols
-    }
-}
-
-/// Hover information.
-#[derive(Debug, Clone)]
-pub struct HoverInfo {
-    /// Markdown content to display.
-    pub contents: String,
-    /// Range of the hovered element (start_line, start_col, end_line, end_col).
-    pub range: Option<(usize, usize, usize, usize)>,
-}
-
-/// A location in a file.
-#[derive(Debug, Clone)]
-pub struct Location {
-    /// File path (None = same file).
-    pub file: Option<String>,
-    pub line: usize,
-    pub col: usize,
-}
-
-/// A document symbol for outline view.
-#[derive(Debug, Clone)]
-pub struct DocumentSymbol {
-    pub name: String,
-    pub kind: SymbolKind,
-    pub line: usize,
-    pub col: usize,
-    pub detail: Option<String>,
-}
-
-/// The kind of document symbol.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SymbolKind {
-    Actor,
-    Variable,
-    Component,
-    Block,
-}
-
-/// Documentation for a type.
-fn type_documentation(name: &str) -> &str {
-    match name {
-        "Text" => "Text element with content and styling properties.",
-        "Math" => "Mathematical expression renderer.",
-        "Code" => "Code block with syntax highlighting.",
-        "Svg" => "SVG image element.",
-        "Image" => "Raster image element.",
-        "Rect" => "Rectangle shape with fill and stroke.",
-        "Ellipse" => "Ellipse, circle, arc, or dot shape.",
-        "Line" => "Line segment or arrow with optional head.",
-        "Polygon" => "Polygon or regular polygon shape.",
-        "Path" => "SVG path element.",
-        "Graph" => "Function graph.",
-        "PlotCurve" => "Plot curve with configurable sampling kind.",
-        "Button" => "Interactive button element.",
-        _ => "Unknown type.",
-    }
-}
-
-/// Documentation for an action.
-fn action_documentation(name: &str) -> &str {
-    match name {
-        "fade-in" => "Fade in from transparent.",
-        "draw-in" => "Draw in (like handwriting).",
-        "wipe-in" => "Wipe in from edge.",
-        "fade-out" => "Fade out to transparent.",
-        "wipe-out" => "Wipe out to edge.",
-        "reveal-out" => "Reveal out (reverse draw).",
-        "draw-out" => "Draw out (reverse handwriting).",
-        "move" => "Move to position: `move target to (x, y)`",
-        "shift" => "Shift by offset: `shift target by (dx, dy)`",
-        "rotate" => "Rotate: `rotate target by 90`",
-        "scale" => "Scale: `scale target to 2`",
-        _ => "Unknown action.",
-    }
-}
-
-/// Documentation for a keyword.
-fn keyword_documentation(name: &str) -> &str {
-    match name {
-        "let" => "Declare a variable: `let name = value`",
-        "import" => "Import another file: `import \"path\"`",
-        "always" => "Reactive block that runs continuously.",
-        "if" => "Conditional: `if condition { ... }`",
-        "else" => "Else branch: `if ... { } else { }`",
-        "for" => "Loop: `for item in collection { ... }`",
-        "in" => "Used in for loops.",
-        "pub" => "Make visible to other files.",
-        "component" => "Define a reusable component.",
-        "sequence" => "Run actions in sequence.",
-        "stagger" => "Stagger actions with delay.",
-        _ => "Keyword.",
+        document_symbol::document_symbols(&self.symbols)
     }
 }
 

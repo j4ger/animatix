@@ -2,200 +2,49 @@
 Statements
 ================================================================================
 
-// Runnable surface
-import "./modules/metric_card.amx"
-pub component MetricCard(title: "Metric", fallback: null) {
-  frame: Rect, size: (280, 150), color: (0.14, 0.18, 0.28, 1.0)
-  title_text: Text { text: title, font_size: 34, color: (1.0, 1.0, 1.0, 1.0), at: (0, -18) }
+import "./test.amx"
+pub component Card() {
+  a: Text
 }
-heading: Text { text: "Imported Component Modules", font_size: 58 }
-formula: Math { math: "E = mc^2", font_size: 80 }
-snippet: Code { code: "let velocity = x + 1", font_size: 28 } [0.6s, ease: ease-in-out]
-logo: Svg { url: "examples/vector.svg", scale: 2.0, at: (940, 360) }
-photo: Image { url: "examples/checker.ppm", at: (100, 120), size: (240, 180) }
-group: Group {
-  a: Circle,
-  size: 10,
-  Circle,
-  radius: 12,
-  badge: Rect [2s] {
-    glow: Circle,
-    radius: 8
-  }
-}
-left.badge.color = red [0.8s, ease: ease-in-out]
+
+heading: Text
+
+a.b = 1 [2s]
 fade-out ball [1s]
-always { let x = btn.x }
-reactive: always { btn.color = red }
+
+always { let x = 1 }
+
 if active { appear btn } else { fade-out btn }
-for item in {1, 2, 3} { appear item }
+for i in {1, 2} { appear i }
+
+play Intro [fade]
+drive x {
+  a = 1
+}
+
+use container.{a, b}
 
 --------------------------------------------------------------------------------
 
 (source_file
-  (comment)
   (import_statement
     path: (string))
   (component_definition
     name: (identifier)
-    parameters: (parameter_list
-      (parameter_definition
-        name: (identifier)
-        default: (string))
-      (parameter_definition
-        name: (identifier)
-        default: (null)))
-    body: (block
-      (actor_declaration
-        label: (identifier)
-        type: (type_identifier)
-        properties: (property_list
-          (property
-            name: (identifier)
-            value: (tuple_expression
-              (number)
-              (number)))
-          (property
-            name: (identifier)
-            value: (tuple_expression
-              (number)
-              (number)
-              (number)
-              (number)))))
-      (text_statement
-        label: (identifier)
-        properties: (property_block
-          (property
-            name: (identifier)
-            value: (identifier))
-          (property
-            name: (identifier)
-            value: (number))
-          (property
-            name: (identifier)
-            value: (tuple_expression
-              (number)
-              (number)
-              (number)
-              (number)))
-          (property
-            name: (identifier)
-            value: (tuple_expression
-              (number)
-              (unary_expression
-                argument: (number))))))))
-  (text_statement
-    label: (identifier)
-    properties: (property_block
-      (property
-        name: (identifier)
-        value: (string))
-      (property
-        name: (identifier)
-        value: (number))))
-  (math_statement
-    label: (identifier)
-    properties: (property_block
-      (property
-        name: (identifier)
-        value: (string))
-      (property
-        name: (identifier)
-        value: (number))))
-  (code_statement
-    label: (identifier)
-    properties: (property_block
-      (property
-        name: (identifier)
-        value: (string))
-      (property
-        name: (identifier)
-        value: (number)))
-    modifiers: (modifier_list
-      (modifier
-        (duration_literal))
-      (modifier
-        (named_modifier
-          name: (identifier)
-          value: (identifier)))))
-  (svg_statement
-    label: (identifier)
-    properties: (property_block
-      (property
-        name: (identifier)
-        value: (string))
-      (property
-        name: (identifier)
-        value: (number))
-      (property
-        name: (identifier)
-        value: (tuple_expression
-          (number)
-          (number)))))
-  (image_statement
-    label: (identifier)
-    properties: (property_block
-      (property
-        name: (identifier)
-        value: (string))
-      (property
-        name: (identifier)
-        value: (tuple_expression
-          (number)
-          (number)))
-      (property
-        name: (identifier)
-        value: (tuple_expression
-          (number)
-          (number)))))
+    (actor_declaration
+      label: (identifier)
+      type: (type_identifier)))
   (actor_declaration
     label: (identifier)
-    type: (type_identifier)
-    children: (inline_children_block
-      (inline_item
-        (inline_labeled_item
-          label: (identifier)
-          type: (type_identifier)))
-      (inline_item
-        (property
-          name: (identifier)
-          value: (number)))
-      (inline_item
-        (inline_anonymous_item
-          type: (type_identifier)))
-      (inline_item
-        (property
-          name: (identifier)
-          value: (number)))
-      (inline_item
-        (inline_labeled_item
-          label: (identifier)
-          type: (type_identifier)
-          modifiers: (modifier_list
-            (modifier
-              (duration_literal)))
-          children: (inline_children_block
-            (inline_item
-              (inline_labeled_item
-                label: (identifier)
-                type: (type_identifier)))
-            (inline_item
-              (property
-                name: (identifier)
-                value: (number))))))))
+    type: (type_identifier))
   (assignment
-    target: (assignment_target
+    target: (dotted_identifier
       base: (identifier)
-      segment: (identifier)
       segment: (identifier))
-    value: (identifier)
+    value: (number)
     modifiers: (modifier_list
       (modifier
-        (duration_literal))
-      (modifier
-        (named_modifier
-          name: (identifier)
-          value: (identifier)))))
+        (duration_literal))))
   (action_statement
     verb: (identifier)
     target: (identifier)
@@ -203,37 +52,36 @@ for item in {1, 2, 3} { appear item }
       (modifier
         (duration_literal))))
   (always_statement
-    body: (block
-      (let_declaration
-        name: (identifier)
-        value: (path_expression
-          base: (identifier)
-          segment: (identifier)))))
-  (labeled_always_statement
-    label: (identifier)
-    body: (block
-      (assignment
-        target: (assignment_target
-          base: (identifier)
-          segment: (identifier))
-        value: (identifier))))
+    (let_declaration
+      name: (identifier)
+      value: (number)))
   (if_statement
     condition: (identifier)
-    consequence: (block
-      (action_statement
-        verb: (identifier)
-        target: (identifier)))
-    alternative: (block
-      (action_statement
-        verb: (identifier)
-        target: (identifier))))
+    consequence: (action_statement
+      verb: (identifier)
+      target: (identifier))
+    alternative: (action_statement
+      verb: (identifier)
+      target: (identifier)))
   (for_statement
     variable: (identifier)
     iterable: (brace_array
       (number)
-      (number)
       (number))
-    body: (block
-      (action_statement
-        verb: (identifier)
-        target: (identifier)))))
+    body: (action_statement
+      verb: (identifier)
+      target: (identifier)))
+  (play_statement
+    scene: (identifier)
+    transition: (modifier_list
+      (modifier
+        (identifier))))
+  (drive_statement
+    label: (identifier)
+    (assignment
+      target: (identifier)
+      value: (number)))
+  (use_statement
+    path: (identifier)
+    item: (identifier)
+    item: (identifier)))

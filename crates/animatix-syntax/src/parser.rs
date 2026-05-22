@@ -320,7 +320,12 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                             parts.extend(segments);
                             Expr::Path(parts)
                         }
-                        other => other,
+                        other => {
+                            // Field access on non-ident/path base: build Method chain
+                            segments.into_iter().fold(other, |acc, segment| {
+                                Expr::Method(Box::new(acc), segment, Vec::new())
+                            })
+                        }
                     }
                 }
             });
@@ -818,14 +823,15 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let action = ident
-            .then(ident.repeated().collect::<Vec<_>>()) // Simplified targets
+            .then(ident.repeated().collect::<Vec<_>>()) // targets
+            .then(expr.clone().repeated().collect::<Vec<_>>()) // args
             .then(modifiers.clone())
-            .map_with(|((verb, targets), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+            .map_with(|(((verb, targets), args), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
                 let span = extra.span();
                 Stmt::Action(Action {
                     verb,
                     targets,
-                    args: vec![],
+                    args,
                     modifiers,
                     byte_span: Some(ByteSpan { start: span.start, end: span.end }),
                 }, None)
