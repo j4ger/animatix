@@ -11,57 +11,7 @@
 
 ---
 
-## 1. Visual Polish & Tooling (P3)
-
-### 1.1 Design Token System
-
-Most colors are now tokenized in `theme.rs` (base colors, alpha-tinted variants, backgrounds, semantic colors). Remaining work:
-
-- Formalize token groups with generated documentation.
-- Add `lint_theme.py` to catch regressions.
-- Rename `theme.rs` → `design_tokens.rs` for clarity.
-
-Token groups:
-- `color`: `SURFACE_BASE`, `ELEVATED`, `WIDGET`, `TEXT_PRIMARY`, `TEXT_SECONDARY`, `ACCENT`, `SUCCESS`, `WARNING`, `ERROR`
-- `spacing`: `XS`, `S`, `M`, `L`, `XL`, `XXL`
-- `radius`: `NONE`, `SM`, `MD`, `LG`, `FULL`
-- `typography`: `H1`, `H2`, `BODY`, `CAPTION`, `MONO`
-
-**Key files:** `app/theme.rs` → `app/design_tokens.rs`
-
----
-
-### 1.2 Cell Editor Visual Redesign
-
-- Accent left border on focus.
-- Large, prominent keyframe timestamp (accent color, clickable edit).
-- Cell-level fold / unfold.
-- Cell-level move-up / move-down / delete buttons (hover-reveal).
-- Stronger visual distinction between code cells and keyframe cells.
-
-**Key files:** `cell_editor/render.rs`
-
----
-
-### 1.3 Preview Overlay System
-
-Individual overlays exist (grid, snap guides, hover highlight, selection boxes, ghost/onion skin, diff mode split, ruler guides) but there is no unified toggle system.
-
-```rust
-pub struct PreviewOverlay {
-    show_scene_bounds: bool,
-    show_grid: bool,
-    show_guides: bool,
-    show_actor_labels: bool,
-    show_safe_area: bool,
-}
-```
-
-**Key files:** new `app/preview/overlay.rs`
-
----
-
-### 1.4 Semantic Highlighting + Refactoring Tools
+## 1. Semantic Highlighting + Refactoring Tools
 
 Deep `animatix_analyzer` integration:
 - `SymbolTable`: actor / scene / component definitions.
@@ -104,10 +54,7 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Design token system (1.1) | Low | Medium |
-| 2 | Cell editor visual redesign (1.2) | Low | Medium |
-| 3 | Preview overlay system (1.3) | Low | Low |
-| 4 | Semantic highlighting + refactor (1.4) | High | Medium |
-| 5 | Green tree / trivia AST (2.2) | Very High | Low |
-| 6 | Web Canvas (2.1) | Very High | Low |
-| 7 | Trivia-inspired AST (2.3) | High | Low |
+| 1 | Semantic highlighting + refactor (1) | High | Medium |
+| 2 | Green tree / trivia AST (2.2) | Very High | Low |
+| 3 | Web Canvas (2.1) | Very High | Low |
+| 4 | Trivia-inspired AST (2.3) | High | Low |
