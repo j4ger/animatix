@@ -1,5 +1,6 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
+use crate::app::design_tokens as dt;
 use crate::cell_editor::{Cell, CellEditorState};
 use crate::highlighting::highlight_source;
 
@@ -34,17 +35,15 @@ fn cell_analyzer_diagnostics(
 /// Choose a left-border color based on diagnostic severity for this cell.
 fn diagnostic_border_color(index: usize, state: &CellEditorState) -> Option<Color32> {
     if state.error_cells.contains(&index) {
-        Some(Color32::from_rgb(255, 100, 100)) // red
+        Some(dt::RED)
     } else if state.warning_cells.contains(&index) {
-        Some(Color32::from_rgb(255, 196, 92)) // amber
+        Some(dt::AMBER)
     } else {
         None
     }
 }
 
 // ── Palette ──────────────────────────────────────────────────────────────
-
-const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
 
 const KEYFRAME_BG: Color32 = Color32::from_rgb(28, 31, 38);
 const KEYFRAME_BG_HIGHLIGHT: Color32 = Color32::from_rgb(44, 42, 34);
@@ -127,6 +126,7 @@ fn ghost_icon_btn(
     ui: &mut egui::Ui,
     icon: &'static str,
     tooltip: &'static str,
+    alpha: f32,
 ) -> bool {
     let size = Vec2::splat(22.0);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -139,7 +139,7 @@ fn ghost_icon_btn(
     );
 
     let bg = if pressed {
-        AMBER
+        dt::AMBER
     } else {
         lerp_color(GHOST_BG_IDLE, GHOST_BG_HOVER, t)
     };
@@ -149,6 +149,9 @@ fn ghost_icon_btn(
     } else {
         lerp_color(GHOST_ICON_IDLE, GHOST_ICON_HOVER, t)
     };
+
+    let bg = multiply_alpha(bg, alpha);
+    let icon_color = multiply_alpha(icon_color, alpha);
 
     ui.painter()
         .rect_filled(rect, 5.0, bg);
@@ -162,7 +165,7 @@ fn ghost_icon_btn(
     );
 
     let clicked = response.clicked();
-    if !tooltip.is_empty() {
+    if !tooltip.is_empty() && alpha > 0.01 {
         response.on_hover_text(tooltip);
     }
     clicked
@@ -175,6 +178,16 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
         (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
         (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
         (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
+    )
+}
+
+fn multiply_alpha(c: Color32, factor: f32) -> Color32 {
+    let factor = factor.clamp(0.0, 1.0);
+    Color32::from_rgba_premultiplied(
+        (c.r() as f32 * factor) as u8,
+        (c.g() as f32 * factor) as u8,
+        (c.b() as f32 * factor) as u8,
+        (c.a() as f32 * factor) as u8,
     )
 }
 
@@ -210,9 +223,13 @@ fn render_code_cell(
     state: &mut CellEditorState,
     source_changed: &mut bool,
 ) -> egui::Response {
-    let expanded = cell.is_expanded();
+    let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted { CODE_BG_HIGHLIGHT } else { CODE_BG };
-    let border_color = diagnostic_border_color(index, state);
+    let border_color = if state.focused_cell == Some(index) {
+        Some(dt::ACCENT_BLUE)
+    } else {
+        diagnostic_border_color(index, state)
+    };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
     let diagnostic_margin = border_color.map(|_| Margin {
@@ -231,7 +248,8 @@ fn render_code_cell(
                 .inner_margin(Margin::symmetric(10, 8))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
+                        // Header row with hover-reveal reorder buttons
+                        let header_response = ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                             let toggle = if expanded {
                                 egui_phosphor::regular::CARET_DOWN
@@ -242,14 +260,50 @@ fn render_code_cell(
                                 ui,
                                 toggle,
                                 if expanded { "Collapse" } else { "Expand" },
+                                1.0,
                             ) {
                                 cell.set_expanded(!expanded);
                             }
+
+                            // Hover-reveal up/down buttons
+                            let header_hover_t = ui.ctx().animate_value_with_time(
+                                ui.id().with(("code_header_hover", index)),
+                                if ui.rect_contains_pointer(ui.max_rect()) {
+                                    1.0
+                                } else {
+                                    0.0
+                                },
+                                0.12,
+                            );
+                            if ghost_icon_btn(
+                                ui,
+                                egui_phosphor::regular::ARROW_UP,
+                                "Move up",
+                                header_hover_t,
+                            ) {
+                                state.pending_move_up = Some(index);
+                            }
+                            if ghost_icon_btn(
+                                ui,
+                                egui_phosphor::regular::ARROW_DOWN,
+                                "Move down",
+                                header_hover_t,
+                            ) {
+                                state.pending_move_down = Some(index);
+                            }
+
+                            // Code type icon
+                            ui.label(
+                                RichText::new(egui_phosphor::regular::CODE)
+                                    .size(13.0)
+                                    .color(dt::TEXT_MUTED),
+                            );
+
                             ui.add(
                                 egui::Label::new(
                                     RichText::new(format!("Code {index}"))
                                         .size(11.0)
-                                        .color(Color32::from_rgb(140, 150, 170)),
+                                        .color(dt::TEXT_MUTED),
                                 )
                                 .selectable(false),
                             );
@@ -262,12 +316,16 @@ fn render_code_cell(
                                         ui,
                                         egui_phosphor::regular::TRASH,
                                         "Delete code block",
+                                        1.0,
                                     ) {
                                         state.pending_delete_cell = Some(index);
                                     }
                                 },
                             );
                         });
+                        // Access the header response to keep the hover state
+                        // animation id warm even when the pointer leaves.
+                        let _ = header_response.response;
 
                         if expanded {
                             ui.add_space(4.0);
@@ -326,12 +384,17 @@ fn render_keyframe_cell(
     source_changed: &mut bool,
 ) -> egui::Response {
     let time_s = cell.time_s().unwrap_or(0.0);
+    let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
         KEYFRAME_BG_HIGHLIGHT
     } else {
         KEYFRAME_BG
     };
-    let border_color = diagnostic_border_color(index, state);
+    let border_color = if state.focused_cell == Some(index) {
+        Some(dt::ACCENT_BLUE)
+    } else {
+        diagnostic_border_color(index, state)
+    };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
     let diagnostic_margin = border_color.map(|_| Margin {
@@ -355,13 +418,68 @@ fn render_keyframe_cell(
                             .inner_margin(Margin::symmetric(10, 5))
                             .show(ui, |ui| {
                                 ui.set_min_height(26.0);
-                                ui.horizontal(|ui| {
+                                let header_response = ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+
+                                    // Expand / collapse chevron
+                                    let toggle = if expanded {
+                                        egui_phosphor::regular::CARET_DOWN
+                                    } else {
+                                        egui_phosphor::regular::CARET_RIGHT
+                                    };
+                                    if ghost_icon_btn(
+                                        ui,
+                                        toggle,
+                                        if expanded { "Collapse" } else { "Expand" },
+                                        1.0,
+                                    ) {
+                                        if expanded {
+                                            state.collapsed_cells.insert(index);
+                                        } else {
+                                            state.collapsed_cells.remove(&index);
+                                        }
+                                    }
+
+                                    // Hover-reveal up/down buttons
+                                    let header_hover_t = ui.ctx().animate_value_with_time(
+                                        ui.id().with(("kf_header_hover", index)),
+                                        if ui.rect_contains_pointer(ui.max_rect()) {
+                                            1.0
+                                        } else {
+                                            0.0
+                                        },
+                                        0.12,
+                                    );
+                                    if ghost_icon_btn(
+                                        ui,
+                                        egui_phosphor::regular::ARROW_UP,
+                                        "Move up",
+                                        header_hover_t,
+                                    ) {
+                                        state.pending_move_up = Some(index);
+                                    }
+                                    if ghost_icon_btn(
+                                        ui,
+                                        egui_phosphor::regular::ARROW_DOWN,
+                                        "Move down",
+                                        header_hover_t,
+                                    ) {
+                                        state.pending_move_down = Some(index);
+                                    }
+
+                                    // Keyframe type icon
+                                    ui.label(
+                                        RichText::new(egui_phosphor::regular::FILM_STRIP)
+                                            .size(13.0)
+                                            .color(dt::TEXT_MUTED),
+                                    );
+
                                     // Play
                                     if ghost_icon_btn(
                                         ui,
                                         egui_phosphor::regular::PLAY,
                                         "Play from this keyframe",
+                                        1.0,
                                     ) {
                                         on_scrub_to_time(time_s);
                                     }
@@ -383,54 +501,58 @@ fn render_keyframe_cell(
                                                 ui,
                                                 egui_phosphor::regular::TRASH,
                                                 "Delete keyframe",
+                                                1.0,
                                             ) {
                                                 state.pending_delete_cell = Some(index);
                                             }
                                         },
                                     );
                                 });
+                                let _ = header_response.response;
                             });
 
                         // ── Body editor ─────────────────────────────
-                        Frame::new()
-                            .fill(bg)
-                            .inner_margin(Margin::symmetric(10, 8))
-                            .show(ui, |ui| {
-                                let layouter_style = style.clone();
-                                let cell_diags_ref = cell_diags.clone();
-                                let mut layouter = move |ui: &egui::Ui,
-                                                         buf: &dyn egui::TextBuffer,
-                                                         wrap_width: f32| {
-                                    let mut job = highlight_source(
-                                        buf.as_str(),
-                                        &layouter_style,
-                                        &cell_diags_ref,
-                                        None,
+                        if expanded {
+                            Frame::new()
+                                .fill(bg)
+                                .inner_margin(Margin::symmetric(10, 8))
+                                .show(ui, |ui| {
+                                    let layouter_style = style.clone();
+                                    let cell_diags_ref = cell_diags.clone();
+                                    let mut layouter = move |ui: &egui::Ui,
+                                                             buf: &dyn egui::TextBuffer,
+                                                             wrap_width: f32| {
+                                        let mut job = highlight_source(
+                                            buf.as_str(),
+                                            &layouter_style,
+                                            &cell_diags_ref,
+                                            None,
+                                        );
+                                        job.wrap.max_width = wrap_width;
+                                        ui.fonts_mut(|fonts| fonts.layout_job(job))
+                                    };
+
+                                    apply_pending_cursor(ui, index, state);
+
+                                    let text_edit_id = ui.id().with(("cell_body", index));
+                                    let response = ui.add(
+                                        egui::TextEdit::multiline(cell.body_mut())
+                                            .id(text_edit_id)
+                                            .code_editor()
+                                            .frame(Frame::NONE)
+                                            .desired_width(f32::INFINITY)
+                                            .layouter(&mut layouter),
                                     );
-                                    job.wrap.max_width = wrap_width;
-                                    ui.fonts_mut(|fonts| fonts.layout_job(job))
-                                };
-
-                                apply_pending_cursor(ui, index, state);
-
-                                let text_edit_id = ui.id().with(("cell_body", index));
-                                let response = ui.add(
-                                    egui::TextEdit::multiline(cell.body_mut())
-                                        .id(text_edit_id)
-                                        .code_editor()
-                                        .frame(Frame::NONE)
-                                        .desired_width(f32::INFINITY)
-                                        .layouter(&mut layouter),
-                                );
-                                if response.changed() {
-                                    *source_changed = true;
-                                }
-                                if state.pending_cursor_cell == Some(index) {
-                                    response.request_focus();
-                                    state.pending_cursor_cell = None;
-                                }
-                                track_focus(index, &response, state);
-                            });
+                                    if response.changed() {
+                                        *source_changed = true;
+                                    }
+                                    if state.pending_cursor_cell == Some(index) {
+                                        response.request_focus();
+                                        state.pending_cursor_cell = None;
+                                    }
+                                    track_focus(index, &response, state);
+                                });
+                        }
                     });
                 });
         })
@@ -455,35 +577,60 @@ fn render_timestamp_editor(
         _ => return,
     };
 
-    let mut edited = raw_ts.clone();
+    let is_editing = state.editing_timestamp_cell == Some(cell_index);
 
-    let ts_response = ui.add(
-        egui::TextEdit::singleline(&mut edited)
-            .font(egui::FontId::monospace(12.0))
-            .desired_width(80.0)
-            .frame(Frame::NONE),
-    );
+    if is_editing {
+        let mut edited = raw_ts.clone();
+        let ts_response = ui.add(
+            egui::TextEdit::singleline(&mut edited)
+                .font(egui::FontId::monospace(16.0))
+                .desired_width(100.0)
+                .frame(Frame::NONE)
+                .text_color(dt::ACCENT_BLUE),
+        );
 
-    if ts_response.changed() {
-        let new_is_relative = if edited.starts_with('+') {
-            true
-        } else {
-            is_rel
-        };
+        if ts_response.changed() {
+            let new_is_relative = if edited.starts_with('+') {
+                true
+            } else {
+                is_rel
+            };
 
-        if let Cell::Keyframe {
-            timestamp,
-            is_relative,
-            ..
-        } = cell
-        {
-            *timestamp = edited.trim().to_string();
-            *is_relative = new_is_relative;
-            *source_changed = true;
+            if let Cell::Keyframe {
+                timestamp,
+                is_relative,
+                ..
+            } = cell
+            {
+                *timestamp = edited.trim().to_string();
+                *is_relative = new_is_relative;
+                *source_changed = true;
+            }
+        }
+
+        if ts_response.lost_focus() {
+            state.editing_timestamp_cell = None;
+        }
+
+        track_focus(cell_index, &ts_response, state);
+    } else {
+        let display = cell.display_timestamp().unwrap_or_else(|| raw_ts.clone());
+        let label_response = ui.add(
+            egui::Label::new(
+                RichText::new(display)
+                    .monospace()
+                    .size(16.0)
+                    .color(dt::ACCENT_BLUE),
+            )
+            .sense(egui::Sense::click()),
+        );
+        if label_response.clicked() {
+            state.editing_timestamp_cell = Some(cell_index);
+        }
+        if label_response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
         }
     }
-
-    track_focus(cell_index, &ts_response, state);
 }
 
 // ── Focus tracking ───────────────────────────────────────────────────────
@@ -548,14 +695,14 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let bg_idle = Color32::from_rgb(32, 36, 44);
     let bg_hover = Color32::from_rgb(50, 55, 66);
     let bg = if pressed {
-        AMBER
+        dt::AMBER
     } else {
         lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)
     let border = if pressed {
-        AMBER
+        dt::AMBER
     } else {
         let border_a = (egui::lerp(40.0..=100.0, btn_t) as u8).min(255);
         Color32::from_rgba_premultiplied(120, 130, 150, border_a)

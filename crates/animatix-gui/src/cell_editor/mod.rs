@@ -57,6 +57,51 @@ pub struct CellEditorState {
     pub pending_cursor_cell: Option<usize>,
     /// Char index within the cell body where the cursor should be placed.
     pub pending_cursor_char: Option<usize>,
+    /// Set of cell indices that are collapsed (applies to keyframes; code cells
+    /// store expansion on the `Cell` enum itself).
+    pub collapsed_cells: std::collections::HashSet<usize>,
+    /// Optional request to move the cell at this index up by one position.
+    pub pending_move_up: Option<usize>,
+    /// Optional request to move the cell at this index down by one position.
+    pub pending_move_down: Option<usize>,
+    /// Which cell is currently editing its timestamp inline.
+    pub editing_timestamp_cell: Option<usize>,
+}
+
+impl CellEditorState {
+    /// Swap all index-based state for two cell positions (e.g. after reordering).
+    pub fn swap_cell_indices(&mut self, a: usize, b: usize) {
+        let swap_opt = |opt: &mut Option<usize>| {
+            if let Some(v) = *opt {
+                if v == a {
+                    *opt = Some(b);
+                } else if v == b {
+                    *opt = Some(a);
+                }
+            }
+        };
+        swap_opt(&mut self.focused_cell);
+        swap_opt(&mut self.scroll_to_cell);
+        swap_opt(&mut self.highlighted_cell);
+        swap_opt(&mut self.prev_focused_cell);
+        swap_opt(&mut self.pending_cursor_cell);
+        swap_opt(&mut self.editing_timestamp_cell);
+
+        let swap_set = |set: &mut std::collections::HashSet<usize>| {
+            let has_a = set.contains(&a);
+            let has_b = set.contains(&b);
+            if has_a && !has_b {
+                set.remove(&a);
+                set.insert(b);
+            } else if !has_a && has_b {
+                set.remove(&b);
+                set.insert(a);
+            }
+        };
+        swap_set(&mut self.collapsed_cells);
+        swap_set(&mut self.error_cells);
+        swap_set(&mut self.warning_cells);
+    }
 }
 
 impl Default for CellEditorState {
@@ -76,6 +121,10 @@ impl Default for CellEditorState {
             warning_cells: std::collections::HashSet::new(),
             pending_cursor_cell: None,
             pending_cursor_char: None,
+            collapsed_cells: std::collections::HashSet::new(),
+            pending_move_up: None,
+            pending_move_down: None,
+            editing_timestamp_cell: None,
         }
     }
 }

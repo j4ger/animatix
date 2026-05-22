@@ -391,6 +391,20 @@ impl EditorBuffer {
                 self.cell_state.focused_cell = Some(insert_at);
             }
         }
+        if let Some(idx) = self.cell_state.pending_move_up.take() {
+            if idx > 0 && idx < self.cells.len() {
+                self.cells.swap(idx, idx - 1);
+                self.cell_state.swap_cell_indices(idx, idx - 1);
+                structurally_changed = true;
+            }
+        }
+        if let Some(idx) = self.cell_state.pending_move_down.take() {
+            if idx + 1 < self.cells.len() {
+                self.cells.swap(idx, idx + 1);
+                self.cell_state.swap_cell_indices(idx, idx + 1);
+                structurally_changed = true;
+            }
+        }
 
         ui.horizontal(|ui| {
             if ui.button("+ Keyframe").clicked() {

@@ -51,10 +51,10 @@ impl Cell {
         matches!(self, Self::Keyframe { is_relative: true, .. })
     }
 
-    pub fn is_expanded(&self) -> bool {
+    pub fn is_expanded(&self, index: usize, collapsed_cells: &std::collections::HashSet<usize>) -> bool {
         match self {
             Self::Code { expanded, .. } => *expanded,
-            Self::Keyframe { .. } => true,
+            Self::Keyframe { .. } => !collapsed_cells.contains(&index),
         }
     }
 
