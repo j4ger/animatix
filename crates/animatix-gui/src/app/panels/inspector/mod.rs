@@ -9,6 +9,7 @@ use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as
 
 pub(crate) mod property_groups;
 pub(crate) mod keyframe_table;
+pub(crate) mod graph_editor;
 
 use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, count_keyframes};
@@ -18,6 +19,12 @@ pub(crate) use self::keyframe_table::collect_all_keyframe_times;
 enum PropertyViewMode {
     Semantic,
     Intensity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum KeyframeViewMode {
+    List,
+    Curve,
 }
 
 fn default_actor_type() -> &'static str {
@@ -270,20 +277,71 @@ pub(super) fn inspector_ui(
                 // ── Keyframes ──
                 let kf_count = count_keyframes(track);
                 components::card(ui, |ui| {
-                    components::section_header(
-                        ui,
-                        egui_phosphor::regular::KEY,
-                        "Keyframes",
-                        Some(kf_count),
-                    );
-                    render_dope_sheet(
-                        ui,
-                        timeline,
-                        track,
-                        (current_time_s * 1000.0) as u64,
-                        sel,
-                        commands,
-                    );
+                    let kf_view_id = ui.id().with("kf_view_mode");
+                    let mut kf_view = ui.data(|d| d.get_temp::<KeyframeViewMode>(kf_view_id)).unwrap_or(KeyframeViewMode::List);
+
+                    ui.horizontal(|ui| {
+                        components::section_header(
+                            ui,
+                            egui_phosphor::regular::KEY,
+                            "Keyframes",
+                            Some(kf_count),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let label = match kf_view {
+                                KeyframeViewMode::List => format!("{} List", egui_phosphor::regular::LIST),
+                                KeyframeViewMode::Curve => format!("{} Curve", egui_phosphor::regular::CHART_LINE_UP),
+                            };
+                            if ui.button(RichText::new(label).size(FONT_SIZE_XS).color(TEXT_MUTED)).clicked() {
+                                kf_view = match kf_view {
+                                    KeyframeViewMode::List => KeyframeViewMode::Curve,
+                                    KeyframeViewMode::Curve => KeyframeViewMode::List,
+                                };
+                                ui.data_mut(|d| d.insert_temp(kf_view_id, kf_view));
+                            }
+                        });
+                    });
+
+                    match kf_view {
+                        KeyframeViewMode::List => {
+                            render_dope_sheet(
+                                ui,
+                                timeline,
+                                track,
+                                (current_time_s * 1000.0) as u64,
+                                sel,
+                                commands,
+                            );
+                        }
+                        KeyframeViewMode::Curve => {
+                            // Show F-curve for the first float property with keyframes
+                            let indices = animatix::timeline::allowed_property_indices(track.kind);
+                            let mut shown = false;
+                            for &idx in &indices {
+                                let schema = &animatix::timeline::PROPERTY_REGISTRY[idx];
+                                if schema.value_type == animatix::timeline::ValueType::F32
+                                    && animatix::timeline::property_has_keyframes(track, schema.field)
+                                {
+                                    graph_editor::render_fcurve(
+                                        ui,
+                                        track,
+                                        schema.name,
+                                        timeline.duration_seconds(),
+                                        current_time_s,
+                                        commands,
+                                    );
+                                    shown = true;
+                                    break;
+                                }
+                            }
+                            if !shown {
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(SPACE_M);
+                                    ui.label(RichText::new("No float property keyframes to graph").size(FONT_SIZE_S).color(TEXT_MUTED));
+                                });
+                            }
+                        }
+                    }
                 });
             });
     } else {
