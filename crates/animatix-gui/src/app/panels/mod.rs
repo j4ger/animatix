@@ -41,6 +41,7 @@ fn nice_tick_interval(visible_range: f32, target_ticks: f32) -> f32 {
 const RULER_SIZE: f32 = 20.0;
 const SNAP_THRESHOLD: f32 = 5.0; // scene pixels
 
+pub use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
 use crate::app::components::widgets;
 use crate::app::icons::actor_icon_str;
@@ -49,7 +50,6 @@ use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
-use animatix::easing::Easing;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, RichText, Stroke, Vec2};
 use std::collections::{HashMap, HashSet};
@@ -60,135 +60,6 @@ pub(crate) enum SidebarTab {
     Explorer,
     Layers,
     Scenes,
-}
-
-/// Describes a property edit made in the inspector panel.
-#[derive(Debug, Clone)]
-pub(super) struct PropertyEdit {
-    pub(super) actor: String,
-    pub(super) property: String,
-    pub(super) value: PropertyValue,
-    /// When true, create a keyframe at current time instead of overwriting defaults.
-    pub(super) create_keyframe: bool,
-}
-
-/// The typed value of a property edit.
-#[derive(Debug, Clone)]
-pub(crate) enum PropertyValue {
-    Vec2([f32; 2]),
-    Float(f32),
-    Color([f32; 4]),
-    Text(String),
-    StringList(Vec<String>),
-    PointList(Vec<[f32; 2]>),
-}
-
-impl From<PropertyValue> for animatix::ast::Expr {
-    fn from(pv: PropertyValue) -> Self {
-        match pv {
-            PropertyValue::Vec2([x, y]) => {
-                animatix::ast::Expr::Tuple(vec![
-                    animatix::ast::Expr::Num(x as f64),
-                    animatix::ast::Expr::Num(y as f64),
-                ])
-            }
-            PropertyValue::Float(v) => animatix::ast::Expr::Num(v as f64),
-            PropertyValue::Color([r, g, b, a]) => {
-                if (a - 1.0).abs() < 0.001
-                    && r.fract() == 0.0
-                    && g.fract() == 0.0
-                    && b.fract() == 0.0
-                {
-                    // Opaque integer color — use rgb() shorthand.
-                    animatix::ast::Expr::Call(
-                        "rgb".into(),
-                        vec![
-                            animatix::ast::Expr::Num((r * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((g * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((b * 255.0) as i64 as f64),
-                        ],
-                    )
-                } else {
-                    animatix::ast::Expr::Call(
-                        "rgba".into(),
-                        vec![
-                            animatix::ast::Expr::Num(r as f64),
-                            animatix::ast::Expr::Num(g as f64),
-                            animatix::ast::Expr::Num(b as f64),
-                            animatix::ast::Expr::Num(a as f64),
-                        ],
-                    )
-                }
-            }
-            PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
-            PropertyValue::StringList(items) => {
-                animatix::ast::Expr::Tuple(items.into_iter().map(animatix::ast::Expr::Ident).collect())
-            }
-            PropertyValue::PointList(points) => {
-                animatix::ast::Expr::Tuple(points.into_iter().map(|[x, y]| {
-                    animatix::ast::Expr::Tuple(vec![
-                        animatix::ast::Expr::Num(x as f64),
-                        animatix::ast::Expr::Num(y as f64),
-                    ])
-                }).collect())
-            }
-        }
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct UiActions {
-    pub(super) open_file: Option<PathBuf>,
-    pub(super) toggle_expand_dir: Option<PathBuf>,
-    pub(super) show_inspector: bool,
-    pub(super) save: bool,
-    pub(super) reload: bool,
-    pub(super) rebuild: bool,
-    pub(super) toggle_playback: bool,
-    pub(super) scrub_to: Option<f64>,
-    pub(super) editor_changed: bool,
-    pub(super) request_repaint: bool,
-    pub(super) prev_keyframe: bool,
-    pub(super) next_keyframe: bool,
-    pub(super) prev_scene: bool,
-    pub(super) next_scene: bool,
-    pub(super) select_scene: Option<String>,
-    pub(super) add_scene: bool,
-    pub(super) delete_scene: Option<String>,
-    pub(super) rename_scene: Option<(String, String)>,
-    pub(super) reorder_scenes: Option<Vec<String>>,
-    pub(super) property_edits: Vec<PropertyEdit>,
-    pub(super) drag_ended: bool,
-    pub(super) undo: bool,
-    pub(super) redo: bool,
-    pub(super) toggle_editor_sync: bool,
-    pub(super) toggle_keyframe_mode: bool,
-    /// Scroll editor to this 0-indexed line (set by clicking a diagnostic).
-    pub(super) scroll_to_line: Option<usize>,
-    /// True when an inspector DragValue/Slider drag started this frame.
-    pub(super) inspector_input_drag_started: bool,
-    /// True when an inspector DragValue/Slider drag ended this frame.
-    pub(super) inspector_input_drag_ended: bool,
-    /// Toggle the bottom diagnostics panel visibility.
-    pub(super) toggle_diagnostics_panel: bool,
-    /// Create a new actor: (type, label, position_in_scene)
-    pub(super) create_actor: Option<(String, String, [f32; 2])>,
-    /// Rename an actor: (old_label, new_label)
-    pub(super) rename_actor: Option<(String, String)>,
-    /// Duplicate an actor by label (Alt-drag). The new actor is created at the same position.
-    pub(super) duplicate_actor: Option<String>,
-    /// Set transition on a scene: (from_scene, transition)
-    pub(super) set_transition: Option<(String, animatix::ast::Transition)>,
-    /// Set the play target for a scene: (from_scene, target_scene)
-    pub(super) set_play_target: Option<(String, Option<String>)>,
-/// Open the export dialog.
-    pub(super) open_export_dialog: bool,
-    /// Set keyframe easing: (actor, property, time_s, easing)
-    pub(super) set_keyframe_easing: Option<(String, String, f64, Easing)>,
-    /// Request opening the transition editor for the given scene (set by transport bar).
-    pub(super) open_transition_editor: Option<String>,
-    /// Reparent an actor: (actor_label, new_parent_label_or_none)
-    pub(super) reparent_actor: Option<(String, Option<String>)>,
 }
 
 pub(crate) struct WorkspaceViewer<'a> {
@@ -206,7 +77,7 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) panel_state: &'a mut crate::app::PanelState,
     pub(super) diagnostics: &'a [Diagnostic],
     pub(super) preview_texture_id: Option<egui::TextureId>,
-    pub(super) actions: &'a mut UiActions,
+    pub(super) commands: &'a mut CommandQueue,
     pub(super) source_dirty: &'a mut String,
     pub(super) scene_dimensions: SceneDimensions,
     pub(super) timeline: Option<&'a Timeline>,
@@ -386,13 +257,13 @@ impl WorkspaceViewer<'_> {
                     .show(ui, row_id);
 
                 if response.chevron_clicked {
-                    self.actions.toggle_expand_dir = Some(path.clone());
+                    self.commands.push_back(Command::ToggleExpandDir(path.clone()));
                 }
                 if response.row_clicked {
                     if is_dir {
-                        self.actions.toggle_expand_dir = Some(path);
+                        self.commands.push_back(Command::ToggleExpandDir(path));
                     } else {
-                        self.actions.open_file = Some(path);
+                        self.commands.push_back(Command::OpenFile(path));
                     }
                 }
             }
@@ -483,7 +354,7 @@ impl WorkspaceViewer<'_> {
                         self.scene_dimensions.width as f32 / 2.0,
                         self.scene_dimensions.height as f32 / 2.0,
                     ];
-                    self.actions.create_actor = Some((default_actor_type().into(), label, pos));
+                    self.commands.push_back(Command::CreateActor { ty: default_actor_type().into(), label, position: pos });
                 }
             });
             return;
@@ -500,7 +371,7 @@ impl WorkspaceViewer<'_> {
                         root_label,
 self.selected_actors,
                         self.collapsed_actors,
-                        &mut self.actions,
+                        &mut self.commands,
                         time_ms,
                         0,
                     );
@@ -603,7 +474,7 @@ self.selected_actors,
                                     let item = new_order.remove(dragged_idx);
                                     let insert_at = target_idx.min(new_order.len());
                                     new_order.insert(insert_at, item);
-                                    self.actions.reorder_scenes = Some(new_order);
+                                    self.commands.push_back(Command::ReorderScenes(new_order));
                                 }
                             }
                         }
@@ -640,7 +511,7 @@ self.selected_actors,
                         if commit {
                             ui.data_mut(|d| d.insert_temp(edit_id, false));
                             if edit_buffer != scene_name && !edit_buffer.is_empty() {
-                                self.actions.rename_scene = Some((scene_name.clone(), edit_buffer.clone()));
+                                self.commands.push_back(Command::RenameScene { old_name: scene_name.clone(), new_name: edit_buffer.clone() });
                             }
                             is_editing = false;
                         }
@@ -662,7 +533,7 @@ self.selected_actors,
                             .show(ui, row_id);
 
                         if ui.data(|d| d.get_temp::<bool>(delete_id)).unwrap_or(false) {
-                            self.actions.delete_scene = Some(scene_name.clone());
+                            self.commands.push_back(Command::DeleteScene(scene_name.clone()));
                             ui.data_mut(|d| d.remove::<bool>(delete_id));
                         }
 
@@ -672,7 +543,7 @@ self.selected_actors,
                                 d.insert_temp(edit_id.with("buf"), scene_name.clone());
                             });
                         } else if response.row_clicked {
-                            self.actions.select_scene = Some(scene_name.clone());
+                            self.commands.push_back(Command::SelectScene(scene_name.clone()));
                         }
                     }
 
@@ -754,12 +625,12 @@ self.selected_actors,
                                     ui.horizontal(|ui| {
                                         ui.add_space(ui.available_width() - 80.0);
                                         if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                            self.actions.set_transition = Some((scene_name.clone(), animatix::ast::Transition {
+                                            self.commands.push_back(Command::SetTransition { from_scene: scene_name.clone(), transition: animatix::ast::Transition {
                                                 id: new_type,
                                                 duration_ms: new_duration_ms,
                                                 easing: new_easing,
-                                            }));
-                                            self.actions.set_play_target = Some((scene_name.clone(), Some(new_target)));
+                                            } });
+                                            self.commands.push_back(Command::SetPlayTarget { from_scene: scene_name.clone(), target: Some(new_target) });
                                             ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
                                         }
                                         if ui.button("✕").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -816,7 +687,7 @@ self.selected_actors,
 
             ui.add_space(8.0);
             if ui.button("+ Add Scene").clicked() {
-                self.actions.add_scene = true;
+                self.commands.push_back(Command::AddScene);
             }
         });
     }
@@ -827,17 +698,15 @@ self.selected_actors,
             let response = self.editor.show(ui);
             if response.changed() || self.editor.text() != self.source_dirty.as_str() {
                 *self.source_dirty = self.editor.text().to_string();
-                self.actions.editor_changed = true;
+                self.commands.push_back(Command::EditorChanged);
             }
             if let Some(time_s) = self.editor.pending_scrub_to_time.take() {
-                self.actions.scrub_to = Some(time_s);
+                self.commands.push_back(Command::ScrubTo(time_s));
                 if !self.preview.is_playing {
-                    self.actions.toggle_playback = true;
+                    self.commands.push_back(Command::TogglePlayback);
                 }
             }
-            if let Some(line) = self.actions.scroll_to_line.take() {
-                self.editor.scroll_to_line(line);
-            }
+            // ScrollToLine commands are handled by the shell in app/mod.rs
         });
     }
 
@@ -1094,18 +963,18 @@ self.selected_actors,
                         if shift {
                             // Shift-drag: break out of layout and start Move drag
                             let current_pos = props.as_ref().map(|p| p.position).unwrap_or([scene.x as f32, scene.y as f32]);
-                            self.actions.property_edits.push(PropertyEdit {
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor: actor.clone(),
                                 property: "placement_mode".into(),
                                 value: PropertyValue::Text("manual".into()),
                                 create_keyframe: self.keyframe_mode,
-                            });
-                            self.actions.property_edits.push(PropertyEdit {
+                            }));
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor: actor.clone(),
                                 property: "position".into(),
                                 value: PropertyValue::Vec2(current_pos),
                                 create_keyframe: self.keyframe_mode,
-                            });
+                            }));
                             let mut actors = Vec::new();
                             for sel in self.selected_actors.iter() {
                                 let pos = if let Some(p) = self.get_actor_props(sel) {
@@ -1143,7 +1012,7 @@ self.selected_actors,
                     let alt = ui.input(|i| i.modifiers.alt);
                     if alt {
                         // Alt-drag: duplicate the primary actor
-                        self.actions.duplicate_actor = Some(actor);
+                        self.commands.push_back(Command::DuplicateActor(actor));
                         return true;
                     }
 
@@ -1296,30 +1165,30 @@ self.selected_actors,
                             PositionBinding::SceneAnchor { anchor, .. } => {
                                 let anchor_pt = animatix::timeline::scene_anchor_point(anchor, self.scene_dimensions);
                                 let new_offset = [nx - anchor_pt.x as f32, ny - anchor_pt.y as f32];
-                                self.actions.property_edits.push(PropertyEdit {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                     actor,
                                     property: "offset".into(),
                                     value: PropertyValue::Vec2(new_offset),
                                     create_keyframe: self.keyframe_mode,
-                                });
+                                }));
                             }
                             PositionBinding::ScenePercent { .. } => {
                                 let w = self.scene_dimensions.width.max(1) as f32;
                                 let h = self.scene_dimensions.height.max(1) as f32;
-                                self.actions.property_edits.push(PropertyEdit {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                     actor,
                                     property: "at".into(),
                                     value: PropertyValue::Vec2([nx / w, ny / h]),
                                     create_keyframe: self.keyframe_mode,
-                                });
+                                }));
                             }
                             _ => {
-                                self.actions.property_edits.push(PropertyEdit {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                     actor,
                                     property: "position".into(),
                                     value: PropertyValue::Vec2([nx, ny]),
                                     create_keyframe: self.keyframe_mode,
-                                });
+                                }));
                             }
                         }
                     }
@@ -1406,19 +1275,19 @@ self.selected_actors,
                     if resize_mode == preview::ResizeMode::Scale {
                         let ratio = new_w / start_size[0].max(1.0);
                         let new_scale = (start_scale * ratio).max(0.01);
-                        self.actions.property_edits.push(PropertyEdit {
+                        self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                             actor: actor.clone(),
                             property: "scale".into(),
                             value: PropertyValue::Float(new_scale),
                             create_keyframe: self.keyframe_mode,
-                        });
+                        }));
                     } else {
-                        self.actions.property_edits.push(PropertyEdit {
+                        self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                             actor: actor.clone(),
                             property: "size".into(),
                             value: PropertyValue::Vec2([new_w, new_h]),
                             create_keyframe: self.keyframe_mode,
-                        });
+                        }));
                     }
 
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;
@@ -1432,30 +1301,30 @@ self.selected_actors,
                         PositionBinding::SceneAnchor { anchor, .. } => {
                             let anchor_pt = animatix::timeline::scene_anchor_point(anchor, self.scene_dimensions);
                             let new_offset = [new_pos_x - anchor_pt.x as f32, new_pos_y - anchor_pt.y as f32];
-                            self.actions.property_edits.push(PropertyEdit {
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor,
                                 property: "offset".into(),
                                 value: PropertyValue::Vec2(new_offset),
                                 create_keyframe: self.keyframe_mode,
-                            });
+                            }));
                         }
                         PositionBinding::ScenePercent { .. } => {
                             let w = self.scene_dimensions.width.max(1) as f32;
                             let h = self.scene_dimensions.height.max(1) as f32;
-                            self.actions.property_edits.push(PropertyEdit {
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor,
                                 property: "at".into(),
                                 value: PropertyValue::Vec2([new_pos_x / w, new_pos_y / h]),
                                 create_keyframe: self.keyframe_mode,
-                            });
+                            }));
                         }
                         _ => {
-                            self.actions.property_edits.push(PropertyEdit {
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor,
                                 property: "position".into(),
                                 value: PropertyValue::Vec2([new_pos_x, new_pos_y]),
                                 create_keyframe: self.keyframe_mode,
-                            });
+                            }));
                         }
                     }
                 }
@@ -1479,12 +1348,12 @@ self.selected_actors,
                         let step = self.rotation_snap_degrees.to_radians();
                         new_rot = (new_rot / step).round() * step;
                     }
-                    self.actions.property_edits.push(PropertyEdit {
+                    self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                         actor,
                         property: "rotation".into(),
                         value: PropertyValue::Float(new_rot),
                         create_keyframe: self.keyframe_mode,
-                    });
+                    }));
                 }
                 DragState::Reorder {
                     actor,
@@ -1569,12 +1438,12 @@ self.selected_actors,
                         }
                     }
 
-                    self.actions.property_edits.push(PropertyEdit {
+                    self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                         actor,
                         property: "points".into(),
                         value: PropertyValue::PointList(new_points),
                         create_keyframe: self.keyframe_mode,
-                    });
+                    }));
                 }
                 DragState::MovePivot {
                     actor,
@@ -1619,17 +1488,17 @@ self.selected_actors,
                             let item = new_order.remove(pos);
                             let insert_at = target_index.min(new_order.len());
                             new_order.insert(insert_at, item);
-                            self.actions.property_edits.push(PropertyEdit {
+                            self.commands.push_back(Command::PropertyEdit(PropertyEdit {
                                 actor: container,
                                 property: "child_order".into(),
                                 value: PropertyValue::StringList(new_order),
                                 create_keyframe: self.keyframe_mode,
-                            });
+                            }));
                         }
                     }
                 }
             }
-            self.actions.drag_ended = true;
+            self.commands.push_back(Command::DragEnded);
         }
 
         // Marquee selection end
@@ -1734,7 +1603,7 @@ self.selected_actors,
                         if !active_has_actor {
                             for (scene_name, scene) in &comp.scenes {
                                 if scene.timeline.has_actor(&actor) {
-                                    self.actions.select_scene = Some(scene_name.clone());
+self.commands.push_back(Command::SelectScene(scene_name.clone()));
                                     break;
                                 }
                             }
@@ -2535,7 +2404,7 @@ self.selected_actors,
                 }
                 comp.scenes.get(active_scene.as_str()).map(|s| &s.timeline)
             });
-            inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, self.actions, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
+            inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, &mut self.commands, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
         });
     }
 }
@@ -2548,7 +2417,7 @@ fn render_actor_tree(
     label: &str,
     selected_actors: &mut HashSet<String>,
     collapsed_actors: &mut HashSet<String>,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
     time_ms: u64,
     depth: usize,
 ) {
@@ -2605,12 +2474,12 @@ fn render_actor_tree(
             );
             if eye_btn.clicked() {
                 let new_opacity = if is_visible { 0.0 } else { 1.0 };
-                actions.property_edits.push(PropertyEdit {
+                commands.push_back(Command::PropertyEdit(PropertyEdit {
                     actor: label.to_string(),
                     property: "opacity".into(),
                     value: PropertyValue::Float(new_opacity),
                     create_keyframe: false,
-                });
+                }));
             }
         })
         .show(ui, row_id);
@@ -2648,7 +2517,7 @@ fn render_actor_tree(
             let over_this_row = pointer_pos.map_or(false, |p| response.row_rect.contains(p));
             if over_this_row && is_drop_target {
                 // Dropped on this row — reparent under this actor
-                actions.reparent_actor = Some((dragged, Some(label.to_string())));
+                commands.push_back(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) });
             } else if !over_this_row && depth == 0 {
                 // Dropped outside any row at root level — reparent to top-level
                 // Only the root-level rows handle this to avoid duplicates
@@ -2657,7 +2526,7 @@ fn render_actor_tree(
                     response.row_rect.expand(100.0).contains(p)
                 });
                 if over_any_root {
-                    actions.reparent_actor = Some((dragged, None));
+                    commands.push_back(Command::ReparentActor { actor: dragged.clone(), new_parent: None });
                 }
             }
         }
@@ -2696,7 +2565,7 @@ fn render_actor_tree(
                 child_label,
                 selected_actors,
                 collapsed_actors,
-                actions,
+                commands,
                 time_ms,
                 depth + 1,
             );

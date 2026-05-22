@@ -9,7 +9,7 @@ use crate::app::components;
 use crate::app::panels::inspector::property_groups::{
     PropertyEntry, PropertyGroup, PropertyKind, render_property_group, render_property_row,
 };
-use crate::app::panels::UiActions;
+use crate::app::commands::CommandQueue;
 use crate::app::theme::*;
 
 /// Registry of all screenshot-able widgets.
@@ -81,8 +81,8 @@ pub fn render_widget(ui: &mut egui::Ui, name: &str) {
 // ─── Property Row Demos ───────────────────────────────────────────────────
 
 fn render_demo_property_row(ui: &mut egui::Ui, entry: PropertyEntry) {
-    let mut actions = UiActions::default();
-    render_property_row(ui, "actor1", &entry, &mut actions, false);
+    let mut commands = CommandQueue::new();
+    render_property_row(ui, "actor1", &entry, &mut commands, false);
 }
 
 fn demo_vec2_entry() -> PropertyEntry {
@@ -142,8 +142,8 @@ fn render_demo_property_group(ui: &mut egui::Ui) {
             demo_slider_entry(),
         ],
     };
-    let mut actions = UiActions::default();
-    render_property_group(ui, &group, "actor1", &mut actions, false);
+    let mut commands = CommandQueue::new();
+    render_property_group(ui, &group, "actor1", &mut commands, false);
 }
 
 fn render_demo_inspector(ui: &mut egui::Ui) {
@@ -202,9 +202,9 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
             ],
         };
 
-        let mut actions = UiActions::default();
-        render_property_group(ui, &transform, "actor1", &mut actions, false);
-        render_property_group(ui, &style, "actor1", &mut actions, false);
+        let mut commands = CommandQueue::new();
+        render_property_group(ui, &transform, "actor1", &mut commands, false);
+        render_property_group(ui, &style, "actor1", &mut commands, false);
     });
 }
 

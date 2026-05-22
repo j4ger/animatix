@@ -4,11 +4,11 @@ use crate::app::components;
 use crate::app::icons::{actor_icon, actor_palette};
 use crate::app::theme::*;
 use animatix::timeline::ActorCategory;
-use crate::app::panels::UiActions;
+use crate::app::commands::{Command, CommandQueue};
 use crate::app::GuiShell;
 
 impl GuiShell {
-    pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, actions: &mut UiActions) {
+    pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut CommandQueue) {
         let toolbar_bg = BG_BASE;
         let border_color = BG_WIDGET;
         let text_primary = TEXT_PRIMARY;
@@ -73,16 +73,16 @@ impl GuiShell {
                             self.settings_open = true;
                         }
                         if components::icon_button(ui, egui_phosphor::regular::EXPORT, "Export").clicked() {
-                            actions.open_export_dialog = true;
+                            commands.push_back(Command::OpenExportDialog);
                         }
                         if components::icon_button(ui, egui_phosphor::regular::SIDEBAR_SIMPLE, "Inspector (⌘I)").clicked() {
-                            actions.show_inspector = true;
+                            commands.push_back(Command::ShowInspector);
                         }
                         if components::icon_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, "Rebuild").clicked() {
-                            actions.rebuild = true;
+                            commands.push_back(Command::Rebuild);
                         }
                         if components::icon_button(ui, egui_phosphor::regular::FLOPPY_DISK, "Save (⌘S)").clicked() {
-                            actions.save = true;
+                            commands.push_back(Command::Save);
                         }
 
                         // Add actor palette
@@ -119,7 +119,7 @@ impl GuiShell {
                                         self.document.scene_dimensions.width as f32 / 2.0,
                                         self.document.scene_dimensions.height as f32 / 2.0,
                                     ];
-                                    actions.create_actor = Some((ty.into(), label, pos));
+                                    commands.push_back(Command::CreateActor { ty: ty.into(), label, position: pos });
                                     ui.close();
                                 }
                             }
@@ -164,8 +164,9 @@ impl GuiShell {
                                                     self.document.scene_dimensions.height as f32
                                                         / 2.0,
                                                 ];
-                                                actions.create_actor =
-                                                    Some((ty.into(), label, pos));
+                                                commands.push_back(
+                                                    Command::CreateActor { ty: ty.into(), label, position: pos },
+                                                );
                                                 ui.close();
                                             }
                                         }

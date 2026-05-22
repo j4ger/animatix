@@ -1,0 +1,159 @@
+use std::collections::VecDeque;
+use std::path::PathBuf;
+
+/// A unified command enum that replaces the 40+ `Option<T>` fields in `UiActions`.
+/// Every user intent is expressed as a `Command` and pushed into a `VecDeque<Command>`
+/// for ordered, frame-batched processing.
+#[derive(Debug, Clone)]
+pub enum Command {
+    // ── Document / File ───────────────────────────────────────────────
+    OpenFile(PathBuf),
+    Save,
+    Reload,
+    Rebuild,
+
+    // ── Workspace / Explorer ──────────────────────────────────────────
+    ToggleExpandDir(PathBuf),
+
+    // ── UI / Panels ───────────────────────────────────────────────────
+    ShowInspector,
+    ToggleDiagnosticsPanel,
+    OpenExportDialog,
+    ScrollToLine(usize),
+
+    // ── Playback ──────────────────────────────────────────────────────
+    TogglePlayback,
+    ScrubTo(f64),
+    PrevKeyframe,
+    NextKeyframe,
+
+    // ── Scene ─────────────────────────────────────────────────────────
+    SelectScene(String),
+    PrevScene,
+    NextScene,
+    AddScene,
+    DeleteScene(String),
+    RenameScene { old_name: String, new_name: String },
+    ReorderScenes(Vec<String>),
+    SetTransition { from_scene: String, transition: animatix::ast::Transition },
+    SetPlayTarget { from_scene: String, target: Option<String> },
+    OpenTransitionEditor(String),
+
+    // ── Actor ─────────────────────────────────────────────────────────
+    CreateActor { ty: String, label: String, position: [f32; 2] },
+    RenameActor { old_label: String, new_label: String },
+    DuplicateActor(String),
+    DeleteSelectedActors,
+    ReparentActor { actor: String, new_parent: Option<String> },
+
+    // ── Property / Inspector ──────────────────────────────────────────
+    PropertyEdit(PropertyEdit),
+
+    // ── Keyframe ──────────────────────────────────────────────────────
+    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
+
+    // ── Editor sync modes ─────────────────────────────────────────────
+    ToggleEditorSync,
+    ToggleKeyframeMode,
+    EditorChanged,
+
+    // ── Drag / Interaction lifecycle ──────────────────────────────────
+    DragEnded,
+    InspectorInputDragStarted,
+    InspectorInputDragEnded,
+
+    // ── Clipboard ─────────────────────────────────────────────────────
+    PasteActors,
+
+    // ── Undo / Redo ───────────────────────────────────────────────────
+    Undo,
+    Redo,
+
+    // ── Render ────────────────────────────────────────────────────────
+    RequestRepaint,
+}
+
+/// Describes a property edit made in the inspector panel.
+#[derive(Debug, Clone)]
+pub struct PropertyEdit {
+    pub actor: String,
+    pub property: String,
+    pub value: PropertyValue,
+    /// When true, create a keyframe at current time instead of overwriting defaults.
+    pub create_keyframe: bool,
+}
+
+/// The typed value of a property edit.
+#[derive(Debug, Clone)]
+pub enum PropertyValue {
+    Vec2([f32; 2]),
+    Float(f32),
+    Color([f32; 4]),
+    Text(String),
+    StringList(Vec<String>),
+    PointList(Vec<[f32; 2]>),
+}
+
+impl From<PropertyValue> for animatix::ast::Expr {
+    fn from(pv: PropertyValue) -> Self {
+        match pv {
+            PropertyValue::Vec2([x, y]) => {
+                animatix::ast::Expr::Tuple(vec![
+                    animatix::ast::Expr::Num(x as f64),
+                    animatix::ast::Expr::Num(y as f64),
+                ])
+            }
+            PropertyValue::Float(v) => animatix::ast::Expr::Num(v as f64),
+            PropertyValue::Color([r, g, b, a]) => {
+                if (a - 1.0).abs() < 0.001
+                    && r.fract() == 0.0
+                    && g.fract() == 0.0
+                    && b.fract() == 0.0
+                {
+                    animatix::ast::Expr::Call(
+                        "rgb".into(),
+                        vec![
+                            animatix::ast::Expr::Num((r * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((g * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((b * 255.0) as i64 as f64),
+                        ],
+                    )
+                } else {
+                    animatix::ast::Expr::Call(
+                        "rgba".into(),
+                        vec![
+                            animatix::ast::Expr::Num(r as f64),
+                            animatix::ast::Expr::Num(g as f64),
+                            animatix::ast::Expr::Num(b as f64),
+                            animatix::ast::Expr::Num(a as f64),
+                        ],
+                    )
+                }
+            }
+            PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
+            PropertyValue::StringList(items) => {
+                animatix::ast::Expr::Tuple(items.into_iter().map(animatix::ast::Expr::Ident).collect())
+            }
+            PropertyValue::PointList(points) => {
+                animatix::ast::Expr::Tuple(points.into_iter().map(|[x, y]| {
+                    animatix::ast::Expr::Tuple(vec![
+                        animatix::ast::Expr::Num(x as f64),
+                        animatix::ast::Expr::Num(y as f64),
+                    ])
+                }).collect())
+            }
+        }
+    }
+}
+
+/// An entry on the undo stack. Stores the command *and* the source text
+/// before the command was applied, so that undo can restore the exact state.
+/// This is a pragmatic stepping stone toward fully semantic undo.
+#[derive(Debug, Clone)]
+pub struct UndoEntry {
+    pub command: Command,
+    pub source_before: String,
+}
+
+/// Per-frame command queue consumed by the shell.
+pub type CommandQueue = VecDeque<Command>;

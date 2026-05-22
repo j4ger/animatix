@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::commands::Command;
 use crate::document::timeline_keyframe_times_s;
 use crate::app::theme::*;
 use eframe::egui;
@@ -197,7 +198,7 @@ impl AnimatixApp {
 
         // Delete key: remove selected actor(s)
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
-            self.shell.handle_delete_selected_actors();
+            self.shell.pending_commands.push_back(Command::DeleteSelectedActors);
         }
 
         // Esc: cancel active drag or reset tool mode to Select

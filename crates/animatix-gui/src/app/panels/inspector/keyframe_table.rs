@@ -7,7 +7,7 @@ use animatix::timeline::{
 use egui::Vec2;
 
 use crate::app::theme::*;
-use crate::app::panels::UiActions;
+use crate::app::commands::{Command, CommandQueue};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -45,7 +45,7 @@ pub(super) fn render_dope_sheet(
     track: &AnimationTrack,
     current_time_ms: u64,
     actor_label: &str,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
 ) {
     let groups = collect_track_groups(track);
 
@@ -58,7 +58,7 @@ pub(super) fn render_dope_sheet(
     ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
     for group in &groups {
         for track_info in &group.tracks {
-            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actor_label, actions);
+            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actor_label, commands);
         }
     }
     ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
@@ -135,7 +135,7 @@ fn render_compact_track_row(
     current_time_ms: u64,
     timeline: &Timeline,
     actor_label: &str,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
 ) {
     let row_height = ROW_S;
     let available = ui.available_width();
@@ -223,12 +223,12 @@ fn render_compact_track_row(
                     };
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
-                        actions.set_keyframe_easing = Some((
-                            actor_label.to_string(),
-                            track.name.to_string(),
-                            *time_ms as f64 / 1000.0,
-                            variant,
-                        ));
+                        commands.push_back(Command::SetKeyframeEasing {
+                            actor: actor_label.to_string(),
+                            property: track.name.to_string(),
+                            time_s: *time_ms as f64 / 1000.0,
+                            easing: variant,
+                        });
                         ui.close();
                     }
                 }
@@ -265,7 +265,7 @@ fn render_compact_track_row(
         if strip_response.clicked() || strip_response.dragged() {
             if let Some(pos) = strip_response.interact_pointer_pos() {
                 let fraction = ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-                actions.scrub_to = Some(fraction * duration_s);
+                commands.push_back(Command::ScrubTo(fraction * duration_s));
             }
         }
     }
@@ -463,5 +463,6 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
         }
         PropertyValue::PlacementMode(v) => format!("{:?}", v),
         PropertyValue::MorphOptions(v) => format!("{:?}", v),
+        PropertyValue::Transform(v) => format!("[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]", v[0], v[1], v[2], v[3], v[4], v[5]),
     }
 }

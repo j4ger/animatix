@@ -1,4 +1,4 @@
-use crate::app::panels::UiActions;
+use crate::app::commands::{Command, CommandQueue};
 use crate::app::theme::*;
 use crate::app::{PanelState, PreviewPaneState};
 use animatix::composition::Composition;
@@ -20,7 +20,7 @@ pub(crate) fn transport_bar_ui(
     _is_dirty: bool,
     _has_error: bool,
     diagnostics: &[Diagnostic],
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
     editor_sync_enabled: bool,
     keyframe_mode: bool,
     cursor_time_s: Option<f64>,
@@ -56,7 +56,7 @@ pub(crate) fn transport_bar_ui(
                     .on_hover_text("Play/Pause (Space)")
                     .clicked()
                 {
-                    actions.toggle_playback = true;
+                    commands.push_back(Command::TogglePlayback);
                 }
 
                 // Speed control — compact segmented buttons
@@ -92,7 +92,7 @@ pub(crate) fn transport_bar_ui(
                     .on_hover_text("Previous keyframe (,)")
                     .clicked()
                 {
-                    actions.prev_keyframe = true;
+                    commands.push_back(Command::PrevKeyframe);
                 }
 
                 // Skip forward
@@ -109,7 +109,7 @@ pub(crate) fn transport_bar_ui(
                     .on_hover_text("Next keyframe (.)")
                     .clicked()
                 {
-                    actions.next_keyframe = true;
+                    commands.push_back(Command::NextKeyframe);
                 }
 
                 if composition.is_some() {
@@ -127,7 +127,7 @@ pub(crate) fn transport_bar_ui(
                         .on_hover_text("Previous scene")
                         .clicked()
                     {
-                        actions.prev_scene = true;
+                        commands.push_back(Command::PrevScene);
                     }
 
                     let next_scene_btn = egui::Button::new(
@@ -143,7 +143,7 @@ pub(crate) fn transport_bar_ui(
                         .on_hover_text("Next scene")
                         .clicked()
                     {
-                        actions.next_scene = true;
+                        commands.push_back(Command::NextScene);
                     }
                 }
 
@@ -164,7 +164,7 @@ pub(crate) fn transport_bar_ui(
                     .on_hover_text("Sync editor to timeline (S)")
                     .clicked()
                 {
-                    actions.toggle_editor_sync = true;
+                    commands.push_back(Command::ToggleEditorSync);
                 }
 
                 // Keyframe mode
@@ -185,7 +185,7 @@ pub(crate) fn transport_bar_ui(
                     .on_hover_text("Keyframe mode: K — create timestamps on edit")
                     .clicked()
                 {
-                    actions.toggle_keyframe_mode = true;
+                    commands.push_back(Command::ToggleKeyframeMode);
                 }
 
                 ui.add_space(SPACE_S);
@@ -274,11 +274,11 @@ pub(crate) fn transport_bar_ui(
                     scrubber_width.max(120.0),
                     cursor_time_s,
                     composition,
-                    actions,
+                    commands,
                     preview,
                     panel_state,
                 ) {
-                    actions.scrub_to = Some(scrub);
+                    commands.push_back(Command::ScrubTo(scrub));
                 }
 
                 ui.add_space(10.0);
@@ -368,7 +368,7 @@ pub(crate) fn transport_bar_ui(
                     };
 
                     if badge_response.clicked() {
-                        actions.toggle_diagnostics_panel = true;
+                        commands.push_back(Command::ToggleDiagnosticsPanel);
                     }
 
                     // 2. Time pill (left of status, closest to scrubber)
@@ -441,7 +441,7 @@ fn paint_transport_scrubber(
     width: f32,
     cursor_time_s: Option<f64>,
     composition: Option<&Composition>,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
     preview: &mut PreviewPaneState,
     panel_state: &mut PanelState,
 ) -> bool {
@@ -536,7 +536,7 @@ fn paint_transport_scrubber(
 
             // Click → select source scene + signal transition editor open
             if overlap_response.clicked() {
-                actions.select_scene = Some(scene_name.clone());
+                commands.push_back(Command::SelectScene(scene_name.clone()));
                 panel_state.open_transition_editor = Some(scene_name.clone());
                 return true;
             }
@@ -696,7 +696,7 @@ fn paint_transport_scrubber(
                     let left = egui::lerp(track_rect.left()..=track_rect.right(), (start_s / total).clamp(0.0, 1.0) as f32);
                     let right = egui::lerp(track_rect.left()..=track_rect.right(), (end_s / total).clamp(0.0, 1.0) as f32);
                     if pos.x >= left && pos.x <= right && pos.y >= track_rect.top() && pos.y <= track_rect.bottom() {
-                        actions.select_scene = Some(scene_name.clone());
+                        commands.push_back(Command::SelectScene(scene_name.clone()));
                         // Jump past any incoming transition to land in the stable part
                         let mut target_time = start_s;
                         for edge in composition.edges.values() {

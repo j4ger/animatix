@@ -5,7 +5,7 @@ use egui::{Color32, RichText, ScrollArea, Vec2};
 use crate::app::components;
 use crate::app::icons::actor_icon_str;
 use crate::app::theme::*;
-use crate::app::panels::{PropertyEdit, PropertyValue as GuiPropertyValue, UiActions};
+use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
 
 pub(crate) mod property_groups;
 mod keyframe_table;
@@ -37,7 +37,7 @@ pub(super) fn inspector_ui(
     timeline: Option<&Timeline>,
     selected_actors: &mut HashSet<String>,
     current_time_s: f64,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
     keyframe_mode: bool,
     scene_dimensions: animatix::timeline::SceneDimensions,
     pivot_offsets: &mut std::collections::HashMap<String, [f32; 2]>,
@@ -95,7 +95,11 @@ pub(super) fn inspector_ui(
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
                 ];
-                actions.create_actor = Some((default_actor_type().into(), label, pos));
+                commands.push_back(Command::CreateActor {
+                    ty: default_actor_type().into(),
+                    label,
+                    position: pos,
+                });
             }
         });
         return;
@@ -127,7 +131,7 @@ pub(super) fn inspector_ui(
                     });
                     ui.add_space(SPACE_S);
                 }
-                render_actor_header(ui, track, current_time_s, actions);
+                render_actor_header(ui, track, current_time_s, commands);
                 ui.add_space(SPACE_M);
 
                 // ── Active Properties ──
@@ -158,7 +162,7 @@ pub(super) fn inspector_ui(
                                 ui,
                                 group,
                                 &track.label,
-                                actions,
+                                commands,
                                 keyframe_mode,
                             );
                         }
@@ -203,7 +207,7 @@ pub(super) fn inspector_ui(
                         );
                         let time_ms = (current_time_s * 1000.0) as u64;
                         let order = timeline.get_child_order(sel, time_ms);
-                        render_container_children(ui, sel, &order, actions, keyframe_mode);
+                        render_container_children(ui, sel, &order, commands, keyframe_mode);
                     });
                     ui.add_space(SPACE_M);
                 }
@@ -225,7 +229,7 @@ pub(super) fn inspector_ui(
                         height: ROW_XS,
                     };
                     if let Some(scrub_t) = strip.show(ui, ui.id().with("mini_timeline")) {
-                        actions.scrub_to = Some(scrub_t);
+                        commands.push_back(Command::ScrubTo(scrub_t));
                     }
                 });
 
@@ -246,7 +250,7 @@ pub(super) fn inspector_ui(
                         track,
                         (current_time_s * 1000.0) as u64,
                         sel,
-                        actions,
+                        commands,
                     );
                 });
             });
@@ -266,7 +270,7 @@ fn render_actor_header(
     ui: &mut egui::Ui,
     track: &AnimationTrack,
     current_time_s: f64,
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
 ) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
@@ -309,7 +313,10 @@ fn render_actor_header(
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
                         if edit_buffer != track.label && !edit_buffer.is_empty() {
-                            actions.rename_actor = Some((track.label.clone(), edit_buffer.clone()));
+                            commands.push_back(Command::RenameActor {
+                                old_label: track.label.clone(),
+                                new_label: edit_buffer.clone(),
+                            });
                         }
                     }
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -386,7 +393,7 @@ fn render_container_children(
     ui: &mut egui::Ui,
     container: &str,
     order: &[String],
-    actions: &mut UiActions,
+    commands: &mut CommandQueue,
     keyframe_mode: bool,
 ) {
     ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, SPACE_S);
@@ -474,22 +481,22 @@ fn render_container_children(
         if up_resp.clicked() && i > 0 {
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
-            actions.property_edits.push(PropertyEdit {
+            commands.push_back(Command::PropertyEdit(PropertyEdit {
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            });
+            }));
         }
         if down_resp.clicked() && i + 1 < order.len() {
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
-            actions.property_edits.push(PropertyEdit {
+            commands.push_back(Command::PropertyEdit(PropertyEdit {
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            });
+            }));
         }
     }
 }

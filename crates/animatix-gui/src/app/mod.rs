@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod actions;
+pub(crate) mod commands;
 pub(crate) mod components;
 mod file_tree;
 pub(crate) mod icons;
@@ -35,7 +36,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::time::{Duration, Instant};
-use crate::app::panels::{UiActions, WorkspaceViewer};
+use crate::app::commands::{Command, CommandQueue, UndoEntry};
+use crate::app::panels::WorkspaceViewer;
 use crate::app::utils::*;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
@@ -222,10 +224,10 @@ struct GuiShell {
     drag_state: DragState,
     /// Selection system state (hover, cycling, context menu).
     selection: crate::app::preview::selection::SelectionState,
-    /// Undo stack for property edits (source text snapshots).
-    undo_stack: Vec<String>,
-    /// Redo stack for property edits (source text snapshots).
-    redo_stack: Vec<String>,
+    /// Undo stack — stores the command and source text before it was applied.
+    undo_stack: Vec<UndoEntry>,
+    /// Redo stack — stores the command and source text before it was applied.
+    redo_stack: Vec<UndoEntry>,
     /// Whether we've already taken an undo snapshot for the current drag.
     /// One drag-start → drag-end counts as a single undo entry.
     drag_snapshot_taken: bool,
@@ -286,6 +288,8 @@ struct GuiShell {
     undo_limit: usize,
     /// Rebuild debounce delay in milliseconds.
     rebuild_debounce_ms: u64,
+    /// Commands pushed from outside the ui() loop (e.g. keyboard shortcuts in runtime.rs).
+    pending_commands: CommandQueue,
 }
 
 impl GuiShell {
@@ -400,6 +404,7 @@ impl GuiShell {
             rotation_snap_degrees: 15.0,
             undo_limit: 100,
             rebuild_debounce_ms: 150,
+            pending_commands: CommandQueue::default(),
         }
     }
 
@@ -450,15 +455,16 @@ impl GuiShell {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
-        let mut actions = UiActions::default();
+        let mut commands: CommandQueue = CommandQueue::default();
+        commands.append(&mut self.pending_commands);
 
         // Global keyboard shortcuts for timeline toggles
         ui.input(|i| {
             if i.key_pressed(egui::Key::S) && !i.modifiers.command {
-                actions.toggle_editor_sync = true;
+                commands.push_back(Command::ToggleEditorSync);
             }
             if i.key_pressed(egui::Key::K) && !i.modifiers.command {
-                actions.toggle_keyframe_mode = true;
+                commands.push_back(Command::ToggleKeyframeMode);
             }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C) {
@@ -469,7 +475,7 @@ impl GuiShell {
             // Paste actors (Ctrl+V)
             if i.modifiers.command && i.key_pressed(egui::Key::V) {
                 if !self.clipboard_actors.is_empty() {
-                    self.paste_actors();
+                    commands.push_back(Command::PasteActors);
                 }
             }
         });
@@ -477,7 +483,7 @@ impl GuiShell {
         // Compact toolbar
         egui::Panel::top("toolbar")
             .resizable(false)
-            .show_inside(ui, |ui| self.toolbar_ui(ui, &mut actions));
+            .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
 
         // Transport bar at the very bottom
         let keyframe_count = self
@@ -516,7 +522,7 @@ impl GuiShell {
                     self.document.is_dirty,
                     has_error,
                     &diagnostics,
-                    &mut actions,
+                    &mut commands,
                     self.editor_sync_enabled,
                     self.keyframe_mode,
                     self.cursor_time_s,
@@ -546,7 +552,7 @@ impl GuiShell {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
             .show_inside(ui, |ui| {
-                self.workspace_ui(ui, preview_texture_id, &mut actions);
+                self.workspace_ui(ui, preview_texture_id, &mut commands);
             });
 
         // Update cursor time from editor position (bi-directional sync)
@@ -555,7 +561,7 @@ impl GuiShell {
             .cursor_line
             .and_then(|line| self.document.timeline_index.time_s_for_line(line));
 
-        self.handle_actions(actions);
+        self.handle_commands(commands);
 
         // Settings modal overlay (rendered on top of everything)
         if self.settings_open {
@@ -572,7 +578,7 @@ impl GuiShell {
         &mut self,
         ui: &mut egui::Ui,
         preview_texture_id: Option<egui::TextureId>,
-        actions: &mut UiActions,
+        commands: &mut CommandQueue,
     ) {
         let diagnostics = self.combined_diagnostics();
 
@@ -593,7 +599,7 @@ impl GuiShell {
             panel_state: &mut self.panel_state,
             diagnostics: &diagnostics,
             preview_texture_id,
-            actions,
+            commands,
             source_dirty: &mut self.document.source_text,
             scene_dimensions,
             timeline: self.document.timeline.as_ref(),
@@ -614,242 +620,170 @@ impl GuiShell {
         self.tree.ui(&mut behavior, ui);
     }
 
-    fn handle_actions(&mut self, actions: UiActions) {
-        if let Some(path) = actions.open_file {
-            self.open_document(path);
+    fn handle_commands(&mut self, commands: CommandQueue) {
+        for command in commands {
+            self.handle_command(command);
         }
-        if let Some(path) = actions.toggle_expand_dir {
-            if self.expanded_dirs.contains(&path) {
-                self.expanded_dirs.remove(&path);
-            } else {
-                self.expanded_dirs.insert(path.clone());
-            }
-            self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path, &self.expanded_dirs);
-        }
-        if actions.show_inspector {
-            self.open_workspace_tab(WorkspaceTab::Inspector);
-        }
-        if actions.open_export_dialog {
-            self.export_dialog_open = true;
-            if self.export_state.output_path.is_empty() {
-                self.update_default_export_filename();
-            }
-        }
-        if actions.toggle_diagnostics_panel {
-            self.diagnostics_panel_visible = !self.diagnostics_panel_visible;
-        }
-        if actions.save {
-            let _ = self.save();
-        }
-        if actions.reload {
-            let _ = self.reload();
-        }
-        if actions.rebuild {
-            let _ = self.rebuild();
-        }
-        if let Some(next_time) = actions.scrub_to {
-            self.preview.current_time_s = next_time;
-            self.preview.clamp_time();
-            self.preview.is_playing = false;
-            self.preview_dirty = true;
-            self.sync_active_scene_from_time();
-            if self.editor_sync_enabled {
-                if let Some(line) = self.document.find_keyframe_line_at(next_time) {
-                    self.editor.scroll_to_line(line);
-                    self.editor.set_highlighted_line(Some(line));
-                }
-            }
-        }
-        if actions.toggle_playback {
-            self.preview.toggle_playback();
-            self.preview_dirty = true;
-        }
-        if actions.toggle_editor_sync {
-            self.editor_sync_enabled = !self.editor_sync_enabled;
-            self.preview.status = if self.editor_sync_enabled {
-                "Editor sync ON".to_string()
-            } else {
-                "Editor sync OFF".to_string()
-            };
-        }
-        if actions.toggle_keyframe_mode {
-            self.keyframe_mode = !self.keyframe_mode;
-            self.preview.status = if self.keyframe_mode {
-                "Keyframe mode ON — edits create timestamps".to_string()
-            } else {
-                "Keyframe mode OFF — edits overwrite defaults".to_string()
-            };
-        }
-        if actions.editor_changed {
-            self.document
-                .set_source_text(self.editor.text().to_string());
-            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-            self.preview.status = "Editing source • rebuild scheduled".to_string();
-            // Clear any stale error from a previous failed rebuild so the user
-            // doesn't see an outdated error banner while typing.
-            self.preview.error = None;
-            // Also clear stale document diagnostics so the preview banner doesn't
-            // show an outdated parse error during the debounce window.
-            self.document.diagnostics.clear();
-        }
-        if actions.request_repaint {
-            self.preview_dirty = true;
-        }
-        if actions.prev_keyframe {
-            let keyframes = timeline_keyframe_times_s(
-                if self.document.composition.is_some() {
-                    None
-                } else {
-                    self.document.active_timeline()
-                },
-                self.document.composition.as_ref(),
-                self.document.active_scene.as_deref(),
-            );
-            self.preview.go_to_previous_keyframe(&keyframes);
-            self.preview.status = format!(
-                "Previous keyframe • t = {:.2}s / {:.2}s",
-                self.preview.current_time_s, self.preview.duration_s
-            );
-            self.preview_dirty = true;
-            if self.editor_sync_enabled {
-                if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s)
-                {
-                    self.editor.scroll_to_line(line);
-                    self.editor.set_highlighted_line(Some(line));
-                }
-            }
-        }
-        if actions.next_keyframe {
-            let keyframes = timeline_keyframe_times_s(
-                if self.document.composition.is_some() {
-                    None
-                } else {
-                    self.document.active_timeline()
-                },
-                self.document.composition.as_ref(),
-                self.document.active_scene.as_deref(),
-            );
-            self.preview.go_to_next_keyframe(&keyframes);
-            self.preview.status = format!(
-                "Next keyframe • t = {:.2}s / {:.2}s",
-                self.preview.current_time_s, self.preview.duration_s
-            );
-            self.preview_dirty = true;
-            if self.editor_sync_enabled {
-                if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s)
-                {
-                    self.editor.scroll_to_line(line);
-                    self.editor.set_highlighted_line(Some(line));
-                }
-            }
-        }
-        if actions.prev_scene || actions.next_scene {
-            if let Some(composition) = self.document.composition.as_ref() {
-                let current_idx = self
-                    .document
-                    .active_scene
-                    .as_deref()
-                    .and_then(|name| composition.declaration_order.iter().position(|n| n == name))
-                    .unwrap_or(0);
-                let target_idx = if actions.prev_scene {
-                    current_idx.saturating_sub(1)
-                } else {
-                    (current_idx + 1).min(composition.declaration_order.len().saturating_sub(1))
-                };
-                if let Some(target_name) = composition.declaration_order.get(target_idx) {
-                    self.document.active_scene = Some(target_name.clone());
-                    if let Some(start) = composition.scene_start_times.get(target_name) {
-                        self.preview.current_time_s = *start;
-                        self.preview.clamp_time();
-                        self.preview.is_playing = false;
-                        self.preview_dirty = true;
-                        self.preview.status = format!(
-                            "Scene {} • t = {:.2}s / {:.2}s",
-                            target_name, self.preview.current_time_s, self.preview.duration_s
-                        );
-                    }
-                }
-            }
-        }
-        if let Some(scene) = actions.select_scene {
-            if let Some(composition) = self.document.composition.as_ref() {
-                if composition.scenes.contains_key(&scene) {
-                    self.document.active_scene = Some(scene.clone());
-                    if let Some(start) = composition.scene_start_times.get(&scene) {
-                        let mut target_time = *start;
-                        // Jump past any incoming transition to land in the stable part of the scene
-                        for edge in composition.edges.values() {
-                            if edge.to_scene == scene {
-                                target_time += edge.transition.duration_ms as f64 / 1000.0;
-                                break;
-                            }
-                        }
-                        self.preview.current_time_s = target_time;
-                        self.preview.clamp_time();
-                        self.preview.is_playing = false;
-                        self.preview_dirty = true;
-                        self.preview.status = format!(
-                            "Scene {} • t = {:.2}s / {:.2}s",
-                            scene, self.preview.current_time_s, self.preview.duration_s
-                        );
-                    }
-                }
-            }
-        }
-        if let Some(scene) = actions.delete_scene {
-            if let Some(ref mut stmts) = self.document.raw_statements {
-                let edit = crate::source_edit::SourceEdit::DeleteScene {
-                    name: scene.clone(),
-                };
-                if crate::source_edit::apply_edit(stmts, edit) {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-                    self.preview.status = format!("Deleted scene {}", scene);
-                    // Clear active scene if it was the deleted one
-                    if self.document.active_scene.as_ref() == Some(&scene) {
-                        self.document.active_scene = None;
-                    }
-                }
-            }
-        }
-        if actions.add_scene {
-            let existing: std::collections::HashSet<String> =
-                self.document.scene_names().into_iter().collect();
-            if let Some(ref mut stmts) = self.document.raw_statements {
-                let mut i = 1;
-                let new_name = loop {
-                    let candidate = format!("Scene{}", i);
-                    if !existing.contains(&candidate) {
-                        break candidate;
-                    }
-                    i += 1;
-                };
+    }
 
-                let edit = crate::source_edit::SourceEdit::AddScene {
-                    name: new_name.clone(),
-                };
-                if crate::source_edit::apply_edit(stmts, edit) {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-                    self.preview.status = format!("Added scene {}", new_name);
+    fn handle_command(&mut self, command: Command) {
+        use crate::app::commands::Command;
+
+        match command {
+            Command::OpenFile(path) => self.open_document(path),
+            Command::ToggleExpandDir(path) => {
+                if self.expanded_dirs.contains(&path) {
+                    self.expanded_dirs.remove(&path);
+                } else {
+                    self.expanded_dirs.insert(path.clone());
+                }
+                self.file_tree = build_file_tree(&self.workspace_root, &self.document.file_path, &self.expanded_dirs);
+            }
+            Command::ShowInspector => self.open_workspace_tab(WorkspaceTab::Inspector),
+            Command::OpenExportDialog => {
+                self.export_dialog_open = true;
+                if self.export_state.output_path.is_empty() {
+                    self.update_default_export_filename();
                 }
             }
-        }
-        if let Some((old_name, new_name)) = actions.rename_scene {
-            if old_name != new_name && !new_name.is_empty() {
-                if let Some(ref mut stmts) = self.document.raw_statements {
-                    let edit = crate::source_edit::SourceEdit::RenameScene {
-                        old_name,
-                        new_name: new_name.clone(),
+            Command::ToggleDiagnosticsPanel => {
+                self.diagnostics_panel_visible = !self.diagnostics_panel_visible;
+            }
+            Command::Save => { let _ = self.save(); }
+            Command::Reload => { let _ = self.reload(); }
+            Command::Rebuild => { let _ = self.rebuild(); }
+            Command::ScrubTo(next_time) => {
+                self.preview.current_time_s = next_time;
+                self.preview.clamp_time();
+                self.preview.is_playing = false;
+                self.preview_dirty = true;
+                self.sync_active_scene_from_time();
+                if self.editor_sync_enabled {
+                    if let Some(line) = self.document.find_keyframe_line_at(next_time) {
+                        self.editor.scroll_to_line(line);
+                        self.editor.set_highlighted_line(Some(line));
+                    }
+                }
+            }
+            Command::TogglePlayback => {
+                self.preview.toggle_playback();
+                self.preview_dirty = true;
+            }
+            Command::ToggleEditorSync => {
+                self.editor_sync_enabled = !self.editor_sync_enabled;
+                self.preview.status = if self.editor_sync_enabled {
+                    "Editor sync ON".to_string()
+                } else {
+                    "Editor sync OFF".to_string()
+                };
+            }
+            Command::ToggleKeyframeMode => {
+                self.keyframe_mode = !self.keyframe_mode;
+                self.preview.status = if self.keyframe_mode {
+                    "Keyframe mode ON — edits create timestamps".to_string()
+                } else {
+                    "Keyframe mode OFF — edits overwrite defaults".to_string()
+                };
+            }
+            Command::EditorChanged => {
+                self.document
+                    .set_source_text(self.editor.text().to_string());
+                self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+                self.preview.status = "Editing source • rebuild scheduled".to_string();
+                self.preview.error = None;
+                self.document.diagnostics.clear();
+            }
+            Command::RequestRepaint => self.preview_dirty = true,
+            Command::PrevKeyframe => {
+                let keyframes = timeline_keyframe_times_s(
+                    if self.document.composition.is_some() { None } else { self.document.active_timeline() },
+                    self.document.composition.as_ref(),
+                    self.document.active_scene.as_deref(),
+                );
+                self.preview.go_to_previous_keyframe(&keyframes);
+                self.preview.status = format!(
+                    "Previous keyframe • t = {:.2}s / {:.2}s",
+                    self.preview.current_time_s, self.preview.duration_s
+                );
+                self.preview_dirty = true;
+                if self.editor_sync_enabled {
+                    if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s) {
+                        self.editor.scroll_to_line(line);
+                        self.editor.set_highlighted_line(Some(line));
+                    }
+                }
+            }
+            Command::NextKeyframe => {
+                let keyframes = timeline_keyframe_times_s(
+                    if self.document.composition.is_some() { None } else { self.document.active_timeline() },
+                    self.document.composition.as_ref(),
+                    self.document.active_scene.as_deref(),
+                );
+                self.preview.go_to_next_keyframe(&keyframes);
+                self.preview.status = format!(
+                    "Next keyframe • t = {:.2}s / {:.2}s",
+                    self.preview.current_time_s, self.preview.duration_s
+                );
+                self.preview_dirty = true;
+                if self.editor_sync_enabled {
+                    if let Some(line) = self.document.find_keyframe_line_at(self.preview.current_time_s) {
+                        self.editor.scroll_to_line(line);
+                        self.editor.set_highlighted_line(Some(line));
+                    }
+                }
+            }
+            Command::PrevScene | Command::NextScene => {
+                if let Some(composition) = self.document.composition.as_ref() {
+                    let current_idx = self.document.active_scene.as_deref()
+                        .and_then(|name| composition.declaration_order.iter().position(|n| n == name))
+                        .unwrap_or(0);
+                    let target_idx = if matches!(command, Command::PrevScene) {
+                        current_idx.saturating_sub(1)
+                    } else {
+                        (current_idx + 1).min(composition.declaration_order.len().saturating_sub(1))
                     };
+                    if let Some(target_name) = composition.declaration_order.get(target_idx) {
+                        self.document.active_scene = Some(target_name.clone());
+                        if let Some(start) = composition.scene_start_times.get(target_name) {
+                            self.preview.current_time_s = *start;
+                            self.preview.clamp_time();
+                            self.preview.is_playing = false;
+                            self.preview_dirty = true;
+                            self.preview.status = format!(
+                                "Scene {} • t = {:.2}s / {:.2}s",
+                                target_name, self.preview.current_time_s, self.preview.duration_s
+                            );
+                        }
+                    }
+                }
+            }
+            Command::SelectScene(scene) => {
+                if let Some(composition) = self.document.composition.as_ref() {
+                    if composition.scenes.contains_key(&scene) {
+                        self.document.active_scene = Some(scene.clone());
+                        if let Some(start) = composition.scene_start_times.get(&scene) {
+                            let mut target_time = *start;
+                            for edge in composition.edges.values() {
+                                if edge.to_scene == scene {
+                                    target_time += edge.transition.duration_ms as f64 / 1000.0;
+                                    break;
+                                }
+                            }
+                            self.preview.current_time_s = target_time;
+                            self.preview.clamp_time();
+                            self.preview.is_playing = false;
+                            self.preview_dirty = true;
+                            self.preview.status = format!(
+                                "Scene {} • t = {:.2}s / {:.2}s",
+                                scene, self.preview.current_time_s, self.preview.duration_s
+                            );
+                        }
+                    }
+                }
+            }
+            Command::DeleteScene(scene) => {
+                if let Some(ref mut stmts) = self.document.raw_statements {
+                    let edit = crate::source_edit::SourceEdit::DeleteScene { name: scene.clone() };
                     if crate::source_edit::apply_edit(stmts, edit) {
                         let new_source = animatix::to_source::stmts_to_source(stmts);
                         self.document.source_text = new_source.clone();
@@ -857,74 +791,114 @@ impl GuiShell {
                         self.document.is_dirty = true;
                         self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
                         self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-                        self.preview.status = format!("Renamed scene to {}", new_name);
+                        self.preview.status = format!("Deleted scene {}", scene);
+                        if self.document.active_scene.as_ref() == Some(&scene) {
+                            self.document.active_scene = None;
+                        }
                     }
                 }
             }
-        }
-        if let Some(new_order) = actions.reorder_scenes {
-            if let Some(ref mut stmts) = self.document.raw_statements {
-                let edit = crate::source_edit::SourceEdit::ReorderScenes {
-                    new_order: new_order.clone(),
-                };
-                if crate::source_edit::apply_edit(stmts, edit) {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    self.document.source_text = new_source.clone();
-                    self.editor.replace_text(new_source);
-                    self.document.is_dirty = true;
-                    self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                    self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-                    self.preview.status = "Reordered scenes".to_string();
+            Command::AddScene => {
+                let existing: std::collections::HashSet<String> =
+                    self.document.scene_names().into_iter().collect();
+                if let Some(ref mut stmts) = self.document.raw_statements {
+                    let mut i = 1;
+                    let new_name = loop {
+                        let candidate = format!("Scene{}", i);
+                        if !existing.contains(&candidate) { break candidate; }
+                        i += 1;
+                    };
+                    let edit = crate::source_edit::SourceEdit::AddScene { name: new_name.clone() };
+                    if crate::source_edit::apply_edit(stmts, edit) {
+                        let new_source = animatix::to_source::stmts_to_source(stmts);
+                        self.document.source_text = new_source.clone();
+                        self.editor.replace_text(new_source);
+                        self.document.is_dirty = true;
+                        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+                        self.preview.status = format!("Added scene {}", new_name);
+                    }
                 }
             }
-        }
-        if let Some((ty, label, position)) = actions.create_actor {
-            self.handle_create_actor(&ty, &label, position);
-        }
-        if let Some(original_label) = actions.duplicate_actor {
-            self.handle_duplicate_actor(&original_label);
-        }
-        if let Some((from_scene, transition)) = actions.set_transition {
-            self.handle_set_transition(&from_scene, transition);
-        }
-        if let Some((from_scene, target)) = actions.set_play_target {
-            self.handle_set_play_target(&from_scene, target);
-        }
-        if let Some((old_label, new_label)) = actions.rename_actor {
-            self.handle_rename_actor(&old_label, &new_label);
-        }
-        if let Some((actor, property, time_s, easing)) = actions.set_keyframe_easing {
-            self.handle_set_keyframe_easing(&actor, &property, time_s, easing);
-        }
-        if actions.inspector_input_drag_started {
-            self.inspector_input_drag_active = true;
-        }
-        if let Some(scene) = actions.open_transition_editor {
-            self.panel_state.open_transition_editor = Some(scene);
-        }
-        if let Some((actor, new_parent)) = actions.reparent_actor {
-            self.handle_reparent_actor(&actor, new_parent);
-        }
-        for edit in actions.property_edits {
-            self.handle_property_edit(edit);
-        }
-        // End drag AFTER processing edits — the workspace signals drag_ended
-        // instead of resetting drag_state directly, so handle_property_edit
-        // sees the drag as still active and coalesces the final frame's edits
-        // into the same undo entry.
-        if actions.drag_ended {
-            self.drag_state = DragState::None;
-            self.drag_snapshot_taken = false;
-        }
-        if actions.inspector_input_drag_ended {
-            self.inspector_input_drag_active = false;
-            self.drag_snapshot_taken = false;
-        }
-        if actions.undo {
-            self.undo();
-        }
-        if actions.redo {
-            self.redo();
+            Command::RenameScene { old_name, new_name } => {
+                if old_name != new_name && !new_name.is_empty() {
+                    if let Some(ref mut stmts) = self.document.raw_statements {
+                        let edit = crate::source_edit::SourceEdit::RenameScene { old_name, new_name: new_name.clone() };
+                        if crate::source_edit::apply_edit(stmts, edit) {
+                            let new_source = animatix::to_source::stmts_to_source(stmts);
+                            self.document.source_text = new_source.clone();
+                            self.editor.replace_text(new_source);
+                            self.document.is_dirty = true;
+                            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+                            self.preview.status = format!("Renamed scene to {}", new_name);
+                        }
+                    }
+                }
+            }
+            Command::ReorderScenes(new_order) => {
+                if let Some(ref mut stmts) = self.document.raw_statements {
+                    let edit = crate::source_edit::SourceEdit::ReorderScenes { new_order: new_order.clone() };
+                    if crate::source_edit::apply_edit(stmts, edit) {
+                        let new_source = animatix::to_source::stmts_to_source(stmts);
+                        self.document.source_text = new_source.clone();
+                        self.editor.replace_text(new_source);
+                        self.document.is_dirty = true;
+                        self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+                        self.preview.status = "Reordered scenes".to_string();
+                    }
+                }
+            }
+            Command::CreateActor { ty, label, position } => {
+                self.handle_create_actor(&ty, &label, position);
+            }
+            Command::DuplicateActor(original_label) => {
+                self.handle_duplicate_actor(&original_label);
+            }
+            Command::DeleteSelectedActors => {
+                self.handle_delete_selected_actors();
+            }
+            Command::PasteActors => {
+                self.paste_actors();
+            }
+            Command::SetTransition { from_scene, transition } => {
+                self.handle_set_transition(&from_scene, transition);
+            }
+            Command::SetPlayTarget { from_scene, target } => {
+                self.handle_set_play_target(&from_scene, target);
+            }
+            Command::RenameActor { old_label, new_label } => {
+                self.handle_rename_actor(&old_label, &new_label);
+            }
+            Command::SetKeyframeEasing { actor, property, time_s, easing } => {
+                self.handle_set_keyframe_easing(&actor, &property, time_s, easing);
+            }
+            Command::InspectorInputDragStarted => {
+                self.inspector_input_drag_active = true;
+            }
+            Command::OpenTransitionEditor(scene) => {
+                self.panel_state.open_transition_editor = Some(scene);
+            }
+            Command::ReparentActor { actor, new_parent } => {
+                self.handle_reparent_actor(&actor, new_parent);
+            }
+            Command::PropertyEdit(edit) => {
+                self.handle_property_edit(edit);
+            }
+            Command::DragEnded => {
+                self.drag_state = DragState::None;
+                self.drag_snapshot_taken = false;
+            }
+            Command::InspectorInputDragEnded => {
+                self.inspector_input_drag_active = false;
+                self.drag_snapshot_taken = false;
+            }
+            Command::Undo => self.undo(),
+            Command::Redo => self.redo(),
+            Command::ScrollToLine(line) => {
+                self.editor.focus_diagnostic(line, 0);
+            }
         }
     }
 
@@ -1135,8 +1109,11 @@ impl GuiShell {
 
     /// Take a snapshot of the current source text for undo/redo.
     /// Call this BEFORE making a change to the source.
-    fn snapshot(&mut self) {
-        self.undo_stack.push(self.document.source_text.clone());
+    fn snapshot(&mut self, command: Command) {
+        self.undo_stack.push(UndoEntry {
+            command,
+            source_before: self.document.source_text.clone(),
+        });
         self.redo_stack.clear();
         // Limit undo history
         if self.undo_stack.len() > self.undo_limit {
@@ -1144,24 +1121,30 @@ impl GuiShell {
         }
     }
 
-    /// Undo the last property edit.
+    /// Undo the last command by restoring the source text captured before it ran.
     fn undo(&mut self) {
-        if let Some(previous) = self.undo_stack.pop() {
-            self.redo_stack.push(self.document.source_text.clone());
-            self.document.source_text = previous.clone();
-            self.editor.replace_text(previous);
+        if let Some(entry) = self.undo_stack.pop() {
+            self.redo_stack.push(UndoEntry {
+                command: entry.command,
+                source_before: self.document.source_text.clone(),
+            });
+            self.document.source_text = entry.source_before.clone();
+            self.editor.replace_text(entry.source_before);
             self.document.is_dirty = true;
             self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = "Undo".to_string();
         }
     }
 
-    /// Redo the last undone property edit.
+    /// Redo the last undone command.
     fn redo(&mut self) {
-        if let Some(next) = self.redo_stack.pop() {
-            self.undo_stack.push(self.document.source_text.clone());
-            self.document.source_text = next.clone();
-            self.editor.replace_text(next);
+        if let Some(entry) = self.redo_stack.pop() {
+            self.undo_stack.push(UndoEntry {
+                command: entry.command,
+                source_before: self.document.source_text.clone(),
+            });
+            self.document.source_text = entry.source_before.clone();
+            self.editor.replace_text(entry.source_before);
             self.document.is_dirty = true;
             self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
             self.preview.status = "Redo".to_string();
@@ -1180,7 +1163,7 @@ impl GuiShell {
 
     /// Duplicate an actor, preserving its type and properties.
     fn handle_duplicate_actor(&mut self, original_label: &str) {
-        self.snapshot();
+        self.snapshot(Command::DuplicateActor(original_label.to_string()));
 
         // Generate new label before borrowing self mutably
         let new_label = self.unique_label(original_label);
@@ -1249,7 +1232,7 @@ impl GuiShell {
 
     /// Delete all selected actors from the source AST.
     fn handle_delete_selected_actors(&mut self) {
-        self.snapshot();
+        self.snapshot(Command::DeleteSelectedActors);
 
         let Some(ref mut stmts) = self.document.raw_statements else {
             self.preview.status = "Failed to delete — no AST available".to_string();
@@ -1297,7 +1280,7 @@ impl GuiShell {
 
     /// Update the transition on a scene's play statement.
     fn handle_set_transition(&mut self, from_scene: &str, transition: animatix::ast::Transition) {
-        self.snapshot();
+        self.snapshot(Command::SetTransition { from_scene: from_scene.to_string(), transition: transition.clone() });
 
         let Some(ref mut stmts) = self.document.raw_statements else {
             self.preview.status = "Failed to set transition — no AST available".to_string();
@@ -1328,7 +1311,7 @@ impl GuiShell {
 
     /// Update the play target for a scene.
     fn handle_set_play_target(&mut self, from_scene: &str, target: Option<String>) {
-        self.snapshot();
+        self.snapshot(Command::SetPlayTarget { from_scene: from_scene.to_string(), target: target.clone() });
 
         let Some(ref mut stmts) = self.document.raw_statements else {
             self.preview.status = "Failed to set play target — no AST available".to_string();
@@ -1359,7 +1342,7 @@ impl GuiShell {
 
     /// Handle a keyframe easing change request.
     fn handle_set_keyframe_easing(&mut self, actor: &str, property: &str, time_s: f64, easing: animatix::easing::Easing) {
-        self.snapshot();
+        self.snapshot(Command::SetKeyframeEasing { actor: actor.to_string(), property: property.to_string(), time_s, easing });
 
         let Some(ref mut stmts) = self.document.raw_statements else {
             self.preview.status = "Failed to set keyframe easing — no AST available".to_string();
@@ -1391,7 +1374,7 @@ impl GuiShell {
 
     /// Reparent an actor under a new parent (or to top-level).
     fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
-        self.snapshot();
+        self.snapshot(Command::ReparentActor { actor: actor.to_string(), new_parent: new_parent.clone() });
 
         let Some(ref mut stmts) = self.document.raw_statements else {
             self.preview.status = "Failed to reparent — no AST available".to_string();
@@ -1436,7 +1419,7 @@ impl GuiShell {
     ///   - Shifts absolute keyframe times by `current_time_s`
     ///   - Inserts everything into the AST at the end
     fn paste_actors(&mut self) {
-        self.snapshot();
+        self.snapshot(Command::PasteActors);
 
         let current_time_s = self.preview.current_time_s;
         let clipboard = self.clipboard_actors.clone();

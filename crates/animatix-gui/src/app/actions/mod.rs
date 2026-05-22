@@ -7,7 +7,7 @@ impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
         let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
         if !is_drag || !self.drag_snapshot_taken {
-            self.snapshot();
+            self.snapshot(Command::PropertyEdit(edit.clone()));
             if is_drag { self.drag_snapshot_taken = true; }
         }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
@@ -66,7 +66,7 @@ impl GuiShell {
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
         if edit.create_keyframe { self.handle_keyframe_edit(edit); return; }
         let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
-        if !is_drag || !self.drag_snapshot_taken { self.snapshot(); if is_drag { self.drag_snapshot_taken = true; } }
+        if !is_drag || !self.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.drag_snapshot_taken = true; } }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
         if let Some(ref mut timeline) = self.document.timeline {
@@ -448,7 +448,7 @@ impl GuiShell {
     /// Generates default properties, inserts into source, auto-selects,
     /// and schedules a rebuild.
     pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
-        self.snapshot();
+        self.snapshot(Command::CreateActor { ty: ty.to_string(), label: label.to_string(), position });
 
         let props = default_props_for_actor(ty, position, self.document.scene_dimensions);
 
@@ -521,7 +521,7 @@ impl GuiShell {
             }
         }
 
-        self.snapshot();
+        self.snapshot(Command::RenameActor { old_label: old_label.to_string(), new_label: new_label.to_string() });
 
         if let Some(ref mut stmts) = self.document.raw_statements {
             let edit = crate::source_edit::SourceEdit::RenameActor {
