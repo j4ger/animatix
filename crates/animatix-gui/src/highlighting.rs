@@ -1,6 +1,7 @@
 //! Tree-sitter based syntax highlighting for the Animatix DSL.
 
 use animatix_analyzer::Diagnostic;
+use crate::cell_editor::SemanticHighlight;
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, FontFamily, TextFormat};
 use std::sync::LazyLock;
@@ -110,11 +111,13 @@ impl HighlightColors {
 ///
 /// Additional visual layers:
 /// - `highlighted_line`: entire line gets a subtle blue background (timeline sync)
+/// - `semantic_highlights`: actor names, scene names, component names get distinct colors
 pub fn highlight_source(
     source: &str,
     style: &egui::Style,
     diagnostics: &[Diagnostic],
     highlighted_line: Option<usize>,
+    semantic_highlights: &[SemanticHighlight],
 ) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = FontId::new(14.0, FontFamily::Monospace);
@@ -195,7 +198,29 @@ pub fn highlight_source(
         }
     }
 
-    let special_highlights: Vec<(usize, usize, Color32)> = Vec::new();
+    // Convert semantic highlights to special highlight ranges with colors
+    let mut special_highlights: Vec<(usize, usize, Color32)> = Vec::new();
+    for sh in semantic_highlights {
+        let start = line_col_to_byte(source, sh.rel_line, sh.rel_col);
+        let end = line_col_to_byte(source, sh.rel_end_line, sh.rel_end_col);
+        if start < end {
+            let color = match sh.kind {
+                crate::cell_editor::SemanticTokenKind::ActorName => {
+                    Color32::from_rgb(250, 189, 47) // amber/gold
+                }
+                crate::cell_editor::SemanticTokenKind::ComponentName => {
+                    Color32::from_rgb(211, 134, 155) // pink
+                }
+                crate::cell_editor::SemanticTokenKind::SceneName => {
+                    Color32::from_rgb(131, 165, 152) // teal
+                }
+                crate::cell_editor::SemanticTokenKind::PropertyName => {
+                    Color32::from_rgb(142, 192, 124) // green
+                }
+            };
+            special_highlights.push((start, end, color));
+        }
+    }
 
     // Apply all background layers
     let job = apply_background_layers(
@@ -403,7 +428,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None);
+        let job = highlight_source(source, &style, &[], None, &[]);
 
         // Should produce a non-empty layout job
         assert!(!job.text.is_empty());
@@ -418,7 +443,7 @@ title: Text {
 }"#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], None);
+        let job = highlight_source(source, &style, &[], None, &[]);
 
         assert!(!job.text.is_empty());
     }
@@ -431,7 +456,7 @@ line three
 "#;
 
         let style = egui::Style::default();
-        let job = highlight_source(source, &style, &[], Some(1));
+        let job = highlight_source(source, &style, &[], Some(1), &[]);
 
         assert!(!job.text.is_empty());
     }

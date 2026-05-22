@@ -1187,6 +1187,60 @@ impl GuiShell {
         }
     }
 
+    /// Extract selected actors into a new scene.
+    fn handle_extract_scene(&mut self, actor_labels: Vec<String>, new_scene_name: String) {
+        self.snapshot(Command::ExtractScene { actor_labels: actor_labels.clone(), new_scene_name: new_scene_name.clone() });
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to extract scene — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::ExtractScene {
+            actor_labels: actor_labels.clone(),
+            new_scene_name: new_scene_name.clone(),
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            self.preview.status = format!("Extracted {} actor(s) into scene '{}'", actor_labels.len(), new_scene_name);
+        } else {
+            self.preview.status = "Failed to extract scene".to_string();
+        }
+    }
+
+    /// Move selected actors to an existing scene.
+    fn handle_move_to_scene(&mut self, actor_labels: Vec<String>, target_scene: String) {
+        self.snapshot(Command::MoveToScene { actor_labels: actor_labels.clone(), target_scene: target_scene.clone() });
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to move actors — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::MoveToScene {
+            actor_labels: actor_labels.clone(),
+            target_scene: target_scene.clone(),
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            self.preview.status = format!("Moved {} actor(s) to scene '{}'", actor_labels.len(), target_scene);
+        } else {
+            self.preview.status = format!("Failed to move actors to scene '{}'", target_scene);
+        }
+    }
+
     /// Copy currently selected actor labels into the clipboard buffer.
     fn copy_selected_actors(&mut self) {
         let count = self.selected_actors.len();

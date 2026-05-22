@@ -27,6 +27,36 @@ pub struct CellDiagnostic {
     pub rel_end_col: usize,
 }
 
+/// A semantic highlight range within a cell body.
+#[derive(Debug, Clone)]
+pub struct SemanticHighlight {
+    /// Which cell this highlight belongs to.
+    pub cell_index: usize,
+    /// Cell-relative line (0-indexed).
+    pub rel_line: usize,
+    /// Cell-relative start column (0-indexed).
+    pub rel_col: usize,
+    /// Cell-relative end line (0-indexed).
+    pub rel_end_line: usize,
+    /// Cell-relative end column (0-indexed).
+    pub rel_end_col: usize,
+    /// Semantic token kind.
+    pub kind: SemanticTokenKind,
+}
+
+/// Kinds of semantic tokens for coloring.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticTokenKind {
+    /// Actor label (declaration or reference).
+    ActorName,
+    /// Property name (e.g., `color`, `position`).
+    PropertyName,
+    /// Scene name (in `# SceneName` or `play SceneName`).
+    SceneName,
+    /// Component name.
+    ComponentName,
+}
+
 /// Persistent state for the cell editor (scroll position, focused cell, etc.).
 #[derive(Debug, Clone)]
 pub struct CellEditorState {
@@ -48,6 +78,8 @@ pub struct CellEditorState {
     pub prev_focused_cell: Option<usize>,
     /// Diagnostics mapped to this cell's line range, for showing error indicators.
     pub diagnostics: Vec<CellDiagnostic>,
+    /// Semantic highlights for each cell.
+    pub semantic_highlights: Vec<SemanticHighlight>,
     /// Set of cell indices that have at least one diagnostic error.
     pub error_cells: std::collections::HashSet<usize>,
     /// Set of cell indices that have at least one diagnostic warning (but no errors).
@@ -117,6 +149,7 @@ impl Default for CellEditorState {
             pending_append_at_end: None,
             prev_focused_cell: None,
             diagnostics: Vec::new(),
+            semantic_highlights: Vec::new(),
             error_cells: std::collections::HashSet::new(),
             warning_cells: std::collections::HashSet::new(),
             pending_cursor_cell: None,

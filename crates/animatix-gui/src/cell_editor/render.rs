@@ -314,6 +314,12 @@ fn render_code_cell(
 
                             let layouter_style = style.clone();
                             let cell_diags_ref = cell_diags.clone();
+                            let cell_semantic: Vec<_> = state
+                                .semantic_highlights
+                                .iter()
+                                .filter(|sh| sh.cell_index == index)
+                                .cloned()
+                                .collect();
                             let mut layouter = move |ui: &egui::Ui,
                                                      buf: &dyn egui::TextBuffer,
                                                      wrap_width: f32| {
@@ -322,6 +328,7 @@ fn render_code_cell(
                                     &layouter_style,
                                     &cell_diags_ref,
                                     None,
+                                    &cell_semantic,
                                 );
                                 job.wrap.max_width = wrap_width;
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
@@ -499,6 +506,12 @@ fn render_keyframe_cell(
                                 .show(ui, |ui| {
                                     let layouter_style = style.clone();
                                     let cell_diags_ref = cell_diags.clone();
+                                    let cell_semantic: Vec<_> = state
+                                        .semantic_highlights
+                                        .iter()
+                                        .filter(|sh| sh.cell_index == index)
+                                        .cloned()
+                                        .collect();
                                     let mut layouter = move |ui: &egui::Ui,
                                                              buf: &dyn egui::TextBuffer,
                                                              wrap_width: f32| {
@@ -507,6 +520,7 @@ fn render_keyframe_cell(
                                             &layouter_style,
                                             &cell_diags_ref,
                                             None,
+                                            &cell_semantic,
                                         );
                                         job.wrap.max_width = wrap_width;
                                         ui.fonts_mut(|fonts| fonts.layout_job(job))

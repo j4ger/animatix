@@ -261,6 +261,12 @@ impl GuiShell {
             Command::ReparentActor { actor, new_parent } => {
                 self.handle_reparent_actor(&actor, new_parent);
             }
+            Command::ExtractScene { actor_labels, new_scene_name } => {
+                self.handle_extract_scene(actor_labels, new_scene_name);
+            }
+            Command::MoveToScene { actor_labels, target_scene } => {
+                self.handle_move_to_scene(actor_labels, target_scene);
+            }
             Command::PropertyEdit(edit) => {
                 self.handle_property_edit(edit);
             }

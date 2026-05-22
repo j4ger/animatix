@@ -1,7 +1,7 @@
 //! Diagnostics mapping — converts AST/analyzer diagnostics into cell-level
 //! decorations for the cell-based notebook UI.
 
-use crate::cell_editor::CellDiagnostic;
+use crate::cell_editor::{CellDiagnostic, SemanticHighlight, SemanticTokenKind};
 use crate::editor::EditorBuffer;
 
 impl EditorBuffer {
@@ -66,6 +66,145 @@ impl EditorBuffer {
 
         // Merge analyzer semantic diagnostics
         self.refresh_analyzer_diagnostics();
+
+        // Compute semantic highlights from analyzer symbol table
+        self.refresh_semantic_highlights();
+    }
+
+    /// Compute semantic highlights from the analyzer's symbol table and map
+    /// them to cell-relative positions.
+    fn refresh_semantic_highlights(&mut self) {
+        self.cell_state.semantic_highlights.clear();
+
+        let symbols = self.analyzer.symbols();
+
+        // Actor labels
+        for (name, info) in &symbols.labels {
+            if info.kind != animatix_analyzer::LabelKind::Actor {
+                continue;
+            }
+            let Some(span) = &info.span else { continue };
+            let doc_line = span.start_line.saturating_sub(1); // 0-indexed
+            let doc_end_line = span.end_line.saturating_sub(1);
+
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+
+            let cell = &self.cells[cell_idx];
+            let header_lines = match cell {
+                crate::cell_editor::Cell::Code { .. } => 0,
+                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                    let comment_lines =
+                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
+                    comment_lines + 1
+                }
+            };
+            let body_start_line = cell_start_line + header_lines;
+
+            if doc_line < body_start_line {
+                continue;
+            }
+
+            self.cell_state.semantic_highlights.push(SemanticHighlight {
+                cell_index: cell_idx,
+                rel_line: doc_line - body_start_line,
+                rel_col: span.start_col.saturating_sub(1),
+                rel_end_line: doc_end_line - body_start_line,
+                rel_end_col: span.end_col.saturating_sub(1),
+                kind: SemanticTokenKind::ActorName,
+            });
+        }
+
+        // Component names
+        for (name, info) in &symbols.components {
+            let Some(span) = &info.span else { continue };
+            let doc_line = span.start_line.saturating_sub(1);
+            let doc_end_line = span.end_line.saturating_sub(1);
+
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+
+            let cell = &self.cells[cell_idx];
+            let header_lines = match cell {
+                crate::cell_editor::Cell::Code { .. } => 0,
+                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                    let comment_lines =
+                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
+                    comment_lines + 1
+                }
+            };
+            let body_start_line = cell_start_line + header_lines;
+
+            if doc_line < body_start_line {
+                continue;
+            }
+
+            self.cell_state.semantic_highlights.push(SemanticHighlight {
+                cell_index: cell_idx,
+                rel_line: doc_line - body_start_line,
+                rel_col: span.start_col.saturating_sub(1),
+                rel_end_line: doc_end_line - body_start_line,
+                rel_end_col: span.end_col.saturating_sub(1),
+                kind: SemanticTokenKind::ComponentName,
+            });
+        }
+
+        // Scene names (from AST — tree-sitter doesn't support scenes yet)
+        // We do a simple text search for `# Name` and `play Name` patterns.
+        if !symbols.scenes.is_empty() {
+            for (cell_idx, cell) in self.cells.iter().enumerate() {
+                let cell_source = cell.to_source();
+                let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+                let header_lines = match cell {
+                    crate::cell_editor::Cell::Code { .. } => 0,
+                    crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                        let comment_lines =
+                            attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
+                        comment_lines + 1
+                    }
+                };
+                let body_start_line = cell_start_line + header_lines;
+
+                for line in cell_source.lines().enumerate() {
+                    let (rel_line_idx, line_text) = line;
+                    let trimmed = line_text.trim_start();
+
+                    // Scene declaration: `# SceneName`
+                    if let Some(rest) = trimmed.strip_prefix('#') {
+                        let name = rest.trim();
+                        if symbols.scenes.contains_key(name) {
+                            let start_col = line_text.find('#').unwrap_or(0) + 1;
+                            let end_col = line_text.len();
+                            self.cell_state.semantic_highlights.push(SemanticHighlight {
+                                cell_index: cell_idx,
+                                rel_line: rel_line_idx,
+                                rel_col: start_col,
+                                rel_end_line: rel_line_idx,
+                                rel_end_col: end_col,
+                                kind: SemanticTokenKind::SceneName,
+                            });
+                        }
+                    }
+
+                    // Play statement: `play SceneName [...]`
+                    if let Some(rest) = trimmed.strip_prefix("play ") {
+                        let name = rest.split_whitespace().next().unwrap_or("");
+                        if symbols.scenes.contains_key(name) {
+                            let start_col = line_text.find("play ").unwrap_or(0) + 5;
+                            let end_col = start_col + name.len();
+                            self.cell_state.semantic_highlights.push(SemanticHighlight {
+                                cell_index: cell_idx,
+                                rel_line: rel_line_idx,
+                                rel_col: start_col,
+                                rel_end_line: rel_line_idx,
+                                rel_end_col: end_col,
+                                kind: SemanticTokenKind::SceneName,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Refresh analyzer diagnostics and merge them into cell_state.

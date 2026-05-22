@@ -13,6 +13,8 @@ pub struct SymbolTable {
     pub types: HashSet<String>,
     /// Components defined in this file.
     pub components: HashMap<String, ComponentInfo>,
+    /// Scenes defined in this file.
+    pub scenes: HashMap<String, SceneInfo>,
     /// Properties available per type: "Text" → ["content", "position", ...].
     pub properties: HashMap<String, Vec<String>>,
     /// Keywords and built-in actions.
@@ -75,6 +77,16 @@ pub struct ComponentInfo {
 pub struct ParamInfo {
     pub name: String,
     pub default: Option<String>,
+}
+
+/// Information about a scene declaration.
+#[derive(Debug, Clone)]
+pub struct SceneInfo {
+    pub name: String,
+    pub line: usize,
+    pub col: usize,
+    /// Full source span (line/col range) for precise source write-back.
+    pub span: Option<Span>,
 }
 
 /// Known built-in types in the Animatix DSL.
@@ -203,6 +215,7 @@ impl SymbolTable {
             keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
             properties: known_properties(),
+            scenes: HashMap::new(),
             ..Default::default()
         };
 
@@ -292,6 +305,25 @@ impl SymbolTable {
                 }
             }
 
+            Stmt::Scene { name, span, .. } => {
+                self.scenes.insert(name.clone(), SceneInfo {
+                    name: name.clone(),
+                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                    span: span.clone(),
+                });
+                // Recurse into scene body
+                if let Stmt::Scene { body, .. } = stmt {
+                    for s in body {
+                        self.collect_stmt(s);
+                    }
+                }
+            }
+
+            Stmt::Play { .. } => {
+                // No new symbols to declare, but we could track play references here.
+            }
+
             Stmt::Import { path, alias, span, .. } => {
                 self.imports.push(ImportInfo {
                     path: path.clone(),
@@ -317,6 +349,11 @@ impl SymbolTable {
         for (name, info) in &other.components {
             if !self.components.contains_key(name) {
                 self.components.insert(name.clone(), info.clone());
+            }
+        }
+        for (name, info) in &other.scenes {
+            if !self.scenes.contains_key(name) {
+                self.scenes.insert(name.clone(), info.clone());
             }
         }
         for (name, props) in &other.properties {

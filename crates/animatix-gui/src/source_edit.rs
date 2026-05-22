@@ -129,6 +129,16 @@ pub enum SourceEdit {
         actor: String,
         new_parent: Option<String>,
     },
+    /// Extract selected actors into a new scene.
+    ExtractScene {
+        actor_labels: Vec<String>,
+        new_scene_name: String,
+    },
+    /// Move selected actors to an existing scene.
+    MoveToScene {
+        actor_labels: Vec<String>,
+        target_scene: String,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -193,6 +203,14 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         SourceEdit::Reparent { actor, new_parent } => {
             reparent_actor(stmts, &actor, new_parent.as_deref())
         }
+        SourceEdit::ExtractScene {
+            actor_labels,
+            new_scene_name,
+        } => extract_scene(stmts, actor_labels, &new_scene_name),
+        SourceEdit::MoveToScene {
+            actor_labels,
+            target_scene,
+        } => move_to_scene(stmts, actor_labels, &target_scene),
     }
 }
 
@@ -1298,6 +1316,122 @@ fn find_assignment_mut<'a>(
 /// Find a scene declaration by name.
 fn find_scene_mut<'a>(stmts: &'a mut [Stmt], name: &str) -> Option<&'a mut Stmt> {
     stmts.iter_mut().find(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
+}
+
+// ---------------------------------------------------------------------------
+// Scene Refactorings
+// ---------------------------------------------------------------------------
+
+/// Extract selected actors into a new scene.
+///
+/// 1. Find and remove the actor declarations from their current location.
+/// 2. Create a new scene containing those actors.
+/// 3. Append the new scene after the current scene (or at top level).
+/// 4. Add a `play` statement linking to the new scene.
+fn extract_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, new_scene_name: &str) -> bool {
+    if actor_labels.is_empty() {
+        return false;
+    }
+
+    // Collect the actor statements we want to extract.
+    let mut extracted: Vec<Stmt> = Vec::new();
+    extract_actors_from_stmts(stmts, &actor_labels, &mut extracted);
+
+    if extracted.is_empty() {
+        return false;
+    }
+
+    // Create the new scene.
+    let new_scene = Stmt::Scene {
+        name: new_scene_name.to_string(),
+        config: vec![],
+        body: extracted,
+        span: None,
+    };
+
+    // Add play statement linking to the new scene.
+    let play_stmt = Stmt::Play {
+        scene_name: new_scene_name.to_string(),
+        transition: None,
+        span: None,
+    };
+
+    stmts.push(new_scene);
+    stmts.push(play_stmt);
+    true
+}
+
+/// Move selected actors to an existing scene.
+fn move_to_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, target_scene: &str) -> bool {
+    if actor_labels.is_empty() {
+        return false;
+    }
+
+    // Collect the actor statements we want to move.
+    let mut moved: Vec<Stmt> = Vec::new();
+    extract_actors_from_stmts(stmts, &actor_labels, &mut moved);
+
+    if moved.is_empty() {
+        return false;
+    }
+
+    // Find the target scene and append the moved actors.
+    if let Some(scene_stmt) = find_scene_mut(stmts, target_scene) {
+        if let Stmt::Scene { body, .. } = scene_stmt {
+            body.extend(moved);
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Recursively find and remove actor declarations matching `labels` from `stmts`,
+/// pushing them into `out`.
+fn extract_actors_from_stmts(stmts: &mut Vec<Stmt>, labels: &[String], out: &mut Vec<Stmt>) {
+    let mut i = 0;
+    while i < stmts.len() {
+        // Check if this statement should be removed (actor match).
+        let should_remove = if let Stmt::ActorDecl { label, .. } = &stmts[i] {
+            labels.contains(label)
+        } else {
+            false
+        };
+
+        if should_remove {
+            out.push(stmts.remove(i));
+            continue;
+        }
+
+        // Otherwise, recurse into children mutably.
+        match &mut stmts[i] {
+            Stmt::Scene { body, .. } => {
+                extract_actors_from_stmts(body, labels, out);
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
+                extract_actors_from_stmts(body, labels, out);
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                extract_actors_from_stmts(then_branch, labels, out);
+                if let Some(else_b) = else_branch {
+                    extract_actors_from_stmts(else_b, labels, out);
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                extract_actors_from_stmts(body, labels, out);
+            }
+            Stmt::ComponentDef(def, _) => {
+                extract_actors_from_stmts(&mut def.body, labels, out);
+            }
+            _ => {}
+        }
+
+        i += 1;
+    }
 }
 
 /// Find a property by name inside an actor-like statement.

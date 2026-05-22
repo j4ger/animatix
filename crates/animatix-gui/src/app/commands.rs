@@ -45,6 +45,8 @@ pub enum Command {
     DuplicateActor(String),
     DeleteSelectedActors,
     ReparentActor { actor: String, new_parent: Option<String> },
+    ExtractScene { actor_labels: Vec<String>, new_scene_name: String },
+    MoveToScene { actor_labels: Vec<String>, target_scene: String },
 
     // ── Property / Inspector ──────────────────────────────────────────
     PropertyEdit(PropertyEdit),

@@ -11,20 +11,9 @@
 
 ---
 
-## 1. Semantic Highlighting + Refactoring Tools
+## 1. Long-Term / Speculative
 
-Deep `animatix_analyzer` integration:
-- `SymbolTable`: actor / scene / component definitions.
-- Semantic coloring: `ActorName`, `PropertyName`, `SceneName`, `Invalid` (red squiggle).
-- Basic refactorings: `RenameActor`, `ExtractScene`, `MoveToScene`.
-
-**Key files:** `cell_editor/highlighting.rs`, `completion_popup.rs`
-
----
-
-## 2. Long-Term / Speculative
-
-### 2.1 FFI / Web Canvas Integration
+### 1.1 FFI / Web Canvas Integration
 
 Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
@@ -32,7 +21,7 @@ Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
 
 ---
 
-### 2.2 Lossless Syntax Tree (Green Tree)
+### 1.2 Lossless Syntax Tree (Green Tree)
 
 **Location:** `docs/architecture.md` §Source Write-Back.
 
@@ -42,7 +31,7 @@ Adopt a `rowan`-style green-tree architecture for full-fidelity source preservat
 
 ---
 
-### 2.3 Trivia-Inspired AST
+### 1.3 Trivia-Inspired AST
 
 Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
 
@@ -50,11 +39,10 @@ Add leading/trailing trivia (comments, whitespace) to AST nodes for better forma
 
 ---
 
-## 3. Priority Order
+## 2. Priority Order
 
 | Priority | Item | Effort | Impact |
 |----------|------|--------|--------|
-| 1 | Semantic highlighting + refactor (1) | High | Medium |
-| 2 | Green tree / trivia AST (2.2) | Very High | Low |
-| 3 | Web Canvas (2.1) | Very High | Low |
-| 4 | Trivia-inspired AST (2.3) | High | Low |
+| 1 | Green tree / trivia AST (1.2) | Very High | Low |
+| 2 | Web Canvas (1.1) | Very High | Low |
+| 3 | Trivia-inspired AST (1.3) | High | Low |
