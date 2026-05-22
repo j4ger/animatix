@@ -113,6 +113,8 @@ pub(crate) struct PreviewPaneState {
     pub diff_mode: bool,
     /// Source text snapshot before last property edit (for diff "before" side).
     pub diff_before_source: Option<String>,
+    /// Scene slice state (A/B/C side-by-side comparison).
+    pub scene_slices: crate::app::preview::scene_slices::SceneSliceState,
 }
 
 /// Transient UI state for panels (not preview/playback state).
@@ -154,6 +156,7 @@ impl PreviewPaneState {
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
             diff_mode: false,
             diff_before_source: None,
+            scene_slices: crate::app::preview::scene_slices::SceneSliceState::default(),
         }
     }
 

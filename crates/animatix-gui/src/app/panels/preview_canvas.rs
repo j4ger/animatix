@@ -1615,7 +1615,36 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                 }
             }
 
+            // Scene slices toggle (left of diff)
+            let slices_btn_rect = egui::Rect::from_min_size(
+                egui::pos2(diff_btn_rect.min.x - header_h - 4.0, header_rect.min.y + 2.0),
+                Vec2::new(header_h, header_h - 4.0),
+            );
+            let slices_btn = ui.allocate_rect(slices_btn_rect, egui::Sense::click());
+            let slices_color = if self.preview.scene_slices.enabled { ACCENT_BLUE } else { TEXT_MUTED };
+            ui.painter().text(
+                slices_btn_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL,
+                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+                slices_color,
+            );
+            if slices_btn.clicked() {
+                self.preview.scene_slices.toggle();
+                self.preview.status = if self.preview.scene_slices.enabled {
+                    "Scene slices enabled".to_string()
+                } else {
+                    "Scene slices disabled".to_string()
+                };
+            }
+
             ui.add_space(SPACE_S);
+
+            // Scene slice tabs
+            if self.preview.scene_slices.enabled {
+                crate::app::preview::scene_slices::render_slice_tabs(ui, &mut self.preview.scene_slices);
+                ui.add_space(SPACE_S);
+            }
 
             let available = ui.available_size_before_wrap();
             let desired = fit_preview(

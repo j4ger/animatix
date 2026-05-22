@@ -3,6 +3,7 @@
 pub mod floating_card;
 pub mod selection;
 pub mod time_lens;
+pub mod scene_slices;
 
 use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
