@@ -3,7 +3,7 @@
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
         primary_diagnostic_phase,
     };
-    use crate::app::theme::DIAGNOSTIC_RED;
+    use crate::app::design_tokens::DIAGNOSTIC_RED;
     use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Vec2;

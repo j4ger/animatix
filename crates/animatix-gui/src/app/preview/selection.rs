@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use super::*;
 use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{Pos2, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────

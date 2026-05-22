@@ -47,7 +47,7 @@ pub use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValu
 use crate::app::components;
 
 use crate::app::icons::actor_icon_str;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
@@ -411,7 +411,7 @@ self.selected_actors,
 
                     // Drag handle
                     let handle_width = 18.0;
-                    let row_height = crate::app::theme::ROW_M;
+                    let row_height = crate::app::design_tokens::ROW_M;
                     let handle_rect = ui.available_rect_before_wrap();
                     let handle_rect = egui::Rect::from_min_size(
                         egui::pos2(handle_rect.min.x, handle_rect.min.y),

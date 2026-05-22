@@ -4,7 +4,7 @@
 //! `⌘K` focuses. Live preview of agent intent. `Enter` confirm, `Esc` cancel.
 
 use crate::app::commands::CommandQueue;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{Color32, FontId, RichText, Vec2};
 
 /// Renders the NL command bar at the top of the window.

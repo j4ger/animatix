@@ -1082,7 +1082,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                         egui::PopupAnchor::Pointer,
                     )
                     .show(|ui| {
-                        ui.label(egui::RichText::new(tooltip).size(crate::app::theme::FONT_SIZE_S));
+                        ui.label(egui::RichText::new(tooltip).size(crate::app::design_tokens::FONT_SIZE_S));
                     });
                 } else {
                     let is_over_selected = self
@@ -1508,7 +1508,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
     }
 
     pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
-        const PLAYING_TEXT: Color32 = crate::app::theme::PLAYING_TEXT;
+        const PLAYING_TEXT: Color32 = crate::app::design_tokens::PLAYING_TEXT;
 
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {

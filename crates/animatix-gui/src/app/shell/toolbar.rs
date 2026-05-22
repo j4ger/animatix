@@ -2,7 +2,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::components;
 use crate::app::icons::{actor_icon, actor_palette};
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use animatix::timeline::ActorCategory;
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::GuiShell;

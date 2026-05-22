@@ -10,7 +10,7 @@ use crate::app::panels::inspector::property_groups::{
     PropertyEntry, PropertyGroup, PropertyKind, render_property_group, render_property_row,
 };
 use crate::app::commands::CommandQueue;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 
 /// Registry of all screenshot-able widgets.
 pub const WIDGET_REGISTRY: &[(&str, &str)] = &[

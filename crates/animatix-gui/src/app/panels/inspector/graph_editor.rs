@@ -4,7 +4,7 @@
 //! View toggle in Inspector keyframe area: List | Curve | Strip.
 
 use crate::app::commands::CommandQueue;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use animatix::easing::Easing;
 use animatix::timeline::{AnimationTrack, property_keyframe_times, read_property_value, property_keyframe_easing, lookup_property};
 use egui::{FontId, Pos2, Sense, Stroke, Vec2};

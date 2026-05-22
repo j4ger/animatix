@@ -27,7 +27,7 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

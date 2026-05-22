@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::commands::Command;
 use crate::document::timeline_keyframe_times_s;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {

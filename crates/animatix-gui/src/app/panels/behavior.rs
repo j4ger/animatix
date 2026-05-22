@@ -2,7 +2,7 @@ use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::{WorkspaceTab, WorkspaceViewer};
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 
 pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) viewer: WorkspaceViewer<'a>,

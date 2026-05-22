@@ -1,7 +1,7 @@
 use animatix::easing::{apply_easing, Easing, EASING_REGISTRY};
 use egui::{Sense, Stroke, Vec2};
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 
 /// A reusable easing picker that renders a ComboBox populated from
 /// [`animatix::easing::EASING_REGISTRY`] with a 40×20px mini curve preview.

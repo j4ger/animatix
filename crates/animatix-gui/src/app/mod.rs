@@ -11,7 +11,7 @@ mod persistence;
 mod preview;
 mod runtime;
 mod shell;
-pub mod theme;
+pub mod design_tokens;
 mod utils;
 
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};

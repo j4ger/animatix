@@ -6,7 +6,7 @@ use animatix::timeline::{
 };
 use egui::Vec2;
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue};
 
 // ─── Data Structures ──────────────────────────────────────────────────────

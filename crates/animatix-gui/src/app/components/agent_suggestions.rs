@@ -6,7 +6,7 @@
 //! - Diff card: show code diff; accept / reject
 //! - Command bar: complex request entry (see nl_command_bar.rs)
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{Color32, FontId, Pos2, Rect, RichText, Stroke, Vec2};
 
 /// A lightweight toast notification.

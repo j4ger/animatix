@@ -4,7 +4,7 @@
 //! Ring shows keyframe dots. Drag horizontally to scrub time.
 //! Scroll wheel zooms time range. Release `Space` → lens vanishes.
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{FontId, Pos2, Stroke};
 
 /// Radius of the time lens ring.

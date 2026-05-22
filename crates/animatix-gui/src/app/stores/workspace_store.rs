@@ -13,5 +13,5 @@ pub struct WorkspaceStore {
     pub persistence_path: PathBuf,
     pub recent_files: Vec<PathBuf>,
     pub hot_reloader: Option<HotReloader>,
-    pub theme: crate::app::theme::Theme,
+    pub theme: crate::app::design_tokens::Theme,
 }

@@ -2,7 +2,7 @@ use egui::{Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::components;
 use crate::app::GuiShell;
 

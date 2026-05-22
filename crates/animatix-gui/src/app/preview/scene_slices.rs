@@ -4,7 +4,7 @@
 //! Operations: duplicate slice, drag actor across slices, `1`/`2`/`3` hotkeys,
 //! batch export.
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{Color32, FontId, Pos2, Rect, Stroke, Vec2};
 
 /// A single scene slice (variant of the current composition).

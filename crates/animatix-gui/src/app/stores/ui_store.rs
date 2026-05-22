@@ -1,7 +1,7 @@
 use crate::app::PanelState;
 use crate::app::preview::{DragState, ToolMode};
 use crate::app::preview::selection::SelectionState;
-use crate::app::theme::Theme;
+use crate::app::design_tokens::Theme;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 

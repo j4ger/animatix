@@ -1,6 +1,6 @@
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::preview::ActorProps;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use egui::{Vec2, Pos2, Stroke, RichText};
 
 /// A translucent floating card that appears next to a selected actor

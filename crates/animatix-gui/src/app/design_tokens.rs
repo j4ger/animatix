@@ -1,6 +1,12 @@
 //! Unified design tokens for the entire Animatix GUI.
 //!
 //! All UI modules import from here. No local palette constants allowed.
+//!
+//! Token groups:
+//! - `color`: SURFACE_BASE, ELEVATED, WIDGET, TEXT_PRIMARY, etc.
+//! - `spacing`: XS, S, M, L, XL, XXL
+//! - `radius`: NONE, SM, MD, LG, FULL
+//! - `typography`: H1, H2, BODY, CAPTION, MONO
 
 #![allow(dead_code)]
 

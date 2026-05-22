@@ -1,7 +1,7 @@
 use egui::{RichText, Stroke};
 
 use crate::app::components;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 
 use crate::app::GuiShell;
 

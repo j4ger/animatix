@@ -7,7 +7,7 @@ use animatix::timeline::{
 use egui::{Color32, Stroke, Vec2};
 
 use crate::app::components;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
 
 // ─── Data Structures ──────────────────────────────────────────────────────

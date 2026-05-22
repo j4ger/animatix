@@ -1,7 +1,7 @@
 //! High-level reusable UI components.
 //!
 //! All components in this module are built on top of egui primitives and share
-//! the design tokens from [`crate::app::theme`].
+//! the design tokens from [`crate::app::design_tokens`].
 
 //! # Component catalogue
 //!
@@ -27,7 +27,7 @@ pub mod easing_picker;
 
 use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
 
 // ─── Row ──────────────────────────────────────────────────────────────────

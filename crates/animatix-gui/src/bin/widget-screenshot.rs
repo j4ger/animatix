@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use animatix_gui::app::theme::*;
+use animatix_gui::app::design_tokens::*;
 use animatix_gui::dev::screenshot_harness::{WIDGET_REGISTRY, render_widget};
 use eframe::egui;
 

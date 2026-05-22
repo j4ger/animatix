@@ -2,7 +2,7 @@
 
 use egui::{Color32, Vec2};
 
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_summary_by_phase};
 
 pub(super) fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {

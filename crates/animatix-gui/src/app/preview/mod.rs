@@ -8,7 +8,7 @@ pub mod scene_slices;
 
 use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, FontId, Pos2, Stroke, Vec2};
 

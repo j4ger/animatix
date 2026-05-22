@@ -1,5 +1,5 @@
 use crate::app::commands::{Command, CommandQueue};
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::{PanelState, PreviewPaneState};
 use animatix::composition::Composition;
 use animatix::diagnostics::Diagnostic;

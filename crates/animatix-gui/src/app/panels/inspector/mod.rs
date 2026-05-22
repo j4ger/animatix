@@ -4,7 +4,7 @@ use egui::{Color32, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
 use crate::app::icons::actor_icon_str;
-use crate::app::theme::*;
+use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
 
 pub(crate) mod property_groups;
