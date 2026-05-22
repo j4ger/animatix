@@ -181,12 +181,10 @@ pub(super) fn inspector_ui(
                             None,
                         );
                         let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("X").size(FONT_SIZE_S).color(TEXT_MUTED));
+                        components::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                             ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
                         });
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new("Y").size(FONT_SIZE_S).color(TEXT_MUTED));
+                        components::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                             ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                         });
                         if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED)).clicked() {
