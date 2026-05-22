@@ -1,8 +1,8 @@
-use animatix::ast::{
+use animatix_syntax::ast::{
     Action, ByteSpan, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Stmt, Time,
     UnaryOp,
 };
-use animatix::parser::parser;
+use animatix_syntax::parser::parser;
 use chumsky::Parser;
 
 // Helper function to extract a single statement from the implicit 0s keyframe wrapper

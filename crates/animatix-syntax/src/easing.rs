@@ -71,3 +71,17 @@ pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
         }
     }
 }
+
+pub fn parse_easing_name(raw: &str) -> Option<Easing> {
+    match raw {
+        "ease-in" | "easein" => Some(Easing::EaseIn),
+        "ease-out" | "easeout" => Some(Easing::EaseOut),
+        "ease-in-out" | "easeinout" => Some(Easing::EaseInOut),
+        "bounce" => Some(Easing::Bounce),
+        "elastic" => Some(Easing::Elastic),
+        "back" => Some(Easing::Back),
+        "expo" => Some(Easing::Expo),
+        "linear" => Some(Easing::Linear),
+        _ => None,
+    }
+}

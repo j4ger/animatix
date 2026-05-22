@@ -26,7 +26,7 @@
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
 
 use crate::ast::*;
-use crate::timeline::parse_easing_name;
+use crate::easing::parse_easing_name;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 use std::ops::Range;

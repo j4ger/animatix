@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"] }
 chrono = "0.4.44"
-chumsky = "0.12.0"
 clap = { version = "4.5.0", features = ["derive"] }
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
 fontdue = "0.9.3"
@@ -29,6 +29,9 @@ winit = "0.30.13"
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+chumsky = "0.12.0"
 
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }

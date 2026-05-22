@@ -131,6 +131,7 @@ dependencies = [
 name = "animatix"
 version = "0.1.0"
 dependencies = [
+ "animatix-syntax",
  "bytemuck",
  "chrono",
  "chumsky",
@@ -162,7 +163,7 @@ dependencies = [
 name = "animatix-analyzer"
 version = "0.1.0"
 dependencies = [
- "animatix",
+ "animatix-syntax",
  "chumsky",
  "tree-sitter",
  "tree-sitter-animatix",
@@ -205,6 +206,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower-lsp",
+]
+
+[[package]]
+name = "animatix-syntax"
+version = "0.1.0"
+dependencies = [
+ "chumsky",
+ "tracing",
 ]
 
 [[package]]

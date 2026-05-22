@@ -4,6 +4,7 @@ members = [
     "crates/animatix-analyzer",
     "crates/animatix-gui",
     "crates/animatix-lsp",
+    "crates/animatix-syntax",
     "crates/tree-sitter-animatix"
 ]
 resolver = "2"

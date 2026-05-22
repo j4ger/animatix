@@ -1,15 +1,15 @@
-use animatix::ast::{BinaryOp, Expr, InlineItem, Modifier, Property, Stmt, Time};
-use animatix::diagnostics::DiagnosticCode;
-use animatix::easing::Easing;
-use animatix::module::ModuleGraph;
-use animatix::parser::parser;
-use animatix::renderer::text::TextPath;
 use animatix::timeline::{
     evaluate_expr, parse_color, time_to_ms, AnimationTrack, ContainerLayoutChild, ContainerMetadata,
     DEFAULT_LAYOUT_HALF_SIZE, Interpolate, LayoutType,
     MorphStrategy, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor, ShapeType, Timeline,
     TrackAccessor,
 };
+use animatix::renderer::text::TextPath;
+use animatix_syntax::ast::{BinaryOp, Expr, InlineItem, Modifier, Property, Stmt, Time};
+use animatix_syntax::diagnostics::DiagnosticCode;
+use animatix_syntax::easing::Easing;
+use animatix_syntax::module::ModuleGraph;
+use animatix_syntax::parser::parser;
 use chumsky::Parser;
 use kurbo::Shape;
 use std::fs;

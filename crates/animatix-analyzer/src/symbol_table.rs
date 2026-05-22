@@ -1,7 +1,7 @@
 //! Symbol table extraction from the AST.
 
-use animatix::ast::*;
-use animatix::to_source::ToSource;
+use animatix_syntax::ast::*;
+use animatix_syntax::to_source::ToSource;
 use std::collections::{HashMap, HashSet};
 
 /// Extracted symbols from a source file.

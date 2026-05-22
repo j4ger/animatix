@@ -19,8 +19,8 @@ pub use symbol_table::*;
 pub use completer::*;
 pub use diagnostics::*;
 
-use animatix::ast::{Span, Stmt};
-use animatix::parser::parser;
+use animatix_syntax::ast::{Span, Stmt};
+use animatix_syntax::parser::parser;
 use chumsky::Parser;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

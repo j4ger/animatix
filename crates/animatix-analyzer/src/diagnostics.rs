@@ -1,7 +1,7 @@
 //! Diagnostic collection from parse errors and semantic checks.
 
 use crate::symbol_table::SymbolTable;
-use animatix::ast::*;
+use animatix_syntax::ast::*;
 use std::collections::HashSet;
 use tree_sitter::Tree;
 
