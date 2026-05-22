@@ -571,18 +571,18 @@ pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool
 /// Returns whether a property has a keyframe at exactly the given time.
 pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
     use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).map_or(false, |f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::String(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::U32(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(false, |pt| pt.keyframes.contains_key(&time_ms)),
+    track.field_ref(field).is_some_and(|f| match f {
+        TrackFieldRef::F32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::Transform(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::PointList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
     })
 }
 

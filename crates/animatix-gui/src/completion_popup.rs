@@ -21,6 +21,12 @@ pub struct CompletionPopup {
     trigger_text: String,
 }
 
+impl Default for CompletionPopup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompletionPopup {
     pub fn new() -> Self {
         Self {

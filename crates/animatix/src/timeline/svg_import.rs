@@ -144,7 +144,7 @@ fn parse_single_transform<'a>(s: &'a str, t: &mut Transform) -> Option<&'a str> 
     let s = s.trim_start();
     if s.starts_with("translate(") {
         let (args, rest) = parenthesized_args(s, "translate(")?;
-        let nums: Vec<f64> = parse_numbers(&args);
+        let nums: Vec<f64> = parse_numbers(args);
         if nums.len() >= 2 {
             t.tx += nums[0];
             t.ty += nums[1];
@@ -154,14 +154,14 @@ fn parse_single_transform<'a>(s: &'a str, t: &mut Transform) -> Option<&'a str> 
         Some(rest)
     } else if s.starts_with("rotate(") {
         let (args, rest) = parenthesized_args(s, "rotate(")?;
-        let nums: Vec<f64> = parse_numbers(&args);
+        let nums: Vec<f64> = parse_numbers(args);
         if !nums.is_empty() {
             t.rotation_deg += nums[0];
         }
         Some(rest)
     } else if s.starts_with("scale(") {
         let (args, rest) = parenthesized_args(s, "scale(")?;
-        let nums: Vec<f64> = parse_numbers(&args);
+        let nums: Vec<f64> = parse_numbers(args);
         if nums.len() >= 2 {
             t.sx *= nums[0];
             t.sy *= nums[1];
@@ -172,7 +172,7 @@ fn parse_single_transform<'a>(s: &'a str, t: &mut Transform) -> Option<&'a str> 
         Some(rest)
     } else if s.starts_with("matrix(") {
         let (args, rest) = parenthesized_args(s, "matrix(")?;
-        let nums: Vec<f64> = parse_numbers(&args);
+        let nums: Vec<f64> = parse_numbers(args);
         if nums.len() >= 6 {
             // matrix(a, b, c, d, e, f) = affine transform
             // For simplicity, extract translate(e, f) and a rough scale/rotation
@@ -222,7 +222,7 @@ fn parenthesized_args<'a>(s: &'a str, prefix: &str) -> Option<(&'a str, &'a str)
 
 /// Parse comma/whitespace-separated numbers from a string.
 fn parse_numbers(s: &str) -> Vec<f64> {
-    s.split(|c: char| c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r')
+    s.split([',', ' ', '\t', '\n', '\r'])
         .filter_map(|tok| {
             let tok = tok.trim();
             if tok.is_empty() {
@@ -264,11 +264,11 @@ fn parse_svg_color(value: &str) -> Option<Expr> {
         let is_rgba = value.starts_with("rgba(");
         let prefix = if is_rgba { "rgba(" } else { "rgb(" };
         let (inner, _) = parenthesized_args(value, prefix)?;
-        let nums: Vec<f64> = parse_numbers(&inner);
+        let nums: Vec<f64> = parse_numbers(inner);
         if nums.len() >= 3 {
-            let r = (nums[0] as u8).min(255);
-            let g = (nums[1] as u8).min(255);
-            let b = (nums[2] as u8).min(255);
+            let r = nums[0] as u8;
+            let g = nums[1] as u8;
+            let b = nums[2] as u8;
             // Return as rgb(r, g, b) call expression for Animatix to resolve
             return Some(Expr::Call(
                 "rgb".into(),
@@ -289,7 +289,7 @@ fn parse_hex_color(hex: &str) -> Option<Expr> {
     let hex = hex.trim();
     let rgb = if hex.len() == 3 {
         // Short form #RGB → #RRGGBB
-        let r = hex.chars().nth(0)?;
+        let r = hex.chars().next()?;
         let g = hex.chars().nth(1)?;
         let b = hex.chars().nth(2)?;
         u32::from_str_radix(
@@ -467,7 +467,7 @@ fn tokenize_path_data(d: &str) -> Vec<String> {
                 // Actually, in SVG path data, a minus sign starts a new number
                 // after a completed one.
                 // Check: if previous char was a digit and current is '-', it's a new number
-                if ch == '-' && current.chars().last().map_or(false, |c| c.is_ascii_digit()) {
+                if ch == '-' && current.chars().last().is_some_and(|c| c.is_ascii_digit()) {
                     tokens.push(std::mem::take(&mut current));
                 }
             }
@@ -595,17 +595,17 @@ fn convert_rect(
     let center_y = y + h / 2.0 + transform.ty;
 
     let mut props = vec![
-        Property::new("size", Expr::Tuple(vec![Expr::Num(w as f64), Expr::Num(h as f64)])),
+        Property::new("size", Expr::Tuple(vec![Expr::Num(w), Expr::Num(h)])),
         Property::new("at", Expr::Tuple(vec![Expr::Num(center_x), Expr::Num(center_y)])),
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         // Aspect-preserving: use uniform scale that matches x
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -636,16 +636,16 @@ fn convert_circle(
     let diameter = r * 2.0;
 
     let mut props = vec![
-        Property::new("size", Expr::Tuple(vec![Expr::Num(diameter as f64), Expr::Num(diameter as f64)])),
+        Property::new("size", Expr::Tuple(vec![Expr::Num(diameter), Expr::Num(diameter)])),
         Property::new("at", Expr::Tuple(vec![Expr::Num(cx), Expr::Num(cy)])),
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -677,18 +677,18 @@ fn convert_ellipse(
 
     let mut props = vec![
         Property::new("size", Expr::Tuple(vec![
-            Expr::Num((rx * 2.0) as f64),
-            Expr::Num((ry * 2.0) as f64),
+            Expr::Num(rx * 2.0),
+            Expr::Num(ry * 2.0),
         ])),
         Property::new("at", Expr::Tuple(vec![Expr::Num(cx), Expr::Num(cy)])),
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -726,11 +726,11 @@ fn convert_path(
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -768,7 +768,7 @@ fn convert_line(
 
     let mut props = vec![
         Property::new("size", Expr::Tuple(vec![
-            Expr::Num((length / 2.0) as f64),
+            Expr::Num(length / 2.0),
             Expr::Num(1.0), // minimal height
         ])),
         Property::new("at", Expr::Tuple(vec![Expr::Num(cx), Expr::Num(cy)])),
@@ -777,12 +777,12 @@ fn convert_line(
     // Rotation to align with direction
     if length > 0.0 {
         let angle = dy.atan2(dx).to_degrees();
-        props.push(Property::new("rotation", Expr::Num(angle as f64)));
+        props.push(Property::new("rotation", Expr::Num(angle)));
     }
 
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -835,11 +835,11 @@ fn convert_poly(
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -877,11 +877,11 @@ fn convert_text(
     ];
 
     if transform.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(transform.rotation_deg)));
     }
     if (transform.sx - 1.0).abs() > 1e-6 || (transform.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (transform.sx + transform.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
     add_fill_stroke_props(node, &mut props);
@@ -913,11 +913,11 @@ fn transform_to_props(t: &Transform) -> Vec<Property> {
         ));
     }
     if t.rotation_deg != 0.0 {
-        props.push(Property::new("rotation", Expr::Num(t.rotation_deg as f64)));
+        props.push(Property::new("rotation", Expr::Num(t.rotation_deg)));
     }
     if (t.sx - 1.0).abs() > 1e-6 || (t.sy - 1.0).abs() > 1e-6 {
         let uniform_scale = (t.sx + t.sy) / 2.0;
-        props.push(Property::new("scale", Expr::Num(uniform_scale as f64)));
+        props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
     props
 }

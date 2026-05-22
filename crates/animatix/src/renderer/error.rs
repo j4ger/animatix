@@ -8,6 +8,7 @@ pub enum RenderError {
     FrameRender(String),
     WindowCreation(String),
     EventLoopCreation(String),
+    TextCompilation(String),
 }
 
 impl std::fmt::Display for RenderError {
@@ -23,6 +24,9 @@ impl std::fmt::Display for RenderError {
             RenderError::WindowCreation(msg) => write!(f, "Failed to create window: {msg}"),
             RenderError::EventLoopCreation(msg) => {
                 write!(f, "Failed to create event loop: {msg}")
+            }
+            RenderError::TextCompilation(msg) => {
+                write!(f, "Text compilation failed: {msg}")
             }
         }
     }

@@ -234,7 +234,7 @@ impl SymbolTable {
                     kind: LabelKind::Let,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: span.clone(),
+                    span: *span,
                     ty: None,
                 });
             }
@@ -245,7 +245,7 @@ impl SymbolTable {
                     kind: LabelKind::Actor,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: span.clone(),
+                    span: *span,
                     ty: Some(ty.clone()),
                 });
             }
@@ -259,7 +259,7 @@ impl SymbolTable {
                     }).collect(),
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: span.clone(),
+                    span: *span,
                 });
 
                 // Recurse into component body
@@ -274,7 +274,7 @@ impl SymbolTable {
                     kind: LabelKind::For,
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: span.clone(),
+                    span: *span,
                     ty: None,
                 });
 
@@ -310,7 +310,7 @@ impl SymbolTable {
                     name: name.clone(),
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                     col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: span.clone(),
+                    span: *span,
                 });
                 // Recurse into scene body
                 if let Stmt::Scene { body, .. } = stmt {
@@ -328,7 +328,7 @@ impl SymbolTable {
                 self.imports.push(ImportInfo {
                     path: path.clone(),
                     alias: alias.clone(),
-                    span: span.clone(),
+                    span: *span,
                 });
             }
 

@@ -191,7 +191,7 @@ impl BuiltinAction for Pulse {
                 .scale
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, start_scale, Easing::Linear);
-            track.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing.clone());
+            track.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing);
 
             // Scale back down
             track.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);

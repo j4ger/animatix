@@ -127,7 +127,7 @@ pub(crate) fn handle_click(
     // Check if this is a repeat click at the same position
     let is_repeat = selection
         .last_click_scene
-        .map_or(false, |last| is_same_position(scene_point, last, 5.0));
+        .is_some_and(|last| is_same_position(scene_point, last, 5.0));
 
     if is_repeat && selection.click_candidates == candidates {
         // Cycle to next candidate

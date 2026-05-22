@@ -111,10 +111,10 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
                         if let usvg::Paint::Color(c) = stroke.paint() {
                             stroke_opts = Some((
                                 Color::from_rgba8(c.red, c.green, c.blue, stroke.opacity().to_u8()),
-                                stroke.width().get() as f32,
+                                stroke.width().get(),
                             ));
                         } else {
-                            stroke_opts = Some((Color::BLACK, stroke.width().get() as f32));
+                            stroke_opts = Some((Color::BLACK, stroke.width().get()));
                         }
                     }
 

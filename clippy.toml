@@ -1,0 +1,10 @@
+# Animatix Clippy Configuration
+
+# Deny these lints in CI
+msrv = "1.85"
+
+# Allowed lints (structural refactors tracked in roadmap P1)
+too-many-arguments-threshold = 15
+
+# These require API refactoring — allowed temporarily
+# See docs/roadmap.md P1.3 and P1.4

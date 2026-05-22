@@ -226,10 +226,7 @@ fn component_bindings(params: &[ParamDef], instance_props: &[Property]) -> HashM
 
 fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
     for stmt in body {
-        match stmt {
-            Stmt::ActorDecl { label, .. } => return Some(label.clone()),
-            _ => {}
-        }
+        if let Stmt::ActorDecl { label, .. } = stmt { return Some(label.clone()) }
     }
     None
 }
@@ -309,7 +306,7 @@ fn resolve_slots(
                 children,
                 ..
             } => {
-                if has_slot_marker(&children) {
+                if has_slot_marker(children) {
                     // Collect non-slot defaults from the container
                     let defaults: Vec<InlineItem> = children
                         .iter()

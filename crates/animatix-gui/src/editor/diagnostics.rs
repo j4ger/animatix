@@ -79,7 +79,7 @@ impl EditorBuffer {
         let symbols = self.analyzer.symbols();
 
         // Actor labels
-        for (name, info) in &symbols.labels {
+        for info in symbols.labels.values() {
             if info.kind != animatix_analyzer::LabelKind::Actor {
                 continue;
             }
@@ -116,7 +116,7 @@ impl EditorBuffer {
         }
 
         // Component names
-        for (name, info) in &symbols.components {
+        for info in symbols.components.values() {
             let Some(span) = &info.span else { continue };
             let doc_line = span.start_line.saturating_sub(1);
             let doc_end_line = span.end_line.saturating_sub(1);
@@ -163,7 +163,7 @@ impl EditorBuffer {
                         comment_lines + 1
                     }
                 };
-                let body_start_line = cell_start_line + header_lines;
+                let _body_start_line = cell_start_line + header_lines;
 
                 for line in cell_source.lines().enumerate() {
                     let (rel_line_idx, line_text) = line;

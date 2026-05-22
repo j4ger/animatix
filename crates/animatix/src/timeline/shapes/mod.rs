@@ -290,10 +290,7 @@ pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeStat
 }
 
 pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
-    match shape_type {
-        ShapeType::Line => true,
-        _ => false,
-    }
+    matches!(shape_type, ShapeType::Line)
 }
 
 pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
@@ -335,8 +332,7 @@ pub fn build_vector_shape_vello_path(
                 time_ms: 0,
             })
         })
-        .map(|paths| paths.into_iter().next())
-        .flatten()
+        .and_then(|paths| paths.into_iter().next())
 }
 
 pub fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
@@ -520,10 +516,7 @@ pub fn shape_fill_color(
         return None;
     }
 
-    match shape_type {
-        ShapeType::Line => return None,
-        _ => {}
-    }
+    if shape_type == ShapeType::Line { return None }
 
     Some(vello::peniko::Color::from_rgba8(
         (color[0] * 255.0) as u8,

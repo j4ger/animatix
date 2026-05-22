@@ -120,18 +120,12 @@ pub(crate) struct PreviewPaneState {
 }
 
 /// Transient UI state for panels (not preview/playback state).
+#[derive(Default)]
 pub(crate) struct PanelState {
     /// When set, the scene list panel should open the transition editor for this scene.
     pub open_transition_editor: Option<String>,
 }
 
-impl Default for PanelState {
-    fn default() -> Self {
-        Self {
-            open_transition_editor: None,
-        }
-    }
-}
 
 impl PreviewPaneState {
     fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
@@ -493,17 +487,15 @@ impl GuiShell {
                 commands.push_back(Command::ToggleKeyframeMode);
             }
             // Copy selected actors (Ctrl+C)
-            if i.modifiers.command && i.key_pressed(egui::Key::C) {
-                if !self.selected_actors.is_empty() {
+            if i.modifiers.command && i.key_pressed(egui::Key::C)
+                && !self.selected_actors.is_empty() {
                     self.copy_selected_actors();
                 }
-            }
             // Paste actors (Ctrl+V)
-            if i.modifiers.command && i.key_pressed(egui::Key::V) {
-                if !self.clipboard_actors.is_empty() {
+            if i.modifiers.command && i.key_pressed(egui::Key::V)
+                && !self.clipboard_actors.is_empty() {
                     commands.push_back(Command::PasteActors);
                 }
-            }
         });
 
         // Compact toolbar
@@ -945,10 +937,7 @@ impl GuiShell {
 
         // Find position to insert (after the original actor)
         if let Some(pos) = stmts.iter().position(|s| {
-            match s {
-                animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
-                _ => false,
-            }
+            matches!(s, animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label)
         }) {
             stmts.insert(pos + 1, new_stmt);
         } else {
@@ -1001,10 +990,7 @@ impl GuiShell {
         for label in &to_delete {
             // Find and remove the actor declaration
             let pos = stmts.iter().position(|s| {
-                match s {
-                    animatix::ast::Stmt::ActorDecl { label: l, .. } if l == label => true,
-                    _ => false,
-                }
+                matches!(s, animatix::ast::Stmt::ActorDecl { label: l, .. } if l == label)
             });
             if let Some(pos) = pos {
                 stmts.remove(pos);
@@ -1290,10 +1276,7 @@ impl GuiShell {
 
             // Insert the declaration at the end (or after the original)
             if let Some(pos) = stmts.iter().position(|s| {
-                match s {
-                    animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label => true,
-                    _ => false,
-                }
+                matches!(s, animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label)
             }) {
                 stmts.insert(pos + 1, new_stmt);
             } else {
@@ -1360,7 +1343,7 @@ impl GuiShell {
             .document
             .timeline
             .as_ref()
-            .map_or(false, |t| t.has_actor(label))
+            .is_some_and(|t| t.has_actor(label))
         {
             return true;
         }
@@ -1432,7 +1415,7 @@ fn keyframe_references_actor(stmt: &animatix::ast::Stmt, actor: &str) -> bool {
         }
         animatix::ast::Stmt::Conditional { then_branch, else_branch, .. } => {
             then_branch.iter().any(|child| keyframe_references_actor(child, actor))
-                || else_branch.as_ref().map_or(false, |eb| eb.iter().any(|child| keyframe_references_actor(child, actor)))
+                || else_branch.as_ref().is_some_and(|eb| eb.iter().any(|child| keyframe_references_actor(child, actor)))
         }
         animatix::ast::Stmt::ForLoop { body, .. } => {
             body.iter().any(|child| keyframe_references_actor(child, actor))
@@ -1455,11 +1438,7 @@ fn shift_keyframe_times(stmts: &mut [animatix::ast::Stmt], offset_s: f64) {
                     animatix::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
                 };
                 let new_t = t + offset_s;
-                *time = if new_t.fract() == 0.0 && new_t == new_t.trunc() {
-                    animatix::ast::Time::Seconds(new_t)
-                } else {
-                    animatix::ast::Time::Seconds(new_t)
-                };
+                *time = animatix::ast::Time::Seconds(new_t);
             }
             animatix::ast::Stmt::RelativeKeyframe { .. } => {
                 // Relative keyframes keep their relative offset

@@ -97,6 +97,7 @@ pub(super) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u6
 }
 
 /// Insert end keyframes at `t_end_ms` with the given values and easing.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn insert_end_keyframes(
     track: &mut AnimationTrack,
     t_end_ms: u64,

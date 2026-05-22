@@ -230,11 +230,9 @@ fn set_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr) ->
     }
 
     // 2. Try to find an Assignment statement and update its value.
-    if let Some(assignment) = find_assignment_mut(stmts, actor, source_prop) {
-        if let Stmt::Assignment { value: val, .. } = assignment {
-            *val = value;
-            return true;
-        }
+    if let Some(Stmt::Assignment { value: val, .. }) = find_assignment_mut(stmts, actor, source_prop) {
+        *val = value;
+        return true;
     }
 
     false
@@ -254,22 +252,19 @@ fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr)
             return false;
         }
         // Add new property
-        match actor_decl {
-            Stmt::ActorDecl { ty, props, .. } => {
-                // Text, Math, Code types use generic props; Svg/Image use fixed schemas
-                if ty == "Svg" || ty == "Image" {
-                    // These use fixed prop schemas; insertion not supported.
-                    return false;
-                }
-                props.push(Property {
-                    name: source_prop.into(),
-                    value,
-                    value_span: None,
-                    trailing_comment: None,
-                });
-                return true;
+        if let Stmt::ActorDecl { ty, props, .. } = actor_decl {
+            // Text, Math, Code types use generic props; Svg/Image use fixed schemas
+            if ty == "Svg" || ty == "Image" {
+                // These use fixed prop schemas; insertion not supported.
+                return false;
             }
-            _ => {}
+            props.push(Property {
+                name: source_prop.into(),
+                value,
+                value_span: None,
+                trailing_comment: None,
+            });
+            return true;
         }
     }
 
@@ -472,7 +467,7 @@ fn delete_keyframe(
             Stmt::Keyframe { time, body, .. } => {
                 current_time = time_to_seconds(time);
                 if (current_time - time_s).abs() < 0.001 {
-                    remove_assignment_from_body(body, actor, &source_prop);
+                    remove_assignment_from_body(body, actor, source_prop);
                     (true, body.is_empty())
                 } else {
                     (false, false)
@@ -481,7 +476,7 @@ fn delete_keyframe(
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - time_s).abs() < 0.001 {
-                    remove_assignment_from_body(body, actor, &source_prop);
+                    remove_assignment_from_body(body, actor, source_prop);
                     (true, body.is_empty())
                 } else {
                     (false, false)
@@ -534,8 +529,6 @@ fn insert_keyframe(
     // Format the time offset.
     let offset = if delta_s < 1.0 {
         Time::Milliseconds((delta_s * 1000.0).round() as u64)
-    } else if delta_s == delta_s.floor() {
-        Time::Seconds(delta_s)
     } else {
         Time::Seconds(delta_s)
     };
@@ -594,8 +587,6 @@ fn insert_keyframe(
             if new_next_delta_s >= 0.001 {
                 *next_offset = if new_next_delta_s < 1.0 {
                     Time::Milliseconds((new_next_delta_s * 1000.0).round() as u64)
-                } else if new_next_delta_s == new_next_delta_s.floor() {
-                    Time::Seconds(new_next_delta_s)
                 } else {
                     Time::Seconds(new_next_delta_s)
                 };
@@ -650,17 +641,15 @@ fn insert_actor(
 ) -> bool {
     if let Some(container_label) = container {
         // Insert as a child of the specified container
-        if let Some(actor_decl) = find_actor_decl_mut(stmts, container_label) {
-            if let Stmt::ActorDecl { children, .. } = actor_decl {
-                children.push(InlineItem::Labeled {
-                    label: label.into(),
-                    ty: ty.into(),
-                    props: props.clone(),
-                    modifiers: vec![],
-                    children: vec![],
-                });
-                return true;
-            }
+        if let Some(Stmt::ActorDecl { children, .. }) = find_actor_decl_mut(stmts, container_label) {
+            children.push(InlineItem::Labeled {
+                label: label.into(),
+                ty: ty.into(),
+                props: props.clone(),
+                modifiers: vec![],
+                children: vec![],
+            });
+            return true;
         }
         return false;
     }
@@ -680,32 +669,30 @@ fn insert_actor(
 }
 
 fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Vec<String>) -> bool {
-    if let Some(actor_decl) = find_actor_decl_mut(stmts, container) {
-        if let Stmt::ActorDecl { children, .. } = actor_decl {
-            let mut labeled = std::collections::BTreeMap::<String, InlineItem>::new();
-            let mut remaining = Vec::new();
+    if let Some(Stmt::ActorDecl { children, .. }) = find_actor_decl_mut(stmts, container) {
+        let mut labeled = std::collections::BTreeMap::<String, InlineItem>::new();
+        let mut remaining = Vec::new();
 
-            for item in children.drain(..) {
-                match &item {
-                    InlineItem::Labeled { label, .. } if new_order.iter().any(|l| l == label) => {
-                        labeled.insert(label.clone(), item);
-                    }
-                    _ => remaining.push(item),
+        for item in children.drain(..) {
+            match &item {
+                InlineItem::Labeled { label, .. } if new_order.iter().any(|l| l == label) => {
+                    labeled.insert(label.clone(), item);
                 }
+                _ => remaining.push(item),
             }
-
-            let mut reordered = Vec::new();
-            for label in new_order {
-                if let Some(item) = labeled.remove(&label) {
-                    reordered.push(item);
-                }
-            }
-
-            reordered.extend(remaining);
-            reordered.extend(labeled.into_values());
-            *children = reordered;
-            return true;
         }
+
+        let mut reordered = Vec::new();
+        for label in new_order {
+            if let Some(item) = labeled.remove(&label) {
+                reordered.push(item);
+            }
+        }
+
+        reordered.extend(remaining);
+        reordered.extend(labeled.into_values());
+        *children = reordered;
+        return true;
     }
 
     false
@@ -839,11 +826,9 @@ fn set_transition(stmts: &mut [Stmt], from_scene: &str, transition: Option<Trans
     };
     let Stmt::Scene { body, .. } = scene_stmt else { return false; };
 
-    if let Some(play) = body.iter_mut().find(|stmt| matches!(stmt, Stmt::Play { .. })) {
-        if let Stmt::Play { transition: play_transition, .. } = play {
-            *play_transition = transition;
-            return true;
-        }
+    if let Some(Stmt::Play { transition: play_transition, .. }) = body.iter_mut().find(|stmt| matches!(stmt, Stmt::Play { .. })) {
+        *play_transition = transition;
+        return true;
     }
 
     false
@@ -994,10 +979,7 @@ fn is_container_type(ty: &str) -> bool {
 }
 
 fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
-    match stmt {
-        Stmt::ActorDecl { label: l, .. } if l == label => true,
-        _ => false,
-    }
+    matches!(stmt, Stmt::ActorDecl { label: l, .. } if l == label)
 }
 
 fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
@@ -1071,11 +1053,10 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
                 span: None,
             }
         }
-        _ => unreachable!("unexpected InlineItem variant"),
     }
 }
 
-fn extract_inline_item(stmts: &mut Vec<Stmt>, label: &str) -> Option<InlineItem> {
+fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
     for stmt in stmts.iter_mut() {
         match stmt {
             Stmt::ActorDecl { children, .. } => {
@@ -1145,16 +1126,12 @@ fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<Inline
             }
             None
         }
-        InlineItem::SlotMarker { .. } => None,
-        _ => None,
+        InlineItem::SlotMarker => None,
     }
 }
 
 fn inline_item_has_label(item: &InlineItem, label: &str) -> bool {
-    match item {
-        InlineItem::Labeled { label: l, .. } if l == label => true,
-        _ => false,
-    }
+    matches!(item, InlineItem::Labeled { label: l, .. } if l == label)
 }
 
 // ---------------------------------------------------------------------------
@@ -1277,7 +1254,7 @@ fn find_assignment_mut<'a>(
     for stmt in stmts.iter_mut() {
         match stmt {
             Stmt::Assignment { target, property: prop, .. }
-                if target.last().map_or(false, |t| t == actor) && prop == property =>
+                if target.last().is_some_and(|t| t == actor) && prop == property =>
             {
                 return Some(stmt);
             }
@@ -1376,11 +1353,9 @@ fn move_to_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, target_scene:
     }
 
     // Find the target scene and append the moved actors.
-    if let Some(scene_stmt) = find_scene_mut(stmts, target_scene) {
-        if let Stmt::Scene { body, .. } = scene_stmt {
-            body.extend(moved);
-            return true;
-        }
+    if let Some(Stmt::Scene { body, .. }) = find_scene_mut(stmts, target_scene) {
+        body.extend(moved);
+        return true;
     }
 
     false

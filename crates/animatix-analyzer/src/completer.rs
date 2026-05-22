@@ -152,7 +152,7 @@ impl CompletionContext {
         }
 
         // Check if we're at the top level
-        if node.parent().map_or(true, |p| p.kind() == "source_file") {
+        if node.parent().is_none_or(|p| p.kind() == "source_file") {
             return CompletionContext::TopLevel;
         }
 

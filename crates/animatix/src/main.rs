@@ -4,6 +4,7 @@ use animatix::module::ModuleGraph;
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand};
+use std::path::Path;
 use std::path::PathBuf;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -168,7 +169,7 @@ enum Commands {
 /// Loads an Animatix program from disk, expands components, and builds the
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
-fn load_and_build(input: &PathBuf) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
+fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
     let (ast, namespaces) = match ModuleGraph::new().load_program(input) {
         Ok(program) => (program.expand_components(), program.namespaces),
         Err(e) => {

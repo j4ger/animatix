@@ -355,7 +355,7 @@ pub(super) fn build_graph_axis_paths(
 }
 
 impl Timeline {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     pub(super) fn process_plot_actor(
         &mut self,
         label: &str,
@@ -664,11 +664,10 @@ impl Timeline {
                 test_env.set(arg, Value::Num(0.0));
             }
             if let Ok(result) = evaluate_expr(body, &test_env) {
-                let ok = match (expected_ty, &result) {
-                    ("number", Value::Num(_)) => true,
-                    ("vec2", Value::Vec2(_)) => true,
-                    _ => false,
-                };
+                let ok = matches!(
+                    (expected_ty, &result),
+                    ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
+                );
                 if !ok {
                     diagnostics.push(
                         Diagnostic::error(
@@ -1154,16 +1153,15 @@ fn build_heatmap_paths(
     let mut min_val = f64::MAX;
     let mut max_val = f64::MIN;
 
-    for yi in 0..res {
-        for xi in 0..res {
+    for (yi, row) in values.iter_mut().enumerate() {
+        for (xi, val) in row.iter_mut().enumerate() {
             let math_x = x_domain[0] + (xi as f64 + 0.5) * x_step;
             let math_y = y_domain[0] + (yi as f64 + 0.5) * y_step;
 
-            let val = evaluate_scalar_field(env, arg_names, body, math_x, math_y);
-            values[yi][xi] = val;
+            *val = evaluate_scalar_field(env, arg_names, body, math_x, math_y);
             if val.is_finite() {
-                min_val = min_val.min(val);
-                max_val = max_val.max(val);
+                min_val = min_val.min(*val);
+                max_val = max_val.max(*val);
             }
         }
     }
@@ -1175,9 +1173,9 @@ fn build_heatmap_paths(
     let cg = (color[1] * 255.0) as u8;
     let cb = (color[2] * 255.0) as u8;
 
-    for yi in 0..res {
-        for xi in 0..res {
-            let normalized = ((values[yi][xi] - min_val) / range).clamp(0.0, 1.0);
+    for (yi, row) in values.iter().enumerate() {
+        for (xi, val) in row.iter().enumerate() {
+            let normalized = ((*val - min_val) / range).clamp(0.0, 1.0);
             let alpha = (normalized * 255.0) as u8;
 
             // Compute cell screen coordinates

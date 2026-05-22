@@ -447,7 +447,7 @@ impl WorkspaceViewer<'_> {
                                 ];
 
                                 // X snap
-                                for (_di, &de) in dragged_x_edges.iter().enumerate() {
+                                for &de in dragged_x_edges.iter() {
                                     for (oi, &oe) in other_x_edges.iter().enumerate() {
                                         let candidate_nx: f32 = nx + (oe - de);
                                         if (candidate_nx - nx).abs() < threshold && (candidate_nx - nx).abs() > 0.001 {
@@ -458,7 +458,7 @@ impl WorkspaceViewer<'_> {
                                     }
                                 }
                                 // Y snap
-                                for (_di, &de) in dragged_y_edges.iter().enumerate() {
+                                for &de in dragged_y_edges.iter() {
                                     for (oi, &oe) in other_y_edges.iter().enumerate() {
                                         let candidate_ny: f32 = ny + (oe - de);
                                         if (candidate_ny - ny).abs() < threshold && (candidate_ny - ny).abs() > 0.001 {
@@ -879,7 +879,7 @@ impl WorkspaceViewer<'_> {
 
         let pointer_released = ui.input(|i| i.pointer.any_released());
         if is_dragging
-            && (response.drag_stopped() || pointer_released || (!ui.input(|i| i.pointer.any_down()) && is_dragging))
+            && (response.drag_stopped() || pointer_released || !ui.input(|i| i.pointer.any_down()))
         {
             if let DragState::Reorder {
                 actor,
@@ -980,13 +980,12 @@ impl WorkspaceViewer<'_> {
         }
 
         let mut suppress_click = false;
-        if self.selection.context_menu_open && !menu_item_clicked {
-            if ui.input(|i| i.pointer.primary_clicked()) {
+        if self.selection.context_menu_open && !menu_item_clicked
+            && ui.input(|i| i.pointer.primary_clicked()) {
                 self.selection.context_menu_open = false;
                 suppress_click = true;
                 self.selected_actors.clear();
             }
-        }
 
         if response.clicked() && !is_dragging && !self.selection.context_menu_open && !suppress_click {
             if let Some(click_pos) = response.interact_pointer_pos() {
@@ -1900,8 +1899,8 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
                             let scale_x = base_scale_x / self.preview.preview_zoom.max(0.01) as f64;
                             let scale_y = base_scale_y / self.preview.preview_zoom.max(0.01) as f64;
                             self.preview.preview_pan = Vec2::new(
-                                self.preview.preview_pan.x - delta.x as f32 * scale_x as f32,
-                                self.preview.preview_pan.y - delta.y as f32 * scale_y as f32,
+                                self.preview.preview_pan.x - delta.x * scale_x as f32,
+                                self.preview.preview_pan.y - delta.y * scale_y as f32,
                             );
                         }
                     }

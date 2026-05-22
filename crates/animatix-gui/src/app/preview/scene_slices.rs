@@ -15,21 +15,13 @@ pub struct SceneSlice {
 }
 
 /// State for scene slice comparison.
+#[derive(Default)]
 pub struct SceneSliceState {
     pub enabled: bool,
     pub slices: Vec<SceneSlice>,
     pub active_slice: usize,
 }
 
-impl Default for SceneSliceState {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            slices: vec![],
-            active_slice: 0,
-        }
-    }
-}
 
 impl SceneSliceState {
     /// Toggle scene slice mode.

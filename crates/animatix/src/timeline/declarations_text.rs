@@ -10,6 +10,7 @@ use super::{
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
 use crate::ast::Property;
+use crate::renderer::error::RenderError;
 
 #[derive(Clone, Copy)]
 enum TextDeclarationKind {
@@ -82,7 +83,7 @@ impl Timeline {
         time_ms: f64,
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    ) -> Result<(), RenderError> {
         let label_str = label
             .map(str::to_string)
             .unwrap_or_else(|| kind.unnamed_label().to_string());
@@ -303,16 +304,16 @@ impl Timeline {
 
         let frame = match kind {
             TextDeclarationKind::Text => {
-                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, &self.font_context)
+                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, &self.font_context)?
             }
             TextDeclarationKind::Math => {
-                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family, &self.font_context)
+                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family, &self.font_context)?
             }
             TextDeclarationKind::Code => {
-                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, &self.font_context)
+                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, &self.font_context)?
             }
             TextDeclarationKind::Typst => {
-                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, &self.font_context)
+                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, &self.font_context)?
             }
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);
@@ -347,6 +348,7 @@ impl Timeline {
         track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
         track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+        Ok(())
     }
 
     pub fn process_text_actor_decl(
@@ -358,13 +360,13 @@ impl Timeline {
         time_ms: f64,
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    ) -> Result<(), RenderError> {
         let kind = match actor_type {
             "Text" => TextDeclarationKind::Text,
             "Math" => TextDeclarationKind::Math,
             "Code" => TextDeclarationKind::Code,
             "Typst" => TextDeclarationKind::Typst,
-            _ => return,
+            _ => return Ok(()),
         };
 
         self.process_text_declaration(
@@ -375,6 +377,6 @@ impl Timeline {
             time_ms,
             parent_label,
             diagnostics,
-        );
+        )
     }
 }

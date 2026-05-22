@@ -329,7 +329,7 @@ impl WorkspaceViewer<'_> {
                     )
                     .clicked()
                 {
-                    let label = format!("rect1");
+                    let label = "rect1".to_string();
                     let pos = [
                         self.scene_dimensions.width as f32 / 2.0,
                         self.scene_dimensions.height as f32 / 2.0,
@@ -351,7 +351,7 @@ impl WorkspaceViewer<'_> {
                         root_label,
 self.selected_actors,
                         self.collapsed_actors,
-                        &mut self.commands,
+                        self.commands,
                         time_ms,
                         0,
                     );
@@ -426,11 +426,10 @@ self.selected_actors,
                     if handle_response.drag_started() {
                         ui.data_mut(|d| d.insert_temp(drag_id, idx));
                     }
-                    if handle_response.dragged() {
-                        if pointer_pos.is_some() {
+                    if handle_response.dragged()
+                        && pointer_pos.is_some() {
                             drop_target = Some(idx);
                         }
-                    }
                     let pointer_released = ui.input(|i| i.pointer.any_released());
                     if pointer_released && drag_idx == Some(idx) {
                         ui.data_mut(|d| d.remove::<usize>(drag_id));
@@ -706,17 +705,16 @@ self.selected_actors,
                     let (_, _, transition) = comp.evaluate(current_time_s);
                     if transition.is_some() {
                         for (name, scene) in &comp.scenes {
-                            if name != active_scene {
-                                if self.selected_actors.iter().any(|sel| scene.timeline.has_actor(sel)) {
+                            if name != active_scene
+                                && self.selected_actors.iter().any(|sel| scene.timeline.has_actor(sel)) {
                                     return Some(&scene.timeline);
                                 }
-                            }
                         }
                     }
                 }
                 comp.scenes.get(active_scene.as_str()).map(|s| &s.timeline)
             });
-            inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, &mut self.commands, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
+            inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, self.commands, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
         });
     }
 
@@ -845,14 +843,14 @@ fn render_actor_tree(
         let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
         if !dragged.is_empty() && dragged != label {
             let pointer_pos = ui.input(|i| i.pointer.latest_pos());
-            let over_this_row = pointer_pos.map_or(false, |p| response.row_rect.contains(p));
+            let over_this_row = pointer_pos.is_some_and(|p| response.row_rect.contains(p));
             if over_this_row && is_drop_target {
                 // Dropped on this row — reparent under this actor
                 commands.push_back(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) });
             } else if !over_this_row && depth == 0 {
                 // Dropped outside any row at root level — reparent to top-level
                 // Only the root-level rows handle this to avoid duplicates
-                let over_any_root = pointer_pos.map_or(false, |p| {
+                let over_any_root = pointer_pos.is_some_and(|p| {
                     // Check if pointer is within the scroll area at all
                     response.row_rect.expand(100.0).contains(p)
                 });

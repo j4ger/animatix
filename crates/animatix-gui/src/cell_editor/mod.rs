@@ -59,6 +59,7 @@ pub enum SemanticTokenKind {
 
 /// Persistent state for the cell editor (scroll position, focused cell, etc.).
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct CellEditorState {
     pub focused_cell: Option<usize>,
     pub scroll_to_cell: Option<usize>,
@@ -136,28 +137,3 @@ impl CellEditorState {
     }
 }
 
-impl Default for CellEditorState {
-    fn default() -> Self {
-        Self {
-            focused_cell: None,
-            scroll_to_cell: None,
-            highlighted_cell: None,
-            pending_delete_cell: None,
-            pending_duplicate_cell: None,
-            pending_insert_after: None,
-            pending_insert_code_after: None,
-            pending_append_at_end: None,
-            prev_focused_cell: None,
-            diagnostics: Vec::new(),
-            semantic_highlights: Vec::new(),
-            error_cells: std::collections::HashSet::new(),
-            warning_cells: std::collections::HashSet::new(),
-            pending_cursor_cell: None,
-            pending_cursor_char: None,
-            collapsed_cells: std::collections::HashSet::new(),
-            pending_move_up: None,
-            pending_move_down: None,
-            editing_timestamp_cell: None,
-        }
-    }
-}

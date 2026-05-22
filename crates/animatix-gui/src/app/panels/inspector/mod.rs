@@ -104,7 +104,7 @@ pub(super) fn inspector_ui(
                 )
                 .clicked()
             {
-                let label = format!("rect1");
+                let label = "rect1".to_string();
                 let pos = [
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
@@ -236,7 +236,7 @@ pub(super) fn inspector_ui(
                 }
 
                 // ── Container Children ──
-                if timeline.container_metadata.get(sel).is_some() {
+                if timeline.container_metadata.contains_key(sel) {
                     components::card(ui, |ui| {
                         components::section_header(
                             ui,

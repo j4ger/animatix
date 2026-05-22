@@ -1,4 +1,5 @@
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, Event};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::{Duration, Instant};
@@ -18,7 +19,7 @@ pub enum ReloadStatus {
 }
 
 impl HotReloader {
-    pub fn new(file_path: &PathBuf) -> Result<Self, String> {
+    pub fn new(file_path: &Path) -> Result<Self, String> {
         let (tx, rx) = channel();
 
         let mut watcher = RecommendedWatcher::new(
@@ -38,7 +39,7 @@ impl HotReloader {
             rx,
             last_event: None,
             debounce_duration: Duration::from_millis(300),
-            watched_path: file_path.clone(),
+            watched_path: file_path.to_path_buf(),
         })
     }
 

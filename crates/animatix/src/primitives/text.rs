@@ -23,7 +23,7 @@ impl Primitive for TextPrimitive {
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
         
-        ctx.timeline.process_text_actor_decl(
+        if let Err(e) = ctx.timeline.process_text_actor_decl(
             self.type_name(),
             label,
             props,
@@ -31,7 +31,16 @@ impl Primitive for TextPrimitive {
             ctx.time_ms,
             ctx.parent_label,
             ctx.diagnostics,
-        );
+        ) {
+            ctx.diagnostics.push(
+                Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::InvalidModifierValue,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!("{}", e),
+                )
+                .with_subject(label),
+            );
+        }
         Ok(())
     }
 
@@ -54,7 +63,7 @@ impl Primitive for TextPrimitive {
         .unwrap_or(Value::Str(String::new()))
         .as_str()
         .to_string();
-        crate::timeline::recompile_text_at_assignment(
+        if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
             target_text,
             ctx.t_start_ms,
@@ -64,7 +73,16 @@ impl Primitive for TextPrimitive {
             ctx.duration_ms,
             ctx.font_context,
             ctx.text_compiler,
-        );
+        ) {
+            diagnostics.push(
+                Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::InvalidModifierValue,
+                    crate::diagnostics::DiagnosticPhase::Render,
+                    format!("{e}"),
+                )
+                .with_subject(subject),
+            );
+        }
         true
     }
 

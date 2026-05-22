@@ -115,6 +115,7 @@ pub struct TransitionBlend {
 // ---------------------------------------------------------------------------
 
 /// Result of building either a single-scene `Timeline` or a multi-scene `Composition`.
+#[allow(clippy::large_enum_variant)]
 pub enum BuildTarget {
     /// Single-scene file (no `# SceneName` declarations) — backward compatible.
     SingleScene(Timeline),
@@ -218,7 +219,7 @@ impl Composition {
                         build_report
                             .diagnostics
                             .into_iter()
-                            .map(|d| d.with_subject(&format!("scene '{}'", name))),
+                            .map(|d| d.with_subject(format!("scene '{}'", name))),
                     );
                     let timeline = build_report.output;
                     let duration_s = timeline.duration_seconds();
@@ -396,11 +397,7 @@ impl Composition {
             let local = t - start;
             (
                 name.to_string(),
-                if (local - (local as i64) as f64).abs() < 1e-10 && local.fract() == 0.0 {
-                    local
-                } else {
-                    local
-                },
+                local,
                 None,
             )
         } else {

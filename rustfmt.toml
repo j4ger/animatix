@@ -1,0 +1,24 @@
+# Animatix Rustfmt Configuration
+
+# Basic formatting
+edition = "2024"
+max_width = 100
+chain_width = 80
+fn_call_width = 80
+
+# Import organization
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# Style
+use_small_heuristics = "Default"
+fn_single_line = false
+match_block_trailing_comma = true
+trailing_semicolon = true
+
+# Comments
+wrap_comments = true
+comment_width = 100
+format_code_in_doc_comments = true
+doc_comment_code_block_width = 80

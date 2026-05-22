@@ -9,6 +9,7 @@ use egui::{Align, Align2, Color32, FontId, RichText, Stroke, Vec2};
 /// Renders the unified transport bar at the bottom of the window.
 ///
 /// Single-row layout: transport controls, scrubber, time, status.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn transport_bar_ui(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
@@ -572,7 +573,7 @@ fn paint_transport_scrubber(
             // Transition label if wide enough
             let width = overlap_rect.width();
             if width > 40.0 {
-                let label = format!("{}", transition_type_label(&edge.transition.id));
+                let label = transition_type_label(&edge.transition.id).to_string();
                 let label_color = if overlap_response.hovered() {
                     text_hover()
                 } else {

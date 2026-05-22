@@ -80,7 +80,7 @@ impl Timeline {
                 continue;
             };
 
-            self.process_body(cursor_time_ms, &[stmt.clone()], parent_label, diagnostics);
+            self.process_body(cursor_time_ms, std::slice::from_ref(stmt), parent_label, diagnostics);
             cursor_time_ms += span_ms;
         }
     }
@@ -107,7 +107,7 @@ impl Timeline {
             };
 
             let stagger_time_ms = time_ms + interval_ms * index as f64;
-            self.process_body(stagger_time_ms, &[stmt.clone()], parent_label, diagnostics);
+            self.process_body(stagger_time_ms, std::slice::from_ref(stmt), parent_label, diagnostics);
         }
     }
 }

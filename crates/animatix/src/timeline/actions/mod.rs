@@ -134,7 +134,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    if track.image.as_ref().map(|t| t.last_value()).flatten().is_some() {
+    if track.image.as_ref().and_then(|t| t.last_value()).is_some() {
         push_unsupported_action_target_diagnostic(
             verb,
             target,

@@ -123,7 +123,7 @@ pub fn highlight_source(
     let font_id = FontId::new(14.0, FontFamily::Monospace);
 
     let mut parser = Parser::new();
-    if parser.set_language(&*LANGUAGE).is_err() {
+    if parser.set_language(&LANGUAGE).is_err() {
         return plain_text_job(source, &font_id, colors.default);
     }
 
@@ -223,16 +223,16 @@ pub fn highlight_source(
     }
 
     // Apply all background layers
-    let job = apply_background_layers(
+    
+
+    apply_background_layers(
         source,
         &font_id,
         &highlight_spans,
         diagnostics,
         &deco_ranges,
         &special_highlights,
-    );
-
-    job
+    )
 }
 
 /// Return the byte range of `line` (0-indexed) in `source`.

@@ -422,8 +422,8 @@ where
     }
 
     let num_threads = num_threads.max(1);
-    let chunk_size = ((total_frames as usize + num_threads - 1) / num_threads).max(1);
-    let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
+    let chunk_size = (total_frames as usize).div_ceil(num_threads).max(1);
+    let num_chunks = (total_frames as usize).div_ceil(chunk_size);
 
     info!(
         "Rendering {} frames using {} thread(s) ({} frame(s) per chunk)...",
@@ -479,7 +479,7 @@ where
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         for frame in start..end {
-            if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+            if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
                 return Err(ExportError::Cancelled);
             }
             let rendered = receiver.recv().map_err(|_| ExportError::ThreadPanicked)?;
@@ -535,8 +535,8 @@ where
     }
 
     let num_threads = num_threads.max(1);
-    let chunk_size = ((total_frames as usize + num_threads - 1) / num_threads).max(1);
-    let num_chunks = (total_frames as usize + chunk_size - 1) / chunk_size;
+    let chunk_size = (total_frames as usize).div_ceil(num_threads).max(1);
+    let num_chunks = (total_frames as usize).div_ceil(chunk_size);
 
     info!(
         "Rendering {} scene(s) over {} frames using {} thread(s) ({} frame(s) per chunk)...",
@@ -652,7 +652,7 @@ where
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         for frame in start..end {
-            if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+            if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
                 return Err(ExportError::Cancelled);
             }
             let rendered = receiver.recv().map_err(|_| ExportError::ThreadPanicked)?;
@@ -904,7 +904,7 @@ async fn render_image_async(
     _progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
-    if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+    if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
         return Err(ExportError::Cancelled);
     }
     let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
@@ -1619,7 +1619,7 @@ async fn render_image_composition_async(
     _progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
-    if cancel.map_or(false, |c| c.load(Ordering::Relaxed)) {
+    if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
         return Err(ExportError::Cancelled);
     }
 

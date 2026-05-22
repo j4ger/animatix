@@ -470,11 +470,11 @@ pub(crate) fn build_implicit_plot_path(
 
     // Pre-evaluate the function on a grid to avoid redundant AST evaluations.
     let mut grid = vec![vec![f64::NAN; x_cells + 1]; y_cells + 1];
-    for yi in 0..=y_cells {
+    for (yi, row) in grid.iter_mut().enumerate() {
         let y = p_y_domain[0] + yi as f64 * dy;
-        for xi in 0..=x_cells {
+        for (xi, val) in row.iter_mut().enumerate() {
             let x = p_x_domain[0] + xi as f64 * dx;
-            grid[yi][xi] = evaluate_implicit_value(env, arg_names, body, x, y);
+            *val = evaluate_implicit_value(env, arg_names, body, x, y);
         }
     }
 

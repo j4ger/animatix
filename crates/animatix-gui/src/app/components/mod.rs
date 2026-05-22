@@ -53,6 +53,7 @@ pub struct Row<'a> {
     pub icon: Option<&'static str>,
     pub label: &'a str,
     pub label_color: Option<Color32>,
+    #[allow(clippy::type_complexity)]
     pub right: Option<Box<dyn FnOnce(&mut egui::Ui) + 'a>>,
     pub sense: egui::Sense,
 }
@@ -194,7 +195,7 @@ impl<'a> Row<'a> {
         }
 
         // Label
-        let label_color = self.label_color.unwrap_or_else(|| {
+        let label_color = self.label_color.unwrap_or({
             if self.is_selected {
                 TEXT_PRIMARY
             } else {

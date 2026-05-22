@@ -21,6 +21,8 @@ struct State {
     core: RendererCore,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
+    render_texture: Option<wgpu::Texture>,
+    render_view: Option<wgpu::TextureView>,
 }
 
 impl State {
@@ -85,7 +87,7 @@ impl State {
 
         let core = RendererCore::new(&device, &queue)?;
 
-        Ok(Self {
+        let mut state = Self {
             timeline: timeline.clone(),
             debug_options,
             surface,
@@ -94,7 +96,39 @@ impl State {
             core,
             device: Arc::new(device),
             queue: Arc::new(queue),
-        })
+            render_texture: None,
+            render_view: None,
+        };
+        state.ensure_render_texture();
+        Ok(state)
+    }
+
+    fn ensure_render_texture(&mut self) {
+        let needed = self.render_texture.as_ref().is_none_or(|t| {
+            t.width() != self.config.width || t.height() != self.config.height
+        });
+        if needed {
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width: self.config.width,
+                    height: self.config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                label: Some("Vello Render Target"),
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            self.render_texture = Some(texture);
+            self.render_view = Some(view);
+        }
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -103,6 +137,8 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.render_texture = None;
+            self.render_view = None;
         }
     }
 
@@ -133,30 +169,17 @@ impl State {
             self.debug_options,
         );
 
-        let render_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: self.config.width,
-                height: self.config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::TEXTURE_BINDING,
-            label: Some("Vello Render Target"),
-            view_formats: &[],
-        });
-        let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.ensure_render_texture();
+        let render_view = self
+            .render_view
+            .as_ref()
+            .ok_or("Render texture not initialized")?;
 
         self.core
             .render_vello_scene(
                 &self.device,
                 &self.queue,
-                &render_view,
+                render_view,
                 self.config.width,
                 self.config.height,
                 &scene,
@@ -169,7 +192,7 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Blit Encoder"),
             });
-        blitter.copy(&self.device, &mut encoder, &render_view, &view);
+        blitter.copy(&self.device, &mut encoder, render_view, &view);
         self.queue.submit(std::iter::once(encoder.finish()));
 
         output.present();
@@ -262,10 +285,7 @@ impl ApplicationHandler for App {
                     current_time
                 };
 
-                match state.render(current_time) {
-                    Ok(_) => {}
-                    Err(_) => {}
-                }
+                let _ = state.render(current_time).is_ok();
                 window.request_redraw();
             }
             _ => {}

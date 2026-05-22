@@ -203,7 +203,7 @@ impl LanguageServer for Backend {
                 label: item.label,
                 kind: Some(kind),
                 detail: item.detail,
-                documentation: item.documentation.map(|d| Documentation::String(d)),
+                documentation: item.documentation.map(Documentation::String),
                 insert_text: item.insert_text,
                 ..Default::default()
             }
@@ -354,14 +354,13 @@ impl LanguageServer for Backend {
         let analyzer = self.get_analyzer(&uri).await;
         let symbol_name = analyzer
             .hover_at(position.line as usize, position.character as usize)
-            .map(|info| {
+            .and_then(|info| {
                 // Extract the symbol name from hover info — it's in backticks
                 info.contents
                     .split('`')
                     .nth(1)
                     .map(|s| s.to_string())
-            })
-            .flatten();
+            });
 
         let Some(symbol_name) = symbol_name else {
             return Ok(None);
@@ -404,6 +403,6 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend::new(client));
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }

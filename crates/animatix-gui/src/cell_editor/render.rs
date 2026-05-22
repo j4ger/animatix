@@ -658,7 +658,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
 
     // ── Divider line (always visible, brightens on hover) ──
     if left < right {
-        let line_a = (egui::lerp(20.0..=80.0, t) as u8).min(255);
+        let line_a = egui::lerp(20.0..=80.0, t) as u8 ;
         ui.painter().line_segment(
             [egui::pos2(left, y), egui::pos2(right, y)],
             Stroke::new(
@@ -698,7 +698,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let border = if pressed {
         dt::AMBER
     } else {
-        let border_a = (egui::lerp(40.0..=100.0, btn_t) as u8).min(255);
+        let border_a = egui::lerp(40.0..=100.0, btn_t) as u8 ;
         Color32::from_rgba_premultiplied(120, 130, 150, border_a)
     };
 
@@ -706,7 +706,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let icon = if pressed {
         Color32::from_rgb(24, 27, 33)
     } else {
-        let icon_a = (egui::lerp(100.0..=220.0, btn_t) as u8).min(255);
+        let icon_a = egui::lerp(100.0..=220.0, btn_t) as u8 ;
         Color32::from_rgba_premultiplied(200, 205, 215, icon_a)
     };
 

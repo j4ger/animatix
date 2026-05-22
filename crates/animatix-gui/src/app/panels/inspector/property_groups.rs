@@ -69,7 +69,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let kf_times = animatix::timeline::property_keyframe_times(track, schema.field);
 
         let value = convert_for_display(value, schema.name, track.kind);
-        let kind = value_to_kind(value, schema.value_type, &schema.name);
+        let kind = value_to_kind(value, schema.value_type, schema.name);
         let entry = PropertyEntry {
             name: schema.name,
             kind,
@@ -310,8 +310,7 @@ pub(crate) fn render_property_row(
     // [KF dot:14px] [Label: ~42%] [Gap:6px] [Input area: flex] [Gap:4px] [KF btn:14px]
     let kf_col_right = row_rect.min.x + INSPECTOR_KF_COL_WIDTH;
     let label_width = (available * INSPECTOR_LABEL_WIDTH_FRAC)
-        .min(INSPECTOR_LABEL_MAX_WIDTH)
-        .max(INSPECTOR_LABEL_MIN_WIDTH);
+        .clamp(INSPECTOR_LABEL_MIN_WIDTH, INSPECTOR_LABEL_MAX_WIDTH);
     let label_col_right = kf_col_right + label_width;
     let input_col_left = label_col_right + INSPECTOR_COL_GAP;
     let kf_btn_right = row_rect.max.x - SPACE_S;
@@ -390,9 +389,7 @@ pub(crate) fn render_property_row(
         AMBER
     } else if entry.has_keyframes {
         if kf_btn_resp.hovered() { AMBER } else { TEXT_MUTED }
-    } else {
-        if kf_btn_resp.hovered() { TEXT_SECONDARY } else { Color32::TRANSPARENT }
-    };
+    } else if kf_btn_resp.hovered() { TEXT_SECONDARY } else { Color32::TRANSPARENT };
     if kf_color != Color32::TRANSPARENT {
         let center = kf_btn_rect.center();
         let size = if entry.has_keyframe_at_current_time { 5.5 } else { 4.5 };

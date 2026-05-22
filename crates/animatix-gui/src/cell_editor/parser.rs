@@ -64,14 +64,14 @@ pub fn parse_cells(source: &str) -> Vec<Cell> {
         }
 
         if !pending_comments.is_empty() {
-            code_lines.extend(pending_comments.drain(..));
+            code_lines.append(&mut pending_comments);
         }
         code_lines.push(line.to_string());
         i += 1;
     }
 
     if !pending_comments.is_empty() {
-        code_lines.extend(pending_comments.drain(..));
+        code_lines.append(&mut pending_comments);
     }
 
     if !code_lines.is_empty() {
@@ -135,8 +135,8 @@ fn collect_braced_body(lines: &[&str], open_line_idx: usize, first_segment: Stri
     let mut segment = if first_segment.is_empty() { String::new() } else { first_segment };
 
     loop {
-        let mut chars = segment.chars().peekable();
-        while let Some(ch) = chars.next() {
+        let chars = segment.chars().peekable();
+        for ch in chars {
             match ch {
                 '{' => {
                     depth += 1;

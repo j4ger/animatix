@@ -276,7 +276,7 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
         Expr::Path(parts) => {
             let dotted = parts.join(".");
             env.get(&dotted)
-                .ok_or_else(|| EvalError::UndefinedVariable(dotted))
+                .ok_or(EvalError::UndefinedVariable(dotted))
         }
 
         Expr::Method(receiver, name, args) => {

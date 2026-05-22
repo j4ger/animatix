@@ -63,7 +63,7 @@ impl SourceIndex {
     pub fn last_property_span(&self, actor: &str) -> Option<ByteSpan> {
         let mut best: Option<ByteSpan> = None;
         let mut consider = |span: &ByteSpan| {
-            if best.map_or(true, |b| span.end > b.end) {
+            if best.is_none_or(|b| span.end > b.end) {
                 best = Some(*span);
             }
         };
@@ -101,18 +101,16 @@ impl SourceIndex {
                 Stmt::Assignment {
                     target,
                     property,
-                    value_span,
+                    value_span: Some(span),
                     ..
                 } => {
-                    if let Some(span) = value_span {
-                        // target is a path like ["container", "child"]
-                        // The actor label is the last segment
-                        if let Some(actor) = target.last() {
-                            self.assignments.insert(
-                                (actor.clone(), property.clone()),
-                                *span,
-                            );
-                        }
+                    // target is a path like ["container", "child"]
+                    // The actor label is the last segment
+                    if let Some(actor) = target.last() {
+                        self.assignments.insert(
+                            (actor.clone(), property.clone()),
+                            *span,
+                        );
                     }
                 }
                 Stmt::ReactiveBinding { target, property, value_span, .. } => {

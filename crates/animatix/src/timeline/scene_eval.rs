@@ -3,6 +3,7 @@ use super::{
     VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
     vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
+use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
@@ -201,7 +202,7 @@ impl Timeline {
         _opacity: f32,
         _scene: &mut vello::Scene,
         _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
-    ) -> Vec<TextPath> {
+    ) -> Result<Vec<TextPath>, RenderError> {
         let mut content = track.text_content.get(time_ms, String::new());
         let mut font_family = track.font_family.get(time_ms, String::new());
         let default_font_size = match track.kind {
@@ -234,11 +235,10 @@ impl Timeline {
                 super::ActorKindId::Typst => TextKind::Typst,
                 _ => TextKind::Text,
             };
-            self.text_compiler
-                .borrow_mut()
-                .compile(&content, &font_family, font_size, color, kind, &self.font_context)
+            let mut compiler = self.text_compiler.borrow_mut();
+            compiler.compile(&content, &font_family, font_size, color, kind, &self.font_context)
         } else {
-            track.evaluate_text_paths(time_ms)
+            Ok(track.evaluate_text_paths(time_ms))
         }
     }
 
@@ -275,7 +275,7 @@ impl Timeline {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
             if let Some(text_paths) = &track.text_paths {
-                for (_, (paths, _)) in &text_paths.keyframes {
+                for (paths, _) in text_paths.keyframes.values() {
                     for glyph in paths {
                         glyphs.push(glyph.clone());
                     }
@@ -331,7 +331,7 @@ impl Timeline {
 
             // Re-sample procedural plots at frame time so they can reference `t`.
             if let Some(procedural_plot) = track.procedural_plot.as_ref() {
-                let frame_env = self.frame_eval_env(time_ms, scene_dimensions, &overrides);
+                let frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
                 vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &frame_env);
             }
             let layout_pos = if self.dynamic_layout {
@@ -431,7 +431,7 @@ impl Timeline {
                 opacity,
                 scene,
                 &mut Vec::new(),
-            );
+            ).unwrap_or_default();
 
             self.build_shape_vector_paths(
                 track,
@@ -795,7 +795,7 @@ impl Timeline {
                     && cached.dimensions == scene_dimensions
                     && cached.has_modifiers == has_modifiers
                     && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders == !self.child_orders.is_empty()
+                    && cached.has_child_orders != self.child_orders.is_empty()
                 {
                     return cached.scene.clone();
                 }
@@ -839,10 +839,10 @@ impl Timeline {
         }
 
         let bg = vello::peniko::Color::new([
-            bg_color[0] as f32,
-            bg_color[1] as f32,
-            bg_color[2] as f32,
-            bg_color[3] as f32,
+            bg_color[0],
+            bg_color[1],
+            bg_color[2],
+            bg_color[3],
         ]);
         scene.fill(
             vello::peniko::Fill::NonZero,

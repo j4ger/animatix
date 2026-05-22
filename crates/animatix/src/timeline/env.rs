@@ -45,6 +45,7 @@ pub enum Value {
     List(Vec<Value>),
     /// Object(type_name, fields) — constructed value with named fields
     Object(String, HashMap<String, Value>),
+    #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     Closure(Vec<String>, Box<crate::ast::Expr>),
 }
@@ -148,6 +149,12 @@ impl Value {
 #[derive(Clone)]
 pub struct Environment {
     values: HashMap<String, Value>,
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Environment {

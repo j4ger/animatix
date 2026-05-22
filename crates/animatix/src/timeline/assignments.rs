@@ -11,6 +11,7 @@ use super::{
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{AssignmentCtx, find_primitive};
+use crate::renderer::error::RenderError;
 use crate::timeline::property_engine::{
     parse_property_value, write_property_field,
 };
@@ -66,12 +67,11 @@ impl Timeline {
                 if duration_ms > 0.0 {
                     let start_val = self.background_color.evaluate(t_start_ms);
                     self.background_color.add_keyframe(t_start_ms, start_val, Easing::Linear);
-                } else if instant_delayed {
-                    if t_start_ms > 0 && !self.background_color.keyframes.contains_key(&(t_start_ms - 1)) {
+                } else if instant_delayed
+                    && t_start_ms > 0 && !self.background_color.keyframes.contains_key(&(t_start_ms - 1)) {
                         let prev_val = self.background_color.evaluate(t_start_ms - 1);
                         self.background_color.add_keyframe(t_start_ms - 1, prev_val, Easing::Linear);
                     }
-                }
                 self.background_color.add_keyframe(t_end_ms, target_color, easing);
             }
             return;
@@ -205,11 +205,13 @@ fn handle_size_assignment(
 
     let target_size = match property {
         "size" => {
-            if let Some(v) = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject) {
-                if let Value::Vec2([w, h]) = v {
-                    [w as f32 / 2.0, h as f32 / 2.0]
-                } else { track.size.last(default_size) }
-            } else { track.size.last(default_size) }
+            if let Some(Value::Vec2([w, h])) =
+                evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            {
+                [w as f32 / 2.0, h as f32 / 2.0]
+            } else {
+                track.size.last(default_size)
+            }
         }
         "radius_x" => {
             let mut s = track.size.last(default_size);
@@ -257,7 +259,7 @@ pub(crate) fn recompile_text_at_assignment(
     duration_ms: f64,
     font_ctx: &crate::renderer::text::FontContext,
     text_compiler: &mut crate::renderer::text::TextCompiler,
-) {
+) -> Result<(), RenderError> {
     if duration_ms > 0.0 {
         let start_val = track.text_content.get(t_start_ms, String::new());
         track.text_content.ensure(String::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -271,14 +273,14 @@ pub(crate) fn recompile_text_at_assignment(
         super::ActorKindId::Math => crate::renderer::text::TextKind::Math,
         super::ActorKindId::Code => crate::renderer::text::TextKind::Code,
         super::ActorKindId::Typst => crate::renderer::text::TextKind::Typst,
-        _ => return,
+        _ => return Ok(()),
     };
 
     let font_family = track.font_family.get(t_end_ms, String::new());
     let font_size = track.font_size.get(t_end_ms, 48.0);
     let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
 
-    let new_paths = text_compiler.compile(&target_text, &font_family, font_size, color, text_kind, font_ctx);
+    let new_paths = text_compiler.compile(&target_text, &font_family, font_size, color, text_kind, font_ctx)?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
     if duration_ms > 0.0 {
@@ -297,6 +299,7 @@ pub(crate) fn recompile_text_at_assignment(
     track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
     track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────

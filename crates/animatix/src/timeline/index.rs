@@ -33,8 +33,8 @@ impl TimelineIndex {
             let trimmed = line.trim_start();
 
             // Check for keyframe declaration
-            if trimmed.starts_with('#') {
-                let after_hash = trimmed[1..].trim_start();
+            if let Some(after_hash) = trimmed.strip_prefix('#') {
+                let after_hash = after_hash.trim_start();
                 let is_relative = after_hash.starts_with('+');
                 let time_part = if is_relative {
                     &after_hash[1..]

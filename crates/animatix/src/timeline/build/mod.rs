@@ -148,7 +148,7 @@ impl Timeline {
                 | Stmt::LetDecl { .. } => {
                     timeline.process_body(
                         current_build_time_ms,
-                        &[stmt.clone()],
+                        std::slice::from_ref(stmt),
                         None,
                         &mut diagnostics,
                     );
@@ -197,9 +197,13 @@ impl Timeline {
             std::collections::HashMap::new();
 
         for stmt in ast {
-            if let Stmt::LetDecl { name, value, .. } = stmt {
-                if let Expr::Construct(type_name, properties) = value {
-                    if type_name == "Colorscheme" {
+            if let Stmt::LetDecl {
+                name,
+                value: Expr::Construct(type_name, properties),
+                ..
+            } = stmt
+            {
+                if type_name == "Colorscheme" {
                         // Extract extends from properties
                         let mut extends = None;
                         let mut scheme_props = Vec::new();
@@ -225,7 +229,6 @@ impl Timeline {
                     }
                 }
             }
-        }
 
         let mut resolved: std::collections::HashMap<String, ResolvedColorscheme> =
             std::collections::HashMap::new();
@@ -466,7 +469,7 @@ impl Timeline {
                 }
                 // SlotMarker and SlotFill are resolved during component expansion.
                 // At timeline build time they should never appear in the AST.
-                crate::ast::InlineItem::SlotMarker { .. }
+                crate::ast::InlineItem::SlotMarker
                 | crate::ast::InlineItem::SlotFill { .. } => {
                     // Unreachable after correct component expansion.
                     // Emitting a diagnostic here is noisy for a correctness-invariant;
@@ -1123,7 +1126,7 @@ impl Timeline {
             set_track_position_binding(track, t_start_ms, PositionBinding::ContainerDefault { anchor: SceneAnchor::Center });
         }
 
-        Self::insert_actor_keyframes(track, t_start_ms, t_end_ms, [position[0] as f32, position[1] as f32], size, line_from, line_to, arc_angles, color, shape_type, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity, vello_paths, easing, duration_ms, delay_ms, supports_morph_options, morph_options);
+        Self::insert_actor_keyframes(track, t_start_ms, t_end_ms, [position[0], position[1]], size, line_from, line_to, arc_angles, color, shape_type, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity, vello_paths, easing, duration_ms, delay_ms, supports_morph_options, morph_options);
 
         if primitive.is_layout_container() {
             self.register_container_metadata_and_apply_layout(label, ty, time_ms as u64, gap, padding, align.as_deref(), cols, diagnostics);

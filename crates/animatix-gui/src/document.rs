@@ -174,6 +174,7 @@ impl DocumentSession {
 
     /// Load the program, returning (raw_statements, expanded_statements, namespaces).
     /// Raw statements are the parsed statements before component expansion.
+    #[allow(clippy::type_complexity)]
     fn load_program(&self) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>), ModuleError> {
         let mut graph = ModuleGraph::new();
         let program = graph

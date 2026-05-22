@@ -165,7 +165,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
     // Dotted identifier for assignment targets and property keys with dots
     let dotted_ident = ident
-        .clone()
         .separated_by(just('.').padded())
         .at_least(1)
         .collect::<Vec<_>>()
@@ -242,7 +241,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .boxed();
 
         let call = ident
-            .clone()
             .then(
                 expr.clone()
                     .separated_by(just(',').padded())
@@ -256,10 +254,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         // Type construction expression: TypeName { prop1: val1, prop2: val2 }
         // Inline property parsing since property is defined after expr
         let construct = ident
-            .filter(|s: &String| s.chars().next().map_or(false, |c| c.is_uppercase()))
+            .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
             .then(
                 ident
-                    .clone()
                     .then_ignore(just(':').padded())
                     .then(expr.clone())
                     .map(|(name, value)| Property { name, value, value_span: None, trailing_comment: None })
@@ -284,7 +281,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             tuple,
             array,
             construct,
-            ident.clone().map(Expr::Ident),
+            ident.map(Expr::Ident),
         ));
 
         // Prefix expressions: fold multiple prefix ops around an atom
@@ -304,7 +301,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(
                 just('.')
                     .padded()
-                    .ignore_then(ident.clone())
+                    .ignore_then(ident)
                     .repeated()
                     .collect::<Vec<_>>(),
             )
@@ -399,12 +396,11 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         let closure = choice((
             ident
-                .clone()
                 .separated_by(just(',').padded())
                 .allow_trailing()
                 .collect::<Vec<_>>()
                 .delimited_by(just('(').padded(), just(')').padded()),
-            ident.clone().map(|i| vec![i]),
+            ident.map(|i| vec![i]),
         ))
         .then_ignore(just("=>").padded())
         .then(expr.clone())
@@ -421,7 +417,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     let property_name = dotted_ident
         .clone()
         .map(|parts: Vec<String>| parts.join("."))
-        .or(ident.clone());
+        .or(ident);
 
     // Trailing line comment after a property value: `size: (100, 200) // half-extents`
     let trailing_comment = just("//")
@@ -446,10 +442,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     let modifier = choice((
         // named modifier: ease: bounce
         ident
-            .clone()
             .then_ignore(just(':').padded())
             .then(choice((
-                time.clone().map(|t| match t {
+                time.map(|t| match t {
                     Time::Seconds(s) => Expr::Ident(format!("{}s", s)),
                     Time::Milliseconds(ms) => Expr::Ident(format!("{}ms", ms)),
                 }),
@@ -460,7 +455,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 value,
             }),
         // positional modifier: 2s
-        time.clone().map(|t| Modifier {
+        time.map(|t| Modifier {
             name: None,
             value: match t {
                 Time::Seconds(s) => Expr::Ident(format!("{}s", s)),
@@ -479,8 +474,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(|m: Option<Vec<Modifier>>| m.unwrap_or_default());
 
     let type_ident = ident
-        .clone()
-        .filter(|s: &String| s.chars().next().map_or(false, |c| c.is_uppercase()));
+        .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()));
 
     #[derive(Clone)]
     enum FlatItem {
@@ -504,7 +498,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             // MUST be tried BEFORE the @slot marker so that @slot { ... } is
             // parsed as a slot fill (not as a SlotMarker with a dropped block).
             just('@')
-                .ignore_then(ident.clone())
+                .ignore_then(ident)
                 .then(
                     inline_items
                         .clone()
@@ -517,9 +511,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             just("@slot").padded().to(FlatItem::SlotMarker),
             // Labeled inline item: label: Type [mods] [{ children }]
             ident
-                .clone()
                 .then_ignore(just(':').padded())
-                .then(type_ident.clone())
+                .then(type_ident)
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|(((label, ty), mods), children)| {
@@ -527,7 +520,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 }),
             // Anonymous inline item: Type [mods] [{ children }]
             type_ident
-                .clone()
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
@@ -617,7 +609,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .then(text::keyword("let")
                 .padded()
-                .ignore_then(ident.clone())
+                .ignore_then(ident)
                 .then_ignore(just('=').padded())
                 .then(expr.clone()))
             .map(|(pub_kw, (name, value))| Stmt::LetDecl {
@@ -638,7 +630,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .then(
                 text::keyword("as")
                     .padded()
-                    .ignore_then(ident.clone())
+                    .ignore_then(ident)
                     .or_not(),
             )
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
@@ -727,7 +719,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .delimited_by(just('{').padded(), just('}').padded());
 
         let svg_stmt = ident
-            .clone()
             .then_ignore(just(':').padded())
             .or_not()
             .then_ignore(text::keyword("Svg"))
@@ -745,7 +736,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let image_stmt = ident
-            .clone()
             .then_ignore(just(':').padded())
             .or_not()
             .then_ignore(text::keyword("Image"))
@@ -764,9 +754,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         // Shorthand: label: "string" → label: Text, text: "string"
         let text_shorthand = ident
-            .clone()
             .then_ignore(just(':').padded())
-            .then(str_val.clone())
+            .then(str_val)
             .then(modifiers.clone())
             .map(|((label, text), modifiers)| Stmt::ActorDecl {
                 is_pub: false,
@@ -789,9 +778,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded()
             .or_not()
             .map(|p| p.is_some())
-            .then(ident.clone())
+            .then(ident)
             .then_ignore(just(':').padded())
-            .then(ident.clone())
+            .then(ident)
             .then(
                 just(',')
                     .padded()
@@ -829,8 +818,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let action = ident
-            .clone()
-            .then(ident.clone().repeated().collect::<Vec<_>>()) // Simplified targets
+            .then(ident.repeated().collect::<Vec<_>>()) // Simplified targets
             .then(modifiers.clone())
             .map_with(|((verb, targets), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
                 let span = extra.span();
@@ -885,7 +873,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let drive_stmt = text::keyword("drive")
-            .ignore_then(ident.clone())
+            .ignore_then(ident)
             .then(always_body.clone())
             .map(|(label, body)| Stmt::Drive { label, body, span: None })
             .padded();
@@ -917,7 +905,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .delimited_by(just('{').padded(), just('}').padded());
 
         let for_stmt = text::keyword("for")
-            .ignore_then(ident.clone())
+            .ignore_then(ident)
             .then_ignore(text::keyword("in").padded())
             .then(expr.clone())
             .then(for_loop_body)
@@ -930,22 +918,20 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let param_def = ident
-            .clone()
             .then_ignore(just(':').padded())
             .then(
                 str_val
-                    .clone()
-                    .map(|e| Some(e))
+                    .map(Some)
                     .or(text::keyword("null").to(Some(Expr::Null))),
             )
             .map(|(name, default): (String, Option<Expr>)| ParamDef {
                 name,
                 param_type: None,
-                default: default,
+                default,
             });
 
         let component_action_stmt = text::keyword("action")
-            .ignore_then(ident.clone())
+            .ignore_then(ident)
             .then(
                 _stmt
                     .clone()
@@ -966,7 +952,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .or_not()
             .map(|p| p.is_some())
             .then_ignore(text::keyword("component").padded())
-            .then(ident.clone())
+            .then(ident)
             .then(
                 param_def
                     .separated_by(just(',').padded())
@@ -1044,7 +1030,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         // `# SceneName` — scene declaration (only at top level, not inside containers)
         let scene_decl = just('#')
-            .ignore_then(ident.clone().padded())
+            .ignore_then(ident.padded())
             .map(|name| Stmt::Scene {
                 name,
                 config: vec![],
@@ -1056,7 +1042,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         let keyframe = just('#')
             .ignore_then(just('+').or_not())
-            .then(time.clone())
+            .then(time)
             .then(stmt.clone().repeated().collect::<Vec<_>>())
             .map(|((is_relative, t), body)| {
                 if is_relative.is_some() {

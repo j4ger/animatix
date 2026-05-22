@@ -549,7 +549,7 @@ impl GuiShell {
         let row_h = ROW_M;
         let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
-        let label_width = (available * 0.32).max(70.0).min(110.0);
+        let label_width = (available * 0.32).clamp(70.0, 110.0);
         let content_left = row_rect.min.x + label_width + SPACE_L;
 
         // Label (left side)
@@ -641,11 +641,7 @@ impl GuiShell {
                 let btn_size = Vec2::new(120.0, ROW_M);
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
 
-                let btn_bg = if btn_resp.hovered() {
-                    AMBER
-                } else {
-                    AMBER
-                };
+                let btn_bg = AMBER;
 
                 ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
                 ui.painter().text(

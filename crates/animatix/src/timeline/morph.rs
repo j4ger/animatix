@@ -423,6 +423,7 @@ fn path_centroid_key(path: &BezPath, other: &BezPath) -> std::cmp::Ordering {
         })
 }
 
+#[allow(clippy::ptr_arg)]
 fn subpath_centroid_key(left: &Vec<PathEl>, right: &Vec<PathEl>) -> std::cmp::Ordering {
     let left_centroid = get_subpath_centroid(left);
     let right_centroid = get_subpath_centroid(right);

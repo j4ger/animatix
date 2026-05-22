@@ -56,10 +56,10 @@ pub fn render_fcurve(
     // Get values
     let mut points: Vec<(f64, f32)> = Vec::new();
     for time_ms in &kf_times {
-        if let Some(value) = read_property_value(track, field, *time_ms) {
-            if let animatix::timeline::PropertyValue::F32(v) = value {
-                points.push((*time_ms as f64 / 1000.0, v));
-            }
+        if let Some(animatix::timeline::PropertyValue::F32(v)) =
+            read_property_value(track, field, *time_ms)
+        {
+            points.push((*time_ms as f64 / 1000.0, v));
         }
     }
 

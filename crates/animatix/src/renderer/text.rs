@@ -1,4 +1,5 @@
 pub use super::types::TextPath;
+use super::error::RenderError;
 use kurbo::{Affine, BezPath, Point, Shape};
 use mitex::convert_math;
 use typst::foundations::{Bytes, Datetime};
@@ -19,6 +20,12 @@ use typst::{Library, LibraryExt};
 #[derive(Clone, Debug)]
 pub struct FontContext {
     db: fontdb::Database,
+}
+
+impl Default for FontContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FontContext {
@@ -101,14 +108,14 @@ pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
-fn build_world(source: Source, extra_fonts: &[&str], font_ctx: &FontContext) -> TypstWorld {
+fn build_world(source: Source, extra_fonts: &[&str], font_ctx: &FontContext) -> Result<TypstWorld, RenderError> {
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
 
     // Load bundled fonts
     for bf in BUNDLED_FONTS {
         let font = Font::new(Bytes::new(bf.data), 0)
-            .unwrap_or_else(|| panic!("Failed to load bundled font: {}", bf.family));
+            .ok_or_else(|| RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family)))?;
         book.push(font.info().clone());
         fonts.push(font);
     }
@@ -122,12 +129,12 @@ fn build_world(source: Source, extra_fonts: &[&str], font_ctx: &FontContext) -> 
     }
 
     let library = typst::Library::builder().build();
-    TypstWorld {
+    Ok(TypstWorld {
         source,
         fonts,
         book: LazyHash::new(book),
         library: LazyHash::new(library),
-    }
+    })
 }
 
 /// Resolve a font family name to the family string that should appear in Typst markup.
@@ -203,11 +210,11 @@ pub struct TypstWorld {
 }
 
 impl TypstWorld {
-    pub fn new(source: Source, font_ctx: &FontContext) -> Self {
+    pub fn new(source: Source, font_ctx: &FontContext) -> Result<Self, RenderError> {
         build_world(source, &[], font_ctx)
     }
 
-    pub fn with_fonts(source: Source, fonts: &[&str], font_ctx: &FontContext) -> Self {
+    pub fn with_fonts(source: Source, fonts: &[&str], font_ctx: &FontContext) -> Result<Self, RenderError> {
         build_world(source, fonts, font_ctx)
     }
 }
@@ -250,9 +257,10 @@ impl World for TypstWorld {
     }
 }
 
-pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
-    let typst_markup = convert_math(latex, None).expect("failed to convert LaTeX math to Typst markup");
+    let typst_markup = convert_math(latex, None)
+        .map_err(|e| RenderError::TextCompilation(format!("failed to convert LaTeX math to Typst markup: {}", e)))?;
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
@@ -262,13 +270,14 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst math document");
+    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output
+        .map_err(|_| RenderError::TextCompilation("failed to compile Typst math document".to_string()))?;
 
-    document.pages[0].frame.clone()
+    Ok(document.pages[0].frame.clone())
 }
 
-pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{}",
@@ -279,13 +288,14 @@ pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst document");
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output
+        .map_err(|_| RenderError::TextCompilation("failed to compile Typst document".to_string()))?;
 
-    document.pages[0].frame.clone()
+    Ok(document.pages[0].frame.clone())
 }
 
-pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let escaped = text
         .replace('\\', "\\\\")
@@ -300,13 +310,14 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst text document");
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output
+        .map_err(|_| RenderError::TextCompilation("failed to compile Typst text document".to_string()))?;
 
-    document.pages[0].frame.clone()
+    Ok(document.pages[0].frame.clone())
 }
 
-pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Frame {
+pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let escaped = code
         .replace('\\', "\\\\")
@@ -321,10 +332,11 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx);
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.expect("failed to compile Typst code document");
+    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output
+        .map_err(|_| RenderError::TextCompilation("failed to compile Typst code document".to_string()))?;
 
-    document.pages[0].frame.clone()
+    Ok(document.pages[0].frame.clone())
 }
 
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
@@ -421,12 +433,12 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
                         ));
 
                         let item_transform = Affine::new([
-                            transform.sx.get() as f64,
-                            transform.ky.get() as f64,
-                            transform.kx.get() as f64,
-                            transform.sy.get() as f64,
-                            transform.tx.to_pt() as f64,
-                            transform.ty.to_pt() as f64,
+                            transform.sx.get(),
+                            transform.ky.get(),
+                            transform.kx.get(),
+                            transform.sy.get(),
+                            transform.tx.to_pt(),
+                            transform.ty.to_pt(),
                         ]);
 
                         let final_affine = item_transform * glyph_translate * scale_affine;
@@ -528,7 +540,7 @@ impl TextCompiler {
         color: [f32; 4],
         kind: TextKind,
         font_ctx: &FontContext,
-    ) -> Vec<TextPath> {
+    ) -> Result<Vec<TextPath>, RenderError> {
         let key = TextCacheKey {
             content: content.to_string(),
             font_family: font_family.to_string(),
@@ -543,19 +555,19 @@ impl TextCompiler {
         };
 
         if let Some(cached) = self.cache.get(&key) {
-            return cached.clone();
+            return Ok(cached.clone());
         }
 
         let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
         let frame = match kind {
-            TextKind::Text => compile_text(content, font_size, typst_color, font_family, font_ctx),
-            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx),
-            TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx),
-            TextKind::Typst => compile_typst(content, font_size, typst_color, font_family, font_ctx),
+            TextKind::Text => compile_text(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Typst => compile_typst(content, font_size, typst_color, font_family, font_ctx)?,
         };
         let paths = extract_glyphs(&frame);
         self.cache.insert(key, paths.clone());
-        paths
+        Ok(paths)
     }
 
     /// Clear the compilation cache.
