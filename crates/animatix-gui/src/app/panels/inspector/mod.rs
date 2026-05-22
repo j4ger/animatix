@@ -13,6 +13,12 @@ mod keyframe_table;
 use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, collect_all_keyframe_times, count_keyframes};
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum PropertyViewMode {
+    Semantic,
+    Intensity,
+}
+
 fn default_actor_type() -> &'static str {
     animatix::primitives::actor_kind_registry()
         .iter()
@@ -136,12 +142,31 @@ pub(super) fn inspector_ui(
 
                 // ── Active Properties ──
                 components::card(ui, |ui| {
-                    components::section_header(
-                        ui,
-                        egui_phosphor::regular::WRENCH,
-                        "Properties",
-                        None,
-                    );
+                    let view_mode_id = ui.id().with("property_view_mode");
+                    let mut view_mode = ui.data(|d| d.get_temp::<PropertyViewMode>(view_mode_id)).unwrap_or(PropertyViewMode::Semantic);
+
+                    ui.horizontal(|ui| {
+                        components::section_header(
+                            ui,
+                            egui_phosphor::regular::WRENCH,
+                            "Properties",
+                            None,
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let label = match view_mode {
+                                PropertyViewMode::Semantic => format!("{} Semantic", egui_phosphor::regular::ROWS),
+                                PropertyViewMode::Intensity => format!("{} Stream", egui_phosphor::regular::FIRE),
+                            };
+                            if ui.button(RichText::new(label).size(FONT_SIZE_XS).color(TEXT_MUTED)).clicked() {
+                                view_mode = match view_mode {
+                                    PropertyViewMode::Semantic => PropertyViewMode::Intensity,
+                                    PropertyViewMode::Intensity => PropertyViewMode::Semantic,
+                                };
+                                ui.data_mut(|d| d.insert_temp(view_mode_id, view_mode));
+                            }
+                        });
+                    });
+
                     let current_time_ms = (current_time_s * 1000.0) as u64;
                     let groups = build_property_groups(track, current_time_ms);
                     if groups.is_empty() {
@@ -157,14 +182,22 @@ pub(super) fn inspector_ui(
                             );
                         });
                     } else {
-                        for group in &groups {
-                            render_property_group(
-                                ui,
-                                group,
-                                &track.label,
-                                commands,
-                                keyframe_mode,
-                            );
+                        match view_mode {
+                            PropertyViewMode::Semantic => {
+                                for group in &groups {
+                                    render_property_group(
+                                        ui,
+                                        group,
+                                        &track.label,
+                                        commands,
+                                        keyframe_mode,
+                                        current_time_s,
+                                    );
+                                }
+                            }
+                            PropertyViewMode::Intensity => {
+                                render_property_stream(ui, &groups, &track.label, commands, keyframe_mode, current_time_s);
+                            }
                         }
                     }
                 });
@@ -259,6 +292,109 @@ pub(super) fn inspector_ui(
             "Select an actor to inspect",
             "Click an actor in the preview or Layers panel",
         );
+    }
+}
+
+// ─── Property Stream (intensity-sorted flat list) ─────────────────────────
+
+fn render_property_stream(
+    ui: &mut egui::Ui,
+    groups: &[PropertyGroup],
+    _actor_label: &str,
+    _commands: &mut CommandQueue,
+    _keyframe_mode: bool,
+    _current_time_s: f64,
+) {
+    // Flatten all entries and sort by keyframe count descending
+    let mut all_entries: Vec<(&PropertyGroup, &PropertyEntry)> = Vec::new();
+    for group in groups {
+        for entry in &group.properties {
+            all_entries.push((group, entry));
+        }
+    }
+    all_entries.sort_by(|a, b| b.1.keyframe_count.cmp(&a.1.keyframe_count));
+
+    // Find max keyframe count for bar scaling
+    let max_kf = all_entries.iter().map(|(_, e)| e.keyframe_count).max().unwrap_or(1).max(1);
+
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+    for (group, entry) in &all_entries {
+        let row_height = INSPECTOR_ROW_HEIGHT;
+        let available = ui.available_width();
+        let (row_rect, row_response) =
+            ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
+
+        if row_response.hovered() {
+            ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+        }
+
+        let baseline_y = row_rect.center().y;
+
+        // Intensity bar (left side)
+        let bar_max_w = 60.0f32;
+        let bar_w = if entry.keyframe_count > 0 {
+            (entry.keyframe_count as f32 / max_kf as f32 * bar_max_w).max(4.0)
+        } else {
+            0.0
+        };
+        if bar_w > 0.0 {
+            let bar_rect = egui::Rect::from_min_max(
+                egui::pos2(row_rect.min.x + SPACE_S, baseline_y - 3.0),
+                egui::pos2(row_rect.min.x + SPACE_S + bar_w, baseline_y + 3.0),
+            );
+            let bar_color = if entry.keyframe_count >= max_kf / 2 {
+                AMBER
+            } else {
+                TEXT_MUTED
+            };
+            ui.painter().rect_filled(bar_rect, RADIUS_S, bar_color);
+        }
+
+        // Icon + property name
+        let name_x = row_rect.min.x + SPACE_S + bar_max_w + SPACE_S;
+        ui.painter().text(
+            egui::pos2(name_x, baseline_y),
+            egui::Align2::LEFT_CENTER,
+            format!("{} {}", group.icon, entry.name),
+            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TEXT_SECONDARY,
+        );
+
+        // Keyframe count badge (right)
+        if entry.keyframe_count > 0 {
+            let count_text = format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
+            ui.painter().text(
+                egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+                egui::Align2::RIGHT_CENTER,
+                count_text,
+                egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                TEXT_MUTED,
+            );
+        }
+
+        // Click to jump to the property in semantic view
+        if row_response.clicked() {
+            // Switch back to semantic view and this property will be visible
+            ui.data_mut(|d| d.insert_temp(ui.id().with("property_view_mode"), PropertyViewMode::Semantic));
+        }
+    }
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+
+    // Divider between animated and non-animated
+    let animated_count = all_entries.iter().filter(|(_, e)| e.keyframe_count > 0).count();
+    if animated_count > 0 && animated_count < all_entries.len() {
+        ui.add_space(SPACE_S);
+        let divider_rect = ui.available_rect_before_wrap();
+        if divider_rect.width() > 0.0 {
+            ui.painter().line_segment(
+                [
+                    egui::pos2(divider_rect.min.x + SPACE_S, divider_rect.min.y + 4.0),
+                    egui::pos2(divider_rect.max.x - SPACE_S, divider_rect.min.y + 4.0),
+                ],
+                egui::Stroke::new(1.0, BORDER),
+            );
+        }
+        ui.add_space(SPACE_S);
     }
 }
 

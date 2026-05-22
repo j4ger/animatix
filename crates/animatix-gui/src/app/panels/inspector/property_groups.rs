@@ -23,6 +23,8 @@ pub(crate) struct PropertyEntry {
     pub kind: PropertyKind,
     pub has_keyframes: bool,
     pub has_keyframe_at_current_time: bool,
+    pub keyframe_count: usize,
+    pub keyframe_times_ms: Vec<u64>,
 }
 
 pub(crate) enum PropertyKind {
@@ -64,6 +66,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let value = read_property_value_or_default(track, schema.field, time_ms, track.kind);
         let has_kf = property_has_keyframes(track, schema.field);
         let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
+        let kf_times = animatix::timeline::property_keyframe_times(track, schema.field);
 
         let value = convert_for_display(value, schema.name, track.kind);
         let kind = value_to_kind(value, schema.value_type, &schema.name);
@@ -72,6 +75,8 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             kind,
             has_keyframes: has_kf,
             has_keyframe_at_current_time: has_kf_now,
+            keyframe_count: kf_times.len(),
+            keyframe_times_ms: kf_times,
         };
 
         match schema.field {
@@ -234,6 +239,7 @@ pub(crate) fn render_property_group(
     actor_label: &str,
     commands: &mut CommandQueue,
     keyframe_mode: bool,
+    current_time_s: f64,
 ) {
     let group_id = ui.id().with(("prop_group", group.name));
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
@@ -263,7 +269,7 @@ pub(crate) fn render_property_group(
     if expanded {
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
         for entry in &group.properties {
-            render_property_row(ui, actor_label, entry, commands, keyframe_mode);
+            render_property_row(ui, actor_label, entry, commands, keyframe_mode, current_time_s);
         }
         ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
     }
@@ -287,6 +293,7 @@ pub(crate) fn render_property_row(
     entry: &PropertyEntry,
     commands: &mut CommandQueue,
     keyframe_mode: bool,
+    current_time_s: f64,
 ) {
     let row_height = INSPECTOR_ROW_HEIGHT;
     let available = ui.available_width();
@@ -413,6 +420,51 @@ pub(crate) fn render_property_row(
                 create_keyframe: true,
             }));
         }
+    }
+
+    // Context menu on filled diamond: delete keyframe or change easing
+    if entry.has_keyframe_at_current_time {
+        kf_btn_resp.context_menu(|ui| {
+            ui.set_min_width(140.0);
+            ui.strong(format!("Keyframe @ {:.2}s", 
+                entry.keyframe_times_ms.iter().find(|&&t| t == (current_time_s * 1000.0) as u64)
+                    .map(|&t| t as f64 / 1000.0)
+                    .unwrap_or(current_time_s)
+            ));
+            ui.separator();
+            if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
+                commands.push_back(Command::DeleteKeyframe {
+                    actor: actor_label.to_string(),
+                    property: entry.name.to_string(),
+                    time_s: current_time_s,
+                });
+                ui.close();
+            }
+            ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
+                for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
+                    let variant = match id_str {
+                        "linear" => animatix::easing::Easing::Linear,
+                        "easein" => animatix::easing::Easing::EaseIn,
+                        "easeout" => animatix::easing::Easing::EaseOut,
+                        "easeinout" => animatix::easing::Easing::EaseInOut,
+                        "bounce" => animatix::easing::Easing::Bounce,
+                        "elastic" => animatix::easing::Easing::Elastic,
+                        "back" => animatix::easing::Easing::Back,
+                        "expo" => animatix::easing::Easing::Expo,
+                        _ => animatix::easing::Easing::Linear,
+                    };
+                    if ui.selectable_label(false, display_name).clicked() {
+                        commands.push_back(Command::SetKeyframeEasing {
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            time_s: current_time_s,
+                            easing: variant,
+                        });
+                        ui.close();
+                    }
+                }
+            });
+        });
     }
 
     // ── Input widget (inside input_rect, no extra frame) ──

@@ -116,6 +116,13 @@ pub enum SourceEdit {
         time_s: f64,
         easing: animatix::easing::Easing,
     },
+    /// Delete a keyframe at a specific time.
+    DeleteKeyframe {
+        actor: String,
+        property: String,
+        /// Absolute time in seconds.
+        time_s: f64,
+    },
     /// Move an actor to a new parent container (or to top-level if None).
     /// If the target is not a container, both are wrapped in a new Group.
     Reparent {
@@ -179,6 +186,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         SourceEdit::DeleteScene { name } => delete_scene(stmts, &name),
         SourceEdit::SetKeyframeEasing { actor, property, time_s, easing } => {
             set_keyframe_easing(stmts, &actor, &property, time_s, easing)
+        }
+        SourceEdit::DeleteKeyframe { actor, property, time_s } => {
+            delete_keyframe(stmts, &actor, &property, time_s)
         }
         SourceEdit::Reparent { actor, new_parent } => {
             reparent_actor(stmts, &actor, new_parent.as_deref())
@@ -421,6 +431,64 @@ fn update_assignment_easing(body: &mut [Stmt], actor: &str, property: &str, easi
         }
     }
     false
+}
+
+// ---------------------------------------------------------------------------
+// DeleteKeyframe
+// ---------------------------------------------------------------------------
+
+fn delete_keyframe(
+    stmts: &mut Vec<Stmt>,
+    actor: &str,
+    property: &str,
+    time_s: f64,
+) -> bool {
+    let source_prop = canonical_to_source(property);
+    let mut current_time = 0.0f64;
+
+    for i in 0..stmts.len() {
+        let (is_match, is_empty_after) = match &mut stmts[i] {
+            Stmt::Keyframe { time, body, .. } => {
+                current_time = time_to_seconds(time);
+                if (current_time - time_s).abs() < 0.001 {
+                    remove_assignment_from_body(body, actor, &source_prop);
+                    (true, body.is_empty())
+                } else {
+                    (false, false)
+                }
+            }
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                current_time += time_to_seconds(offset);
+                if (current_time - time_s).abs() < 0.001 {
+                    remove_assignment_from_body(body, actor, &source_prop);
+                    (true, body.is_empty())
+                } else {
+                    (false, false)
+                }
+            }
+            _ => (false, false),
+        };
+
+        if is_match {
+            if is_empty_after {
+                stmts.remove(i);
+            }
+            return true;
+        }
+    }
+
+    false
+}
+
+fn remove_assignment_from_body(
+    body: &mut Vec<Stmt>,
+    actor: &str,
+    property: &str,
+) {
+    body.retain(|stmt| !matches!(stmt,
+        Stmt::Assignment { target, property: prop, .. }
+            if target.iter().any(|t| t == actor) && prop == property
+    ));
 }
 
 // ---------------------------------------------------------------------------

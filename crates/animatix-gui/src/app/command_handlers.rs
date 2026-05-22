@@ -249,6 +249,9 @@ impl GuiShell {
             Command::SetKeyframeEasing { actor, property, time_s, easing } => {
                 self.handle_set_keyframe_easing(&actor, &property, time_s, easing);
             }
+            Command::DeleteKeyframe { actor, property, time_s } => {
+                self.handle_delete_keyframe(&actor, &property, time_s);
+            }
             Command::InspectorInputDragStarted => {
                 self.inspector_input_drag_active = true;
             }

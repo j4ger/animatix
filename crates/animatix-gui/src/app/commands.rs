@@ -51,6 +51,7 @@ pub enum Command {
 
     // ── Keyframe ──────────────────────────────────────────────────────
     SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
+    DeleteKeyframe { actor: String, property: String, time_s: f64 },
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,

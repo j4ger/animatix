@@ -1107,6 +1107,37 @@ impl GuiShell {
         }
     }
 
+    /// Handle a keyframe deletion request.
+    fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
+        self.snapshot(Command::DeleteKeyframe { actor: actor.to_string(), property: property.to_string(), time_s });
+
+        let Some(ref mut stmts) = self.document.raw_statements else {
+            self.preview.status = "Failed to delete keyframe — no AST available".to_string();
+            return;
+        };
+
+        let edit = crate::source_edit::SourceEdit::DeleteKeyframe {
+            actor: actor.into(),
+            property: property.into(),
+            time_s,
+        };
+
+        if crate::source_edit::apply_edit(stmts, edit) {
+            let new_source = animatix::to_source::stmts_to_source(stmts);
+            self.document.source_text = new_source.clone();
+            self.editor.replace_text(new_source);
+            self.document.is_dirty = true;
+            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
+            self.preview.status = format!("Deleted keyframe '{}.{}' @ {:.2}s", actor, property, time_s);
+        } else {
+            self.preview.status = format!(
+                "Failed to delete keyframe '{}.{}' @ {:.2}s — keyframe not found",
+                actor, property, time_s
+            );
+        }
+    }
+
     /// Reparent an actor under a new parent (or to top-level).
     fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
         self.snapshot(Command::ReparentActor { actor: actor.to_string(), new_parent: new_parent.clone() });
