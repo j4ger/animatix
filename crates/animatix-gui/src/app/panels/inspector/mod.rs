@@ -609,13 +609,14 @@ fn render_container_children(
         let mut cursor_x = row_rect.min.x + SPACE_M;
 
         // Index badge
-        let badge = format!("{}", i + 1);
-        ui.painter().text(
-            egui::pos2(cursor_x + 8.0, baseline_y),
-            egui::Align2::CENTER_CENTER,
-            badge,
-            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        let badge_text = format!("{}", i + 1);
+        crate::app::utils::draw_badge(
+            ui.painter(),
+            egui::pos2(cursor_x, baseline_y - 9.0),
+            &badge_text,
+            BG_WIDGET,
             TEXT_MUTED,
+            None,
         );
         cursor_x += 20.0;
 

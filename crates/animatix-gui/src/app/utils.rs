@@ -31,6 +31,31 @@ pub(super) fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32
     );
 }
 
+/// Draw a badge with background and optional stroke at a specific position.
+/// Returns the rectangle occupied by the badge.
+pub(super) fn draw_badge(
+    painter: &egui::Painter,
+    pos: egui::Pos2,
+    text: &str,
+    bg: Color32,
+    text_color: Color32,
+    stroke: Option<egui::Stroke>,
+) -> egui::Rect {
+    let galley = painter.layout_no_wrap(
+        text.to_string(),
+        egui::FontId::proportional(FONT_SIZE_S),
+        text_color,
+    );
+    let size = galley.size() + Vec2::new(8.0, 4.0);
+    let rect = egui::Rect::from_min_size(pos, size);
+    painter.rect_filled(rect, 3.0, bg);
+    if let Some(s) = stroke {
+        painter.rect_stroke(rect, 3.0, s, egui::StrokeKind::Outside);
+    }
+    painter.galley(rect.min + Vec2::new(4.0, 2.0), galley, text_color);
+    rect
+}
+
 pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
     if diagnostics
         .iter()

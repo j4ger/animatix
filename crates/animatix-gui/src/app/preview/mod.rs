@@ -774,12 +774,14 @@ pub(super) fn draw_reorder_overlay(
 
     // Draw target index badge on the insertion line
     let badge_text = format!("→ {}", target_index + 1);
-    let badge_galley = painter.layout_no_wrap(badge_text, FontId::proportional(FONT_SIZE_S), TEXT_PRIMARY);
-    let badge_size = badge_galley.size() + Vec2::new(8.0, 4.0);
-    let badge_rect = egui::Rect::from_min_size(insertion_screen, badge_size);
-    painter.rect_filled(badge_rect, 3.0, badge_bg());
-    painter.rect_stroke(badge_rect, 3.0, Stroke::new(1.0, accent), egui::StrokeKind::Outside);
-    painter.galley(badge_rect.min + Vec2::new(4.0, 2.0), badge_galley, TEXT_PRIMARY);
+    crate::app::utils::draw_badge(
+        painter,
+        insertion_screen,
+        &badge_text,
+        badge_bg(),
+        TEXT_PRIMARY,
+        Some(Stroke::new(1.0, accent)),
+    );
 
     // Draw subtle shift arrows on affected siblings
     let shift_color = amber_subtle();
