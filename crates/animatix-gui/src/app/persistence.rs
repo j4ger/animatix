@@ -8,31 +8,35 @@ use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 /// │                  │        Preview (65%)     │
 /// │                  │    (aspect-ratio sized)  │
 /// │    Editor        ├──────────────────────────┤
-/// │   (30%)          │ Sidebar │  Inspector     │
-/// │                  │  (40%)  │   (60%)        │
+/// │   (30%)          │ Sidebar │ Timeline │ Ins  │
+/// │                  │  (30%)   │  (40%)  │ 30%  │
 /// │                  │       (35%)              │
 /// └──────────────────┴──────────────────────────┘
 ///          (70%)
 /// ```
 ///
 /// Canvas dominates (~45 % of total area). Editor is a narrow column on the
-/// left. The bottom strip below the preview holds sidebar + inspector.
+/// left. The bottom strip below the preview holds sidebar + timeline + inspector.
 pub(super) fn default_tree() -> Tree<WorkspaceTab> {
     let mut tiles = Tiles::default();
 
     let sidebar = tiles.insert_pane(WorkspaceTab::Sidebar);
     let editor = tiles.insert_pane(WorkspaceTab::Editor);
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
+    let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
     let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
 
-    // Bottom-right strip: sidebar + inspector side by side.
-    let bottom_row = tiles.insert_container(Linear::new_binary(
+    // Bottom-right strip: sidebar + timeline + inspector side by side.
+    let mut bottom_row = Linear::new(
         LinearDir::Horizontal,
-        [sidebar, inspector],
-        0.40, // sidebar gets 40 %, inspector 60 %
-    ));
+        vec![sidebar, timeline, inspector],
+    );
+    bottom_row.shares[sidebar] = 0.30;
+    bottom_row.shares[timeline] = 0.40;
+    bottom_row.shares[inspector] = 0.30;
+    let bottom_row = tiles.insert_container(bottom_row);
 
-    // Right column: preview on top, sidebar/inspector strip below.
+    // Right column: preview on top, sidebar/timeline/inspector strip below.
     let right_col = tiles.insert_container(Linear::new_binary(
         LinearDir::Vertical,
         [preview, bottom_row],

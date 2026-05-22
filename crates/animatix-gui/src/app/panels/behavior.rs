@@ -20,6 +20,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Editor => self.viewer.editor_ui(ui),
             WorkspaceTab::Preview => self.viewer.preview_ui(ui),
             WorkspaceTab::Inspector => self.viewer.inspector_ui(ui),
+            WorkspaceTab::Timeline => self.viewer.timeline_ui(ui),
         }
         UiResponse::None
     }
@@ -30,6 +31,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Editor => "Editor".into(),
             WorkspaceTab::Preview => "Preview".into(),
             WorkspaceTab::Inspector => "Inspector".into(),
+            WorkspaceTab::Timeline => "Timeline".into(),
         }
     }
 

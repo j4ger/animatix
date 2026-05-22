@@ -58,6 +58,7 @@ enum WorkspaceTab {
     Editor,
     Preview,
     Inspector,
+    Timeline,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,7 +74,7 @@ struct FileTreeEntry {
     is_dir: bool,
 }
 
-struct PreviewPaneState {
+pub(crate) struct PreviewPaneState {
     current_time_s: f64,
     duration_s: f64,
     is_playing: bool,
@@ -100,6 +101,12 @@ struct PreviewPaneState {
     snap_lines_v: Vec<f32>,
     /// Color of the current snap lines.
     snap_line_color: Option<Color32>,
+    /// Whether smart snap is enabled during drag.
+    snap_enabled: bool,
+    /// Snap threshold in scene pixels. Default 10.0.
+    snap_threshold: f32,
+    /// HUD label text when snapped (e.g. "Circle_2 center", "Container left").
+    snap_hud_label: Option<String>,
 }
 
 /// Transient UI state for panels (not preview/playback state).
@@ -135,6 +142,9 @@ impl PreviewPaneState {
             snap_lines_h: vec![],
             snap_lines_v: vec![],
             snap_line_color: None,
+            snap_enabled: true,
+            snap_threshold: 10.0,
+            snap_hud_label: None,
         }
     }
 
@@ -887,12 +897,6 @@ impl GuiShell {
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        let target = match target {
-            WorkspaceTab::Sidebar => WorkspaceTab::Sidebar,
-            WorkspaceTab::Editor => WorkspaceTab::Editor,
-            WorkspaceTab::Preview => WorkspaceTab::Preview,
-            WorkspaceTab::Inspector => WorkspaceTab::Inspector,
-        };
         let _ = self.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
     }
 

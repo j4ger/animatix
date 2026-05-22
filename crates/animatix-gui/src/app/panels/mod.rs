@@ -3,6 +3,7 @@
 pub mod behavior;
 pub mod preview_canvas;
 pub mod inspector;
+pub mod timeline_panel;
 
 fn default_actor_type() -> &'static str {
     animatix::primitives::actor_kind_registry()
@@ -720,6 +721,25 @@ self.selected_actors,
                 comp.scenes.get(active_scene.as_str()).map(|s| &s.timeline)
             });
             inspector::inspector_ui(ui, timeline, self.selected_actors, current_time_s, &mut self.commands, self.keyframe_mode, self.scene_dimensions, self.pivot_offsets);
+        });
+    }
+
+    pub(super) fn timeline_ui(&mut self, ui: &mut egui::Ui) {
+        panel_frame().show(ui, |ui| {
+            // For compositions, use the active scene's timeline
+            let timeline = self.timeline.or_else(|| {
+                let comp = self.composition?;
+                let scene_name = self.active_scene.as_ref()?;
+                comp.scenes.get(scene_name).map(|s| &s.timeline)
+            });
+            timeline_panel::timeline_panel_ui(
+                ui,
+                self.preview,
+                timeline,
+                self.composition,
+                self.active_scene.as_deref(),
+                self.commands,
+            );
         });
     }
 }

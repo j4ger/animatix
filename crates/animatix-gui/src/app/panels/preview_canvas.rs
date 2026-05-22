@@ -383,6 +383,10 @@ impl WorkspaceViewer<'_> {
                         (raw_dx, raw_dy)
                     };
 
+                    // Snap is disabled when Alt is held during drag
+                    let snap_enabled = self.preview.snap_enabled && !ui.input(|i| i.modifiers.alt);
+                    let threshold = self.preview.snap_threshold;
+
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;
                     for (actor, start_position) in actors {
                         let mut nx = start_position[0] + dx;
@@ -394,78 +398,170 @@ impl WorkspaceViewer<'_> {
                             ny = (ny / grid).round() * grid;
                         }
 
-                        // ── Guide snap ──
+                        // ── Smart snap (skipped when disabled or Alt held) ──
                         let mut snapped_guide_h = false;
                         let mut snapped_guide_v = false;
-                        for &guide_y in &self.preview.horizontal_guides {
-                            if (ny - guide_y).abs() < SNAP_THRESHOLD {
-                                ny = guide_y;
-                                snapped_guide_h = true;
-                            }
-                        }
-                        for &guide_x in &self.preview.vertical_guides {
-                            if (nx - guide_x).abs() < SNAP_THRESHOLD {
-                                nx = guide_x;
-                                snapped_guide_v = true;
-                            }
-                        }
-
-                        // ── Actor-to-actor snap ──
-                        // Get dragged actor's half-size for edge computation
-                        let dragged_props = self.get_actor_props(&actor);
-                        let half_w = dragged_props.as_ref().map(|p| p.size[0] / 2.0).unwrap_or(0.0);
-                        let half_h = dragged_props.as_ref().map(|p| p.size[1] / 2.0).unwrap_or(0.0);
-                        let dragged_x_edges = [nx - half_w, nx, nx + half_w];
-                        let dragged_y_edges = [ny - half_h, ny, ny + half_h];
-
                         let mut snapped_actor_h = false;
                         let mut snapped_actor_v = false;
-                        for (other_label, other_bounds) in self.hit_regions.iter() {
-                            if other_label == &actor { continue; }
-                            let other_x_edges = [
-                                other_bounds.x0 as f32,
-                                (other_bounds.x0 + other_bounds.x1) as f32 / 2.0,
-                                other_bounds.x1 as f32,
-                            ];
-                            let other_y_edges = [
-                                other_bounds.y0 as f32,
-                                (other_bounds.y0 + other_bounds.y1) as f32 / 2.0,
-                                other_bounds.y1 as f32,
-                            ];
+                        let mut snapped_container = false;
+                        let mut snapped_keyframe = false;
+                        let mut snap_hud_text: Option<String> = None;
 
-                            // X snap
-                            for &de in &dragged_x_edges {
-                                for &oe in &other_x_edges {
-                                    let candidate_nx: f32 = nx + (oe - de);
-                                    if (candidate_nx - nx).abs() < SNAP_THRESHOLD && (candidate_nx - nx).abs() > 0.001 {
-                                        nx = candidate_nx;
-                                        snapped_actor_v = true;
+                        if snap_enabled {
+                            // ── Guide snap ──
+                            for &guide_y in &self.preview.horizontal_guides {
+                                if (ny - guide_y).abs() < threshold {
+                                    ny = guide_y;
+                                    snapped_guide_h = true;
+                                    snap_hud_text = Some(format!("Guide y={}", guide_y as i32));
+                                }
+                            }
+                            for &guide_x in &self.preview.vertical_guides {
+                                if (nx - guide_x).abs() < threshold {
+                                    nx = guide_x;
+                                    snapped_guide_v = true;
+                                    snap_hud_text = Some(format!("Guide x={}", guide_x as i32));
+                                }
+                            }
+
+                            // ── Actor-to-actor snap ──
+                            let dragged_props = self.get_actor_props(&actor);
+                            let half_w = dragged_props.as_ref().map(|p| p.size[0] / 2.0).unwrap_or(0.0);
+                            let half_h = dragged_props.as_ref().map(|p| p.size[1] / 2.0).unwrap_or(0.0);
+                            let dragged_x_edges = [nx - half_w, nx, nx + half_w];
+                            let dragged_y_edges = [ny - half_h, ny, ny + half_h];
+                            let edge_labels = ["left", "center", "right"];
+                            let edge_labels_y = ["top", "center", "bottom"];
+
+                            for (other_label, other_bounds) in self.hit_regions.iter() {
+                                if other_label == &actor { continue; }
+                                let other_x_edges = [
+                                    other_bounds.x0 as f32,
+                                    (other_bounds.x0 + other_bounds.x1) as f32 / 2.0,
+                                    other_bounds.x1 as f32,
+                                ];
+                                let other_y_edges = [
+                                    other_bounds.y0 as f32,
+                                    (other_bounds.y0 + other_bounds.y1) as f32 / 2.0,
+                                    other_bounds.y1 as f32,
+                                ];
+
+                                // X snap
+                                for (_di, &de) in dragged_x_edges.iter().enumerate() {
+                                    for (oi, &oe) in other_x_edges.iter().enumerate() {
+                                        let candidate_nx: f32 = nx + (oe - de);
+                                        if (candidate_nx - nx).abs() < threshold && (candidate_nx - nx).abs() > 0.001 {
+                                            nx = candidate_nx;
+                                            snapped_actor_v = true;
+                                            snap_hud_text = Some(format!("{} {}", other_label, edge_labels[oi]));
+                                        }
+                                    }
+                                }
+                                // Y snap
+                                for (_di, &de) in dragged_y_edges.iter().enumerate() {
+                                    for (oi, &oe) in other_y_edges.iter().enumerate() {
+                                        let candidate_ny: f32 = ny + (oe - de);
+                                        if (candidate_ny - ny).abs() < threshold && (candidate_ny - ny).abs() > 0.001 {
+                                            ny = candidate_ny;
+                                            snapped_actor_h = true;
+                                            snap_hud_text = Some(format!("{} {}", other_label, edge_labels_y[oi]));
+                                        }
                                     }
                                 }
                             }
-                            // Y snap
-                            for &de in &dragged_y_edges {
-                                for &oe in &other_y_edges {
-                                    let candidate_ny: f32 = ny + (oe - de);
-                                    if (candidate_ny - ny).abs() < SNAP_THRESHOLD && (candidate_ny - ny).abs() > 0.001 {
-                                        ny = candidate_ny;
-                                        snapped_actor_h = true;
+
+                            // ── Layout container alignment snap ──
+                            if let Some((container, _layout_type, _)) = self.find_layout_container(&actor) {
+                                if let Some(container_props) = self.get_actor_props(&container) {
+                                    // Snap to container center X
+                                    if (nx - container_props.position[0]).abs() < threshold {
+                                        nx = container_props.position[0];
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} center X", container));
+                                    }
+                                    // Snap to container center Y
+                                    if (ny - container_props.position[1]).abs() < threshold {
+                                        ny = container_props.position[1];
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} center Y", container));
+                                    }
+                                    // Snap to container left/right edges
+                                    let c_hw = container_props.size[0] / 2.0;
+                                    let c_left = container_props.position[0] - c_hw;
+                                    let c_right = container_props.position[0] + c_hw;
+                                    if (nx - c_left).abs() < threshold {
+                                        nx = c_left;
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} left", container));
+                                    }
+                                    if (nx - c_right).abs() < threshold {
+                                        nx = c_right;
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} right", container));
+                                    }
+                                    // Snap to container top/bottom edges
+                                    let c_hh = container_props.size[1] / 2.0;
+                                    let c_top = container_props.position[1] - c_hh;
+                                    let c_bottom = container_props.position[1] + c_hh;
+                                    if (ny - c_top).abs() < threshold {
+                                        ny = c_top;
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} top", container));
+                                    }
+                                    if (ny - c_bottom).abs() < threshold {
+                                        ny = c_bottom;
+                                        snapped_container = true;
+                                        snap_hud_text = Some(format!("{} bottom", container));
+                                    }
+                                }
+                            }
+
+                            // ── Previous keyframe position snap ──
+                            if let Some(track) = self.timeline.and_then(|t| t.get_track(&actor)) {
+                                if let Some(ref pos_track) = track.position {
+                                    // Find the nearest keyframe time before current time
+                                    let prev_kf_time = pos_track.keyframes
+                                        .range(..time_ms)
+                                        .next_back()
+                                        .map(|(&t, _)| t);
+                                    if let Some(kf_ms) = prev_kf_time {
+                                        if let Some(kf_props) = self.get_actor_props_at_time(&actor, kf_ms) {
+                                            // Snap X to keyframe X
+                                            if (nx - kf_props.position[0]).abs() < threshold {
+                                                nx = kf_props.position[0];
+                                                snapped_keyframe = true;
+                                                snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
+                                            }
+                                            // Snap Y to keyframe Y
+                                            if (ny - kf_props.position[1]).abs() < threshold {
+                                                ny = kf_props.position[1];
+                                                snapped_keyframe = true;
+                                                snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
                         // ── Record snap lines for rendering ──
-                        if snapped_guide_h || snapped_actor_h {
+                        if snapped_guide_h || snapped_actor_h || snapped_container || snapped_keyframe {
                             self.preview.snap_lines_h.push(ny);
                         }
-                        if snapped_guide_v || snapped_actor_v {
+                        if snapped_guide_v || snapped_actor_v || snapped_container || snapped_keyframe {
                             self.preview.snap_lines_v.push(nx);
                         }
-                        if snapped_guide_h || snapped_guide_v || snapped_actor_h || snapped_actor_v {
-                            // Guide snap = AMBER, actor snap = GREEN; if both, use AMBER
+                        if snapped_guide_h || snapped_guide_v || snapped_actor_h || snapped_actor_v || snapped_container || snapped_keyframe {
+                            // Priority: guide > keyframe > container > actor
                             let use_guide_color = snapped_guide_h || snapped_guide_v;
-                            self.preview.snap_line_color = Some(if use_guide_color { AMBER } else { GREEN });
+                            let use_keyframe_color = snapped_keyframe;
+                            self.preview.snap_line_color = Some(
+                                if use_guide_color { AMBER }
+                                else if use_keyframe_color { ACCENT_CYAN }
+                                else if snapped_container { ACCENT_BLUE }
+                                else { GREEN }
+                            );
+                            self.preview.snap_hud_label = snap_hud_text;
                         }
 
                         let binding = self
@@ -1051,6 +1147,29 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
         // Smart snap guides during drag
         if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } = &self.drag_state {
             self.draw_snap_guides(ui, preview_rect, primary);
+        }
+
+        // ── Snap HUD label ──
+        if let Some(ref label) = self.preview.snap_hud_label {
+            if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                let hud_pos = mouse + Vec2::new(12.0, -24.0);
+                let galley = ui.painter().layout_no_wrap(
+                    label.clone(),
+                    egui::FontId::proportional(FONT_SIZE_S),
+                    GREEN,
+                );
+                let padding = Vec2::new(8.0, 4.0);
+                let bg_size = galley.size() + padding * 2.0;
+                let bg_rect = egui::Rect::from_min_size(hud_pos, bg_size);
+                ui.painter().rect_filled(bg_rect, 3.0, snap_guide_label_bg());
+                ui.painter().rect_stroke(
+                    bg_rect,
+                    3.0,
+                    egui::Stroke::new(1.0, snap_guide_line()),
+                    egui::StrokeKind::Outside,
+                );
+                ui.painter().galley(hud_pos + padding, galley, GREEN);
+            }
         }
 
         if let Some(mouse) = pointer_pos {
@@ -1752,6 +1871,7 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             self.preview.snap_lines_h.clear();
             self.preview.snap_lines_v.clear();
             self.preview.snap_line_color = None;
+            self.preview.snap_hud_label = None;
 
             let is_dragging = !matches!(self.drag_state, DragState::None);
             if self.handle_preview_drag(ui, preview_rect, &response) {

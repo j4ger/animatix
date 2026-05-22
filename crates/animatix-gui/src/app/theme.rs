@@ -41,6 +41,10 @@ pub fn grid_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 1
 pub fn guide_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
 pub fn hatch_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
 
+// ── Smart Snap ──
+pub fn snap_guide_line() -> Color32 { Color32::from_rgba_unmultiplied(84, 191, 123, 160) }
+pub fn snap_guide_label_bg() -> Color32 { Color32::from_rgba_unmultiplied(30, 30, 35, 200) }
+
 // ── Transport Bar ──
 pub fn track_block_1() -> Color32 { Color32::from_rgba_unmultiplied(92, 140, 255, 60) }
 pub fn track_block_2() -> Color32 { Color32::from_rgba_unmultiplied(145, 104, 255, 60) }

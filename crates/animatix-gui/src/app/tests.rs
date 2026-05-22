@@ -20,11 +20,12 @@
                 _ => None,
             })
             .collect();
-        assert_eq!(tabs.len(), 4);
+        assert_eq!(tabs.len(), 5);
         assert!(tabs.contains(&WorkspaceTab::Sidebar));
         assert!(tabs.contains(&WorkspaceTab::Editor));
         assert!(tabs.contains(&WorkspaceTab::Preview));
         assert!(tabs.contains(&WorkspaceTab::Inspector));
+        assert!(tabs.contains(&WorkspaceTab::Timeline));
     }
 
     #[test]
