@@ -15,81 +15,12 @@
 
 | Priority | Theme | Effort | Impact |
 |----------|-------|--------|--------|
-| P0 | CI/CD & Linting Infrastructure | Low | Very High |
-| P0 | Error Handling Hardening | Medium | High |
-| P0 | GPU Renderer Performance | Low | High |
 | P1 | Dependency & Feature Flag Cleanup | Medium | High |
 | P1 | Structural Refactoring (Megafiles, God Objects) | Medium | Medium |
 | P1 | API Surface Cleanup | Low | Medium |
 | P2 | Documentation & Doc Tooling | Low | Medium |
 | P2 | Test Infrastructure Gaps | Medium | Medium |
 | P2 | Benchmarks & Profiling | Medium | Low |
-
----
-
-## P0 — Critical (Fix Now)
-
-### P0.1 Add CI/CD Pipeline
-
-**Gap:** No automated testing, linting, or formatting checks. Code quality relies entirely on manual verification.
-
-**Work:**
-- Add `.github/workflows/ci.yml` with: test, clippy (`-D warnings`), fmt (`--check`), doc build, and `cargo audit`.
-- Add `rustfmt.toml` with standard formatting rules.
-- Add `clippy.toml` or `#![deny(warnings)]` in crate roots (`animatix`, `animatix-syntax`, `animatix-analyzer`).
-- Fix existing 30+ clippy warnings (e.g. `clone_on_copy`, `unnecessary_map_or`, collapsed `if`s).
-
-**Refs:** Explorer audit §2–4. Clippy fails on `-D warnings` today.
-
-**Effort:** 2–4 hours.
-
----
-
-### P0.2 Harden Production Code Against Panics
-
-**Gap:** `unwrap()`, `expect()`, and `panic!()` are used in production code paths that can fail at runtime (font loading, Typst compilation, expression evaluation, SVG import, path morphing).
-
-**Files to fix:**
-- `crates/animatix/src/renderer/text.rs:111` — `panic!` on font load failure. Should return `Result<Font, FontLoadError>`.
-- `crates/animatix/src/renderer/text.rs:255–325` — `.expect()` on Typst compilation. Should propagate `Result`.
-- `crates/animatix/src/timeline/utils.rs:672, 844, 866, 877` — `.expect("Evaluation failed")` and `panic!("Expected Object")`. Should return `Result<EvalError>`.
-- `crates/animatix/src/timeline/svg_import.rs:1155, 1171` — `panic!("Expected ActorDecl")`. Use existing `SvgImportError`.
-- `crates/animatix/src/timeline/morph.rs:671, 730` — `panic!("Expected MoveTo")`. Should return `Result`.
-- `crates/animatix/src/timeline/actions/mod.rs:433, 435, 499, 600, 602, 682` — `.unwrap()` on `child_orders.get("row")`. Should use `Option` handling.
-
-**Refs:** Explorer audit §1. ~45 unwraps / ~40 expects in `animatix` src alone.
-
-**Effort:** 1–2 days.
-
----
-
-### P0.3 Cache Render Texture in Window Renderer
-
-**Gap:** `crates/animatix/src/renderer/window.rs:136–153` allocates a new `wgpu::Texture` every frame. This thrashes GPU memory and is a clear performance bug.
-
-**Work:**
-- Cache the render texture and only recreate on resize.
-- Add a `resize()` method to `RendererCore` instead of inline recreation in `render()`.
-
-**Refs:** Oracle audit §6.
-
-**Effort:** 1 hour.
-
----
-
-### P0.4 Standardize Error Types
-
-**Gap:** Mixed error handling — some APIs return custom error types, others return `Result<T, String>`. Several custom errors lack `std::error::Error` impl.
-
-**Work:**
-- Introduce `thiserror` (already in dependency tree) for all library error types.
-- Add `std::error::Error` impl for: `ParseError`, `IrLowerError`, `ExportError`, `ModuleError`.
-- Replace all `Result<T, String>` in public APIs with concrete error types.
-- Use `anyhow` for application-level errors in `animatix-gui` and CLI.
-
-**Refs:** Explorer audit §6. `RenderError`, `EvalError`, `SvgImportError` already exist but are inconsistent.
-
-**Effort:** 1–2 days.
 
 ---
 
