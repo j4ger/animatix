@@ -65,7 +65,7 @@ pub(super) fn render_dope_sheet(
 }
 
 /// Collect all keyframe times across all property tracks (for mini timeline).
-pub(super) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
+pub(crate) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
     let indices = allowed_property_indices(track.kind);
     let mut times = std::collections::BTreeSet::new();
 

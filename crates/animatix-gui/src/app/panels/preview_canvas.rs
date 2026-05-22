@@ -1873,6 +1873,27 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
             self.preview.snap_line_color = None;
             self.preview.snap_hud_label = None;
 
+            // ── Time Lens (Space-drag HUD) ──
+            let mut all_kf: Vec<f64> = if let Some(tl) = self.timeline {
+                tl.root_actor_labels().iter().flat_map(|label| {
+                    tl.get_track(label).map(|track| {
+                        crate::app::panels::inspector::collect_all_keyframe_times(track)
+                    }).unwrap_or_default()
+                }).collect()
+            } else {
+                Vec::new()
+            };
+            all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+            if let Some(new_time) = self.preview.time_lens.update_and_show(
+                ui,
+                self.preview.current_time_s,
+                self.preview.duration_s,
+                &all_kf,
+            ) {
+                self.commands.push_back(Command::ScrubTo(new_time));
+            }
+
             let is_dragging = !matches!(self.drag_state, DragState::None);
             if self.handle_preview_drag(ui, preview_rect, &response) {
                 return;

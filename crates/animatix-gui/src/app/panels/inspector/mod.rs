@@ -8,10 +8,11 @@ use crate::app::theme::*;
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
 
 pub(crate) mod property_groups;
-mod keyframe_table;
+pub(crate) mod keyframe_table;
 
 use self::property_groups::*;
-use self::keyframe_table::{render_dope_sheet, collect_all_keyframe_times, count_keyframes};
+use self::keyframe_table::{render_dope_sheet, count_keyframes};
+pub(crate) use self::keyframe_table::collect_all_keyframe_times;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum PropertyViewMode {

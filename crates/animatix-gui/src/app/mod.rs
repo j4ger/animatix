@@ -107,6 +107,8 @@ pub(crate) struct PreviewPaneState {
     snap_threshold: f32,
     /// HUD label text when snapped (e.g. "Circle_2 center", "Container left").
     snap_hud_label: Option<String>,
+    /// Time lens HUD state (Space-drag time scrubbing).
+    pub time_lens: crate::app::preview::time_lens::TimeLens,
 }
 
 /// Transient UI state for panels (not preview/playback state).
@@ -145,6 +147,7 @@ impl PreviewPaneState {
             snap_enabled: true,
             snap_threshold: 10.0,
             snap_hud_label: None,
+            time_lens: crate::app::preview::time_lens::TimeLens::default(),
         }
     }
 
