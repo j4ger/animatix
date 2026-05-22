@@ -2552,6 +2552,22 @@ self.commands.push_back(Command::SelectScene(scene_name.clone()));
 
             self.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
+            // Floating property cards for selected actors
+            if !is_dragging && self.selected_actors.len() == 1 {
+                if let Some(actor) = self.selected_actors.iter().next() {
+                    if let Some(props) = self.get_actor_props(actor) {
+                        let screen_pos = preview::scene_to_screen(
+                            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+                            preview_rect, self.scene_dimensions, preview_rect.size(),
+                            self.preview.preview_zoom, self.preview.preview_pan,
+                        );
+                        preview::floating_card::show_floating_card(
+                            ui, actor, &props, screen_pos, self.commands,
+                        );
+                    }
+                }
+            }
+
             // NOTE: errors are shown in the diagnostics banner above the canvas,
             // not as an overlay, to avoid duplicating the same message.
         });

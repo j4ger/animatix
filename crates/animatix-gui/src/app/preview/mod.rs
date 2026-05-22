@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod floating_card;
 pub mod selection;
 
 use std::collections::HashSet;
