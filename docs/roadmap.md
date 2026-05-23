@@ -4,64 +4,74 @@
 > For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
 
 **Principles**
-- P0 architecture first — everything above it collapses if the foundation is shaky.
+- P0 language first — incomplete syntax blocks tutorials and adoption.
 - The canvas is the hero. Any operation doable on canvas should not require panel input.
 - Time is a HUD, not a permanent panel. Scrubbing is frequent but brief.
 - Visual edits must write back to source. Otherwise text and visuals diverge.
 
 ---
 
-## P2 — Performance Optimizations (Complete)
+## P0 — Critical Language Gaps
 
-All P2 items are implemented. Ordered by impact for high-actor-count scenes.
+These block real-world usage and should be tackled before GUI polish.
 
-| Item | What it does | Impact |
-|------|-------------|--------|
-| **P2.16** | Skip `frame_env` creation when no modifiers/procedural plots exist | 40× speedup for static scenes |
-| **P2.17** | Cache `vello::Scene` encoding for fully-static subtrees after first evaluate | 97% faster for static scenes |
-| **P2.18** | Per-actor transform cache keyed by `(time_ms, parent_transform_coeffs)` | High for scrubbing back-and-forth |
-| **P2.19** | Viewport culling — skip rendering for off-screen actors | High for multi-scene transitions |
-| **P2.20** | PropertyTrack memoization — cache `evaluate()` result by `time_ms` | Medium, eliminates BTreeMap overhead |
-| **P2.22** | Arc-based environment layer — share base env via `Arc` instead of copying | Medium, saves ~200–300 μs per frame |
-| **P2.23** | Reuse top-level `frame_env` for procedural plots (was per-actor) | Medium for plot-heavy scenes |
-| **P2.24** | Lazy hit region calculation — compute only when `compute_hit_regions: true` | Low–Medium |
-| **P2.25** | Reuse `vello::Scene` buffer via `scene.reset()` instead of `Scene::new()` | Low–Medium, reduces allocator pressure |
-| **P2.26** | TextCompiler cache stores `Arc<[TextPath]>` instead of `Vec<TextPath>` | Low–Medium for text-heavy scenes |
-
-**Measured:** 200 static actors evaluate in ~64 μs (was ~1.7 ms). 200 animated actors evaluate in ~188 μs.
-
-**Not pursued:** Parallel actor evaluation (P2.21) — Timeline contains `RefCell`/`Cell` fields making it non-Sync. Restructuring for thread safety is a large refactor with marginal returns given current performance is already well within 60 fps budgets.
+| Item | What | Where |
+|------|------|-------|
+| **P0.1** | **Object field access** — `p.x` read / write for `Value::Object` | `timeline/env.rs`, parser, spec §15 |
+| **P0.2** | **Transition blending** — Cross-scene dissolve/wipe instead of hard cuts | `composition.rs`, renderer, spec §17 |
+| **P0.3** | **Activate generic value parser** — Replace `property_engine.rs` match blocks with registry-driven `value_parser.rs` | `timeline/value_parser.rs` (placeholder) |
 
 ---
 
-## 3. Long-Term / Speculative
+## P1 — GUI Completion
 
-### 3.1 FFI / Web Canvas Integration
+The canvas works; the chrome around it doesn't. These are the highest-impact GUI items.
 
-Enable web deployment by targeting HTML5 Canvas or WebGPU via wasm-bindgen.
-
-**Effort:** Very High. Alternative renderer backend.
-
----
-
-### 3.2 Lossless Syntax Tree (Green Tree)
-
-**Location:** `docs/architecture.md` §Source Write-Back.
-
-Adopt a `rowan`-style green-tree architecture for full-fidelity source preservation.
-
-**Effort:** Very High. 3–6 month project. Not justified at current scale.
+| Item | What | Where |
+|------|------|-------|
+| **P1.1** | **Scene list panel + composition timeline** — Show `# SceneName` blocks and `play` edges in the GUI | `app/panels/`, spec §17 |
+| **P1.2** | **Tree-sitter grammar update** — Add `# SceneName` and `play` syntax highlighting | `tree-sitter-animatix/` |
+| **P1.3** | **Wire up command system** — Reload, Undo/Redo, ScrollToLine, OpenTransitionEditor, RequestRepaint | `app/commands.rs`, `app/command_handlers.rs` |
+| **P1.4** | **Diagnostics click-to-navigate** — Click a diagnostic to jump to line/col in editor | `app/panels/inspector/` |
+| **P1.5** | **Transition editor UI** — Visual transition picker/timeline | `app/shell/` |
+| **P1.6** | **Integrate agent suggestion UI** — Toast, inline suggestion, diff card components exist but aren't wired | `app/components/agent_suggestions.rs` |
+| **P1.7** | **Hotkey wiring** — 1/2/3 hotkeys for scene slice quick-jump | `app/preview/scene_slices.rs` |
+| **P1.8** | **NL command bar dispatch** — Parse natural language input and emit actual commands | `app/shell/nl_command_bar.rs` |
 
 ---
 
-### 3.3 Trivia-Inspired AST
+## P2 — Language Features
 
-Add leading/trailing trivia (comments, whitespace) to AST nodes for better formatting preservation during GUI write-back.
+Nice-to-have syntax expansions. Medium user impact, well-scoped.
 
-**Effort:** High. Massive parser rewrite.
+| Item | What | Where |
+|------|------|-------|
+| **P2.1** | **Action parameters** — `pulse btn [200ms, scale: 1.2]` instead of fixed bodies | parser, spec §12 |
+| **P2.2** | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build |
+| **P2.3** | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 |
+| **P2.4** | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` |
+| **P2.5** | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` |
 
 ---
 
-## Deferred / Blocked
+## P3 — Polish & Runtime
 
-None currently.
+Small runtime improvements and export quality.
+
+| Item | What | Where |
+|------|------|-------|
+| **P3.1** | **Audio multi-segment muxing** — Concatenate multiple audio files via ffmpeg | `renderer/encode/mod.rs` |
+| **P3.2** | **Morph fade strategy** — Implement `MorphStrategy::Fade` (currently a placeholder) | `timeline/morph.rs` |
+| **P3.3** | **Live preview for multi-scene** — `animatix render` currently shows only scene 1 | `renderer/`, `composition.rs` |
+
+---
+
+## Deferred / Large Architectural
+
+Not justified at current scale. Revisit when the language surface is complete.
+
+| Item | Effort | Blocker |
+|------|--------|---------|
+| **Green tree (rowan)** | 3–6 months | Need stable syntax first |
+| **Trivia-inspired AST** | 2–3 months | Depends on green tree |
+| **Web canvas / wasm** | Very high | Alternative renderer backend |
