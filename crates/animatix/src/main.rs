@@ -170,8 +170,11 @@ enum Commands {
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
 fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
-    let (ast, namespaces) = match ModuleGraph::new().load_program(input) {
-        Ok(program) => (program.expand_components(), program.namespaces),
+    let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
+        Ok(program) => {
+            let diagnostics = program.typecheck();
+            (program.expand_components(), program.namespaces, diagnostics)
+        }
         Err(e) => {
             error!("Error: {}", e);
             std::process::exit(1);
@@ -179,8 +182,10 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diag
     };
 
     let report = BuildTarget::from_ast(&ast, &namespaces);
-    print_build_diagnostics(&report.diagnostics);
-    (report.output, report.diagnostics)
+    let mut all_diagnostics = type_diagnostics;
+    all_diagnostics.extend(report.diagnostics);
+    print_build_diagnostics(&all_diagnostics);
+    (report.output, all_diagnostics)
 }
 
 /// Resolves export duration for a `BuildTarget` (single or multi-scene).
@@ -454,17 +459,21 @@ fn main() {
                 }
             };
             let mut module_graph = ModuleGraph::new();
-            let (ast, namespaces) = match module_graph
+            let (ast, namespaces, type_diagnostics) = match module_graph
                 .load_program_with_source(std::path::Path::new(&file), Some(&source))
             {
-                Ok(program) => (program.expand_components(), program.namespaces),
+                Ok(program) => {
+                    let diagnostics = program.typecheck();
+                    (program.expand_components(), program.namespaces, diagnostics)
+                }
                 Err(e) => {
                     error!("Error: {}", e);
                     std::process::exit(1);
                 }
             };
             let report = BuildTarget::from_ast(&ast, &namespaces);
-            let diagnostics = report.diagnostics;
+            let mut diagnostics = type_diagnostics;
+            diagnostics.extend(report.diagnostics);
 
             if diagnostics.is_empty() {
                 println!("{}: OK (no diagnostics)", file);

@@ -99,6 +99,16 @@ pub struct LoadedProgram {
 }
 
 impl LoadedProgram {
+    /// Run the gradual type checker on the program's statements.
+    ///
+    /// Validates component instantiation properties against parameter type
+    /// annotations. Returns diagnostics for any type mismatches found.
+    /// Unannotated parameters accept any value.
+    pub fn typecheck(&self) -> Vec<crate::diagnostics::Diagnostic> {
+        let env = crate::typecheck::TypeEnv::new(&self.components);
+        env.check_statements(&self.statements)
+    }
+
     /// Expand component instances into concrete statements and inline custom actions.
     pub fn expand_components(&self) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);

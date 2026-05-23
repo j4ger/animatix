@@ -14,3 +14,5 @@ pub mod parser;
 pub mod source_index;
 pub mod to_source;
 pub mod transition_registry;
+/// Gradual type checker for component/action parameter validation.
+pub mod typecheck;

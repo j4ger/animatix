@@ -86,6 +86,45 @@ use container.{a, b}
     item: (identifier)
     item: (identifier)))
 
+===============================================================================
+Typed component parameters
+===============================================================================
+
+component FadeIn(label: Str = "Hello", opacity: Num) { }
+component Toggle(color: Color, active: Bool = true) { }
+component Grid(items: List<Str>) { }
+component Simple { }
+
+-------------------------------------------------------------------------------
+
+(source_file
+  (component_definition
+    name: (identifier)
+    (parameter_definition
+      name: (identifier)
+      (type_annotation)
+      default: (string))
+    (parameter_definition
+      name: (identifier)
+      (type_annotation)))
+  (component_definition
+    name: (identifier)
+    (parameter_definition
+      name: (identifier)
+      (type_annotation))
+    (parameter_definition
+      name: (identifier)
+      (type_annotation)
+      default: (boolean)))
+  (component_definition
+    name: (identifier)
+    (parameter_definition
+      name: (identifier)
+      (type_annotation
+        (type_annotation))))
+  (component_definition
+    name: (identifier)))
+
 ================================================================================
 Scene declarations
 ================================================================================

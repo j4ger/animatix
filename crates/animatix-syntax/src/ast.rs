@@ -350,13 +350,55 @@ pub enum Time {
     Milliseconds(u64),
 }
 
+/// Type annotation for parameters.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TypeAnnotation {
+    /// 64-bit floating-point number.
+    Num,
+    /// UTF-8 string.
+    Str,
+    /// Boolean flag.
+    Bool,
+    /// 2D vector.
+    Vec2,
+    /// 4D vector.
+    Vec4,
+    /// RGBA color.
+    Color,
+    /// Actor label reference.
+    Actor,
+    /// Scene name reference.
+    Scene,
+    /// Homogeneous list.
+    List(Box<TypeAnnotation>),
+    /// Unannotated — accepts any value.
+    Any,
+}
+
+impl std::fmt::Display for TypeAnnotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeAnnotation::Num => write!(f, "Num"),
+            TypeAnnotation::Str => write!(f, "Str"),
+            TypeAnnotation::Bool => write!(f, "Bool"),
+            TypeAnnotation::Vec2 => write!(f, "Vec2"),
+            TypeAnnotation::Vec4 => write!(f, "Vec4"),
+            TypeAnnotation::Color => write!(f, "Color"),
+            TypeAnnotation::Actor => write!(f, "Actor"),
+            TypeAnnotation::Scene => write!(f, "Scene"),
+            TypeAnnotation::List(inner) => write!(f, "List<{}>", inner),
+            TypeAnnotation::Any => write!(f, "Any"),
+        }
+    }
+}
+
 /// Parameter definition for component parameters.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamDef {
     /// Parameter name.
     pub name: String,
-    /// Optional type hint (e.g. `Num`, `String`).
-    pub param_type: Option<String>,
+    /// Optional type annotation (e.g. `Num`, `Vec2`).
+    pub param_type: Option<TypeAnnotation>,
     /// Default value expression, if any.
     pub default: Option<Expr>,
 }

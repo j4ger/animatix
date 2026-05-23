@@ -947,21 +947,54 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             })
             .padded();
 
+        // Type annotation: Num | Str | Bool | Vec2 | Vec4 | Color | Actor | Scene | List<Type>
+        let type_annotation = recursive(|type_annotation| {
+            let simple = choice((
+                text::keyword("Num").to(TypeAnnotation::Num),
+                text::keyword("Str").to(TypeAnnotation::Str),
+                text::keyword("Bool").to(TypeAnnotation::Bool),
+                text::keyword("Vec2").to(TypeAnnotation::Vec2),
+                text::keyword("Vec4").to(TypeAnnotation::Vec4),
+                text::keyword("Color").to(TypeAnnotation::Color),
+                text::keyword("Actor").to(TypeAnnotation::Actor),
+                text::keyword("Scene").to(TypeAnnotation::Scene),
+            ));
+            let list = text::keyword("List")
+                .ignore_then(just('<').padded())
+                .ignore_then(type_annotation)
+                .then_ignore(just('>').padded())
+                .map(|inner| TypeAnnotation::List(Box::new(inner)));
+            simple.or(list)
+        });
+
         let param_def = ident
             .then_ignore(just(':').padded())
             .then(
-                str_val
-                    .map(Some)
-                    .or(text::keyword("null").to(Some(Expr::Null))),
+                // Try type annotation + optional default first
+                type_annotation
+                    .clone()
+                    .then(just('=').padded().ignore_then(expr.clone()).or_not())
+                    .map(|(ty, default)| (Some(ty), default))
+                    // Fall back to expression as default (backward compat)
+                    .or(expr.clone().map(|e| (None, Some(e)))),
             )
-            .map(|(name, default): (String, Option<Expr>)| ParamDef {
+            .map(|(name, (param_type, default))| ParamDef {
                 name,
-                param_type: None,
+                param_type,
                 default,
             });
 
         let component_action_stmt = text::keyword("action")
             .ignore_then(ident)
+            .then(
+                param_def
+                    .clone()
+                    .separated_by(just(',').padded())
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('(').padded(), just(')').padded())
+                    .or_not()
+                    .map(|p| p.unwrap_or_default()),
+            )
             .then(
                 _stmt
                     .clone()
@@ -969,9 +1002,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .collect::<Vec<_>>()
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
-            .map(|(name, body)| Stmt::ComponentAction {
+            .map(|((name, params), body)| Stmt::ComponentAction {
                 name,
-                params: vec![],
+                params,
                 body,
                 span: None,
             })

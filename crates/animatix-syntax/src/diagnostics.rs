@@ -106,6 +106,8 @@ pub enum DiagnosticCode {
     InvalidPlotFunc,
     /// The actor type is unknown.
     UnknownActorType,
+    /// A type mismatch was detected during type checking.
+    TypeMismatch,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -152,6 +154,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
+            DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
         }
     }
 }

@@ -17,8 +17,9 @@
   "config"
   "true"
   "false"
-  "null"
 ] @keyword
+
+(null) @keyword
 
 ; Literals
 (string) @string
@@ -87,6 +88,9 @@
 (labeled_always_statement label: (identifier) @variable)
 (for_statement variable: (identifier) @variable)
 (call_expression function: (identifier) @function)
+
+; Type annotations (Num, Str, Bool, Vec2, Vec4, Color, Actor, Scene, List<T>)
+(type_annotation) @type
 
 ; Type identifiers (builtin types like Text, Circle, Button, etc.)
 (type_identifier) @type

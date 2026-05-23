@@ -304,8 +304,25 @@ module.exports = grammar({
 
     parameter_definition: $ => seq(
       field('name', $.identifier),
-      ':',
-      optional(field('default', choice($.string, 'null'))),
+      optional(seq(
+        ':',
+        choice(
+          seq($.type_annotation, optional(seq('=', field('default', $._expression)))),
+          field('default', $._expression),
+        ),
+      )),
+    ),
+
+    type_annotation: $ => choice(
+      'Num',
+      'Str',
+      'Bool',
+      'Vec2',
+      'Vec4',
+      'Color',
+      'Actor',
+      'Scene',
+      seq('List', '<', $.type_annotation, '>'),
     ),
 
     // ============================================================

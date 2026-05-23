@@ -226,9 +226,11 @@ impl ToSource for Time {
 
 impl ToSource for ParamDef {
     fn to_source(&self) -> String {
-        match &self.default {
-            Some(expr) => format!("{}: {}", self.name, expr.to_source()),
-            None => self.name.clone(),
+        match (&self.param_type, &self.default) {
+            (Some(ty), Some(expr)) => format!("{}: {} = {}", self.name, ty, expr.to_source()),
+            (Some(ty), None) => format!("{}: {}", self.name, ty),
+            (None, Some(expr)) => format!("{}: {}", self.name, expr.to_source()),
+            (None, None) => self.name.clone(),
         }
     }
 }
