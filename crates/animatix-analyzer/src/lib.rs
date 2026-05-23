@@ -298,6 +298,22 @@ impl Analyzer {
     pub fn document_symbols(&self) -> Vec<DocumentSymbol> {
         document_symbol::document_symbols(&self.symbols)
     }
+
+    /// Get the symbol name at a cursor position.
+    /// Returns the identifier or type name at the given line/column,
+    /// or None if the position is not on a symbol.
+    pub fn symbol_at(&self, line: usize, col: usize) -> Option<String> {
+        let tree = self.tree.as_ref()?;
+        let point = tree_sitter::Point::new(line, col);
+        let node = tree.root_node().descendant_for_point_range(point, point)?;
+
+        match node.kind() {
+            "identifier" | "type_identifier" => {
+                Some(node.utf8_text(self.source.as_bytes()).unwrap_or("").to_string())
+            }
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -323,7 +339,6 @@ title: Text {
     fn analyzer_handles_parse_errors() {
         let source = "this is not valid @@@ syntax";
         let analyzer = Analyzer::new(source);
-        // Should not panic, may have errors
         assert!(!analyzer.parse_errors().is_empty());
     }
 
@@ -380,9 +395,7 @@ title: Text {
 
         let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
 
-        // Should include symbols from main file
         assert!(resolved.labels.contains_key("title"));
-        // Should include symbols from imported lib file
         assert!(resolved.labels.contains_key("accent"));
         assert!(resolved.labels.contains_key("btn"));
     }
@@ -405,23 +418,19 @@ title: Text {
         workspace.add_file(PathBuf::from("/project/lib.amx"), lib_source);
         workspace.add_file(PathBuf::from("/project/main.amx"), main_source);
 
-        // Verify workspace has the file
         assert!(workspace.has_file(Path::new("/project/lib.amx")));
-        
-        // Verify import resolution
+
         let import_path = Workspace::resolve_import_path(Path::new("/project/main.amx"), "lib.amx");
         assert_eq!(import_path, PathBuf::from("/project/lib.amx"));
-        
-        // Verify lib symbols exist
+
         let lib_symbols = workspace.file_symbols(Path::new("/project/lib.amx")).unwrap();
-        assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color");
+        assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color " );
 
         let mut analyzer = Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
         analyzer.set_workspace(std::sync::Arc::new(workspace));
 
         let symbols = analyzer.symbols();
 
-        // Should include symbols from imported file
         assert!(symbols.labels.contains_key("shared_color"), "main should have shared_color from import");
         assert!(symbols.labels.contains_key("title"));
     }
@@ -430,11 +439,304 @@ title: Text {
     fn workspace_import_path_resolution() {
         let base = Path::new("/project/src/main.amx");
         let resolved = Workspace::resolve_import_path(base, "../lib.amx");
-        // Path may not be normalized (../ not resolved), just check components
         assert!(resolved.to_string_lossy().contains("lib.amx"));
         assert_eq!(
             Workspace::resolve_import_path(base, "utils.amx"),
             PathBuf::from("/project/src/utils.amx")
         );
+    }
+
+    // ── Hover tests ──
+
+    #[test]
+    fn hover_on_actor_label_returns_label_info() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // "title" at line 2, col 0 (0-based, after leading newline)
+        let info = analyzer.hover_at(2, 0);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert!(info.contents.contains("**Actor**"));
+        assert!(info.contents.contains("title"));
+        assert!(info.contents.contains("Text"));
+        assert!(info.range.is_some());
+    }
+
+    #[test]
+    fn hover_on_type_returns_type_documentation() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // "Text" at line 2, col 7
+        let info = analyzer.hover_at(2, 7);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert!(info.contents.contains("**Type**"));
+        assert!(info.contents.contains("Text"));
+        assert!(info.contents.contains("element"));
+    }
+
+    #[test]
+    fn hover_builtin_actions_in_symbol_table() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+        let symbols = analyzer.symbols();
+        assert!(symbols.actions.contains("fade-in"));
+        assert!(symbols.actions.contains("move"));
+        assert!(symbols.actions.contains("rotate"));
+    }
+
+    // ── Go-to-definition tests ──
+
+    #[test]
+    fn definition_at_returns_location_for_label() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+always {
+    title.content = "World"
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // Click on "title" in always block (line 6, col 4)
+        let loc = analyzer.definition_at(6, 4);
+        assert!(loc.is_some());
+        let loc = loc.unwrap();
+        assert!(loc.file.is_none(), "definition in same file " );
+        // Declaration "title:" on line 2 (0-based): enrich_positions sets line to 2+1=3
+        assert_eq!(loc.line, 3);
+        assert_eq!(loc.col, 1);
+    }
+
+    #[test]
+    fn definition_at_on_colon_returns_none() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // Position on colon ':' at line 2, col 5
+        let loc = analyzer.definition_at(2, 5);
+        assert!(loc.is_none());
+    }
+
+    #[test]
+    fn definition_at_out_of_bounds_returns_none() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        let loc = analyzer.definition_at(999, 999);
+        assert!(loc.is_none());
+    }
+
+    // ── Find references tests ──
+
+    #[test]
+    fn find_references_finds_all_occurrences() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+always {
+    title.content = "World"
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        let refs = analyzer.find_references("title");
+        // At least 2: declaration (line 2) + reference (line 6)
+        assert!(refs.len() >= 2, "expected >= 2 references for title, got {}", refs.len());
+
+        for (sl, _sc, el, _ec) in &refs {
+            assert!(*sl <= *el);
+        }
+    }
+
+    #[test]
+    fn find_references_empty_for_unknown() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        let refs = analyzer.find_references("nonexistent");
+        assert!(refs.is_empty());
+    }
+
+    #[test]
+    fn find_references_empty_for_empty_source() {
+        let analyzer = Analyzer::new("");
+        let refs = analyzer.find_references("anything");
+        assert!(refs.is_empty());
+    }
+
+    // ── Document symbols tests ──
+
+    #[test]
+    fn document_symbols_returns_outline() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+btn: Button {
+    text: "Click",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+        let symbols = analyzer.document_symbols();
+
+        assert!(symbols.iter().any(|s| s.name == "title"));
+        assert!(symbols.iter().any(|s| s.name == "btn"));
+
+        let title_sym = symbols.iter().find(|s| s.name == "title").unwrap();
+        assert_eq!(title_sym.kind, SymbolKind::Actor);
+        assert_eq!(title_sym.detail.as_deref(), Some("Text"));
+
+        assert!(title_sym.line > 0);
+        assert!(title_sym.col > 0);
+    }
+
+    #[test]
+    fn document_symbols_includes_labels() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+# 1s
+btn: Button {
+    text: "Click",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+        let symbols = analyzer.document_symbols();
+
+        // Should include labels
+        assert!(symbols.iter().any(|s| s.name == "title"));
+        assert!(symbols.iter().any(|s| s.name == "btn"));
+
+        let title_sym = symbols.iter().find(|s| s.name == "title").unwrap();
+        assert_eq!(title_sym.kind, SymbolKind::Actor);
+    }
+
+    #[test]
+    fn document_symbols_sorted_by_line() {
+        let source = r#"
+# 0s
+z_actor: Text { content: "Z", }
+a_actor: Text { content: "A", }
+"#;
+        let analyzer = Analyzer::new(source);
+        let symbols = analyzer.document_symbols();
+
+        for i in 1..symbols.len() {
+            assert!(
+                symbols[i - 1].line <= symbols[i].line,
+                "sort order: {} (L{}) before {} (L{})",
+                symbols[i - 1].name, symbols[i - 1].line,
+                symbols[i].name, symbols[i].line,
+            );
+        }
+    }
+
+    // ── Symbol at position tests ──
+
+    #[test]
+    fn symbol_at_returns_label_name() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // "title" at line 2, col 0
+        let sym = analyzer.symbol_at(2, 0);
+        assert_eq!(sym.as_deref(), Some("title"));
+    }
+
+    #[test]
+    fn symbol_at_returns_type_name() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // "Text" at line 2, col 7
+        let sym = analyzer.symbol_at(2, 7);
+        assert_eq!(sym.as_deref(), Some("Text"));
+    }
+
+    #[test]
+    fn symbol_at_on_colon_returns_none() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // Position on colon at line 2, col 5
+        let sym = analyzer.symbol_at(2, 5);
+        assert!(sym.is_none());
+    }
+
+    #[test]
+    fn symbol_at_on_whitespace_returns_none() {
+        let source = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+        let analyzer = Analyzer::new(source);
+
+        // Position on space between colon and Text at line 2, col 6
+        let sym = analyzer.symbol_at(2, 6);
+        assert!(sym.is_none());
+    }
+
+    #[test]
+    fn symbol_at_on_empty_source_returns_none() {
+        let analyzer = Analyzer::new("");
+        let sym = analyzer.symbol_at(0, 0);
+        assert!(sym.is_none());
     }
 }

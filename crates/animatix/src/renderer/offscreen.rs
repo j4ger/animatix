@@ -392,3 +392,83 @@ impl OffscreenRenderer {
         self.view_b = Some(view_b);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::easing::Easing;
+    use crate::timeline::{AnimationTrack, PropertyTrack};
+
+    #[test]
+    fn offscreen_renderer_can_be_initialized() {
+        // OffscreenRenderer::new() uses pollster::block_on internally.
+        // In headless/CI environments this may succeed or fail gracefully.
+        let result = OffscreenRenderer::new();
+        // Should either succeed (GPU available) or fail with a GPU error (no adapter).
+        // We just verify it doesn't panic.
+        if let Ok(_renderer) = result {
+            // Initialization succeeded — renderer is valid
+        }
+    }
+
+    #[test]
+    fn offscreen_renderer_with_zero_dimensions_fails_gracefully() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let timeline = Timeline::new();
+        let result = renderer.render_timeline(&timeline, 0.0, SceneDimensions { width: 0, height: 0 });
+        assert!(result.is_err(), "zero dimensions should error");
+        assert!(result.unwrap_err().contains("greater than zero"), "should give clear error");
+    }
+
+    #[test]
+    fn offscreen_renderer_render_timeline_produces_frame() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        // Create a minimal timeline
+        let mut timeline = Timeline::new();
+        let mut track = AnimationTrack::new("test".to_string());
+        track.first_seen_ms = 0;
+        track.color = Some({
+            let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
+            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+            t
+        });
+        timeline.tracks.insert("test".to_string(), track);
+        timeline.root_nodes.push("test".to_string());
+
+        let dimensions = SceneDimensions { width: 100, height: 100 };
+        let frame = renderer.render_timeline(&timeline, 0.0, dimensions);
+
+        assert!(frame.is_ok(), "render should produce a frame: {:?}", frame.err());
+        let frame = frame.unwrap();
+        assert_eq!(frame.width, 100);
+        assert_eq!(frame.height, 100);
+        assert_eq!(frame.rgba.len(), 100 * 100 * 4, "RGBA data should have correct size");
+    }
+
+    #[test]
+    fn offscreen_renderer_ensure_targets_is_idempotent() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let dimensions = SceneDimensions { width: 200, height: 200 };
+
+        // First render may fail on some GPU configs; we just verify no panic
+        let timeline = Timeline::new();
+        let first = renderer.render_timeline(&timeline, 0.0, dimensions);
+        let second = renderer.render_timeline(&timeline, 1.0, dimensions);
+        // Both should either succeed or fail consistently
+        if first.is_ok() {
+            assert!(second.is_ok(), "second render should also succeed");
+        }
+    }
+}

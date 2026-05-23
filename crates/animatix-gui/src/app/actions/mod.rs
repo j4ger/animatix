@@ -5,79 +5,79 @@ use crate::validation::validate_roundtrip;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
-        let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
-        if !is_drag || !self.drag_snapshot_taken {
+        let is_drag = !matches!(self.ui_store.drag_state, DragState::None) || self.ui_store.inspector_input_drag_active;
+        if !is_drag || !self.ui_store.drag_snapshot_taken {
             self.snapshot(Command::PropertyEdit(edit.clone()));
-            if is_drag { self.drag_snapshot_taken = true; }
+            if is_drag { self.ui_store.drag_snapshot_taken = true; }
         }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if let Some(ref mut timeline) = self.document.timeline {
+        if let Some(ref mut timeline) = self.document_store.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview_store.preview.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
                 timeline.invalidate_frame_cache();
             }
         }
 
-        let prev_time_s = self.document.prev_keyframe_time(self.preview.current_time_s);
-        let delta_s = self.preview.current_time_s - prev_time_s;
-        let source_result = if let Some(ref mut stmts) = self.document.raw_statements {
+        let prev_time_s = self.document_store.document.prev_keyframe_time(self.preview_store.preview.current_time_s);
+        let delta_s = self.preview_store.preview.current_time_s - prev_time_s;
+        let source_result = if let Some(ref mut stmts) = self.document_store.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
             let validation_expr = expr.clone();
-            let source_edit = if delta_s < self.keyframe_merge_window_s {
+            let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
                 crate::source_edit::SourceEdit::MergeKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: prev_time_s }
             } else {
-                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview.current_time_s, prev_time_s }
+                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview_store.preview.current_time_s, prev_time_s }
             };
 
             if crate::source_edit::apply_edit(stmts, source_edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
                 if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
                     tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
-                    self.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview.current_time_s, err);
+                    self.preview_store.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview_store.preview.current_time_s, err);
                 }
                 Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
             } else { None }
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document.source_text = new_source.clone();
-            self.editor.replace_text(new_source);
-            self.document.is_dirty = true;
-            self.document.source_index = Some(source_index);
-            self.document.rescan_keyframe_lines();
+            self.document_store.document.source_text = new_source.clone();
+            self.document_store.editor.replace_text(new_source);
+            self.document_store.document.is_dirty = true;
+            self.document_store.document.source_index = Some(source_index);
+            self.document_store.document.rescan_keyframe_lines();
             true
         } else { false };
 
-        self.preview_dirty = true;
+        self.preview_store.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-            self.preview.status = if delta_s < self.keyframe_merge_window_s {
+            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+            self.preview_store.preview.status = if delta_s < self.ui_store.keyframe_merge_window_s {
                 format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
-                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview.current_time_s)
+                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview_store.preview.current_time_s)
             };
         } else {
-            self.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview.current_time_s);
+            self.preview_store.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview_store.preview.current_time_s);
         }
     }
 
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
         if edit.create_keyframe { self.handle_keyframe_edit(edit); return; }
-        let is_drag = !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active;
-        if !is_drag || !self.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.drag_snapshot_taken = true; } }
+        let is_drag = !matches!(self.ui_store.drag_state, DragState::None) || self.ui_store.inspector_input_drag_active;
+        if !is_drag || !self.ui_store.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.ui_store.drag_snapshot_taken = true; } }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if let Some(ref mut timeline) = self.document.timeline {
+        if let Some(ref mut timeline) = self.document_store.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview_store.preview.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
             timeline.invalidate_frame_cache();
         }
 
-        let source_result = if let Some(ref mut stmts) = self.document.raw_statements {
+        let source_result = if let Some(ref mut stmts) = self.document_store.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
             let validation_expr = expr.clone();
             let set_edit = crate::source_edit::SourceEdit::SetProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr.clone() };
@@ -90,57 +90,57 @@ impl GuiShell {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
                 if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
                     tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
-                    self.preview.status = format!("⚠ Edited {}.{} — round-trip validation failed: {}", edit.actor, edit.property, err);
+                    self.preview_store.preview.status = format!("⚠ Edited {}.{} — round-trip validation failed: {}", edit.actor, edit.property, err);
                 }
                 Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
             } else { None }
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document.source_text = new_source.clone();
-            self.editor.replace_text(new_source);
-            self.document.is_dirty = true;
-            self.document.source_index = Some(source_index);
+            self.document_store.document.source_text = new_source.clone();
+            self.document_store.editor.replace_text(new_source);
+            self.document_store.document.is_dirty = true;
+            self.document_store.document.source_index = Some(source_index);
             true
         } else { false };
 
-        self.preview_dirty = true;
+        self.preview_store.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-            self.preview.status = format!("Edited {}.{} — source updated", edit.actor, edit.property);
+            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+            self.preview_store.preview.status = format!("Edited {}.{} — source updated", edit.actor, edit.property);
         } else {
-            self.preview.status = format!("Edited {}.{} — visual only (no source span)", edit.actor, edit.property);
+            self.preview_store.preview.status = format!("Edited {}.{} — visual only (no source span)", edit.actor, edit.property);
         }
     }
 
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
         use crate::app::panels::PropertyValue as PV;
-        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document.timeline.as_mut(), edit.value.clone()) {
+        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document_store.document.timeline.as_mut(), edit.value.clone()) {
             if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                 metadata.child_order = order.clone();
                 // layout_children is computed on demand via Timeline::layout_children_for
                 timeline.invalidate_frame_cache();
             }
-            if let Some(ref mut stmts) = self.document.raw_statements {
+            if let Some(ref mut stmts) = self.document_store.document.raw_statements {
                 let applied = crate::source_edit::apply_edit(stmts, crate::source_edit::SourceEdit::ReorderContainerChildren { container: edit.actor.clone(), new_order: order });
                 if applied { Some((animatix::to_source::stmts_to_source(stmts), animatix::source_index::SourceIndex::build(stmts))) } else { None }
             } else { None }
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document.source_text = new_source.clone();
-            self.editor.replace_text(new_source);
-            self.document.is_dirty = true;
-            self.document.source_index = Some(source_index);
+            self.document_store.document.source_text = new_source.clone();
+            self.document_store.editor.replace_text(new_source);
+            self.document_store.document.is_dirty = true;
+            self.document_store.document.source_index = Some(source_index);
             true
         } else { false };
 
-        self.preview_dirty = true;
+        self.preview_store.preview_dirty = true;
         if source_written {
-            self.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-            self.preview.status = format!("Edited {}.child_order — source updated", edit.actor);
+            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+            self.preview_store.preview.status = format!("Edited {}.child_order — source updated", edit.actor);
         } else {
-            self.preview.status = format!("Edited {}.child_order — visual only (no source span)", edit.actor);
+            self.preview_store.preview.status = format!("Edited {}.child_order — visual only (no source span)", edit.actor);
         }
     }
 }
@@ -450,11 +450,12 @@ impl GuiShell {
     pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
         self.snapshot(Command::CreateActor { ty: ty.to_string(), label: label.to_string(), position });
 
-        let props = default_props_for_actor(ty, position, self.document.scene_dimensions);
+        let props = default_props_for_actor(ty, position, self.document_store.document.scene_dimensions);
 
         // If a container is selected, offer to insert inside it
-        let container = self.selected_actors.iter().next().cloned().filter(|sel| {
-            self.document
+        let container = self.ui_store.selected_actors.iter().next().cloned().filter(|sel| {
+            self.document_store
+                .document
                 .timeline
                 .as_ref()
                 .is_some_and(|t| {
@@ -472,36 +473,36 @@ impl GuiShell {
                 })
         });
 
-        if let Some(ref mut stmts) = self.document.raw_statements {
+        if let Some(ref mut stmts) = self.document_store.document.raw_statements {
             let edit = crate::source_edit::SourceEdit::InsertActor {
                 ty: ty.into(),
                 label: label.into(),
                 props,
                 container: container.clone(),
-                time_s: self.preview.current_time_s,
+                time_s: self.preview_store.preview.current_time_s,
             };
 
             if crate::source_edit::apply_edit(stmts, edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
-                self.document.source_text = new_source.clone();
-                self.editor.replace_text(new_source);
-                self.document.is_dirty = true;
-                self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-                self.preview.status = format!("Created {} ({}) at ({:.0}, {:.0})", label, ty, position[0], position[1]);
+                self.document_store.document.source_text = new_source.clone();
+                self.document_store.editor.replace_text(new_source);
+                self.document_store.document.is_dirty = true;
+                self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+                self.preview_store.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+                self.preview_store.preview.status = format!("Created {} ({}) at ({:.0}, {:.0})", label, ty, position[0], position[1]);
             } else {
-                self.preview.status = format!("Failed to create {} — source edit failed", label);
+                self.preview_store.preview.status = format!("Failed to create {} — source edit failed", label);
                 return;
             }
         } else {
-            self.preview.status = "Failed to create actor — no AST available".to_string();
+            self.preview_store.preview.status = "Failed to create actor — no AST available".to_string();
             return;
         }
 
         // Auto-select the new actor
-        self.selected_actors.clear();
-        self.selected_actors.insert(label.into());
-        self.preview_dirty = true;
+        self.ui_store.selected_actors.clear();
+        self.ui_store.selected_actors.insert(label.into());
+        self.preview_store.preview_dirty = true;
     }
 
     /// Rename an actor and all references to it.
@@ -510,43 +511,43 @@ impl GuiShell {
             return;
         }
         if new_label.is_empty() {
-            self.preview.status = "Rename failed — label cannot be empty".to_string();
+            self.preview_store.preview.status = "Rename failed — label cannot be empty".to_string();
             return;
         }
         // Check uniqueness
-        if let Some(ref timeline) = self.document.timeline {
+        if let Some(ref timeline) = self.document_store.document.timeline {
             if timeline.has_actor(new_label) {
-                self.preview.status = format!("Rename failed — '{}' already exists", new_label);
+                self.preview_store.preview.status = format!("Rename failed — '{}' already exists", new_label);
                 return;
             }
         }
 
         self.snapshot(Command::RenameActor { old_label: old_label.to_string(), new_label: new_label.to_string() });
 
-        if let Some(ref mut stmts) = self.document.raw_statements {
+        if let Some(ref mut stmts) = self.document_store.document.raw_statements {
             let edit = crate::source_edit::SourceEdit::RenameActor {
                 old_label: old_label.into(),
                 new_label: new_label.into(),
             };
             crate::source_edit::apply_edit(stmts, edit);
             let new_source = animatix::to_source::stmts_to_source(stmts);
-            self.document.source_text = new_source.clone();
-            self.editor.replace_text(new_source);
-            self.document.is_dirty = true;
-            self.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-            self.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.rebuild_debounce_ms));
-            self.preview.status = format!("Renamed {} → {}", old_label, new_label);
+            self.document_store.document.source_text = new_source.clone();
+            self.document_store.editor.replace_text(new_source);
+            self.document_store.document.is_dirty = true;
+            self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
+            self.preview_store.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+            self.preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
         } else {
-            self.preview.status = "Rename failed — no AST available".to_string();
+            self.preview_store.preview.status = "Rename failed — no AST available".to_string();
             return;
         }
 
         // Update selection to the new name
-        if self.selected_actors.contains(old_label) {
-            self.selected_actors.remove(old_label);
-            self.selected_actors.insert(new_label.into());
+        if self.ui_store.selected_actors.contains(old_label) {
+            self.ui_store.selected_actors.remove(old_label);
+            self.ui_store.selected_actors.insert(new_label.into());
         }
-        self.preview_dirty = true;
+        self.preview_store.preview_dirty = true;
     }
 }
 

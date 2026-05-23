@@ -17,6 +17,9 @@ struct Backend {
     client: Client,
     /// Analyzer instances per document URI.
     analyzers: Arc<Mutex<HashMap<String, Analyzer>>>,
+    /// Cached workspace for cross-file analysis.
+    /// Rebuilt incrementally when files change.
+    cached_workspace: Mutex<Option<Arc<Workspace>>>,
 }
 
 impl Backend {
@@ -24,6 +27,7 @@ impl Backend {
         Self {
             client,
             analyzers: Arc::new(Mutex::new(HashMap::new())),
+            cached_workspace: Mutex::new(None),
         }
     }
 
@@ -34,10 +38,17 @@ impl Backend {
     }
 
     /// Build a workspace from all open documents and attach it to each analyzer.
+    /// Full rebuild — use when files are opened or closed.
     async fn rebuild_workspace(&self) {
         let mut analyzers = self.analyzers.lock().await;
         if analyzers.len() <= 1 {
-            // No cross-file analysis needed with 0 or 1 files
+            // Clear cached workspace when dropping below 2 files
+            let mut cached = self.cached_workspace.lock().await;
+            *cached = None;
+            // Also clear workspace from remaining analyzer
+            for (_, analyzer) in analyzers.iter_mut() {
+                analyzer.set_workspace(Arc::new(Workspace::new()));
+            }
             return;
         }
 
@@ -55,20 +66,57 @@ impl Backend {
         for (_, analyzer) in analyzers.iter_mut() {
             analyzer.set_workspace(Arc::clone(&workspace_arc));
         }
+
+        // Cache the workspace
+        let mut cached = self.cached_workspace.lock().await;
+        *cached = Some(workspace_arc);
+    }
+
+    /// Incrementally update a single file in the cached workspace.
+    /// Much faster than full rebuild for keystroke-level changes.
+    async fn update_workspace_file(&self, uri: &str, source: &str) {
+        let cached = self.cached_workspace.lock().await;
+        if let Some(workspace) = cached.as_ref() {
+            // We have a cached workspace — update it incrementally
+            let mut workspace = Workspace::clone(workspace);
+            drop(cached);
+
+            if let Some(path) = uri_to_path(uri) {
+                workspace.add_file(path, source);
+                let workspace_arc = Arc::new(workspace);
+
+                // Update all analyzers with the new workspace
+                let mut analyzers = self.analyzers.lock().await;
+                for (_, analyzer) in analyzers.iter_mut() {
+                    analyzer.set_workspace(Arc::clone(&workspace_arc));
+                }
+
+                // Update cache
+                let mut cached = self.cached_workspace.lock().await;
+                *cached = Some(workspace_arc);
+            }
+        }
+        // If no cached workspace, do nothing — full rebuild will happen on file open
     }
 
     /// Update the analyzer for a document.
     async fn update_analyzer(&self, uri: String, text: String) {
         let mut analyzers = self.analyzers.lock().await;
         let path = uri_to_path(&uri);
+        let is_new = !analyzers.contains_key(&uri);
         let analyzer = analyzers
             .entry(uri.clone())
             .or_insert_with(|| Analyzer::new_with_path(&text, path.clone()));
         analyzer.update(&text);
         drop(analyzers);
 
-        // Rebuild workspace for cross-file analysis
-        self.rebuild_workspace().await;
+        if is_new {
+            // Full rebuild when a new file is opened
+            self.rebuild_workspace().await;
+        } else {
+            // Incremental update for keystroke-level changes
+            self.update_workspace_file(&uri, &text).await;
+        }
     }
 
     /// Remove an analyzer for a closed document.
@@ -350,17 +398,10 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let position = params.text_document_position.position;
 
-        // Get the symbol name at the cursor position
+        // Get the symbol name at the cursor position using structured lookup
         let analyzer = self.get_analyzer(&uri).await;
         let symbol_name = analyzer
-            .hover_at(position.line as usize, position.character as usize)
-            .and_then(|info| {
-                // Extract the symbol name from hover info — it's in backticks
-                info.contents
-                    .split('`')
-                    .nth(1)
-                    .map(|s| s.to_string())
-            });
+            .symbol_at(position.line as usize, position.character as usize);
 
         let Some(symbol_name) = symbol_name else {
             return Ok(None);

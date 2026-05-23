@@ -25,12 +25,12 @@ impl GuiShell {
             egui::Sense::click(),
         );
         if backdrop_response.clicked() {
-            self.settings_open = false;
+            self.ui_store.settings_open = false;
         }
 
         // Close on Escape
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.settings_open = false;
+            self.ui_store.settings_open = false;
         }
 
         // Centered dialog using egui window for proper layout
@@ -62,7 +62,7 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let close_resp = ui.button(egui_phosphor::regular::X);
                         if close_resp.clicked() {
-                            self.settings_open = false;
+                            self.ui_store.settings_open = false;
                         }
                     });
                 });
@@ -80,7 +80,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.preview.overlay.grid_size)
+                            egui::DragValue::new(&mut self.preview_store.preview.overlay.grid_size)
                                 .speed(1.0)
                                 .range(1.0..=200.0)
                                 .suffix(" px"),
@@ -99,7 +99,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.nudge_step_px)
+                            egui::DragValue::new(&mut self.ui_store.nudge_step_px)
                                 .speed(0.5)
                                 .range(0.1..=50.0)
                                 .suffix(" px"),
@@ -114,7 +114,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.nudge_step_shift_px)
+                            egui::DragValue::new(&mut self.ui_store.nudge_step_shift_px)
                                 .speed(0.5)
                                 .range(1.0..=200.0)
                                 .suffix(" px"),
@@ -129,7 +129,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.rotation_snap_degrees)
+                            egui::DragValue::new(&mut self.ui_store.rotation_snap_degrees)
                                 .speed(1.0)
                                 .range(1.0..=90.0)
                                 .suffix("°"),
@@ -148,7 +148,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.scrub_step_s)
+                            egui::DragValue::new(&mut self.ui_store.scrub_step_s)
                                 .speed(0.01)
                                 .range(0.01..=1.0)
                                 .suffix(" s"),
@@ -167,7 +167,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.rebuild_debounce_ms)
+                            egui::DragValue::new(&mut self.ui_store.rebuild_debounce_ms)
                                 .speed(10.0)
                                 .range(0..=1000)
                                 .suffix(" ms"),
@@ -182,7 +182,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.undo_limit)
+                            egui::DragValue::new(&mut self.document_store.undo_limit)
                                 .speed(10.0)
                                 .range(10..=1000)
                                 .suffix(" entries"),
@@ -196,31 +196,31 @@ impl GuiShell {
                     RichText::new("Keyframe merge window").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
-                        let mut value_ms = (self.keyframe_merge_window_s * 1000.0) as f32;
+                        let mut value_ms = (self.ui_store.keyframe_merge_window_s * 1000.0) as f32;
                         ui.add(
                             egui::DragValue::new(&mut value_ms)
                                 .speed(1.0)
                                 .range(0.0..=500.0)
                                 .suffix(" ms"),
                         );
-                        self.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
+                        self.ui_store.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
                     },
                 );
                 ui.add_space(SPACE_S);
 
-                let mut debug = self.debug_bounds;
+                let mut debug = self.ui_store.debug_bounds;
                 ui.checkbox(
                     &mut debug,
                     RichText::new("Draw debug bounding boxes")
                         .size(FONT_SIZE_S)
                         .color(TEXT_SECONDARY),
                 );
-                self.debug_bounds = debug;
+                self.ui_store.debug_bounds = debug;
             });
 
         if window_response.is_none() {
             // Window was closed via egui chrome
-            self.settings_open = false;
+            self.ui_store.settings_open = false;
         }
     }
 }

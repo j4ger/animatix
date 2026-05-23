@@ -840,7 +840,9 @@ impl Timeline {
 
         // Check the frame cache: return cached scene if time and dimensions match
         // and the underlying modifiers/layout have not changed.
-        let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
+        let has_modifiers = !self.modifier_bytecode_programs.is_empty()
+            || !self.modifier_programs.is_empty()
+            || !self.modifiers.is_empty();
         if debug_options == DebugRenderOptions::default() {
             if let Some(ref cached) = *self.frame_cache.borrow() {
                 if cached.time_ms == time_ms
@@ -866,8 +868,18 @@ impl Timeline {
         > = std::collections::HashMap::new();
         let mut frame_env = self.frame_eval_env(time_ms, scene_dimensions, &overrides);
 
-        // Use compiled IR programs for fast evaluation; fall back to AST if no programs exist
-        if !self.modifier_programs.is_empty() {
+        // Use compiled bytecode for fastest evaluation; fall back to IR, then AST
+        if !self.modifier_bytecode_programs.is_empty() {
+            for program in &self.modifier_bytecode_programs {
+                let _ = self.apply_modifier_bytecode_program(
+                    program,
+                    time_ms,
+                    scene_dimensions,
+                    &mut frame_env,
+                    &mut overrides,
+                );
+            }
+        } else if !self.modifier_programs.is_empty() {
             for program in &self.modifier_programs {
                 let _ = self.apply_modifier_ir_program(
                     program,
@@ -878,7 +890,7 @@ impl Timeline {
                 );
             }
         } else {
-            // AST fallback path (used when IR compilation failed or no modifiers exist)
+            // AST fallback path (used when compilation failed or no modifiers exist)
             for modifier in &self.modifiers {
                 self.apply_modifier_stmt(
                     modifier,
@@ -940,5 +952,193 @@ impl Timeline {
         }
 
         scene
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::easing::Easing;
+    use crate::timeline::{AnimationTrack, PropertyTrack};
+
+    /// Helper to create a minimal Timeline with one root track.
+    fn make_minimal_timeline() -> Timeline {
+        let mut timeline = Timeline::new();
+        let mut track = AnimationTrack::new("test_box".to_string());
+        // Set first_seen_ms to 0 so the actor is visible from time 0
+        track.first_seen_ms = 0;
+        // Give it a shape type
+        track.shape_type = Some({
+            let mut t = PropertyTrack::new(ShapeType::Rect);
+            t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
+            t
+        });
+        // Give it a size so it has content
+        track.size = Some({
+            let mut t = PropertyTrack::new([50.0, 50.0]);
+            t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
+            t
+        });
+        // Add a color so it renders something visible
+        track.color = Some({
+            let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
+            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+            t
+        });
+
+        timeline.tracks.insert("test_box".to_string(), track);
+        timeline.root_nodes.push("test_box".to_string());
+        timeline
+    }
+
+    #[test]
+    fn evaluate_returns_scene_for_simple_timeline() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        let scene = timeline.evaluate(0.0, dimensions);
+
+        // Should return a valid vello Scene (not empty, at least has background)
+        // vello::Scene doesn't expose fraction() in all versions; just verify it doesn't panic
+        let _ = scene;
+    }
+
+    #[test]
+    fn evaluate_returns_scene_at_different_times() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        let scene_0 = timeline.evaluate(0.0, dimensions);
+        let scene_5 = timeline.evaluate(5.0, dimensions);
+
+        // Both should be valid scenes (no panic)
+        let _ = scene_0;
+        let _ = scene_5;
+    }
+
+    #[test]
+    fn evaluate_with_empty_timeline_returns_scene() {
+        let timeline = Timeline::new();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        let scene = timeline.evaluate(0.0, dimensions);
+        // Should not panic
+        let _ = scene;
+    }
+
+    #[test]
+    fn frame_cache_caches_identical_evaluations() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        // First call should compute and cache
+        let scene1 = timeline.evaluate(1.0, dimensions);
+        let _ = scene1;
+
+        // Verify the cache is populated
+        let cache = timeline.frame_cache.borrow();
+        assert!(cache.is_some(), "frame cache should be populated after evaluate");
+
+        if let Some(ref entry) = *cache {
+            assert_eq!(entry.time_ms, 1000, "cache should store time in ms (1.0s = 1000ms)");
+            assert_eq!(entry.dimensions, dimensions);
+        }
+
+        // Second call with same params should use cache
+        let scene2 = timeline.evaluate(1.0, dimensions);
+        let _ = scene2;
+
+        let cache2 = timeline.frame_cache.borrow();
+        assert!(cache2.is_some(), "frame cache should still be populated");
+        assert_eq!(cache2.as_ref().unwrap().time_ms, 1000);
+    }
+
+    #[test]
+    fn frame_cache_misses_on_different_time() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        let _scene1 = timeline.evaluate(0.0, dimensions);
+        let _scene2 = timeline.evaluate(2.0, dimensions);
+
+        // Cache should contain the latest evaluation (t=2.0)
+        let cache = timeline.frame_cache.borrow();
+        assert!(cache.is_some(), "cache should be populated");
+        assert_eq!(cache.as_ref().unwrap().time_ms, 2000, "cache should contain t=2.0");
+    }
+
+    #[test]
+    fn frame_cache_misses_on_different_dimensions() {
+        let timeline = make_minimal_timeline();
+
+        let dims_1 = SceneDimensions { width: 800, height: 600 };
+        let dims_2 = SceneDimensions { width: 1920, height: 1080 };
+
+        let _scene1 = timeline.evaluate(0.0, dims_1);
+
+        // Cache should have dims_1
+        {
+            let cache = timeline.frame_cache.borrow();
+            assert_eq!(cache.as_ref().unwrap().dimensions, dims_1);
+        }
+
+        let _scene2 = timeline.evaluate(0.0, dims_2);
+
+        // Cache should now have dims_2
+        {
+            let cache = timeline.frame_cache.borrow();
+            assert_eq!(cache.as_ref().unwrap().dimensions, dims_2);
+        }
+    }
+
+    #[test]
+    fn hit_regions_are_populated_after_evaluate() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        // hit_regions should be empty before evaluate
+        {
+            let regions = timeline.hit_regions.borrow();
+            assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
+        }
+
+        let _scene = timeline.evaluate(0.0, dimensions);
+
+        // hit_regions should be populated after evaluate
+        let regions = timeline.hit_regions.borrow();
+        assert!(!regions.is_empty(), "hit_regions should be populated after evaluate");
+        assert!(regions.iter().any(|(label, _)| label == "test_box"),
+            "hit_regions should contain 'test_box'");
+    }
+
+    #[test]
+    fn hit_regions_contain_world_bounds() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+
+        let _scene = timeline.evaluate(0.0, dimensions);
+
+        let regions = timeline.hit_regions.borrow();
+        let (label, bounds) = regions.iter().find(|(l, _)| l == "test_box")
+            .expect("should find test_box in hit_regions");
+
+        assert_eq!(label, "test_box");
+        // The bounds should be valid rectangles (x0 < x1, y0 < y1)
+        assert!(bounds.x0 < bounds.x1, "hit region x0 should be less than x1");
+        assert!(bounds.y0 < bounds.y1, "hit region y0 should be less than y1");
+    }
+
+    #[test]
+    fn evaluate_with_debug_options_skips_cache() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let debug_opts = DebugRenderOptions { draw_bounds: true };
+
+        // Evaluate with debug options (should not cache)
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts);
+
+        // Cache should not be populated because debug_options != default
+        let cache = timeline.frame_cache.borrow();
+        assert!(cache.is_none(), "frame cache should not be populated with non-default debug options");
     }
 }

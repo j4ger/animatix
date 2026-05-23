@@ -74,18 +74,18 @@ impl GuiShell {
             overlay_backdrop(),
         );
 
-        let is_running = matches!(self.export_status, ExportStatus::Running);
+        let is_running = matches!(self.export_store.export_status, ExportStatus::Running);
 
         // Backdrop click → close (only when not running)
         let backdrop_id = ui.id().with("export_backdrop");
         let backdrop_response = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
         if backdrop_response.clicked() && !is_running {
-            self.export_dialog_open = false;
+            self.export_store.export_dialog_open = false;
         }
 
         // Close on Escape (only when not running)
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !is_running {
-            self.export_dialog_open = false;
+            self.export_store.export_dialog_open = false;
         }
 
         // ── Responsive centered dialog ──
@@ -154,7 +154,7 @@ impl GuiShell {
                 close_color,
             );
             if close_resp.clicked() {
-                self.export_dialog_open = false;
+                self.export_store.export_dialog_open = false;
             }
 
             cursor_y += ROW_L + SPACE_L;
@@ -180,9 +180,9 @@ impl GuiShell {
                 Vec2::new(content_rect.width(), ROW_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
-                if let Some(new_fmt) = components::pill_tab_bar(ui, self.export_state.format, &tabs) {
-                    self.export_state.format = new_fmt;
-                    if self.export_state.output_path.is_empty() {
+                if let Some(new_fmt) = components::pill_tab_bar(ui, self.export_store.export_state.format, &tabs) {
+                    self.export_store.export_state.format = new_fmt;
+                    if self.export_store.export_state.output_path.is_empty() {
                         self.update_default_export_filename();
                     }
                 }
@@ -253,7 +253,7 @@ impl GuiShell {
         );
 
         // Subtitle
-        let format_label = match self.export_state.format {
+        let format_label = match self.export_store.export_state.format {
             ExportFormat::Image => "Rendering single frame",
             ExportFormat::Video => "Rendering video frames",
             ExportFormat::Gif => "Rendering GIF frames",
@@ -267,8 +267,8 @@ impl GuiShell {
         );
 
         // Progress bar + frame count
-        let progress = self.export_progress.load(std::sync::atomic::Ordering::Relaxed);
-        let total = self.export_total_frames.max(1);
+        let progress = self.export_store.export_progress.load(std::sync::atomic::Ordering::Relaxed);
+        let total = self.export_store.export_total_frames.max(1);
         let pct = (progress as f32 / total as f32).clamp(0.0, 1.0);
 
         let bar_w = content_rect.width().min(280.0);
@@ -290,7 +290,7 @@ impl GuiShell {
         }
 
         // Frame count / percentage text
-        let progress_text = if self.export_state.format == ExportFormat::Image {
+        let progress_text = if self.export_store.export_state.format == ExportFormat::Image {
             "Frame 1/1".to_string()
         } else {
             format!("Frame {}/{}  ({:.0}%)", progress.min(total), total, pct * 100.0)
@@ -304,7 +304,7 @@ impl GuiShell {
         );
 
         // Elapsed time
-        if let Some(start) = self.export_start_time {
+        if let Some(start) = self.export_store.export_start_time {
             let elapsed = start.elapsed().as_secs_f32();
             let mins = (elapsed / 60.0) as u32;
             let secs = (elapsed % 60.0) as u32;
@@ -336,31 +336,31 @@ impl GuiShell {
             if btn_resp.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY },
         );
         if btn_resp.clicked() {
-            self.export_cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
-            self.export_status = ExportStatus::Idle;
-            self.export_dialog_open = false;
+            self.export_store.export_cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.export_store.export_status = ExportStatus::Idle;
+            self.export_store.export_dialog_open = false;
         }
     }
 
     // ─── Settings Form ────────────────────────────────────────────────────────
 
     fn render_export_settings(&mut self, ui: &mut egui::Ui) {
-        let format = self.export_state.format;
-        let scene_dims = self.document.scene_dimensions;
-        let timeline_duration = self.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
-        let max_time = self.preview.duration_s as f32;
-        let current_time = self.preview.current_time_s as f32;
+        let format = self.export_store.export_state.format;
+        let scene_dims = self.document_store.document.scene_dimensions;
+        let timeline_duration = self.document_store.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
+        let max_time = self.preview_store.preview.duration_s as f32;
+        let current_time = self.preview_store.preview.current_time_s as f32;
 
         // Scope mutable borrows so we can call &self methods afterward.
         {
-            let width = &mut self.export_state.width;
-            let height = &mut self.export_state.height;
-            let time_s = &mut self.export_state.time_s;
-            let fps = &mut self.export_state.fps;
-            let auto_duration = &mut self.export_state.auto_duration;
-            let hold_s = &mut self.export_state.hold_s;
-            let duration_s = &mut self.export_state.duration_s;
-            let output_path = &mut self.export_state.output_path;
+            let width = &mut self.export_store.export_state.width;
+            let height = &mut self.export_store.export_state.height;
+            let time_s = &mut self.export_store.export_state.time_s;
+            let fps = &mut self.export_store.export_state.fps;
+            let auto_duration = &mut self.export_store.export_state.auto_duration;
+            let hold_s = &mut self.export_store.export_state.hold_s;
+            let duration_s = &mut self.export_store.export_state.duration_s;
+            let output_path = &mut self.export_store.export_state.output_path;
 
             // ── Resolution row ──
             Self::settings_row(ui, "Resolution", |ui| {
@@ -529,7 +529,7 @@ impl GuiShell {
         }
 
         // Default filename hint
-        if self.export_state.output_path.is_empty() {
+        if self.export_store.export_state.output_path.is_empty() {
             let default = self.suggest_export_filename();
             ui.label(
                 RichText::new(format!("Default: {}", default.display()))
@@ -589,7 +589,7 @@ impl GuiShell {
     fn render_export_action_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             // Status message (left side)
-            match &self.export_status {
+            match &self.export_store.export_status {
                 ExportStatus::Idle => {}
                 ExportStatus::Complete { path } => {
                     let path_str = path.display().to_string();
@@ -607,7 +607,7 @@ impl GuiShell {
                         .selectable(false),
                     );
                     if resp.interact(egui::Sense::click()).clicked() {
-                        self.export_status = ExportStatus::Idle;
+                        self.export_store.export_status = ExportStatus::Idle;
                     }
                 }
                 ExportStatus::Failed(err) => {
@@ -625,7 +625,7 @@ impl GuiShell {
                         .selectable(false),
                     );
                     if resp.interact(egui::Sense::click()).clicked() {
-                        self.export_status = ExportStatus::Idle;
+                        self.export_store.export_status = ExportStatus::Idle;
                     }
                 }
                 ExportStatus::Running => {}
@@ -633,7 +633,7 @@ impl GuiShell {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Export button
-                let btn_text = match self.export_state.format {
+                let btn_text = match self.export_store.export_state.format {
                     ExportFormat::Image => "Export Image",
                     ExportFormat::Video => "Export Video",
                     ExportFormat::Gif => "Export GIF",
@@ -662,27 +662,29 @@ impl GuiShell {
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     fn resolve_auto_duration(&self) -> f32 {
-        if let Some(timeline) = &self.document.timeline {
-            let d = timeline.duration_seconds() as f32 + self.export_state.hold_s.max(0.0);
+        if let Some(timeline) = &self.document_store.document.timeline {
+            let d = timeline.duration_seconds() as f32 + self.export_store.export_state.hold_s.max(0.0);
             d.max(0.5)
         } else {
-            self.export_state.duration_s.max(0.5)
+            self.export_store.export_state.duration_s.max(0.5)
         }
     }
 
     fn suggest_export_filename(&self) -> PathBuf {
-        let ext = match self.export_state.format {
+        let ext = match self.export_store.export_state.format {
             ExportFormat::Image => "png",
             ExportFormat::Video => "mp4",
             ExportFormat::Gif => "gif",
         };
         let stem = self
+            .document_store
             .document
             .file_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("animatix");
         let workspace = self
+            .document_store
             .document
             .file_path
             .parent()
@@ -692,19 +694,19 @@ impl GuiShell {
 
     pub(crate) fn update_default_export_filename(&mut self) {
         let path = self.suggest_export_filename();
-        self.export_state.output_path = path.to_string_lossy().to_string();
+        self.export_store.export_state.output_path = path.to_string_lossy().to_string();
     }
 
     fn start_export(&mut self) {
-        let timeline = match self.document.timeline.clone() {
+        let timeline = match self.document_store.document.timeline.clone() {
             Some(t) => t,
             None => {
-                self.export_status = ExportStatus::Failed("No timeline to export".into());
+                self.export_store.export_status = ExportStatus::Failed("No timeline to export".into());
                 return;
             }
         };
 
-        let state = self.export_state.clone();
+        let state = self.export_store.export_state.clone();
         let output_path = if state.output_path.is_empty() {
             self.suggest_export_filename()
         } else {
@@ -713,17 +715,17 @@ impl GuiShell {
 
         // ── Margin-case validation ──
         if state.width == 0 || state.height == 0 {
-            self.export_status = ExportStatus::Failed("Resolution must be > 0".into());
+            self.export_store.export_status = ExportStatus::Failed("Resolution must be > 0".into());
             return;
         }
         if state.width > 8192 || state.height > 8192 {
-            self.export_status = ExportStatus::Failed("Resolution exceeds 8192px limit".into());
+            self.export_store.export_status = ExportStatus::Failed("Resolution exceeds 8192px limit".into());
             return;
         }
         match state.format {
             ExportFormat::Video | ExportFormat::Gif => {
                 if state.fps == 0 {
-                    self.export_status = ExportStatus::Failed("FPS must be > 0".into());
+                    self.export_store.export_status = ExportStatus::Failed("FPS must be > 0".into());
                     return;
                 }
                 let duration = if state.auto_duration {
@@ -733,19 +735,19 @@ impl GuiShell {
                     state.duration_s
                 };
                 if duration <= 0.0 {
-                    self.export_status = ExportStatus::Failed("Duration must be > 0".into());
+                    self.export_store.export_status = ExportStatus::Failed("Duration must be > 0".into());
                     return;
                 }
             }
             _ => {}
         }
         if output_path.as_os_str().is_empty() {
-            self.export_status = ExportStatus::Failed("Output path is empty".into());
+            self.export_store.export_status = ExportStatus::Failed("Output path is empty".into());
             return;
         }
         if let Some(parent) = output_path.parent() {
             if !parent.exists() {
-                self.export_status = ExportStatus::Failed(
+                self.export_store.export_status = ExportStatus::Failed(
                     format!("Directory does not exist: {}", parent.display()),
                 );
                 return;
@@ -753,17 +755,17 @@ impl GuiShell {
         }
 
         let debug = animatix::timeline::DebugRenderOptions {
-            draw_bounds: self.debug_bounds,
+            draw_bounds: self.ui_store.debug_bounds,
         };
 
         // Reset progress / cancel state
-        self.export_progress.store(0, std::sync::atomic::Ordering::Relaxed);
-        self.export_cancelled.store(false, std::sync::atomic::Ordering::Relaxed);
-        self.export_start_time = Some(std::time::Instant::now());
-        self.export_status = ExportStatus::Running;
+        self.export_store.export_progress.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.export_store.export_cancelled.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.export_store.export_start_time = Some(std::time::Instant::now());
+        self.export_store.export_status = ExportStatus::Running;
 
         // Compute total frames for progress display
-        self.export_total_frames = match state.format {
+        self.export_store.export_total_frames = match state.format {
             ExportFormat::Image => 1,
             ExportFormat::Video | ExportFormat::Gif => {
                 let duration = if state.auto_duration {
@@ -777,8 +779,8 @@ impl GuiShell {
         };
 
         let result_path = output_path.clone();
-        let progress = Arc::clone(&self.export_progress);
-        let cancel = Arc::clone(&self.export_cancelled);
+        let progress = Arc::clone(&self.export_store.export_progress);
+        let cancel = Arc::clone(&self.export_store.export_cancelled);
         let handle = std::thread::spawn(move || {
             let progress_ref = Some(progress.as_ref());
             let cancel_ref = Some(cancel.as_ref());
@@ -826,30 +828,11 @@ impl GuiShell {
             };
             (result, result_path)
         });
-        self.export_thread = Some(handle);
+        self.export_store.export_thread = Some(handle);
     }
 
     /// Call this every frame to check if an export thread finished.
     pub(crate) fn poll_export_status(&mut self) {
-        if let Some(handle) = self.export_thread.take() {
-            if handle.is_finished() {
-                match handle.join() {
-                    Ok((Ok(()), path)) => {
-                        self.export_status = ExportStatus::Complete { path };
-                    }
-                    Ok((Err(animatix::renderer::video::ExportError::Cancelled), _)) => {
-                        self.export_status = ExportStatus::Idle;
-                    }
-                    Ok((Err(e), _)) => {
-                        self.export_status = ExportStatus::Failed(e.to_string());
-                    }
-                    Err(_) => {
-                        self.export_status = ExportStatus::Failed("Export thread panicked".into());
-                    }
-                }
-            } else {
-                self.export_thread = Some(handle);
-            }
-        }
+        self.export_store.poll_export_status();
     }
 }

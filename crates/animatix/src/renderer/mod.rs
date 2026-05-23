@@ -11,6 +11,10 @@ pub mod text;
 #[cfg(feature = "video")]
 pub mod video;
 #[cfg(feature = "render")]
+pub mod render_pipeline;
+#[cfg(feature = "video")]
+pub mod encode;
+#[cfg(feature = "render")]
 pub mod window;
 
 #[cfg(feature = "render")]

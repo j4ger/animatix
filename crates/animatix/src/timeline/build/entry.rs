@@ -145,6 +145,24 @@ impl Timeline {
         match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
             Ok(program) => {
                 timeline.modifier_programs.push(program);
+                // Compile IR to bytecode for even faster execution
+                match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(
+                    timeline.modifier_programs.last().unwrap(),
+                ) {
+                    Ok(bytecode) => {
+                        timeline.modifier_bytecode_programs.push(bytecode);
+                    }
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::ModifierCompilationError,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Bytecode compilation failed: {}. Using IR fallback.",
+                                e
+                            ),
+                        ));
+                    }
+                }
             }
             Err(e) => {
                 // Fall back to AST interpretation for this batch

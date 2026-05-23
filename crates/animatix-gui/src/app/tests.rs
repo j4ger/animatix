@@ -1,4 +1,4 @@
-    use super::{
+use super::{
         GuiShell, WorkspaceTab, default_tree, diagnostics_banner_message,
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
         primary_diagnostic_phase,
@@ -202,9 +202,9 @@
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.render_diagnostics.is_empty());
-        assert!(shell.preview.error.is_none());
-        assert_eq!(shell.preview.status, "Live preview restored");
+        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert!(shell.preview_store.preview.error.is_none());
+        assert_eq!(shell.preview_store.preview.status, "Live preview restored");
     }
 
     #[test]
@@ -217,9 +217,9 @@
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.render_diagnostics.is_empty());
-        assert_eq!(shell.preview.error.as_deref(), Some("missing file"));
-        assert_eq!(shell.preview.status, "Open failed • missing.amx");
+        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert_eq!(shell.preview_store.preview.error.as_deref(), Some("missing file"));
+        assert_eq!(shell.preview_store.preview.status, "Open failed • missing.amx");
     }
 
     #[test]
@@ -233,7 +233,7 @@
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.render_diagnostics.is_empty());
-        assert_eq!(shell.preview.error.as_deref(), Some("duplicate export"));
-        assert_eq!(shell.preview.status, "Rebuild blocked • parse/load error");
+        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert_eq!(shell.preview_store.preview.error.as_deref(), Some("duplicate export"));
+        assert_eq!(shell.preview_store.preview.status, "Rebuild blocked • parse/load error");
     }

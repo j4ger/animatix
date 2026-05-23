@@ -41,18 +41,19 @@ impl GuiShell {
 
                     // Filename
                     let filename = self
+                        .document_store
                         .document
                         .file_path
                         .file_name()
                         .and_then(|name| name.to_str())
                         .unwrap_or("Untitled");
 
-                    let filename_text = if self.document.is_dirty {
+                    let filename_text = if self.document_store.document.is_dirty {
                         format!("{} ·", filename)
                     } else {
                         filename.to_string()
                     };
-                    let filename_color = if self.document.is_dirty {
+                    let filename_color = if self.document_store.document.is_dirty {
                         AMBER
                     } else {
                         text_primary
@@ -70,7 +71,7 @@ impl GuiShell {
                         ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
                         if components::icon_button(ui, egui_phosphor::regular::GEAR, "Settings").clicked() {
-                            self.settings_open = true;
+                            self.ui_store.settings_open = true;
                         }
                         if components::icon_button(ui, egui_phosphor::regular::EXPORT, "Export").clicked() {
                             commands.push_back(Command::OpenExportDialog);
@@ -116,8 +117,8 @@ impl GuiShell {
                                 if response.clicked() {
                                     let label = self.unique_label(ty);
                                     let pos = [
-                                        self.document.scene_dimensions.width as f32 / 2.0,
-                                        self.document.scene_dimensions.height as f32 / 2.0,
+                                        self.document_store.document.scene_dimensions.width as f32 / 2.0,
+                                        self.document_store.document.scene_dimensions.height as f32 / 2.0,
                                     ];
                                     commands.push_back(Command::CreateActor { ty: ty.into(), label, position: pos });
                                     ui.close();
@@ -148,8 +149,7 @@ impl GuiShell {
                                             let ty = meta.type_name;
                                             if ui
                                                 .button(
-                                                    RichText::new(format!(
-                                                        "{}  {}",
+                                                    RichText::new(format!("{}  {}",
                                                         icon_meta.icon, icon_meta.label
                                                     ))
                                                     .size(FONT_SIZE_L)
@@ -159,9 +159,9 @@ impl GuiShell {
                                             {
                                                 let label = self.unique_label(ty);
                                                 let pos = [
-                                                    self.document.scene_dimensions.width as f32
+                                                    self.document_store.document.scene_dimensions.width as f32
                                                         / 2.0,
-                                                    self.document.scene_dimensions.height as f32
+                                                    self.document_store.document.scene_dimensions.height as f32
                                                         / 2.0,
                                                 ];
                                                 commands.push_back(
