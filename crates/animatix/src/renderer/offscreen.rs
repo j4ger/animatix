@@ -141,7 +141,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_a.as_ref().expect("texture_a initialized by ensure_targets"))
+        Ok(self.texture_a.as_ref().ok_or_else(|| "Missing offscreen texture_a".to_string())?)
     }
 
     /// Render a timeline to the secondary offscreen texture (texture_b).
@@ -167,7 +167,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_b.as_ref().expect("texture_b initialized by ensure_targets"))
+        Ok(self.texture_b.as_ref().ok_or_else(|| "Missing offscreen texture_b".to_string())?)
     }
 
     /// Render a transition between two timelines by compositing them with the
@@ -194,7 +194,7 @@ impl OffscreenRenderer {
         if self.compositor.is_none() {
             self.compositor = Some(TransitionCompositor::new(&self.device).map_err(|e| e.to_string())?);
         }
-        let compositor = self.compositor.as_ref().expect("compositor lazily initialized above");
+        let compositor = self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
 
         // Render from scene to texture_a, then drop scene_a before creating scene_b
         // to avoid holding both large vello::Scene objects simultaneously.
@@ -447,7 +447,7 @@ mod tests {
         let frame = renderer.render_timeline(&timeline, 0.0, dimensions);
 
         assert!(frame.is_ok(), "render should produce a frame: {:?}", frame.err());
-        let frame = frame.unwrap();
+        let frame = frame.expect("frame should be Ok after is_ok check");
         assert_eq!(frame.width, 100);
         assert_eq!(frame.height, 100);
         assert_eq!(frame.rgba.len(), 100 * 100 * 4, "RGBA data should have correct size");

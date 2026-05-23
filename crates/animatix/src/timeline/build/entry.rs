@@ -147,7 +147,7 @@ impl Timeline {
                 timeline.modifier_programs.push(program);
                 // Compile IR to bytecode for even faster execution
                 match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(
-                    timeline.modifier_programs.last().unwrap(),
+                    timeline.modifier_programs.last().expect("IR program just pushed above"),
                 ) {
                     Ok(bytecode) => {
                         timeline.modifier_bytecode_programs.push(bytecode);

@@ -368,7 +368,7 @@ pub fn timeline_keyframe_times_s(
                 all_keyframes.push(start_s + local_time);
             }
         }
-        all_keyframes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        all_keyframes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         all_keyframes.dedup_by(|a, b| (*a - *b).abs() < 0.001);
         all_keyframes
     } else {
@@ -417,10 +417,10 @@ mod tests {
     use animatix::ast::{Property, Time};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn temp_project_dir(name: &str) -> PathBuf {
+    fn temp_project_dir(name: &str) -> Result<PathBuf, GuiError> {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system time should be after unix epoch")
             .as_nanos();
         let dir = std::env::temp_dir().join(format!(
             "animatix_gui_{}_{}_{}",
@@ -428,15 +428,16 @@ mod tests {
             std::process::id(),
             unique
         ));
-        fs::create_dir_all(&dir).unwrap();
-        dir
+        fs::create_dir_all(&dir).map_err(|err| GuiError::Io { path: dir.clone(), source: err })?;
+        Ok(dir)
     }
 
-    fn write_file(path: &Path, contents: &str) {
+    fn write_file(path: &Path, contents: &str) -> Result<(), GuiError> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
+            fs::create_dir_all(parent).map_err(|err| GuiError::Io { path: parent.to_path_buf(), source: err })?;
         }
-        fs::write(path, contents).unwrap();
+        fs::write(path, contents).map_err(|err| GuiError::Io { path: path.to_path_buf(), source: err })?;
+        Ok(())
     }
 
     #[test]
@@ -590,7 +591,7 @@ mod tests {
 
     #[test]
     fn rebuild_uses_expanded_program_pipeline_for_imported_components() {
-        let dir = temp_project_dir("document_rebuild_components");
+        let dir = temp_project_dir("document_rebuild_components").unwrap();
         let entry = dir.join("scene.amx");
         let library = dir.join("components.amx");
 
@@ -604,7 +605,7 @@ pub component MetricCard(title: "Default") {
     badge.color = red
 }
 "#,
-        );
+        ).unwrap();
 
         write_file(
             &entry,
@@ -614,7 +615,7 @@ import "./components.amx"
 
 card: MetricCard, title: "Latency"
 "#,
-        );
+        ).unwrap();
 
         let document = DocumentSession::load(entry).expect("document should rebuild");
         let timeline = document.timeline.as_ref().expect("timeline should exist");
@@ -642,7 +643,7 @@ card: MetricCard, title: "Latency"
 
     #[test]
     fn rebuild_supports_multi_scene_compositions() {
-        let dir = temp_project_dir("document_rebuild_composition");
+        let dir = temp_project_dir("document_rebuild_composition").unwrap();
         let entry = dir.join("scene.amx");
 
         write_file(
@@ -656,7 +657,7 @@ title: Text, text: "Welcome"
 #0s
 graph: Rect, size: (400, 400)
 "#,
-        );
+        ).unwrap();
 
         let document = DocumentSession::load(entry).expect("document should rebuild");
         assert!(document.is_composition());
@@ -670,7 +671,7 @@ graph: Rect, size: (400, 400)
 
     #[test]
     fn rebuild_surfaces_duplicate_component_exports_and_clears_compiled_state() {
-        let dir = temp_project_dir("document_rebuild_duplicate_components");
+        let dir = temp_project_dir("document_rebuild_duplicate_components").unwrap();
         let entry = dir.join("scene.amx");
         let first = dir.join("first.amx");
         let second = dir.join("second.amx");
@@ -682,7 +683,7 @@ pub component MetricCard(title: "One") {
     title_text: Text { text: title }
 }
 "#,
-        );
+        ).unwrap();
 
         write_file(
             &second,
@@ -691,7 +692,7 @@ pub component MetricCard(title: "Two") {
     title_text: Text { text: title }
 }
 "#,
-        );
+        ).unwrap();
 
         write_file(
             &entry,
@@ -701,10 +702,11 @@ import "./second.amx"
 
 card: MetricCard
 "#,
-        );
+        ).unwrap();
 
         let mut document = DocumentSession::from_error(entry.clone());
-        document.source_text = fs::read_to_string(&entry).unwrap();
+        document.source_text = fs::read_to_string(&entry)
+            .unwrap_or_else(|_| panic!("failed to read test file: {:?}", &entry));
 
         let error = document
             .rebuild()
@@ -740,7 +742,7 @@ card: MetricCard
 
     #[test]
     fn rebuild_records_parse_failure_diagnostic_for_invalid_source() {
-        let dir = temp_project_dir("document_rebuild_parse_failure");
+        let dir = temp_project_dir("document_rebuild_parse_failure").unwrap();
         let entry = dir.join("scene.amx");
 
         write_file(
@@ -748,7 +750,7 @@ card: MetricCard
             r#"
 scene: Rect, size: (100, 100)
 "#,
-        );
+        ).unwrap();
 
         let mut document =
             DocumentSession::load(entry.clone()).expect("valid document should load");
@@ -782,10 +784,10 @@ scene: Rect, size: (100, 100)
 
     #[test]
     fn load_keeps_invalid_document_editable_with_parse_diagnostic() {
-        let dir = temp_project_dir("document_load_parse_failure");
+        let dir = temp_project_dir("document_load_parse_failure").unwrap();
         let entry = dir.join("scene.amx");
 
-        write_file(&entry, "scene: Rect {");
+        write_file(&entry, "scene: Rect {").unwrap();
 
         let document =
             DocumentSession::load(entry.clone()).expect("source should still load into session");

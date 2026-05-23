@@ -436,7 +436,7 @@ mod tests {
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser().parse(source).unwrap()
+        parser().parse(source).into_result().expect("failed to parse test source")
     }
 
     #[test]
@@ -450,8 +450,8 @@ btn: Rect, size: (100, 200), color: red"#);
         };
         assert!(apply_edit(&mut stmts, edit));
 
-        let actor = find_actor_decl_mut(&mut stmts, "btn").unwrap();
-        let prop = find_prop_mut(actor, "color").unwrap();
+        let actor = find_actor_decl_mut(&mut stmts, "btn").expect("actor 'btn' should exist");
+        let prop = find_prop_mut(actor, "color").expect("property 'color' should exist");
         assert_eq!(prop.value, Expr::Ident("blue".into()));
     }
 
@@ -466,8 +466,8 @@ btn: Rect, at: (100, 200)"#);
         };
         assert!(apply_edit(&mut stmts, edit));
 
-        let actor = find_actor_decl_mut(&mut stmts, "btn").unwrap();
-        let prop = find_prop_mut(actor, "at").unwrap();
+        let actor = find_actor_decl_mut(&mut stmts, "btn").expect("actor 'btn' should exist");
+        let prop = find_prop_mut(actor, "at").expect("property 'at' should exist");
         assert_eq!(
             prop.value,
             Expr::Tuple(vec![Expr::Num(150.0), Expr::Num(250.0)])
@@ -486,7 +486,7 @@ btn.color = red"#);
         assert!(apply_edit(&mut stmts, edit));
 
         let assignment = find_assignment_mut(&mut stmts, "btn", "color"
-        ).unwrap();
+        ).expect("assignment 'btn.color' should exist");
         if let Stmt::Assignment { value, .. } = assignment {
             assert_eq!(*value, Expr::Ident("blue".into()));
         } else {
@@ -505,8 +505,8 @@ btn: Rect, size: (100, 200)"#);
         };
         assert!(apply_edit(&mut stmts, edit));
 
-        let actor = find_actor_decl_mut(&mut stmts, "btn").unwrap();
-        let prop = find_prop_mut(actor, "color").unwrap();
+        let actor = find_actor_decl_mut(&mut stmts, "btn").expect("actor 'btn' should exist");
+        let prop = find_prop_mut(actor, "color").expect("property 'color' should exist");
         assert_eq!(prop.value, Expr::Ident("blue".into()));
     }
 
@@ -576,7 +576,7 @@ btn: Rect, size: (100, 200)"#);
         assert!(apply_edit(&mut stmts, edit));
 
         // Find the container and verify it has the new child
-        let container = find_actor_decl_mut(&mut stmts, "row1").unwrap();
+        let container = find_actor_decl_mut(&mut stmts, "row1").expect("container 'row1' should exist");
         if let Stmt::ActorDecl { children, .. } = container {
             assert_eq!(children.len(), 2);
             if let InlineItem::Labeled { label, ty, .. } = &children[1] {
@@ -606,7 +606,7 @@ btn.position = (200, 100)"#);
         apply_edit(&mut stmts, edit);
 
         // Actor decl should be renamed
-        let actor = find_actor_decl_mut(&mut stmts, "my_box").unwrap();
+        let actor = find_actor_decl_mut(&mut stmts, "my_box").expect("renamed actor 'my_box' should exist");
         if let Stmt::ActorDecl { label, .. } = actor {
             assert_eq!(label, "my_box");
         } else {

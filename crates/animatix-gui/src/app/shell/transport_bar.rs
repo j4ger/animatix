@@ -208,7 +208,7 @@ pub(crate) fn transport_bar_ui(
                 .min_size(Vec2::new(22.0, ROW_S));
                 if ui.add(a_btn).on_hover_text(
                     if a_active {
-                        format!("Loop start: {:.2}s — click to clear", preview.loop_start_s.unwrap())
+                        format!("Loop start: {:.2}s — click to clear", preview.loop_start_s.unwrap_or(0.0))
                     } else {
                         "Set loop start (A) at current time".to_string()
                     }
@@ -232,7 +232,7 @@ pub(crate) fn transport_bar_ui(
                 .min_size(Vec2::new(22.0, ROW_S));
                 if ui.add(b_btn).on_hover_text(
                     if b_active {
-                        format!("Loop end: {:.2}s — click to clear", preview.loop_end_s.unwrap())
+                        format!("Loop end: {:.2}s — click to clear", preview.loop_end_s.unwrap_or(0.0))
                     } else {
                         "Set loop end (B) at current time".to_string()
                     }

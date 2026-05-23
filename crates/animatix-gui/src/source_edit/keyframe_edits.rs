@@ -371,7 +371,7 @@ mod tests {
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser().parse(source).unwrap()
+        parser().parse(source).into_result().expect("failed to parse test source")
     }
 
     #[test]

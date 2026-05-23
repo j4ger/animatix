@@ -554,7 +554,7 @@ mod tests {
                     Some(&Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]))
                 );
             }
-            other => panic!("expected rewritten actor decl statement, got {other:?}"),
+            other => unreachable!("expected rewritten actor decl statement, got {other:?}"),
         }
     }
 }

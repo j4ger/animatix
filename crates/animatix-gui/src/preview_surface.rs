@@ -276,7 +276,8 @@ impl PreviewSurface {
                 if self.compositor.is_none() {
                     self.compositor = Some(TransitionCompositor::new(device).map_err(|e| e.to_string())?);
                 }
-                let compositor = self.compositor.as_ref().unwrap();
+                let compositor = self.compositor.as_ref()
+                    .ok_or_else(|| "Compositor not initialized".to_string())?;
 
                 let render_view = self.render_view.as_ref()
                     .ok_or_else(|| "Preview render view is not initialized".to_string())?;
@@ -322,7 +323,9 @@ impl PreviewSurface {
                 ).map_err(|e| e.to_string())?;
 
                 // Copy composite result to sample texture
-                self.copy_texture_to_sample(device, queue, self.composite_texture.as_ref().unwrap())?;
+                let composite_texture = self.composite_texture.as_ref()
+                    .ok_or_else(|| "Composite texture not initialized".to_string())?;
+                self.copy_texture_to_sample(device, queue, composite_texture)?;
             } else {
                 self.hit_regions.clear();
             }
