@@ -78,5 +78,21 @@ harness = false
 name = "cost_breakdown"
 harness = false
 
+[[bench]]
+name = "scaling"
+harness = false
+
+[[bench]]
+name = "scaling_no_cache"
+harness = false
+
+[[bench]]
+name = "scaling_breakdown"
+harness = false
+
+[[bench]]
+name = "visibility_culling"
+harness = false
+
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }
