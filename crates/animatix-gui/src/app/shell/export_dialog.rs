@@ -756,6 +756,7 @@ impl GuiShell {
 
         let debug = animatix::timeline::DebugRenderOptions {
             draw_bounds: self.ui_store.debug_bounds,
+            compute_hit_regions: true,
         };
 
         // Reset progress / cancel state

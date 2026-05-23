@@ -250,6 +250,7 @@ impl AnimatixApp {
         if self.shell.preview_store.preview_dirty {
             let debug = animatix::timeline::DebugRenderOptions {
                 draw_bounds: self.shell.ui_store.debug_bounds,
+                compute_hit_regions: true,
             };
 
             let render_result = if let Some(composition) = self.shell.document_store.document.composition.as_ref()

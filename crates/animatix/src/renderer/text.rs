@@ -523,7 +523,7 @@ struct TextCacheKey {
 /// pay compilation cost once.
 #[derive(Clone, Default)]
 pub struct TextCompiler {
-    cache: std::collections::HashMap<TextCacheKey, Vec<TextPath>>,
+    cache: std::collections::HashMap<TextCacheKey, std::sync::Arc<[TextPath]>>,
 }
 
 impl TextCompiler {
@@ -532,6 +532,8 @@ impl TextCompiler {
     }
 
     /// Compile text into glyph paths, using the cache when possible.
+    /// P2.26: Cache hits return an `Arc<[TextPath]>` — a single refcount increment
+    /// instead of cloning the entire vector of BezPath objects.
     pub fn compile(
         &mut self,
         content: &str,
@@ -540,7 +542,7 @@ impl TextCompiler {
         color: [f32; 4],
         kind: TextKind,
         font_ctx: &FontContext,
-    ) -> Result<Vec<TextPath>, RenderError> {
+    ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
         let key = TextCacheKey {
             content: content.to_string(),
             font_family: font_family.to_string(),
@@ -555,7 +557,7 @@ impl TextCompiler {
         };
 
         if let Some(cached) = self.cache.get(&key) {
-            return Ok(cached.clone());
+            return Ok(std::sync::Arc::clone(cached));
         }
 
         let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
@@ -565,8 +567,8 @@ impl TextCompiler {
             TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx)?,
             TextKind::Typst => compile_typst(content, font_size, typst_color, font_family, font_ctx)?,
         };
-        let paths = extract_glyphs(&frame);
-        self.cache.insert(key, paths.clone());
+        let paths: std::sync::Arc<[TextPath]> = extract_glyphs(&frame).into();
+        self.cache.insert(key, std::sync::Arc::clone(&paths));
         Ok(paths)
     }
 

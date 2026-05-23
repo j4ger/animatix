@@ -148,7 +148,10 @@ impl Value {
 
 #[derive(Clone)]
 pub struct Environment {
-    values: HashMap<String, Value>,
+    pub(crate) overrides: HashMap<String, Value>,
+    /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
+    /// to base. This avoids copying ~90 stdlib entries on every frame_eval_env.
+    pub(crate) base: Option<Arc<HashMap<String, Value>>>,
 }
 
 impl Default for Environment {
@@ -160,42 +163,78 @@ impl Default for Environment {
 impl Environment {
     pub fn new() -> Self {
         Environment {
-            values: HashMap::new(),
+            overrides: HashMap::new(),
+            base: None,
         }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Environment {
-            values: HashMap::with_capacity(capacity),
+            overrides: HashMap::with_capacity(capacity),
+            base: None,
+        }
+    }
+
+    /// Create an environment with a shared base layer.
+    pub fn with_base(base: Arc<HashMap<String, Value>>) -> Self {
+        Environment {
+            overrides: HashMap::new(),
+            base: Some(base),
         }
     }
 
     pub fn set(&mut self, name: &str, value: Value) {
-        self.values.insert(name.to_string(), value);
+        self.overrides.insert(name.to_string(), value);
     }
 
     /// Extend this environment with all values from another.
+    /// If other has a base, we adopt it (or merge if we already have one).
     pub fn extend_from(&mut self, other: &Environment) {
-        for (k, v) in &other.values {
-            self.values.insert(k.clone(), v.clone());
+        for (k, v) in &other.overrides {
+            self.overrides.insert(k.clone(), v.clone());
+        }
+        if let Some(ref other_base) = other.base {
+            if self.base.is_none() {
+                self.base = Some(Arc::clone(other_base));
+            } else {
+                // Merge other_base entries into our overrides (shadowing our base)
+                for (k, v) in other_base.iter() {
+                    if !self.overrides.contains_key(k) {
+                        self.overrides.insert(k.clone(), v.clone());
+                    }
+                }
+            }
         }
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
-        self.values.get(name).cloned()
+        self.overrides.get(name).cloned().or_else(|| {
+            self.base.as_ref().and_then(|b| b.get(name).cloned())
+        })
     }
 
     pub fn all_keys(&self) -> Vec<String> {
-        let mut keys: Vec<String> = self.values.keys().cloned().collect();
+        let mut keys: Vec<String> = self.overrides.keys().cloned().collect();
+        if let Some(ref base) = self.base {
+            for k in base.keys() {
+                if !self.overrides.contains_key(k) {
+                    keys.push(k.clone());
+                }
+            }
+        }
         keys.sort();
         keys
     }
 
     pub fn len(&self) -> usize {
-        self.values.len()
+        let base_count = self.base.as_ref().map(|b| b.len()).unwrap_or(0);
+        let overlap = self.base.as_ref().map(|b| {
+            self.overrides.keys().filter(|k| b.contains_key(*k)).count()
+        }).unwrap_or(0);
+        self.overrides.len() + base_count - overlap
     }
 
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.overrides.is_empty() && self.base.as_ref().map(|b| b.is_empty()).unwrap_or(true)
     }
 }

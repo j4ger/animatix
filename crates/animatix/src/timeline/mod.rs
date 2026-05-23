@@ -228,6 +228,9 @@ pub struct SceneDimensions {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct DebugRenderOptions {
     pub draw_bounds: bool,
+    /// P2.24: When true, compute hit regions during evaluation.
+    /// The GUI sets this to true when it needs click-to-select data.
+    pub compute_hit_regions: bool,
 }
 
 impl Default for SceneDimensions {
@@ -300,6 +303,9 @@ pub struct Timeline {
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
     pub(crate) env: Environment,
+    /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
+    /// colorscheme). Avoids copying ~90 entries on every frame_eval_env.
+    env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
     pub(crate) modifiers: Vec<Stmt>,
     pub(crate) modifier_programs: Vec<ModifierIrProgram>,
     pub(crate) modifier_bytecode_programs: Vec<modifier_runtime::vm::ModifierBytecodeProgram>,
@@ -328,6 +334,9 @@ pub struct Timeline {
     /// Maps root_label -> cached vello Scene for fully-static subtrees.
     /// Cleared on timeline rebuild.
     static_subtree_cache: std::cell::RefCell<std::collections::HashMap<String, vello::Scene>>,
+    /// Reusable vello scene buffer (P2.25). Avoids allocating fresh encoding
+    /// buffers on every frame by calling scene.reset() between evaluations.
+    scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
     /// Each entry is (actor_label, world_bounds). Populated during evaluate.
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
@@ -359,6 +368,7 @@ impl Clone for Timeline {
             background_color: self.background_color.clone(),
             root_nodes: self.root_nodes.clone(),
             env: self.env.clone(),
+            env_base: std::sync::Arc::clone(&self.env_base),
             modifiers: self.modifiers.clone(),
             modifier_programs: self.modifier_programs.clone(),
             modifier_bytecode_programs: self.modifier_bytecode_programs.clone(),
@@ -376,6 +386,7 @@ impl Clone for Timeline {
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
             static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
+            scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
@@ -396,6 +407,7 @@ impl Timeline {
             background_color: bg_track,
             root_nodes: Vec::new(),
             env: Environment::new(),
+            env_base: std::sync::Arc::new(std::collections::HashMap::new()),
             modifiers: Vec::new(),
             modifier_programs: Vec::new(),
             modifier_bytecode_programs: Vec::new(),
@@ -413,6 +425,7 @@ impl Timeline {
             frame_cache: std::cell::RefCell::new(None),
             transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            scene_buffer: std::cell::RefCell::new(None),
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),

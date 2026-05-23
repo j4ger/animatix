@@ -296,7 +296,7 @@ pub(crate) fn recompile_text_at_assignment(
         preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     }
 
-    track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+    track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths.to_vec(), easing);
     track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
     Ok(())

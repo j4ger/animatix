@@ -249,7 +249,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions {
+                    DebugRenderOptions { compute_hit_regions: false,
                         draw_bounds: debug_bounds,
                     },
                     renderer::ExportSettings {
@@ -264,7 +264,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions {
+                    DebugRenderOptions { compute_hit_regions: false,
                         draw_bounds: debug_bounds,
                     },
                     renderer::ExportSettings {
@@ -308,7 +308,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions {
+                    DebugRenderOptions { compute_hit_regions: false,
                         draw_bounds: debug_bounds,
                     },
                     renderer::ExportSettings {
@@ -325,7 +325,7 @@ fn main() {
                         fps,
                         effective_duration,
                         &output_file,
-                        DebugRenderOptions {
+                        DebugRenderOptions { compute_hit_regions: false,
                             draw_bounds: debug_bounds,
                         },
                         renderer::ExportSettings {
@@ -384,7 +384,7 @@ fn main() {
                         if let Err(e) = renderer::run_timeline_with_options(
                             first_scene.timeline.clone(),
                             r#loop,
-                            DebugRenderOptions {
+                            DebugRenderOptions { compute_hit_regions: false,
                                 draw_bounds: debug_bounds,
                             },
                         ) {
@@ -400,7 +400,7 @@ fn main() {
                     if let Err(e) = renderer::run_timeline_with_options(
                         timeline,
                         r#loop,
-                        DebugRenderOptions {
+                        DebugRenderOptions { compute_hit_regions: false,
                             draw_bounds: debug_bounds,
                         },
                     ) {
@@ -441,7 +441,7 @@ fn main() {
                     height,
                     time,
                     &output_file,
-                    DebugRenderOptions {
+                    DebugRenderOptions { compute_hit_regions: false,
                         draw_bounds: debug_bounds,
                     },
                 ),

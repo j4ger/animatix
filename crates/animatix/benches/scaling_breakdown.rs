@@ -30,7 +30,7 @@ fn bench_scaling_breakdown(c: &mut Criterion) {
                 black_box(timeline.evaluate_with_debug(
                     black_box(0.5),
                     dims,
-                    animatix::timeline::DebugRenderOptions { draw_bounds: true },
+                    animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
                 ));
             })
         });

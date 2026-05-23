@@ -202,7 +202,7 @@ impl Timeline {
         _opacity: f32,
         _scene: &mut vello::Scene,
         _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
-    ) -> Result<Vec<TextPath>, RenderError> {
+    ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
         let mut content = track.text_content.get(time_ms, String::new());
         let mut font_family = track.font_family.get(time_ms, String::new());
         let default_font_size = match track.kind {
@@ -238,7 +238,7 @@ impl Timeline {
             let mut compiler = self.text_compiler.borrow_mut();
             compiler.compile(&content, &font_family, font_size, color, kind, &self.font_context)
         } else {
-            Ok(track.evaluate_text_paths(time_ms))
+            Ok(track.evaluate_text_paths(time_ms).into())
         }
     }
 
@@ -930,7 +930,9 @@ impl Timeline {
             }
         }
 
-        let mut scene = vello::Scene::new();
+        // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
+        let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_else(vello::Scene::new);
+        scene.reset();
         let bg_color = self.background_color.evaluate(time_ms);
 
         // Collect actor world-space bounding boxes for click-to-select
@@ -1054,10 +1056,17 @@ impl Timeline {
             }
         }
 
-        // Store hit regions for click-to-select
-        *self.hit_regions.borrow_mut() = hit_regions;
+        // P2.24: Only store hit regions when explicitly requested.
+        // Saves bounding-box computation for frames where click-to-select is not needed.
+        if debug_options.compute_hit_regions {
+            *self.hit_regions.borrow_mut() = hit_regions;
+        } else {
+            self.hit_regions.borrow_mut().clear();
+        }
 
-        // Store result in frame cache for fast lookup on next identical evaluation request
+        // P2.25: Save scene in reusable buffer before returning.
+        // Clone for frame cache if needed, then return a clone and keep original.
+        let result = scene.clone();
         if debug_options == DebugRenderOptions::default() {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
@@ -1065,11 +1074,12 @@ impl Timeline {
                 has_modifiers: needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders: !self.child_orders.is_empty(),
-                scene: scene.clone(),
+                scene: result.clone(),
             });
         }
+        *self.scene_buffer.borrow_mut() = Some(scene);
 
-        scene
+        result
     }
 }
 
@@ -1220,7 +1230,7 @@ mod tests {
             assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
         }
 
-        let _scene = timeline.evaluate(0.0, dimensions);
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true });
 
         // hit_regions should be populated after evaluate
         let regions = timeline.hit_regions.borrow();
@@ -1234,7 +1244,7 @@ mod tests {
         let timeline = make_minimal_timeline();
         let dimensions = SceneDimensions { width: 800, height: 600 };
 
-        let _scene = timeline.evaluate(0.0, dimensions);
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true });
 
         let regions = timeline.hit_regions.borrow();
         let (label, bounds) = regions.iter().find(|(l, _)| l == "test_box")
@@ -1250,7 +1260,7 @@ mod tests {
     fn evaluate_with_debug_options_skips_cache() {
         let timeline = make_minimal_timeline();
         let dimensions = SceneDimensions { width: 800, height: 600 };
-        let debug_opts = DebugRenderOptions { draw_bounds: true };
+        let debug_opts = DebugRenderOptions { draw_bounds: true, compute_hit_regions: false };
 
         // Evaluate with debug options (should not cache)
         let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts);

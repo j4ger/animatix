@@ -180,6 +180,15 @@ impl Timeline {
             }
         }
 
+        // P2.22: Freeze the base environment into an Arc for cheap sharing.
+        // After build, env is stable; frame_eval_env will reference this Arc
+        // instead of copying all entries.
+        timeline.env_base = std::sync::Arc::new(
+            std::mem::take(&mut timeline.env.overrides)
+        );
+        // Restore env with the frozen base layer
+        timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));
+
         BuildReport::new(timeline, diagnostics)
     }
 }

@@ -66,8 +66,8 @@ impl Timeline {
         } else {
             self.env.len() + 3 + self.variable_tracks.len()
         };
-        let mut env = Environment::with_capacity(estimated_capacity);
-        env.extend_from(&self.env);
+        let mut env = Environment::with_base(std::sync::Arc::clone(&self.env_base));
+        env.overrides.reserve(estimated_capacity);
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));

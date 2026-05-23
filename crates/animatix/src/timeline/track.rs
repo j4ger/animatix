@@ -294,34 +294,55 @@ impl Interpolate for Vec<[f32; 2]> {
 pub struct PropertyTrack<T> {
     pub keyframes: BTreeMap<u64, (T, Easing)>,
     pub default_value: T,
+    /// P2.20: Memoization cache for repeated time queries.
+    last_evaluated: std::cell::RefCell<Option<(u64, T)>>,
 }
 
 impl<T: Interpolate + Clone> PropertyTrack<T> {
     pub fn new(default_value: T) -> Self {
-        Self { keyframes: BTreeMap::new(), default_value }
+        Self { keyframes: BTreeMap::new(), default_value, last_evaluated: std::cell::RefCell::new(None) }
     }
     pub fn add_keyframe(&mut self, time_ms: u64, value: T, easing: Easing) {
         self.keyframes.insert(time_ms, (value, easing));
+        // Invalidate memoization cache when keyframes change
+        *self.last_evaluated.borrow_mut() = None;
     }
     pub fn evaluate(&self, time_ms: u64) -> T {
-        if self.keyframes.is_empty() { return self.default_value.clone(); }
-        let found = match self.keyframes.range(time_ms..).next() {
-            Some(entry) => entry,
-            None => return self.last_value(),
-        };
-        let (&found_time, (found_val, found_easing)) = found;
-        if let Some((&first_time, _)) = self.keyframes.iter().next() {
-            if time_ms <= first_time { return found_val.clone(); }
+        // P2.20: Memoization — return cached value if time matches
+        if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
+            if *cached_time == time_ms {
+                return cached_value.clone();
+            }
         }
-        let (prev_time, prev_val) = match self.keyframes.range(..time_ms).next_back() {
-            Some((&t, (val, _))) => (t, val.clone()),
-            None => (0, self.default_value.clone()),
+
+        let result = if self.keyframes.is_empty() {
+            self.default_value.clone()
+        } else {
+            let found = match self.keyframes.range(time_ms..).next() {
+                Some(entry) => entry,
+                None => return self.last_value(),
+            };
+            let (&found_time, (found_val, found_easing)) = found;
+            if let Some((&first_time, _)) = self.keyframes.iter().next() {
+                if time_ms <= first_time {
+                    let value = found_val.clone();
+                    *self.last_evaluated.borrow_mut() = Some((time_ms, value.clone()));
+                    return value;
+                }
+            }
+            let (prev_time, prev_val) = match self.keyframes.range(..time_ms).next_back() {
+                Some((&t, (val, _))) => (t, val.clone()),
+                None => (0, self.default_value.clone()),
+            };
+            let duration = (found_time - prev_time) as f32;
+            let elapsed = (time_ms - prev_time) as f32;
+            let progress = elapsed / duration;
+            let eased_progress = apply_easing(progress, *found_easing);
+            prev_val.interpolate(found_val, eased_progress)
         };
-        let duration = (found_time - prev_time) as f32;
-        let elapsed = (time_ms - prev_time) as f32;
-        let progress = elapsed / duration;
-        let eased_progress = apply_easing(progress, *found_easing);
-        prev_val.interpolate(found_val, eased_progress)
+
+        *self.last_evaluated.borrow_mut() = Some((time_ms, result.clone()));
+        result
     }
     pub fn last_value(&self) -> T {
         self.keyframes.iter().next_back().map(|(_, (val, _))| val.clone())
