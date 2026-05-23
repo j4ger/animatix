@@ -17,51 +17,6 @@
 
 ---
 
-### P2.10 Refactor Parser Monolith
-
-**Gap:** `parser.rs` is 1,456 lines containing expressions, statements, inline items, modifiers, and top-level grouping.
-
-**Impact:** Significant barrier to modification.
-
-**Work:**
-- Split into `parser/expr.rs`, `parser/stmt.rs`, `parser/inline.rs`, `parser/top_level.rs`.
-
-**Refs:** `crates/animatix-syntax/src/parser.rs`
-
-**Effort:** 1 day.
-
----
-
-### P2.11 Clean Up AST Dead Code
-
-**Gap:** `AnimatixFile` and `FileType` exist but are never constructed. `Expr::Tuple` is overloaded for both tuples and arrays.
-
-**Work:**
-- Remove `AnimatixFile` / `FileType` or start using them.
-- Rename `Expr::Tuple` to `Expr::ArrayOrTuple` or split into two variants.
-- Make span handling uniform (`ByteSpan` vs `Span`).
-
-**Refs:** `crates/animatix-syntax/src/ast.rs`
-
-**Effort:** 4–6 hours.
-
----
-
-### P2.12 Add Structured Error Types
-
-**Gap:** `Result<(), String>` is used everywhere in animatix-gui. `animatix-analyzer` discards chumsky structured errors immediately. `RenderError` is a minimal string-wrapper.
-
-**Work:**
-- Define `GuiError` enum in `animatix-gui`.
-- Define `ParseError` struct in `animatix-analyzer` preserving positions.
-- Add `#[source]` to `RenderError` variants.
-
-**Refs:** `crates/animatix-gui/src/document.rs`, `crates/animatix-gui/src/preview_surface.rs`, `crates/animatix-analyzer/src/lib.rs:131,171`, `crates/animatix/src/renderer/error.rs`
-
-**Effort:** 1 day.
-
----
-
 ## 3. Long-Term / Speculative
 
 ### 3.1 FFI / Web Canvas Integration
