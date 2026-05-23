@@ -5,6 +5,46 @@ use super::{
     set_lookup_vec2,
 };
 
+/// Apply a modifier override incrementally to the frame environment.
+///
+/// Instead of rebuilding the entire environment from scratch (which requires
+/// cloning `self.env` and re-evaluating all track properties), this updates
+/// only the specific key that changed plus any derived values.
+pub(crate) fn apply_override_incremental(
+    env: &mut Environment,
+    label: &str,
+    property: &str,
+    value: Value,
+) {
+    let key = format!("{label}.{property}");
+    env.set(&key, value.clone());
+
+    // Inject typed sub-keys for known compound types
+    match &value {
+        Value::Vec2([x, y]) => {
+            env.set(&format!("{key}.x"), Value::Num(*x));
+            env.set(&format!("{key}.y"), Value::Num(*y));
+        }
+        Value::Color([r, g, b, a]) => {
+            env.set(&format!("{key}.r"), Value::Num(*r));
+            env.set(&format!("{key}.g"), Value::Num(*g));
+            env.set(&format!("{key}.b"), Value::Num(*b));
+            env.set(&format!("{key}.a"), Value::Num(*a));
+        }
+        _ => {}
+    }
+
+    // Recalculate derived values when size changes
+    if property == "size" {
+        if let Value::Vec2([w, h]) = value {
+            let r = w.min(h) / 2.0;
+            env.set(&format!("{label}.radius"), Value::Num(r));
+            env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
+            env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
+        }
+    }
+}
+
 impl Timeline {
     pub(super) fn build_eval_env(&self, time_ms: u64) -> Environment {
         let mut env = self.env.clone();
@@ -146,11 +186,12 @@ impl Timeline {
                 ..
             } => {
                 if let Ok(val) = evaluate_expr(value, frame_env) {
+                    let label = assignment_target_key(target);
                     overrides
-                        .entry(assignment_target_key(target))
+                        .entry(label.clone())
                         .or_default()
-                        .insert(property.clone(), val);
-                    *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
+                        .insert(property.clone(), val.clone());
+                    apply_override_incremental(frame_env, &label, property, val);
                 }
             }
             Stmt::LetDecl { is_pub: _, name, value, .. } => {
@@ -230,26 +271,22 @@ impl Timeline {
     pub fn apply_modifier_ir_program(
         &self,
         program: &ir::ModifierIrProgram,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
+        _time_ms: u64,
+        _scene_dimensions: SceneDimensions,
         frame_env: &mut Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
-        ir::execute_modifier_ir(program, frame_env, overrides, |frame_env, overrides| {
-            *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
-        })
+        ir::execute_modifier_ir(program, frame_env, overrides)
     }
 
     pub fn apply_modifier_bytecode_program(
         &self,
         program: &vm::ModifierBytecodeProgram,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
+        _time_ms: u64,
+        _scene_dimensions: SceneDimensions,
         frame_env: &mut Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
-        vm::execute_modifier_bytecode(program, frame_env, overrides, |frame_env, overrides| {
-            *frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
-        })
+        vm::execute_modifier_bytecode(program, frame_env, overrides)
     }
 }

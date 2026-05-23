@@ -54,5 +54,17 @@ harness = false
 name = "modifier_runtime"
 harness = false
 
+[[bench]]
+name = "vm_regression"
+harness = false
+
+[[bench]]
+name = "vm_vs_ir"
+harness = false
+
+[[bench]]
+name = "build_time"
+harness = false
+
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }

@@ -15,30 +15,22 @@ pub fn evaluate_modifier_expr(
     }
 }
 
-pub fn execute_modifier_ir<F>(
+pub fn execute_modifier_ir(
     program: &ModifierIrProgram,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
-    mut refresh_env: F,
-) -> Result<(), EvalError>
-where
-    F: FnMut(&mut Environment, &ModifierOverrides),
-{
+) -> Result<(), EvalError> {
     for stmt in &program.statements {
-        execute_modifier_stmt(stmt, frame_env, overrides, &mut refresh_env)?;
+        execute_modifier_stmt(stmt, frame_env, overrides)?;
     }
     Ok(())
 }
 
-fn execute_modifier_stmt<F>(
+fn execute_modifier_stmt(
     stmt: &ModifierIrStmt,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
-    refresh_env: &mut F,
-) -> Result<(), EvalError>
-where
-    F: FnMut(&mut Environment, &ModifierOverrides),
-{
+) -> Result<(), EvalError> {
     match stmt {
         ModifierIrStmt::Assign {
             target,
@@ -46,11 +38,14 @@ where
             value,
         } => {
             let val = evaluate_modifier_expr(value, frame_env)?;
+            let label = target.join(".");
             overrides
-                .entry(target.join("."))
+                .entry(label.clone())
                 .or_default()
-                .insert(property.clone(), val);
-            refresh_env(frame_env, overrides);
+                .insert(property.clone(), val.clone());
+            crate::timeline::runtime::apply_override_incremental(
+                frame_env, &label, property, val,
+            );
             Ok(())
         }
         ModifierIrStmt::Let { name, value } => {
@@ -70,7 +65,7 @@ where
                 else_branch
             };
             for stmt in branch {
-                execute_modifier_stmt(stmt, frame_env, overrides, refresh_env)?;
+                execute_modifier_stmt(stmt, frame_env, overrides)?;
             }
             Ok(())
         }
@@ -90,7 +85,7 @@ where
             for item in items {
                 frame_env.set(var, item);
                 for stmt in body {
-                    execute_modifier_stmt(stmt, frame_env, overrides, refresh_env)?;
+                    execute_modifier_stmt(stmt, frame_env, overrides)?;
                 }
             }
             Ok(())

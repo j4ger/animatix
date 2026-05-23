@@ -68,20 +68,16 @@ pub fn compile_modifier_bytecode(
     })
 }
 
-pub fn execute_modifier_bytecode<F>(
+pub fn execute_modifier_bytecode(
     program: &ModifierBytecodeProgram,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
-    mut refresh_env: F,
-) -> Result<(), EvalError>
-where
-    F: FnMut(&mut Environment, &ModifierOverrides),
-{
+) -> Result<(), EvalError> {
     let mut vm = ModifierVm {
-        stack: Vec::new(),
+        stack: Vec::with_capacity(16),
         ip: 0,
     };
-    vm.run(program, frame_env, overrides, &mut refresh_env)
+    vm.run(program, frame_env, overrides)
 }
 
 #[derive(Default)]
@@ -228,16 +224,12 @@ struct ModifierVm {
 }
 
 impl ModifierVm {
-    fn run<F>(
+    fn run(
         &mut self,
         program: &ModifierBytecodeProgram,
         frame_env: &mut Environment,
         overrides: &mut ModifierOverrides,
-        refresh_env: &mut F,
-    ) -> Result<(), EvalError>
-    where
-        F: FnMut(&mut Environment, &ModifierOverrides),
-    {
+    ) -> Result<(), EvalError> {
         while self.ip < program.instructions.len() {
             match &program.instructions[self.ip] {
                 Instruction::LoadConst(index) => {
@@ -434,8 +426,10 @@ impl ModifierVm {
                     overrides
                         .entry(target.clone())
                         .or_default()
-                        .insert(property.clone(), value);
-                    refresh_env(frame_env, overrides);
+                        .insert(property.clone(), value.clone());
+                    crate::timeline::runtime::apply_override_incremental(
+                        frame_env, target, property, value,
+                    );
                     self.ip += 1;
                 }
                 Instruction::Halt => break,

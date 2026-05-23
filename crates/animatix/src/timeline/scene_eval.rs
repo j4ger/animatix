@@ -849,7 +849,7 @@ impl Timeline {
                     && cached.dimensions == scene_dimensions
                     && cached.has_modifiers == has_modifiers
                     && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders != self.child_orders.is_empty()
+                    && cached.has_child_orders == !self.child_orders.is_empty()
                 {
                     return cached.scene.clone();
                 }
