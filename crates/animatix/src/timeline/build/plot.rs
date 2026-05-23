@@ -11,6 +11,27 @@ use crate::ast::{InlineItem, Property};
 use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
 use crate::timeline::vello_path::VelloPath;
 
+/// Data for tick labels: screen positions and math values.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TickLabelData {
+    /// (screen_x, screen_y, math_value) for each x-axis tick
+    pub x_labels: Vec<(f64, f64, f64)>,
+    /// (screen_x, screen_y, math_value) for each y-axis tick
+    pub y_labels: Vec<(f64, f64, f64)>,
+}
+
+/// Parse the `tick_labels` string property into a flags-like value indicating
+/// which axes should have labels.
+/// Accepts: "auto", "true", "false", "x", "y", "both"
+fn tick_labels_has_axis(value: &str, axis: char) -> bool {
+    match value {
+        "auto" | "true" | "both" => true,
+        "x" => axis == 'x',
+        "y" => axis == 'y',
+        _ => false, // "false" or unrecognised
+    }
+}
+
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
@@ -227,6 +248,7 @@ pub(crate) fn build_graph_axis_paths(
     axis_color: [f32; 4],
     grid: bool,
     ticks: bool,
+    _tick_labels: bool,
 ) -> Vec<VelloPath> {
     let mut paths = Vec::new();
     let mut axis_path = kurbo::BezPath::new();
@@ -379,6 +401,7 @@ impl Timeline {
         ShapeType,
         Vec<VelloPath>,
         Option<ProceduralPlot>,
+        Option<TickLabelData>,
     )> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if !primitive.is_graph_host() && !primitive.is_plot() {
@@ -398,6 +421,7 @@ impl Timeline {
         let mut levels: Vec<f64> = vec![];
         let mut grid = false;
         let mut ticks = false;
+        let mut tick_labels = String::from("auto");
         let mut x_range = [-10.0, 10.0, 2.0];
         let mut y_range = [-10.0, 10.0, 2.0];
         let is_number_plane = ty == "NumberPlane";
@@ -595,6 +619,16 @@ impl Timeline {
                     .unwrap_or(Value::Num(0.0));
                     ticks = v.as_bool();
                 }
+                "tick_labels" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Str("auto".to_string()));
+                    tick_labels = v.as_str().to_lowercase();
+                }
                 "kind" => {
                     if let Expr::Str(s) = &prop.value {
                         if let Some(k) = PlotCurveKind::from_str(s) {
@@ -727,9 +761,48 @@ impl Timeline {
 
         let mut vello_paths = vec![];
         let mut procedural_plot = None;
+        let mut tick_label_data = TickLabelData::default();
 
         if primitive.is_graph_host() {
-            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color, grid, ticks);
+            let label_x = tick_labels_has_axis(&tick_labels, 'x');
+            let label_y = tick_labels_has_axis(&tick_labels, 'y');
+
+            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color, grid, ticks, label_x || label_y);
+
+            // Compute tick label positions (same logic as build_graph_axis_paths ticks section)
+            let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
+            let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
+            let tick_label_offset = 14.0;
+
+            // X-axis at y=0 screen position
+            if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+                let axis_y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                if label_x {
+                    let mut x = (x_domain[0] / x_step).ceil() * x_step;
+                    while x <= x_domain[1] {
+                        if x != 0.0 {
+                            let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                            tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
+                        }
+                        x += x_step;
+                    }
+                }
+            }
+
+            // Y-axis at x=0 screen position
+            if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+                let axis_x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                if label_y {
+                    let mut y = (y_domain[0] / y_step).ceil() * y_step;
+                    while y <= y_domain[1] {
+                        if y != 0.0 {
+                            let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                            tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
+                        }
+                        y += y_step;
+                    }
+                }
+            }
         } else if is_vector_field {
             let eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
@@ -851,6 +924,11 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
+            if primitive.is_graph_host() && (tick_label_data.x_labels.len() > 0 || tick_label_data.y_labels.len() > 0) {
+                Some(tick_label_data)
+            } else {
+                None
+            },
         ))
     }
 }

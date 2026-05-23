@@ -2,7 +2,7 @@
 //! inserts keyframes, and dispatches to ActorKind implementations.
 
 use super::*;
-use crate::ast::{InlineItem, Property};
+use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::actor_kind::find_actor_kind;
 use crate::timeline::vello_path::VelloPath;
 use crate::timeline::plot::PlotCurveKind;
@@ -27,7 +27,7 @@ impl Timeline {
     ) -> Vec<VelloPath> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if primitive.is_graph_host() {
-            return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color, false, false);
+            return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color, false, false, false);
         }
 
         // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime re-evaluation.
@@ -567,6 +567,7 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
+            tick_label_data,
         )) = self.process_plot_actor(
             label,
             ty,
@@ -632,6 +633,49 @@ impl Timeline {
                 vello_paths,
                 easing,
             );
+
+            // === Tick Labels ===
+            if let Some(ref tick_data) = tick_label_data {
+                // X-axis tick labels (positioned below the axis line)
+                for (i, &(sx, sy, val)) in tick_data.x_labels.iter().enumerate() {
+                    let child_label = format!("{}_tick_x_{}", label, i);
+                    let tick_props = vec![
+                        Property::new("text", Expr::Str(format!("{:.1}", val))),
+                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
+                        Property::new("font_size", Expr::Num(10.0)),
+                        Property::new("color", Expr::Str("#888888".to_string())),
+                    ];
+                    let _ = self.process_text_actor_decl(
+                        "Text",
+                        &child_label,
+                        &tick_props,
+                        &[], // no modifiers
+                        time_ms,
+                        Some(label),
+                        diagnostics,
+                    );
+                }
+
+                // Y-axis tick labels (positioned to the left of the axis line)
+                for (i, &(sx, sy, val)) in tick_data.y_labels.iter().enumerate() {
+                    let child_label = format!("{}_tick_y_{}", label, i);
+                    let tick_props = vec![
+                        Property::new("text", Expr::Str(format!("{:.1}", val))),
+                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
+                        Property::new("font_size", Expr::Num(10.0)),
+                        Property::new("color", Expr::Str("#888888".to_string())),
+                    ];
+                    let _ = self.process_text_actor_decl(
+                        "Text",
+                        &child_label,
+                        &tick_props,
+                        &[], // no modifiers
+                        time_ms,
+                        Some(label),
+                        diagnostics,
+                    );
+                }
+            }
 
             // === Container Layout ===
             let primitive = PrimitiveDescriptor::for_actor_type(ty);
