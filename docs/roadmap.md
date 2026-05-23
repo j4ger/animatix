@@ -23,31 +23,29 @@
 
 ## P1 — GUI Completion
 
-The canvas works; the chrome around it doesn't. Ordered by feasibility + impact.
+### ✅ P1a — Quick Wins (Complete)
 
-### P1a — Quick Wins (small, high user impact)
+| Item | Status |
+|------|--------|
+| **P1.1** | Command system wired — Reload, Undo/Redo, ScrollToLine dispatch through queue |
+| **P1.2** | Hotkeys added — Ctrl+S (Save), Ctrl+R (Reload), Ctrl+Shift+R (Rebuild), Ctrl+D (Duplicate) |
+| **P1.3** | Diagnostics click-to-navigate verified and unified to command queue |
 
-| Item | What | Where |
-|------|------|-------|
-| **P1.1** | **Wire up command system** — Connect Reload, Undo/Redo, ScrollToLine, OpenTransitionEditor, RequestRepaint to actual handlers | `app/commands.rs`, `app/command_handlers.rs` |
-| **P1.2** | **Hotkey wiring** — Keyboard shortcuts for Undo/Redo, Reload, scene jumps (1/2/3) | `app/mod.rs`, `app/preview/` |
-| **P1.3** | **Diagnostics click-to-navigate** — Click a diagnostic message to jump to line/col in editor | `app/panels/inspector/` |
+### ✅ P1b — Medium Features (Complete)
 
-### P1b — Medium Features
+| Item | Status |
+|------|--------|
+| **P1.4** | Tree-sitter grammar updated with `scene_declaration` rule and highlight query |
 
-| Item | What | Where |
-|------|------|-------|
-| **P1.4** | **Tree-sitter grammar update** — Add `# SceneName` and `play` syntax highlighting | `tree-sitter-animatix/` |
-| **P1.5** | **Scene list panel** — Show `# SceneName` blocks in a sidebar list | `app/panels/` |
-| **P1.6** | **Transition editor UI** — Visual transition picker/timeline | `app/shell/` |
-| **P1.7** | **NL command bar dispatch** — Parse natural language input and emit actual commands | `app/shell/nl_command_bar.rs` |
+### P1c — Remaining GUI Work
 
-### P1c — Large Features
-
-| Item | What | Where |
-|------|------|-------|
-| **P1.8** | **Composition timeline** — Show `play` edges and scene durations in the timeline panel | `app/panels/timeline_panel.rs` |
-| **P1.9** | **Integrate agent suggestion UI** — Wire toast, inline suggestion, diff card components | `app/components/agent_suggestions.rs` |
+| Item | What | Where | Notes |
+|------|------|-------|-------|
+| **P1.5** | **Scene list panel** | `app/panels/` | Scene list with drag-reorder already exists in workspace panel |
+| **P1.6** | **Transition editor UI** | `app/shell/` | Handler sets `panel_state.open_transition_editor` but no UI consumes it |
+| **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` | Needs NL parsing backend (out of scope without AI service integration) |
+| **P1.8** | **Composition timeline** | `app/panels/timeline_panel.rs` | Show `play` edges and scene durations |
+| **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` | Toast, inline suggestion, diff card components built but not wired |
 
 ---
 
