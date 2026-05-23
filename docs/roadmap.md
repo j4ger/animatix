@@ -43,9 +43,16 @@
 |------|------|-------|-------|
 | **P1.5** | **Scene list panel** | `app/panels/` | Scene list with drag-reorder already exists in workspace panel |
 | **P1.6** | **Transition editor UI** | `app/shell/` | Handler sets `panel_state.open_transition_editor` but no UI consumes it |
-| **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` | Needs NL parsing backend (out of scope without AI service integration) |
 | **P1.8** | **Composition timeline** | `app/panels/timeline_panel.rs` | Show `play` edges and scene durations |
-| **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` | Toast, inline suggestion, diff card components built but not wired |
+
+### P1d — AI Features (deferred)
+
+Tracked separately. Requires external AI service integration.
+
+| Item | What | Where |
+|------|------|-------|
+| **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` |
+| **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` |
 
 ---
 
