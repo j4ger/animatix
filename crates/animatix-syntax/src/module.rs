@@ -114,7 +114,7 @@ impl LoadedProgram {
     /// annotations. Returns diagnostics for any type mismatches found.
     /// Unannotated parameters accept any value.
     pub fn typecheck(&self) -> Vec<crate::diagnostics::Diagnostic> {
-        let env = crate::typecheck::TypeEnv::new(&self.components);
+        let mut env = crate::typecheck::TypeEnv::new(&self.components);
         env.check_statements(&self.statements)
     }
 

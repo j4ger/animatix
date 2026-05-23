@@ -1,12 +1,12 @@
 //! Gradual type checker for Animatix.
 //!
-//! Validates component instantiation properties against parameter type annotations.
-//! Action invocation validation is reserved for when action parameters (P2.1) land.
+//! Validates component instantiation properties and action invocation arguments
+//! against parameter type annotations.
 //!
 //! This is a lightweight, single-pass checker with no inference and no unification.
 //! Unannotated parameters (`param_type: None`) accept any value.
 
-use crate::ast::{ComponentDef, Expr, ParamDef, Property, Stmt, TypeAnnotation};
+use crate::ast::{ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use std::collections::HashMap;
 
@@ -14,16 +14,21 @@ use std::collections::HashMap;
 pub struct TypeEnv<'a> {
     /// Component name → component definition.
     components: &'a HashMap<String, crate::module::ComponentEntry>,
+    /// Actor label → component type name (accumulated during AST walk).
+    labels: HashMap<String, String>,
 }
 
 impl<'a> TypeEnv<'a> {
     /// Create a new type environment from a component registry.
     pub fn new(components: &'a HashMap<String, crate::module::ComponentEntry>) -> Self {
-        Self { components }
+        Self {
+            components,
+            labels: HashMap::new(),
+        }
     }
 
     /// Check all statements in a program, returning any type errors.
-    pub fn check_statements(&self, stmts: &[Stmt]) -> Vec<Diagnostic> {
+    pub fn check_statements(&mut self, stmts: &[Stmt]) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
         for stmt in stmts {
             self.check_stmt(stmt, &mut diagnostics);
@@ -31,9 +36,11 @@ impl<'a> TypeEnv<'a> {
         diagnostics
     }
 
-    fn check_stmt(&self, stmt: &Stmt, diagnostics: &mut Vec<Diagnostic>) {
+    fn check_stmt(&mut self, stmt: &Stmt, diagnostics: &mut Vec<Diagnostic>) {
         match stmt {
-            Stmt::ActorDecl { ty, props, children, .. } => {
+            Stmt::ActorDecl { label, ty, props, children, .. } => {
+                // Track label → type for action invocation validation
+                self.labels.insert(label.clone(), ty.clone());
                 // Check if this actor decl instantiates a component
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
@@ -41,6 +48,24 @@ impl<'a> TypeEnv<'a> {
                 // Recurse into children
                 for child in children {
                     self.check_inline_item(child, diagnostics);
+                }
+            }
+            Stmt::Action(action, _span) => {
+                for target in &action.targets {
+                    if let Some(component_name) = self.labels.get(target) {
+                        if let Some(entry) = self.components.get(component_name) {
+                            if let Some(template) = entry.actions.get(&action.verb) {
+                                self.check_action_invocation(
+                                    &action.verb,
+                                    target,
+                                    component_name,
+                                    &template.params,
+                                    &action.modifiers,
+                                    diagnostics,
+                                );
+                            }
+                        }
+                    }
                 }
             }
             Stmt::Keyframe { body, .. }
@@ -109,6 +134,60 @@ impl<'a> TypeEnv<'a> {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn check_action_invocation(
+        &self,
+        action_name: &str,
+        target: &str,
+        component_name: &str,
+        params: &[ParamDef],
+        modifiers: &[Modifier],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Build a set of provided param names from named modifiers
+        let provided: HashMap<&str, &Expr> = modifiers
+            .iter()
+            .filter_map(|m| m.name.as_ref().map(|name| (name.as_str(), &m.value)))
+            .collect();
+
+        for param in params {
+            if let Some(expected) = &param.param_type {
+                if let Some(value) = provided.get(param.name.as_str()) {
+                    let actual = expr_type(value);
+                    if !is_subtype(&actual, expected) {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::TypeMismatch,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Type mismatch: parameter '{}' of action '{}.{}' expects {}, got {} (from {})",
+                                    param.name,
+                                    component_name,
+                                    action_name,
+                                    expected,
+                                    actual,
+                                    expr_summary(value)
+                                ),
+                            )
+                            .with_subject(format!("{}.{}.{}", component_name, action_name, param.name)),
+                        );
+                    }
+                } else if param.default.is_none() {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::TypeMismatch,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Missing required parameter '{}' for action '{}.{}' on '{}'",
+                                param.name, component_name, action_name, target
+                            ),
+                        )
+                        .with_subject(format!("{}.{}.{}", component_name, action_name, param.name)),
+                    );
+                }
+            }
         }
     }
 
