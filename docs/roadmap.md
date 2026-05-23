@@ -11,99 +11,26 @@
 
 ---
 
-## P2 — Maintainability & Code Quality (Post-Audit)
+## P2 — Performance Optimizations (Complete)
 
-> Findings from oracle audit of all crates. Ordered by impact for high-actor-count scenes.
+All P2 items are implemented. Ordered by impact for high-actor-count scenes.
 
----
+| Item | What it does | Impact |
+|------|-------------|--------|
+| **P2.16** | Skip `frame_env` creation when no modifiers/procedural plots exist | 40× speedup for static scenes |
+| **P2.17** | Cache `vello::Scene` encoding for fully-static subtrees after first evaluate | 97% faster for static scenes |
+| **P2.18** | Per-actor transform cache keyed by `(time_ms, parent_transform_coeffs)` | High for scrubbing back-and-forth |
+| **P2.19** | Viewport culling — skip rendering for off-screen actors | High for multi-scene transitions |
+| **P2.20** | PropertyTrack memoization — cache `evaluate()` result by `time_ms` | Medium, eliminates BTreeMap overhead |
+| **P2.22** | Arc-based environment layer — share base env via `Arc` instead of copying | Medium, saves ~200–300 μs per frame |
+| **P2.23** | Reuse top-level `frame_env` for procedural plots (was per-actor) | Medium for plot-heavy scenes |
+| **P2.24** | Lazy hit region calculation — compute only when `compute_hit_regions: true` | Low–Medium |
+| **P2.25** | Reuse `vello::Scene` buffer via `scene.reset()` instead of `Scene::new()` | Low–Medium, reduces allocator pressure |
+| **P2.26** | TextCompiler cache stores `Arc<[TextPath]>` instead of `Vec<TextPath>` | Low–Medium for text-heavy scenes |
 
-### ✅ P2.16 — Skip Frame Environment When Unused
+**Measured:** 200 static actors evaluate in ~64 μs (was ~1.7 ms). 200 animated actors evaluate in ~188 μs.
 
-**Status:** Complete. Gated `frame_env` creation behind `needs_frame_env()`. Also fixed build process to skip compiling empty modifier programs.
-
-**Impact:** 40× speedup for static scenes.
-
----
-
-### ✅ P2.17 — Static Actor Scene Fragment Cache
-
-**Status:** Complete. `PropertyTrack::is_effectively_static()` detects tracks with 0 keyframes or 1 keyframe at time 0. Fully-static subtrees cache their `vello::Scene` encoding after first evaluate; subsequent frames append directly.
-
-**Impact:** 97% faster for static scenes (200 actors: 1.7 ms → 64 μs).
-
----
-
-### ✅ P2.18 — Actor-Level Temporal Coherence
-
-**Status:** Complete. Per-actor transform cache keyed by `(time_ms, parent_transform_coeffs)` avoids re-sampling ~8 properties on repeated evaluations.
-
-**Impact:** High for scrubbing back-and-forth over same frames.
-
----
-
-### ✅ P2.19 — Viewport Culling for Off-Screen Actors
-
-**Status:** Complete. Conservative world-space bounding box check after `evaluate_node_transform`. Skips rendering, effects, and hit regions for off-screen actors while still recursing children.
-
-**Impact:** High for multi-scene transitions and pannable scenes.
-
----
-
-### ✅ P2.20 — PropertyTrack Memoization
-
-**Status:** Complete. Added `last_evaluated: RefCell<Option<(u64, T)>>` to `PropertyTrack`. `evaluate()` returns cached value when called with the same `time_ms` repeatedly, skipping BTreeMap lookups.
-
-**Impact:** Medium. Eliminates ~3 μs of BTreeMap overhead per property for repeated time samples.
-
----
-
-### ⏸️ P2.21 — Parallel Actor Evaluation
-
-**Status:** Deferred. Attempted with rayon but `Timeline` contains `RefCell`/`Cell` fields (text_compiler, caches) that make it non-Sync. Correct implementation requires either:
-- Restructuring Timeline to be Send+Sync (large refactor), or
-- Cloning per-thread data (expensive for large timelines)
-
-**Impact:** Would be 2–4× on multi-core for multi-root scenes. Not justified at current complexity.
-
----
-
-### ✅ P2.22 — Arc-Based Environment Layer
-
-**Status:** Complete. `Environment` now holds `overrides: HashMap<String, Value>` and `base: Option<Arc<HashMap<String, Value>>>`. `get()` checks overrides first, then falls back to the shared base.
-
-`frame_eval_env` creates `Environment::with_base(Arc::clone(&self.env_base))` instead of copying ~90 stdlib entries. The base Arc is frozen at the end of `Timeline::build`.
-
-**Impact:** Medium. Saves ~200–300 μs per frame for large scenes with modifiers.
-
----
-
-### ✅ P2.23 — Procedural Plot Frame Environment Reuse
-
-**Status:** Complete (done as part of P2.16). Top-level `frame_env` is now passed down through `evaluate_node` → `render_actor_node` and reused for plot sampling instead of creating a new env per actor.
-
----
-
-### ✅ P2.24 — Lazy Hit Region Calculation
-
-**Status:** Complete. Added `compute_hit_regions: bool` to `DebugRenderOptions`. Hit regions are only computed when this flag is true. The GUI sets it to true since it needs click-to-select data. Benchmarks and exports skip it.
-
-**Impact:** Low–Medium. Saves bounding-box computation for frames where click-to-select is not needed.
-
----
-
-### ✅ P2.25 — Vello Scene Buffer Reuse
-
-**Status:** Complete. Added `scene_buffer: RefCell<Option<vello::Scene>>` to Timeline. `evaluate_with_debug` calls `scene.reset()` on the reused buffer instead of `Scene::new()` on every frame.
-
-**Impact:** Low–Medium. Reduces allocator pressure during scrubbing.
-
----
-
-### ✅ P2.26 — Text Path Clone on Cache Hit
-
-**Status:** Complete. `TextCompiler` cache now stores `Arc<[TextPath]>` instead of `Vec<TextPath>`. Cache hits return `Arc::clone()` — a single refcount increment instead of cloning all `BezPath` objects.
-
-**Impact:** Low–Medium. Significant for scenes with many text actors.
+**Not pursued:** Parallel actor evaluation (P2.21) — Timeline contains `RefCell`/`Cell` fields making it non-Sync. Restructuring for thread safety is a large refactor with marginal returns given current performance is already well within 60 fps budgets.
 
 ---
 
