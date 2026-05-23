@@ -164,8 +164,21 @@ impl Environment {
         }
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        Environment {
+            values: HashMap::with_capacity(capacity),
+        }
+    }
+
     pub fn set(&mut self, name: &str, value: Value) {
         self.values.insert(name.to_string(), value);
+    }
+
+    /// Extend this environment with all values from another.
+    pub fn extend_from(&mut self, other: &Environment) {
+        for (k, v) in &other.values {
+            self.values.insert(k.clone(), v.clone());
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<Value> {
@@ -176,5 +189,13 @@ impl Environment {
         let mut keys: Vec<String> = self.values.keys().cloned().collect();
         keys.sort();
         keys
+    }
+
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
     }
 }

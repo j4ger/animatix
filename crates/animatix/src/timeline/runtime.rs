@@ -58,7 +58,16 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
-        let mut env = self.env.clone();
+        // Estimate capacity: base env + t/scene_width/scene_height + variable tracks +
+        // ~35 properties per actor (only if modifiers are present).
+        let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
+        let estimated_capacity = if has_modifiers {
+            self.env.len() + 3 + self.variable_tracks.len() + self.tracks.len() * 35
+        } else {
+            self.env.len() + 3 + self.variable_tracks.len()
+        };
+        let mut env = Environment::with_capacity(estimated_capacity);
+        env.extend_from(&self.env);
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));

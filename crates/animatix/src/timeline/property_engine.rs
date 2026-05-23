@@ -653,122 +653,158 @@ pub(crate) fn inject_property_into_env(
     track: &AnimationTrack,
     time_ms: u64,
 ) {
+    // Reusable key buffer to avoid repeated small String allocations.
+    let mut key = String::with_capacity(label.len() + 24);
+    key.push_str(label);
+    key.push('.');
+    let prefix_len = key.len();
+
     // Geometry
-    inject_vec2_env(env, label, "at",        &track.position, time_ms, [0.0, 0.0]);
-    inject_vec2_env(env, label, "position",  &track.position, time_ms, [0.0, 0.0]);
-    inject_vec2_env(env, label, "shift",     &track.motion_offset, time_ms, [0.0, 0.0]);
+    inject_vec2_env(env, &mut key, prefix_len, "at",        &track.position, time_ms, [0.0, 0.0]);
+    inject_vec2_env(env, &mut key, prefix_len, "position",  &track.position, time_ms, [0.0, 0.0]);
+    inject_vec2_env(env, &mut key, prefix_len, "shift",     &track.motion_offset, time_ms, [0.0, 0.0]);
     let size_val = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
     let full_size = [size_val[0] * 2.0, size_val[1] * 2.0];
-    inject_vec2_env(env, label, "size",      &track.size, time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-    env.set(&format!("{label}.width"), Value::Num(full_size[0] as f64));
-    env.set(&format!("{label}.height"), Value::Num(full_size[1] as f64));
-    inject_scalar_env(env, label, "rotation", &track.rotation, time_ms, 0.0);
-    inject_scalar_env(env, label, "scale",   &track.scale, time_ms, 1.0);
-    inject_transform_env(env, label, &track.transform, time_ms);
+    inject_vec2_env(env, &mut key, prefix_len, "size",      &track.size, time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    key.truncate(prefix_len);
+    key.push_str("width");
+    env.set(&key, Value::Num(full_size[0] as f64));
+    key.truncate(prefix_len);
+    key.push_str("height");
+    env.set(&key, Value::Num(full_size[1] as f64));
+    inject_scalar_env(env, &mut key, prefix_len, "rotation", &track.rotation, time_ms, 0.0);
+    inject_scalar_env(env, &mut key, prefix_len, "scale",   &track.scale, time_ms, 1.0);
+    inject_transform_env(env, &mut key, prefix_len, &track.transform, time_ms);
 
     // Style
-    inject_color_env(env, label, "color",           &track.color, time_ms, DEFAULT_WHITE);
-    inject_scalar_env(env, label, "opacity",        &track.opacity, time_ms, 1.0);
-    inject_color_env(env, label, "stroke_color",    &track.stroke_color, time_ms, DEFAULT_WHITE);
-    inject_scalar_env(env, label, "stroke_width",   &track.stroke_width, time_ms, 2.0);
-    inject_scalar_env(env, label, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
-    inject_scalar_env(env, label, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
+    inject_color_env(env, &mut key, prefix_len, "color",           &track.color, time_ms, DEFAULT_WHITE);
+    inject_scalar_env(env, &mut key, prefix_len, "opacity",        &track.opacity, time_ms, 1.0);
+    inject_color_env(env, &mut key, prefix_len, "stroke_color",    &track.stroke_color, time_ms, DEFAULT_WHITE);
+    inject_scalar_env(env, &mut key, prefix_len, "stroke_width",   &track.stroke_width, time_ms, 2.0);
+    inject_scalar_env(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
+    inject_scalar_env(env, &mut key, prefix_len, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
 
     // Shape-specific derived fields
     let size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-    env.set(&format!("{label}.radius_x"), Value::Num(size[0] as f64));
-    env.set(&format!("{label}.radius_y"), Value::Num(size[1] as f64));
+    key.truncate(prefix_len);
+    key.push_str("radius_x");
+    env.set(&key, Value::Num(size[0] as f64));
+    key.truncate(prefix_len);
+    key.push_str("radius_y");
+    env.set(&key, Value::Num(size[1] as f64));
 
     // Line from/to
-    inject_vec2_env(env, label, "from", &track.line_from, time_ms, [-50.0, 0.0]);
-    inject_vec2_env(env, label, "to",   &track.line_to, time_ms, [50.0, 0.0]);
+    inject_vec2_env(env, &mut key, prefix_len, "from", &track.line_from, time_ms, [-50.0, 0.0]);
+    inject_vec2_env(env, &mut key, prefix_len, "to",   &track.line_to, time_ms, [50.0, 0.0]);
 
     // Effects
-    inject_vec2_env(env, label, "shadow_offset",   &track.shadow_offset, time_ms, [0.0, 0.0]);
-    inject_scalar_env(env, label, "shadow_blur",    &track.shadow_blur, time_ms, 0.0);
-    inject_color_env(env, label, "shadow_color",    &track.shadow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
-    inject_scalar_env(env, label, "glow_radius",    &track.glow_radius, time_ms, 0.0);
-    inject_color_env(env, label, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
-    inject_scalar_env(env, label, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
+    inject_vec2_env(env, &mut key, prefix_len, "shadow_offset",   &track.shadow_offset, time_ms, [0.0, 0.0]);
+    inject_scalar_env(env, &mut key, prefix_len, "shadow_blur",    &track.shadow_blur, time_ms, 0.0);
+    inject_color_env(env, &mut key, prefix_len, "shadow_color",    &track.shadow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
+    inject_scalar_env(env, &mut key, prefix_len, "glow_radius",    &track.glow_radius, time_ms, 0.0);
+    inject_color_env(env, &mut key, prefix_len, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
+    inject_scalar_env(env, &mut key, prefix_len, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
 
     // Animation-state flags: inject `_animating_{property}` booleans so `always`
     // blocks can detect when a keyframe track exists for a property.
-    inject_scalar_animating(env, label, "at",         &track.position);
-    inject_scalar_animating(env, label, "position",   &track.position);
-    inject_scalar_animating(env, label, "shift",      &track.motion_offset);
-    inject_scalar_animating(env, label, "size",       &track.size);
-    inject_scalar_animating(env, label, "rotation",   &track.rotation);
-    inject_scalar_animating(env, label, "scale",      &track.scale);
-    inject_scalar_animating(env, label, "color",      &track.color);
-    inject_scalar_animating(env, label, "opacity",    &track.opacity);
-    inject_scalar_animating(env, label, "stroke_color", &track.stroke_color);
-    inject_scalar_animating(env, label, "stroke_width", &track.stroke_width);
-    inject_scalar_animating(env, label, "stroke_progress", &track.stroke_progress);
-    inject_scalar_animating(env, label, "fill_opacity", &track.fill_opacity);
-    inject_scalar_animating(env, label, "from",       &track.line_from);
-    inject_scalar_animating(env, label, "to",         &track.line_to);
-    inject_scalar_animating(env, label, "shadow_offset", &track.shadow_offset);
-    inject_scalar_animating(env, label, "shadow_blur",   &track.shadow_blur);
-    inject_scalar_animating(env, label, "shadow_color",  &track.shadow_color);
-    inject_scalar_animating(env, label, "glow_radius",   &track.glow_radius);
-    inject_scalar_animating(env, label, "glow_color",    &track.glow_color);
-    inject_scalar_animating(env, label, "backdrop_blur", &track.backdrop_blur);
-    inject_scalar_animating(env, label, "transform",     &track.transform);
+    inject_scalar_animating(env, &mut key, prefix_len, "at",         &track.position);
+    inject_scalar_animating(env, &mut key, prefix_len, "position",   &track.position);
+    inject_scalar_animating(env, &mut key, prefix_len, "shift",      &track.motion_offset);
+    inject_scalar_animating(env, &mut key, prefix_len, "size",       &track.size);
+    inject_scalar_animating(env, &mut key, prefix_len, "rotation",   &track.rotation);
+    inject_scalar_animating(env, &mut key, prefix_len, "scale",      &track.scale);
+    inject_scalar_animating(env, &mut key, prefix_len, "color",      &track.color);
+    inject_scalar_animating(env, &mut key, prefix_len, "opacity",    &track.opacity);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_color", &track.stroke_color);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_width", &track.stroke_width);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress);
+    inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity);
+    inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from);
+    inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to);
+    inject_scalar_animating(env, &mut key, prefix_len, "shadow_offset", &track.shadow_offset);
+    inject_scalar_animating(env, &mut key, prefix_len, "shadow_blur",   &track.shadow_blur);
+    inject_scalar_animating(env, &mut key, prefix_len, "shadow_color",  &track.shadow_color);
+    inject_scalar_animating(env, &mut key, prefix_len, "glow_radius",   &track.glow_radius);
+    inject_scalar_animating(env, &mut key, prefix_len, "glow_color",    &track.glow_color);
+    inject_scalar_animating(env, &mut key, prefix_len, "backdrop_blur", &track.backdrop_blur);
+    inject_scalar_animating(env, &mut key, prefix_len, "transform",     &track.transform);
 }
 
 fn inject_scalar_env(
     env: &mut Environment,
-    label: &str,
-    key: &str,
+    key: &mut String,
+    prefix_len: usize,
+    suffix: &str,
     field: &Option<PropertyTrack<f32>>,
     time_ms: u64,
     default: f32,
 ) {
     let val = field.get(time_ms, default) as f64;
-    env.set(&format!("{label}.{key}"), Value::Num(val));
+    key.truncate(prefix_len);
+    key.push_str(suffix);
+    env.set(&*key, Value::Num(val));
 }
 
 fn inject_vec2_env(
     env: &mut Environment,
-    label: &str,
-    key: &str,
+    key: &mut String,
+    prefix_len: usize,
+    suffix: &str,
     field: &Option<PropertyTrack<[f32; 2]>>,
     time_ms: u64,
     default: [f32; 2],
 ) {
     let val = field.get(time_ms, default);
     let f = |x: f32| x as f64;
-    env.set(&format!("{label}.{key}"), Value::Vec2([f(val[0]), f(val[1])]));
-    env.set(&format!("{label}.{key}.x"), Value::Num(f(val[0])));
-    env.set(&format!("{label}.{key}.y"), Value::Num(f(val[1])));
+    key.truncate(prefix_len);
+    key.push_str(suffix);
+    env.set(&*key, Value::Vec2([f(val[0]), f(val[1])]));
+    key.push_str(".x");
+    env.set(&*key, Value::Num(f(val[0])));
+    key.truncate(prefix_len + suffix.len());
+    key.push_str(".y");
+    env.set(&*key, Value::Num(f(val[1])));
 }
 
 fn inject_color_env(
     env: &mut Environment,
-    label: &str,
-    key: &str,
+    key: &mut String,
+    prefix_len: usize,
+    suffix: &str,
     field: &Option<PropertyTrack<[f32; 4]>>,
     time_ms: u64,
     default: [f32; 4],
 ) {
     let val = field.get(time_ms, default);
     let f = |x: f32| x as f64;
-    env.set(&format!("{label}.{key}"), Value::Color([f(val[0]), f(val[1]), f(val[2]), f(val[3])]));
-    env.set(&format!("{label}.{key}.r"), Value::Num(f(val[0])));
-    env.set(&format!("{label}.{key}.g"), Value::Num(f(val[1])));
-    env.set(&format!("{label}.{key}.b"), Value::Num(f(val[2])));
-    env.set(&format!("{label}.{key}.a"), Value::Num(f(val[3])));
+    key.truncate(prefix_len);
+    key.push_str(suffix);
+    env.set(&*key, Value::Color([f(val[0]), f(val[1]), f(val[2]), f(val[3])]));
+    key.push_str(".r");
+    env.set(&*key, Value::Num(f(val[0])));
+    key.truncate(prefix_len + suffix.len());
+    key.push_str(".g");
+    env.set(&*key, Value::Num(f(val[1])));
+    key.truncate(prefix_len + suffix.len());
+    key.push_str(".b");
+    env.set(&*key, Value::Num(f(val[2])));
+    key.truncate(prefix_len + suffix.len());
+    key.push_str(".a");
+    env.set(&*key, Value::Num(f(val[3])));
 }
 
 fn inject_transform_env(
     env: &mut Environment,
-    label: &str,
+    key: &mut String,
+    prefix_len: usize,
     field: &Option<PropertyTrack<[f32; 6]>>,
     time_ms: u64,
 ) {
     let val = field.get(time_ms, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
     let f = |x: f32| x as f64;
-    env.set(&format!("{label}.transform"), Value::List(vec![
+    key.truncate(prefix_len);
+    key.push_str("transform");
+    env.set(&*key, Value::List(vec![
         Value::Num(f(val[0])),
         Value::Num(f(val[1])),
         Value::Num(f(val[2])),
@@ -781,13 +817,17 @@ fn inject_transform_env(
 /// Inject an `_animating_{key}` boolean flag (1.0 = has keyframes, 0.0 = none).
 fn inject_scalar_animating<T: Clone>(
     env: &mut Environment,
-    label: &str,
-    key: &str,
+    key: &mut String,
+    prefix_len: usize,
+    suffix: &str,
     field: &Option<PropertyTrack<T>>,
 ) {
     let has_keyframes = field.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false);
+    key.truncate(prefix_len);
+    key.push_str("_animating_");
+    key.push_str(suffix);
     env.set(
-        &format!("{label}._animating_{key}"),
+        &*key,
         Value::Num(if has_keyframes { 1.0 } else { 0.0 }),
     );
 }

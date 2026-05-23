@@ -66,5 +66,17 @@ harness = false
 name = "build_time"
 harness = false
 
+[[bench]]
+name = "scrubbing"
+harness = false
+
+[[bench]]
+name = "scene_costs"
+harness = false
+
+[[bench]]
+name = "cost_breakdown"
+harness = false
+
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }
