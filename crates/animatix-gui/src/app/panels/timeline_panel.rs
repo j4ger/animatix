@@ -35,11 +35,6 @@ const RANGE_HEIGHT: f32 = 20.0;
 /// Diamond keyframe marker half-size.
 const KF_DIAMOND_HALF: f32 = 4.0;
 
-/// A single keyframe time in seconds.
-struct KfEntry {
-    time_s: f64,
-}
-
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(
     ui: &mut egui::Ui,

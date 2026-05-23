@@ -9,14 +9,10 @@ use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub(crate) struct NodeTransform {
-    pub position: [f32; 2],
     pub half_size: [f32; 2],
     pub opacity: f32,
-    pub rotation: f64,
     pub scale: f64,
-    pub motion_offset: [f32; 2],
     pub local_transform: kurbo::Affine,
 }
 
@@ -119,12 +115,9 @@ impl Timeline {
             * kurbo::Affine::scale(scale);
 
         NodeTransform {
-            position,
             half_size,
             opacity: opacity * parent_opacity,
-            rotation,
             scale,
-            motion_offset,
             local_transform,
         }
     }

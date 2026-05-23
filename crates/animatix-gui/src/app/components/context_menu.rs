@@ -61,6 +61,7 @@ pub enum MenuEntry {
 
 impl MenuEntry {
     /// Create a simple menu item.
+    #[allow(dead_code)] // Public API: available for future use
     pub fn item(label: impl Into<String>) -> Self {
         Self::Item {
             icon: None,
@@ -83,6 +84,7 @@ impl MenuEntry {
     }
 
     /// Create a checked (toggled on) menu item.
+    #[allow(dead_code)] // Public API: available for future use
     pub fn item_checked(label: impl Into<String>, checked: bool) -> Self {
         Self::Item {
             icon: None,
@@ -94,6 +96,7 @@ impl MenuEntry {
     }
 
     /// Create a disabled menu item.
+    #[allow(dead_code)] // Public API: available for future use
     pub fn item_disabled(label: impl Into<String>) -> Self {
         Self::Item {
             icon: None,
@@ -118,6 +121,7 @@ impl MenuEntry {
 /// Response from rendering a single menu item.
 pub struct MenuItemResponse {
     pub clicked: bool,
+    #[allow(dead_code)] // Reserved for future use (e.g., hover highlight bounds)
     pub rect: Rect,
 }
 

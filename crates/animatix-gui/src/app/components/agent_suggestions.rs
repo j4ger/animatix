@@ -10,6 +10,7 @@ use crate::app::design_tokens::*;
 use egui::{Color32, FontId, Pos2, Rect, RichText, Stroke, Vec2};
 
 /// A lightweight toast notification.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub struct Toast {
     pub message: String,
     pub icon: &'static str,
@@ -19,6 +20,7 @@ pub struct Toast {
 }
 
 impl Toast {
+    #[allow(dead_code)] // WIP: agent suggestion UI
     pub fn new(message: impl Into<String>, icon: &'static str, color: Color32) -> Self {
         Self {
             message: message.into(),
@@ -28,20 +30,24 @@ impl Toast {
         }
     }
 
+    #[allow(dead_code)] // WIP: agent suggestion UI
     pub fn info(message: impl Into<String>) -> Self {
         Self::new(message, egui_phosphor::regular::INFO, ACCENT_BLUE)
     }
 
+    #[allow(dead_code)] // WIP: agent suggestion UI
     pub fn success(message: impl Into<String>) -> Self {
         Self::new(message, egui_phosphor::regular::CHECK, GREEN)
     }
 
+    #[allow(dead_code)] // WIP: agent suggestion UI
     pub fn warning(message: impl Into<String>) -> Self {
         Self::new(message, egui_phosphor::regular::WARNING, AMBER)
     }
 }
 
 /// Render a stack of toasts in the bottom-right corner.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub fn render_toasts(ui: &mut egui::Ui, toasts: &mut Vec<Toast>, dt: f32) {
     if toasts.is_empty() {
         return;
@@ -101,6 +107,7 @@ pub fn render_toasts(ui: &mut egui::Ui, toasts: &mut Vec<Toast>, dt: f32) {
 }
 
 /// An inline suggestion shown near a property or actor.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub struct InlineSuggestion {
     pub target_actor: String,
     pub target_property: Option<String>,
@@ -110,6 +117,7 @@ pub struct InlineSuggestion {
 }
 
 /// Render an inline suggestion anchored to a screen position.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub fn render_inline_suggestion(
     ui: &mut egui::Ui,
     suggestion: &InlineSuggestion,
@@ -197,6 +205,7 @@ pub fn render_inline_suggestion(
 }
 
 /// A diff card showing before/after code snippets.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub struct DiffCard {
     pub title: String,
     pub before: String,
@@ -204,6 +213,7 @@ pub struct DiffCard {
 }
 
 /// Render a diff card as a floating panel.
+#[allow(dead_code)] // WIP: agent suggestion UI
 pub fn render_diff_card(
     ui: &mut egui::Ui,
     card: &DiffCard,

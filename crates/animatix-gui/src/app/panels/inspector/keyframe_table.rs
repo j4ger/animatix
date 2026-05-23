@@ -17,7 +17,6 @@ struct PropertyTrackInfo {
 }
 
 struct TrackGroup {
-    name: &'static str,
     icon: &'static str,
     tracks: Vec<PropertyTrackInfo>,
 }
@@ -374,35 +373,30 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
     let mut groups = Vec::new();
     if !transform.is_empty() {
         groups.push(TrackGroup {
-            name: "Transform",
             icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
             tracks: transform,
         });
     }
     if !style.is_empty() {
         groups.push(TrackGroup {
-            name: "Style",
             icon: egui_phosphor::regular::PAINT_BRUSH,
             tracks: style,
         });
     }
     if !shape.is_empty() {
         groups.push(TrackGroup {
-            name: "Shape",
             icon: egui_phosphor::regular::SHAPES,
             tracks: shape,
         });
     }
     if !text.is_empty() {
         groups.push(TrackGroup {
-            name: "Text",
             icon: egui_phosphor::regular::TEXT_T,
             tracks: text,
         });
     }
     if !media.is_empty() {
         groups.push(TrackGroup {
-            name: "Media",
             icon: egui_phosphor::regular::FILM_STRIP,
             tracks: media,
         });

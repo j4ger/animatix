@@ -9,6 +9,7 @@ pub enum Command {
     // ── Document / File ───────────────────────────────────────────────
     OpenFile(PathBuf),
     Save,
+    #[allow(dead_code)] // WIP: keyboard shortcut reload
     Reload,
     Rebuild,
 
@@ -19,6 +20,7 @@ pub enum Command {
     ShowInspector,
     ToggleDiagnosticsPanel,
     OpenExportDialog,
+    #[allow(dead_code)] // WIP: will be used when diagnostics click-to-navigate is implemented
     ScrollToLine(usize),
 
     // ── Playback ──────────────────────────────────────────────────────
@@ -37,6 +39,7 @@ pub enum Command {
     ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
+    #[allow(dead_code)] // WIP: transition editor UI not yet wired
     OpenTransitionEditor(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
@@ -69,10 +72,13 @@ pub enum Command {
     PasteActors,
 
     // ── Undo / Redo ───────────────────────────────────────────────────
+    #[allow(dead_code)] // WIP: keyboard shortcuts
     Undo,
+    #[allow(dead_code)] // WIP: keyboard shortcuts
     Redo,
 
     // ── Render ────────────────────────────────────────────────────────
+    #[allow(dead_code)] // WIP: will be used when repaint-on-demand is implemented
     RequestRepaint,
 }
 

@@ -1,35 +1,10 @@
-#![allow(dead_code)]
 
 use egui::{Color32, Vec2};
 
 use crate::app::design_tokens::*;
-use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_summary_by_phase};
-
-pub(super) fn action_button(ui: &mut egui::Ui, label: &str, primary: bool, on_click: impl FnOnce()) {
-    let button = if primary {
-        egui::Button::new(label).fill(ACCENT_BLUE)
-    } else {
-        egui::Button::new(label)
-    };
-
-    if ui.add(button).clicked() {
-        on_click();
-    }
-}
-
-pub(super) fn badge(ui: &mut egui::Ui, label: &str, fill: Color32, text: Color32) {
-    let badge_w = label.len() as f32 * 7.0 + 16.0;
-    let badge_h = ROW_S;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(badge_w, badge_h), egui::Sense::hover());
-    ui.painter().rect_filled(rect, RADIUS_L, fill);
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-        text,
-    );
-}
+use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+#[cfg(test)]
+use animatix::diagnostics::diagnostics_summary_by_phase;
 
 /// Draw a badge with background and optional stroke at a specific position.
 /// Returns the rectangle occupied by the badge.
@@ -56,6 +31,7 @@ pub(super) fn draw_badge(
     rect
 }
 
+#[cfg(test)]
 pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
     if diagnostics
         .iter()
@@ -76,6 +52,7 @@ pub(super) fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
     })
 }
 
+#[cfg(test)]
 pub(super) fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<DiagnosticPhase> {
     let summaries = diagnostics_summary_by_phase(diagnostics);
 
@@ -92,6 +69,7 @@ pub(super) fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<Dia
 /// 1. First error message (any phase) — actual diagnostic text, truncated.
 /// 2. First warning message (any phase) — actual diagnostic text, truncated.
 /// 3. Static phase description as a last resort.
+#[cfg(test)]
 pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
     if diagnostics.is_empty() {
         return None;

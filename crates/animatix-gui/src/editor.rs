@@ -1,7 +1,6 @@
 //! Code editor with cell-based notebook UI, tree-sitter syntax highlighting,
 //! line numbers, and auto-complete.
 
-#![allow(dead_code)]
 
 use egui::{Key, text::LayoutJob};
 use std::path::{Path, PathBuf};
@@ -536,17 +535,4 @@ impl EditorBuffer {
         (line, col)
     }
 
-    /// Convert character index to 0-indexed line number.
-    fn char_index_to_line(&self, char_index: usize) -> usize {
-        let mut line = 0;
-        for (i, ch) in self.text.chars().enumerate() {
-            if i >= char_index {
-                break;
-            }
-            if ch == '\n' {
-                line += 1;
-            }
-        }
-        line
     }
-}

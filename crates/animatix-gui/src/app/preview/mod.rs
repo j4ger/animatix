@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 pub mod floating_card;
 pub mod grid;
@@ -168,7 +167,6 @@ pub enum DragState {
         container: String,
         source_index: usize,
         target_index: usize,
-        start_mouse: kurbo::Point,
         layout_type: animatix::timeline::LayoutType,
     },
     /// Dragging a polygon vertex to reshape it.
@@ -213,7 +211,6 @@ pub(super) const ROTATION_OFFSET: f32 = 20.0;
 pub(super) const ROTATION_RADIUS: f32 = 4.0;
 const HANDLE_SIZE: f32 = 6.0;
 pub(super) const HANDLE_HIT_RADIUS: f32 = 10.0;
-pub(super) const PIVOT_HIT_RADIUS: f32 = 12.0;
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {

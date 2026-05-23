@@ -1,4 +1,3 @@
-//! High-level reusable UI components.
 //!
 //! All components in this module are built on top of egui primitives and share
 //! the design tokens from [`crate::app::design_tokens`].
@@ -17,8 +16,6 @@
 //! | [`playhead`] | Vertical amber playhead line |
 //! | [`TimelineStrip`] | Mini timeline scrubber with keyframe markers |
 //! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
-
-#![allow(dead_code)]
 
 pub mod agent_suggestions;
 pub mod context_menu;
@@ -345,6 +342,7 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 ///     ui.add(egui::DragValue::new(&mut val));
 /// });
 /// ```
+#[allow(dead_code)] // Public component: available for future use
 pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     field_sized(ui, None, add_contents)
 }

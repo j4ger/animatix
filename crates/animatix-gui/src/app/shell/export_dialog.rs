@@ -659,17 +659,6 @@ impl GuiShell {
         });
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
-
-    fn resolve_auto_duration(&self) -> f32 {
-        if let Some(timeline) = &self.document_store.document.timeline {
-            let d = timeline.duration_seconds() as f32 + self.export_store.export_state.hold_s.max(0.0);
-            d.max(0.5)
-        } else {
-            self.export_store.export_state.duration_s.max(0.5)
-        }
-    }
-
     fn suggest_export_filename(&self) -> PathBuf {
         let ext = match self.export_store.export_state.format {
             ExportFormat::Image => "png",
@@ -830,10 +819,5 @@ impl GuiShell {
             (result, result_path)
         });
         self.export_store.export_thread = Some(handle);
-    }
-
-    /// Call this every frame to check if an export thread finished.
-    pub(crate) fn poll_export_status(&mut self) {
-        self.export_store.poll_export_status();
     }
 }

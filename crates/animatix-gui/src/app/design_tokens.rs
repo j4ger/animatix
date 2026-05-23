@@ -8,7 +8,6 @@
 //! - `radius`: NONE, SM, MD, LG, FULL
 //! - `typography`: H1, H2, BODY, CAPTION, MONO
 
-#![allow(dead_code)]
 
 use egui::Color32;
 

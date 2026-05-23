@@ -275,7 +275,6 @@ impl WorkspaceViewer<'_> {
                                 container,
                                 source_index,
                                 target_index: source_index,
-                                start_mouse: scene,
                                 layout_type,
                             };
                             return true;
@@ -730,7 +729,6 @@ impl WorkspaceViewer<'_> {
                     container,
                     source_index: _,
                     target_index: _,
-                    start_mouse: _,
                     layout_type,
                 } => {
                     let time_ms = (self.preview.current_time_s * 1000.0) as u64;

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 mod actions;
 pub(crate) mod command_handlers;
@@ -47,7 +46,7 @@ const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
 };
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
-const EXPLORER_INDENT_PX: f32 = 10.0;
+
 
 pub use runtime::run_gui;
 
@@ -493,7 +492,6 @@ impl GuiShell {
             is_composition: self.document_store.document.is_composition(),
             composition: self.document_store.document.composition.as_ref(),
             current_file: &self.document_store.document.file_path,
-            workspace_root: &self.workspace_store.workspace_root,
             expanded_dirs: &mut self.workspace_store.expanded_dirs,
             file_tree: &self.workspace_store.file_tree,
             editor: &mut self.document_store.editor,
@@ -635,10 +633,6 @@ impl GuiShell {
         }
     }
 
-    fn combined_diagnostics(&self) -> Vec<Diagnostic> {
-        self.document_store.combined_diagnostics()
-    }
-
     fn sync_preview_from_document(
         &mut self,
         status: String,
@@ -686,6 +680,7 @@ impl GuiShell {
         self.set_status(format!("Render failed • {error}"), Some(error));
     }
 
+    #[cfg(test)]
     fn clear_render_error(&mut self, status: String) {
         let active_render_error = self
             .document_store
@@ -758,14 +753,6 @@ impl GuiShell {
             self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
             self.preview_store.preview.status = "Redo".to_string();
         }
-    }
-
-    fn can_undo(&self) -> bool {
-        self.document_store.can_undo()
-    }
-
-    fn can_redo(&self) -> bool {
-        self.document_store.can_redo()
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {

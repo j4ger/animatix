@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 pub mod behavior;
 pub mod preview_canvas;
@@ -41,7 +40,6 @@ fn nice_tick_interval(visible_range: f32, target_ticks: f32) -> f32 {
 }
 
 const RULER_SIZE: f32 = 20.0;
-const SNAP_THRESHOLD: f32 = 5.0; // scene pixels
 
 pub use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
@@ -71,7 +69,6 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) is_composition: bool,
     pub(super) composition: Option<&'a animatix::composition::Composition>,
     pub(super) current_file: &'a Path,
-    pub(super) workspace_root: &'a Path,
     pub(super) expanded_dirs: &'a mut HashSet<PathBuf>,
     pub(super) file_tree: &'a [FileTreeEntry],
     pub(super) editor: &'a mut EditorBuffer,

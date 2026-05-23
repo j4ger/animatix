@@ -31,26 +31,10 @@ impl DocumentStore {
         }
     }
 
-    pub fn can_undo(&self) -> bool {
-        !self.undo_stack.is_empty()
-    }
-
-    pub fn can_redo(&self) -> bool {
-        !self.redo_stack.is_empty()
-    }
-
     pub fn combined_diagnostics(&self) -> Vec<Diagnostic> {
         let mut diagnostics = self.document.diagnostics.clone();
         diagnostics.extend(self.render_diagnostics.iter().cloned());
         diagnostics
-    }
-
-    pub fn apply_source_edit(&mut self, new_source: String) {
-        let old_source = self.document.source_text.clone();
-        let edits = crate::text_diff::diff_text(&old_source, &new_source);
-        self.document.source_text = new_source;
-        self.editor.apply_edits(&edits);
-        self.document.is_dirty = true;
     }
 
     /// Take a snapshot of the current source text for undo/redo.

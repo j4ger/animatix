@@ -10,7 +10,6 @@ use egui::{Color32, FontId, Pos2, Rect, Stroke, Vec2};
 /// A single scene slice (variant of the current composition).
 pub struct SceneSlice {
     pub name: String,
-    pub scene_name: String,
     pub color: Color32,
 }
 
@@ -31,18 +30,17 @@ impl SceneSliceState {
             // Create default A/B slices
             self.slices.push(SceneSlice {
                 name: "A".into(),
-                scene_name: "default".into(),
                 color: ACCENT_BLUE,
             });
             self.slices.push(SceneSlice {
                 name: "B".into(),
-                scene_name: "default".into(),
                 color: AMBER,
             });
         }
     }
 
     /// Select slice by index (1-based hotkeys).
+    #[allow(dead_code)] // WIP: will be used when 1/2/3 hotkeys are wired
     pub fn select(&mut self, idx: usize) {
         if idx > 0 && idx <= self.slices.len() {
             self.active_slice = idx - 1;
@@ -116,7 +114,6 @@ pub fn render_slice_tabs(
             let next_label = (b'A' + state.slices.len() as u8) as char;
             state.slices.push(SceneSlice {
                 name: next_label.to_string(),
-                scene_name: "default".into(),
                 color: TEXT_MUTED,
             });
         }

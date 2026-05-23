@@ -1,10 +1,7 @@
-//! Centralized icon access for Animatix actor types.
 //!
 //! All UI code should call `actor_icon()` rather than maintaining its own mapping.
 //! The `ActorKindMeta.icon_id` field already contains the concrete Phosphor glyph string
 //! (defined in the core crate's `icon_glyphs` module to avoid a GUI dependency).
-
-#![allow(dead_code)]
 
 use animatix::timeline::{ActorCategory, ActorKindId, ActorKindMeta, ShapeType};
 
@@ -36,11 +33,13 @@ pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
 }
 
 /// Get the category label for an actor kind.
+#[allow(dead_code)] // Public API: available for future use
 pub fn actor_category(kind: ActorKindId) -> ActorCategory {
     actor_kind_meta(kind).category
 }
 
 /// Get the type name string for an actor kind (e.g. "Rect", "Text").
+#[allow(dead_code)] // Public API: available for future use
 pub fn actor_type_name(kind: ActorKindId) -> &'static str {
     actor_kind_meta(kind).type_name
 }
@@ -49,6 +48,7 @@ pub fn actor_type_name(kind: ActorKindId) -> &'static str {
 
 /// Get the icon for a `ShapeType` (rendering-level property track).
 /// Prefer `actor_icon()` for new code.
+#[allow(dead_code)] // Public API: available for future use
 pub fn shape_type_icon(shape: ShapeType) -> &'static str {
     match shape {
         ShapeType::Rect => egui_phosphor::regular::SQUARE,
