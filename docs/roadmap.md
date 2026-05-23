@@ -12,30 +12,6 @@
 
 ---
 
-## ✅ P0 — Critical Language Gaps (Complete)
-
-| Item | Status |
-|------|--------|
-| **P0.1** | Object field access (`p.x`) implemented |
-| **P0.2** | Transition blending (fade/wipe) implemented for export and live preview |
-| **P0.3** | Generic value parser activated; property_engine delegates to registry-driven parsing |
-
----
-
-## ✅ P1 — GUI Completion (Complete)
-
-| Item | Status |
-|------|--------|
-| **P1.1** | Command system wired — Reload, Undo/Redo, ScrollToLine dispatch through queue |
-| **P1.2** | Hotkeys added — Ctrl+S (Save), Ctrl+R (Reload), Ctrl+Shift+R (Rebuild), Ctrl+D (Duplicate), 1/2/3 (scene jumps) |
-| **P1.3** | Diagnostics click-to-navigate verified and unified to command queue |
-| **P1.4** | Tree-sitter grammar updated with `scene_declaration` rule and highlight query |
-| **P1.5** | Scene list panel — already exists with drag-reorder in workspace panel |
-| **P1.6** | Transition editor UI — already exists in scene list (type, duration, easing, target) |
-| **P1.8** | Composition timeline — play edge arrows added between scene blocks |
-
----
-
 ## PT — Gradual Typing (Pre-requisite for P2.1, P2.3)
 
 Optional type annotations for component/action parameters. Property values remain schema-typed as today. See [`typing-plan.md`](typing-plan.md) for full task breakdown.
