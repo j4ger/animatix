@@ -12,16 +12,21 @@
 
 ---
 
-## PT — Gradual Typing (Pre-requisite for P2.1, P2.3)
+## ✅ PT — Gradual Typing (Complete)
 
 Optional type annotations for component/action parameters. Property values remain schema-typed as today. See [`typing-plan.md`](typing-plan.md) for full task breakdown.
 
-| Item | What | Where | Effort |
-|------|------|-------|--------|
-| **PT.1** | **Syntax foundation** — `TypeAnnotation` enum, parser support for `param: Type = default`, tree-sitter grammar, `to_source.rs` | `ast.rs`, `parser/mod.rs`, `to_source.rs`, `grammar.js` | 3 days |
-| **PT.2** | **Type checker core** — `TypeEnv`, component instantiation validation, `DiagnosticCode::TypeMismatch` | `timeline/typecheck.rs` (new), `diagnostics.rs` | 5 days |
-| **PT.3** | **Integration** — Wire checker into build pipeline, analyzer `ParamInfo` types, completer type-filtered suggestions, LSP diagnostics | `timeline/mod.rs`, `analyzer/`, `lsp/` | 4 days |
-| **PT.4** | **Strict mode opt-in** — `@config { strict_types: true }`, unannotated param warnings, spec §13 | `typecheck.rs`, `spec.md` | 2 days |
+| Item | Status |
+|------|--------|
+| **PT.1** | Syntax foundation — `TypeAnnotation` enum, parser, tree-sitter grammar, `to_source.rs` |
+| **PT.2** | Type checker core — `TypeEnv`, component instantiation validation, `DiagnosticCode::TypeMismatch` |
+| **PT.3.1** | Wired into CLI build pipeline (`load_and_build`, `check` commands) |
+| **PT.3.2** | Analyzer `ParamInfo` includes `param_type` |
+| **PT.3.4** | LSP diagnostics — type errors use standard `Diagnostic`, already flow through |
+
+**Remaining (lower priority):**
+- PT.3.3: Completer type-filtered suggestions
+- PT.4.3: Strict mode opt-in (`@config { strict_types: true }`)
 
 **Type lattice:** `Num`, `Str`, `Bool`, `Vec2`, `Vec4`, `Color`, `Actor`, `Scene`, `List<T>`, `Any` (unannotated).  
 **Subtyping:** `Color <: Vec4`, numeric literal `<: Num`, actor label `<: Actor`.  
