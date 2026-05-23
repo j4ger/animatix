@@ -76,15 +76,30 @@ impl AnimatixApp {
 
         // Undo/Redo (works even when editor is focused, for property edits)
         if ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.undo();
+            self.shell.ui_store.pending_commands.push_back(Command::Undo);
         }
         if ctx.input(|i| {
             i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && i.modifiers.shift
         }) {
-            self.shell.redo();
+            self.shell.ui_store.pending_commands.push_back(Command::Redo);
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Y) && i.modifiers.ctrl) {
-            self.shell.redo();
+            self.shell.ui_store.pending_commands.push_back(Command::Redo);
+        }
+
+        // Save (Ctrl+S)
+        if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.ctrl && !i.modifiers.shift) {
+            self.shell.ui_store.pending_commands.push_back(Command::Save);
+        }
+
+        // Reload (Ctrl+R)
+        if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && !i.modifiers.shift) {
+            self.shell.ui_store.pending_commands.push_back(Command::Reload);
+        }
+
+        // Rebuild (Ctrl+Shift+R)
+        if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && i.modifiers.shift) {
+            self.shell.ui_store.pending_commands.push_back(Command::Rebuild);
         }
 
         // Screenshot (Ctrl+Shift+S or F12)
@@ -201,6 +216,13 @@ impl AnimatixApp {
         // Delete key: remove selected actor(s)
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
             self.shell.ui_store.pending_commands.push_back(Command::DeleteSelectedActors);
+        }
+
+        // Duplicate selected actor(s) (Ctrl+D)
+        if ctx.input(|i| i.key_pressed(egui::Key::D) && i.modifiers.ctrl) && has_selection {
+            for label in self.shell.ui_store.selected_actors.iter().cloned().collect::<Vec<_>>() {
+                self.shell.ui_store.pending_commands.push_back(Command::DuplicateActor(label));
+            }
         }
 
         // Esc: cancel active drag or reset tool mode to Select

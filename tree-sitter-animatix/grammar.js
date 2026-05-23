@@ -30,10 +30,16 @@ module.exports = grammar({
     source_file: $ => repeat($._top_level_item),
 
     _top_level_item: $ => choice(
+      $.scene_declaration,
       $.absolute_keyframe,
       $.relative_keyframe,
       $._statement,
     ),
+
+    scene_declaration: $ => prec.right(seq(
+      '#',
+      field('name', $.identifier),
+    )),
 
     _statement: $ => choice(
       $.comment,

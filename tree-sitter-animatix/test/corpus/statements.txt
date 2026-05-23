@@ -85,3 +85,28 @@ use container.{a, b}
     path: (identifier)
     item: (identifier)
     item: (identifier)))
+
+================================================================================
+Scene declarations
+================================================================================
+
+# Intro
+# MainContent
+# Outro
+
+play Intro [fade]
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (scene_declaration
+    name: (identifier))
+  (scene_declaration
+    name: (identifier))
+  (scene_declaration
+    name: (identifier))
+  (play_statement
+    scene: (identifier)
+    transition: (modifier_list
+      (modifier
+        (identifier)))))

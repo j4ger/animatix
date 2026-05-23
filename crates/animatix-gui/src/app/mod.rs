@@ -443,7 +443,9 @@ impl GuiShell {
                     if let Some(target) =
                         components::diagnostics_list(ui, &diagnostics)
                     {
-                        self.document_store.editor.focus_diagnostic(target.line, target.column);
+                        self.ui_store.pending_commands.push_back(
+                            Command::ScrollToLine(target.line)
+                        );
                     }
                 });
         }

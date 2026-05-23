@@ -9,7 +9,6 @@ pub enum Command {
     // ── Document / File ───────────────────────────────────────────────
     OpenFile(PathBuf),
     Save,
-    #[allow(dead_code)] // WIP: keyboard shortcut reload
     Reload,
     Rebuild,
 
@@ -20,7 +19,6 @@ pub enum Command {
     ShowInspector,
     ToggleDiagnosticsPanel,
     OpenExportDialog,
-    #[allow(dead_code)] // WIP: will be used when diagnostics click-to-navigate is implemented
     ScrollToLine(usize),
 
     // ── Playback ──────────────────────────────────────────────────────
@@ -72,9 +70,7 @@ pub enum Command {
     PasteActors,
 
     // ── Undo / Redo ───────────────────────────────────────────────────
-    #[allow(dead_code)] // WIP: keyboard shortcuts
     Undo,
-    #[allow(dead_code)] // WIP: keyboard shortcuts
     Redo,
 
     // ── Render ────────────────────────────────────────────────────────

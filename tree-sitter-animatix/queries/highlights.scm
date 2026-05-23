@@ -83,6 +83,7 @@
 (text_shorthand label: (identifier) @variable)
 (svg_statement label: (identifier) @variable)
 (image_statement label: (identifier) @variable)
+(scene_declaration name: (identifier) @type)
 (labeled_always_statement label: (identifier) @variable)
 (for_statement variable: (identifier) @variable)
 (call_expression function: (identifier) @function)

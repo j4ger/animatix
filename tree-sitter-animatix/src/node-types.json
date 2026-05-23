@@ -3612,6 +3612,22 @@
     }
   },
   {
+    "type": "scene_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "sequence_statement",
     "named": true,
     "fields": {},
@@ -3785,6 +3801,10 @@
         },
         {
           "type": "relative_keyframe",
+          "named": true
+        },
+        {
+          "type": "scene_declaration",
           "named": true
         },
         {
