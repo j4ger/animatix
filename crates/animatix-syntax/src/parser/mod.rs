@@ -847,7 +847,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded();
 
         let action = ident
-            .then(ident.repeated().collect::<Vec<_>>()) // targets
+            .then(
+                ident
+                    .separated_by(just(',').padded())
+                    .at_least(1)
+                    .collect::<Vec<_>>()
+                    .or_not()
+                    .map(|opt| opt.unwrap_or_default())
+            ) // targets
             .then(expr.clone().repeated().collect::<Vec<_>>()) // args
             .then(modifiers.clone())
             .map_with(|(((verb, targets), args), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
