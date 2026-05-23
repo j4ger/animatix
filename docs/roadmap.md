@@ -12,41 +12,19 @@
 
 ---
 
-## ✅ PT — Gradual Typing (Complete)
-
-Optional type annotations for component/action parameters. Property values remain schema-typed as today. See [`typing-plan.md`](typing-plan.md) for full task breakdown.
-
-| Item | Status |
-|------|--------|
-| **PT.1** | Syntax foundation — `TypeAnnotation` enum, parser, tree-sitter grammar, `to_source.rs` |
-| **PT.2** | Type checker core — `TypeEnv`, component instantiation validation, `DiagnosticCode::TypeMismatch` |
-| **PT.3.1** | Wired into CLI build pipeline (`load_and_build`, `check` commands) |
-| **PT.3.2** | Analyzer `ParamInfo` includes `param_type` |
-| **PT.3.4** | LSP diagnostics — type errors use standard `Diagnostic`, already flow through |
-
-**Remaining (lower priority):**
-- PT.3.3: Completer type-filtered suggestions
-- PT.4.3: Strict mode opt-in (`@config { strict_types: true }`)
-
-**Type lattice:** `Num`, `Str`, `Bool`, `Vec2`, `Vec4`, `Color`, `Actor`, `Scene`, `List<T>`, `Any` (unannotated).  
-**Subtyping:** `Color <: Vec4`, numeric literal `<: Num`, actor label `<: Actor`.  
-**Principle:** Optional everywhere. No breaking changes to existing `.amx` files.
-
----
-
 ## P2 — Language Features
 
 Nice-to-have syntax expansions. Medium user impact, well-scoped.
 
 | Item | What | Where | Depends |
 |------|------|-------|---------|
-| **P2.1** | **Action parameters** — `pulse btn [200ms, scale: 1.2]` instead of fixed bodies | parser, spec §12 | PT |
+| **P2.1** | **Action parameters** — `pulse btn [200ms, scale: 1.2]` instead of fixed bodies | parser, spec §12 | — |
 | **P2.2** | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build | — |
-| **P2.3** | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 | PT, P2.1 |
+| **P2.3** | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 | P2.1 |
 | **P2.4** | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` | — |
 | **P2.5** | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` | — |
 
-**Dependency chain:** PT → P2.1 → P2.3.  
+**Dependency chain:** P2.1 → P2.3.  
 P2.2, P2.4, P2.5 are independent and can ship anytime.
 
 ---
@@ -57,14 +35,13 @@ Small runtime improvements and export quality.
 
 | Item | What | Where |
 |------|------|-------|
-| **P3.1** | **Audio multi-segment muxing** — Concatenate multiple audio files via ffmpeg | `renderer/encode/mod.rs` |
 | **P3.2** | **Morph fade strategy** — Implement `MorphStrategy::Fade` (currently a placeholder) | `timeline/morph.rs` |
 
 ---
 
 ## Deferred
 
-### AI Features (P1.7, P1.9)
+### AI Features
 
 Tracked separately. Requires external AI service integration.
 
@@ -72,6 +49,12 @@ Tracked separately. Requires external AI service integration.
 |------|------|-------|
 | **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` |
 | **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` |
+
+### Audio / Export
+
+| Item | What | Where |
+|------|------|-------|
+| **P3.1** | **Audio multi-segment muxing** — Concatenate multiple audio files via ffmpeg | `renderer/encode/mod.rs` |
 
 ### Large Architectural
 
