@@ -15,7 +15,11 @@ pub struct Span {
     pub end_col: usize,
 }
 
-/// Byte-offset range into source text. Used during parsing before line/col conversion.
+/// Byte-offset range into source text.
+///
+/// Used during parsing where only byte offsets are available (e.g. from chumsky
+/// spans). Convert to [`Span`] via [`Span::from_byte_span`] for editor-facing
+/// positions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct ByteSpan {
     pub start: usize,
@@ -107,7 +111,9 @@ pub enum Expr {
     Index(Box<Expr>, Box<Expr>), // Array/Index: items[0], children[i]
 
     // Collections
-    Tuple(Vec<Expr>), // Coordinates/Arrays: (x, y), {a, b, c}
+    /// Array or tuple literal. Used for both `(x, y)` tuples and `{a, b, c}` arrays
+    /// since they share the same runtime representation (a list of values).
+    Tuple(Vec<Expr>),
 
     // Operators
     Binary(Box<Expr>, BinaryOp, Box<Expr>), // x + y, a > b
@@ -524,51 +530,11 @@ pub enum Stmt {
 }
 
 // ----------------------------------------------------------------------------
-// 6. File & Module Structure
+// 6. Imports
 // ----------------------------------------------------------------------------
-// Top-level structure representing a complete .actx file.
-// ----------------------------------------------------------------------------
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum FileType {
-    Scene,   // .actx
-    Actor,   // .actor.actx
-    Library, // .lib.actx
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
     pub path: String,
     pub alias: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Module {
-    pub file_type: FileType,
-    pub config: Option<Vec<Property>>,
-    pub imports: Vec<Import>,
-    pub declarations: Vec<Stmt>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AnimatixFile {
-    pub path: String,
-    pub file_type: FileType,
-    pub config: Vec<Property>,
-    pub imports: Vec<Import>,
-    pub components: Vec<ComponentDef>,
-    pub statements: Vec<Stmt>,
-}
-
-impl AnimatixFile {
-    pub fn new(path: &str, file_type: FileType) -> Self {
-        Self {
-            path: path.to_string(),
-            file_type,
-            config: Vec::new(),
-            imports: Vec::new(),
-            components: Vec::new(),
-            statements: Vec::new(),
-        }
-    }
 }

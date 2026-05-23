@@ -19,11 +19,25 @@
 //! - The parser accepts some syntax that the runtime may reject (e.g., method/index/construct
 //!   expressions) — honest runtime diagnostics handle the mismatch.
 //!
+//! ## Submodules
+//!
+//! | Module | Contents |
+//! |--------|----------|
+//! | [`expr`] | Expression atom parser factories (future extraction site) |
+//! | [`stmt`] | Statement parser helpers (future extraction site) |
+//! | [`inline`] | Inline item types (`FlatItem`) |
+//! | [`top_level`] | Top-level utilities (`parse_transition_from_modifiers`) |
+//!
 //! ## Relationship to Other Systems
 //!
 //! - [`crate::ast`] defines the AST nodes this parser produces.
 //! - `tree-sitter-animatix/` is a synchronized derivative for editor tooling.
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
+
+pub(crate) mod expr;
+pub(crate) mod inline;
+pub(crate) mod stmt;
+pub(crate) mod top_level;
 
 use crate::ast::*;
 use crate::easing::parse_easing_name;
@@ -79,7 +93,9 @@ impl ParseError {
                 let expected_str = expected.join(", ");
                 match (expected_str.is_empty(), found.as_ref()) {
                     (false, Some(f)) => _message = format!("expected {expected_str}, found '{f}'"),
-                    (false, None) => _message = format!("expected {expected_str}, found end of input"),
+                    (false, None) => {
+                        _message = format!("expected {expected_str}, found end of input")
+                    }
                     (true, Some(f)) => _message = format!("unexpected '{f}'"),
                     (true, None) => _message = "unexpected end of input".to_string(),
                 }
@@ -170,6 +186,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .collect::<Vec<_>>()
         .boxed();
 
+    // --- Expression atom parsers (inline — chumsky combos need concrete Copy types) ---
+
     let num = text::int(10)
         .then(just('.').ignore_then(text::digits(10)).or_not())
         .to_slice()
@@ -215,6 +233,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         })
         .padded();
 
+    // --- Expression parser (recursive) ---
+
     let expr = recursive(|expr| {
         let tuple = expr
             .clone()
@@ -252,7 +272,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .boxed();
 
         // Type construction expression: TypeName { prop1: val1, prop2: val2 }
-        // Inline property parsing since property is defined after expr
         let construct = ident
             .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
             .then(
@@ -444,6 +463,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         })
         .labelled("property");
 
+    // --- Modifier parser ---
+
     let modifier = choice((
         // named modifier: ease: bounce
         ident
@@ -481,15 +502,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
     let type_ident = ident
         .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()));
 
-    #[derive(Clone)]
-    enum FlatItem {
-        Labeled(String, String, Vec<Modifier>, Vec<InlineItem>),
-        Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
-        Prop(Property),
-        Children(Vec<InlineItem>),
-        SlotMarker,
-        SlotFill(String, Vec<InlineItem>),
-    }
+    // --- Inline items parser ---
 
     let inline_items = recursive(|inline_items| {
         let children_block = inline_items
@@ -500,8 +513,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         let flat_item = choice((
             // @slotname { items } in component instantiation blocks
-            // MUST be tried BEFORE the @slot marker so that @slot { ... } is
-            // parsed as a slot fill (not as a SlotMarker with a dropped block).
             just('@')
                 .ignore_then(ident)
                 .then(
@@ -509,11 +520,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         .clone()
                         .delimited_by(just('{').padded(), just('}').padded()),
                 )
-                .map(|(name, items)| FlatItem::SlotFill(name, items)),
+                .map(|(name, items)| inline::FlatItem::SlotFill(name, items)),
             // @slot marker in component definition blocks
-            // Only matches when @slot appears WITHOUT a following { items } block
-            // (because the SlotFill alternative above would have matched first).
-            just("@slot").padded().to(FlatItem::SlotMarker),
+            just("@slot").padded().to(inline::FlatItem::SlotMarker),
             // Labeled inline item: label: Type [mods] [{ children }]
             ident
                 .then_ignore(just(':').padded())
@@ -521,19 +530,19 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|(((label, ty), mods), children)| {
-                    FlatItem::Labeled(label, ty, mods, children)
+                    inline::FlatItem::Labeled(label, ty, mods, children)
                 }),
             // Anonymous inline item: Type [mods] [{ children }]
             type_ident
                 .then(modifiers.clone())
                 .then(children_block.clone())
-                .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
-            property.clone().map(FlatItem::Prop),
+                .map(|((ty, mods), children)| inline::FlatItem::Anonymous(ty, mods, children)),
+            property.clone().map(inline::FlatItem::Prop),
             // Standalone children block: attaches to the preceding item
             inline_items
                 .clone()
                 .delimited_by(just('{').padded(), just('}').padded())
-                .map(FlatItem::Children),
+                .map(inline::FlatItem::Children),
         ))
         .padded();
 
@@ -545,7 +554,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 let mut result = Vec::new();
                 for item in items {
                     match item {
-                        FlatItem::Labeled(label, ty, mods, children) => {
+                        inline::FlatItem::Labeled(label, ty, mods, children) => {
                             result.push(InlineItem::Labeled {
                                 label,
                                 ty,
@@ -554,7 +563,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 children,
                             });
                         }
-                        FlatItem::Anonymous(ty, mods, children) => {
+                        inline::FlatItem::Anonymous(ty, mods, children) => {
                             result.push(InlineItem::Anonymous {
                                 ty,
                                 props: Vec::new(),
@@ -562,7 +571,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 children,
                             });
                         }
-                        FlatItem::Prop(p) => {
+                        inline::FlatItem::Prop(p) => {
                             if let Some(last) = result.last_mut() {
                                 match last {
                                     InlineItem::Labeled { props, .. } => props.push(p),
@@ -571,7 +580,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 }
                             }
                         }
-                        FlatItem::Children(children) => {
+                        inline::FlatItem::Children(children) => {
                             if let Some(last) = result.last_mut() {
                                 match last {
                                     InlineItem::Labeled { children: c, .. } => *c = children,
@@ -580,10 +589,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                                 }
                             }
                         }
-                        FlatItem::SlotMarker => {
+                        inline::FlatItem::SlotMarker => {
                             result.push(InlineItem::SlotMarker);
                         }
-                        FlatItem::SlotFill(name, items) => {
+                        inline::FlatItem::SlotFill(name, items) => {
                             result.push(InlineItem::SlotFill {
                                 slot: name,
                                 items,
@@ -594,6 +603,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 result
             })
     });
+
+    // --- Config statement ---
 
     let config_props = property
         .clone()
@@ -607,6 +618,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .map(|settings| Stmt::Config { settings, span: None })
         .labelled("config")
         .padded();
+
+    // --- Statement parser (recursive) ---
 
     let stmt = recursive(|_stmt| {
         let let_decl = text::keyword("pub")
@@ -1018,47 +1031,49 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .boxed()
     });
 
-        let scene_ref = dotted_ident
-            .clone()
-            .map(|parts: Vec<String>| parts.join("."));
+    // --- Top-level parsers ---
 
-        // `play SceneName [modifier, ...]` — scene-level transition statement
-        let play_stmt = text::keyword("play")
-            .padded()
-            .ignore_then(scene_ref)
-            .then(modifiers.clone())
-            .map(|(scene_name, mods)| {
-                let transition = parse_transition_from_modifiers(&mods);
-                Stmt::Play { scene_name, transition, span: None }
-            })
-            .labelled("play statement")
-            .padded();
+    let scene_ref = dotted_ident
+        .clone()
+        .map(|parts: Vec<String>| parts.join("."));
 
-        // `# SceneName` — scene declaration (only at top level, not inside containers)
-        let scene_decl = just('#')
-            .ignore_then(ident.padded())
-            .map(|name| Stmt::Scene {
-                name,
-                config: vec![],
-                body: vec![],
-                span: None,
-            })
-            .labelled("scene declaration")
-            .padded();
+    // `play SceneName [modifier, ...]` — scene-level transition statement
+    let play_stmt = text::keyword("play")
+        .padded()
+        .ignore_then(scene_ref)
+        .then(modifiers.clone())
+        .map(|(scene_name, mods)| {
+            let transition = top_level::parse_transition_from_modifiers(&mods);
+            Stmt::Play { scene_name, transition, span: None }
+        })
+        .labelled("play statement")
+        .padded();
 
-        let keyframe = just('#')
-            .ignore_then(just('+').or_not())
-            .then(time)
-            .then(stmt.clone().repeated().collect::<Vec<_>>())
-            .map(|((is_relative, t), body)| {
-                if is_relative.is_some() {
-                    Stmt::RelativeKeyframe { offset: t, body, span: None }
-                } else {
-                    Stmt::Keyframe { time: t, body, span: None }
-                }
-            })
-            .labelled("keyframe")
-            .padded();
+    // `# SceneName` — scene declaration
+    let scene_decl = just('#')
+        .ignore_then(ident.padded())
+        .map(|name| Stmt::Scene {
+            name,
+            config: vec![],
+            body: vec![],
+            span: None,
+        })
+        .labelled("scene declaration")
+        .padded();
+
+    let keyframe = just('#')
+        .ignore_then(just('+').or_not())
+        .then(time)
+        .then(stmt.clone().repeated().collect::<Vec<_>>())
+        .map(|((is_relative, t), body)| {
+            if is_relative.is_some() {
+                Stmt::RelativeKeyframe { offset: t, body, span: None }
+            } else {
+                Stmt::Keyframe { time: t, body, span: None }
+            }
+        })
+        .labelled("keyframe")
+        .padded();
 
     // Top-level: scenes, keyframes, play, config, or standalone statements
     choice((
@@ -1144,47 +1159,6 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
     }
 
     result
-}
-
-/// Convert play statement modifiers into a `Transition` descriptor.
-///
-/// Modifiers format: `[fade, 300ms]` or `[wipe-left, 200ms]`.
-/// The first bare identifier (not a time) is the transition type.
-/// The first time literal is the duration.
-fn parse_transition_from_modifiers(modifiers: &[Modifier]) -> Option<crate::ast::Transition> {
-    let mut transition_id: Option<String> = None;
-    let mut duration_ms: u64 = 0;
-
-    for m in modifiers {
-        match (&m.name, &m.value) {
-            (None, Expr::Ident(name)) if transition_id.is_none() => {
-                if crate::transition_registry::find(name).is_some() {
-                    transition_id = Some(name.clone());
-                }
-            }
-            (None, Expr::Ident(name)) if name.ends_with("ms") => {
-                if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {
-                    if duration_ms == 0 {
-                        duration_ms = ms;
-                    }
-                }
-            }
-            (None, Expr::Ident(name)) if name.ends_with('s') && !name.starts_with(|c: char| c.is_alphabetic()) => {
-                if let Ok(s) = name.trim_end_matches('s').parse::<f64>() {
-                    if duration_ms == 0 {
-                        duration_ms = (s * 1000.0) as u64;
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    transition_id.map(|id| crate::ast::Transition {
-        id,
-        duration_ms,
-        easing: crate::easing::Easing::Linear,
-    })
 }
 
 #[cfg(test)]

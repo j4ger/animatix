@@ -42,6 +42,7 @@ use crate::app::commands::{Command, CommandQueue, UndoEntry};
 use crate::app::panels::WorkspaceViewer;
 use crate::app::utils::*;
 use crate::app::stores::*;
+use crate::error::GuiError;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -241,7 +242,7 @@ impl GuiShell {
                         return;
                     }
                     if let Err(err) = self.document_store.document.reload_from_disk() {
-                        self.preview_store.preview.error = Some(err);
+                        self.preview_store.preview.error = Some(err.to_string());
                         self.preview_store.preview.status = "Hot reload failed".to_string();
                     } else {
                         self.document_store.editor
@@ -265,7 +266,7 @@ impl GuiShell {
             Err(error) => (
                 DocumentSession::from_error(initial_path.clone()),
                 Some("Failed to initialize session".to_string()),
-                Some(error),
+                Some(error.to_string()),
             ),
         };
 
@@ -563,23 +564,24 @@ impl GuiShell {
                 self.preview_store.preview.error = error;
             }
             Err(error) => {
-                self.preview_store.preview.error = Some(error.clone());
+                self.preview_store.preview.error = Some(error.to_string());
                 self.preview_store.preview.status = format!("Open failed • {}", path.display());
             }
         }
     }
 
-    fn save(&mut self) -> Result<(), String> {
+    fn save(&mut self) -> Result<(), GuiError> {
         let text = self.document_store.editor.text().to_string();
-        std::fs::write(&self.document_store.document.file_path, &text)
-            .map_err(|err| format!("Failed to save {}: {err}", self.document_store.document.file_path.display()))?;
+        let path = self.document_store.document.file_path.clone();
+        std::fs::write(&path, &text)
+            .map_err(|err| GuiError::Io { path, source: err })?;
         self.document_store.document.source_text = text;
         self.document_store.document.is_dirty = false;
         self.preview_store.preview.status = format!("Saved {}", self.document_store.document.file_path.display());
         Ok(())
     }
 
-    fn reload(&mut self) -> Result<(), String> {
+    fn reload(&mut self) -> Result<(), GuiError> {
         self.document_store.document.reload_from_disk()?;
         self.document_store.editor
             .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
@@ -599,7 +601,7 @@ impl GuiShell {
         Ok(())
     }
 
-    fn rebuild(&mut self) -> Result<(), String> {
+    fn rebuild(&mut self) -> Result<(), GuiError> {
         match self.document_store.document.rebuild() {
             Ok(()) => {
                 let status = if self.document_store.document.diagnostics.is_empty() {
@@ -630,7 +632,7 @@ impl GuiShell {
                 self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
                 self.preview_store.preview.clamp_time();
                 self.preview_store.preview.status = status;
-                self.preview_store.preview.error = Some(error.clone());
+                self.preview_store.preview.error = Some(error.to_string());
                 self.preview_store.preview_dirty = true;
                 Err(error)
             }

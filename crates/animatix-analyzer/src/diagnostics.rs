@@ -2,6 +2,7 @@
 
 use crate::symbol_table::SymbolTable;
 use animatix_syntax::ast::*;
+use animatix_syntax::parser::ParseError;
 use std::collections::HashSet;
 use tree_sitter::Tree;
 
@@ -29,7 +30,7 @@ pub enum DiagnosticSeverity {
 /// Collect all diagnostics from the source.
 pub fn collect_diagnostics(
     source: &str,
-    parse_errors: &[String],
+    parse_errors: &[ParseError],
     tree: Option<&Tree>,
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
@@ -41,15 +42,16 @@ pub fn collect_diagnostics(
         collect_ts_errors(tree.root_node(), source, &mut diagnostics);
     }
 
-    // 2. Chumsky parse errors (more detailed messages)
+    // 2. Chumsky parse errors (structured with positions)
     for (i, error) in parse_errors.iter().enumerate() {
+        let end_span = Span::from_range(source, error.span.clone());
         diagnostics.push(Diagnostic {
             severity: DiagnosticSeverity::Error,
-            line: 0,
-            col: 0,
-            end_line: 0,
-            end_col: 0,
-            message: error.clone(),
+            line: error.line.saturating_sub(1),
+            col: error.column.saturating_sub(1),
+            end_line: end_span.end_line.saturating_sub(1),
+            end_col: end_span.end_col.saturating_sub(1),
+            message: error.message.clone(),
             code: Some(format!("parse-{}", i)),
         });
     }

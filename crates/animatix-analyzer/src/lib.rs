@@ -32,7 +32,7 @@ pub use workspace::Workspace;
 pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 
 use animatix_syntax::ast::{Span, Stmt};
-use animatix_syntax::parser::parser;
+use animatix_syntax::parser::{parser, ParseError};
 use chumsky::Parser;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -47,7 +47,7 @@ pub struct Analyzer {
     source: String,
     path: Option<PathBuf>,
     ast: Option<Vec<Stmt>>,
-    parse_errors: Vec<String>,
+    parse_errors: Vec<ParseError>,
     tree: Option<Tree>,
     symbols: SymbolTable,
     workspace: Option<std::sync::Arc<Workspace>>,
@@ -108,7 +108,10 @@ impl Analyzer {
         // Parse with chumsky (source of truth for AST)
         let (ast, errors): (Option<Vec<Stmt>>, _) = parser().parse(source).into_output_errors();
         self.ast = ast;
-        self.parse_errors = errors.iter().map(|e| format!("{:?}", e)).collect();
+        self.parse_errors = errors
+            .iter()
+            .map(|e| ParseError::from_rich(source, e))
+            .collect();
 
         // Build symbol table from AST
         let mut table = if let Some(ref stmts) = self.ast {
@@ -255,8 +258,8 @@ impl Analyzer {
         &self.symbols
     }
 
-    /// Get parse errors.
-    pub fn parse_errors(&self) -> &[String] {
+    /// Get structured parse errors with position information.
+    pub fn parse_errors(&self) -> &[ParseError] {
         &self.parse_errors
     }
 

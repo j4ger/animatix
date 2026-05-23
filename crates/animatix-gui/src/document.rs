@@ -1,3 +1,4 @@
+use crate::error::GuiError;
 use animatix::ast::{Expr, Stmt};
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::composition::{BuildTarget, Composition};
@@ -31,9 +32,9 @@ pub struct DocumentSession {
 }
 
 impl DocumentSession {
-    pub fn load(file_path: PathBuf) -> Result<Self, String> {
+    pub fn load(file_path: PathBuf) -> Result<Self, GuiError> {
         let source_text = fs::read_to_string(&file_path)
-            .map_err(|err| format!("Failed to read {}: {err}", file_path.display()))?;
+            .map_err(|err| GuiError::Io { path: file_path.clone(), source: err })?;
 
         let mut document = Self {
             file_path,
@@ -95,22 +96,24 @@ impl DocumentSession {
         }
     }
 
-    pub fn reload_from_disk(&mut self) -> Result<(), String> {
-        self.source_text = fs::read_to_string(&self.file_path)
-            .map_err(|err| format!("Failed to reload {}: {err}", self.file_path.display()))?;
+    pub fn reload_from_disk(&mut self) -> Result<(), GuiError> {
+        let path = self.file_path.clone();
+        self.source_text = fs::read_to_string(&path)
+            .map_err(|err| GuiError::Io { path, source: err })?;
         self.is_dirty = false;
         let _ = self.rebuild();
         Ok(())
     }
 
-    pub fn save_to_disk(&mut self) -> Result<(), String> {
-        fs::write(&self.file_path, &self.source_text)
-            .map_err(|err| format!("Failed to save {}: {err}", self.file_path.display()))?;
+    pub fn save_to_disk(&mut self) -> Result<(), GuiError> {
+        let path = self.file_path.clone();
+        fs::write(&path, &self.source_text)
+            .map_err(|err| GuiError::Io { path, source: err })?;
         self.is_dirty = false;
         Ok(())
     }
 
-    pub fn rebuild(&mut self) -> Result<(), String> {
+    pub fn rebuild(&mut self) -> Result<(), GuiError> {
         let (raw_statements, expanded_statements, namespaces) = match self.load_program() {
             Ok((raw_statements, expanded_statements, namespaces)) => {
                 (raw_statements, expanded_statements, namespaces)
@@ -130,7 +133,7 @@ impl DocumentSession {
                 self.diagnostics = diagnostics_from_module_error(&err, &self.file_path);
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
-                return Err(err_string);
+                return Err(GuiError::Build { message: err_string });
             }
         };
 
@@ -707,7 +710,7 @@ card: MetricCard
             .rebuild()
             .expect_err("duplicate exports should fail");
 
-        assert!(error.contains("Duplicate component export 'MetricCard'"));
+        assert!(error.to_string().contains("Duplicate component export 'MetricCard'"));
         assert!(document.expanded_statements.is_none());
         assert!(document.timeline.is_none());
         assert_eq!(document.diagnostics.len(), 1);
@@ -755,7 +758,7 @@ scene: Rect, size: (100, 100)
             .rebuild()
             .expect_err("invalid source should fail rebuild");
 
-        assert!(!error.is_empty());
+        assert!(!error.to_string().is_empty());
         assert!(document.expanded_statements.is_none());
         assert!(document.timeline.is_none());
         assert_eq!(document.diagnostics.len(), 1);
