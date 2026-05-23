@@ -14,13 +14,12 @@
 //!
 //! ## Limitations / TODOs
 //!
-//! - No support for SVG `<defs>`, `<use>`, `<clipPath>`, `<mask>`, gradients, patterns
+//! - No support for SVG `<use>`, `<clipPath>`, `<mask>`, patterns
 //! - SVG `<path>` `d` attribute: supports M, L, Q, C, Z commands (absolute/relative)
-//! - SVG `<polyline>` / `<polygon>`: should be added (fallback to path)
-//! - SVG `viewBox` on root `<svg>`: not yet used to set scene dimensions
-//! - SVG `currentColor`, `inherit`, `url(...)` fill types: not yet supported
-//! - SVG `stroke-dasharray`, `stroke-linecap`, `stroke-linejoin`: not yet mapped
+//! - SVG `currentColor`, `inherit` fill types: not yet supported
+//! - SVG `stroke-linecap`, `stroke-linejoin`: not yet mapped
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use roxmltree::{Document, Node};
@@ -55,6 +54,90 @@ impl std::fmt::Display for SvgImportError {
 impl std::error::Error for SvgImportError {}
 
 // ---------------------------------------------------------------------------
+// Gradient definition types (used for url(#id) fill/stroke fallback)
+// ---------------------------------------------------------------------------
+
+/// A single color stop in a gradient.
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+struct GradientStop {
+    offset: f64,
+    r: u8,
+    g: u8,
+    b: u8,
+    opacity: f64,
+}
+
+/// A parsed SVG gradient definition (linear or radial).
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+enum GradientDef {
+    #[allow(dead_code)]
+    Linear {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        stops: Vec<GradientStop>,
+    },
+    #[allow(dead_code)]
+    Radial {
+        cx: f64,
+        cy: f64,
+        r: f64,
+        stops: Vec<GradientStop>,
+    },
+}
+
+impl GradientDef {
+    /// Approximate this gradient as a single solid RGB color by averaging
+    /// stops weighted by their offset spans.
+    fn approximate_solid_color(&self) -> (u8, u8, u8) {
+        let stops = match self {
+            GradientDef::Linear { stops, .. } => stops,
+            GradientDef::Radial { stops, .. } => stops,
+        };
+        if stops.is_empty() {
+            return (0, 0, 0);
+        }
+        if stops.len() == 1 {
+            return (stops[0].r, stops[0].g, stops[0].b);
+        }
+
+        let mut total_weight = 0.0f64;
+        let mut r_acc = 0.0f64;
+        let mut g_acc = 0.0f64;
+        let mut b_acc = 0.0f64;
+
+        for pair in stops.windows(2) {
+            let span = pair[1].offset - pair[0].offset;
+            if span <= 0.0 {
+                continue;
+            }
+            let mid_r = (pair[0].r as f64 + pair[1].r as f64) / 2.0;
+            let mid_g = (pair[0].g as f64 + pair[1].g as f64) / 2.0;
+            let mid_b = (pair[0].b as f64 + pair[1].b as f64) / 2.0;
+            r_acc += mid_r * span;
+            g_acc += mid_g * span;
+            b_acc += mid_b * span;
+            total_weight += span;
+        }
+
+        if total_weight <= 0.0 {
+            // All stops at same offset — use the last stop
+            let last = stops.last().unwrap();
+            return (last.r, last.g, last.b);
+        }
+
+        (
+            (r_acc / total_weight).round().clamp(0.0, 255.0) as u8,
+            (g_acc / total_weight).round().clamp(0.0, 255.0) as u8,
+            (b_acc / total_weight).round().clamp(0.0, 255.0) as u8,
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -79,7 +162,16 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     let root = doc.root_element();
     let mut stmts = Vec::new();
     let mut counter = 0u64;
-    convert_children(&root, &mut stmts, &mut counter, &Transform::identity())?;
+
+    // Collect gradient definitions from <defs> elements
+    let gradients = collect_gradients(&root);
+
+    // Parse viewBox and width/height for scene configuration
+    if let Some(config_stmt) = parse_viewbox_config(&root) {
+        stmts.push(config_stmt);
+    }
+
+    convert_children(&root, &mut stmts, &mut counter, &Transform::identity(), &gradients)?;
     Ok(stmts)
 }
 
@@ -235,8 +327,249 @@ fn parse_numbers(s: &str) -> Vec<f64> {
 }
 
 // ---------------------------------------------------------------------------
-// Color parsing
+// viewBox parsing
 // ---------------------------------------------------------------------------
+
+/// Parse the `viewBox` attribute on a root `<svg>` element and return an
+/// optional `@config { size: (width, height) }` statement.
+///
+/// Falls back to `width` / `height` attributes if `viewBox` is absent.
+fn parse_viewbox_config(svg_node: &Node) -> Option<Stmt> {
+    // Prefer viewBox; fall back to width/height
+    if let Some(vb) = svg_node.attribute("viewBox") {
+        let nums: Vec<f64> = parse_numbers(vb);
+        if nums.len() >= 4 {
+            let w = nums[2];
+            let h = nums[3];
+            if w > 0.0 && h > 0.0 {
+                return Some(Stmt::Config {
+                    settings: vec![Property::new(
+                        "size",
+                        Expr::Tuple(vec![Expr::Num(w), Expr::Num(h)]),
+                    )],
+                    span: None,
+                });
+            }
+        }
+    }
+
+    // Fallback: width and height attributes
+    let w = svg_node.attribute("width").and_then(|v| v.parse::<f64>().ok());
+    let h = svg_node.attribute("height").and_then(|v| v.parse::<f64>().ok());
+    if let (Some(w), Some(h)) = (w, h) {
+        if w > 0.0 && h > 0.0 {
+            return Some(Stmt::Config {
+                settings: vec![Property::new(
+                    "size",
+                    Expr::Tuple(vec![Expr::Num(w), Expr::Num(h)]),
+                )],
+                span: None,
+            });
+        }
+    }
+
+    None
+}
+
+// ---------------------------------------------------------------------------
+// Gradient collection from <defs>
+// ---------------------------------------------------------------------------
+
+/// Scan the entire SVG tree for `<defs>` elements and collect gradient
+/// definitions into a map keyed by their `id` attribute.
+fn collect_gradients(node: &Node) -> HashMap<String, GradientDef> {
+    let mut gradients = HashMap::new();
+    collect_gradients_recursive(node, &mut gradients);
+    gradients
+}
+
+fn collect_gradients_recursive(node: &Node, gradients: &mut HashMap<String, GradientDef>) {
+    for child in node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        let tag = child.tag_name().name();
+        if tag == "defs" {
+            collect_gradients_from_defs(&child, gradients);
+        }
+        // Recurse into all element children to find nested defs
+        collect_gradients_recursive(&child, gradients);
+    }
+}
+
+fn collect_gradients_from_defs(defs_node: &Node, gradients: &mut HashMap<String, GradientDef>) {
+    for child in defs_node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        let tag = child.tag_name().name();
+        let id = match child.attribute("id") {
+            Some(id) => id.to_string(),
+            None => continue,
+        };
+
+        match tag {
+            "linearGradient" => {
+                let stops = parse_gradient_stops(&child);
+                if stops.is_empty() {
+                    continue;
+                }
+                let x1 = attr_float(&child, "x1", 0.0);
+                let y1 = attr_float(&child, "y1", 0.0);
+                let x2 = attr_float(&child, "x2", 1.0);
+                let y2 = attr_float(&child, "y2", 0.0);
+                gradients.insert(
+                    id,
+                    GradientDef::Linear {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        stops,
+                    },
+                );
+            }
+            "radialGradient" => {
+                let stops = parse_gradient_stops(&child);
+                if stops.is_empty() {
+                    continue;
+                }
+                let cx = attr_float(&child, "cx", 0.5);
+                let cy = attr_float(&child, "cy", 0.5);
+                let r = attr_float(&child, "r", 0.5);
+                gradients.insert(
+                    id,
+                    GradientDef::Radial { cx, cy, r, stops },
+                );
+            }
+            _ => {
+                // Recurse into child elements of defs (e.g., nested groups)
+                collect_gradients_from_defs(&child, gradients);
+            }
+        }
+    }
+}
+
+/// Parse `<stop>` elements inside a gradient definition.
+fn parse_gradient_stops(grad_node: &Node) -> Vec<GradientStop> {
+    let mut stops = Vec::new();
+    for child in grad_node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        if child.tag_name().name() != "stop" {
+            continue;
+        }
+
+        let offset_str = child
+            .attribute("offset")
+            .unwrap_or("0");
+        let offset = if offset_str.ends_with('%') {
+            offset_str.trim_end_matches('%').parse::<f64>().ok().map(|v| v / 100.0)
+        } else {
+            offset_str.parse::<f64>().ok()
+        }
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0);
+
+        let color_str = child.attribute("stop-color").unwrap_or("black");
+        let opacity = child
+            .attribute("stop-opacity")
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0);
+
+        let (r, g, b) = parse_stop_color(color_str);
+        stops.push(GradientStop {
+            offset,
+            r,
+            g,
+            b,
+            opacity,
+        });
+    }
+    stops
+}
+
+/// Parse a color value for a gradient stop into (r, g, b).
+/// Handles hex and named colors; falls back to black.
+fn parse_stop_color(value: &str) -> (u8, u8, u8) {
+    let value = value.trim();
+    // Hex colors
+    if let Some(hex) = value.strip_prefix('#') {
+        if hex.len() == 3 {
+            if let (Some(rc), Some(gc), Some(bc)) = (hex.chars().next(), hex.chars().nth(1), hex.chars().nth(2)) {
+                let r = u8::from_str_radix(&format!("{rc}{rc}"), 16).unwrap_or(0);
+                let g = u8::from_str_radix(&format!("{gc}{gc}"), 16).unwrap_or(0);
+                let b = u8::from_str_radix(&format!("{bc}{bc}"), 16).unwrap_or(0);
+                return (r, g, b);
+            }
+        } else if hex.len() == 6 {
+            if let (Ok(r), Ok(g), Ok(b)) = (
+                u8::from_str_radix(&hex[0..2], 16),
+                u8::from_str_radix(&hex[2..4], 16),
+                u8::from_str_radix(&hex[4..6], 16),
+            ) {
+                return (r, g, b);
+            }
+        }
+        return (0, 0, 0);
+    }
+
+    // Named colors (simple subset)
+    let named: &[(&str, (u8, u8, u8))] = &[
+        ("black", (0, 0, 0)),
+        ("white", (255, 255, 255)),
+        ("red", (255, 0, 0)),
+        ("green", (0, 128, 0)),
+        ("blue", (0, 0, 255)),
+        ("yellow", (255, 255, 0)),
+        ("cyan", (0, 255, 255)),
+        ("magenta", (255, 0, 255)),
+        ("gray", (128, 128, 128)),
+        ("grey", (128, 128, 128)),
+        ("orange", (255, 165, 0)),
+        ("purple", (128, 0, 128)),
+        ("pink", (255, 192, 203)),
+        ("brown", (165, 42, 42)),
+        ("transparent", (0, 0, 0)),
+        ("none", (0, 0, 0)),
+    ];
+    for (name, rgb) in named {
+        if value.eq_ignore_ascii_case(name) {
+            return *rgb;
+        }
+    }
+
+    // Fallback
+    (0, 0, 0)
+}
+
+/// Try to resolve a `url(#id)` reference in a fill/stroke attribute.
+/// If the id refers to a known gradient, return an approximate solid color.
+/// Returns `None` if the value is not a url reference or the gradient is unknown.
+fn resolve_gradient_url(value: &str, gradients: &HashMap<String, GradientDef>) -> Option<(u8, u8, u8)> {
+    let value = value.trim();
+    if let Some(inner) = value.strip_prefix("url(#") {
+        let id = if let Some(end) = inner.find(')') {
+            &inner[..end]
+        } else {
+            return None;
+        };
+        if let Some(grad) = gradients.get(id) {
+            Some(grad.approximate_solid_color())
+        } else {
+            // Gradient referenced but not found in defs — log warning
+            tracing::warn!(
+                "SVG import: gradient '{}' referenced but not found in <defs>",
+                id
+            );
+            None
+        }
+    } else {
+        None
+    }
+}
 
 /// Parse SVG color/fill/stroke value into an Animatix property expression.
 ///
@@ -505,6 +838,7 @@ fn convert_children(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     parent_transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     for child in parent.children() {
         if !child.is_element() {
@@ -517,25 +851,28 @@ fn convert_children(
         let combined = parent_transform.compose(&local_transform);
 
         match tag {
-            "g" => convert_group(&child, stmts, counter, &combined)?,
-            "rect" => convert_rect(&child, stmts, counter, &combined)?,
-            "circle" => convert_circle(&child, stmts, counter, &combined)?,
-            "ellipse" => convert_ellipse(&child, stmts, counter, &combined)?,
-            "path" => convert_path(&child, stmts, counter, &combined)?,
-            "text" => convert_text(&child, stmts, counter, &combined, parent)?,
-            "svg" => convert_children(&child, stmts, counter, &combined)?, // recurse into svg roots
-            "line" => convert_line(&child, stmts, counter, &combined)?,
+            "g" => convert_group(&child, stmts, counter, &combined, gradients)?,
+            "rect" => convert_rect(&child, stmts, counter, &combined, gradients)?,
+            "circle" => convert_circle(&child, stmts, counter, &combined, gradients)?,
+            "ellipse" => convert_ellipse(&child, stmts, counter, &combined, gradients)?,
+            "path" => convert_path(&child, stmts, counter, &combined, gradients)?,
+            "text" => convert_text(&child, stmts, counter, &combined, parent, gradients)?,
+            "svg" => convert_children(&child, stmts, counter, &combined, gradients)?, // recurse into svg roots
+            "line" => convert_line(&child, stmts, counter, &combined, gradients)?,
             "polyline" | "polygon" => {
-                // For now, convert to a Path element with line commands
-                convert_poly(&child, stmts, counter, &combined, tag)?;
+                convert_poly(&child, stmts, counter, &combined, tag, gradients)?;
             }
-            "defs" | "clipPath" | "mask" | "pattern" | "linearGradient"
+            "defs" => {
+                // <defs> contents (gradients etc.) were already collected;
+                // skip silently — nothing to render directly.
+            }
+            "clipPath" | "mask" | "pattern" | "linearGradient"
             | "radialGradient" | "filter" | "style" | "title" | "desc" => {
                 // Silently skip non-rendering elements
             }
             _ => {
                 // Unknown element: still recurse in case it has renderable children
-                convert_children(&child, stmts, counter, &combined)?;
+                convert_children(&child, stmts, counter, &combined, gradients)?;
             }
         }
     }
@@ -553,6 +890,7 @@ fn convert_group(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("group", counter);
     let mut props = transform_to_props(transform);
@@ -564,7 +902,7 @@ fn convert_group(
     }
 
     let mut children_stmts = Vec::new();
-    convert_children(node, &mut children_stmts, counter, &Transform::identity())?;
+    convert_children(node, &mut children_stmts, counter, &Transform::identity(), gradients)?;
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -584,6 +922,7 @@ fn convert_rect(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("rect", counter);
     let x = attr_float(node, "x", 0.0);
@@ -608,7 +947,7 @@ fn convert_rect(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -628,6 +967,7 @@ fn convert_circle(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("circle", counter);
     let cx = attr_float(node, "cx", 0.0) + transform.tx;
@@ -648,7 +988,7 @@ fn convert_circle(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -668,6 +1008,7 @@ fn convert_ellipse(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("ellipse", counter);
     let cx = attr_float(node, "cx", 0.0) + transform.tx;
@@ -691,7 +1032,7 @@ fn convert_ellipse(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -711,6 +1052,7 @@ fn convert_path(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("path", counter);
 
@@ -733,7 +1075,7 @@ fn convert_path(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -753,6 +1095,7 @@ fn convert_line(
     stmts: &mut Vec<Stmt>,
     counter: &mut u64,
     transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("line", counter);
     let x1 = attr_float(node, "x1", 0.0) + transform.tx;
@@ -785,7 +1128,7 @@ fn convert_line(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -806,6 +1149,7 @@ fn convert_poly(
     counter: &mut u64,
     transform: &Transform,
     tag: &str,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label(tag, counter);
 
@@ -842,7 +1186,7 @@ fn convert_poly(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -863,6 +1207,7 @@ fn convert_text(
     counter: &mut u64,
     transform: &Transform,
     _parent: &Node,
+    gradients: &HashMap<String, GradientDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("text", counter);
     let x = attr_float(node, "x", 0.0) + transform.tx;
@@ -884,7 +1229,7 @@ fn convert_text(
         props.push(Property::new("scale", Expr::Num(uniform_scale)));
     }
 
-    add_fill_stroke_props(node, &mut props);
+    add_fill_stroke_props(node, &mut props, gradients);
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -923,13 +1268,14 @@ fn transform_to_props(t: &Transform) -> Vec<Property> {
 }
 
 /// Add `fill`, `stroke`, `stroke-width`, `opacity` properties from SVG attributes.
-fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>) {
-    // Fill color
+/// Also handles `stroke-dasharray` parsing and `url(#...)` gradient references.
+fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &HashMap<String, GradientDef>) {
+    // Fill color — handles hex, named, rgb(), and url(#id) gradient references
     if let Some(fill) = node.attribute("fill") {
-        if let Some(color_expr) = parse_svg_color(fill) {
+        if let Some(color_expr) = parse_svg_color_with_gradients(fill, gradients) {
             props.push(Property::new("color", color_expr));
         } else {
-            // fill="none" → transparent
+            // fill="none" → transparent; fill="url(...)" with unknown gradient → transparent
             props.push(Property::new("fill_opacity", Expr::Num(0.0)));
         }
     }
@@ -941,9 +1287,9 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>) {
         }
     }
 
-    // Stroke color
+    // Stroke color — same as fill, supports url(#id)
     if let Some(stroke) = node.attribute("stroke") {
-        if let Some(color_expr) = parse_svg_color(stroke) {
+        if let Some(color_expr) = parse_svg_color_with_gradients(stroke, gradients) {
             props.push(Property::new("stroke_color", color_expr));
         }
     }
@@ -962,12 +1308,52 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>) {
         }
     }
 
+    // stroke-dasharray: parse and store as custom property; warn not rendered
+    if let Some(dasharray) = node.attribute("stroke-dasharray") {
+        let values: Vec<f64> = parse_numbers(dasharray);
+        if !values.is_empty() {
+            let dash_expr = Expr::Tuple(values.into_iter().map(Expr::Num).collect());
+            props.push(Property::new("stroke_dasharray", dash_expr));
+        }
+    }
+
     // Overall opacity
     if let Some(opacity) = node.attribute("opacity") {
         if let Ok(op) = opacity.parse::<f64>() {
             props.push(Property::new("opacity", Expr::Num(op)));
         }
     }
+}
+
+/// Parse an SVG color value, with support for `url(#...)` gradient references.
+///
+/// If the value is a `url(#id)` and the gradient is found in `gradients`,
+/// the gradient is approximated as a solid color (average of stops). A warning
+/// is emitted via tracing.
+///
+/// Returns `None` for `none`/`transparent`, or for unknown/unresolvable urls.
+fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, GradientDef>) -> Option<Expr> {
+    let value = value.trim();
+
+    // Check for url(#id) gradient reference
+    if value.starts_with("url(#") {
+        if let Some((r, g, b)) = resolve_gradient_url(value, gradients) {
+            tracing::warn!(
+                "SVG import: gradient '{}' approximated as solid rgb({}, {}, {})",
+                &value[5..value.find(')').unwrap_or(value.len() - 1)],
+                r, g, b
+            );
+            return Some(Expr::Call(
+                "rgb".into(),
+                vec![Expr::Num(r as f64), Expr::Num(g as f64), Expr::Num(b as f64)],
+            ));
+        }
+        // Unknown or unresolvable gradient reference — return None (transparent)
+        return None;
+    }
+
+    // Fall through to standard color parsing
+    parse_svg_color(value)
 }
 
 /// Helper to convert nested `Vec<Stmt>` (from imported children) into `Vec<InlineItem>`.
@@ -1135,11 +1521,18 @@ mod tests {
         let stmts = import_svg(&path).unwrap();
         std::fs::remove_file(&path).ok();
 
-        // Should have rect_0, circle_1, group_2 (with rect_3 inside)
-        assert_eq!(stmts.len(), 3, "expected 3 root statements, got {}", stmts.len());
+        // First statement should be a @config from width/height attributes
+        assert_eq!(stmts.len(), 4, "expected 4 root statements (config + 3 actors), got {}", stmts.len());
+        if let Stmt::Config { settings, .. } = &stmts[0] {
+            assert_eq!(settings.len(), 1);
+            assert_eq!(settings[0].name, "size");
+            assert_eq!(settings[0].value, Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]));
+        } else {
+            panic!("Expected Config as first statement");
+        }
 
-        // First should be a Rect
-        if let Stmt::ActorDecl { label, ty, props, children, .. } = &stmts[0] {
+        // Next should be a Rect
+        if let Stmt::ActorDecl { label, ty, props, children, .. } = &stmts[1] {
             assert_eq!(label, "rect_0");
             assert_eq!(ty, "Rect");
             // size should be (50, 30)
@@ -1155,14 +1548,14 @@ mod tests {
             panic!("Expected ActorDecl");
         }
 
-        // Second should be an Ellipse (for circle)
-        if let Stmt::ActorDecl { label, ty, .. } = &stmts[1] {
+        // Next should be an Ellipse (for circle)
+        if let Stmt::ActorDecl { label, ty, .. } = &stmts[2] {
             assert_eq!(label, "circle_1");
             assert_eq!(ty, "Ellipse");
         }
 
-        // Third should be a Group
-        if let Stmt::ActorDecl { label, ty, children, .. } = &stmts[2] {
+        // Next should be a Group
+        if let Stmt::ActorDecl { label, ty, children, .. } = &stmts[3] {
             assert_eq!(label, "group_2");
             assert_eq!(ty, "Group");
             // Group should have one child (rect_3)
@@ -1243,5 +1636,450 @@ mod tests {
         assert!((c.rotation_deg - 30.0).abs() < 1e-6);
         assert!((c.sx - 2.0).abs() < 1e-6);
         assert!((c.sy - 2.0).abs() < 1e-6);
+    }
+
+    // -----------------------------------------------------------------------
+    // New feature tests: viewBox, stroke-dasharray, gradients, polyline/polygon
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_viewbox_config() {
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect x="10" y="10" width="50" height="30" fill="red"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_viewbox.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // First statement should be the @config from viewBox
+        assert!(stmts.len() >= 1);
+        if let Stmt::Config { settings, .. } = &stmts[0] {
+            assert_eq!(settings.len(), 1);
+            assert_eq!(settings[0].name, "size");
+            assert_eq!(
+                settings[0].value,
+                Expr::Tuple(vec![Expr::Num(800.0), Expr::Num(600.0)])
+            );
+        } else {
+            panic!("Expected Config as first statement from viewBox");
+        }
+    }
+
+    #[test]
+    fn test_viewbox_fallback_width_height() {
+        // No viewBox, but width/height attributes should also generate config
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">
+  <rect x="0" y="0" width="100" height="100" fill="blue"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_viewbox_fallback.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert!(stmts.len() >= 1);
+        if let Stmt::Config { settings, .. } = &stmts[0] {
+            assert_eq!(settings[0].name, "size");
+            assert_eq!(
+                settings[0].value,
+                Expr::Tuple(vec![Expr::Num(640.0), Expr::Num(480.0)])
+            );
+        } else {
+            panic!("Expected Config as first statement from width/height");
+        }
+    }
+
+    #[test]
+    fn test_no_viewbox_no_config() {
+        // No viewBox, no width/height → no config emitted
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100" height="100" fill="green"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_no_viewbox.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // First statement should be the rect, not a config
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { ty, .. } = &stmts[0] {
+            assert_eq!(ty, "Rect");
+        } else {
+            panic!("Expected ActorDecl (Rect) without any config");
+        }
+    }
+
+    #[test]
+    fn test_stroke_dasharray() {
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <rect x="10" y="10" width="50" height="30"
+        fill="none" stroke="black" stroke-width="2"
+        stroke-dasharray="5,3,2,3"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_dasharray.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // Second statement (after config) should be the rect with stroke_dasharray
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { props, .. } = &stmts[1] {
+            let dash_prop = props.iter().find(|p| p.name == "stroke_dasharray").unwrap();
+            assert_eq!(
+                dash_prop.value,
+                Expr::Tuple(vec![
+                    Expr::Num(5.0),
+                    Expr::Num(3.0),
+                    Expr::Num(2.0),
+                    Expr::Num(3.0),
+                ])
+            );
+        } else {
+            panic!("Expected ActorDecl with stroke_dasharray");
+        }
+    }
+
+    #[test]
+    fn test_stroke_dasharray_space_separated() {
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <path d="M10 10 L100 10" fill="none" stroke="red"
+        stroke-dasharray="10 5 2 5"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_dasharray_space.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { props, .. } = &stmts[0] {
+            let dash_prop = props.iter().find(|p| p.name == "stroke_dasharray").unwrap();
+            assert_eq!(
+                dash_prop.value,
+                Expr::Tuple(vec![
+                    Expr::Num(10.0),
+                    Expr::Num(5.0),
+                    Expr::Num(2.0),
+                    Expr::Num(5.0),
+                ])
+            );
+        } else {
+            panic!("Expected ActorDecl with stroke_dasharray");
+        }
+    }
+
+    #[test]
+    fn test_gradient_url_fill_approximation() {
+        // SVG with gradient definition and a rect using url(#grad)
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+  <defs>
+    <linearGradient id="grad">
+      <stop offset="0%" stop-color="#ff0000"/>
+      <stop offset="100%" stop-color="#0000ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="100" height="80" fill="url(#grad)"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_gradient_url.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // Should have config + rect
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { props, .. } = &stmts[1] {
+            let color_prop = props.iter().find(|p| p.name == "color").unwrap();
+            // Average of #ff0000 (255,0,0) and #0000ff (0,0,255) ≈ (128, 0, 128)
+            assert_eq!(
+                color_prop.value,
+                Expr::Call(
+                    "rgb".into(),
+                    vec![Expr::Num(128.0), Expr::Num(0.0), Expr::Num(128.0)]
+                )
+            );
+        } else {
+            panic!("Expected ActorDecl with gradient-approximated color");
+        }
+    }
+
+    #[test]
+    fn test_gradient_url_stroke() {
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <defs>
+    <linearGradient id="mygrad">
+      <stop offset="0%" stop-color="red"/>
+      <stop offset="50%" stop-color="green"/>
+      <stop offset="100%" stop-color="blue"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="50" height="50" fill="none" stroke="url(#mygrad)" stroke-width="3"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_gradient_stroke.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { props, .. } = &stmts[1] {
+            // Should have stroke_color (approximated) and no regular color (fill="none")
+            let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
+            // Average of red(255,0,0), green(0,128,0), blue(0,0,255):
+            // spans: 0.0→0.5: avg(red,green) (127,64,0) × 0.5 + 0.5→1.0: avg(green,blue) (0,64,127) × 0.5
+            // = (63.5, 64, 63.5) → (64, 64, 64)
+            // Let's just verify it's an rgb call
+            assert!(matches!(&stroke_prop.value, Expr::Call(name, ..) if name == "rgb"));
+        } else {
+            panic!("Expected ActorDecl with gradient stroke");
+        }
+    }
+
+    #[test]
+    fn test_unknown_gradient_url_fill_none() {
+        // url(#nonexistent) — gradient not in defs, result should be transparent (no color)
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="50" height="50" fill="url(#missing)"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_unknown_gradient.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // Unresolvable url(#...) → fill_opacity: 0.0 (transparent)
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { props, .. } = &stmts[0] {
+            let fill_opacity = props.iter().find(|p| p.name == "fill_opacity").unwrap();
+            assert_eq!(fill_opacity.value, Expr::Num(0.0));
+            // There should be no 'color' property
+            assert!(props.iter().find(|p| p.name == "color").is_none());
+        } else {
+            panic!("Expected ActorDecl");
+        }
+    }
+
+    #[test]
+    fn test_defs_skip_gracefully() {
+        // <defs> should not crash and should not produce any actor statements
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+  <defs>
+    <linearGradient id="g1">
+      <stop offset="0%" stop-color="#fff"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+    <radialGradient id="g2">
+      <stop offset="0%" stop-color="red"/>
+      <stop offset="100%" stop-color="blue"/>
+    </radialGradient>
+    <clipPath id="clip">
+      <circle cx="25" cy="25" r="20"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="50" height="50" fill="black"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_defs_skip.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        // Should have config + rect (defs/clipPath produce no statements directly)
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { ty, .. } = &stmts[1] {
+            assert_eq!(ty, "Rect");
+        }
+    }
+
+    #[test]
+    fn test_polygon_conversion() {
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <polygon points="0,0 50,0 50,50 0,50" fill="#ff8800"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_polygon.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { ty, props, .. } = &stmts[1] {
+            assert_eq!(ty, "Path");
+            // Should have commands with move_to, line_to, line_to, line_to, close
+            let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
+            if let Expr::Tuple(commands) = &cmd_prop.value {
+                assert_eq!(commands.len(), 5, "polygon should have 5 commands (4 lines + close)");
+                assert_eq!(
+                    commands[0],
+                    Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)])
+                );
+                assert_eq!(
+                    commands[4],
+                    Expr::Call("close".into(), vec![])
+                );
+            } else {
+                panic!("Expected Tuple of commands");
+            }
+        } else {
+            panic!("Expected Path actor for polygon");
+        }
+    }
+
+    #[test]
+    fn test_polyline_conversion() {
+        let svg_content = r#"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <polyline points="10,20 30,40 50,60" fill="none" stroke="blue" stroke-width="2"/>
+</svg>"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_polyline.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { ty, props, .. } = &stmts[1] {
+            assert_eq!(ty, "Path");
+            let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
+            if let Expr::Tuple(commands) = &cmd_prop.value {
+                assert_eq!(commands.len(), 3, "polyline should have 3 commands (move + 2 lines, no close)");
+                assert_eq!(
+                    commands[0],
+                    Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)])
+                );
+                // No Z/close command
+                assert!(!commands.iter().any(|c| matches!(c, Expr::Call(name, ..) if name == "close")));
+            } else {
+                panic!("Expected Tuple of commands");
+            }
+        } else {
+            panic!("Expected Path actor for polyline");
+        }
+    }
+
+    #[test]
+    fn test_radial_gradient_url_fill() {
+        let svg_content = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <defs>
+    <radialGradient id="rgrad">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="40" fill="url(#rgrad)"/>
+</svg>"##;
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_radial_gradient.svg");
+        std::fs::write(&path, svg_content).unwrap();
+
+        let stmts = import_svg(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(stmts.len(), 2);
+        if let Stmt::ActorDecl { props, .. } = &stmts[1] {
+            let color_prop = props.iter().find(|p| p.name == "color").unwrap();
+            // Average of white (255,255,255) and black (0,0,0) ≈ (128,128,128)
+            assert_eq!(
+                color_prop.value,
+                Expr::Call(
+                    "rgb".into(),
+                    vec![Expr::Num(128.0), Expr::Num(128.0), Expr::Num(128.0)]
+                )
+            );
+        } else {
+            panic!("Expected ActorDecl with radial gradient color");
+        }
+    }
+
+    #[test]
+    fn test_stop_color_parse_named() {
+        assert_eq!(parse_stop_color("red"), (255, 0, 0));
+        assert_eq!(parse_stop_color("Blue"), (0, 0, 255));
+        assert_eq!(parse_stop_color("GREEN"), (0, 128, 0));
+        assert_eq!(parse_stop_color("black"), (0, 0, 0));
+        assert_eq!(parse_stop_color("white"), (255, 255, 255));
+        assert_eq!(parse_stop_color("orange"), (255, 165, 0));
+    }
+
+    #[test]
+    fn test_stop_color_parse_hex() {
+        assert_eq!(parse_stop_color("#ff0000"), (255, 0, 0));
+        assert_eq!(parse_stop_color("#00ff00"), (0, 255, 0));
+        assert_eq!(parse_stop_color("#0000ff"), (0, 0, 255));
+        assert_eq!(parse_stop_color("#f00"), (255, 0, 0));
+        assert_eq!(parse_stop_color("#abc"), (170, 187, 204));
+    }
+
+    #[test]
+    fn test_stop_color_fallback() {
+        assert_eq!(parse_stop_color("unknown-color"), (0, 0, 0));
+        assert_eq!(parse_stop_color(""), (0, 0, 0));
+    }
+
+    #[test]
+    fn test_gradient_approximation_single_stop() {
+        let def = GradientDef::Linear {
+            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
+            stops: vec![GradientStop { offset: 0.0, r: 200, g: 150, b: 100, opacity: 1.0 }],
+        };
+        let (r, g, b) = def.approximate_solid_color();
+        assert_eq!((r, g, b), (200, 150, 100));
+    }
+
+    #[test]
+    fn test_gradient_approximation_two_stops() {
+        let def = GradientDef::Linear {
+            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
+            stops: vec![
+                GradientStop { offset: 0.0, r: 255, g: 0, b: 0, opacity: 1.0 },
+                GradientStop { offset: 1.0, r: 0, g: 0, b: 255, opacity: 1.0 },
+            ],
+        };
+        let (r, g, b) = def.approximate_solid_color();
+        // Average of (255,0,0) and (0,0,255) = (127.5, 0, 127.5) → (128, 0, 128)
+        assert_eq!((r, g, b), (128, 0, 128));
+    }
+
+    #[test]
+    fn test_gradient_approximation_three_stops() {
+        let def = GradientDef::Linear {
+            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
+            stops: vec![
+                GradientStop { offset: 0.0, r: 0, g: 0, b: 0, opacity: 1.0 },
+                GradientStop { offset: 0.5, r: 128, g: 128, b: 128, opacity: 1.0 },
+                GradientStop { offset: 1.0, r: 255, g: 255, b: 255, opacity: 1.0 },
+            ],
+        };
+        let (r, g, b) = def.approximate_solid_color();
+        // spans: 0.0→0.5: avg(0,128)=64 each ×0.5 = 32
+        //        0.5→1.0: avg(128,255)=191.5 each ×0.5 = 95.75
+        // total: 32 + 95.75 = 127.75 ≈ 128
+        assert_eq!((r, g, b), (128, 128, 128));
     }
 }
