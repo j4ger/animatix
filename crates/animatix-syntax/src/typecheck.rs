@@ -14,15 +14,21 @@ use std::collections::HashMap;
 pub struct TypeEnv<'a> {
     /// Component name → component definition.
     components: &'a HashMap<String, crate::module::ComponentEntry>,
+    /// Module-scoped actions: action_name → template.
+    module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
     /// Actor label → component type name (accumulated during AST walk).
     labels: HashMap<String, String>,
 }
 
 impl<'a> TypeEnv<'a> {
-    /// Create a new type environment from a component registry.
-    pub fn new(components: &'a HashMap<String, crate::module::ComponentEntry>) -> Self {
+    /// Create a new type environment from a component registry and module actions.
+    pub fn new(
+        components: &'a HashMap<String, crate::module::ComponentEntry>,
+        module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
+    ) -> Self {
         Self {
             components,
+            module_actions,
             labels: HashMap::new(),
         }
     }
@@ -52,6 +58,8 @@ impl<'a> TypeEnv<'a> {
             }
             Stmt::Action(action, _span) => {
                 for target in &action.targets {
+                    // Try component action first
+                    let mut checked = false;
                     if let Some(component_name) = self.labels.get(target) {
                         if let Some(entry) = self.components.get(component_name) {
                             if let Some(template) = entry.actions.get(&action.verb) {
@@ -63,7 +71,21 @@ impl<'a> TypeEnv<'a> {
                                     &action.modifiers,
                                     diagnostics,
                                 );
+                                checked = true;
                             }
+                        }
+                    }
+                    // Fall back to module-scoped action
+                    if !checked {
+                        if let Some(template) = self.module_actions.get(&action.verb) {
+                            self.check_action_invocation(
+                                &action.verb,
+                                target,
+                                "module",
+                                &template.params,
+                                &action.modifiers,
+                                diagnostics,
+                            );
                         }
                     }
                 }

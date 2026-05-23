@@ -11,53 +11,66 @@ use std::collections::HashMap;
 /// Named modifiers that match action parameters are substituted into the body
 /// before modifier override is applied: `pulse btn [200ms, scale: 1.5]` binds
 /// `scale` to `1.5` in the action body.
+///
+/// Module-scoped actions are checked as a fallback when no component action matches.
 pub(super) fn inline_custom_actions(
     stmts: Vec<Stmt>,
     registry: &InstanceActionRegistry,
+    module_actions: &HashMap<String, ActionTemplate>,
 ) -> Vec<Stmt> {
     stmts
         .into_iter()
-        .flat_map(|stmt| inline_stmt(stmt, registry))
+        .flat_map(|stmt| inline_stmt(stmt, registry, module_actions))
         .collect()
 }
 
-fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
+fn inline_stmt(
+    stmt: Stmt,
+    registry: &InstanceActionRegistry,
+    module_actions: &HashMap<String, ActionTemplate>,
+) -> Vec<Stmt> {
     match stmt {
         Stmt::Action(action, span) => {
+            // Try component instance actions first (more specific)
             if let Some(target) = action.targets.first() {
                 if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
                     let body = substitute_action_params(template, &action.modifiers);
                     return apply_modifiers_to_body(body, &action.modifiers, span);
                 }
             }
+            // Fall back to module-scoped actions
+            if let Some(template) = module_actions.get(&action.verb) {
+                let body = substitute_action_params(template, &action.modifiers);
+                return apply_modifiers_to_body(body, &action.modifiers, span);
+            }
             vec![Stmt::Action(action, span)]
         }
         Stmt::Keyframe { time, body, span } => vec![Stmt::Keyframe {
             time,
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::RelativeKeyframe { offset, body, span } => vec![Stmt::RelativeKeyframe {
             offset,
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::Sequence { body, span } => vec![Stmt::Sequence {
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::Stagger { modifiers, body, span } => vec![Stmt::Stagger {
             modifiers,
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::Always { body, span } => vec![Stmt::Always {
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::Drive { label, body, span } => vec![Stmt::Drive {
             label,
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         Stmt::ReactiveBinding { target, property, value, value_span, span } => vec![Stmt::ReactiveBinding {
@@ -74,8 +87,8 @@ fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
             span,
         } => vec![Stmt::Conditional {
             condition,
-            then_branch: inline_custom_actions(then_branch, registry),
-            else_branch: else_branch.map(|b| inline_custom_actions(b, registry)),
+            then_branch: inline_custom_actions(then_branch, registry, module_actions),
+            else_branch: else_branch.map(|b| inline_custom_actions(b, registry, module_actions)),
             span,
         }],
         Stmt::ForLoop {
@@ -86,7 +99,7 @@ fn inline_stmt(stmt: Stmt, registry: &InstanceActionRegistry) -> Vec<Stmt> {
         } => vec![Stmt::ForLoop {
             var,
             iterable,
-            body: inline_custom_actions(body, registry),
+            body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
         other => vec![other],
@@ -426,7 +439,8 @@ mod tests {
             }],
         );
 
-        let result = inline_stmt(invocation, &registry);
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Assignment { value, .. } => {
@@ -454,7 +468,8 @@ mod tests {
 
         let invocation = make_action("pulse", "btn", vec![]);
 
-        let result = inline_stmt(invocation, &registry);
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Assignment { value, .. } => {
@@ -467,9 +482,34 @@ mod tests {
     #[test]
     fn action_params_unknown_invocation_passthrough() {
         let registry: InstanceActionRegistry = HashMap::new();
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
         let invocation = make_action("pulse", "btn", vec![]);
-        let result = inline_stmt(invocation.clone(), &registry);
+        let result = inline_stmt(invocation.clone(), &registry, &module_actions);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], invocation);
+    }
+
+    #[test]
+    fn module_scoped_action_inlining() {
+        let template = ActionTemplate {
+            params: vec![],
+            body: vec![make_assignment("self", "opacity", Expr::Num(0.5))],
+        };
+
+        let registry: InstanceActionRegistry = HashMap::new();
+        let module_actions: HashMap<String, ActionTemplate> =
+            [("fade".to_string(), template)].into_iter().collect();
+
+        let invocation = make_action("fade", "btn", vec![]);
+
+        let result = inline_stmt(invocation, &registry, &module_actions);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Stmt::Assignment { property, value, .. } => {
+                assert_eq!(property, "opacity");
+                assert_eq!(*value, Expr::Num(0.5));
+            }
+            other => panic!("expected assignment, got {:?}", other),
+        }
     }
 }

@@ -103,6 +103,8 @@ pub struct LoadedProgram {
     pub statements: Vec<Stmt>,
     /// All components keyed by name, collected from the entry file and imports.
     pub components: HashMap<String, ComponentEntry>,
+    /// Module-scoped actions: action_name → template.
+    pub module_actions: HashMap<String, ActionTemplate>,
     /// Namespaces exported by aliased imports, keyed by alias name.
     pub namespaces: HashMap<String, Namespace>,
 }
@@ -113,15 +115,15 @@ impl LoadedProgram {
     /// Validates component instantiation properties against parameter type
     /// annotations. Returns diagnostics for any type mismatches found.
     /// Unannotated parameters accept any value.
-    pub fn typecheck(&self) -> Vec<crate::diagnostics::Diagnostic> {
-        let mut env = crate::typecheck::TypeEnv::new(&self.components);
+    pub fn typecheck(&mut self) -> Vec<crate::diagnostics::Diagnostic> {
+        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_actions);
         env.check_statements(&self.statements)
     }
 
     /// Expand component instances into concrete statements and inline custom actions.
     pub fn expand_components(&self) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::inline_custom_actions(stmts, &registry)
+        inline_actions::inline_custom_actions(stmts, &registry, &self.module_actions)
     }
 }
 
@@ -499,6 +501,20 @@ impl ModuleGraph {
         let mut components = HashMap::new();
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
+        // Collect module-scoped actions from flattened statements
+        let mut module_actions = HashMap::new();
+        for stmt in &statements {
+            if let Stmt::ComponentAction { name, params, body, .. } = stmt {
+                module_actions.insert(
+                    name.clone(),
+                    ActionTemplate {
+                        params: params.clone(),
+                        body: body.clone(),
+                    },
+                );
+            }
+        }
+
         let mut namespaces = HashMap::new();
         // Collect namespaces from the entry file's direct aliased imports,
         // resolving re-exports transitively.
@@ -523,6 +539,7 @@ impl ModuleGraph {
         Ok(LoadedProgram {
             statements,
             components,
+            module_actions,
             namespaces,
         })
     }

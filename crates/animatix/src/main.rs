@@ -171,7 +171,7 @@ enum Commands {
 /// Prints build diagnostics and exits on load failure.
 fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
-        Ok(program) => {
+        Ok(mut program) => {
             let diagnostics = program.typecheck();
             (program.expand_components(), program.namespaces, diagnostics)
         }
@@ -462,7 +462,7 @@ fn main() {
             let (ast, namespaces, type_diagnostics) = match module_graph
                 .load_program_with_source(std::path::Path::new(&file), Some(&source))
             {
-                Ok(program) => {
+                Ok(mut program) => {
                     let diagnostics = program.typecheck();
                     (program.expand_components(), program.namespaces, diagnostics)
                 }
