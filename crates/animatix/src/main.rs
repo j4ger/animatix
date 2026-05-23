@@ -373,26 +373,19 @@ fn main() {
             let (target, _) = load_and_build(&input);
             match target {
                 BuildTarget::MultiScene(comp) => {
-                    // Live preview shows the first scene for multi-scene compositions.
-                    // The full composition timeline is available in the GUI.
-                    if let Some(first_scene) = comp.scenes.values().next() {
-                        info!(
-                            "Multi-scene composition ({} scenes). Previewing first scene: '{}'.",
-                            comp.scenes.len(),
-                            first_scene.name
-                        );
-                        if let Err(e) = renderer::run_timeline_with_options(
-                            first_scene.timeline.clone(),
-                            r#loop,
-                            DebugRenderOptions { compute_hit_regions: false,
-                                draw_bounds: debug_bounds,
-                            },
-                        ) {
-                            error!("Preview failed: {e}");
-                            std::process::exit(1);
-                        }
-                    } else {
-                        error!("Error: Composition has no scenes.");
+                    info!(
+                        "Multi-scene composition ({} scenes, {:.2}s total). Previewing with transition blending.",
+                        comp.scenes.len(),
+                        comp.global_duration_s,
+                    );
+                    if let Err(e) = renderer::run_composition_with_options(
+                        comp,
+                        r#loop,
+                        DebugRenderOptions { compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                        },
+                    ) {
+                        error!("Preview failed: {e}");
                         std::process::exit(1);
                     }
                 }

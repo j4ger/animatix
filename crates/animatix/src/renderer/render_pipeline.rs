@@ -236,19 +236,12 @@ where
                                 blend.to_scene
                             ),
                         })?;
-                    let to_start = composition
-                        .scene_start_times
-                        .get(&blend.to_scene)
-                        .copied()
-                        .unwrap_or(0.0);
-                    let to_local = global_time - to_start;
-
                     renderer
                         .render_transition(
                             &from_scene.timeline,
-                            local_time_s,
+                            blend.from_local,
                             &to_scene.timeline,
-                            to_local,
+                            blend.to_local,
                             blend.progress as f32,
                             blend.id.clone(),
                             blend.easing,

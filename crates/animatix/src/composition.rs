@@ -117,6 +117,10 @@ pub struct TransitionBlend {
     pub from_scene: String,
     /// Scene being transitioned into.
     pub to_scene: String,
+    /// Local time within the from scene.
+    pub from_local: f64,
+    /// Local time within the to scene.
+    pub to_local: f64,
     /// 0.0 = fully from, 1.0 = fully to
     pub progress: f64,
     /// Transition identifier (e.g. "fade", "cut").
@@ -377,7 +381,7 @@ impl Composition {
             let (to_name, to_start, _) = active[1];
 
             let from_local = t - from_start;
-            let _to_local = t - to_start;
+            let to_local = t - to_start;
 
             let edge = self.edges.get(from_name);
             let id = edge
@@ -402,6 +406,8 @@ impl Composition {
                 Some(TransitionBlend {
                     from_scene: from_name.clone(),
                     to_scene: to_name.clone(),
+                    from_local,
+                    to_local,
                     progress,
                     id,
                     easing,

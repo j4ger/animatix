@@ -44,7 +44,6 @@ use crate::timeline::{
 
 // Sibling module imports (accessible via super:: because we're a child of timeline)
 use super::{
-    evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
     preserve_instant_delayed_value,
 };
 
@@ -85,6 +84,9 @@ pub enum PropertyValue {
 
 /// Parse an `Expr` into a `PropertyValue` based on the expected `ValueType`.
 /// Returns `None` when parsing fails (the caller should skip the property).
+///
+/// This function delegates to `value_parser::parse_value()` which contains
+/// the full per-type parsing logic.
 pub(crate) fn parse_property_value(
     value_type: ValueType,
     expr: &Expr,
@@ -92,90 +94,7 @@ pub(crate) fn parse_property_value(
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
 ) -> Option<PropertyValue> {
-    match value_type {
-        ValueType::F32 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            Some(PropertyValue::F32(v.as_num() as f32))
-        }
-        ValueType::U32 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            let n = v.as_num();
-            Some(PropertyValue::U32(n.max(0.0) as u32))
-        }
-        ValueType::Vec2 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
-                _ => None,
-            }
-        }
-        ValueType::Vec4 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec4([a, b, c, d]) => Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32])),
-                Value::Color([a, b, c, d]) => Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32])),
-                _ => None,
-            }
-        }
-        ValueType::Color => {
-            parse_color_in_env_with_lookup_diagnostic("", "color", expr, env, diagnostics, subject)
-                .map(PropertyValue::Color)
-        }
-        ValueType::String => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            Some(PropertyValue::String(v.as_str()))
-        }
-        ValueType::PointList => {
-            // Expect an Expr::Tuple of Expr::Tuple[Expr::Num, Expr::Num]
-            if let Expr::Tuple(items) = expr {
-                let mut points = Vec::with_capacity(items.len());
-                for item in items {
-                    if let Expr::Tuple(pair) = item {
-                        if pair.len() == 2 {
-                            if let (Expr::Num(x), Expr::Num(y)) = (&pair[0], &pair[1]) {
-                                points.push([*x as f32, *y as f32]);
-                            } else {
-                                return None;
-                            }
-                        } else {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                Some(PropertyValue::PointList(points))
-            } else {
-                None
-            }
-        }
-        ValueType::CommandList => {
-            crate::timeline::parse_path_commands_expr(expr, env)
-                .map(|path| PropertyValue::CommandList(path.to_svg()))
-        }
-        ValueType::Transform => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec2([a, b]) => Some(PropertyValue::Transform([a as f32, b as f32, 0.0, 1.0, 0.0, 0.0])),
-                Value::Vec4([a, b, c, d]) => Some(PropertyValue::Transform([a as f32, b as f32, c as f32, d as f32, 0.0, 0.0])),
-                Value::List(items) if items.len() == 6 => {
-                    let mut arr = [0.0f32; 6];
-                    for (i, item) in items.iter().enumerate() {
-                        arr[i] = item.as_num() as f32;
-                    }
-                    Some(PropertyValue::Transform(arr))
-                }
-                _ => None,
-            }
-        }
-        // These types require context-specific handling (group resolution)
-        ValueType::ShapeType
-        | ValueType::PlacementMode
-        | ValueType::SceneAnchor
-        | ValueType::PositionBinding
-        | ValueType::MorphOptions
-        | ValueType::BuildTimeOnly => None,
-    }
+    super::value_parser::parse_value(value_type, expr, env, diagnostics, subject)
 }
 
 // ─────────────────────────────────────────────────────────────

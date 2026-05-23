@@ -569,6 +569,14 @@ fn evaluate_method(
             }
             Ok(Value::Num(n.round()))
         }
+        (Value::Object(type_name, fields), name) if args.is_empty() => {
+            fields.get(name).cloned().ok_or_else(|| {
+                EvalError::TypeMismatch(format!(
+                    "Field '{}' does not exist on {} object",
+                    name, type_name
+                ))
+            })
+        }
         (receiver, name) => Err(EvalError::UnsupportedMethod(format!(
             "{}.{}()",
             format_value(&receiver),
@@ -661,6 +669,7 @@ mod tests {
     use crate::timeline::load_standard_library;
     use crate::timeline::track::TrackAccessor;
     use chumsky::Parser;
+    use std::collections::HashMap;
 
     #[test]
     fn test_evaluate_closure() {
@@ -739,6 +748,41 @@ mod tests {
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 30.0);
+    }
+
+    #[test]
+    fn test_evaluate_object_field_access() {
+        let mut env = Environment::new();
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Value::Num(10.0));
+        fields.insert("y".to_string(), Value::Num(20.0));
+        env.set("point", Value::Object("Point".to_string(), fields));
+
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("point".to_string())),
+            "x".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env).unwrap();
+        assert_eq!(result.as_num(), 10.0);
+    }
+
+    #[test]
+    fn test_evaluate_object_field_missing() {
+        let mut env = Environment::new();
+        let fields = HashMap::new();
+        env.set("point", Value::Object("Point".to_string(), fields));
+
+        let expr = Expr::Method(
+            Box::new(Expr::Ident("point".to_string())),
+            "z".to_string(),
+            vec![],
+        );
+
+        let result = evaluate_expr(&expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("z"));
     }
 
     #[test]

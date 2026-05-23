@@ -50,4 +50,4 @@ pub use video::{
 };
 
 #[cfg(feature = "render")]
-pub use window::{run, run_timeline, run_timeline_with_options};
+pub use window::{run, run_composition_with_options, run_timeline, run_timeline_with_options};
