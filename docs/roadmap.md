@@ -1,7 +1,8 @@
 # Animatix Roadmap
 
 > Forward-looking view of known gaps, planned features, and deferred work.  
-> For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
+> For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).  
+> For detailed implementation plans, see [`typing-plan.md`](typing-plan.md).
 
 **Principles**
 - P0 language first — incomplete syntax blocks tutorials and adoption.
@@ -35,17 +36,37 @@
 
 ---
 
+## PT — Gradual Typing (Pre-requisite for P2.1, P2.3)
+
+Optional type annotations for component/action parameters. Property values remain schema-typed as today. See [`typing-plan.md`](typing-plan.md) for full task breakdown.
+
+| Item | What | Where | Effort |
+|------|------|-------|--------|
+| **PT.1** | **Syntax foundation** — `TypeAnnotation` enum, parser support for `param: Type = default`, tree-sitter grammar, `to_source.rs` | `ast.rs`, `parser/mod.rs`, `to_source.rs`, `grammar.js` | 3 days |
+| **PT.2** | **Type checker core** — `TypeEnv`, component instantiation validation, `DiagnosticCode::TypeMismatch` | `timeline/typecheck.rs` (new), `diagnostics.rs` | 5 days |
+| **PT.3** | **Integration** — Wire checker into build pipeline, analyzer `ParamInfo` types, completer type-filtered suggestions, LSP diagnostics | `timeline/mod.rs`, `analyzer/`, `lsp/` | 4 days |
+| **PT.4** | **Strict mode opt-in** — `@config { strict_types: true }`, unannotated param warnings, spec §13 | `typecheck.rs`, `spec.md` | 2 days |
+
+**Type lattice:** `Num`, `Str`, `Bool`, `Vec2`, `Vec4`, `Color`, `Actor`, `Scene`, `List<T>`, `Any` (unannotated).  
+**Subtyping:** `Color <: Vec4`, numeric literal `<: Num`, actor label `<: Actor`.  
+**Principle:** Optional everywhere. No breaking changes to existing `.amx` files.
+
+---
+
 ## P2 — Language Features
 
 Nice-to-have syntax expansions. Medium user impact, well-scoped.
 
-| Item | What | Where |
-|------|------|-------|
-| **P2.1** | **Action parameters** — `pulse btn [200ms, scale: 1.2]` instead of fixed bodies | parser, spec §12 |
-| **P2.2** | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build |
-| **P2.3** | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 |
-| **P2.4** | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` |
-| **P2.5** | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` |
+| Item | What | Where | Depends |
+|------|------|-------|---------|
+| **P2.1** | **Action parameters** — `pulse btn [200ms, scale: 1.2]` instead of fixed bodies | parser, spec §12 | PT |
+| **P2.2** | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build | — |
+| **P2.3** | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 | PT, P2.1 |
+| **P2.4** | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` | — |
+| **P2.5** | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` | — |
+
+**Dependency chain:** PT → P2.1 → P2.3.  
+P2.2, P2.4, P2.5 are independent and can ship anytime.
 
 ---
 
