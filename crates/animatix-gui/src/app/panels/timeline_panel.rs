@@ -285,6 +285,45 @@ pub(crate) fn timeline_panel_ui(
                 }
             }
 
+            // ── Play edge arrows ──
+            for (src_name, edge) in &comp.edges {
+                // Source scene must exist and have a start time
+                let Some(src_scene) = comp.scenes.get(src_name) else { continue };
+                let Some(src_start) = comp.scene_start_times.get(src_name).copied() else { continue };
+                let src_end_s = src_start + src_scene.duration_s;
+                let src_right = time_to_x(src_end_s);
+
+                // Target scene must exist and have a start time
+                let Some(tgt_start) = comp.scene_start_times.get(&edge.to_scene).copied() else { continue };
+                let tgt_left = time_to_x(tgt_start);
+
+                // Only draw forward arrows (target to the right of source)
+                if tgt_left <= src_right {
+                    continue;
+                }
+
+                let cy = bar_area.center().y;
+                let arrow_color = TEXT_MUTED;
+
+                // Horizontal connector line
+                painter.line_segment(
+                    [Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)],
+                    Stroke::new(1.0, arrow_color),
+                );
+
+                // Small triangular arrowhead at the target end
+                let arrow_len = 4.0;
+                let arrow_half = 2.5;
+                let tip = Pos2::new(tgt_left, cy);
+                let left_flank = Pos2::new(tgt_left - arrow_len, cy - arrow_half);
+                let right_flank = Pos2::new(tgt_left - arrow_len, cy + arrow_half);
+                painter.add(egui::Shape::convex_polygon(
+                    vec![tip, left_flank, right_flank],
+                    arrow_color,
+                    Stroke::NONE,
+                ));
+            }
+
             // Loop region on scene track
             draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 

@@ -21,38 +21,17 @@
 
 ---
 
-## P1 — GUI Completion
-
-### ✅ P1a — Quick Wins (Complete)
+## ✅ P1 — GUI Completion (Complete)
 
 | Item | Status |
 |------|--------|
 | **P1.1** | Command system wired — Reload, Undo/Redo, ScrollToLine dispatch through queue |
-| **P1.2** | Hotkeys added — Ctrl+S (Save), Ctrl+R (Reload), Ctrl+Shift+R (Rebuild), Ctrl+D (Duplicate) |
+| **P1.2** | Hotkeys added — Ctrl+S (Save), Ctrl+R (Reload), Ctrl+Shift+R (Rebuild), Ctrl+D (Duplicate), 1/2/3 (scene jumps) |
 | **P1.3** | Diagnostics click-to-navigate verified and unified to command queue |
-
-### ✅ P1b — Medium Features (Complete)
-
-| Item | Status |
-|------|--------|
 | **P1.4** | Tree-sitter grammar updated with `scene_declaration` rule and highlight query |
-
-### P1c — Remaining GUI Work
-
-| Item | What | Where | Notes |
-|------|------|-------|-------|
-| **P1.5** | **Scene list panel** | `app/panels/` | Scene list with drag-reorder already exists in workspace panel |
-| **P1.6** | **Transition editor UI** | `app/shell/` | Handler sets `panel_state.open_transition_editor` but no UI consumes it |
-| **P1.8** | **Composition timeline** | `app/panels/timeline_panel.rs` | Show `play` edges and scene durations |
-
-### P1d — AI Features (deferred)
-
-Tracked separately. Requires external AI service integration.
-
-| Item | What | Where |
-|------|------|-------|
-| **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` |
-| **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` |
+| **P1.5** | Scene list panel — already exists with drag-reorder in workspace panel |
+| **P1.6** | Transition editor UI — already exists in scene list (type, duration, easing, target) |
+| **P1.8** | Composition timeline — play edge arrows added between scene blocks |
 
 ---
 
@@ -81,7 +60,18 @@ Small runtime improvements and export quality.
 
 ---
 
-## Deferred / Large Architectural
+## Deferred
+
+### AI Features (P1.7, P1.9)
+
+Tracked separately. Requires external AI service integration.
+
+| Item | What | Where |
+|------|------|-------|
+| **P1.7** | **NL command bar dispatch** | `app/shell/nl_command_bar.rs` |
+| **P1.9** | **Integrate agent suggestion UI** | `app/components/agent_suggestions.rs` |
+
+### Large Architectural
 
 Not justified at current scale. Revisit when the language surface is complete.
 

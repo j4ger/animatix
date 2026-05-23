@@ -39,8 +39,8 @@ impl SceneSliceState {
         }
     }
 
-    /// Select slice by index (1-based hotkeys).
-    #[allow(dead_code)] // WIP: will be used when 1/2/3 hotkeys are wired
+    /// Select slice by index (1-based hotkeys for A/B/C slice comparison mode).
+    #[allow(dead_code)] // WIP: slice selection hotkeys not yet wired — needs slice mode enabled check
     pub fn select(&mut self, idx: usize) {
         if idx > 0 && idx <= self.slices.len() {
             self.active_slice = idx - 1;
