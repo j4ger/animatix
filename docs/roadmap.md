@@ -19,10 +19,10 @@ Nice-to-have syntax expansions. Medium user impact, well-scoped.
 | Item | Status | What | Where | Depends |
 |------|--------|------|-------|---------|
 | **P2.1** | ✅ | **Action parameters** — `pulse btn [200ms, scale: 1.2]` with typed params and defaults | parser, inline_actions, typecheck | — |
-| **P2.2** | | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build | — |
-| **P2.3** | | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, spec §12 | P2.1 |
-| **P2.4** | | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` | — |
-| **P2.5** | | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` | — |
+| **P2.2** | ✅ | **Multi-target action invocation** — `pulse btn, icon` | parser, timeline build | — |
+| **P2.3** | ✅ | **Module-scoped actions** — `action Foo() { ... }` at file level, not just inside components | parser, module.rs, typecheck | P2.1 |
+| **P2.4** | ✅ | **SVG import enhancements** — `viewBox`, `<defs>`, gradients, `polyline`/`polygon`, `stroke-dasharray` | `timeline/svg_import.rs` | — |
+| **P2.5** | ✅ | **Plot tick labels** — `tick_labels: true` on `PlotAxes` | `renderer/plot.rs`, `primitives.md` | — |
 
 **Dependency chain:** P2.1 → P2.3.  
 P2.2, P2.4, P2.5 are independent and can ship anytime.
