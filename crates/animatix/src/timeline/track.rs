@@ -330,6 +330,15 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
     pub fn last_keyframe_time(&self) -> Option<u64> {
         self.keyframes.keys().next_back().copied()
     }
+    /// Returns true if this track has keyframes that could change value over time.
+    /// A track with 0 keyframes or 1 keyframe at time 0 is effectively static.
+    pub fn is_effectively_static(&self) -> bool {
+        match self.keyframes.len() {
+            0 => true,
+            1 => self.keyframes.keys().next() == Some(&0),
+            _ => false,
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -513,6 +522,45 @@ impl AnimationTrack {
             self.glow_color.last_time(), self.backdrop_blur.last_time(),
         ];
         times.into_iter().flatten().max()
+    }
+
+    /// Returns true if any property track has animated keyframes.
+    /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
+    pub fn has_any_keyframes(&self) -> bool {
+        self.position.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.motion_offset.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.rotation.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.scale.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.transform.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.placement_mode.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.position_binding.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.layout_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.opacity.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.stroke_width.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.stroke_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.stroke_progress.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.fill_opacity.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.morph_options.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.shape_type.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.line_from.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.line_to.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.arc_angles.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.points.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.commands.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.vector_paths.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.text_content.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.font_family.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.font_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.text_paths.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.image.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.shadow_offset.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.shadow_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.shadow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.glow_radius.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.glow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.backdrop_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
     }
 }
 

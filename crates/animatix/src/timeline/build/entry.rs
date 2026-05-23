@@ -141,32 +141,34 @@ impl Timeline {
             }
         }
 
-        // Compile always-body statements into IR for faster frame-time evaluation
-        match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
-            Ok(program) => {
-                timeline.modifier_programs.push(program);
-                // Compile IR to bytecode for even faster execution
-                match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(
-                    timeline.modifier_programs.last().expect("IR program just pushed above"),
-                ) {
-                    Ok(bytecode) => {
-                        timeline.modifier_bytecode_programs.push(bytecode);
-                    }
-                    Err(e) => {
-                        diagnostics.push(Diagnostic::warning(
-                            DiagnosticCode::ModifierCompilationError,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Bytecode compilation failed: {}. Using IR fallback.",
-                                e
-                            ),
-                        ));
+        // Compile always-body statements into IR for faster frame-time evaluation.
+        // Skip compilation when no modifiers exist to avoid empty programs.
+        if !timeline.modifiers.is_empty() {
+            match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
+                Ok(program) => {
+                    timeline.modifier_programs.push(program);
+                    // Compile IR to bytecode for even faster execution
+                    match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(
+                        timeline.modifier_programs.last().expect("IR program just pushed above"),
+                    ) {
+                        Ok(bytecode) => {
+                            timeline.modifier_bytecode_programs.push(bytecode);
+                        }
+                        Err(e) => {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::ModifierCompilationError,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Bytecode compilation failed: {}. Using IR fallback.",
+                                    e
+                                ),
+                            ));
+                        }
                     }
                 }
-            }
-            Err(e) => {
-                // Fall back to AST interpretation for this batch
-                diagnostics.push(Diagnostic::warning(
+                Err(e) => {
+                    // Fall back to AST interpretation for this batch
+                    diagnostics.push(Diagnostic::warning(
                     DiagnosticCode::ModifierCompilationError,
                     DiagnosticPhase::Build,
                     format!(
@@ -174,6 +176,7 @@ impl Timeline {
                         e
                     ),
                 ));
+                }
             }
         }
 

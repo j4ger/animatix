@@ -94,5 +94,9 @@ harness = false
 name = "visibility_culling"
 harness = false
 
+[[bench]]
+name = "static_scene"
+harness = false
+
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }

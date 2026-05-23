@@ -2,6 +2,139 @@ use super::*;
 use crate::ast::{BinaryOp, Property};
 
 #[test]
+fn static_scene_cache_populated_after_first_evaluate() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "box1".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("accent.primary".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "at".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+
+    // First evaluation — should populate static subtree cache
+    let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default());
+
+    let cache = timeline.static_subtree_cache.borrow();
+    assert!(!cache.is_empty(), "static subtree cache should be populated after first evaluate");
+    assert!(cache.contains_key("box1"), "cache should contain box1");
+    drop(cache);
+
+    // Second evaluation at different time — should use cached encoding
+    let _scene2 = timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default());
+
+    // Cache should still have entries
+    let cache2 = timeline.static_subtree_cache.borrow();
+    assert!(!cache2.is_empty(), "static subtree cache should still have entries");
+}
+
+#[test]
+fn static_scene_skips_frame_env() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "box1".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("accent.primary".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "at".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    // Static scene with no modifiers or procedural plots should not need frame env
+    let msg = format!(
+        "static scene should not need frame env. modifiers={}, programs={}, bytecode={}, proc_plots={}",
+        timeline.modifiers.len(),
+        timeline.modifier_programs.len(),
+        timeline.modifier_bytecode_programs.len(),
+        timeline.has_procedural_plots()
+    );
+    assert!(!timeline.needs_frame_env(), "{}", msg);
+}
+
+#[test]
 fn test_for_iter_values_supports_tuple_literals() {
     let env = Environment::new();
     let values = for_iter_values(

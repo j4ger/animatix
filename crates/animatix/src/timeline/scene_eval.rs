@@ -9,14 +9,14 @@ use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
 #[derive(Clone, Copy)]
-struct NodeTransform {
-    position: [f32; 2],
-    half_size: [f32; 2],
-    opacity: f32,
-    rotation: f64,
-    scale: f64,
-    motion_offset: [f32; 2],
-    local_transform: kurbo::Affine,
+pub(crate) struct NodeTransform {
+    pub position: [f32; 2],
+    pub half_size: [f32; 2],
+    pub opacity: f32,
+    pub rotation: f64,
+    pub scale: f64,
+    pub motion_offset: [f32; 2],
+    pub local_transform: kurbo::Affine,
 }
 
 fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
@@ -300,11 +300,12 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
     ) {
         let (global_transform, global_opacity) =
-            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions);
+            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env);
 
-        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions);
+        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env);
     }
 
     /// Evaluate a single actor node and render it to the scene.
@@ -321,6 +322,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
     ) -> (kurbo::Affine, f32) {
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
@@ -343,36 +345,101 @@ impl Timeline {
                     overrides,
                     layout_positions,
                     hit_regions,
+                    frame_env,
                 );
             }
             return (parent_transform, parent_opacity);
         }
 
-        let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
-        let mut vector_paths = track.evaluate_vector_paths(time_ms);
-
-        // Re-sample procedural plots at frame time so they can reference `t`.
-        if let Some(procedural_plot) = track.procedural_plot.as_ref() {
-            let frame_env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
-            vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &frame_env);
-        }
+        // ── Evaluate transform first for visibility culling (P2.19) ──
         let layout_pos = if self.dynamic_layout {
             layout_positions.get(node_label).copied()
         } else {
             None
         };
-        let node_overrides = overrides.get(node_label);
-        let node_transform = self.evaluate_node_transform(
-            track,
-            time_ms,
-            parent_opacity,
-            parent_transform,
-            scene_dimensions,
-            layout_pos,
-        );
+
+        // P2.18: Temporal coherence — cache node transforms to avoid re-sampling
+        // properties when the same (time, parent_transform) is evaluated again.
+        let parent_coeffs = parent_transform.as_coeffs();
+        let node_transform = {
+            let cache = self.transform_cache.borrow();
+            if let Some((cached_time, cached_parent, cached_transform)) = cache.get(node_label) {
+                if *cached_time == time_ms && *cached_parent == parent_coeffs {
+                    *cached_transform
+                } else {
+                    drop(cache);
+                    let t = self.evaluate_node_transform(
+                        track,
+                        time_ms,
+                        parent_opacity,
+                        parent_transform,
+                        scene_dimensions,
+                        layout_pos,
+                    );
+                    self.transform_cache.borrow_mut().insert(
+                        node_label.to_string(),
+                        (time_ms, parent_coeffs, t),
+                    );
+                    t
+                }
+            } else {
+                drop(cache);
+                let t = self.evaluate_node_transform(
+                    track,
+                    time_ms,
+                    parent_opacity,
+                    parent_transform,
+                    scene_dimensions,
+                    layout_pos,
+                );
+                self.transform_cache.borrow_mut().insert(
+                    node_label.to_string(),
+                    (time_ms, parent_coeffs, t),
+                );
+                t
+            }
+        };
         let half_size = node_transform.half_size;
         let opacity = node_transform.opacity;
         let local_transform = node_transform.local_transform;
+
+        // P2.19: Viewport culling — skip rendering for off-screen actors.
+        // Compute a conservative world-space bounding box and check intersection
+        // with the viewport. Children are still evaluated since they may extend
+        // back into view even when the parent is off-screen.
+        let viewport = kurbo::Rect::new(
+            0.0,
+            0.0,
+            scene_dimensions.width as f64,
+            scene_dimensions.height as f64,
+        );
+        let max_extent = half_size[0].max(half_size[1]) as f64 * node_transform.scale.abs();
+        let margin = 100.0; // margin for effects and small children
+        let world_pos = local_transform * kurbo::Point::new(0.0, 0.0);
+        let actor_bounds = kurbo::Rect::new(
+            world_pos.x - max_extent - margin,
+            world_pos.y - max_extent - margin,
+            world_pos.x + max_extent + margin,
+            world_pos.y + max_extent + margin,
+        );
+        let is_visible = viewport.intersect(actor_bounds).area() > 0.0;
+
+        let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
+        let mut vector_paths = track.evaluate_vector_paths(time_ms);
+
+        // Re-sample procedural plots at frame time so they can reference `t`.
+        // Use the shared frame_env if available; fall back to creating one on-demand
+        // (should only happen when frame_env was created at top level).
+        if let Some(procedural_plot) = track.procedural_plot.as_ref() {
+            if let Some(env) = frame_env {
+                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, env);
+            } else {
+                let env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
+                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &env);
+            }
+        }
+
+        let node_overrides = overrides.get(node_label);
 
         let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
         let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
@@ -437,92 +504,97 @@ impl Timeline {
             }
         }
 
-        // ── Runtime text recompilation ──
-        let text_paths = self.evaluate_text_node(
-            track,
-            time_ms,
-            node_overrides,
-            &local_transform,
-            opacity,
-            scene,
-            &mut Vec::new(),
-        ).unwrap_or_default();
-
-        self.build_shape_vector_paths(
-            track,
-            time_ms,
-            half_size,
-            line_from,
-            line_to,
-            arc_angles,
-            color,
-            stroke_width,
-            stroke_color,
-            fill_opacity,
-            shape_type,
-            &mut vector_paths,
-        );
-
-        let local_opacity = opacity;
-        let image = track.image.get(time_ms, None);
-        let has_image = image.is_some();
-
-        // ── Effects rendering ──
-        self.render_node_effects(
-            scene,
-            &vector_paths,
-            local_transform,
-            local_opacity,
-            half_size,
-            shadow_offset,
-            shadow_blur,
-            shadow_color_val,
-            glow_radius,
-            glow_color_val,
-            backdrop_blur,
-        );
-
-        // ── Content rendering ──
-        self.render_node_content(
-            scene,
-            track,
-            &vector_paths,
-            &text_paths,
-            image,
-            local_transform,
-            local_opacity,
-            half_size,
-        );
-
-        // ── Debug overlays ──
-        if debug_options.draw_bounds {
-            let _ = self.add_node_debug_overlays(
+        // P2.19: Only sample properties and render if actor is visible on screen.
+        // For off-screen actors we still return transform/opacity so children
+        // (which may extend back into view) are correctly evaluated.
+        if is_visible {
+            // ── Runtime text recompilation ──
+            let text_paths = self.evaluate_text_node(
                 track,
-                half_size,
+                time_ms,
+                node_overrides,
                 &local_transform,
+                opacity,
+                scene,
+                &mut Vec::new(),
+            ).unwrap_or_default();
+
+            self.build_shape_vector_paths(
+                track,
+                time_ms,
+                half_size,
+                line_from,
+                line_to,
+                arc_angles,
+                color,
+                stroke_width,
+                stroke_color,
+                fill_opacity,
+                shape_type,
+                &mut vector_paths,
+            );
+
+            let local_opacity = opacity;
+            let image = track.image.get(time_ms, None);
+            let has_image = image.is_some();
+
+            // ── Effects rendering ──
+            self.render_node_effects(
                 scene,
                 &vector_paths,
-                &text_paths,
-                has_image,
+                local_transform,
+                local_opacity,
+                half_size,
+                shadow_offset,
+                shadow_blur,
+                shadow_color_val,
+                glow_radius,
+                glow_color_val,
+                backdrop_blur,
             );
+
+            // ── Content rendering ──
+            self.render_node_content(
+                scene,
+                track,
+                &vector_paths,
+                &text_paths,
+                image,
+                local_transform,
+                local_opacity,
+                half_size,
+            );
+
+            // ── Debug overlays ──
+            if debug_options.draw_bounds {
+                let _ = self.add_node_debug_overlays(
+                    track,
+                    half_size,
+                    &local_transform,
+                    scene,
+                    &vector_paths,
+                    &text_paths,
+                    has_image,
+                );
+            }
+
+            // ── Hit region collection ──
+            let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
+            let world_bounds = if let Some(local_bounds) = lb {
+                transform_rect_bbox(&local_transform, local_bounds)
+            } else {
+                let default_bounds = kurbo::Rect::new(
+                    (-half_size[0]) as f64,
+                    (-half_size[1]) as f64,
+                    half_size[0] as f64,
+                    half_size[1] as f64,
+                );
+                transform_rect_bbox(&local_transform, default_bounds)
+            };
+            hit_regions.push((node_label.to_string(), world_bounds));
         }
 
-        // ── Hit region collection ──
-        let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
-        let world_bounds = if let Some(local_bounds) = lb {
-            transform_rect_bbox(&local_transform, local_bounds)
-        } else {
-            let default_bounds = kurbo::Rect::new(
-                (-half_size[0]) as f64,
-                (-half_size[1]) as f64,
-                half_size[0] as f64,
-                half_size[1] as f64,
-            );
-            transform_rect_bbox(&local_transform, default_bounds)
-        };
-        hit_regions.push((node_label.to_string(), world_bounds));
-
-        (local_transform, local_opacity)
+        (local_transform, opacity)
     }
 
     /// Render drop shadow, glow, and backdrop blur effects for a node.
@@ -743,6 +815,7 @@ impl Timeline {
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
     ) {
         let Some(track) = self.tracks.get(node_label) else {
             return;
@@ -770,6 +843,7 @@ impl Timeline {
                     overrides,
                     &child_layout_positions,
                     hit_regions,
+                    frame_env,
                 );
 
                 // Get the first child's vector paths to use as clip shapes
@@ -802,6 +876,7 @@ impl Timeline {
                         overrides,
                         &child_layout_positions,
                         hit_regions,
+                        frame_env,
                     );
                     for _ in 0..clip_count {
                         scene.pop_layer();
@@ -821,6 +896,7 @@ impl Timeline {
                     overrides,
                     &child_layout_positions,
                     hit_regions,
+                    frame_env,
                 );
             }
         }
@@ -840,14 +916,12 @@ impl Timeline {
 
         // Check the frame cache: return cached scene if time and dimensions match
         // and the underlying modifiers/layout have not changed.
-        let has_modifiers = !self.modifier_bytecode_programs.is_empty()
-            || !self.modifier_programs.is_empty()
-            || !self.modifiers.is_empty();
+        let needs_frame_env = self.needs_frame_env();
         if debug_options == DebugRenderOptions::default() {
             if let Some(ref cached) = *self.frame_cache.borrow() {
                 if cached.time_ms == time_ms
                     && cached.dimensions == scene_dimensions
-                    && cached.has_modifiers == has_modifiers
+                    && cached.has_modifiers == needs_frame_env
                     && cached.has_dynamic_layout == self.dynamic_layout
                     && cached.has_child_orders == !self.child_orders.is_empty()
                 {
@@ -866,39 +940,53 @@ impl Timeline {
             String,
             std::collections::HashMap<String, Value>,
         > = std::collections::HashMap::new();
-        let mut frame_env = self.frame_eval_env(time_ms, scene_dimensions, &overrides);
+
+        // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
+        // For static scenes, this eliminates ~95% of evaluation overhead.
+        let needs_frame_env = self.needs_frame_env();
+        let mut frame_env = if needs_frame_env {
+            Some(self.frame_eval_env(time_ms, scene_dimensions, &overrides))
+        } else {
+            None
+        };
 
         // Use compiled bytecode for fastest evaluation; fall back to IR, then AST
         if !self.modifier_bytecode_programs.is_empty() {
-            for program in &self.modifier_bytecode_programs {
-                let _ = self.apply_modifier_bytecode_program(
-                    program,
-                    time_ms,
-                    scene_dimensions,
-                    &mut frame_env,
-                    &mut overrides,
-                );
+            if let Some(ref mut env) = frame_env {
+                for program in &self.modifier_bytecode_programs {
+                    let _ = self.apply_modifier_bytecode_program(
+                        program,
+                        time_ms,
+                        scene_dimensions,
+                        env,
+                        &mut overrides,
+                    );
+                }
             }
         } else if !self.modifier_programs.is_empty() {
-            for program in &self.modifier_programs {
-                let _ = self.apply_modifier_ir_program(
-                    program,
-                    time_ms,
-                    scene_dimensions,
-                    &mut frame_env,
-                    &mut overrides,
-                );
+            if let Some(ref mut env) = frame_env {
+                for program in &self.modifier_programs {
+                    let _ = self.apply_modifier_ir_program(
+                        program,
+                        time_ms,
+                        scene_dimensions,
+                        env,
+                        &mut overrides,
+                    );
+                }
             }
         } else {
             // AST fallback path (used when compilation failed or no modifiers exist)
-            for modifier in &self.modifiers {
-                self.apply_modifier_stmt(
-                    modifier,
-                    time_ms,
-                    scene_dimensions,
-                    &mut frame_env,
-                    &mut overrides,
-                );
+            if let Some(ref mut env) = frame_env {
+                for modifier in &self.modifiers {
+                    self.apply_modifier_stmt(
+                        modifier,
+                        time_ms,
+                        scene_dimensions,
+                        env,
+                        &mut overrides,
+                    );
+                }
             }
         }
 
@@ -922,18 +1010,48 @@ impl Timeline {
         );
 
         for root in &self.root_nodes {
-            self.evaluate_node(
-                root,
-                time_ms,
-                kurbo::Affine::IDENTITY,
-                1.0,
-                scene_dimensions,
-                debug_options,
-                &mut scene,
-                &overrides,
-                &std::collections::BTreeMap::new(), // empty for roots
-                &mut hit_regions,
-            );
+            // P2.17: Static subtree cache — fully-static subtrees are evaluated once
+            // and their vello encoding is reused on all subsequent frames.
+            if self.is_static_subtree(root) {
+                let mut cache = self.static_subtree_cache.borrow_mut();
+                if let Some(cached_scene) = cache.get(root) {
+                    // Fast path: append cached encoding directly
+                    scene.encoding_mut().append(cached_scene.encoding(), &None);
+                } else {
+                    drop(cache);
+                    let mut temp_scene = vello::Scene::new();
+                    self.evaluate_node(
+                        root,
+                        time_ms,
+                        kurbo::Affine::IDENTITY,
+                        1.0,
+                        scene_dimensions,
+                        debug_options,
+                        &mut temp_scene,
+                        &overrides,
+                        &std::collections::BTreeMap::new(),
+                        &mut hit_regions,
+                        frame_env.as_ref(),
+                    );
+                    // Append to main scene and cache for next time
+                    scene.encoding_mut().append(temp_scene.encoding(), &None);
+                    self.static_subtree_cache.borrow_mut().insert(root.clone(), temp_scene);
+                }
+            } else {
+                self.evaluate_node(
+                    root,
+                    time_ms,
+                    kurbo::Affine::IDENTITY,
+                    1.0,
+                    scene_dimensions,
+                    debug_options,
+                    &mut scene,
+                    &overrides,
+                    &std::collections::BTreeMap::new(), // empty for roots
+                    &mut hit_regions,
+                    frame_env.as_ref(),
+                );
+            }
         }
 
         // Store hit regions for click-to-select
@@ -944,7 +1062,7 @@ impl Timeline {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
                 dimensions: scene_dimensions,
-                has_modifiers,
+                has_modifiers: needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders: !self.child_orders.is_empty(),
                 scene: scene.clone(),

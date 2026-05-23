@@ -320,6 +320,14 @@ pub struct Timeline {
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
+    /// Per-actor transform cache for temporal coherence (P2.18).
+    /// Maps actor_label -> (time_ms, parent_transform_coeffs, NodeTransform).
+    /// Cleared on timeline rebuild.
+    transform_cache: std::cell::RefCell<std::collections::HashMap<String, (u64, [f64; 6], scene_eval::NodeTransform)>>,
+    /// Static subtree scene fragment cache (P2.17).
+    /// Maps root_label -> cached vello Scene for fully-static subtrees.
+    /// Cleared on timeline rebuild.
+    static_subtree_cache: std::cell::RefCell<std::collections::HashMap<String, vello::Scene>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
     /// Each entry is (actor_label, world_bounds). Populated during evaluate.
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
@@ -366,6 +374,8 @@ impl Clone for Timeline {
             child_orders: self.child_orders.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
+            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
+            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
@@ -401,6 +411,8 @@ impl Timeline {
             child_orders: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),
+            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
@@ -709,6 +721,38 @@ impl Timeline {
         &mut self.env
     }
 
+    /// Returns true if any actor has a procedural plot that requires frame environment.
+    pub(crate) fn has_procedural_plots(&self) -> bool {
+        self.tracks.values().any(|t| t.procedural_plot.is_some())
+    }
+
+    /// Returns true if frame environment is needed for evaluation.
+    /// Frame environment is needed when modifiers or procedural plots exist.
+    pub(crate) fn needs_frame_env(&self) -> bool {
+        !self.modifiers.is_empty()
+            || !self.modifier_programs.is_empty()
+            || !self.modifier_bytecode_programs.is_empty()
+            || self.has_procedural_plots()
+    }
+
+    /// Returns true if the actor and all its descendants have no keyframes
+    /// and the timeline has no modifiers that could affect them.
+    /// Fully-static subtrees can have their rendered output cached (P2.17).
+    pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
+        // Conservative: if any modifiers exist, we can't safely cache because
+        // modifiers might change actor properties at frame time.
+        if self.needs_frame_env() {
+            return false;
+        }
+        let Some(track) = self.tracks.get(label) else {
+            return true;
+        };
+        if track.has_any_keyframes() || track.procedural_plot.is_some() {
+            return false;
+        }
+        track.children.iter().all(|child| self.is_static_subtree(child))
+    }
+
     /// Invalidate the frame evaluation cache.
     ///
     /// Call this after mutating track data (e.g. adding keyframes or changing
@@ -716,6 +760,8 @@ impl Timeline {
     /// of returning a stale cached one.
     pub fn invalidate_frame_cache(&self) {
         *self.frame_cache.borrow_mut() = None;
+        *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.transform_cache.borrow_mut() = std::collections::HashMap::new();
     }
 
     /// Returns the appropriate default color for a primitive type and property,
