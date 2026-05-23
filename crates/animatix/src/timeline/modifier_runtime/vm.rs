@@ -8,34 +8,61 @@ use crate::ast::BinaryOp;
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
 
+/// Bytecode instruction for the modifier VM.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
+    /// Load a constant from the constant pool onto the stack.
     LoadConst(usize),
+    /// Load a variable from the environment onto the stack.
     LoadEnv(String),
+    /// Pop a value from the stack and store it in the environment.
     StoreEnv(String),
+    /// Pop N values from the stack and combine them into a vector.
     MakeVec(usize),
+    /// Pop a value and negate it.
     UnaryNeg,
+    /// Pop a value and apply logical not (0 → 1, non-zero → 0).
     UnaryNot,
+    /// Pop two values, apply a binary operator, and push the result.
     Binary(BinaryOp),
+    /// Pop arguments and call a built-in function.
     CallBuiltin(BuiltinFn, usize),
+    /// Pop an index and a container, then push the indexed value.
     Index,
+    /// Pop arguments and a receiver, then call a method.
     CallMethod(String, usize),
+    /// Pop a condition; if false, jump to the target instruction.
     JumpIfFalse(usize),
+    /// Unconditional jump to the target instruction.
     Jump(usize),
-    BeginFor(String),       // var name; pops iterable from stack
-    CheckFor(String, usize), // var name, end jump; advances iterator, sets var, jumps to end if exhausted
-    WriteOverride { target: String, property: String },
+    /// Begin a for-loop: pop iterable and set up iterator state.
+    BeginFor(String),
+    /// Advance iterator; if exhausted, jump to the end of the loop.
+    CheckFor(String, usize),
+    /// Pop a value and write it as an override for the target property.
+    WriteOverride {
+        /// Actor label to write the override to.
+        target: String,
+        /// Property name to override.
+        property: String,
+    },
+    /// Halt execution.
     Halt,
 }
 
+/// A compiled modifier bytecode program.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModifierBytecodeProgram {
+    /// Instruction sequence.
     pub instructions: Vec<Instruction>,
+    /// Constant pool.
     pub constants: Vec<Value>,
 }
 
+/// Error during bytecode compilation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum VmCompileError {
+    /// Encountered an unsupported expression.
     UnsupportedExpr,
 }
 
@@ -54,6 +81,7 @@ impl fmt::Display for VmCompileError {
 
 impl std::error::Error for VmCompileError {}
 
+/// Compile a modifier IR program into bytecode.
 pub fn compile_modifier_bytecode(
     program: &ModifierIrProgram,
 ) -> Result<ModifierBytecodeProgram, VmCompileError> {
@@ -68,6 +96,7 @@ pub fn compile_modifier_bytecode(
     })
 }
 
+/// Execute a compiled modifier bytecode program.
 pub fn execute_modifier_bytecode(
     program: &ModifierBytecodeProgram,
     frame_env: &mut Environment,

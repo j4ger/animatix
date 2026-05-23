@@ -71,27 +71,41 @@ mod typst;      pub use typst::TYPST;
 
 /// Context passed to `Primitive::build()`.
 pub struct BuildCtx<'a> {
+    /// The timeline being built.
     pub timeline: &'a mut Timeline,
+    /// Current time in milliseconds.
     pub time_ms: f64,
+    /// Optional parent actor label.
     pub parent_label: Option<&'a str>,
+    /// Build diagnostics collector.
     pub diagnostics: &'a mut Vec<Diagnostic>,
 }
 
 /// Timing and resource context for `Primitive::handle_assignment()`.
 pub struct AssignmentCtx<'a> {
+    /// Animation start time in milliseconds.
     pub t_start_ms: u64,
+    /// Animation end time in milliseconds.
     pub t_end_ms: u64,
+    /// Easing function for the animation.
     pub easing: Easing,
+    /// Whether the animation is instant but delayed.
     pub instant_delayed: bool,
+    /// Animation duration in milliseconds.
     pub duration_ms: f64,
+    /// Font rendering context.
     pub font_context: &'a crate::renderer::text::FontContext,
+    /// Text compiler for recompilation.
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
 }
 
 /// Context passed to `Primitive::render()`.
 pub struct RenderCtx<'a> {
+    /// Current vector shape state.
     pub state: &'a VectorShapeState,
+    /// Shape style (color, stroke, fill).
     pub style: VectorShapeStyle,
+    /// Current time in milliseconds.
     pub time_ms: u64,
 }
 
@@ -253,11 +267,17 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
 /// Static metadata generated from `PRIMITIVES`.
 /// Built once at first access via `OnceLock`.
 pub struct ActorKindMeta {
+    /// Actor kind identifier.
     pub kind: ActorKindId,
+    /// Source-text type name.
     pub type_name: &'static str,
+    /// Human-readable display name.
     pub display_name: &'static str,
+    /// UI category.
     pub category: ActorCategory,
+    /// Icon identifier.
     pub icon_id: &'static str,
+    /// Whether shown in advanced submenu.
     pub advanced: bool,
 }
 

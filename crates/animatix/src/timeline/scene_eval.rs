@@ -9,6 +9,7 @@ use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub(crate) struct NodeTransform {
     pub position: [f32; 2],
     pub half_size: [f32; 2],
@@ -271,6 +272,7 @@ impl Timeline {
 }
 
 impl Timeline {
+    /// Extract all text glyph paths from every track in the timeline.
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
@@ -902,10 +904,12 @@ impl Timeline {
         }
     }
 
+    /// Evaluate the timeline at the given time and return a rendered `vello::Scene`.
     pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
         self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default())
     }
 
+    /// Evaluate the timeline with optional debug overlays.
     pub fn evaluate_with_debug(
         &self,
         time_s: f64,
@@ -1015,7 +1019,7 @@ impl Timeline {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
             // and their vello encoding is reused on all subsequent frames.
             if self.is_static_subtree(root) {
-                let mut cache = self.static_subtree_cache.borrow_mut();
+                let cache = self.static_subtree_cache.borrow_mut();
                 if let Some(cached_scene) = cache.get(root) {
                     // Fast path: append cached encoding directly
                     scene.encoding_mut().append(cached_scene.encoding(), &None);

@@ -34,6 +34,7 @@ fn lower_modifier_roots(
     Ok(())
 }
 
+/// Lower a flat block of modifier body statements into IR statements.
 pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
     body.iter().map(lower_modifier_stmt).collect()
 }
@@ -115,12 +116,14 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
     }
 }
 
+/// Compile an AST expression into a modifier expression (compiled or unsupported).
 pub fn compile_modifier_expr(expr: &Expr) -> ModifierExpr {
     compile_expr(expr)
         .map(ModifierExpr::Compiled)
         .unwrap_or_else(|| ModifierExpr::Unsupported(expr.clone()))
 }
 
+/// Compile an AST expression into a compiled IR expression, if supported.
 pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
     match expr {
         Expr::Num(n) => Some(CompiledExpr::Const(Value::Num(*n))),

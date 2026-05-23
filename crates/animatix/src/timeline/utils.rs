@@ -600,6 +600,7 @@ fn format_value(value: &Value) -> String {
     }
 }
 
+/// Parse a color expression into an `[r, g, b, a]` array.
 pub fn parse_color(expr: &Expr) -> [f32; 4] {
     parse_color_in_env(expr, &Environment::new())
 }
@@ -626,6 +627,7 @@ fn color_from_value(value: Value) -> Option<[f32; 4]> {
     }
 }
 
+/// Resolve a color expression in the given environment, returning `None` if not a color.
 pub fn resolve_color_in_env(expr: &Expr, env: &Environment) -> Result<Option<[f32; 4]>, EvalError> {
     if let Expr::Ident(name) = expr
         && let Some(color) = named_color(name)
@@ -636,6 +638,7 @@ pub fn resolve_color_in_env(expr: &Expr, env: &Environment) -> Result<Option<[f3
     evaluate_expr(expr, env).map(color_from_value)
 }
 
+/// Parse a color expression in the given environment, falling back to a default gray.
 pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
     resolve_color_in_env(expr, env)
         .ok()
@@ -643,6 +646,7 @@ pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
         .unwrap_or([0.8, 0.8, 0.8, 1.0])
 }
 
+/// Convert a `Time` value to milliseconds.
 pub fn time_to_ms(time: &Time) -> f64 {
     match time {
         Time::Seconds(s) => *s * 1000.0,

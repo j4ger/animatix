@@ -8,6 +8,10 @@
 use std::collections::HashMap;
 use crate::ast::{ByteSpan, InlineItem, Stmt};
 
+/// Index mapping actor labels + property names to their source byte spans.
+///
+/// Built by walking the AST once; used by the GUI inspector for go-to-definition
+/// and by diagnostics to report precise source locations.
 #[derive(Debug, Default)]
 pub struct SourceIndex {
     /// Maps (actor_label, property_name) → ByteSpan for declaration properties.
@@ -20,6 +24,7 @@ pub struct SourceIndex {
 }
 
 impl SourceIndex {
+    /// Build the index by walking all statements (and nested inline items).
     pub fn build(stmts: &[Stmt]) -> Self {
         let mut index = SourceIndex::default();
         index.walk(stmts);

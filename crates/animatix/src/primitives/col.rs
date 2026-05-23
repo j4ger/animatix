@@ -1,9 +1,14 @@
+//! Column layout container primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Col` primitive.
 pub struct ColPrimitive;
+
+/// Singleton instance of [`ColPrimitive`].
 pub const COL: ColPrimitive = ColPrimitive;
 
 impl Primitive for ColPrimitive {

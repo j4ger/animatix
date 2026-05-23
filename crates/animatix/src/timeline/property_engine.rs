@@ -55,16 +55,27 @@ use super::{
 /// A parsed property value, typed by the ValueType that produced it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PropertyValue {
+    /// Single 32-bit float.
     F32(f32),
+    /// Single 32-bit unsigned integer.
     U32(u32),
+    /// 2-component vector.
     Vec2([f32; 2]),
+    /// 4-component vector.
     Vec4([f32; 4]),
+    /// List of 2D points.
     PointList(Vec<[f32; 2]>),
+    /// SVG path command string.
     CommandList(String),
+    /// RGBA color.
     Color([f32; 4]),
+    /// Arbitrary string.
     String(String),
+    /// Placement mode for layout.
     PlacementMode(super::PlacementMode),
+    /// Options controlling path morphing.
     MorphOptions(super::MorphOptions),
+    /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
 }
 

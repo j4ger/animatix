@@ -1,9 +1,14 @@
+//! Group container primitive.
+
 use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Group` primitive.
 pub struct GroupPrimitive;
+
+/// Singleton instance of [`GroupPrimitive`].
 pub const GROUP: GroupPrimitive = GroupPrimitive;
 
 impl Primitive for GroupPrimitive {

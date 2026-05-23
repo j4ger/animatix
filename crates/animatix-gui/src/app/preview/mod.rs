@@ -79,7 +79,7 @@ impl PreviewTransform {
 
 /// Which spatial property a scale drag should mutate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ResizeMode {
+pub enum ResizeMode {
     /// Change the explicit `size` property (Vec2). Used for shapes, images,
     /// and containers where `size` directly controls geometry.
     Size,
@@ -92,7 +92,7 @@ pub(super) enum ResizeMode {
 /// Active tool mode for the preview canvas. Determines the default interaction
 /// when clicking on an actor body (handles still work in all modes).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(super) enum ToolMode {
+pub enum ToolMode {
     /// Auto-detect interaction based on cursor position (default).
     #[default]
     Select,
@@ -116,7 +116,7 @@ pub(super) enum ToolMode {
 /// All spatial manipulation is computed in the actor's **object-local** coordinate system
 /// (origin at actor centre, pre-rotation axes) and then transformed to world space.
 #[derive(Debug, Clone)]
-pub(super) enum DragState {
+pub enum DragState {
     None,
     /// Dragging actor(s) to move them.
     Move {
@@ -195,7 +195,7 @@ pub(super) enum DragState {
 
 /// The essential spatial properties of an actor, extracted from the timeline.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct ActorProps {
+pub struct ActorProps {
     pub position: [f32; 2],
     pub size: [f32; 2],
     pub rotation: f32,

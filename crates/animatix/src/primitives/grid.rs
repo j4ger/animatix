@@ -1,9 +1,14 @@
+//! Grid layout container primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Grid` primitive.
 pub struct GridPrimitive;
+
+/// Singleton instance of [`GridPrimitive`].
 pub const GRID: GridPrimitive = GridPrimitive;
 
 impl Primitive for GridPrimitive {

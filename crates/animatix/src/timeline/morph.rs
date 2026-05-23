@@ -1,16 +1,24 @@
 use kurbo::{BezPath, CubicBez, ParamCurve, PathEl, Point};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Strategy for aligning paths before morphing.
 pub enum MorphStrategy {
+    /// Automatic alignment (index-based pairing).
     Auto,
+    /// Sort paths by centroid before pairing.
     Match,
+    /// Fade-based transition (placeholder).
     Fade,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+/// Options controlling path morphing behavior.
 pub struct MorphOptions {
+    /// Alignment strategy to use.
     pub strategy: MorphStrategy,
+    /// Arc amount for curved interpolation (radians).
     pub path_arc: f64,
+    /// Whether to stretch paths to match bounding boxes.
     pub stretch: bool,
 }
 
@@ -47,6 +55,7 @@ pub fn align_path_lists(source: &[BezPath], target: &[BezPath]) -> Vec<(BezPath,
     align_path_lists_with_strategy(source, target, MorphStrategy::Auto)
 }
 
+/// Align two lists of paths using the specified strategy.
 pub fn align_path_lists_with_strategy(
     source: &[BezPath],
     target: &[BezPath],
@@ -93,6 +102,7 @@ pub fn align_subpaths(source: &BezPath, target: &BezPath) -> (BezPath, BezPath) 
     align_subpaths_with_strategy(source, target, MorphStrategy::Auto)
 }
 
+/// Align subpaths within two paths using the specified strategy.
 pub fn align_subpaths_with_strategy(
     source: &BezPath,
     target: &BezPath,
@@ -208,6 +218,7 @@ pub fn morph_paths(source: &BezPath, target: &BezPath, t: f64) -> BezPath {
     morph_paths_with_options(source, target, t, MorphOptions::default())
 }
 
+/// Morph between two paths with custom options.
 pub fn morph_paths_with_options(
     source: &BezPath,
     target: &BezPath,

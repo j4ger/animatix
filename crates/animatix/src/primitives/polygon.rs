@@ -1,3 +1,5 @@
+//! Polygon shape primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
@@ -5,7 +7,10 @@ use crate::timeline::{Environment, VectorShapeState};
 use crate::timeline::shapes::parse_point_list_expr;
 use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VelloPath};
 
+/// The `Polygon` primitive.
 pub struct PolygonPrimitive;
+
+/// Singleton instance of [`PolygonPrimitive`].
 pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 
 impl Primitive for PolygonPrimitive {

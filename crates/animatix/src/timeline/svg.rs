@@ -3,6 +3,7 @@ use kurbo::{BezPath, Shape};
 use usvg::{Node, Options, Tree};
 use vello::peniko::Color;
 
+/// Compute the half-size bounding box of a set of SVG paths.
 pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -27,6 +28,7 @@ pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
     }
 }
 
+/// Center a set of SVG paths around the origin by translating their bounding box.
 pub fn center_svg_paths(paths: &mut [VelloPath]) {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -52,6 +54,7 @@ pub fn center_svg_paths(paths: &mut [VelloPath]) {
     }
 }
 
+/// Parse an SVG string into a list of `VelloPath` objects.
 pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
     let opt = Options::default();
     let tree = Tree::from_str(svg_data, &opt).map_err(|error| format!("{error:?}"))?;

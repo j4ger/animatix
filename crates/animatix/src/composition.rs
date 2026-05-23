@@ -21,27 +21,35 @@ use std::collections::{BTreeMap, HashMap};
 /// A compiled scene within a multi-scene composition.
 #[derive(Clone)]
 pub struct CompositionScene {
+    /// Scene identifier from the `# SceneName` declaration.
     pub name: String,
+    /// Scene-level config properties (e.g. colorscheme).
     pub config: Vec<Property>,
+    /// Built timeline for this scene.
     pub timeline: Timeline,
+    /// Duration of this scene in seconds.
     pub duration_s: f64,
+    /// Source span of the scene declaration, for diagnostics.
     pub source_span: Option<Span>,
 }
 
 /// Edge from one scene to another (via `play` or implicit ordering).
 #[derive(Clone)]
 pub struct SceneEdge {
+    /// Target scene name to transition into.
     pub to_scene: String,
+    /// Transition effect applied when entering the target scene.
     pub transition: Transition,
 }
 
 /// Complete multi-scene composition.
 #[derive(Clone)]
 pub struct Composition {
+    /// All scenes by name.
     pub scenes: BTreeMap<String, CompositionScene>,
     /// Default order when no explicit `play` edges exist.
     pub declaration_order: Vec<String>,
-    /// Explicit play edges: scene_name → edge
+    /// Explicit play edges: scene_name → edge.
     pub edges: BTreeMap<String, SceneEdge>,
     /// Total duration of the composition in seconds.
     pub global_duration_s: f64,
@@ -95,18 +103,25 @@ fn validate_play_target(
 
 /// Per-frame evaluation result in global time space.
 pub struct CompositionFrame {
+    /// Name of the currently active scene.
     pub scene_name: String,
+    /// Time within the active scene in seconds.
     pub local_time_s: f64,
+    /// Active transition blend, if any.
     pub transition_blend: Option<TransitionBlend>,
 }
 
 /// Active transition between two scenes.
 pub struct TransitionBlend {
+    /// Scene being transitioned out of.
     pub from_scene: String,
+    /// Scene being transitioned into.
     pub to_scene: String,
     /// 0.0 = fully from, 1.0 = fully to
     pub progress: f64,
+    /// Transition identifier (e.g. "fade", "cut").
     pub id: String,
+    /// Easing curve applied to the transition progress.
     pub easing: crate::easing::Easing,
 }
 

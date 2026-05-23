@@ -1,9 +1,14 @@
+//! Row layout container primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Row` primitive.
 pub struct RowPrimitive;
+
+/// Singleton instance of [`RowPrimitive`].
 pub const ROW: RowPrimitive = RowPrimitive;
 
 impl Primitive for RowPrimitive {

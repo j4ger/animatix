@@ -4,9 +4,6 @@
 //! `build_with_diagnostics()`, `build_with_diagnostics_and_font_context()`.
 
 use super::*;
-use crate::ast::{InlineItem, Property};
-use crate::timeline::actor_kind::find_actor_kind;
-use crate::timeline::vello_path::VelloPath;
 use tracing::instrument;
 
 impl Timeline {
@@ -44,10 +41,12 @@ impl Timeline {
         self.apply_container_layout(label, time_ms as f64, diagnostics);
     }
 
+    /// Build a `Timeline` from an AST with the default font context.
     pub fn build(ast: &[Stmt]) -> Self {
         Self::build_with_font_context(ast, crate::renderer::text::FontContext::new())
     }
 
+    /// Build a `Timeline` from an AST with a custom font context.
     pub fn build_with_font_context(
         ast: &[Stmt],
         font_context: crate::renderer::text::FontContext,
@@ -56,6 +55,8 @@ impl Timeline {
             .output
     }
 
+    /// Build a `Timeline` from an AST, collecting diagnostics and using the
+    /// default font context.
     #[instrument(skip(ast, namespaces), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics(
         ast: &[Stmt],
@@ -68,6 +69,8 @@ impl Timeline {
         )
     }
 
+    /// Build a `Timeline` from an AST with full control over diagnostics and
+    /// font context.
     #[instrument(skip(ast, namespaces), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics_and_font_context(
         ast: &[Stmt],

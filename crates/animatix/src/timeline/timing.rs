@@ -114,6 +114,7 @@ impl ModifierHost {
     }
 }
 
+/// Parse an easing name into the corresponding `Easing` variant.
 pub fn parse_easing_name(raw: &str) -> Option<Easing> {
     match raw {
         "ease-in" | "easein" => Some(Easing::EaseIn),

@@ -1,3 +1,5 @@
+//! Ellipse shape primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
@@ -7,7 +9,10 @@ use crate::timeline::{
     Environment, Value,
 };
 
+/// The `Ellipse` primitive.
 pub struct EllipsePrimitive;
+
+/// Singleton instance of [`EllipsePrimitive`].
 pub const ELLIPSE: EllipsePrimitive = EllipsePrimitive;
 
 impl Primitive for EllipsePrimitive {

@@ -2,7 +2,7 @@
 
 use animatix::ast::{ComponentDef, Expr, Stmt, Time};
 
-use super::apply::{find_assignment_mut, time_to_seconds};
+use super::apply::time_to_seconds;
 use super::apply::canonical_to_source;
 
 // ---------------------------------------------------------------------------
@@ -364,7 +364,6 @@ fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
     use super::super::apply::{SourceEdit, apply_edit};
     use animatix::ast::{Expr, Stmt, Time};
     use animatix::parser::parser;

@@ -34,7 +34,6 @@ pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::{parser, ParseError};
 use chumsky::Parser;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tree_sitter::{Parser as TsParser, Tree};
 

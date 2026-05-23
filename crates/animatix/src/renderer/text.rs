@@ -19,6 +19,7 @@ use typst::{Library, LibraryExt};
 /// Create one `FontContext` early and share it throughout the build pipeline.
 #[derive(Clone, Debug)]
 pub struct FontContext {
+    /// The underlying font database.
     db: fontdb::Database,
 }
 
@@ -29,6 +30,7 @@ impl Default for FontContext {
 }
 
 impl FontContext {
+    /// Create a new font context with system fonts loaded.
     pub fn new() -> Self {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
@@ -54,6 +56,7 @@ impl FontContext {
             .is_some()
     }
 
+    /// Return a sorted list of all available font family names from the system.
     pub fn families(&self) -> Vec<String> {
         let mut names: Vec<String> = self
             .db
@@ -103,8 +106,9 @@ static BUNDLED_FONTS: &[BundledFont] = &[
     },
 ];
 
-/// Fallback font family when the requested one is not in the bundle.
+/// Default font family used when the requested one is not available.
 pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
+/// Default math font family used for math rendering.
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
@@ -196,24 +200,34 @@ impl ttf_parser::OutlineBuilder for PathBuilder {
     }
 }
 
+/// A shape extracted from a Typst frame, containing the curve and its transform.
 #[derive(Clone)]
 pub struct ExtractedShape {
+    /// The curve geometry of the shape.
     pub curve: typst::visualize::Curve,
+    /// The transform applied to the shape.
     pub transform: Transform,
 }
 
+/// A Typst world implementation for compiling text and math.
 pub struct TypstWorld {
+    /// The source document.
     source: Source,
+    /// Loaded fonts.
     fonts: Vec<Font>,
+    /// Font book mapping indices to font info.
     book: LazyHash<FontBook>,
+    /// Typst standard library.
     library: LazyHash<Library>,
 }
 
 impl TypstWorld {
+    /// Create a new Typst world with the given source and font context.
     pub fn new(source: Source, font_ctx: &FontContext) -> Result<Self, RenderError> {
         build_world(source, &[], font_ctx)
     }
 
+    /// Create a new Typst world with additional font families.
     pub fn with_fonts(source: Source, fonts: &[&str], font_ctx: &FontContext) -> Result<Self, RenderError> {
         build_world(source, fonts, font_ctx)
     }
@@ -257,6 +271,7 @@ impl World for TypstWorld {
     }
 }
 
+/// Compile LaTeX math into a Typst frame.
 pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
     let typst_markup = convert_math(latex, None)
@@ -277,6 +292,7 @@ pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color,
     Ok(document.pages[0].frame.clone())
 }
 
+/// Compile Typst markup into a frame.
 pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let markup = format!(
@@ -295,6 +311,7 @@ pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize
     Ok(document.pages[0].frame.clone())
 }
 
+/// Compile plain text into a Typst frame.
 pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let escaped = text
@@ -317,6 +334,7 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
     Ok(document.pages[0].frame.clone())
 }
 
+/// Compile code text into a Typst frame.
 pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let escaped = code
@@ -339,6 +357,7 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
     Ok(document.pages[0].frame.clone())
 }
 
+/// Extract glyph paths from a Typst frame.
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
@@ -374,6 +393,7 @@ pub fn center_text_paths(paths: &mut [TextPath]) {
     }
 }
 
+/// Measure the bounding box of text paths and return half-width and half-height.
 pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -460,6 +480,7 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
     }
 }
 
+/// Extract shapes from a Typst frame.
 pub fn extract_shapes(frame: &Frame) -> Vec<ExtractedShape> {
     let mut shapes = Vec::new();
     walk_frame_for_shapes(frame, Transform::identity(), &mut shapes);
@@ -498,9 +519,13 @@ fn walk_frame_for_shapes(
 /// Identifies the kind of text being compiled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextKind {
+    /// Plain text.
     Text,
+    /// LaTeX math.
     Math,
+    /// Code text.
     Code,
+    /// Typst markup.
     Typst,
 }
 
@@ -527,6 +552,7 @@ pub struct TextCompiler {
 }
 
 impl TextCompiler {
+    /// Create a new text compiler with an empty cache.
     pub fn new() -> Self {
         Self::default()
     }

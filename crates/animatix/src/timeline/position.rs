@@ -111,6 +111,7 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
     None
 }
 
+/// Compute the scene-space anchor point for the given anchor and scene dimensions.
 pub fn scene_anchor_point(
     anchor: SceneAnchor,
     scene_dimensions: SceneDimensions,

@@ -31,16 +31,31 @@ pub use image::{
 // Error types
 // ---------------------------------------------------------------------------
 
+/// Unified error type for all export/encoding operations.
 #[derive(Debug)]
 pub enum ExportError {
+    /// Renderer initialization failed.
     RendererCreation(String),
-    FrameRender { frame: usize, message: String },
+    /// A specific frame failed to render.
+    FrameRender {
+        /// Frame index that failed.
+        frame: usize,
+        /// Error message describing the failure.
+        message: String,
+    },
+    /// Image encoding failed (e.g. buffer creation).
     ImageEncode(String),
+    /// Failed to write image file to disk.
     ImageSave(std::io::Error),
+    /// Video encoding failed (ffmpeg/rsmpeg error).
     VideoEncode(String),
+    /// GIF encoding failed.
     GifEncode(String),
+    /// Output path contains invalid characters (null bytes).
     InvalidPath(std::ffi::NulError),
+    /// A render thread panicked during export.
     ThreadPanicked,
+    /// Export was cancelled by the user.
     Cancelled,
 }
 
@@ -80,6 +95,7 @@ impl From<std::ffi::NulError> for ExportError {
 // Export settings
 // ---------------------------------------------------------------------------
 
+/// Export configuration settings.
 #[derive(Debug, Clone, Copy)]
 pub struct ExportSettings {
     /// Render thread limit. `Auto` picks based on format, resolution, and duration.
@@ -100,9 +116,12 @@ impl Default for ExportSettings {
     }
 }
 
+/// Render thread limit for exports.
 #[derive(Debug, Clone, Copy)]
 pub enum MaxRenderThreads {
+    /// Automatically choose thread count based on workload.
     Auto,
+    /// Use a fixed number of threads.
     Fixed(usize),
 }
 
@@ -127,11 +146,16 @@ impl std::str::FromStr for MaxRenderThreads {
     }
 }
 
+/// Video encoder selection for MP4 exports.
 #[derive(Debug, Clone, Copy)]
 pub enum VideoCodec {
+    /// Auto-detect: try hardware encoders first, fall back to libx264.
     Auto,
+    /// Software H.264 encoder (libx264).
     Libx264,
+    /// NVIDIA hardware H.264 encoder (h264_nvenc).
     H264Nvenc,
+    /// VAAPI hardware H.264 encoder (h264_vaapi).
     H264Vaapi,
 }
 
@@ -161,20 +185,34 @@ impl std::str::FromStr for VideoCodec {
     }
 }
 
+/// libx264 quality-speed preset.
+///
+/// Slower presets produce smaller files at the cost of encoding time.
+/// Ignored for hardware encoders.
 #[derive(Debug, Clone, Copy)]
 pub enum H264Preset {
+    /// Fastest, largest file size.
     Ultrafast,
+    /// Very fast encode.
     Superfast,
+    /// Fast encode.
     Veryfast,
+    /// Slightly faster than default.
     Faster,
+    /// Fast preset.
     Fast,
+    /// Default balance of speed and quality.
     Medium,
+    /// Slower, better compression.
     Slow,
+    /// Even slower, better compression.
     Slower,
+    /// Slowest, best compression.
     Veryslow,
 }
 
 impl H264Preset {
+    /// Returns the ffmpeg preset name.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Ultrafast => "ultrafast",

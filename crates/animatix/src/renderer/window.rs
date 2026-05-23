@@ -293,15 +293,19 @@ impl ApplicationHandler for App {
     }
 }
 
+/// Open a live preview window and play back the animation described by `ast`.
 pub fn run(ast: &[Stmt]) -> Result<(), RenderError> {
     let timeline = Timeline::build(ast);
     run_timeline(timeline)
 }
 
+/// Open a live preview window and play back the given `timeline`.
 pub fn run_timeline(timeline: Timeline) -> Result<(), RenderError> {
     run_timeline_with_options(timeline, false, DebugRenderOptions::default())
 }
 
+/// Open a live preview window and play back the given `timeline` with optional
+/// looping and debug visualization.
 pub fn run_timeline_with_options(
     timeline: Timeline,
     loop_playback: bool,

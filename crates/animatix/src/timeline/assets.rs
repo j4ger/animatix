@@ -13,6 +13,7 @@ pub struct AssetCache {
 }
 
 impl AssetCache {
+    /// Create a new empty asset cache.
     pub fn new() -> Self {
         Self::default()
     }

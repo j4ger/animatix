@@ -2,13 +2,19 @@ use super::core::RendererCore;
 use super::transition::TransitionCompositor;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
+/// A single frame rendered to CPU-accessible RGBA memory.
 #[derive(Debug, Clone)]
 pub struct RenderedFrame {
+    /// Frame width in pixels.
     pub width: u32,
+    /// Frame height in pixels.
     pub height: u32,
+    /// Raw RGBA8 pixel data, row-major order.
     pub rgba: Vec<u8>,
 }
 
+/// GPU-backed offscreen renderer that evaluates a [`Timeline`] and produces
+/// [`RenderedFrame`] buffers or intermediate GPU textures.
 pub struct OffscreenRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -26,6 +32,7 @@ pub struct OffscreenRenderer {
 }
 
 impl OffscreenRenderer {
+    /// Create a new offscreen renderer with an automatically-selected GPU adapter.
     pub fn new() -> Result<Self, String> {
         pollster::block_on(Self::new_async())
     }
@@ -77,6 +84,7 @@ impl OffscreenRenderer {
         })
     }
 
+    /// Render a single frame of `timeline` at `time_s` with the given dimensions.
     pub fn render_timeline(
         &mut self,
         timeline: &Timeline,
@@ -86,6 +94,8 @@ impl OffscreenRenderer {
         self.render_timeline_with_debug(timeline, time_s, dimensions, DebugRenderOptions::default())
     }
 
+    /// Render a single frame of `timeline` at `time_s` with the given dimensions
+    /// and debug visualization options.
     pub fn render_timeline_with_debug(
         &mut self,
         timeline: &Timeline,

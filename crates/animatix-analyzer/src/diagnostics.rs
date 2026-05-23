@@ -9,21 +9,32 @@ use tree_sitter::Tree;
 /// A diagnostic message (error, warning, etc.).
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
+    /// The severity level of this diagnostic.
     pub severity: DiagnosticSeverity,
+    /// The 0-based line number where the issue starts.
     pub line: usize,
+    /// The 0-based column number where the issue starts.
     pub col: usize,
+    /// The 0-based line number where the issue ends.
     pub end_line: usize,
+    /// The 0-based column number where the issue ends.
     pub end_col: usize,
+    /// A human-readable description of the issue.
     pub message: String,
+    /// An optional error code for categorisation.
     pub code: Option<String>,
 }
 
 /// The severity of a diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
+    /// An error that will prevent correct rendering.
     Error,
+    /// A warning about a potential issue.
     Warning,
+    /// An informative message.
     Info,
+    /// A helpful suggestion or hint.
     Hint,
 }
 

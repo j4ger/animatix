@@ -18,13 +18,18 @@ use crate::timeline::utils::parse_color;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Built-in colorscheme presets.
 pub enum BuiltInColorscheme {
+    /// Dark theme with blue accents.
     DefaultDark,
+    /// Light theme with blue accents.
     DefaultLight,
+    /// Editorial dark theme with refined contrast.
     EditorialDark,
 }
 
 impl BuiltInColorscheme {
+    /// Parse a colorscheme name into a built-in variant.
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "default-dark" => Some(Self::DefaultDark),
@@ -34,6 +39,7 @@ impl BuiltInColorscheme {
         }
     }
 
+    /// Resolve this built-in colorscheme into a full color map.
     pub fn resolved(self) -> ResolvedColorscheme {
         let mut colors = BTreeMap::new();
         let auto_cycle = match self {
@@ -108,17 +114,23 @@ impl BuiltInColorscheme {
 }
 
 #[derive(Clone, Debug)]
+/// A fully-resolved colorscheme with named colors and an auto-assignment cycle.
 pub struct ResolvedColorscheme {
+    /// Name of the colorscheme.
     pub name: String,
+    /// Map of color keys to RGBA values.
     pub colors: BTreeMap<String, [f32; 4]>,
+    /// Pool of colors for automatic assignment.
     pub auto_cycle: Vec<[f32; 4]>,
 }
 
 impl ResolvedColorscheme {
+    /// Look up a color by its key.
     pub fn color(&self, key: &str) -> Option<[f32; 4]> {
         self.colors.get(key).copied()
     }
 
+    /// Inject all defined colors into the runtime environment.
     pub fn seed_environment(&self, env: &mut Environment) {
         for (key, color) in &self.colors {
             env.set(
@@ -133,6 +145,7 @@ impl ResolvedColorscheme {
         }
     }
 
+    /// Build a ResolvedColorscheme from a list of AST properties.
     pub fn from_properties(
         name: String,
         properties: &[Property],
@@ -179,6 +192,7 @@ impl ResolvedColorscheme {
         })
     }
 
+    /// Merge this colorscheme on top of a base, inheriting missing colors.
     pub fn merge_with_base(&mut self, base: &ResolvedColorscheme) {
         let mut merged = base.colors.clone();
         merged.extend(self.colors.clone());

@@ -5,6 +5,7 @@ use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
+/// Fades out the target by animating its overall opacity to 0.
 pub struct FadeOut;
 
 impl BuiltinAction for FadeOut {

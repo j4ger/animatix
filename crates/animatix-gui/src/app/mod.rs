@@ -18,10 +18,8 @@ mod utils;
 use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
-use crate::text_diff::diff_text;
 use crate::preview_surface::PreviewSurface;
 use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
-use animatix::renderer::video::ExportError;
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
@@ -32,11 +30,9 @@ use persistence::{default_tree, load_workspace_persistence, persistence_path};
 use preview::fit_preview;
 use preview::DragState;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::time::{Duration, Instant};
 use crate::app::commands::{Command, CommandQueue, UndoEntry};
 use crate::app::panels::WorkspaceViewer;
@@ -56,7 +52,7 @@ const EXPLORER_INDENT_PX: f32 = 10.0;
 pub use runtime::run_gui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-enum WorkspaceTab {
+pub enum WorkspaceTab {
     Sidebar,
     Editor,
     Preview,

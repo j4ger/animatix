@@ -127,6 +127,7 @@ macro_rules! register_num3 {
     };
 }
 
+/// Load standard mathematical and utility functions into the environment.
 pub fn load_standard_library(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
     env.set("E", Value::Num(std::f64::consts::E));

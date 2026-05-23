@@ -2,13 +2,20 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+/// Error produced during expression evaluation in the timeline environment.
 #[derive(Debug, Clone)]
 pub enum EvalError {
+    /// Referenced variable does not exist in the environment.
     UndefinedVariable(String),
+    /// Value type does not match the expected type for an operation.
     TypeMismatch(String),
+    /// Attempted to call a non-function value.
     NotCallable(String),
+    /// Method name is not supported on the target type.
     UnsupportedMethod(String),
+    /// Indexing operation is not supported.
     UnsupportedIndex,
+    /// Language construct is not supported at runtime.
     UnsupportedConstruct(String),
 }
 
@@ -33,20 +40,31 @@ impl fmt::Display for EvalError {
 
 impl std::error::Error for EvalError {}
 
+/// Runtime value type used in the timeline evaluation environment.
 #[derive(Clone)]
 pub enum Value {
+    /// 64-bit floating-point number.
     Num(f64),
+    /// UTF-8 string.
     Str(String),
+    /// Boolean flag.
     Bool(bool),
+    /// 2D vector (x, y).
     Vec2([f64; 2]),
+    /// 3D vector (x, y, z).
     Vec3([f64; 3]),
+    /// 4D vector (x, y, z, w).
     Vec4([f64; 4]),
+    /// RGBA color with components in [0, 1].
     Color([f64; 4]),
+    /// Ordered list of values.
     List(Vec<Value>),
-    /// Object(type_name, fields) — constructed value with named fields
+    /// Object(type_name, fields) — constructed value with named fields.
     Object(String, HashMap<String, Value>),
+    /// Native Rust function callable from the runtime.
     #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
+    /// User-defined closure (parameter names, body expression).
     Closure(Vec<String>, Box<crate::ast::Expr>),
 }
 
@@ -89,6 +107,7 @@ impl PartialEq for Value {
 }
 
 impl Value {
+    /// Extract the contained number, or `0.0` if the value is not a `Num`.
     pub fn as_num(&self) -> f64 {
         match self {
             Value::Num(n) => *n,
@@ -96,6 +115,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained string, or an empty string if the value is not a `Str`.
     pub fn as_str(&self) -> String {
         match self {
             Value::Str(s) => s.clone(),
@@ -103,6 +123,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained boolean, or `false` if the value is not a `Bool`.
     pub fn as_bool(&self) -> bool {
         match self {
             Value::Bool(b) => *b,
@@ -110,6 +131,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained 2D vector, or `[0.0, 0.0]` if the value is not a `Vec2`.
     pub fn as_vec2(&self) -> [f64; 2] {
         match self {
             Value::Vec2(v) => *v,
@@ -117,6 +139,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained 3D vector, or `[0.0, 0.0, 0.0]` if the value is not a `Vec3`.
     pub fn as_vec3(&self) -> [f64; 3] {
         match self {
             Value::Vec3(v) => *v,
@@ -124,6 +147,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained 4D vector, or `[0.0; 4]` if the value is not a `Vec4`.
     pub fn as_vec4(&self) -> [f64; 4] {
         match self {
             Value::Vec4(v) => *v,
@@ -131,6 +155,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained color, or opaque black if the value is not a `Color`.
     pub fn as_color(&self) -> [f64; 4] {
         match self {
             Value::Color(c) => *c,
@@ -138,6 +163,7 @@ impl Value {
         }
     }
 
+    /// Extract the contained list, or an empty vector if the value is not a `List`.
     pub fn as_list(&self) -> Vec<Value> {
         match self {
             Value::List(items) => items.clone(),
@@ -146,6 +172,10 @@ impl Value {
     }
 }
 
+/// Variable environment for expression evaluation.
+///
+/// Uses an override layer over an optional shared base to avoid copying
+/// large stdlib maps on every frame.
 #[derive(Clone)]
 pub struct Environment {
     pub(crate) overrides: HashMap<String, Value>,
@@ -161,6 +191,7 @@ impl Default for Environment {
 }
 
 impl Environment {
+    /// Create an empty environment with no base layer.
     pub fn new() -> Self {
         Environment {
             overrides: HashMap::new(),
@@ -168,6 +199,7 @@ impl Environment {
         }
     }
 
+    /// Create an empty environment with the given initial capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Environment {
             overrides: HashMap::with_capacity(capacity),
@@ -183,6 +215,7 @@ impl Environment {
         }
     }
 
+    /// Insert or overwrite a variable in the override layer.
     pub fn set(&mut self, name: &str, value: Value) {
         self.overrides.insert(name.to_string(), value);
     }
@@ -207,12 +240,14 @@ impl Environment {
         }
     }
 
+    /// Look up a variable by name, checking overrides before the base layer.
     pub fn get(&self, name: &str) -> Option<Value> {
         self.overrides.get(name).cloned().or_else(|| {
             self.base.as_ref().and_then(|b| b.get(name).cloned())
         })
     }
 
+    /// Return all variable names defined in this environment, sorted.
     pub fn all_keys(&self) -> Vec<String> {
         let mut keys: Vec<String> = self.overrides.keys().cloned().collect();
         if let Some(ref base) = self.base {
@@ -226,6 +261,7 @@ impl Environment {
         keys
     }
 
+    /// Total number of distinct variables (overrides + base, minus overlap).
     pub fn len(&self) -> usize {
         let base_count = self.base.as_ref().map(|b| b.len()).unwrap_or(0);
         let overlap = self.base.as_ref().map(|b| {
@@ -234,6 +270,7 @@ impl Environment {
         self.overrides.len() + base_count - overlap
     }
 
+    /// Returns true if no variables are defined in either layer.
     pub fn is_empty(&self) -> bool {
         self.overrides.is_empty() && self.base.as_ref().map(|b| b.is_empty()).unwrap_or(true)
     }

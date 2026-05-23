@@ -185,6 +185,7 @@ fn timing_modifiers_without_keys(modifiers: &[Modifier], excluded_keys: &[&str])
         .collect()
 }
 
+/// Moves the target to an absolute local translation offset.
 pub struct Move;
 
 impl BuiltinAction for Move {
@@ -266,6 +267,7 @@ impl BuiltinAction for Move {
     }
 }
 
+/// Applies a relative local translation delta to the target.
 pub struct Shift;
 
 impl BuiltinAction for Shift {
@@ -348,6 +350,7 @@ impl BuiltinAction for Shift {
     }
 }
 
+/// Applies a relative local rotation (in radians) to the target.
 pub struct Rotate;
 
 impl BuiltinAction for Rotate {
@@ -427,6 +430,7 @@ impl BuiltinAction for Rotate {
     }
 }
 
+/// Applies a relative uniform local scale factor to the target.
 pub struct Scale;
 
 impl BuiltinAction for Scale {

@@ -3,7 +3,9 @@ use crate::ast::{Action, Expr, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
+/// Swaps the layout positions of two children in their parent container.
 pub struct Swap;
+/// Reorders all children of a container to a specified sequence.
 pub struct Reorder;
 
 impl BuiltinAction for Swap {

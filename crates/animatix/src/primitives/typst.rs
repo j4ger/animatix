@@ -1,10 +1,15 @@
+//! Typst document primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 
+/// The `Typst` primitive.
 pub struct TypstPrimitive;
+
+/// Singleton instance of [`TypstPrimitive`].
 pub const TYPST: TypstPrimitive = TypstPrimitive;
 
 impl Primitive for TypstPrimitive {

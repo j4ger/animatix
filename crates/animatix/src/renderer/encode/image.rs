@@ -14,6 +14,7 @@ use tracing::info;
 // Public API: single-timeline image
 // ---------------------------------------------------------------------------
 
+/// Render AST statements to a single PNG image at the given time.
 pub fn render_image(
     ast: &[crate::ast::Stmt],
     width: u32,
@@ -33,6 +34,7 @@ pub fn render_image(
     ))
 }
 
+/// Render a single timeline to a PNG image at the given time.
 pub fn render_image_timeline(
     timeline: Timeline,
     width: u32,
@@ -50,6 +52,7 @@ pub fn render_image_timeline(
     )
 }
 
+/// Render a single timeline to a PNG image at the given time with debug options.
 pub fn render_image_timeline_with_debug(
     timeline: Timeline,
     width: u32,
@@ -63,6 +66,8 @@ pub fn render_image_timeline_with_debug(
     ))
 }
 
+/// Render a single timeline to a PNG image at the given time with debug options,
+/// progress tracking, and cancellation.
 pub fn render_image_timeline_with_progress(
     timeline: Timeline,
     width: u32,
@@ -116,6 +121,7 @@ pub(super) async fn render_image_async(
 // Multi-Scene Composition Image Export
 // ---------------------------------------------------------------------------
 
+/// Render a multi-scene composition to a PNG image at the given time.
 pub fn render_image_composition(
     composition: &Composition,
     width: u32,

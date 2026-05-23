@@ -1,6 +1,6 @@
 use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
-use crate::app::commands::{Command, CommandQueue, UndoEntry};
+use crate::app::commands::{Command, UndoEntry};
 use animatix::diagnostics::Diagnostic;
 use animatix::diagnostics::diagnostics_phase_summary;
 

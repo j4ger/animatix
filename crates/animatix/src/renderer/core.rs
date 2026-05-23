@@ -2,11 +2,14 @@ use super::error::RenderError;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
+/// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
 pub struct RendererCore {
+    /// The underlying Vello renderer instance.
     pub renderer: Renderer,
 }
 
 impl RendererCore {
+    /// Create a new core renderer backed by the given WGPU device.
     pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue) -> Result<Self, RenderError> {
         let renderer = Renderer::new(
             device,
@@ -22,6 +25,7 @@ impl RendererCore {
         Ok(Self { renderer })
     }
 
+    /// Render a Vello `scene` into the provided `texture_view` at the given size.
     pub fn render_vello_scene(
         &mut self,
         device: &wgpu::Device,

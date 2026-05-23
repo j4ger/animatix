@@ -351,6 +351,7 @@ impl Timeline {
         Ok(())
     }
 
+    /// Process a text actor declaration (Text, Math, Code) and add it to the timeline.
     pub fn process_text_actor_decl(
         &mut self,
         actor_type: &str,

@@ -5,6 +5,7 @@ use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
+/// Wipes in vector targets by animating stroke progress and fill opacity together.
 pub struct WipeIn;
 
 impl BuiltinAction for WipeIn {
@@ -82,6 +83,7 @@ impl BuiltinAction for WipeIn {
     }
 }
 
+/// Fades in the target by animating its overall opacity from 0 to 1.
 pub struct FadeIn;
 
 impl BuiltinAction for FadeIn {

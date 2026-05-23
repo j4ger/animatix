@@ -31,7 +31,9 @@
 //!
 //! The practical compile target is the post-expansion program after module loading
 //! and component expansion—not the raw parser AST.
+/// Timeline action processing (hover, click, etc.).
 pub mod actions;
+/// Asset loading and caching.
 pub mod assets;
 mod actor_kind;
 mod assignments;
@@ -39,13 +41,16 @@ mod build;
 mod builtins;
 pub mod colorscheme;
 mod declarations_text;
+/// Evaluation environment for expressions.
 pub mod env;
+/// Image loading utilities.
 pub mod image;
 pub mod kurbo_shapes;
 mod layout;
 mod media;
 pub(crate) mod taffy_layout;
 pub(crate) mod modifier_runtime;
+/// Path morphing between vector shapes.
 pub mod morph;
 mod plot;
 mod position;
@@ -72,13 +77,17 @@ mod runtime;
 mod index;
 mod scene_eval;
 mod sequence;
+/// Vector shape definitions and rendering.
 pub mod shapes;
+/// SVG parsing and manipulation utilities.
 pub mod svg;
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
+/// Keyframed property tracks and interpolation.
 pub mod track;
 pub mod utils;
+/// Vello path wrapper with fill/stroke.
 pub mod vello_path;
 
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
@@ -149,15 +158,23 @@ use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 use crate::easing::*;
 use std::collections::BTreeMap;
 
+/// Layout strategy for container actors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutType {
+    /// Horizontal left-to-right flow.
     Row,
+    /// Vertical top-to-bottom flow.
     Col,
+    /// CSS-like grid with configurable columns.
     Grid,
+    /// Absolute/manual positioning.
     Stack,
 }
 
 impl LayoutType {
+    /// Parse a container type string into a `LayoutType`.
+    ///
+    /// Defaults to `Row` for unrecognized names.
     pub fn from_container_ty(container_ty: &str) -> Self {
         match container_ty {
             "Row" => Self::Row,
@@ -169,6 +186,7 @@ impl LayoutType {
     }
 }
 
+/// A child actor admitted into a container's layout system.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContainerLayoutChild {
     /// Layout-admitted child label.
@@ -181,12 +199,18 @@ pub struct ContainerLayoutChild {
     pub placement_mode: PlacementMode,
 }
 
+/// Metadata describing the layout configuration of a container actor.
 #[derive(Clone, Debug)]
 pub struct ContainerMetadata {
+    /// Row, Col, Grid, or Stack.
     pub layout_type: LayoutType,
+    /// Gap between children in logical pixels.
     pub gap: f32,
+    /// Padding inside the container bounds in logical pixels.
     pub padding: f32,
+    /// Cross-axis alignment string (e.g. "center", "start").
     pub align: String,
+    /// Number of columns when `layout_type` is `Grid`.
     pub cols: Option<usize>,
     /// Raw authored child order snapshot for this container.
     ///
@@ -216,17 +240,23 @@ impl ContainerMetadata {
     }
 }
 
+/// Stateless layout engine for computing child positions inside containers.
 #[derive(Clone, Debug, Default)]
 pub struct LayoutEngine;
 
+/// Width and height of the output scene in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SceneDimensions {
+    /// Scene width in pixels.
     pub width: u32,
+    /// Scene height in pixels.
     pub height: u32,
 }
 
+/// Optional debug overlays for the renderer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct DebugRenderOptions {
+    /// Draw bounding-box outlines around actors.
     pub draw_bounds: bool,
     /// P2.24: When true, compute hit regions during evaluation.
     /// The GUI sets this to true when it needs click-to-select data.
@@ -245,9 +275,13 @@ impl Default for SceneDimensions {
 /// A single audio segment to be muxed during export.
 #[derive(Clone, Debug)]
 pub struct AudioSegment {
+    /// Path or identifier of the audio asset.
     pub source: String,
+    /// Start time within the global timeline in seconds.
     pub start_time_s: f64,
+    /// Playback duration in seconds.
     pub duration_s: f64,
+    /// Playback volume multiplier (1.0 = full volume).
     pub volume: f32,
 }
 
@@ -255,10 +289,12 @@ pub struct AudioSegment {
 /// Evaluates to the value of the most recent keyframe at or before the query time.
 #[derive(Clone, Debug, Default)]
 pub struct VariableTrack {
+    /// Map from time in milliseconds to the variable value at that keyframe.
     pub keyframes: BTreeMap<u64, Value>,
 }
 
 impl VariableTrack {
+    /// Create a new empty variable track.
     pub fn new() -> Self {
         Self {
             keyframes: BTreeMap::new(),
@@ -298,6 +334,8 @@ impl HasDuration for VariableTrack {
     }
 }
 
+/// Compiled animation package containing the full scene graph, tracks, and
+/// evaluation state.
 pub struct Timeline {
     pub(crate) tracks: BTreeMap<String, AnimationTrack>,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
@@ -395,10 +433,12 @@ impl Clone for Timeline {
 }
 
 impl Timeline {
+    /// Create a new empty timeline with a fresh font context.
     pub fn new() -> Self {
         Self::new_with_font_context(crate::renderer::text::FontContext::new())
     }
 
+    /// Create a new empty timeline with the given font context.
     pub fn new_with_font_context(font_context: crate::renderer::text::FontContext) -> Self {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);

@@ -1,3 +1,5 @@
+//! Custom path shape primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
@@ -5,7 +7,10 @@ use crate::timeline::{Environment, VectorShapeState};
 use crate::timeline::shapes::parse_path_commands_expr;
 use crate::timeline::{SceneDimensions, VelloPath};
 
+/// The `Path` primitive.
 pub struct PathPrimitive;
+
+/// Singleton instance of [`PathPrimitive`].
 pub const PATH: PathPrimitive = PathPrimitive;
 
 impl Primitive for PathPrimitive {

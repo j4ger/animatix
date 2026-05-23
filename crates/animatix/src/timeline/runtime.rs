@@ -91,6 +91,7 @@ impl Timeline {
         env
     }
 
+    /// Evaluate the timeline at a specific frame time, returning the frame environment.
     pub fn frame(
         &self,
         time_ms: u64,
@@ -266,6 +267,8 @@ impl Timeline {
         }
     }
 
+    /// Apply a single modifier statement (test-only wrapper around
+    /// `apply_modifier_stmt`).
     pub fn apply_modifier_stmt_for_test(
         &self,
         stmt: &Stmt,
@@ -277,6 +280,7 @@ impl Timeline {
         self.apply_modifier_stmt(stmt, time_ms, scene_dimensions, frame_env, overrides)
     }
 
+    /// Execute a modifier IR program against the current frame environment.
     pub fn apply_modifier_ir_program(
         &self,
         program: &ir::ModifierIrProgram,
@@ -288,6 +292,7 @@ impl Timeline {
         ir::execute_modifier_ir(program, frame_env, overrides)
     }
 
+    /// Execute a modifier bytecode program against the current frame environment.
     pub fn apply_modifier_bytecode_program(
         &self,
         program: &vm::ModifierBytecodeProgram,

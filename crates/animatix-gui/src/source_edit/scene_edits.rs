@@ -1,9 +1,9 @@
 //! Edits related to scenes: reorder, play targets, transitions, rename, add, delete,
 //! and scene refactorings (extract, move).
 
-use animatix::ast::{ComponentDef, Stmt, Transition};
+use animatix::ast::{Stmt, Transition};
 
-use super::apply::{find_actor_decl_mut, find_scene_mut, walk_stmts_mut};
+use super::apply::{find_scene_mut, walk_stmts_mut};
 
 // ---------------------------------------------------------------------------
 // Scene helpers

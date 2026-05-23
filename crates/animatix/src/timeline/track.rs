@@ -7,7 +7,9 @@ use crate::timeline::plot::ProceduralPlot;
 use crate::timeline::shapes::ShapeType;
 use std::collections::BTreeMap;
 
+/// Default half-size for layout bounds (`[50.0, 50.0]`).
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
+/// Default white color in RGBA (`[1.0, 1.0, 1.0, 1.0]`).
 pub const DEFAULT_WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
 // ─────────────────────────────────────────────────────────────
@@ -18,37 +20,68 @@ pub const DEFAULT_WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 /// Set once at first declaration and never changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActorKindId {
+    /// Geometric shape (rect, ellipse, line, polygon, path).
     Shape(ShapeKind),
+    /// Plain text actor.
     Text,
+    /// Math / LaTeX actor.
     Math,
+    /// Code block actor.
     Code,
+    /// Typst document actor.
     Typst,
+    /// Raster image actor.
     Image,
+    /// SVG graphic actor.
     Svg,
+    /// Graph / chart actor.
     Graph,
+    /// Single curve plot actor.
     PlotCurve,
+    /// Vector field visualization actor.
     VectorField,
+    /// Heatmap visualization actor.
     Heatmap,
+    /// Contour set visualization actor.
     ContourSet,
+    /// Number plane / coordinate grid actor.
     NumberPlane,
+    /// Horizontal row layout container.
     Row,
+    /// Vertical column layout container.
     Col,
+    /// Grid layout container.
     Grid,
+    /// Stack layout container.
     Stack,
+    /// Generic group container.
     Group,
+    /// Mask / clip container.
     Mask,
+    /// Audio track actor.
     Audio,
 }
 
 impl ActorKindId {
+    /// Parse an actor kind from its type name (e.g. `"rect"`, `"text"`).
     pub fn from_type_name(ty: &str) -> Option<Self> {
         crate::primitives::find_primitive(ty).map(|p| p.kind_id())
     }
 }
 
+/// Specific shape geometry variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
-    Rect, Ellipse, Line, Polygon, Path,
+    /// Axis-aligned rectangle.
+    Rect,
+    /// Ellipse (or circle).
+    Ellipse,
+    /// Straight line segment.
+    Line,
+    /// Closed polygon.
+    Polygon,
+    /// Arbitrary Bézier path.
+    Path,
 }
 
 impl From<super::shapes::ShapeType> for ShapeKind {
@@ -72,14 +105,20 @@ impl From<super::shapes::ShapeType> for ShapeKind {
 /// High-level category for grouping actor kinds in UI palettes and docs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActorCategory {
+    /// Geometric shapes (rect, ellipse, etc.).
     Shape,
+    /// Text and typographic actors.
     Text,
+    /// Image, SVG, and audio actors.
     Media,
+    /// Plot and graph actors.
     Plot,
+    /// Layout containers (row, column, grid, etc.).
     Container,
 }
 
 impl ActorCategory {
+    /// Human-readable label for this category.
     pub const fn label(&self) -> &'static str {
         match self {
             Self::Shape => "Shapes",
@@ -93,24 +132,32 @@ impl ActorCategory {
 
 pub use crate::primitives::ActorKindMeta;
 
+/// Global registry of all supported actor kinds.
 pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
     crate::primitives::actor_kind_registry()
 }
 
+/// Lookup metadata for a specific [`ActorKindId`].
 pub fn actor_kind_meta(kind: ActorKindId) -> &'static ActorKindMeta {
     crate::primitives::actor_kind_meta(kind)
 }
 
+/// Lookup metadata by the actor's type name (e.g. `"rect"`, `"text"`).
 pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
     crate::primitives::actor_kind_meta_by_name(name)
 }
 
-/// Extension trait for lazy property track access
+/// Extension trait for lazy property track access.
 pub trait TrackAccessor<T: Interpolate + Clone> {
+    /// Evaluate the track at `time_ms`, falling back to `default` if empty.
     fn get(&self, time_ms: u64, default: T) -> T;
+    /// Ensure the track exists, creating it with `default` if absent.
     fn ensure(&mut self, default: T) -> &mut PropertyTrack<T>;
+    /// Return the value of the last keyframe, or `default` if empty.
     fn last(&self, default: T) -> T;
+    /// Return the timestamp of the last keyframe, if any.
     fn last_time(&self) -> Option<u64>;
+    /// Check whether a keyframe exists at exactly `time_ms`.
     fn has_keyframe_at(&self, time_ms: u64) -> bool;
 }
 
@@ -132,7 +179,9 @@ impl<T: Interpolate + Clone> TrackAccessor<T> for Option<PropertyTrack<T>> {
     }
 }
 
+/// Trait for values that can be interpolated between two states.
 pub trait Interpolate {
+    /// Interpolate between `self` and `other` using parameter `t` in `[0, 1]`.
     fn interpolate(&self, other: &Self, t: f32) -> Self;
 }
 
@@ -181,15 +230,21 @@ impl Interpolate for u32 {
     }
 }
 
+/// Controls whether an actor's position is managed by a layout container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementMode {
+    /// Position is computed by the parent layout container.
     LayoutManaged,
+    /// Position is set manually, ignoring layout.
     Manual,
 }
 
+/// Controls how an actor's dimensions are interpreted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResizeMode {
+    /// Absolute width and height.
     Size,
+    /// Uniform scale factor.
     Scale,
 }
 
@@ -199,9 +254,27 @@ impl Interpolate for PlacementMode {
     }
 }
 
+/// Anchor point on a 3×3 scene grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SceneAnchor {
-    TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight,
+    /// Top-left corner.
+    TopLeft,
+    /// Top edge center.
+    Top,
+    /// Top-right corner.
+    TopRight,
+    /// Left edge center.
+    Left,
+    /// Center of the scene.
+    Center,
+    /// Right edge center.
+    Right,
+    /// Bottom-left corner.
+    BottomLeft,
+    /// Bottom edge center.
+    Bottom,
+    /// Bottom-right corner.
+    BottomRight,
 }
 
 impl Interpolate for SceneAnchor {
@@ -210,13 +283,39 @@ impl Interpolate for SceneAnchor {
     }
 }
 
+/// Strategy for binding an actor's position to a reference frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PositionBinding {
+    /// Absolute coordinates in the scene.
     Absolute,
-    SceneAnchor { anchor: SceneAnchor, offset: [f32; 2] },
-    ScenePercent { x: f32, y: f32, offset: [f32; 2] },
-    ContainerDefault { anchor: SceneAnchor },
-    ContainerPercent { x: f32, y: f32 },
+    /// Offset from a [`SceneAnchor`].
+    SceneAnchor {
+        /// Anchor point on the scene.
+        anchor: SceneAnchor,
+        /// Pixel offset from the anchor.
+        offset: [f32; 2],
+    },
+    /// Percentage-based position within the scene, plus offset.
+    ScenePercent {
+        /// Horizontal percentage (0–1).
+        x: f32,
+        /// Vertical percentage (0–1).
+        y: f32,
+        /// Pixel offset from the computed position.
+        offset: [f32; 2],
+    },
+    /// Default position inside a container, anchored at a [`SceneAnchor`].
+    ContainerDefault {
+        /// Anchor point within the container.
+        anchor: SceneAnchor,
+    },
+    /// Percentage-based position inside a container.
+    ContainerPercent {
+        /// Horizontal percentage (0–1).
+        x: f32,
+        /// Vertical percentage (0–1).
+        y: f32,
+    },
 }
 
 impl Interpolate for PositionBinding {
@@ -290,23 +389,29 @@ impl Interpolate for Vec<[f32; 2]> {
     }
 }
 
+/// A keyed animation track holding values of type `T` over time.
 #[derive(Clone)]
 pub struct PropertyTrack<T> {
+    /// Map from timestamp (ms) to `(value, easing)` pairs.
     pub keyframes: BTreeMap<u64, (T, Easing)>,
+    /// Value used when no keyframes are defined.
     pub default_value: T,
     /// P2.20: Memoization cache for repeated time queries.
     last_evaluated: std::cell::RefCell<Option<(u64, T)>>,
 }
 
 impl<T: Interpolate + Clone> PropertyTrack<T> {
+    /// Create a new track with the given default value.
     pub fn new(default_value: T) -> Self {
         Self { keyframes: BTreeMap::new(), default_value, last_evaluated: std::cell::RefCell::new(None) }
     }
+    /// Insert a keyframe at `time_ms` with `value` and `easing`.
     pub fn add_keyframe(&mut self, time_ms: u64, value: T, easing: Easing) {
         self.keyframes.insert(time_ms, (value, easing));
         // Invalidate memoization cache when keyframes change
         *self.last_evaluated.borrow_mut() = None;
     }
+    /// Evaluate the interpolated value at `time_ms`.
     pub fn evaluate(&self, time_ms: u64) -> T {
         // P2.20: Memoization — return cached value if time matches
         if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
@@ -344,10 +449,12 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
         *self.last_evaluated.borrow_mut() = Some((time_ms, result.clone()));
         result
     }
+    /// Return the value of the most recent keyframe, or the default.
     pub fn last_value(&self) -> T {
         self.keyframes.iter().next_back().map(|(_, (val, _))| val.clone())
             .unwrap_or_else(|| self.default_value.clone())
     }
+    /// Return the timestamp of the most recent keyframe, if any.
     pub fn last_keyframe_time(&self) -> Option<u64> {
         self.keyframes.keys().next_back().copied()
     }
@@ -366,66 +473,108 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
+/// Per-actor animation track holding all animatable properties.
 #[derive(Clone)]
 pub struct AnimationTrack {
     // ── Identity / metadata ──
+    /// Human-readable identifier for the actor.
     pub label: String,
+    /// Compile-time kind of this actor.
     pub kind: ActorKindId,
+    /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
+    /// Labels of child actors in the scene hierarchy.
     pub children: Vec<String>,
 
     // ── Geometry tier (flat compat fields) ──
+    /// Position track (x, y).
     pub position: Option<PropertyTrack<[f32; 2]>>,
+    /// Motion offset applied after layout.
     pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
+    /// Rotation angle in radians.
     pub rotation: Option<PropertyTrack<f32>>,
+    /// Uniform scale factor.
     pub scale: Option<PropertyTrack<f32>>,
+    /// 2×3 affine transform matrix.
     pub transform: Option<PropertyTrack<[f32; 6]>>,
+    /// Whether the actor is layout-managed or manually placed.
     pub placement_mode: Option<PropertyTrack<PlacementMode>>,
+    /// Position binding strategy.
     pub position_binding: Option<PropertyTrack<PositionBinding>>,
+    /// Width and height.
     pub size: Option<PropertyTrack<[f32; 2]>>,
 
     // ── Style tier (flat compat fields) ──
+    /// Fill color in RGBA.
     pub color: Option<PropertyTrack<[f32; 4]>>,
+    /// Overall opacity multiplier.
     pub opacity: Option<PropertyTrack<f32>>,
+    /// Stroke width.
     pub stroke_width: Option<PropertyTrack<f32>>,
+    /// Stroke color in RGBA.
     pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Stroke draw progress (0–1).
     pub stroke_progress: Option<PropertyTrack<f32>>,
+    /// Fill opacity multiplier.
     pub fill_opacity: Option<PropertyTrack<f32>>,
+    /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 
     // ── Effects tier ──
+    /// Shadow offset vector.
     pub shadow_offset: Option<PropertyTrack<[f32; 2]>>,
+    /// Shadow blur radius.
     pub shadow_blur: Option<PropertyTrack<f32>>,
+    /// Shadow color in RGBA.
     pub shadow_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Glow / blur radius.
     pub glow_radius: Option<PropertyTrack<f32>>,
+    /// Glow color in RGBA.
     pub glow_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Backdrop blur strength.
     pub backdrop_blur: Option<PropertyTrack<f32>>,
 
     // ── Shape payload (flat compat fields) ──
+    /// Specific shape geometry type.
     pub shape_type: Option<PropertyTrack<ShapeType>>,
+    /// Line start point.
     pub line_from: Option<PropertyTrack<[f32; 2]>>,
+    /// Line end point.
     pub line_to: Option<PropertyTrack<[f32; 2]>>,
+    /// Arc start and end angles.
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
+    /// Polygon vertex list.
     pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
+    /// Path command string (e.g. SVG path data).
     pub commands: Option<PropertyTrack<String>>,
+    /// Pre-built vector paths for shape rendering.
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
 
     // ── Text / media payload (flat compat fields) ──
+    /// Raw text content.
     pub text_content: Option<PropertyTrack<String>>,
+    /// Font family name.
     pub font_family: Option<PropertyTrack<String>>,
+    /// Font size in points.
     pub font_size: Option<PropertyTrack<f32>>,
+    /// Pre-built text paths for rendering.
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    /// Static SVG paths.
     pub svg_paths: Vec<crate::timeline::VelloPath>,
+    /// Raster image data.
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
     // ── Layout ──
+    /// Size allocated by the layout system.
     pub layout_size: Option<PropertyTrack<[f32; 2]>>,
 
     // ── Procedural plot (re-sampled at frame time) ──
+    /// Procedural plot generator, re-sampled each frame.
     pub procedural_plot: Option<ProceduralPlot>,
 }
 
 impl AnimationTrack {
+    /// Create a new empty animation track with the given label.
     pub fn new(label: String) -> Self {
         Self {
             // Identity
@@ -487,20 +636,25 @@ impl AnimationTrack {
     }
 
     // ── layout_size convenience methods (replacing old LayoutSizeState) ──
+    /// Evaluate `layout_size` at `time_ms`.
     pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
         self.layout_size.as_ref().map(|t| t.evaluate(time_ms))
     }
+    /// Return the last value of `layout_size`.
     pub fn layout_size_last(&self) -> Option<[f32; 2]> {
         self.layout_size.as_ref().map(|t| t.last_value())
     }
+    /// Ensure `layout_size` exists, creating it with `default` if absent.
     pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
         self.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
     }
+    /// Return `true` if `layout_size` has been set.
     pub fn has_layout_size(&self) -> bool {
         self.layout_size.is_some()
     }
 
     // ── Path evaluation ──
+    /// Evaluate text paths at `time_ms`, applying morphing if configured.
     pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
         if let Some(content_track) = &self.text_content {
             if !content_track.keyframes.is_empty() {
@@ -515,6 +669,7 @@ impl AnimationTrack {
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_text_paths)
     }
 
+    /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = self.vector_paths.as_ref().unwrap_or(&default_paths);
@@ -523,6 +678,7 @@ impl AnimationTrack {
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_vello_paths)
     }
 
+    /// Return the maximum keyframe time across all property tracks.
     pub fn max_keyframe_time(&self) -> Option<u64> {
         let times: Vec<Option<u64>> = vec![
             self.position.last_time(), self.motion_offset.last_time(),
@@ -722,31 +878,53 @@ use crate::timeline::property_registry::ActorField;
 /// knowing `T` at compile time.  It eliminates the N×M match-block explosion
 /// in `property_engine.rs`.
 pub enum TrackFieldRef<'a> {
+    /// `f32` property track.
     F32(&'a Option<PropertyTrack<f32>>),
+    /// `[f32; 2]` (2D vector) property track.
     Vec2(&'a Option<PropertyTrack<[f32; 2]>>),
+    /// `[f32; 4]` (RGBA color) property track.
     Vec4(&'a Option<PropertyTrack<[f32; 4]>>),
+    /// `[f32; 6]` (2×3 transform) property track.
     Transform(&'a Option<PropertyTrack<[f32; 6]>>),
+    /// `String` property track.
     String(&'a Option<PropertyTrack<String>>),
+    /// `u32` property track.
     U32(&'a Option<PropertyTrack<u32>>),
+    /// List of 2D points property track.
     PointList(&'a Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// Command string property track.
     CommandList(&'a Option<PropertyTrack<String>>),
+    /// Shape type property track.
     ShapeType(&'a Option<PropertyTrack<ShapeType>>),
+    /// Placement mode property track.
     PlacementMode(&'a Option<PropertyTrack<PlacementMode>>),
+    /// Morph options property track.
     MorphOptions(&'a Option<PropertyTrack<MorphOptions>>),
 }
 
 /// Mutable reference to a track field, abstracting over the value type.
 pub enum TrackFieldMut<'a> {
+    /// `f32` property track.
     F32(&'a mut Option<PropertyTrack<f32>>),
+    /// `[f32; 2]` (2D vector) property track.
     Vec2(&'a mut Option<PropertyTrack<[f32; 2]>>),
+    /// `[f32; 4]` (RGBA color) property track.
     Vec4(&'a mut Option<PropertyTrack<[f32; 4]>>),
+    /// `[f32; 6]` (2×3 transform) property track.
     Transform(&'a mut Option<PropertyTrack<[f32; 6]>>),
+    /// `String` property track.
     String(&'a mut Option<PropertyTrack<String>>),
+    /// `u32` property track.
     U32(&'a mut Option<PropertyTrack<u32>>),
+    /// List of 2D points property track.
     PointList(&'a mut Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// Command string property track.
     CommandList(&'a mut Option<PropertyTrack<String>>),
+    /// Shape type property track.
     ShapeType(&'a mut Option<PropertyTrack<ShapeType>>),
+    /// Placement mode property track.
     PlacementMode(&'a mut Option<PropertyTrack<PlacementMode>>),
+    /// Morph options property track.
     MorphOptions(&'a mut Option<PropertyTrack<MorphOptions>>),
 }
 

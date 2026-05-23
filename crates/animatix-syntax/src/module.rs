@@ -1,3 +1,6 @@
+//! Module system for the Animatix language: multi-file programs, imports,
+//! component collection, and namespace resolution.
+
 mod discovery;
 mod expand;
 mod inline_actions;
@@ -48,27 +51,34 @@ fn set_action_spans(stmts: &mut [Stmt], source: &str) {
     }
 }
 
+/// Unique identifier for a loaded source file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FileId(u32);
 
 impl FileId {
+    /// Create a new `FileId` from a raw index.
     pub fn new(id: u32) -> Self {
         FileId(id)
     }
+    /// Return the underlying index.
     pub fn index(&self) -> u32 {
         self.0
     }
 }
 
+/// Tracks loaded files, their imports, and the component registry.
 pub struct ModuleGraph {
     files: HashMap<FileId, ParsedModule>,
     next_id: u32,
     paths: HashMap<PathBuf, FileId>,
 }
 
+/// A component definition together with its source file and custom actions.
 #[derive(Clone, Debug)]
 pub struct ComponentEntry {
+    /// The parsed component definition.
     pub definition: ComponentDef,
+    /// Absolute path to the file that defined this component.
     pub source_path: PathBuf,
     /// Custom action templates defined inside this component: action_name → body statements
     pub actions: HashMap<String, Vec<Stmt>>,
@@ -77,22 +87,29 @@ pub struct ComponentEntry {
 /// Maps instance label → action_name → rewritten body statements
 pub type InstanceActionRegistry = HashMap<String, HashMap<String, Vec<Stmt>>>;
 
+/// A fully loaded program: top-level statements, component registry, and namespaces.
 #[derive(Clone, Debug, Default)]
 pub struct LoadedProgram {
+    /// Top-level statements from the entry file and its transitive imports.
     pub statements: Vec<Stmt>,
+    /// All components keyed by name, collected from the entry file and imports.
     pub components: HashMap<String, ComponentEntry>,
+    /// Namespaces exported by aliased imports, keyed by alias name.
     pub namespaces: HashMap<String, Namespace>,
 }
 
 impl LoadedProgram {
+    /// Expand component instances into concrete statements and inline custom actions.
     pub fn expand_components(&self) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);
         inline_actions::inline_custom_actions(stmts, &registry)
     }
 }
 
+/// A namespace of exported values from an aliased import.
 #[derive(Clone, Debug, Default)]
 pub struct Namespace {
+    /// Exported values keyed by name.
     pub exports: HashMap<String, Expr>,
 }
 
@@ -203,20 +220,32 @@ struct LoadResult {
     import_ids: Vec<FileId>,
 }
 
+/// Errors that can occur while loading or resolving modules.
 #[derive(Debug)]
 pub enum ModuleError {
+    /// The requested file could not be found on disk.
     FileNotFound(PathBuf),
+    /// One or more parse errors occurred while reading a file.
     ParseErrors(Vec<ParseError>),
+    /// A circular import dependency was detected.
     CycleDetected(Vec<PathBuf>),
+    /// The same component name was exported from two different files.
     DuplicateComponent {
+        /// Name of the duplicated component.
         name: String,
+        /// Path of the first file that defined it.
         first_path: PathBuf,
+        /// Path of the second file that defined it.
         second_path: PathBuf,
     },
+    /// A component instance references a slot that was not filled.
     UnfilledSlot {
+        /// Name of the component with the unfilled slot.
         component: String,
+        /// Name of the slot that was not filled.
         slot: String,
     },
+    /// An underlying I/O error occurred.
     IoError(std::io::Error),
 }
 
@@ -266,6 +295,7 @@ impl fmt::Display for ModuleError {
 }
 
 impl ModuleGraph {
+    /// Create an empty `ModuleGraph`.
     pub fn new() -> Self {
         ModuleGraph {
             files: HashMap::new(),
@@ -386,10 +416,12 @@ impl ModuleGraph {
         }
     }
 
+    /// Load an entry file and return all flattened top-level statements.
     pub fn load_entry(&mut self, path: &Path) -> Result<Vec<Stmt>, ModuleError> {
         self.load_entry_with_source(path, None)
     }
 
+    /// Load an entry file with optional source override and return all flattened top-level statements.
     pub fn load_entry_with_source(
         &mut self,
         path: &Path,
@@ -416,10 +448,12 @@ impl ModuleGraph {
         Ok(result)
     }
 
+    /// Load an entry file and return a fully resolved `LoadedProgram`.
     pub fn load_program(&mut self, path: &Path) -> Result<LoadedProgram, ModuleError> {
         self.load_program_with_source(path, None)
     }
 
+    /// Load an entry file with optional source override and return a fully resolved `LoadedProgram`.
     pub fn load_program_with_source(
         &mut self,
         path: &Path,

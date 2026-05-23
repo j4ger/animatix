@@ -507,6 +507,10 @@ fn serialize_actor_like_stmt(
 /// Serialize a top-level statement list (the contents of an `.amx` file).
 ///
 /// Keyframe blocks are separated by a single blank line for readability.
+///
+/// This is the main entry-point for GUI write-back: after the inspector mutates
+/// the AST, the entire tree is re-serialized via this function to produce the
+/// updated source text.
 pub fn stmts_to_source(stmts: &[Stmt]) -> String {
     stmts
         .iter()

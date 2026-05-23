@@ -1,3 +1,5 @@
+//! Rectangle shape primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
@@ -6,7 +8,10 @@ use crate::timeline::{
 };
 use crate::timeline::Environment;
 
+/// The `Rect` primitive.
 pub struct RectPrimitive;
+
+/// Singleton instance of [`RectPrimitive`].
 pub const RECT: RectPrimitive = RectPrimitive;
 
 impl Primitive for RectPrimitive {

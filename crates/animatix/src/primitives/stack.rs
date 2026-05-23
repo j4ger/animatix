@@ -1,9 +1,14 @@
+//! Stack layout container primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Stack` primitive.
 pub struct StackPrimitive;
+
+/// Singleton instance of [`StackPrimitive`].
 pub const STACK: StackPrimitive = StackPrimitive;
 
 impl Primitive for StackPrimitive {

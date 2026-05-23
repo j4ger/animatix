@@ -1,6 +1,6 @@
 use crate::app::PreviewPaneState;
 use crate::app::PanelState;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// Owns the preview pane state, playback timing, and pending rebuild scheduling.
 pub struct PreviewStore {

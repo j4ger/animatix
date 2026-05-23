@@ -27,6 +27,7 @@ use tracing::info;
 // Public API: single-timeline video
 // ---------------------------------------------------------------------------
 
+/// Render AST statements directly to an MP4 video file.
 pub fn render_video(
     ast: &[Stmt],
     width: u32,
@@ -49,6 +50,7 @@ pub fn render_video(
     ))
 }
 
+/// Render a single timeline to an MP4 video file.
 pub fn render_video_timeline(
     timeline: Timeline,
     width: u32,
@@ -68,6 +70,7 @@ pub fn render_video_timeline(
     )
 }
 
+/// Render a single timeline to an MP4 video file with debug options.
 pub fn render_video_timeline_with_debug(
     timeline: Timeline,
     width: u32,
@@ -91,6 +94,7 @@ pub fn render_video_timeline_with_debug(
     ))
 }
 
+/// Render a single timeline to an MP4 video file with debug options and export settings.
 pub fn render_video_timeline_with_settings(
     timeline: Timeline,
     width: u32,
@@ -106,6 +110,8 @@ pub fn render_video_timeline_with_settings(
     ))
 }
 
+/// Render a single timeline to an MP4 video file with full control: debug options,
+/// export settings, progress tracking, and cancellation.
 pub fn render_video_timeline_with_progress(
     timeline: Timeline,
     width: u32,
@@ -312,6 +318,7 @@ pub(super) async fn render_video_async(
 // Multi-Scene Composition Video Export
 // ---------------------------------------------------------------------------
 
+/// Render a multi-scene composition to an MP4 video file.
 pub fn render_video_composition(
     composition: &Composition,
     width: u32,
@@ -332,6 +339,7 @@ pub fn render_video_composition(
     )
 }
 
+/// Render a multi-scene composition to an MP4 video file with debug options and export settings.
 pub fn render_video_composition_with_settings(
     composition: &Composition,
     width: u32,
@@ -356,6 +364,8 @@ pub fn render_video_composition_with_settings(
     ))
 }
 
+/// Render a multi-scene composition to an MP4 video file with full control: debug options,
+/// export settings, progress tracking, and cancellation.
 pub fn render_video_composition_with_progress(
     composition: &Composition,
     width: u32,

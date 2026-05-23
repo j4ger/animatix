@@ -42,19 +42,33 @@
 /// property value is introduced.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ValueType {
+    /// 32-bit floating-point value.
     F32,
+    /// 32-bit unsigned integer value.
     U32,
+    /// 2D vector value.
     Vec2,
+    /// 4D vector value.
     Vec4,
+    /// Color value (RGBA).
     Color,
+    /// String value.
     String,
+    /// Shape kind identifier.
     ShapeType,
+    /// Placement mode for layout positioning.
     PlacementMode,
+    /// Scene anchor point.
     SceneAnchor,
+    /// Position binding configuration.
     PositionBinding,
+    /// Morphing animation options.
     MorphOptions,
+    /// List of 2D points.
     PointList,
+    /// List of drawing commands.
     CommandList,
+    /// 2D affine transform.
     Transform,
     /// A property that produces builder-time side effects (no animated value).
     BuildTimeOnly,
@@ -69,19 +83,29 @@ pub enum ValueType {
 pub struct PropertyFlags(u8);
 
 impl PropertyFlags {
+    /// This property supports keyframe animation.
     pub const ANIMATED: Self = Self(0b0001);
+    /// This property can be assigned from source expressions.
     pub const ASSIGNABLE: Self = Self(0b0010);
+    /// This property can receive injected environment values.
     pub const INJECTABLE: Self = Self(0b0100);
+    /// Changes to this property affect layout resolution.
     pub const LAYOUT_AFFECTING: Self = Self(0b1000);
 
     // Convenience combinations for use in static PROPORTY_REGISTRY
+    /// `ANIMATED | ASSIGNABLE` combined.
     pub const ASSIGNABLE_A: Self = Self(0b0011);     // ANIMATED | ASSIGNABLE
+    /// `ANIMATED | ASSIGNABLE | INJECTABLE` combined.
     pub const ASSIGNABLE_AI: Self = Self(0b0111);    // ANIMATED | ASSIGNABLE | INJECTABLE
+    /// `ANIMATED | INJECTABLE` combined.
     pub const ANIMATED_I: Self = Self(0b0101);       // ANIMATED | INJECTABLE
+    /// All flags combined.
     pub const ALL: Self = Self(0b1111);              // all flags
 
+    /// Returns an empty flag set.
     pub const fn empty() -> Self { Self(0) }
 
+    /// Returns `true` if all bits in `other` are set in `self`.
     pub fn contains(self, other: Self) -> bool {
         (self.0 & other.0) == other.0
     }
@@ -103,60 +127,101 @@ impl PropertyFlags {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActorField {
     // ── Geometry tier ──
+    /// Absolute position in scene coordinates.
     Position,
+    /// Offset applied during motion animations.
     MotionOffset,
+    /// Explicitly set size (may differ from layout size).
     Size,
+    /// Size computed by the layout engine.
     LayoutSize,
+    /// Rotation angle in radians.
     Rotation,
+    /// Uniform scale factor.
     Scale,
+    /// How the actor is placed relative to its container.
     PlacementMode,
+    /// Binding that ties position to another actor or anchor.
     PositionBinding,
 
     // ── Style tier ──
+    /// Fill color.
     Color,
+    /// Overall opacity multiplier.
     Opacity,
+    /// Width of the stroke outline.
     StrokeWidth,
+    /// Color of the stroke outline.
     StrokeColor,
+    /// How much of the stroke is drawn (0–1).
     StrokeProgress,
+    /// Opacity of the fill interior.
     FillOpacity,
+    /// Options for shape morphing.
     MorphOptions,
 
     // ── Shape payload ──
+    /// Kind of shape (line, circle, rectangle, etc.).
     ShapeType,
+    /// Start point of a line shape.
     LineFrom,
+    /// End point of a line shape.
     LineTo,
+    /// Start and sweep angles for arc shapes.
     ArcAngles,
+    /// Vertices for polygon shapes.
     Points,
+    /// Drawing commands for path shapes.
     Commands,
+    /// Cached vector paths after tessellation.
     VectorPaths,
 
     // ── Text payload ──
+    /// Raw text content.
     TextContent,
+    /// Cached text glyph paths.
     TextPaths,
+    /// Font family name.
     FontFamily,
+    /// Font size in points.
     FontSize,
 
     // ── Media payload ──
+    /// Loaded image or video data.
     ImageData,
+    /// Cached SVG tessellation paths.
     SvgPaths,
+    /// Audio file path or URL.
     AudioSource,
+    /// Audio volume multiplier.
     AudioVolume,
 
     // ── Effects tier ──
+    /// Offset of the drop shadow.
     ShadowOffset,
+    /// Blur radius of the drop shadow.
     ShadowBlur,
+    /// Color of the drop shadow.
     ShadowColor,
+    /// Radius of the glow effect.
     GlowRadius,
+    /// Color of the glow effect.
     GlowColor,
+    /// Radius of the backdrop blur.
     BackdropBlur,
 
     // ── Transform tier ──
+    /// 2D affine transform matrix.
     Transform,
 
     // ── Compound resolution groups (handled by GroupHandler) ──
+    /// Compound group for position binding resolution.
     PositionBindingGroup,
+    /// Compound group for vector shape state resolution.
     VectorShapeGroup,
+    /// Compound group for plot domain resolution.
     PlotDomainGroup,
+    /// Compound group for container layout resolution.
     ContainerLayoutGroup,
 }
 
@@ -251,6 +316,7 @@ pub enum GroupHandlerId {
 /// Describes a property's membership in a compound resolution group.
 #[derive(Clone, Copy, Debug)]
 pub struct GroupMembership {
+    /// The compound resolution group this property belongs to.
     pub group_id: GroupHandlerId,
 }
 
@@ -291,6 +357,7 @@ pub enum Applicable {
 }
 
 impl Applicable {
+    /// Returns `true` if this applicability includes the given actor kind.
     pub fn includes(self, kind: super::ActorKindId) -> bool {
         use super::ActorKindId::*;
         use super::ShapeKind;
@@ -373,6 +440,7 @@ macro_rules! schema {
     };
 }
 
+/// Registry of all built-in actor properties with their schemas.
 pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("align",         ValueType::String,      F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::String("center".to_string())),
     schema!("anchor",        ValueType::SceneAnchor, F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::String("center".to_string())),

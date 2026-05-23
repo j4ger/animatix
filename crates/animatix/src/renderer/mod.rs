@@ -1,20 +1,32 @@
+//! Rendering pipeline: offscreen frames, windowed preview, transitions, and exports.
+
+/// Error types for rendering operations.
 pub mod error;
+/// GPU-based compositor for scene transition effects.
 pub mod transition;
+/// Shared rendering types.
 pub mod types;
 
 #[cfg(feature = "render")]
+/// Core Vello renderer wrapper.
 pub mod core;
 #[cfg(feature = "render")]
+/// Offscreen renderer for CPU-readable frame output.
 pub mod offscreen;
 #[cfg(feature = "text")]
+/// Text rendering support.
 pub mod text;
 #[cfg(feature = "video")]
+/// Video/GIF export rendering.
 pub mod video;
 #[cfg(feature = "render")]
+/// High-level render pipeline orchestration.
 pub mod render_pipeline;
 #[cfg(feature = "video")]
+/// Video encoding helpers.
 pub mod encode;
 #[cfg(feature = "render")]
+/// Windowed live-preview renderer.
 pub mod window;
 
 #[cfg(feature = "render")]

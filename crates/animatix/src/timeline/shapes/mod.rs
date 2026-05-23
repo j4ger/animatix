@@ -4,19 +4,28 @@ use super::{
 };
 use crate::ast::Expr;
 
+/// Discriminant for the kind of geometric shape an actor represents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ShapeType {
+    /// Rectangle.
     #[default]
     Rect = 0,
+    /// Ellipse (or arc when `arc_angles` are non-zero).
     Ellipse = 1,
+    /// Line, optionally with an arrow tip.
     Line = 2,
+    /// Polygon, regular or custom.
     Polygon = 3,
+    /// Free-form path defined by Bézier commands.
     Path = 4,
+    /// Graph / coordinate plane.
     Graph = 5,
+    /// Plot curve.
     Plot = 6,
 }
 
 impl ShapeType {
+    /// Return the static string name of this variant.
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Rect => "Rect",
@@ -74,8 +83,10 @@ impl Interpolate for ShapeType {
     }
 }
 
+/// State for a rectangle shape.
 #[derive(Clone, Debug)]
 pub struct RectState {
+    /// Width and height of the rectangle.
     pub size: [f32; 2],
 }
 
@@ -85,10 +96,14 @@ impl Default for RectState {
     }
 }
 
+/// State for an ellipse (or arc) shape.
 #[derive(Clone, Debug)]
 pub struct EllipseState {
+    /// Width and height of the ellipse.
     pub size: [f32; 2],
+    /// Start and sweep angles for an arc (zero = full ellipse).
     pub arc_angles: [f32; 2],
+    /// Rotation of the ellipse in radians.
     pub rotation: f32,
 }
 
@@ -102,11 +117,14 @@ impl Default for EllipseState {
     }
 }
 
+/// State for a line shape, optionally with an arrow tip.
 #[derive(Clone, Debug)]
 pub struct LineState {
     /// tip_length, tip_width (0.0 = no arrow)
     pub size: [f32; 2],
+    /// Start point of the line.
     pub line_from: [f32; 2],
+    /// End point of the line.
     pub line_to: [f32; 2],
 }
 
@@ -120,13 +138,20 @@ impl Default for LineState {
     }
 }
 
+/// State for a polygon shape, regular or custom.
 #[derive(Clone, Debug)]
 pub struct PolygonState {
+    /// Width and height of the polygon bounding box.
     pub size: [f32; 2],
+    /// Number of sides for a regular polygon (0 = not regular).
     pub regular_polygon_sides: usize,
+    /// Radius of the circumscribed circle for a regular polygon.
     pub regular_polygon_radius: f32,
+    /// Optional custom Bézier path.
     pub custom_path: Option<kurbo::BezPath>,
+    /// Rotation of the polygon in radians.
     pub rotation: f32,
+    /// Explicit list of vertex points (overrides regular polygon).
     pub points: Vec<[f32; 2]>,
 }
 
@@ -143,9 +168,12 @@ impl Default for PolygonState {
     }
 }
 
+/// State for a free-form path shape.
 #[derive(Clone, Debug)]
 pub struct PathState {
+    /// Width and height of the path bounding box.
     pub size: [f32; 2],
+    /// Optional custom Bézier path.
     pub custom_path: Option<kurbo::BezPath>,
 }
 
@@ -165,10 +193,15 @@ impl Default for PathState {
 /// Now each variant carries exactly the fields it needs.
 #[derive(Clone, Debug)]
 pub enum VectorShapeState {
+    /// Rectangle shape state.
     Rect(RectState),
+    /// Ellipse (or arc) shape state.
     Ellipse(EllipseState),
+    /// Line shape state, optionally with an arrow tip.
     Line(LineState),
+    /// Polygon shape state, regular or custom.
     Polygon(PolygonState),
+    /// Free-form path shape state.
     Path(PathState),
 }
 
@@ -230,16 +263,24 @@ impl VectorShapeState {
     }
 }
 
+/// Render style shared by all vector shapes.
 #[derive(Clone, Copy)]
 pub struct VectorShapeStyle {
+    /// Fill / default color as `[r, g, b, a]` in 0..1.
     pub color: [f32; 4],
+    /// Stroke width in logical pixels (0.0 = no stroke).
     pub stroke_width: f32,
+    /// Stroke color as `[r, g, b, a]` in 0..1.
     pub stroke_color: [f32; 4],
+    /// Additional opacity multiplier for the fill.
     pub fill_opacity: f32,
 }
+
 mod primitives;
 #[allow(unused_imports)]
 pub use primitives::*;
+
+/// Map an actor type string to its corresponding `ShapeType`, if any.
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
         if let Some(primitive) = crate::primitives::find_primitive(ty) {
         if primitive.is_shape() {
@@ -262,12 +303,16 @@ pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
     }
 }
 
+/// Apply primitive-specific default values to a `VectorShapeState`.
 pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.apply_defaults(state);
     }
 }
 
+/// Apply a single property expression to a `VectorShapeState`.
+///
+/// Returns `true` if the property was recognised and applied.
 pub fn apply_vector_shape_property(
     actor_type: &str,
     name: &str,
@@ -283,16 +328,19 @@ pub fn apply_vector_shape_property(
     false
 }
 
+/// Run any post-processing / cleanup on a `VectorShapeState` after all properties have been applied.
 pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.finalize_state(state);
     }
 }
 
+/// Whether this shape type exposes a tip-size property (currently only `Line`).
 pub fn vector_shape_exposes_tip_size(shape_type: ShapeType) -> bool {
     matches!(shape_type, ShapeType::Line)
 }
 
+/// Whether this shape type can use a custom Bézier path (Polygon or Path).
 pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
     matches!(shape_type, ShapeType::Polygon | ShapeType::Path)
 }
@@ -310,6 +358,7 @@ pub fn extract_shape_state_values(state: &VectorShapeState) -> ([f32; 2], [f32; 
     (size, line_from, line_to, arc_angles)
 }
 
+/// Build a `VelloPath` for a vector shape via the primitive renderer.
 pub fn build_vector_shape_vello_path(
     shape_type: ShapeType,
     state: &VectorShapeState,
@@ -335,6 +384,7 @@ pub fn build_vector_shape_vello_path(
         .and_then(|paths| paths.into_iter().next())
 }
 
+/// Generate the vertex points for a regular polygon.
 pub fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<kurbo::Point> {
     let sides = sides.max(3);
     let radius = radius as f64;
@@ -347,6 +397,7 @@ pub fn regular_polygon_points(sides: usize, radius: f32, rotation: f32) -> Vec<k
         .collect()
 }
 
+/// Build a Bézier path for an arrow-tipped line.
 pub fn build_arrow_path(
     line_from: [f32; 2],
     line_to: [f32; 2],
@@ -391,6 +442,7 @@ pub fn build_arrow_path(
     path
 }
 
+/// Parse an AST tuple expression into a list of `kurbo::Point`s.
 pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
     match expr {
         Expr::Tuple(items) => {
@@ -405,6 +457,7 @@ pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo
     }
 }
 
+/// Parse an AST tuple of path commands (e.g. `move_to`, `line_to`) into a `kurbo::BezPath`.
 pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
     let Expr::Tuple(items) = expr else {
         return None;
@@ -469,6 +522,7 @@ pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo:
     Some(path)
 }
 
+/// Build a `KurboShape` from the legacy flat parameters.
 pub fn build_shape(
     shape_type: ShapeType,
     size: [f32; 2],
@@ -507,6 +561,7 @@ pub fn build_shape(
     }
 }
 
+/// Compute the fill colour for a shape, returning `None` when transparent.
 pub fn shape_fill_color(
     shape_type: ShapeType,
     color: [f32; 4],
@@ -526,6 +581,7 @@ pub fn shape_fill_color(
     ))
 }
 
+/// Compute the stroke colour and width, returning `None` when invisible.
 pub fn shape_stroke(
     stroke_color: [f32; 4],
     stroke_width: f32,
@@ -584,6 +640,7 @@ pub fn build_vello_path(
     }
 }
 
+/// Build a `VelloPath` from the legacy flat parameters.
 pub fn build_shape_vello_path(
     shape_type: ShapeType,
     size: [f32; 2],

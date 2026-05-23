@@ -5,13 +5,18 @@ use std::fmt::Debug;
 // ----------------------------------------------------------------------------
 // 0. Source Spans (for editor-timeline sync)
 // ----------------------------------------------------------------------------
-    /// Source location span for AST nodes.
+
+/// Source location span for AST nodes.
 /// Used for editor navigation, diagnostics, and bidirectional sync.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Span {
+    /// Start line number (1-indexed).
     pub start_line: usize,
+    /// Start column number (1-indexed).
     pub start_col: usize,
+    /// End line number (1-indexed).
     pub end_line: usize,
+    /// End column number (1-indexed).
     pub end_col: usize,
 }
 
@@ -22,11 +27,14 @@ pub struct Span {
 /// positions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct ByteSpan {
+    /// Start byte offset into the source text.
     pub start: usize,
+    /// End byte offset into the source text.
     pub end: usize,
 }
 
 impl Span {
+    /// Create a new span with the given line and column bounds.
     pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Self {
         Self {
             start_line,
@@ -36,6 +44,7 @@ impl Span {
         }
     }
 
+    /// Return the start line number of this span.
     pub fn line(&self) -> usize {
         self.start_line
     }
@@ -96,39 +105,57 @@ impl Span {
 // Used in property values, conditions, and reactive blocks.
 // ----------------------------------------------------------------------------
 
+/// Expression types for the Animatix language.
+/// Represents any value-computing element: literals, math, logic, function
+/// calls, and more. Used in property values, conditions, and reactive blocks.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
-    // Literals
+    /// Numeric literal (e.g. `42`, `3.14`).
     Num(f64),
+    /// Percentage literal (e.g. `50%`).
     Percent(f64),
+    /// String literal (e.g. `"hello"`).
     Str(String),
+    /// Boolean literal (`true` or `false`).
     Bool(bool),
+    /// Null literal.
     Null,
 
     // Identifiers & Access
-    Ident(String),               // Variable name: x, slider_value
-    Path(Vec<String>),           // Nested access: container.child
-    Index(Box<Expr>, Box<Expr>), // Array/Index: items[0], children[i]
+    /// Variable identifier (e.g. `x`, `slider_value`).
+    Ident(String),
+    /// Path access for nested identifiers (e.g. `container.child`).
+    Path(Vec<String>),
+    /// Index or subscript expression (e.g. `items[0]`, `children[i]`).
+    Index(Box<Expr>, Box<Expr>),
 
     // Collections
-    /// Array or tuple literal. Used for both `(x, y)` tuples and `{a, b, c}` arrays
-    /// since they share the same runtime representation (a list of values).
+    /// Array or tuple literal. Used for both `(x, y)` tuples and `{a, b, c}`
+    /// arrays since they share the same runtime representation (a list of
+    /// values).
     Tuple(Vec<Expr>),
 
     // Operators
-    Binary(Box<Expr>, BinaryOp, Box<Expr>), // x + y, a > b
-    Unary(UnaryOp, Box<Expr>),              // -x, !flag
+    /// Binary operation (e.g. `x + y`, `a > b`).
+    Binary(Box<Expr>, BinaryOp, Box<Expr>),
+    /// Unary operation (e.g. `-x`, `!flag`).
+    Unary(UnaryOp, Box<Expr>),
 
     // Functions & Methods
-    Call(String, Vec<Expr>),              // format("{}", x)
-    Method(Box<Expr>, String, Vec<Expr>), // graph.plot(func)
-    Closure(Vec<String>, Box<Expr>),      // (x) => x ^ 2
+    /// Function call (e.g. `format("{}", x)`).
+    Call(String, Vec<Expr>),
+    /// Method call on a receiver (e.g. `graph.plot(func)`).
+    Method(Box<Expr>, String, Vec<Expr>),
+    /// Closure / lambda expression (e.g. `(x) => x ^ 2`).
+    Closure(Vec<String>, Box<Expr>),
 
     // Conditionals
-    Conditional(Box<Expr>, Box<Expr>, Box<Expr>), // if cond { a } else { b }
+    /// Conditional expression (e.g. `if cond { a } else { b }`).
+    Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
 
     // Type Construction (for inline morph targets)
-    Construct(String, Vec<Property>), // Button, text: "OK"
+    /// Type construction for inline morph targets (e.g. `Button, text: "OK"`).
+    Construct(String, Vec<Property>),
 }
 
 impl Expr {
@@ -164,27 +191,45 @@ impl Expr {
     }
 }
 
+/// Binary operators supported by the Animatix language.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
+    /// Addition (`+`).
     Add,
+    /// Subtraction (`-`).
     Sub,
+    /// Multiplication (`*`).
     Mul,
+    /// Division (`/`).
     Div,
+    /// Modulo (`%`).
     Mod,
+    /// Power (`^`).
     Pow,
+    /// Equality (`==`).
     Eq,
+    /// Inequality (`!=`).
     Neq,
+    /// Less than (`<`).
     Lt,
+    /// Greater than (`>`).
     Gt,
+    /// Less than or equal (`<=`).
     Lte,
+    /// Greater than or equal (`>=`).
     Gte,
+    /// Logical AND (`&&`).
     And,
+    /// Logical OR (`||`).
     Or,
 }
 
+/// Unary operators supported by the Animatix language.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
+    /// Negation (`-`).
     Neg,
+    /// Logical NOT (`!`).
     Not,
 }
 
@@ -195,23 +240,29 @@ pub enum UnaryOp {
 // ----------------------------------------------------------------------------
 
 /// Key-value pair for actor configuration.
-/// Note: `name` may contain dots for nested keys (e.g., "scene.background", "border.width").
-/// The parser handles dot-separated paths; dots are preserved as-is in the name string.
+/// Note: `name` may contain dots for nested keys (e.g., "scene.background",
+/// "border.width").
+/// The parser handles dot-separated paths; dots are preserved as-is in the name
+/// string.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Property {
+    /// Property name (may contain dots for nested keys).
     pub name: String,
+    /// Property value expression.
     pub value: Expr,
     /// Byte-offset span of the value expression within the source text.
     /// Used for surgical source edits (writing back to .amx file).
-    
     pub value_span: Option<ByteSpan>,
-    /// Trailing line comment after this property, e.g. `size: (100, 200) // half-extents`.
-    /// Only `//` line comments immediately following the property value are captured.
+    /// Trailing line comment after this property, e.g.
+    /// `size: (100, 200) // half-extents`.
+    /// Only `//` line comments immediately following the property value are
+    /// captured.
     /// Block comments (`/* */`) and comments inside expressions are rejected.
     pub trailing_comment: Option<String>,
 }
 
 impl Property {
+    /// Create a new property with the given name and value.
     pub fn new(name: impl Into<String>, value: Expr) -> Self {
         Self {
             name: name.into(),
@@ -233,18 +284,27 @@ impl Default for Property {
     }
 }
 
+/// Modifier applied to an action (e.g. duration `2s`, `ease: bounce`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Modifier {
+    /// Optional modifier name (e.g. `ease` in `ease: bounce`).
     pub name: Option<String>,
+    /// Modifier value expression.
     pub value: Expr,
 }
 
+/// Action invocation (e.g. `move btn to (100, 100) [2s]`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Action {
-    pub verb: String,             // e.g., "appear", "move", "fade-out"
-    pub targets: Vec<String>,     // e.g., ["btn"], ["A", "B", "C"]
-    pub args: Vec<Expr>,          // e.g., to (100, 100)
-    pub modifiers: Vec<Modifier>, // e.g., [2s, ease: bounce]
+    /// Action verb (e.g. `appear`, `move`, `fade-out`).
+    pub verb: String,
+    /// Target labels the action applies to (e.g. `["btn"]`, `["A", "B",
+    /// "C"]`).
+    pub targets: Vec<String>,
+    /// Positional arguments (e.g. `to (100, 100)`).
+    pub args: Vec<Expr>,
+    /// Named modifiers (e.g. `[2s, ease: bounce]`).
+    pub modifiers: Vec<Modifier>,
     /// Byte-offset span of the action declaration in the source text.
     /// Used for diagnostic location reporting.
     pub byte_span: Option<ByteSpan>,
@@ -259,7 +319,9 @@ pub struct Action {
 pub struct Transition {
     /// Transition ID from the registry (e.g. "fade", "wipe-left").
     pub id: String,
+    /// Duration of the transition in milliseconds.
     pub duration_ms: u64,
+    /// Easing curve for the transition.
     pub easing: crate::easing::Easing,
 }
 
@@ -279,24 +341,36 @@ impl Default for Transition {
 // Enums and structs used throughout the AST for specific domains.
 // ----------------------------------------------------------------------------
 
+/// Time value used for keyframes and durations.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Time {
-    Seconds(f64),      // 2s, 2.5
-    Milliseconds(u64), // 500ms
+    /// Time in seconds (e.g. `2s`, `2.5`).
+    Seconds(f64),
+    /// Time in milliseconds (e.g. `500ms`).
+    Milliseconds(u64),
 }
 
+/// Parameter definition for component parameters.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamDef {
+    /// Parameter name.
     pub name: String,
-    pub param_type: Option<String>, // Optional type hint
+    /// Optional type hint (e.g. `Num`, `String`).
+    pub param_type: Option<String>,
+    /// Default value expression, if any.
     pub default: Option<Expr>,
 }
 
+/// Component definition (used in `.actor.actx` files).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComponentDef {
+    /// Whether the component is exported (`pub`).
     pub is_pub: bool,
+    /// Component name.
     pub name: String,
+    /// Parameter definitions.
     pub params: Vec<ParamDef>,
+    /// Body statements.
     pub body: Vec<Stmt>,
 }
 
@@ -307,32 +381,48 @@ pub struct ComponentDef {
 // Distinguishes between anonymous items and labeled scene actors.
 // ----------------------------------------------------------------------------
 
+/// Item declared inside a container (Row, Col, Grid).
+/// Distinguishes between anonymous items and labeled scene actors.
 #[derive(Clone, Debug, PartialEq)]
 pub enum InlineItem {
-    // Anonymous: Button, text: "OK" (Only exists within container)
+    /// Anonymous item that only exists within its container (e.g.
+    /// `Button, text: "OK"`).
     Anonymous {
+        /// Actor type name.
         ty: String,
+        /// Properties for actor configuration.
         props: Vec<Property>,
+        /// Modifiers applied to the item.
         modifiers: Vec<Modifier>,
+        /// Nested child items.
         children: Vec<InlineItem>,
     },
-    // Labeled: btn: Button, text: "OK" (Added to scene graph)
+    /// Labeled item added to the scene graph (e.g. `btn: Button, text:
+    /// "OK"`).
     Labeled {
+        /// Item label.
         label: String,
+        /// Actor type name.
         ty: String,
+        /// Properties for actor configuration.
         props: Vec<Property>,
+        /// Modifiers applied to the item.
         modifiers: Vec<Modifier>,
+        /// Nested child items.
         children: Vec<InlineItem>,
     },
-    ///
-    /// @slot marker inside a container's children block.
-    /// Default items (if any) are non-@slot sibling items in the same container.
+    /// `@slot` marker inside a container's children block.
+    /// Default items (if any) are non-@slot sibling items in the same
+    /// container.
     SlotMarker,
     /// Filled slot content from a component instantiation site.
-    /// Maps to a container label inside the component body (e.g. `header { ... }` maps to the
-    /// container named `header` that contains a `@slot` marker).
+    /// Maps to a container label inside the component body (e.g. `header {
+    /// ... }` maps to the container named `header` that contains a `@slot`
+    /// marker).
     SlotFill {
+        /// Slot name.
         slot: String,
+        /// Items filling this slot.
         items: Vec<InlineItem>,
     },
 }
@@ -344,197 +434,253 @@ pub enum InlineItem {
 // reactive blocks, and control flow.
 // ----------------------------------------------------------------------------
 
+/// Statement types for the Animatix language.
+/// Core logic units including declarations, timeline, reactive blocks, and
+/// control flow.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     // === Actions ===
     /// Action invocation: `move btn to (100, 100) [2s]`
-    Action(Action,  Option<Span>),
+    Action(Action, Option<Span>),
 
     // === Declarations ===
-    /// Variable: let x = 0
+    /// Variable declaration: `let x = 0`
     LetDecl {
+        /// Whether the variable is exported (`pub`).
         is_pub: bool,
+        /// Variable name.
         name: String,
+        /// Initial value expression.
         value: Expr,
-        
+        /// Source span for this declaration.
         span: Option<Span>,
     },
 
     // === Actors/Nodes ===
-    /// Actor: btn: Button, text: "OK"
+    /// Actor declaration: `btn: Button, text: "OK"`
     /// Also used for Text, Math, Code, Svg, Image declarations.
     /// Re-declaring an existing label triggers morphing logic in compiler.
     ActorDecl {
+        /// Whether the actor is exported (`pub`).
         is_pub: bool,
+        /// Whether the actor is anonymous (no label).
         is_anonymous: bool,
+        /// Actor label.
         label: String,
+        /// Actor type name.
         ty: String,
+        /// Properties for actor configuration.
         props: Vec<Property>,
+        /// Modifiers applied to the actor.
         modifiers: Vec<Modifier>,
-        children: Vec<InlineItem>, // For containers: Row { A, B }
-        
+        /// Nested child items (for containers: `Row { A, B }`).
+        children: Vec<InlineItem>,
+        /// Source span for this declaration.
         span: Option<Span>,
     },
 
-    /// Import: import "path"
+    /// Import declaration: `import "path"`
     Import {
+        /// Import path.
         path: String,
+        /// Optional import alias.
         alias: Option<String>,
-        
+        /// Source span for this declaration.
         span: Option<Span>,
     },
 
-    /// Use: use container.{a, b}
+    /// Use declaration: `use container.{a, b}`
     Use {
+        /// Import path.
         path: String,
+        /// Imported item names.
         items: Vec<String>,
-        
+        /// Source span for this declaration.
         span: Option<Span>,
     },
 
     // === Timeline ===
-    /// Keyframe: #2s { ... }
-    /// Contains a body of statements/actions occurring at this time
+    /// Absolute keyframe: `#2s { ... }`
+    /// Contains a body of statements/actions occurring at this time.
     Keyframe {
+        /// Keyframe time.
         time: Time,
+        /// Body statements at this keyframe.
         body: Vec<Stmt>,
-        
+        /// Source span for this keyframe.
         span: Option<Span>,
     },
 
-    /// Relative Keyframe: #+1s { ... }
+    /// Relative keyframe: `#+1s { ... }`
     RelativeKeyframe {
+        /// Time offset from the previous keyframe.
         offset: Time,
+        /// Body statements at this keyframe.
         body: Vec<Stmt>,
-        
+        /// Source span for this keyframe.
         span: Option<Span>,
     },
 
     // === Assignments ===
-    /// Property: btn.color = red
+    /// Property assignment: `btn.color = red`
     Assignment {
-        target: Vec<String>, // Label path segments, e.g. ["container", "child"]
+        /// Label path segments (e.g. `["container", "child"]`).
+        target: Vec<String>,
+        /// Property name.
         property: String,
+        /// Assigned value expression.
         value: Expr,
+        /// Modifiers applied to the assignment.
         modifiers: Vec<Modifier>,
+        /// Optional easing curve for animated assignments.
         easing: Option<crate::easing::Easing>,
         /// Byte-offset span of the value expression within the source text.
         /// Used for surgical source edits (writing back to .amx file).
-        
         value_span: Option<ByteSpan>,
-        
+        /// Source span for this assignment.
         span: Option<Span>,
     },
 
-    /// Composition helper: sequence { ... }
+    /// Sequence composition block: `sequence { ... }`
     Sequence {
+        /// Body statements in the sequence.
         body: Vec<Stmt>,
-        
+        /// Source span for this sequence.
         span: Option<Span>,
     },
 
-    /// Composition helper: `stagger [150ms] { ... }`
+    /// Stagger composition block: `stagger [150ms] { ... }`
     Stagger {
+        /// Stagger modifiers (e.g. interval duration).
         modifiers: Vec<Modifier>,
+        /// Body statements to stagger.
         body: Vec<Stmt>,
-        
+        /// Source span for this stagger.
         span: Option<Span>,
     },
 
     // === Reactive Blocks ===
-    /// Always: always { ... }
+    /// Always block: `always { ... }`
     Always {
+        /// Body statements in the always block.
         body: Vec<Stmt>,
-        
+        /// Source span for this block.
         span: Option<Span>,
     },
 
-    /// Drive: drive actor { ... }
+    /// Drive block: `drive actor { ... }`
     /// Per-actor reactive block where assignments are implicitly scoped.
     Drive {
+        /// Target actor label.
         label: String,
+        /// Body statements in the drive block.
         body: Vec<Stmt>,
-        
+        /// Source span for this block.
         span: Option<Span>,
     },
 
-    /// Reactive binding: actor.prop := expr
+    /// Reactive binding: `actor.prop := expr`
     /// Desugars to an always-assignment at build time.
     ReactiveBinding {
+        /// Label path segments.
         target: Vec<String>,
+        /// Property name.
         property: String,
+        /// Bound value expression.
         value: Expr,
+        /// Byte-offset span of the value expression.
         value_span: Option<ByteSpan>,
-        
+        /// Source span for this binding.
         span: Option<Span>,
     },
 
     // === Control Flow ===
-    /// Conditional: if x > 0 { ... }
+    /// Conditional block: `if x > 0 { ... }`
     Conditional {
+        /// Condition expression.
         condition: Expr,
+        /// Then-branch statements.
         then_branch: Vec<Stmt>,
+        /// Optional else-branch statements.
         else_branch: Option<Vec<Stmt>>,
-        
+        /// Source span for this conditional.
         span: Option<Span>,
     },
 
-    /// Iteration: for item in items { ... }
+    /// For loop: `for item in items { ... }`
     ForLoop {
+        /// Loop variable name.
         var: String,
+        /// Iterable expression.
         iterable: Expr,
+        /// Body statements in the loop.
         body: Vec<Stmt>,
-        
+        /// Source span for this loop.
         span: Option<Span>,
     },
 
     // === Component Definitions (in .actor.actx files) ===
-    /// Component: Button(text: "Click") { ... }
-    ComponentDef(ComponentDef,  Option<Span>),
+    /// Component definition: `Button(text: "Click") { ... }`
+    ComponentDef(ComponentDef, Option<Span>),
 
-    /// Component Action: action hover { ... }
+    /// Component action definition: `action hover { ... }`
     ComponentAction {
+        /// Action name.
         name: String,
+        /// Parameter definitions.
         params: Vec<ParamDef>,
+        /// Body statements in the action.
         body: Vec<Stmt>,
-        
+        /// Source span for this action.
         span: Option<Span>,
     },
 
     // === Configuration ===
-    /// Config: @config { resolution: 1920x1080 }
+    /// Config block: `@config { resolution: 1920x1080 }`
     Config {
+        /// Configuration settings as properties.
         settings: Vec<Property>,
-        
+        /// Source span for this config block.
         span: Option<Span>,
     },
 
     // === Multi-Scene Composition ===
-    /// Scene declaration: # SceneName
+    /// Scene declaration: `# SceneName`
     Scene {
+        /// Scene name.
         name: String,
+        /// Scene configuration properties.
         config: Vec<Property>,
+        /// Body statements in the scene.
         body: Vec<Stmt>,
+        /// Source span for this scene.
         span: Option<Span>,
     },
 
-    /// Play statement: play SceneName [transition, duration]
+    /// Play statement: `play SceneName [transition, duration]`
     Play {
+        /// Scene name to play.
         scene_name: String,
+        /// Optional scene transition.
         transition: Option<Transition>,
+        /// Source span for this play statement.
         span: Option<Span>,
     },
 
     // === Comments ===
-    Comment(String,  Option<Span>),
+    /// Standalone comment statement.
+    Comment(String, Option<Span>),
 }
 
 // ----------------------------------------------------------------------------
 // 6. Imports
 // ----------------------------------------------------------------------------
 
+/// Import declaration (standalone type, distinct from `Stmt::Import`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
+    /// Import path.
     pub path: String,
+    /// Optional import alias.
     pub alias: Option<String>,
 }

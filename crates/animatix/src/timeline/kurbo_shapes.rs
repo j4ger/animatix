@@ -19,32 +19,60 @@ pub const DEFAULT_TOLERANCE: f64 = 0.1;
 #[derive(Clone, Debug)]
 pub enum KurboShape {
     /// Axis-aligned rectangle defined by min and max coordinates
-    Rect { x0: f64, y0: f64, x1: f64, y1: f64 },
+    Rect {
+        /// Minimum x coordinate
+        x0: f64,
+        /// Minimum y coordinate
+        y0: f64,
+        /// Maximum x coordinate
+        x1: f64,
+        /// Maximum y coordinate
+        y1: f64,
+    },
 
     /// Line segment from start to end point
-    Line { p0: Point, p1: Point },
+    Line {
+        /// Start point
+        p0: Point,
+        /// End point
+        p1: Point,
+    },
 
     /// Ellipse defined by center, radii (as Vec2), and rotation angle
     Ellipse {
+        /// Center of the ellipse
         center: Point,
+        /// X and Y radii
         radii: Vec2,
+        /// Rotation angle in radians
         rotation: f64,
     },
 
     /// Elliptical arc with sweep
     Arc {
+        /// Center of the arc
         center: Point,
+        /// X and Y radii
         radii: Vec2,
+        /// Start angle in radians
         start_angle: f64,
+        /// Sweep angle in radians
         sweep_angle: f64,
+        /// Rotation angle in radians
         rotation: f64,
     },
 
     /// Closed polygon defined by explicit points
-    Polygon { points: Vec<Point> },
+    Polygon {
+        /// Vertices of the polygon
+        points: Vec<Point>,
+    },
 
     /// Raw Bezier path
-    Path { path: BezPath },
+    Path {
+        /// Underlying Bezier path
+        path: BezPath,
+    },
 }
 
 impl KurboShape {

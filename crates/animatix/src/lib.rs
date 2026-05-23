@@ -15,8 +15,13 @@ pub use animatix_syntax::transition_registry;
 
 // Runtime modules (stay in animatix)
 pub mod composition;
+/// Intermediate representation module.
 pub mod ir;
+/// Primitive shape and media types.
 pub mod primitives;
+/// Rendering backend (Vello/WGPU-based).
 pub mod renderer;
+/// Timeline construction, evaluation, and animation engine.
 pub mod timeline;
+/// Modifier bytecode VM.
 pub mod vm;

@@ -135,6 +135,7 @@ fn seed_image_track(
 }
 
 impl Timeline {
+    /// Process a media actor declaration (Image, Audio, Video) and add it to the timeline.
     pub fn process_media_actor_decl(
         &mut self,
         actor_type: &str,

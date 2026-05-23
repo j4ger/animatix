@@ -5,8 +5,11 @@
 
 /// Metadata for a single transition type.
 pub struct TransitionDef {
+    /// Machine-readable identifier used in source text (e.g. `"fade"`).
     pub id: &'static str,
+    /// Human-readable name shown in the GUI inspector.
     pub display_name: &'static str,
+    /// Default duration in milliseconds when no explicit duration is given.
     pub default_duration_ms: u64,
     /// Shader dispatch case index (must match the switch arms in transition.wgsl).
     pub shader_case: u32,

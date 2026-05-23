@@ -19,6 +19,7 @@ pub struct SymbolTable {
     pub properties: HashMap<String, Vec<String>>,
     /// Keywords and built-in actions.
     pub keywords: HashSet<String>,
+    /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
     pub actions: HashSet<String>,
     /// Imports declared in this file.
     pub imports: Vec<ImportInfo>,
@@ -27,7 +28,9 @@ pub struct SymbolTable {
 /// Information about an import declaration.
 #[derive(Debug, Clone)]
 pub struct ImportInfo {
+    /// The import path (e.g., `"lib.amx"`).
     pub path: String,
+    /// Optional alias for the import.
     pub alias: Option<String>,
     /// Full source span of the import statement.
     pub span: Option<Span>,
@@ -36,9 +39,13 @@ pub struct ImportInfo {
 /// Information about a labeled entity.
 #[derive(Debug, Clone)]
 pub struct LabelInfo {
+    /// The name of the label.
     pub name: String,
+    /// The kind of label (actor, let binding, etc.).
     pub kind: LabelKind,
+    /// The 1-based line number of the declaration.
     pub line: usize,
+    /// The 1-based column number of the declaration.
     pub col: usize,
     /// Full source span (line/col range) for precise source write-back.
     pub span: Option<Span>,
@@ -64,9 +71,13 @@ pub enum LabelKind {
 /// Information about a component definition.
 #[derive(Debug, Clone)]
 pub struct ComponentInfo {
+    /// The component name.
     pub name: String,
+    /// The list of parameters for this component.
     pub params: Vec<ParamInfo>,
+    /// The 1-based line number of the declaration.
     pub line: usize,
+    /// The 1-based column number of the declaration.
     pub col: usize,
     /// Full source span (line/col range) for precise source write-back.
     pub span: Option<Span>,
@@ -75,15 +86,20 @@ pub struct ComponentInfo {
 /// Information about a component parameter.
 #[derive(Debug, Clone)]
 pub struct ParamInfo {
+    /// The parameter name.
     pub name: String,
+    /// The default value, if any, as a source string.
     pub default: Option<String>,
 }
 
 /// Information about a scene declaration.
 #[derive(Debug, Clone)]
 pub struct SceneInfo {
+    /// The scene name.
     pub name: String,
+    /// The 1-based line number of the declaration.
     pub line: usize,
+    /// The 1-based column number of the declaration.
     pub col: usize,
     /// Full source span (line/col range) for precise source write-back.
     pub span: Option<Span>,

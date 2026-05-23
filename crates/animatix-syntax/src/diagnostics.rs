@@ -2,9 +2,12 @@ use std::fmt;
 use std::ops::Range;
 use std::path::PathBuf;
 
+/// Severity level of a diagnostic message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
+    /// A non-fatal issue that should be reported but does not stop processing.
     Warning,
+    /// A fatal issue that prevents successful completion of the current phase.
     Error,
 }
 
@@ -17,10 +20,14 @@ impl fmt::Display for DiagnosticSeverity {
     }
 }
 
+/// Phase of the pipeline that produced a diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticPhase {
+    /// The parsing phase.
     Parse,
+    /// The build (compilation) phase.
     Build,
+    /// The render phase.
     Render,
 }
 
@@ -34,41 +41,70 @@ impl fmt::Display for DiagnosticPhase {
     }
 }
 
+/// Unique code identifying the kind of diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DiagnosticCode {
+    /// Failed to load a source file.
     SourceLoadFailure,
+    /// A syntax or parse error was encountered.
     ParseError,
+    /// The render step failed.
     RenderFailure,
+    /// A modifier key is not supported in the current context.
     UnsupportedModifierKey,
+    /// An assignment property is not supported.
     UnsupportedAssignmentProperty,
+    /// The target of an assignment is invalid.
     InvalidAssignmentTarget,
+    /// A modifier value is invalid.
     InvalidModifierValue,
+    /// A configuration value is invalid.
     InvalidConfigValue,
+    /// Two modifier keys conflict with each other.
     ConflictingModifierKey,
+    /// The referenced action is unknown.
     UnknownAction,
+    /// The referenced colorscheme is unknown.
     UnknownColorscheme,
+    /// The referenced color is unknown.
     UnknownColorReference,
+    /// The target of an action is not supported.
     UnsupportedActionTarget,
+    /// A statement inside a sequence is not supported.
     UnsupportedSequenceStatement,
+    /// The target path could not be resolved.
     UnknownTargetPath,
+    /// The lookup path could not be resolved.
     UnknownLookupPath,
+    /// A statement inside a stagger is not supported.
     UnsupportedStaggerStatement,
+    /// Failed to load a media asset.
     MediaLoadFailure,
+    /// Layout size had to fall back to a default.
     LayoutSizeFallback,
+    /// A media assignment is not supported.
     UnsupportedMediaAssignment,
+    /// Colorscheme data is malformed or invalid.
     InvalidColorschemeData,
+    /// A cycle was detected in colorscheme inheritance.
     ColorschemeInheritanceCycle,
+    /// Evaluation of a module export failed.
     ModuleExportEvalError,
+    /// A modifier failed to compile.
     ModifierCompilationError,
-    // Coordinate system friction
+    /// Coordinate system friction: two position bindings conflict.
     ConflictingPositionBinding,
+    /// Coordinate system friction: an offset was ignored.
     IgnoredOffset,
-    // Multi-scene composition
+    /// Multi-scene composition: a scene name was used more than once.
     DuplicateSceneName,
+    /// Multi-scene composition: the play target was not found.
     PlayTargetNotFound,
+    /// Multi-scene composition: a play cycle was detected.
     PlayCycleDetected,
-    // Plotting
+    /// The plot function is invalid.
     InvalidPlotFunc,
+    /// The actor type is unknown.
     UnknownActorType,
 }
 
@@ -120,9 +156,12 @@ impl fmt::Display for DiagnosticCode {
     }
 }
 
+/// Source location associated with a diagnostic.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DiagnosticLocation {
+    /// Path to the source file, if known.
     pub path: Option<PathBuf>,
+    /// Subject (e.g. identifier) the diagnostic refers to, if any.
     pub subject: Option<String>,
     /// 1-based line number where the error occurs.
     pub line: Option<usize>,
@@ -132,16 +171,23 @@ pub struct DiagnosticLocation {
     pub span: Option<Range<usize>>,
 }
 
+/// A single diagnostic message produced by the compiler.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
+    /// Severity of this diagnostic.
     pub severity: DiagnosticSeverity,
+    /// Pipeline phase that produced this diagnostic.
     pub phase: DiagnosticPhase,
+    /// Machine-readable code identifying the diagnostic kind.
     pub code: DiagnosticCode,
+    /// Human-readable message describing the issue.
     pub message: String,
+    /// Source location associated with the diagnostic.
     pub location: DiagnosticLocation,
 }
 
 impl Diagnostic {
+    /// Creates a new warning diagnostic with the given code, phase, and message.
     pub fn warning(
         code: DiagnosticCode,
         phase: DiagnosticPhase,
@@ -156,6 +202,7 @@ impl Diagnostic {
         }
     }
 
+    /// Creates a new error diagnostic with the given code, phase, and message.
     pub fn error(code: DiagnosticCode, phase: DiagnosticPhase, message: impl Into<String>) -> Self {
         Self {
             severity: DiagnosticSeverity::Error,
@@ -166,16 +213,19 @@ impl Diagnostic {
         }
     }
 
+    /// Attaches a source file path to the diagnostic.
     pub fn with_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.location.path = Some(path.into());
         self
     }
 
+    /// Attaches a subject identifier to the diagnostic.
     pub fn with_subject(mut self, subject: impl Into<String>) -> Self {
         self.location.subject = Some(subject.into());
         self
     }
 
+    /// Attaches line, column, and byte span information to the diagnostic.
     pub fn with_location(mut self, line: usize, column: usize, span: Range<usize>) -> Self {
         self.location.line = Some(line);
         self.location.column = Some(column);
@@ -198,13 +248,18 @@ impl Diagnostic {
     }
 }
 
+/// Result of a build step, carrying the output value plus any diagnostics.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BuildReport<T> {
+    /// The successfully produced output value.
     pub output: T,
+    /// All diagnostics emitted during the build.
     pub diagnostics: Vec<Diagnostic>,
 }
 
 impl<T> BuildReport<T> {
+    /// Creates a new `BuildReport`, deduplicating diagnostics by (code, message,
+    /// subject).
     pub fn new(output: T, mut diagnostics: Vec<Diagnostic>) -> Self {
         // Deduplicate: keep only the first occurrence of each
         // (code, message, subject) combination.
@@ -224,18 +279,24 @@ impl<T> BuildReport<T> {
     }
 }
 
+/// Summary of diagnostics for a single pipeline phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DiagnosticPhaseSummary {
+    /// The pipeline phase being summarized.
     pub phase: DiagnosticPhase,
+    /// Number of warnings in this phase.
     pub warnings: usize,
+    /// Number of errors in this phase.
     pub errors: usize,
 }
 
 impl DiagnosticPhaseSummary {
+    /// Returns the total number of diagnostics (warnings + errors) in this phase.
     pub fn total(&self) -> usize {
         self.warnings + self.errors
     }
 
+    /// Returns a human-readable label for this phase summary.
     pub fn label(&self) -> String {
         format!(
             "{}: {}",
@@ -245,6 +306,7 @@ impl DiagnosticPhaseSummary {
     }
 }
 
+/// Formats a single diagnostic into a human-readable string.
 pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
     let location = if let (Some(line), Some(col)) = (diagnostic.location.line, diagnostic.location.column) {
         format!("{}:{}:", line, col)
@@ -267,6 +329,7 @@ pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
     parts.join(" • ")
 }
 
+/// Returns a summary string counting total warnings and errors.
 pub fn diagnostics_summary(diagnostics: &[Diagnostic]) -> String {
     let warnings = diagnostics
         .iter()
@@ -280,6 +343,7 @@ pub fn diagnostics_summary(diagnostics: &[Diagnostic]) -> String {
     severity_summary(warnings, errors)
 }
 
+/// Returns a per-phase summary of diagnostics, omitting phases with no issues.
 pub fn diagnostics_summary_by_phase(diagnostics: &[Diagnostic]) -> Vec<DiagnosticPhaseSummary> {
     [
         DiagnosticPhase::Parse,
@@ -311,6 +375,7 @@ pub fn diagnostics_summary_by_phase(diagnostics: &[Diagnostic]) -> Vec<Diagnosti
     .collect()
 }
 
+/// Returns a formatted summary string of diagnostics grouped by phase.
 pub fn diagnostics_phase_summary(diagnostics: &[Diagnostic]) -> String {
     let summaries = diagnostics_summary_by_phase(diagnostics);
 

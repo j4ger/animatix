@@ -1,3 +1,5 @@
+//! SVG media primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
@@ -5,7 +7,10 @@ use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::svg::parse_svg;
 
+/// The `Svg` primitive.
 pub struct SvgPrimitive;
+
+/// Singleton instance of [`SvgPrimitive`].
 pub const SVG: SvgPrimitive = SvgPrimitive;
 
 impl Primitive for SvgPrimitive {

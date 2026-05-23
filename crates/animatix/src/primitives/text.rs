@@ -1,10 +1,15 @@
+//! Text primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 
+/// The `Text` primitive.
 pub struct TextPrimitive;
+
+/// Singleton instance of [`TextPrimitive`].
 pub const TEXT: TextPrimitive = TextPrimitive;
 
 impl Primitive for TextPrimitive {

@@ -21,12 +21,19 @@ pub struct CompletionItem {
 /// The kind of completion item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompletionKind {
+    /// A language keyword (e.g., `let`, `import`).
     Keyword,
+    /// A type name (e.g., `Text`, `Rect`).
     Type,
+    /// An actor property name (e.g., `content`, `position`).
     Property,
+    /// An actor or variable label.
     Label,
+    /// An action verb (e.g., `fade-in`, `move`).
     Action,
+    /// A literal value (e.g., `true`, `null`).
     Value,
+    /// A code snippet/template.
     Snippet,
 }
 

@@ -1,9 +1,14 @@
+//! Mask container primitive.
+
 use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
+/// The `Mask` primitive.
 pub struct MaskPrimitive;
+
+/// Singleton instance of [`MaskPrimitive`].
 pub const MASK: MaskPrimitive = MaskPrimitive;
 
 impl Primitive for MaskPrimitive {

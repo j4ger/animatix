@@ -16,6 +16,7 @@ use tracing::info;
 // Public API: single-timeline GIF
 // ---------------------------------------------------------------------------
 
+/// Render a single timeline to a GIF file.
 pub fn render_gif_timeline(
     timeline: Timeline,
     width: u32,
@@ -35,6 +36,7 @@ pub fn render_gif_timeline(
     )
 }
 
+/// Render a single timeline to a GIF file with debug options.
 pub fn render_gif_timeline_with_debug(
     timeline: Timeline,
     width: u32,
@@ -58,6 +60,7 @@ pub fn render_gif_timeline_with_debug(
     ))
 }
 
+/// Render a single timeline to a GIF file with debug options and export settings.
 pub fn render_gif_timeline_with_settings(
     timeline: Timeline,
     width: u32,
@@ -73,6 +76,8 @@ pub fn render_gif_timeline_with_settings(
     ))
 }
 
+/// Render a single timeline to a GIF file with full control: debug options,
+/// export settings, progress tracking, and cancellation.
 pub fn render_gif_timeline_with_progress(
     timeline: Timeline,
     width: u32,
@@ -169,6 +174,7 @@ pub(super) async fn render_gif_async(
 // Multi-Scene Composition GIF Export
 // ---------------------------------------------------------------------------
 
+/// Render a multi-scene composition to a GIF file.
 pub fn render_gif_composition(
     composition: &Composition,
     width: u32,
@@ -189,6 +195,7 @@ pub fn render_gif_composition(
     )
 }
 
+/// Render a multi-scene composition to a GIF file with debug options and export settings.
 pub fn render_gif_composition_with_settings(
     composition: &Composition,
     width: u32,
@@ -213,6 +220,8 @@ pub fn render_gif_composition_with_settings(
     ))
 }
 
+/// Render a multi-scene composition to a GIF file with full control: debug options,
+/// export settings, progress tracking, and cancellation.
 pub fn render_gif_composition_with_progress(
     composition: &Composition,
     width: u32,

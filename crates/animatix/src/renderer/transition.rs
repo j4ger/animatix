@@ -106,6 +106,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 "#;
 
 impl TransitionCompositor {
+    /// Build the transition pipeline, bind-group layout, and sampler on `device`.
     pub fn new(device: &wgpu::Device) -> Result<Self, String> {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Animatix Transition Shader"),

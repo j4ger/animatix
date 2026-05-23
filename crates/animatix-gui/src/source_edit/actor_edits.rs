@@ -430,7 +430,6 @@ fn rename_in_inline_items(items: &mut [InlineItem], old_label: &str, new_label: 
 mod tests {
     use super::super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
     use super::super::apply::{SourceEdit, apply_edit};
-    use super::super::apply::canonical_to_source;
     use animatix::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
     use animatix::parser::parser;
     use chumsky::Parser;

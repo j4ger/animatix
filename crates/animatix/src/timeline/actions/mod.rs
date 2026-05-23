@@ -1,9 +1,17 @@
+/// Visual effect actions (bounce, pulse, shake).
 pub mod effects;
+/// Entrance actions that bring actors into view (fade-in, wipe-in).
 pub mod entrance;
+/// Exit actions that remove actors from view (fade-out).
 pub mod exit;
+/// Motion actions that transform actor placement (move, shift, rotate, scale).
 pub mod motion;
+/// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
 pub mod registry;
+/// Reorder actions that change container child order (swap, reorder).
 pub mod reorder;
+/// Reveal actions that animate vector stroke and fill visibility
+/// (draw-in, reveal-in, wipe-out, reveal-out, draw-out).
 pub mod reveal;
 
 use crate::ast::Action;

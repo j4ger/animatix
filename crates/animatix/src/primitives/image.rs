@@ -1,3 +1,5 @@
+//! Image media primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
@@ -8,7 +10,10 @@ use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::track::TrackAccessor;
 
+/// The `Image` primitive.
 pub struct ImagePrimitive;
+
+/// Singleton instance of [`ImagePrimitive`].
 pub const IMAGE: ImagePrimitive = ImagePrimitive;
 
 impl Primitive for ImagePrimitive {

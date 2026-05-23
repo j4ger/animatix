@@ -65,12 +65,19 @@ fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing
 /// A structured parse error with human-readable location and context.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
+    /// Human-readable error message.
     pub message: String,
+    /// Byte span in the source where the error occurred.
     pub span: Range<usize>,
+    /// 1-based line number of the error.
     pub line: usize,
+    /// 1-based column number of the error.
     pub column: usize,
+    /// Descriptions of what the parser expected at this point.
     pub expected: Vec<String>,
+    /// The token or text the parser actually found, if any.
     pub found: Option<String>,
+    /// Parser context stack (labels of enclosing grammar rules).
     pub context: Vec<String>,
 }
 
@@ -140,6 +147,10 @@ fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     (line, col)
 }
 
+/// Build the top-level `.amx` file parser.
+///
+/// Parses a full source file into a `Vec<Stmt>`, grouping statements into scenes
+/// via [`group_scenes`].
 pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
     let ident = text::ident()
         .then(just('-').then(text::ident()).repeated())

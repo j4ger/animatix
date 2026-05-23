@@ -5,6 +5,7 @@ use crate::easing::Easing;
 use crate::timeline::track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
+/// Draws in vector targets by animating stroke progress first, then revealing fill.
 pub struct DrawIn;
 
 impl BuiltinAction for DrawIn {
@@ -93,6 +94,7 @@ impl BuiltinAction for DrawIn {
     }
 }
 
+/// Reveals vector targets by drawing stroke progress first, then popping fill at the end.
 pub struct RevealIn;
 
 impl BuiltinAction for RevealIn {
@@ -183,6 +185,7 @@ impl BuiltinAction for RevealIn {
     }
 }
 
+/// Wipes out vector targets by animating stroke progress and fill opacity down together.
 pub struct WipeOut;
 
 impl BuiltinAction for WipeOut {
@@ -264,6 +267,7 @@ impl BuiltinAction for WipeOut {
     }
 }
 
+/// Exits vector targets by hiding fill at the start, then erasing stroke progress over time.
 pub struct RevealOut;
 
 impl BuiltinAction for RevealOut {
@@ -343,6 +347,7 @@ impl BuiltinAction for RevealOut {
     }
 }
 
+/// Exits vector targets by erasing stroke progress over time while keeping fill until the end.
 pub struct DrawOut;
 
 impl BuiltinAction for DrawOut {

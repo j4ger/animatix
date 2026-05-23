@@ -1,3 +1,5 @@
+//! Line shape primitive.
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
@@ -7,7 +9,10 @@ use crate::timeline::{
     Environment,
 };
 
+/// The `Line` primitive.
 pub struct LinePrimitive;
+
+/// Singleton instance of [`LinePrimitive`].
 pub const LINE: LinePrimitive = LinePrimitive;
 
 impl Primitive for LinePrimitive {

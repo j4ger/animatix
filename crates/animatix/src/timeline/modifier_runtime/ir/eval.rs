@@ -5,6 +5,7 @@ use super::types::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
 };
 
+/// Evaluate a modifier expression, dispatching between compiled and unsupported variants.
 pub fn evaluate_modifier_expr(
     expr: &ModifierExpr,
     env: &Environment,
@@ -15,6 +16,7 @@ pub fn evaluate_modifier_expr(
     }
 }
 
+/// Execute a modifier IR program statement by statement.
 pub fn execute_modifier_ir(
     program: &ModifierIrProgram,
     frame_env: &mut Environment,
@@ -93,6 +95,7 @@ fn execute_modifier_stmt(
     }
 }
 
+/// Evaluate a compiled expression against the given environment.
 pub fn evaluate_compiled_expr(
     expr: &CompiledExpr,
     env: &Environment,
