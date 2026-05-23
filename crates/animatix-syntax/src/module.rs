@@ -80,12 +80,21 @@ pub struct ComponentEntry {
     pub definition: ComponentDef,
     /// Absolute path to the file that defined this component.
     pub source_path: PathBuf,
-    /// Custom action templates defined inside this component: action_name → body statements
-    pub actions: HashMap<String, Vec<Stmt>>,
+    /// Custom action templates defined inside this component: action_name → template.
+    pub actions: HashMap<String, ActionTemplate>,
 }
 
-/// Maps instance label → action_name → rewritten body statements
-pub type InstanceActionRegistry = HashMap<String, HashMap<String, Vec<Stmt>>>;
+/// A component action template with parameter definitions and body.
+#[derive(Clone, Debug)]
+pub struct ActionTemplate {
+    /// Parameter definitions for this action.
+    pub params: Vec<ParamDef>,
+    /// Body statements of the action.
+    pub body: Vec<Stmt>,
+}
+
+/// Maps instance label → action_name → action template.
+pub type InstanceActionRegistry = HashMap<String, HashMap<String, ActionTemplate>>;
 
 /// A fully loaded program: top-level statements, component registry, and namespaces.
 #[derive(Clone, Debug, Default)]

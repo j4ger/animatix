@@ -98,12 +98,20 @@ fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<Component
 }
 
 /// Collect custom action templates from a component definition body.
-/// Returns a map of action_name → body statements (unrewritten).
-pub(super) fn collect_component_actions(definition: &ComponentDef) -> HashMap<String, Vec<Stmt>> {
+/// Returns a map of action_name → action template.
+pub(super) fn collect_component_actions(
+    definition: &ComponentDef,
+) -> HashMap<String, crate::module::ActionTemplate> {
     let mut actions = HashMap::new();
     for stmt in &definition.body {
-        if let Stmt::ComponentAction { name, body, .. } = stmt {
-            actions.insert(name.clone(), body.clone());
+        if let Stmt::ComponentAction { name, params, body, .. } = stmt {
+            actions.insert(
+                name.clone(),
+                crate::module::ActionTemplate {
+                    params: params.clone(),
+                    body: body.clone(),
+                },
+            );
         }
     }
     actions

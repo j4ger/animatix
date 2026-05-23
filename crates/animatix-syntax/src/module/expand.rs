@@ -189,12 +189,18 @@ fn expand_component_instance(
         .collect::<Vec<_>>();
 
     // Collect custom actions from rewritten statements
-    let mut instance_actions: HashMap<String, Vec<Stmt>> = HashMap::new();
+    let mut instance_actions: HashMap<String, crate::module::ActionTemplate> = HashMap::new();
     let filtered: Vec<Stmt> = rewritten
         .into_iter()
         .filter_map(|stmt| match &stmt {
-            Stmt::ComponentAction { name, body, .. } => {
-                instance_actions.insert(name.clone(), body.clone());
+            Stmt::ComponentAction { name, params, body, .. } => {
+                instance_actions.insert(
+                    name.clone(),
+                    crate::module::ActionTemplate {
+                        params: params.clone(),
+                        body: body.clone(),
+                    },
+                );
                 None
             }
             _ => Some(stmt),
