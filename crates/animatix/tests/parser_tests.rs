@@ -1,5 +1,5 @@
 use animatix_syntax::ast::{
-    Action, ByteSpan, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Stmt, Time,
+    Action, ByteSpan, Expr, InlineItem, Modifier, Property, Stmt, Time,
     UnaryOp,
 };
 use animatix_syntax::parser::parser;

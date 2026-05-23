@@ -1532,7 +1532,7 @@ mod tests {
         }
 
         // Next should be a Rect
-        if let Stmt::ActorDecl { label, ty, props, children, .. } = &stmts[1] {
+        if let Stmt::ActorDecl { label, ty, props, .. } = &stmts[1] {
             assert_eq!(label, "rect_0");
             assert_eq!(ty, "Rect");
             // size should be (50, 30)

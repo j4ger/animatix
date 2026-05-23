@@ -660,7 +660,8 @@ impl<'a> TimelineStrip<'a> {
 pub struct DiagnosticTarget {
     /// 0-indexed source line.
     pub line: usize,
-    /// 0-indexed source column.
+    /// 0-indexed source column (reserved for future precise navigation).
+    #[allow(dead_code)]
     pub column: usize,
 }
 

@@ -82,7 +82,7 @@ pub fn render_widget(ui: &mut egui::Ui, name: &str) {
 
 fn render_demo_property_row(ui: &mut egui::Ui, entry: PropertyEntry) {
     let mut commands = CommandQueue::new();
-    render_property_row(ui, "actor1", &entry, &mut commands, false);
+    render_property_row(ui, "actor1", &entry, &mut commands, false, 0.0);
 }
 
 fn demo_vec2_entry() -> PropertyEntry {
@@ -91,6 +91,8 @@ fn demo_vec2_entry() -> PropertyEntry {
         kind: PropertyKind::Vec2 { x: 320.0, y: 240.0 },
         has_keyframes: true,
         has_keyframe_at_current_time: false,
+        keyframe_count: 2,
+        keyframe_times_ms: vec![0, 1000],
     }
 }
 
@@ -100,6 +102,8 @@ fn demo_float_entry() -> PropertyEntry {
         kind: PropertyKind::Float(45.0),
         has_keyframes: false,
         has_keyframe_at_current_time: false,
+        keyframe_count: 0,
+        keyframe_times_ms: vec![],
     }
 }
 
@@ -109,6 +113,8 @@ fn demo_slider_entry() -> PropertyEntry {
         kind: PropertyKind::Float(0.75),
         has_keyframes: true,
         has_keyframe_at_current_time: true,
+        keyframe_count: 3,
+        keyframe_times_ms: vec![0, 500, 1000],
     }
 }
 
@@ -118,6 +124,8 @@ fn demo_color_entry() -> PropertyEntry {
         kind: PropertyKind::Color([1.0, 0.2, 0.4, 1.0]),
         has_keyframes: false,
         has_keyframe_at_current_time: false,
+        keyframe_count: 0,
+        keyframe_times_ms: vec![],
     }
 }
 
@@ -127,6 +135,8 @@ fn demo_text_entry() -> PropertyEntry {
         kind: PropertyKind::Text("Ellipse".to_string()),
         has_keyframes: false,
         has_keyframe_at_current_time: false,
+        keyframe_count: 0,
+        keyframe_times_ms: vec![],
     }
 }
 
@@ -143,7 +153,7 @@ fn render_demo_property_group(ui: &mut egui::Ui) {
         ],
     };
     let mut commands = CommandQueue::new();
-    render_property_group(ui, &group, "actor1", &mut commands, false);
+    render_property_group(ui, &group, "actor1", &mut commands, false, 0.0);
 }
 
 fn render_demo_inspector(ui: &mut egui::Ui) {
@@ -160,18 +170,24 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     kind: PropertyKind::Vec2 { x: 320.0, y: 240.0 },
                     has_keyframes: true,
                     has_keyframe_at_current_time: false,
+                    keyframe_count: 2,
+                    keyframe_times_ms: vec![0, 1000],
                 },
                 PropertyEntry {
                     name: "rotation",
                     kind: PropertyKind::Float(45.0),
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
+                    keyframe_count: 0,
+                    keyframe_times_ms: vec![],
                 },
                 PropertyEntry {
                     name: "scale",
                     kind: PropertyKind::Float(1.5),
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
+                    keyframe_count: 0,
+                    keyframe_times_ms: vec![],
                 },
             ],
         };
@@ -186,25 +202,31 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     kind: PropertyKind::Color([1.0, 0.2, 0.4, 1.0]),
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
+                    keyframe_count: 0,
+                    keyframe_times_ms: vec![],
                 },
                 PropertyEntry {
                     name: "opacity",
                     kind: PropertyKind::Float(0.75),
                     has_keyframes: true,
                     has_keyframe_at_current_time: true,
+                    keyframe_count: 3,
+                    keyframe_times_ms: vec![0, 500, 1000],
                 },
                 PropertyEntry {
                     name: "stroke_width",
                     kind: PropertyKind::Float(2.0),
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
+                    keyframe_count: 0,
+                    keyframe_times_ms: vec![],
                 },
             ],
         };
 
         let mut commands = CommandQueue::new();
-        render_property_group(ui, &transform, "actor1", &mut commands, false);
-        render_property_group(ui, &style, "actor1", &mut commands, false);
+        render_property_group(ui, &transform, "actor1", &mut commands, false, 0.0);
+        render_property_group(ui, &style, "actor1", &mut commands, false, 0.0);
     });
 }
 

@@ -256,9 +256,6 @@ impl GuiShell {
             Command::InspectorInputDragStarted => {
                 self.ui_store.inspector_input_drag_active = true;
             }
-            Command::OpenTransitionEditor(scene) => {
-                self.preview_store.panel_state.open_transition_editor = Some(scene);
-            }
             Command::ReparentActor { actor, new_parent } => {
                 self.handle_reparent_actor(&actor, new_parent);
             }

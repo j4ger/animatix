@@ -37,7 +37,6 @@ pub enum Command {
     ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
-    OpenTransitionEditor(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
     CreateActor { ty: String, label: String, position: [f32; 2] },
