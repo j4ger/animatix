@@ -1,0 +1,30 @@
+// 01-hello.amx
+// The basics: shapes, text, fade-in, and easing.
+
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+#0s
+scene.background_color = "#1a1a2e"
+
+// Actors are declared with label: Type, property: value
+// anchor positions them relative to scene edges/center
+// offset shifts from that anchor point
+title: Text, text: "Animatix", font_size: 72, color: text.primary, anchor: scene.center, offset: (0, -20)
+subtitle: Text, text: "layout-first animation", font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 40)
+
+// A simple shape
+dot: Ellipse, size: (12, 12), color: accent.primary, anchor: scene.center, offset: (0, 80)
+
+#0.5s
+// Actions apply to existing actors with optional modifiers
+fade-in title [800ms, ease: ease-out]
+
+#0.7s
+fade-in subtitle [600ms, ease: ease-out]
+
+#1.0s
+fade-in dot [400ms, ease: bounce]
+
+#1.5s
+// Property animation: animate any property over time
+dot.size = (20, 20) [400ms, ease: bounce]

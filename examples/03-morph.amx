@@ -1,0 +1,51 @@
+// 03-morph.amx
+// Shape morphing with all four strategies side by side.
+
+config { colorscheme: "editorial-dark", resolution: (900, 400) }
+
+#0s
+scene.background_color = "#1a1a2e"
+
+header: Text, text: "Morph Strategies", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 30)
+
+// Four shapes, each will morph with a different strategy
+auto_label: Text, text: "Auto", font_size: 16, color: text.secondary, anchor: scene.center, offset: (-300, -120)
+auto_shape: Rect, size: (80, 80), color: accent.primary, anchor: scene.center, offset: (-300, -40)
+
+match_label: Text, text: "Match", font_size: 16, color: text.secondary, anchor: scene.center, offset: (-100, -120)
+match_shape: Rect, size: (80, 80), color: accent.warning, anchor: scene.center, offset: (-100, -40)
+
+fade_label: Text, text: "Fade", font_size: 16, color: text.secondary, anchor: scene.center, offset: (100, -120)
+fade_shape: Rect, size: (80, 80), color: accent.success, anchor: scene.center, offset: (100, -40)
+
+nearest_label: Text, text: "Nearest", font_size: 16, color: text.secondary, anchor: scene.center, offset: (300, -120)
+nearest_shape: Rect, size: (80, 80), color: accent.danger, anchor: scene.center, offset: (300, -40)
+
+// Second set of shapes (swapped left/right) to show matching differences
+auto_shape2: Ellipse, size: (80, 80), color: accent.primary, anchor: scene.center, offset: (-300, 60)
+match_shape2: Ellipse, size: (80, 80), color: accent.warning, anchor: scene.center, offset: (-100, 60)
+fade_shape2: Ellipse, size: (80, 80), color: accent.success, anchor: scene.center, offset: (100, 60)
+nearest_shape2: Ellipse, size: (80, 80), color: accent.danger, anchor: scene.center, offset: (300, 60)
+
+#0.5s
+stagger [80ms] {
+  fade-in auto_shape [400ms]
+  fade-in match_shape [400ms]
+  fade-in fade_shape [400ms]
+  fade-in nearest_shape [400ms]
+}
+
+#1.5s
+// Morph is triggered by re-declaring the same label with a new type
+// Modifiers control the transition: duration, ease, strategy
+auto_shape: Ellipse, size: (80, 80), color: accent.primary [1s, strategy: auto]
+match_shape: Ellipse, size: (80, 80), color: accent.warning [1s, strategy: match]
+fade_shape: Ellipse, size: (80, 80), color: accent.success [1s, strategy: fade]
+nearest_shape: Ellipse, size: (80, 80), color: accent.danger [1s, strategy: nearest]
+
+#3.0s
+// Morph back to rectangles
+auto_shape: Rect, size: (80, 80), color: accent.primary [1s, strategy: auto]
+match_shape: Rect, size: (80, 80), color: accent.warning [1s, strategy: match]
+fade_shape: Rect, size: (80, 80), color: accent.success [1s, strategy: fade]
+nearest_shape: Rect, size: (80, 80), color: accent.danger [1s, strategy: nearest]

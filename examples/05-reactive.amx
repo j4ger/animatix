@@ -1,0 +1,57 @@
+// 05-reactive.amx
+// always blocks, built-in variables, and expressions.
+
+config { colorscheme: "editorial-dark", resolution: (800, 600) }
+
+#0s
+scene.background_color = "#1a1a2e"
+
+header: Text, text: "Reactive", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 30)
+
+ball: Ellipse, size: (24, 24), color: accent.primary, anchor: scene.center
+
+wave: Row, gap: 8, anchor: scene.center, offset: (0, 100) {
+  w0: Ellipse, size: (12, 12), color: accent.warning
+  w1: Ellipse, size: (12, 12), color: accent.warning
+  w2: Ellipse, size: (12, 12), color: accent.warning
+  w3: Ellipse, size: (12, 12), color: accent.warning
+  w4: Ellipse, size: (12, 12), color: accent.warning
+  w5: Ellipse, size: (12, 12), color: accent.warning
+  w6: Ellipse, size: (12, 12), color: accent.warning
+  w7: Ellipse, size: (12, 12), color: accent.warning
+}
+
+progress: Rect, size: (0, 6), color: accent.success, anchor: scene.bottom, offset: (0, -40)
+track: Rect, size: (400, 6), color: surface.primary, anchor: scene.bottom, offset: (0, -40)
+
+let orbit_radius_x = 200
+let orbit_radius_y = 100
+
+#0s
+always {
+  let angle = t * 1.5
+  ball.offset = (cos(angle) * orbit_radius_x, sin(angle) * orbit_radius_y)
+  ball.color.r = (sin(angle) + 1) / 2
+}
+
+#0s
+always {
+  w0.offset = (0, sin(t * 3 + 0) * 30)
+  w1.offset = (0, sin(t * 3 + 0.5) * 30)
+  w2.offset = (0, sin(t * 3 + 1.0) * 30)
+  w3.offset = (0, sin(t * 3 + 1.5) * 30)
+  w4.offset = (0, sin(t * 3 + 2.0) * 30)
+  w5.offset = (0, sin(t * 3 + 2.5) * 30)
+  w6.offset = (0, sin(t * 3 + 3.0) * 30)
+  w7.offset = (0, sin(t * 3 + 3.5) * 30)
+}
+
+#0s
+always {
+  let progress_width = clamp(t * 80, 0, 400)
+  progress.size = (progress_width, 6)
+}
+
+#0.5s
+fade-in ball [400ms]
+fade-in wave [600ms]

@@ -1,0 +1,55 @@
+// 08-multi-scene.amx
+// Multi-scene composition with transitions.
+
+config { colorscheme: "editorial-dark", resolution: (800, 450) }
+
+// Shared prelude: available to all scenes
+pub let brand = "Animatix"
+
+# Title
+config { resolution: (800, 450) }
+
+#0s
+scene.background_color = "#1a1a2e"
+
+logo: Text, text: brand, font_size: 72, color: text.primary, anchor: scene.center, offset: (0, -20)
+tagline: Text, text: "Scene composition demo", font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 40)
+
+#0.5s
+fade-in logo [800ms, ease: ease-out]
+
+#0.8s
+fade-in tagline [600ms, ease: ease-out]
+
+#2.5s
+// Transition to the next scene
+play Content [fade, 400ms]
+
+# Content
+config { resolution: (800, 450) }
+
+#0s
+scene.background_color = "#16213e"
+
+panel: Rect, size: (700, 320), color: surface.primary, anchor: scene.center, corner_radius: 12
+
+heading: Text, text: "Features", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 60)
+
+features: Col, gap: 16, anchor: scene.center, offset: (0, 20) {
+  item_a: Text, text: "Morph between any shapes", font_size: 18, color: text.secondary
+  item_b: Text, text: "Reactive expressions per frame", font_size: 18, color: text.secondary
+  item_c: Text, text: "Multi-scene timelines", font_size: 18, color: text.secondary
+}
+
+#0.3s
+fade-in panel [500ms, ease: ease-out]
+
+#0.5s
+fade-in heading [600ms, ease: ease-out]
+
+#0.8s
+stagger [120ms] {
+  fade-in item_a [400ms]
+  fade-in item_b [400ms]
+  fade-in item_c [400ms]
+}
