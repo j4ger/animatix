@@ -396,11 +396,12 @@ pub(crate) fn parse_timing_modifiers(
                             "auto" => parsed.morph_options.strategy = MorphStrategy::Auto,
                             "match" => parsed.morph_options.strategy = MorphStrategy::Match,
                             "fade" => parsed.morph_options.strategy = MorphStrategy::Fade,
+                            "nearest" => parsed.morph_options.strategy = MorphStrategy::Nearest,
                             other => push_modifier_diagnostic(
                                 diagnostics,
                                 DiagnosticCode::InvalidModifierValue,
                                 format!(
-                                    "Unsupported strategy value '{other}' on {}; supported values are auto and match.",
+                                    "Unsupported strategy value '{other}' on {}; supported values are auto, match, fade, and nearest.",
                                     host.display_name()
                                 ),
                                 subject,
@@ -412,7 +413,7 @@ pub(crate) fn parse_timing_modifiers(
                         diagnostics,
                         DiagnosticCode::InvalidModifierValue,
                         format!(
-                            "Unsupported strategy modifier value {:?} on {}; expected an identifier such as auto or match.",
+                            "Unsupported strategy modifier value {:?} on {}; expected an identifier such as auto, match, fade, or nearest.",
                             other,
                             host.display_name()
                         ),

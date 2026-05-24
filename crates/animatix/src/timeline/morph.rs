@@ -7,8 +7,10 @@ pub enum MorphStrategy {
     Auto,
     /// Sort paths by centroid before pairing.
     Match,
-    /// Fade-based transition (placeholder).
+    /// Fade-based transition (cross-fade overlay).
     Fade,
+    /// Pair each source path to its spatially nearest target path.
+    Nearest,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,6 +63,10 @@ pub fn align_path_lists_with_strategy(
     target: &[BezPath],
     strategy: MorphStrategy,
 ) -> Vec<(BezPath, BezPath)> {
+    if strategy == MorphStrategy::Nearest {
+        return align_path_lists_nearest(source, target);
+    }
+
     let mut source_paths = source.to_vec();
     let mut target_paths = target.to_vec();
 
@@ -97,6 +103,52 @@ pub fn align_path_lists_with_strategy(
     result
 }
 
+fn align_path_lists_nearest(source: &[BezPath], target: &[BezPath]) -> Vec<(BezPath, BezPath)> {
+    let mut result = Vec::new();
+    let mut target_used = vec![false; target.len()];
+
+    for src in source.iter() {
+        let src_centroid = get_centroid(src);
+        let mut best_j = None;
+        let mut best_dist = f64::INFINITY;
+
+        for (j, tgt) in target.iter().enumerate() {
+            if target_used[j] {
+                continue;
+            }
+            let dist = src_centroid.distance(get_centroid(tgt));
+            if dist < best_dist {
+                best_dist = dist;
+                best_j = Some(j);
+            }
+        }
+
+        if let Some(j) = best_j {
+            target_used[j] = true;
+            result.push((src.clone(), target[j].clone()));
+        } else {
+            // No targets left — pair with degenerate point at source centroid
+            result.push((
+                src.clone(),
+                BezPath::from_vec(vec![PathEl::MoveTo(src_centroid)]),
+            ));
+        }
+    }
+
+    // Pair remaining unused targets with degenerate sources
+    for (j, tgt) in target.iter().enumerate() {
+        if !target_used[j] {
+            let centroid = get_centroid(tgt);
+            result.push((
+                BezPath::from_vec(vec![PathEl::MoveTo(centroid)]),
+                tgt.clone(),
+            ));
+        }
+    }
+
+    result
+}
+
 /// LEVEL 2: Align Subpaths within a Path
 pub fn align_subpaths(source: &BezPath, target: &BezPath) -> (BezPath, BezPath) {
     align_subpaths_with_strategy(source, target, MorphStrategy::Auto)
@@ -116,27 +168,34 @@ pub fn align_subpaths_with_strategy(
         tgt_subs.sort_by(subpath_centroid_key);
     }
 
-    let max_len = src_subs.len().max(tgt_subs.len());
+    let pairs = if strategy == MorphStrategy::Nearest {
+        align_subpaths_nearest(&src_subs, &tgt_subs)
+    } else {
+        let max_len = src_subs.len().max(tgt_subs.len());
+        let mut pairs = Vec::with_capacity(max_len);
+        for i in 0..max_len {
+            let src_sub = if i < src_subs.len() {
+                src_subs[i].clone()
+            } else {
+                let centroid = get_subpath_centroid(tgt_subs.get(i).unwrap_or(&Vec::new()));
+                vec![PathEl::MoveTo(centroid)]
+            };
+
+            let tgt_sub = if i < tgt_subs.len() {
+                tgt_subs[i].clone()
+            } else {
+                let centroid = get_subpath_centroid(&src_sub);
+                vec![PathEl::MoveTo(centroid)]
+            };
+            pairs.push((src_sub, tgt_sub));
+        }
+        pairs
+    };
 
     let mut new_src = BezPath::new();
     let mut new_tgt = BezPath::new();
 
-    for i in 0..max_len {
-        let src_sub = if i < src_subs.len() {
-            src_subs[i].clone()
-        } else {
-            let centroid = get_subpath_centroid(tgt_subs.get(i).unwrap_or(&Vec::new()));
-            vec![PathEl::MoveTo(centroid)]
-        };
-
-        let tgt_sub = if i < tgt_subs.len() {
-            tgt_subs[i].clone()
-        } else {
-            let centroid = get_subpath_centroid(&src_sub);
-            vec![PathEl::MoveTo(centroid)]
-        };
-
-        // Align segments within this subpath
+    for (src_sub, tgt_sub) in pairs {
         let (aligned_src, aligned_tgt) = align_segments(&src_sub, &tgt_sub);
         for el in aligned_src {
             new_src.push(el);
@@ -147,6 +206,50 @@ pub fn align_subpaths_with_strategy(
     }
 
     (new_src, new_tgt)
+}
+
+fn align_subpaths_nearest(
+    src_subs: &[Vec<PathEl>],
+    tgt_subs: &[Vec<PathEl>],
+) -> Vec<(Vec<PathEl>, Vec<PathEl>)> {
+    let mut result = Vec::new();
+    let mut target_used = vec![false; tgt_subs.len()];
+
+    for src in src_subs.iter() {
+        let src_centroid = get_subpath_centroid(src);
+        let mut best_j = None;
+        let mut best_dist = f64::INFINITY;
+
+        for (j, tgt) in tgt_subs.iter().enumerate() {
+            if target_used[j] {
+                continue;
+            }
+            let dist = src_centroid.distance(get_subpath_centroid(tgt));
+            if dist < best_dist {
+                best_dist = dist;
+                best_j = Some(j);
+            }
+        }
+
+        if let Some(j) = best_j {
+            target_used[j] = true;
+            result.push((src.clone(), tgt_subs[j].clone()));
+        } else {
+            result.push((
+                src.clone(),
+                vec![PathEl::MoveTo(src_centroid)],
+            ));
+        }
+    }
+
+    for (j, tgt) in tgt_subs.iter().enumerate() {
+        if !target_used[j] {
+            let centroid = get_subpath_centroid(tgt);
+            result.push((vec![PathEl::MoveTo(centroid)], tgt.clone()));
+        }
+    }
+
+    result
 }
 
 /// LEVEL 3: Align Segments within a Subpath
@@ -714,6 +817,63 @@ mod tests {
             get_centroid(&match_pairs[0].0),
             get_centroid(&match_pairs[0].1)
         );
+    }
+
+    #[test]
+    fn test_nearest_strategy_pairs_by_proximity() {
+        let left = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(0.0, 0.0)),
+            PathEl::LineTo(Point::new(10.0, 0.0)),
+        ]);
+        let right = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(100.0, 0.0)),
+            PathEl::LineTo(Point::new(110.0, 0.0)),
+        ]);
+
+        // Target order is swapped: [right, left]
+        let nearest_pairs = align_path_lists_with_strategy(
+            &[left.clone(), right.clone()],
+            &[right.clone(), left.clone()],
+            MorphStrategy::Nearest,
+        );
+
+        // Nearest should pair left↔left and right↔right despite index mismatch
+        assert_eq!(
+            get_centroid(&nearest_pairs[0].0),
+            get_centroid(&nearest_pairs[0].1)
+        );
+        assert_eq!(
+            get_centroid(&nearest_pairs[1].0),
+            get_centroid(&nearest_pairs[1].1)
+        );
+    }
+
+    #[test]
+    fn test_nearest_strategy_with_unequal_counts() {
+        let p1 = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(0.0, 0.0)),
+            PathEl::LineTo(Point::new(10.0, 0.0)),
+        ]);
+        let p2 = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(100.0, 0.0)),
+            PathEl::LineTo(Point::new(110.0, 0.0)),
+        ]);
+        let p3 = BezPath::from_vec(vec![
+            PathEl::MoveTo(Point::new(200.0, 0.0)),
+            PathEl::LineTo(Point::new(210.0, 0.0)),
+        ]);
+
+        // 2 sources, 3 targets
+        let pairs = align_path_lists_with_strategy(
+            &[p1.clone(), p2.clone()],
+            &[p3.clone(), p2.clone(), p1.clone()],
+            MorphStrategy::Nearest,
+        );
+
+        assert_eq!(pairs.len(), 3);
+        // p1 should pair with p1 (centroids match)
+        // p2 should pair with p2 (centroids match)
+        // p3 should pair with degenerate source
     }
 
     #[test]
