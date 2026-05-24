@@ -585,4 +585,31 @@ fade-in title [1s]
             color_counts.keys().collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn actor_label_and_type_have_distinct_colors() {
+        // Verify actor labels and types are colored differently.
+        // Regression test: both were accidentally yellow when the query
+        // or color mapping was misconfigured.
+        let source = "backdrop: Rect, size: (1280, 720)";
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let backdrop_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "backdrop")
+            .map(|s| s.format.color);
+        let rect_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "Rect")
+            .map(|s| s.format.color);
+
+        assert!(
+            backdrop_color != rect_color,
+            "actor label 'backdrop' and type 'Rect' should have different colors"
+        );
+    }
 }
