@@ -28,6 +28,7 @@ const HIGHLIGHT_NAMES: &[&str] = &[
     "property",
     "parameter",
     "function",
+    "label",
 ];
 
 /// Color scheme for syntax highlighting.
@@ -44,6 +45,7 @@ struct HighlightColors {
     property: Color32,
     parameter: Color32,
     function: Color32,
+    label: Color32,
     default: Color32,
 }
 
@@ -61,12 +63,13 @@ impl HighlightColors {
                 number: Color32::from_rgb(215, 153, 33),        // orange
                 boolean: Color32::from_rgb(215, 153, 33),       // orange
                 comment: Color32::from_rgb(146, 131, 116),      // gray
-                operator: Color32::from_rgb(254, 128, 25),      // bright orange
+                operator: Color32::from_rgb(168, 153, 132),     // muted gray
                 punctuation: Color32::from_rgb(189, 174, 147),  // light gray
-                variable: Color32::from_rgb(142, 192, 124),     // green
+                variable: Color32::from_rgb(177, 98, 134),      // purple
                 property: Color32::from_rgb(131, 165, 152),     // teal
                 parameter: Color32::from_rgb(211, 134, 155),    // pink
                 function: Color32::from_rgb(254, 128, 25),      // bright orange
+                label: Color32::from_rgb(102, 153, 204),         // soft blue
                 default: Color32::from_rgb(235, 219, 178),      // light
             }
         } else {
@@ -78,12 +81,13 @@ impl HighlightColors {
                 number: Color32::from_rgb(181, 101, 0),        // orange
                 boolean: Color32::from_rgb(181, 101, 0),       // orange
                 comment: Color32::from_rgb(146, 131, 116),     // gray
-                operator: Color32::from_rgb(181, 101, 0),      // orange
+                operator: Color32::from_rgb(140, 140, 140),    // gray
                 punctuation: Color32::from_rgb(100, 100, 100), // dark gray
-                variable: Color32::from_rgb(69, 133, 15),      // green
+                variable: Color32::from_rgb(127, 0, 85),       // purple
                 property: Color32::from_rgb(69, 133, 136),     // teal
                 parameter: Color32::from_rgb(177, 98, 134),    // pink
                 function: Color32::from_rgb(181, 101, 0),      // orange
+                label: Color32::from_rgb(51, 102, 153),         // dark blue
                 default: Color32::from_rgb(60, 60, 60),        // dark
             }
         }
@@ -103,6 +107,7 @@ impl HighlightColors {
             "property" => self.property,
             "parameter" => self.parameter,
             "function" => self.function,
+            "label" => self.label,
             _ => self.default,
         }
     }

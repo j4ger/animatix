@@ -122,10 +122,10 @@
 (slot_fill
   name: (identifier) @property)
 
-; Labels in actor declarations
+; Labels in actor declarations (definition site)
 (actor_declaration
-  label: (identifier) @variable)
+  label: (identifier) @label)
 
-; Target identifiers in action invocations
+; Target identifiers in action invocations (reference site)
 (target_list
-  (identifier) @variable)
+  (identifier) @label)
