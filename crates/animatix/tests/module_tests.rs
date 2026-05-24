@@ -898,7 +898,47 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
      // Check that all 3 cards exist in the timeline
      assert!(timeline.tracks().contains_key("card_a"), "card_a should exist");
      assert!(timeline.tracks().contains_key("card_b"), "card_b should exist");
-     assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
+      assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
+ }
+
+ #[test]
+ fn load_program_custom_component_action_self_nested_path() {
+     let dir = temp_project_dir("self_nested_path");
+     let entry = dir.join("scene.amx");
+
+     write_file(
+         &entry,
+         r##"
+config { colorscheme: "editorial-dark", resolution: (800, 500) }
+
+pub component Card(title: "Card") {
+  frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
+  title_text: Text, text: title, font_size: 18, color: text.primary, at: (0, -30)
+
+  action highlight {
+    self.frame.color = accent.warning
+    self.title_text.color = accent.danger
+  }
+}
+
+#0s
+scene.background_color = "#1a1a2e"
+
+card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0)
+
+#1s
+highlight card_a
+"##,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let timeline = Timeline::build(&expanded);
+
+     // Verify the card and its children exist after expansion
+     // Note: 'frame' is the root label so it becomes just 'card_a', not 'card_a.frame'
+     assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
+     assert!(timeline.tracks().contains_key("card_a.title_text"), "card_a.title_text should exist");
  }
 
 

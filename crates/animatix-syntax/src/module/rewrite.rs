@@ -515,7 +515,7 @@ fn rewrite_label_path(
             if root_label == Some(second.as_str()) {
                 let mut result = split_rewritten_label(&rewritten_first);
                 for seg in remaining {
-                    result.push(rewrite_label(seg, prefix, root_label, known_labels));
+                    result.push(rewrite_path_segment(seg, prefix, root_label));
                 }
                 return result;
             }
@@ -527,9 +527,26 @@ fn rewrite_label_path(
 
     let mut rewritten = split_rewritten_label(&rewritten_first);
     for seg in rest {
-        rewritten.push(rewrite_label(seg, prefix, root_label, known_labels));
+        rewritten.push(rewrite_path_segment(seg, prefix, root_label));
     }
     rewritten
+}
+
+/// Rewrite a path segment for use inside a label path. Unlike `rewrite_label`,
+/// this does not add the prefix to known labels — the prefix is only applied
+/// to the first element of the path via `rewrite_label_ref`.
+fn rewrite_path_segment(
+    seg: &str,
+    prefix: &str,
+    root_label: Option<&str>,
+) -> String {
+    if seg == "scene" {
+        seg.to_string()
+    } else if root_label == Some(seg) {
+        prefix.to_string()
+    } else {
+        seg.to_string()
+    }
 }
 
 fn split_rewritten_label(label: &str) -> Vec<String> {

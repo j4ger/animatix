@@ -12,6 +12,11 @@ pub component Card(title: "Card") {
   content: Col, gap: 8, at: (0, 20) {
     @slot
   }
+
+  action highlight {
+    self.frame.color = accent.warning
+    self.title_text.color = accent.danger
+  }
 }
 
 #0s
@@ -46,4 +51,11 @@ stagger [200ms] {
   fade-in card_a [500ms, ease: ease-out]
   fade-in card_b [500ms, ease: ease-out]
   fade-in card_c [500ms, ease: ease-out]
+}
+
+#1.5s
+stagger [200ms] {
+  highlight card_a
+  highlight card_b
+  highlight card_c
 }
