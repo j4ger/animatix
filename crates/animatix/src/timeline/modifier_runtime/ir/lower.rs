@@ -36,7 +36,10 @@ fn lower_modifier_roots(
 
 /// Lower a flat block of modifier body statements into IR statements.
 pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
-    body.iter().map(lower_modifier_stmt).collect()
+    body.iter()
+        .filter(|s| !matches!(s, Stmt::Comment(..)))
+        .map(lower_modifier_stmt)
+        .collect()
 }
 
 /// Lower a flat list of modifier body statements (assignments, conditionals, lets)

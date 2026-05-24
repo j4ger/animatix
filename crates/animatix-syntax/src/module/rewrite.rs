@@ -309,7 +309,6 @@ fn rewrite_expr(
                 if parts.len() == 1 {
                     return bound.clone();
                 }
-
                 let remaining = &parts[1..];
                 return match bound {
                     Expr::Ident(name) => {
@@ -327,13 +326,28 @@ fn rewrite_expr(
             }
 
             if let Some((first, rest)) = parts.split_first() {
-                let mut rewritten = split_rewritten_label(&rewrite_label_ref(
-                    first,
-                    prefix,
-                    root_label,
-                    known_labels,
-                ));
-                rewritten.extend(rest.iter().cloned());
+                let rewritten_first = rewrite_label_ref(first, prefix, root_label, known_labels);
+
+                // If the path starts with `self` followed by the root label, skip the root label
+                let rest = if first == "self" {
+                    if let Some((second, remaining)) = rest.split_first() {
+                        if root_label == Some(second.as_str()) {
+                            let mut result = split_rewritten_label(&rewritten_first);
+                            for seg in remaining {
+                                result.push(rewrite_label(seg, prefix, root_label, known_labels));
+                            }
+                            return Expr::Path(result);
+                        }
+                    }
+                    rest
+                } else {
+                    rest
+                };
+
+                let mut rewritten = split_rewritten_label(&rewritten_first);
+                for seg in rest {
+                    rewritten.push(rewrite_label(seg, prefix, root_label, known_labels));
+                }
                 Expr::Path(rewritten)
             } else {
                 Expr::Path(parts.clone())
@@ -492,9 +506,29 @@ fn rewrite_label_path(
         return Vec::new();
     };
 
-    let mut rewritten =
-        split_rewritten_label(&rewrite_label_ref(first, prefix, root_label, known_labels));
-    rewritten.extend(rest.iter().cloned());
+    let rewritten_first = rewrite_label_ref(first, prefix, root_label, known_labels);
+
+    // If the path starts with `self` followed by the root label, skip the root label
+    // since `self` already resolves to the prefixed root actor.
+    let rest = if first == "self" {
+        if let Some((second, remaining)) = rest.split_first() {
+            if root_label == Some(second.as_str()) {
+                let mut result = split_rewritten_label(&rewritten_first);
+                for seg in remaining {
+                    result.push(rewrite_label(seg, prefix, root_label, known_labels));
+                }
+                return result;
+            }
+        }
+        rest
+    } else {
+        rest
+    };
+
+    let mut rewritten = split_rewritten_label(&rewritten_first);
+    for seg in rest {
+        rewritten.push(rewrite_label(seg, prefix, root_label, known_labels));
+    }
     rewritten
 }
 

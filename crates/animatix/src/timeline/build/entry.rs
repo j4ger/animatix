@@ -80,6 +80,11 @@ impl Timeline {
         let mut timeline = Self::new_with_font_context(font_context);
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
+        // Seed build-time environment with scene dimensions so `let` declarations
+        // can reference `scene_width` / `scene_height`.
+        let default_dims = super::SceneDimensions::default();
+        timeline.env.set("scene_width", super::Value::Num(default_dims.width as f64));
+        timeline.env.set("scene_height", super::Value::Num(default_dims.height as f64));
         let mut current_build_time_ms = 0.0;
         let mut diagnostics = Vec::new();
 

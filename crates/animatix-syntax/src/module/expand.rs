@@ -126,7 +126,7 @@ fn expand_stmt_into(
             label,
             ty,
             props,
-            modifiers: _,
+            modifiers,
             children,
             ..
         } => {
@@ -137,7 +137,17 @@ fn expand_stmt_into(
                 merge_registry(registry, instance_registry);
                 output.extend(instance_stmts);
             } else {
-                output.push(stmt.clone());
+                let expanded_children = expand_inline_items(children, components, registry);
+                output.push(Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: label.clone(),
+                    ty: ty.clone(),
+                    props: props.clone(),
+                    modifiers: modifiers.clone(),
+                    children: expanded_children,
+                    span: None,
+                });
             }
         }
         _ => output.push(stmt.clone()),
@@ -150,6 +160,103 @@ fn merge_registry(
 ) {
     for (label, actions) in source {
         target.insert(label, actions);
+    }
+}
+
+/// Recursively expand component instances inside inline items (container children).
+fn expand_inline_items(
+    items: &[InlineItem],
+    components: &HashMap<String, ComponentEntry>,
+    registry: &mut InstanceActionRegistry,
+) -> Vec<InlineItem> {
+    let mut result = Vec::new();
+    for item in items {
+        match item {
+            InlineItem::Labeled {
+                label,
+                ty,
+                props,
+                modifiers,
+                children,
+            } => {
+                if let Some(component) = components.get(ty) {
+                    let (instance_stmts, instance_registry) = expand_component_instance(
+                        label, props, children, component, components,
+                    );
+                    merge_registry(registry, instance_registry);
+                    for stmt in instance_stmts {
+                        if let Some(inline) = stmt_to_inline_item(&stmt) {
+                            result.push(inline);
+                        }
+                    }
+                } else {
+                    let expanded_children = expand_inline_items(children, components, registry);
+                    result.push(InlineItem::Labeled {
+                        label: label.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: expanded_children,
+                    });
+                }
+            }
+            InlineItem::Anonymous {
+                ty,
+                props,
+                modifiers,
+                children,
+            } => {
+                if let Some(component) = components.get(ty) {
+                    let (instance_stmts, instance_registry) = expand_component_instance(
+                        "__anon", props, children, component, components,
+                    );
+                    merge_registry(registry, instance_registry);
+                    for stmt in instance_stmts {
+                        if let Some(inline) = stmt_to_inline_item(&stmt) {
+                            result.push(inline);
+                        }
+                    }
+                } else {
+                    let expanded_children = expand_inline_items(children, components, registry);
+                    result.push(InlineItem::Anonymous {
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: expanded_children,
+                    });
+                }
+            }
+            InlineItem::SlotMarker => result.push(InlineItem::SlotMarker),
+            InlineItem::SlotFill { slot, items } => {
+                let expanded = expand_inline_items(items, components, registry);
+                result.push(InlineItem::SlotFill {
+                    slot: slot.clone(),
+                    items: expanded,
+                });
+            }
+        }
+    }
+    result
+}
+
+/// Convert a statement back into an inline item for container children.
+fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
+    match stmt {
+        Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            ..
+        } => Some(InlineItem::Labeled {
+            label: label.clone(),
+            ty: ty.clone(),
+            props: props.clone(),
+            modifiers: modifiers.clone(),
+            children: children.clone(),
+        }),
+        _ => None,
     }
 }
 

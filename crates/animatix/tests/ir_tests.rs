@@ -85,14 +85,14 @@ fn ir_lowering_supports_conditionals_and_lets() {
 }
 
 #[test]
-fn ir_lowering_rejects_unsupported_statement_forms() {
+fn ir_lowering_ignores_comments_in_always_blocks() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Comment("test".to_string(), None)],
         span: None,
     }];
 
-    let error = lower_modifier_ir(&program).expect_err("lowering should fail");
-    assert_eq!(error, IrLowerError::UnsupportedStatement("comment"));
+    let result = lower_modifier_ir(&program).expect("lowering should succeed");
+    assert!(result.statements.is_empty(), "comments should be filtered out, leaving empty program");
 }
 
 #[test]

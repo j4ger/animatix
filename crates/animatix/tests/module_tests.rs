@@ -375,9 +375,10 @@ glow card1 [500ms]
           "self should rewrite to instance label: {}",
           expanded_debug
       );
+      // self.frame rewrites to just card1 when frame is the root label
       assert!(
-          expanded_debug.contains("\"frame\""),
-          "self.frame should be rewritten: {}",
+          !expanded_debug.contains("\"frame\""),
+          "root label frame should be rewritten to instance label, not preserved: {}",
           expanded_debug
       );
       assert!(
