@@ -4,7 +4,7 @@ use crate::symbol_table::SymbolTable;
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
 use std::collections::HashSet;
-use tree_sitter::Tree;
+
 
 /// A diagnostic message (error, warning, etc.).
 #[derive(Debug, Clone)]
@@ -42,7 +42,6 @@ pub enum DiagnosticSeverity {
 pub fn collect_diagnostics(
     source: &str,
     parse_errors: &[ParseError],
-    tree: Option<&Tree>,
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
 ) -> Vec<Diagnostic> {
@@ -62,50 +61,12 @@ pub fn collect_diagnostics(
         });
     }
 
-    // 3. Semantic checks (if AST is available)
+    // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
         collect_semantic_diagnostics(stmts, symbols, &mut diagnostics);
     }
 
     diagnostics
-}
-
-/// Collect syntax errors from tree-sitter ERROR/MISSING nodes.
-fn collect_ts_errors(node: tree_sitter::Node, source: &str, diagnostics: &mut Vec<Diagnostic>) {
-    if node.is_error() || node.is_missing() {
-        let start = node.start_position();
-        let end = node.end_position();
-
-        let message = if node.is_missing() {
-            format!("Missing {}", node.kind())
-        } else {
-            // Try to provide a more helpful error message
-            let text = &source[node.byte_range()];
-            if text.contains('@') {
-                "Unexpected character '@'".to_string()
-            } else if text.contains("!!") {
-                "Unexpected token".to_string()
-            } else {
-                format!("Syntax error near '{}'", text.chars().take(20).collect::<String>())
-            }
-        };
-
-        diagnostics.push(Diagnostic {
-            severity: DiagnosticSeverity::Error,
-            line: start.row,
-            col: start.column,
-            end_line: end.row,
-            end_col: end.column,
-            message,
-            code: Some("syntax".to_string()),
-        });
-    }
-
-    // Recurse into children
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_ts_errors(child, source, diagnostics);
-    }
 }
 
 /// Collect semantic diagnostics from the AST.
@@ -288,19 +249,8 @@ mod tests {
 
     #[test]
     fn empty_source_has_no_diagnostics() {
-        let diagnostics = collect_diagnostics("", &[], None, &SymbolTable::default(), None);
+        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None);
         assert!(diagnostics.is_empty());
-    }
-
-    #[test]
-    fn tree_sitter_errors_detected() {
-        let source = "title: Text { content: }";
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_animatix::language()).unwrap();
-        let tree = parser.parse(source, None);
-
-        let diagnostics = collect_diagnostics(source, &[], tree.as_ref(), &SymbolTable::default(), None);
-        assert!(!diagnostics.is_empty());
     }
 
     #[test]
@@ -315,7 +265,7 @@ mod tests {
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], None, &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
 
         let unknown_actions: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("unknown-action"))
@@ -336,7 +286,7 @@ mod tests {
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], None, &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
 
         let undefined: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("undefined-label"))
@@ -360,7 +310,7 @@ mod tests {
             },
         ];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], None, &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
 
         let unknown_types: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("unknown-type"))

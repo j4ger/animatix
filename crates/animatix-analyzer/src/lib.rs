@@ -269,7 +269,7 @@ impl Analyzer {
 
     /// All diagnostics (parse errors + semantic checks).
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        diagnostics::collect_diagnostics(&self.source, &self.parse_errors, self.tree.as_ref(), &self.symbols, self.ast.as_deref())
+        diagnostics::collect_diagnostics(&self.source, &self.parse_errors, &self.symbols, self.ast.as_deref())
     }
 
     /// Hover information at cursor position.

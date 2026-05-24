@@ -10,4 +10,7 @@ fn main() {
     cc_build.flag_if_supported("-Wno-unused-but-set-variable");
 
     cc_build.compile("tree-sitter-animatix");
+
+    // Ensure cargo rebuilds when the highlight query changes
+    println!("cargo:rerun-if-changed=../../tree-sitter-animatix/queries/highlights.scm");
 }
