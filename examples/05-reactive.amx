@@ -24,18 +24,21 @@ wave: Row, gap: 8, anchor: scene.center, offset: (0, 100) {
 progress: Rect, size: (0, 6), color: accent.success, anchor: scene.bottom, offset: (0, -40)
 track: Rect, size: (400, 6), color: surface.primary, anchor: scene.bottom, offset: (0, -40)
 
-let orbit_radius_x = 200
-let orbit_radius_y = 100
+let orbit_radius_x = scene_width / 4
+let orbit_radius_y = scene_height / 6
 
 #0s
 always {
+  // Orbit the ball in an ellipse around the center
   let angle = t * 1.5
   ball.offset = (cos(angle) * orbit_radius_x, sin(angle) * orbit_radius_y)
+  // Cycle the red channel based on the orbit angle
   ball.color.r = (sin(angle) + 1) / 2
 }
 
 #0s
 always {
+  // Wave motion: each dot oscillates with a phase offset
   w0.offset = (0, sin(t * 3 + 0) * 30)
   w1.offset = (0, sin(t * 3 + 0.5) * 30)
   w2.offset = (0, sin(t * 3 + 1.0) * 30)
@@ -48,6 +51,7 @@ always {
 
 #0s
 always {
+  // Grow the progress bar over time, capped at track width
   let progress_width = clamp(t * 80, 0, 400)
   progress.size = (progress_width, 6)
 }

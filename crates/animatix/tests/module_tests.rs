@@ -937,8 +937,38 @@ highlight card_a
 
      // Verify the card and its children exist after expansion
      // Note: 'frame' is the root label so it becomes just 'card_a', not 'card_a.frame'
-     assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
+      assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
      assert!(timeline.tracks().contains_key("card_a.title_text"), "card_a.title_text should exist");
+ }
+
+ #[test]
+ fn load_program_comments_in_always_block() {
+     let dir = temp_project_dir("comments_always");
+     let entry = dir.join("scene.amx");
+
+     write_file(
+         &entry,
+         r##"
+config { colorscheme: "editorial-dark", resolution: (800, 500) }
+
+#0s
+scene.background_color = "#1a1a2e"
+
+box: Rect, size: (100, 100), color: accent.primary, anchor: scene.center
+
+always {
+  // This comment should not produce an IR warning
+  box.rotation = box.rotation + 1
+}
+"##,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     let expanded = program.expand_components();
+     let timeline = Timeline::build(&expanded);
+
+     // Verify the box exists
+     assert!(timeline.tracks().contains_key("box"), "box should exist");
  }
 
 

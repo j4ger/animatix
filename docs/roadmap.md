@@ -8,20 +8,13 @@
 
 ## Bug Fixes
 
-| Item | What | Where | Severity |
-|------|------|-------|----------|
-| **P5** | **Comments in `always` blocks produce IR warnings** — `//` inside `always { }` yields "Unsupported IR statement: comment". | `timeline/modifier_runtime/ir/` | Low |
-| **P6** | **`scene_width` / `scene_height` silently fail in `let`** — built-ins only work inside `always`, not top-level `let`. No diagnostic. | `timeline/env.rs` | Low |
+No open bugs at this time.
 
 ## Example Cleanup
 
-Blocked by bug fixes above. Once resolved, update examples to remove workarounds.
-
-| Blocked by | What |
-|------------|------|
-| — | **06-components.amx** — Use a `Row` container for cards instead of manual `anchor`/`offset`. |
-| P5 | **05-reactive.amx** — re-add explanatory comments inside `always` blocks. Use `let orbit_radius_x = scene_width / 4` instead of hardcoded values. |
-| P6 | **05-reactive.amx** — use `scene_width` / `scene_height` in top-level `let` declarations. |
+| Item | What |
+|------|------|
+| **06-components.amx** — Use a `Row` container for cards instead of manual `anchor`/`offset`. |
 
 ## Colors & polish
 
