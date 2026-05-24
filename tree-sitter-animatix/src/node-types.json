@@ -1,212 +1,40 @@
 [
   {
-    "type": "absolute_keyframe",
+    "type": "action_definition",
     "named": true,
     "fields": {
-      "time": {
+      "name": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "duration_literal",
+            "type": "identifier",
             "named": true
           }
         ]
       }
     },
     "children": {
-      "multiple": true,
-      "required": false,
+      "multiple": false,
+      "required": true,
       "types": [
         {
-          "type": "action_statement",
-          "named": true
-        },
-        {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "block",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "action_statement",
+    "type": "action_invocation",
     "named": true,
     "fields": {
-      "arg": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "modifiers": {
+      "targets": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
-      },
-      "target": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
+            "type": "target_list",
             "named": true
           }
         ]
@@ -221,22 +49,22 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "modifier_block",
+          "named": true
+        }
+      ]
     }
   },
   {
     "type": "actor_declaration",
     "named": true,
     "fields": {
-      "children": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "inline_children_block",
-            "named": true
-          }
-        ]
-      },
       "label": {
         "multiple": false,
         "required": true,
@@ -247,22 +75,16 @@
           }
         ]
       },
-      "modifiers": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
-      },
       "type": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "type_identifier",
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "string",
             "named": true
           }
         ]
@@ -273,128 +95,46 @@
       "required": false,
       "types": [
         {
-          "type": "property",
+          "type": "children_block",
+          "named": true
+        },
+        {
+          "type": "modifier_block",
+          "named": true
+        },
+        {
+          "type": "property_list",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "always_statement",
+    "type": "always_block",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
-      "required": false,
+      "multiple": false,
+      "required": true,
       "types": [
         {
-          "type": "action_statement",
-          "named": true
-        },
-        {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "block",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "assignment",
+    "type": "argument_list",
     "named": true,
     "fields": {
-      "modifiers": {
-        "multiple": false,
+      "base": {
+        "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
-      },
-      "target": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "dotted_identifier",
-            "named": true
+            "type": ".",
+            "named": false
           },
           {
             "type": "identifier",
@@ -402,109 +142,31 @@
           }
         ]
       },
-      "value": {
-        "multiple": false,
-        "required": true,
+      "name": {
+        "multiple": true,
+        "required": false,
         "types": [
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
             "named": true
           }
         ]
       }
-    }
-  },
-  {
-    "type": "boolean",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "brace_array",
-    "named": true,
-    "fields": {},
+    },
     "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "boolean",
+          "type": "array_expression",
           "named": true
         },
         {
-          "type": "brace_array",
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
           "named": true
         },
         {
@@ -516,14 +178,6 @@
           "named": true
         },
         {
-          "type": "comparison_expression",
-          "named": true
-        },
-        {
-          "type": "conditional_expression",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
@@ -532,7 +186,7 @@
           "named": true
         },
         {
-          "type": "null",
+          "type": "method_call_expression",
           "named": true
         },
         {
@@ -540,23 +194,11 @@
           "named": true
         },
         {
+          "type": "object_expression",
+          "named": true
+        },
+        {
           "type": "parenthesized_expression",
-          "named": true
-        },
-        {
-          "type": "path_expression",
-          "named": true
-        },
-        {
-          "type": "percentage",
-          "named": true
-        },
-        {
-          "type": "power_expression",
-          "named": true
-        },
-        {
-          "type": "product_expression",
           "named": true
         },
         {
@@ -564,7 +206,7 @@
           "named": true
         },
         {
-          "type": "sum_expression",
+          "type": "time_literal",
           "named": true
         },
         {
@@ -577,6 +219,290 @@
         }
       ]
     }
+  },
+  {
+    "type": "array_expression",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "array_expression",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "closure_expression",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "index_expression",
+          "named": true
+        },
+        {
+          "type": "method_call_expression",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "object_expression",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "time_literal",
+          "named": true
+        },
+        {
+          "type": "tuple_expression",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "binary_expression",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "array_expression",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "closure_expression",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "index_expression",
+          "named": true
+        },
+        {
+          "type": "method_call_expression",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "object_expression",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "time_literal",
+          "named": true
+        },
+        {
+          "type": "tuple_expression",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "action_definition",
+          "named": true
+        },
+        {
+          "type": "action_invocation",
+          "named": true
+        },
+        {
+          "type": "actor_declaration",
+          "named": true
+        },
+        {
+          "type": "always_block",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "component_definition",
+          "named": true
+        },
+        {
+          "type": "config",
+          "named": true
+        },
+        {
+          "type": "for_block",
+          "named": true
+        },
+        {
+          "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "import_statement",
+          "named": true
+        },
+        {
+          "type": "keyframe",
+          "named": true
+        },
+        {
+          "type": "let_declaration",
+          "named": true
+        },
+        {
+          "type": "play_statement",
+          "named": true
+        },
+        {
+          "type": "property_assignment",
+          "named": true
+        },
+        {
+          "type": "scene_declaration",
+          "named": true
+        },
+        {
+          "type": "sequence_block",
+          "named": true
+        },
+        {
+          "type": "slot_fill",
+          "named": true
+        },
+        {
+          "type": "slot_marker",
+          "named": true
+        },
+        {
+          "type": "stagger_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "boolean",
+    "named": true,
+    "fields": {}
   },
   {
     "type": "call_expression",
@@ -594,15 +520,146 @@
       }
     },
     "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "argument_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "children_block",
+    "named": true,
+    "fields": {},
+    "children": {
       "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "boolean",
+          "type": "action_definition",
           "named": true
         },
         {
-          "type": "brace_array",
+          "type": "action_invocation",
+          "named": true
+        },
+        {
+          "type": "actor_declaration",
+          "named": true
+        },
+        {
+          "type": "always_block",
+          "named": true
+        },
+        {
+          "type": "comment",
+          "named": true
+        },
+        {
+          "type": "component_definition",
+          "named": true
+        },
+        {
+          "type": "config",
+          "named": true
+        },
+        {
+          "type": "for_block",
+          "named": true
+        },
+        {
+          "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "import_statement",
+          "named": true
+        },
+        {
+          "type": "keyframe",
+          "named": true
+        },
+        {
+          "type": "let_declaration",
+          "named": true
+        },
+        {
+          "type": "play_statement",
+          "named": true
+        },
+        {
+          "type": "property_assignment",
+          "named": true
+        },
+        {
+          "type": "scene_declaration",
+          "named": true
+        },
+        {
+          "type": "sequence_block",
+          "named": true
+        },
+        {
+          "type": "slot_fill",
+          "named": true
+        },
+        {
+          "type": "slot_marker",
+          "named": true
+        },
+        {
+          "type": "stagger_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "closure_expression",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "array_expression",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
           "named": true
         },
         {
@@ -614,14 +671,6 @@
           "named": true
         },
         {
-          "type": "comparison_expression",
-          "named": true
-        },
-        {
-          "type": "conditional_expression",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
@@ -630,7 +679,7 @@
           "named": true
         },
         {
-          "type": "null",
+          "type": "method_call_expression",
           "named": true
         },
         {
@@ -638,23 +687,11 @@
           "named": true
         },
         {
+          "type": "object_expression",
+          "named": true
+        },
+        {
           "type": "parenthesized_expression",
-          "named": true
-        },
-        {
-          "type": "path_expression",
-          "named": true
-        },
-        {
-          "type": "percentage",
-          "named": true
-        },
-        {
-          "type": "power_expression",
-          "named": true
-        },
-        {
-          "type": "product_expression",
           "named": true
         },
         {
@@ -662,7 +699,7 @@
           "named": true
         },
         {
-          "type": "sum_expression",
+          "type": "time_literal",
           "named": true
         },
         {
@@ -677,317 +714,10 @@
     }
   },
   {
-    "type": "closure_expression",
+    "type": "comment",
     "named": true,
-    "fields": {
-      "body": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "parameters": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "closure_parameters",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "closure_parameters",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "identifier",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "comparison_expression",
-    "named": true,
-    "fields": {
-      "left": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "operator": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "!=",
-            "named": false
-          },
-          {
-            "type": "<",
-            "named": false
-          },
-          {
-            "type": "<=",
-            "named": false
-          },
-          {
-            "type": "==",
-            "named": false
-          },
-          {
-            "type": ">",
-            "named": false
-          },
-          {
-            "type": ">=",
-            "named": false
-          }
-        ]
-      },
-      "right": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
+    "extra": true,
+    "fields": {}
   },
   {
     "type": "component_definition",
@@ -1006,602 +736,70 @@
     },
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
-          "type": "action_statement",
+          "type": "block",
           "named": true
         },
         {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "parameter_definition",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "parameter_list",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "conditional_expression",
-    "named": true,
-    "fields": {
-      "alternative": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "condition": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "consequence": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "config_statement",
+    "type": "config",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": false,
       "types": [
         {
-          "type": "property",
+          "type": "property_list",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "dotted_identifier",
+    "type": "for_block",
     "named": true,
     "fields": {
       "base": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "segment": {
-        "multiple": true,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "drive_statement",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "action_statement",
-          "named": true
-        },
-        {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "for_statement",
-    "named": true,
-    "fields": {
-      "body": {
         "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "action_statement",
-            "named": true
+            "type": ".",
+            "named": false
           },
           {
-            "type": "actor_declaration",
-            "named": true
-          },
-          {
-            "type": "always_statement",
-            "named": true
-          },
-          {
-            "type": "assignment",
-            "named": true
-          },
-          {
-            "type": "comment",
-            "named": true
-          },
-          {
-            "type": "component_definition",
-            "named": true
-          },
-          {
-            "type": "config_statement",
-            "named": true
-          },
-          {
-            "type": "drive_statement",
-            "named": true
-          },
-          {
-            "type": "for_statement",
-            "named": true
-          },
-          {
-            "type": "if_statement",
-            "named": true
-          },
-          {
-            "type": "image_statement",
-            "named": true
-          },
-          {
-            "type": "import_statement",
-            "named": true
-          },
-          {
-            "type": "labeled_always_statement",
-            "named": true
-          },
-          {
-            "type": "let_declaration",
-            "named": true
-          },
-          {
-            "type": "play_statement",
-            "named": true
-          },
-          {
-            "type": "reactive_assignment",
-            "named": true
-          },
-          {
-            "type": "sequence_statement",
-            "named": true
-          },
-          {
-            "type": "stagger_statement",
-            "named": true
-          },
-          {
-            "type": "svg_statement",
-            "named": true
-          },
-          {
-            "type": "text_shorthand",
-            "named": true
-          },
-          {
-            "type": "use_statement",
+            "type": "identifier",
             "named": true
           }
         ]
       },
       "iterable": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -1613,14 +811,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -1629,7 +819,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -1637,23 +827,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -1661,7 +839,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -1670,6 +848,16 @@
           },
           {
             "type": "unary_expression",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
             "named": true
           }
         ]
@@ -1684,6 +872,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -1691,105 +889,47 @@
     "named": true,
     "fields": {
       "alternative": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "block",
+            "named": true
+          }
+        ]
+      },
+      "base": {
         "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "action_statement",
-            "named": true
+            "type": ".",
+            "named": false
           },
           {
-            "type": "actor_declaration",
-            "named": true
-          },
-          {
-            "type": "always_statement",
-            "named": true
-          },
-          {
-            "type": "assignment",
-            "named": true
-          },
-          {
-            "type": "comment",
-            "named": true
-          },
-          {
-            "type": "component_definition",
-            "named": true
-          },
-          {
-            "type": "config_statement",
-            "named": true
-          },
-          {
-            "type": "drive_statement",
-            "named": true
-          },
-          {
-            "type": "for_statement",
-            "named": true
-          },
-          {
-            "type": "if_statement",
-            "named": true
-          },
-          {
-            "type": "image_statement",
-            "named": true
-          },
-          {
-            "type": "import_statement",
-            "named": true
-          },
-          {
-            "type": "labeled_always_statement",
-            "named": true
-          },
-          {
-            "type": "let_declaration",
-            "named": true
-          },
-          {
-            "type": "play_statement",
-            "named": true
-          },
-          {
-            "type": "reactive_assignment",
-            "named": true
-          },
-          {
-            "type": "sequence_statement",
-            "named": true
-          },
-          {
-            "type": "stagger_statement",
-            "named": true
-          },
-          {
-            "type": "svg_statement",
-            "named": true
-          },
-          {
-            "type": "text_shorthand",
-            "named": true
-          },
-          {
-            "type": "use_statement",
+            "type": "identifier",
             "named": true
           }
         ]
       },
       "condition": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -1801,14 +941,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -1817,7 +949,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -1825,23 +957,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -1849,7 +969,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -1863,103 +983,17 @@
         ]
       },
       "consequence": {
-        "multiple": true,
-        "required": false,
+        "multiple": false,
+        "required": true,
         "types": [
           {
-            "type": "action_statement",
-            "named": true
-          },
-          {
-            "type": "actor_declaration",
-            "named": true
-          },
-          {
-            "type": "always_statement",
-            "named": true
-          },
-          {
-            "type": "assignment",
-            "named": true
-          },
-          {
-            "type": "comment",
-            "named": true
-          },
-          {
-            "type": "component_definition",
-            "named": true
-          },
-          {
-            "type": "config_statement",
-            "named": true
-          },
-          {
-            "type": "drive_statement",
-            "named": true
-          },
-          {
-            "type": "for_statement",
-            "named": true
-          },
-          {
-            "type": "if_statement",
-            "named": true
-          },
-          {
-            "type": "image_statement",
-            "named": true
-          },
-          {
-            "type": "import_statement",
-            "named": true
-          },
-          {
-            "type": "labeled_always_statement",
-            "named": true
-          },
-          {
-            "type": "let_declaration",
-            "named": true
-          },
-          {
-            "type": "play_statement",
-            "named": true
-          },
-          {
-            "type": "reactive_assignment",
-            "named": true
-          },
-          {
-            "type": "sequence_statement",
-            "named": true
-          },
-          {
-            "type": "stagger_statement",
-            "named": true
-          },
-          {
-            "type": "svg_statement",
-            "named": true
-          },
-          {
-            "type": "text_shorthand",
-            "named": true
-          },
-          {
-            "type": "use_statement",
+            "type": "block",
             "named": true
           }
         ]
-      }
-    }
-  },
-  {
-    "type": "image_statement",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
+      },
+      "name": {
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -1968,16 +1002,6 @@
           }
         ]
       }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "property",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -2010,98 +1034,38 @@
     "type": "index_expression",
     "named": true,
     "fields": {
-      "container": {
-        "multiple": false,
-        "required": true,
+      "base": {
+        "multiple": true,
+        "required": false,
         "types": [
           {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
+            "type": ".",
+            "named": false
           },
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
             "named": true
           }
         ]
       },
       "index": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -2113,11 +1077,83 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
+            "type": "identifier",
             "named": true
           },
           {
-            "type": "conditional_expression",
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "object_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "time_literal",
+            "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "object": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "closure_expression",
             "named": true
           },
           {
@@ -2129,7 +1165,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -2137,23 +1173,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -2161,7 +1185,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -2177,291 +1201,19 @@
     }
   },
   {
-    "type": "inline_anon",
-    "named": true,
-    "fields": {
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "inline_anon_with_props",
-    "named": true,
-    "fields": {
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "property",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "inline_children_block",
+    "type": "keyframe",
     "named": true,
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "inline_anon",
-          "named": true
-        },
-        {
-          "type": "inline_anon_with_props",
-          "named": true
-        },
-        {
-          "type": "inline_labeled_item",
-          "named": true
-        },
-        {
-          "type": "inline_labeled_item_with_props",
-          "named": true
-        },
-        {
-          "type": "inline_slot_fill",
-          "named": true
-        },
-        {
-          "type": "property",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "inline_labeled_item",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "inline_labeled_item_with_props",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "type": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "type_identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "property",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "inline_slot_fill",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "inline_anon",
+          "type": "number",
           "named": true
         },
         {
-          "type": "inline_anon_with_props",
-          "named": true
-        },
-        {
-          "type": "inline_labeled_item",
-          "named": true
-        },
-        {
-          "type": "inline_labeled_item_with_props",
-          "named": true
-        },
-        {
-          "type": "inline_slot_fill",
-          "named": true
-        },
-        {
-          "type": "property",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "labeled_always_statement",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "action_statement",
-          "named": true
-        },
-        {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "time_unit",
           "named": true
         }
       ]
@@ -2471,8 +1223,22 @@
     "type": "let_declaration",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
       "name": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
@@ -2482,15 +1248,23 @@
         ]
       },
       "value": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -2502,14 +1276,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -2518,7 +1284,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -2526,23 +1292,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -2550,7 +1304,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -2566,19 +1320,248 @@
     }
   },
   {
-    "type": "modifier",
+    "type": "method_call_expression",
     "named": true,
-    "fields": {},
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "method": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "object": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "closure_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "object_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "time_literal",
+            "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": false,
-      "required": true,
+      "required": false,
       "types": [
         {
-          "type": "boolean",
+          "type": "argument_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "modifier",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "key": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
+            "named": true
+          },
+          {
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "closure_expression",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "index_expression",
+            "named": true
+          },
+          {
+            "type": "method_call_expression",
+            "named": true
+          },
+          {
+            "type": "number",
+            "named": true
+          },
+          {
+            "type": "object_expression",
+            "named": true
+          },
+          {
+            "type": "parenthesized_expression",
+            "named": true
+          },
+          {
+            "type": "string",
+            "named": true
+          },
+          {
+            "type": "time_literal",
+            "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
+          },
+          {
+            "type": "unary_expression",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "array_expression",
           "named": true
         },
         {
-          "type": "brace_array",
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
           "named": true
         },
         {
@@ -2590,18 +1573,6 @@
           "named": true
         },
         {
-          "type": "comparison_expression",
-          "named": true
-        },
-        {
-          "type": "conditional_expression",
-          "named": true
-        },
-        {
-          "type": "duration_literal",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
@@ -2610,11 +1581,7 @@
           "named": true
         },
         {
-          "type": "named_modifier",
-          "named": true
-        },
-        {
-          "type": "null",
+          "type": "method_call_expression",
           "named": true
         },
         {
@@ -2622,23 +1589,11 @@
           "named": true
         },
         {
+          "type": "object_expression",
+          "named": true
+        },
+        {
           "type": "parenthesized_expression",
-          "named": true
-        },
-        {
-          "type": "path_expression",
-          "named": true
-        },
-        {
-          "type": "percentage",
-          "named": true
-        },
-        {
-          "type": "power_expression",
-          "named": true
-        },
-        {
-          "type": "product_expression",
           "named": true
         },
         {
@@ -2646,7 +1601,7 @@
           "named": true
         },
         {
-          "type": "sum_expression",
+          "type": "time_literal",
           "named": true
         },
         {
@@ -2655,6 +1610,21 @@
         },
         {
           "type": "unary_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "modifier_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "modifier_list",
           "named": true
         }
       ]
@@ -2666,7 +1636,7 @@
     "fields": {},
     "children": {
       "multiple": true,
-      "required": false,
+      "required": true,
       "types": [
         {
           "type": "modifier",
@@ -2676,190 +1646,10 @@
     }
   },
   {
-    "type": "named_modifier",
+    "type": "object_expression",
     "named": true,
     "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "parameter_definition",
-    "named": true,
-    "fields": {
-      "default": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "name": {
+      "type": {
         "multiple": false,
         "required": true,
         "types": [
@@ -2875,26 +1665,55 @@
       "required": false,
       "types": [
         {
-          "type": "type_annotation",
+          "type": "property_list",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "parenthesized_expression",
+    "type": "parameter",
     "named": true,
-    "fields": {},
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
     "children": {
       "multiple": false,
-      "required": true,
+      "required": false,
       "types": [
         {
-          "type": "boolean",
+          "type": "array_expression",
           "named": true
         },
         {
-          "type": "brace_array",
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
           "named": true
         },
         {
@@ -2906,14 +1725,6 @@
           "named": true
         },
         {
-          "type": "comparison_expression",
-          "named": true
-        },
-        {
-          "type": "conditional_expression",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
@@ -2922,7 +1733,7 @@
           "named": true
         },
         {
-          "type": "null",
+          "type": "method_call_expression",
           "named": true
         },
         {
@@ -2930,23 +1741,11 @@
           "named": true
         },
         {
+          "type": "object_expression",
+          "named": true
+        },
+        {
           "type": "parenthesized_expression",
-          "named": true
-        },
-        {
-          "type": "path_expression",
-          "named": true
-        },
-        {
-          "type": "percentage",
-          "named": true
-        },
-        {
-          "type": "power_expression",
-          "named": true
-        },
-        {
-          "type": "product_expression",
           "named": true
         },
         {
@@ -2954,7 +1753,7 @@
           "named": true
         },
         {
-          "type": "sum_expression",
+          "type": "time_literal",
           "named": true
         },
         {
@@ -2969,22 +1768,41 @@
     }
   },
   {
-    "type": "path_expression",
+    "type": "parameter_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "parameter",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "parenthesized_expression",
     "named": true,
     "fields": {
       "base": {
-        "multiple": false,
-        "required": true,
+        "multiple": true,
+        "required": false,
         "types": [
+          {
+            "type": ".",
+            "named": false
+          },
           {
             "type": "identifier",
             "named": true
           }
         ]
       },
-      "segment": {
+      "name": {
         "multiple": true,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "identifier",
@@ -2992,6 +1810,72 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "array_expression",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "closure_expression",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "index_expression",
+          "named": true
+        },
+        {
+          "type": "method_call_expression",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "object_expression",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "time_literal",
+          "named": true
+        },
+        {
+          "type": "tuple_expression",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -3007,405 +1891,69 @@
             "named": true
           }
         ]
-      },
-      "transition": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
       }
-    }
-  },
-  {
-    "type": "power_expression",
-    "named": true,
-    "fields": {
-      "left": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "right": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "product_expression",
-    "named": true,
-    "fields": {
-      "left": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      },
-      "operator": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "%",
-            "named": false
-          },
-          {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "/",
-            "named": false
-          }
-        ]
-      },
-      "right": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "modifier_block",
+          "named": true
+        }
+      ]
     }
   },
   {
     "type": "property",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
       "name": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "dotted_identifier",
+            "type": "identifier",
             "named": true
           },
           {
-            "type": "identifier",
+            "type": "string",
             "named": true
           }
         ]
       },
       "value": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -3417,14 +1965,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -3433,7 +1973,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -3441,23 +1981,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -3465,7 +1993,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -3481,29 +2009,65 @@
     }
   },
   {
-    "type": "reactive_assignment",
+    "type": "property_assignment",
     "named": true,
     "fields": {
+      "base": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
       "target": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "dotted_identifier",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
             "named": true
           }
         ]
       },
       "value": {
-        "multiple": false,
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -3515,14 +2079,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -3531,7 +2087,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -3539,23 +2095,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -3563,7 +2107,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -3572,113 +2116,32 @@
           },
           {
             "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "relative_keyframe",
-    "named": true,
-    "fields": {
-      "offset": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "duration_literal",
             "named": true
           }
         ]
       }
     },
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": false,
       "types": [
         {
-          "type": "action_statement",
+          "type": "modifier_block",
           "named": true
-        },
+        }
+      ]
+    }
+  },
+  {
+    "type": "property_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
         {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "property",
           "named": true
         }
       ]
@@ -3701,95 +2164,41 @@
     }
   },
   {
-    "type": "sequence_statement",
+    "type": "sequence_block",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
-      "required": false,
+      "multiple": false,
+      "required": true,
       "types": [
         {
-          "type": "action_statement",
+          "type": "block",
           "named": true
-        },
+        }
+      ]
+    }
+  },
+  {
+    "type": "slot_fill",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
         {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "block",
           "named": true
         }
       ]
@@ -3805,11 +2214,11 @@
       "required": false,
       "types": [
         {
-          "type": "absolute_keyframe",
+          "type": "action_definition",
           "named": true
         },
         {
-          "type": "action_statement",
+          "type": "action_invocation",
           "named": true
         },
         {
@@ -3817,11 +2226,7 @@
           "named": true
         },
         {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
+          "type": "always_block",
           "named": true
         },
         {
@@ -3833,15 +2238,11 @@
           "named": true
         },
         {
-          "type": "config_statement",
+          "type": "config",
           "named": true
         },
         {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
+          "type": "for_block",
           "named": true
         },
         {
@@ -3849,15 +2250,11 @@
           "named": true
         },
         {
-          "type": "image_statement",
-          "named": true
-        },
-        {
           "type": "import_statement",
           "named": true
         },
         {
-          "type": "labeled_always_statement",
+          "type": "keyframe",
           "named": true
         },
         {
@@ -3869,11 +2266,7 @@
           "named": true
         },
         {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "relative_keyframe",
+          "type": "property_assignment",
           "named": true
         },
         {
@@ -3881,324 +2274,44 @@
           "named": true
         },
         {
-          "type": "sequence_statement",
+          "type": "sequence_block",
           "named": true
         },
         {
-          "type": "stagger_statement",
+          "type": "slot_fill",
           "named": true
         },
         {
-          "type": "svg_statement",
+          "type": "slot_marker",
           "named": true
         },
         {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
+          "type": "stagger_block",
           "named": true
         }
       ]
     }
   },
   {
-    "type": "stagger_statement",
+    "type": "stagger_block",
     "named": true,
     "fields": {
-      "modifiers": {
-        "multiple": false,
+      "base": {
+        "multiple": true,
         "required": false,
         "types": [
           {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "action_statement",
-          "named": true
-        },
-        {
-          "type": "actor_declaration",
-          "named": true
-        },
-        {
-          "type": "always_statement",
-          "named": true
-        },
-        {
-          "type": "assignment",
-          "named": true
-        },
-        {
-          "type": "comment",
-          "named": true
-        },
-        {
-          "type": "component_definition",
-          "named": true
-        },
-        {
-          "type": "config_statement",
-          "named": true
-        },
-        {
-          "type": "drive_statement",
-          "named": true
-        },
-        {
-          "type": "for_statement",
-          "named": true
-        },
-        {
-          "type": "if_statement",
-          "named": true
-        },
-        {
-          "type": "image_statement",
-          "named": true
-        },
-        {
-          "type": "import_statement",
-          "named": true
-        },
-        {
-          "type": "labeled_always_statement",
-          "named": true
-        },
-        {
-          "type": "let_declaration",
-          "named": true
-        },
-        {
-          "type": "play_statement",
-          "named": true
-        },
-        {
-          "type": "reactive_assignment",
-          "named": true
-        },
-        {
-          "type": "sequence_statement",
-          "named": true
-        },
-        {
-          "type": "stagger_statement",
-          "named": true
-        },
-        {
-          "type": "svg_statement",
-          "named": true
-        },
-        {
-          "type": "text_shorthand",
-          "named": true
-        },
-        {
-          "type": "use_statement",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sum_expression",
-    "named": true,
-    "fields": {
-      "left": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
+            "type": ".",
+            "named": false
           },
           {
             "type": "identifier",
             "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
           }
         ]
       },
-      "operator": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "+",
-            "named": false
-          },
-          {
-            "type": "-",
-            "named": false
-          }
-        ]
-      },
-      "right": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "boolean",
-            "named": true
-          },
-          {
-            "type": "brace_array",
-            "named": true
-          },
-          {
-            "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "closure_expression",
-            "named": true
-          },
-          {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
-            "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "index_expression",
-            "named": true
-          },
-          {
-            "type": "null",
-            "named": true
-          },
-          {
-            "type": "number",
-            "named": true
-          },
-          {
-            "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
-            "named": true
-          },
-          {
-            "type": "string",
-            "named": true
-          },
-          {
-            "type": "sum_expression",
-            "named": true
-          },
-          {
-            "type": "tuple_expression",
-            "named": true
-          },
-          {
-            "type": "unary_expression",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "svg_statement",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
+      "name": {
+        "multiple": true,
         "required": false,
         "types": [
           {
@@ -4208,67 +2321,24 @@
         ]
       }
     },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "property",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "text_shorthand",
-    "named": true,
-    "fields": {
-      "label": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "modifiers": {
-        "multiple": false,
-        "required": false,
-        "types": [
-          {
-            "type": "modifier_list",
-            "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "string",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "tuple_expression",
-    "named": true,
-    "fields": {},
     "children": {
       "multiple": true,
       "required": true,
       "types": [
         {
-          "type": "boolean",
+          "type": "array_expression",
           "named": true
         },
         {
-          "type": "brace_array",
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "boolean",
           "named": true
         },
         {
@@ -4280,14 +2350,6 @@
           "named": true
         },
         {
-          "type": "comparison_expression",
-          "named": true
-        },
-        {
-          "type": "conditional_expression",
-          "named": true
-        },
-        {
           "type": "identifier",
           "named": true
         },
@@ -4296,7 +2358,7 @@
           "named": true
         },
         {
-          "type": "null",
+          "type": "method_call_expression",
           "named": true
         },
         {
@@ -4304,23 +2366,11 @@
           "named": true
         },
         {
+          "type": "object_expression",
+          "named": true
+        },
+        {
           "type": "parenthesized_expression",
-          "named": true
-        },
-        {
-          "type": "path_expression",
-          "named": true
-        },
-        {
-          "type": "percentage",
-          "named": true
-        },
-        {
-          "type": "power_expression",
-          "named": true
-        },
-        {
-          "type": "product_expression",
           "named": true
         },
         {
@@ -4328,7 +2378,7 @@
           "named": true
         },
         {
-          "type": "sum_expression",
+          "type": "time_literal",
           "named": true
         },
         {
@@ -4343,15 +2393,140 @@
     }
   },
   {
-    "type": "type_annotation",
+    "type": "string",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "target_list",
     "named": true,
     "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "time_literal",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "time_unit",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "time_unit",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "tuple_expression",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
       "required": false,
       "types": [
         {
-          "type": "type_annotation",
+          "type": "array_expression",
+          "named": true
+        },
+        {
+          "type": "binary_expression",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "closure_expression",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "index_expression",
+          "named": true
+        },
+        {
+          "type": "method_call_expression",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "object_expression",
+          "named": true
+        },
+        {
+          "type": "parenthesized_expression",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "time_literal",
+          "named": true
+        },
+        {
+          "type": "tuple_expression",
+          "named": true
+        },
+        {
+          "type": "unary_expression",
           "named": true
         }
       ]
@@ -4361,16 +2536,48 @@
     "type": "unary_expression",
     "named": true,
     "fields": {
-      "argument": {
-        "multiple": false,
+      "base": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": true,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "operand": {
+        "multiple": true,
         "required": true,
         "types": [
           {
-            "type": "boolean",
+            "type": ".",
+            "named": false
+          },
+          {
+            "type": "array_expression",
             "named": true
           },
           {
-            "type": "brace_array",
+            "type": "binary_expression",
+            "named": true
+          },
+          {
+            "type": "boolean",
             "named": true
           },
           {
@@ -4382,14 +2589,6 @@
             "named": true
           },
           {
-            "type": "comparison_expression",
-            "named": true
-          },
-          {
-            "type": "conditional_expression",
-            "named": true
-          },
-          {
             "type": "identifier",
             "named": true
           },
@@ -4398,7 +2597,7 @@
             "named": true
           },
           {
-            "type": "null",
+            "type": "method_call_expression",
             "named": true
           },
           {
@@ -4406,23 +2605,11 @@
             "named": true
           },
           {
+            "type": "object_expression",
+            "named": true
+          },
+          {
             "type": "parenthesized_expression",
-            "named": true
-          },
-          {
-            "type": "path_expression",
-            "named": true
-          },
-          {
-            "type": "percentage",
-            "named": true
-          },
-          {
-            "type": "power_expression",
-            "named": true
-          },
-          {
-            "type": "product_expression",
             "named": true
           },
           {
@@ -4430,7 +2617,7 @@
             "named": true
           },
           {
-            "type": "sum_expression",
+            "type": "time_literal",
             "named": true
           },
           {
@@ -4460,32 +2647,6 @@
     }
   },
   {
-    "type": "use_statement",
-    "named": true,
-    "fields": {
-      "item": {
-        "multiple": true,
-        "required": false,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "path": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "!",
     "named": false
   },
@@ -4494,15 +2655,23 @@
     "named": false
   },
   {
+    "type": "\"",
+    "named": false
+  },
+  {
     "type": "#",
     "named": false
   },
   {
-    "type": "#+",
+    "type": "%",
     "named": false
   },
   {
-    "type": "%",
+    "type": "&&",
+    "named": false
+  },
+  {
+    "type": "'",
     "named": false
   },
   {
@@ -4538,11 +2707,11 @@
     "named": false
   },
   {
-    "type": ":",
+    "type": "//",
     "named": false
   },
   {
-    "type": ":=",
+    "type": ":",
     "named": false
   },
   {
@@ -4578,50 +2747,6 @@
     "named": false
   },
   {
-    "type": "Actor",
-    "named": false
-  },
-  {
-    "type": "Bool",
-    "named": false
-  },
-  {
-    "type": "Color",
-    "named": false
-  },
-  {
-    "type": "Image",
-    "named": false
-  },
-  {
-    "type": "List",
-    "named": false
-  },
-  {
-    "type": "Num",
-    "named": false
-  },
-  {
-    "type": "Scene",
-    "named": false
-  },
-  {
-    "type": "Str",
-    "named": false
-  },
-  {
-    "type": "Svg",
-    "named": false
-  },
-  {
-    "type": "Vec2",
-    "named": false
-  },
-  {
-    "type": "Vec4",
-    "named": false
-  },
-  {
     "type": "[",
     "named": false
   },
@@ -4634,6 +2759,10 @@
     "named": false
   },
   {
+    "type": "action",
+    "named": false
+  },
+  {
     "type": "always",
     "named": false
   },
@@ -4642,24 +2771,12 @@
     "named": false
   },
   {
-    "type": "comment",
-    "named": true
-  },
-  {
     "type": "component",
     "named": false
   },
   {
     "type": "config",
     "named": false
-  },
-  {
-    "type": "drive",
-    "named": false
-  },
-  {
-    "type": "duration_literal",
-    "named": true
   },
   {
     "type": "else",
@@ -4694,15 +2811,11 @@
     "named": false
   },
   {
-    "type": "null",
-    "named": true
+    "type": "ms",
+    "named": false
   },
   {
     "type": "number",
-    "named": true
-  },
-  {
-    "type": "percentage",
     "named": true
   },
   {
@@ -4714,31 +2827,31 @@
     "named": false
   },
   {
+    "type": "s",
+    "named": false
+  },
+  {
     "type": "sequence",
     "named": false
+  },
+  {
+    "type": "slot_marker",
+    "named": true
   },
   {
     "type": "stagger",
     "named": false
   },
   {
-    "type": "string",
-    "named": true
-  },
-  {
     "type": "true",
     "named": false
   },
   {
-    "type": "type_identifier",
-    "named": true
-  },
-  {
-    "type": "use",
+    "type": "{",
     "named": false
   },
   {
-    "type": "{",
+    "type": "||",
     "named": false
   },
   {

@@ -5,6 +5,7 @@ use crate::cell_editor::SemanticHighlight;
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, FontFamily, TextFormat};
 use std::sync::LazyLock;
+use tracing::warn;
 use tree_sitter::{Parser, Language};
 use tree_sitter_animatix::{language, HIGHLIGHTS_QUERY};
 
@@ -124,11 +125,13 @@ pub fn highlight_source(
 
     let mut parser = Parser::new();
     if parser.set_language(&LANGUAGE).is_err() {
+        warn!("highlight_source: failed to set language, falling back to plain text");
         return plain_text_job(source, &font_id, colors.default);
     }
 
     // Verify the source can be parsed
     if parser.parse(source, None).is_none() {
+        warn!("highlight_source: parse returned None, falling back to plain text");
         return plain_text_job(source, &font_id, colors.default);
     }
 
@@ -142,6 +145,7 @@ pub fn highlight_source(
         "",
         "",
     ) else {
+        warn!("highlight_source: failed to create HighlightConfiguration, falling back to plain text");
         return plain_text_job(source, &font_id, colors.default);
     };
 
@@ -149,7 +153,8 @@ pub fn highlight_source(
 
     let highlights = match highlighter.highlight(&config, source.as_bytes(), None, |_| None) {
         Ok(highlights) => highlights,
-        Err(_) => {
+        Err(e) => {
+            warn!("highlight_source: highlighter.highlight failed: {:?}, falling back to plain text", e);
             return plain_text_job(source, &font_id, colors.default);
         }
     };
@@ -223,8 +228,6 @@ pub fn highlight_source(
     }
 
     // Apply all background layers
-    
-
     apply_background_layers(
         source,
         &font_id,
@@ -459,5 +462,122 @@ line three
         let job = highlight_source(source, &style, &[], Some(1), &[]);
 
         assert!(!job.text.is_empty());
+    }
+
+    #[test]
+    fn highlight_produces_actual_colors() {
+        // This test verifies the highlight pipeline doesn't silently fall back
+        // to plain text. We check that at least some non-default colors are used.
+        let source = r#"// comment
+let x = 42
+title: Text, text: "hello"
+#1s
+fade-in title [1s]
+"#;
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        assert!(!job.text.is_empty());
+        assert_eq!(job.text, source);
+
+        // Check that we have at least one non-default color in the layout job.
+        // The default color in dark mode is Color32::from_rgb(235, 219, 178).
+        let default_light = Color32::from_rgb(235, 219, 178);
+        let has_highlight = job.sections.iter().any(|s| s.format.color != default_light);
+        assert!(
+            has_highlight,
+            "Expected some highlighted sections, but all sections used the default color. \
+             This usually means the highlight pipeline fell back to plain_text_job."
+        );
+    }
+
+    #[test]
+    fn highlight_configuration_loads() {
+        // Verify the tree-sitter highlight configuration can be created from the query.
+        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
+            tree_sitter_animatix::language(),
+            "animatix",
+            tree_sitter_animatix::HIGHLIGHTS_QUERY,
+            "",
+            "",
+        )
+        .expect("HighlightConfiguration::new should succeed with the bundled query");
+
+        config.configure(HIGHLIGHT_NAMES);
+    }
+
+    #[test]
+    fn highlight_events_are_produced() {
+        // Verify that tree-sitter-highlight actually produces highlight events.
+        let source = r#"let x = 42
+fade-in title [1s]
+"#;
+
+        let mut highlighter = tree_sitter_highlight::Highlighter::new();
+        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
+            tree_sitter_animatix::language(),
+            "animatix",
+            tree_sitter_animatix::HIGHLIGHTS_QUERY,
+            "",
+            "",
+        )
+        .unwrap();
+        config.configure(HIGHLIGHT_NAMES);
+
+        let highlights = highlighter
+            .highlight(&config, source.as_bytes(), None, |_| None)
+            .unwrap();
+
+        let mut source_events = 0;
+        let mut highlight_starts = 0;
+        let mut highlight_ends = 0;
+
+        for event in highlights {
+            match event {
+                Ok(tree_sitter_highlight::HighlightEvent::Source { .. }) => source_events += 1,
+                Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(_)) => {
+                    highlight_starts += 1
+                }
+                Ok(tree_sitter_highlight::HighlightEvent::HighlightEnd) => highlight_ends += 1,
+                Err(e) => panic!("Highlight error: {:?}", e),
+            }
+        }
+
+        assert!(
+            highlight_starts > 0,
+            "Expected at least some HighlightStart events, got 0"
+        );
+        assert_eq!(
+            highlight_starts, highlight_ends,
+            "Mismatched HighlightStart/HighlightEnd count"
+        );
+        assert!(source_events > 0, "Expected at least some Source events");
+    }
+
+    #[test]
+    fn highlight_source_sections_have_varied_colors() {
+        // This test verifies that the LayoutJob produced by highlight_source
+        // contains sections with multiple distinct colors.
+        let source = r#"let x = 42
+title: Text, text: "hello"
+#1s
+fade-in title [1s]
+"#;
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let mut color_counts: std::collections::HashMap<Color32, usize> =
+            std::collections::HashMap::new();
+        for section in &job.sections {
+            *color_counts.entry(section.format.color).or_insert(0) += 1;
+        }
+
+        assert!(
+            color_counts.len() > 1,
+            "Expected multiple distinct colors in LayoutJob sections, got: {:?}",
+            color_counts.keys().collect::<Vec<_>>()
+        );
     }
 }

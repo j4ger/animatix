@@ -48,12 +48,7 @@ pub fn collect_diagnostics(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    // 1. Tree-sitter ERROR/MISSING nodes (syntax errors)
-    if let Some(tree) = tree {
-        collect_ts_errors(tree.root_node(), source, &mut diagnostics);
-    }
-
-    // 2. Chumsky parse errors (structured with positions)
+    // 1. Chumsky parse errors (structured with positions)
     for (i, error) in parse_errors.iter().enumerate() {
         let end_span = Span::from_range(source, error.span.clone());
         diagnostics.push(Diagnostic {

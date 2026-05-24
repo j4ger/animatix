@@ -1,550 +1,352 @@
-const PREC = {
-  closure: 9,
-  conditional: 8,
-  compare: 4,
-  sum: 5,
-  product: 6,
-  power: 7,
-  unary: 8,
-  call: 10,
-  path: 11,
-};
-
 module.exports = grammar({
   name: 'animatix',
 
-  word: $ => $.identifier,
-
   extras: $ => [
-    /[\s\uFEFF\u2060\u200B]+/,
+    /\s/,
+    $.comment,
   ],
 
+  word: $ => $.identifier,
+
   conflicts: $ => [
-    [$.closure_expression, $.parenthesized_expression],
-    [$.closure_parameters, $.parenthesized_expression],
-    [$.closure_parameters, $._expression],
-    [$.action_statement, $._expression],
+    [$._expression, $.object_expression],
+    [$._expression, $._path_expression],
+    [$._expression, $.call_expression],
+    [$._expression, $.method_call_expression],
+    [$._expression, $.closure_expression],
+    [$._expression, $.tuple_expression],
+    [$._expression, $.index_expression],
+    [$._expression, $.parenthesized_expression],
+    [$._expression, $.array_expression],
+    [$.tuple_expression, $.parenthesized_expression],
+    [$.binary_expression, $.closure_expression],
+    [$.binary_expression, $._path_expression],
+    [$.binary_expression, $.call_expression],
+    [$.binary_expression, $.method_call_expression],
+    [$.binary_expression, $.index_expression],
+    [$._statement, $.actor_declaration],
+    [$._statement, $.property_assignment],
+    [$._statement, $.action_invocation],
+    [$.target_list, $.argument_list],
   ],
 
   rules: {
-    source_file: $ => repeat($._top_level_item),
-
-    _top_level_item: $ => choice(
-      $.scene_declaration,
-      $.absolute_keyframe,
-      $.relative_keyframe,
-      $._statement,
-    ),
-
-    scene_declaration: $ => prec.right(seq(
-      '#',
-      field('name', $.identifier),
-    )),
+    source_file: $ => repeat($._statement),
 
     _statement: $ => choice(
       $.comment,
-      $.config_statement,
-      $.let_declaration,
+      $.config,
       $.import_statement,
-      $.use_statement,
-      $.labeled_always_statement,
-      $.always_statement,
-      $.if_statement,
-      $.for_statement,
+      $.let_declaration,
       $.component_definition,
-      $.svg_statement,
-      $.image_statement,
-      $.assignment,
-      $.reactive_assignment,
+      $.action_definition,
+      $.scene_declaration,
+      $.keyframe,
       $.actor_declaration,
-      $.text_shorthand,
-      $.action_statement,
-      $.sequence_statement,
-      $.stagger_statement,
+      $.property_assignment,
+      $.action_invocation,
+      $.sequence_block,
+      $.stagger_block,
+      $.always_block,
+      $.for_block,
+      $.if_statement,
       $.play_statement,
-      $.drive_statement,
+      $.slot_marker,
+      $.slot_fill,
     ),
 
-    comment: _ => token(seq('//', /[^\r\n]*/)),
+    comment: $ => seq('//', /[^\n]*/),
 
-    // ============================================================
-    // Config: config { colorscheme: "editorial-dark" }
-    // ============================================================
-    config_statement: $ => seq(
-      token('config'),
+    config: $ => seq(
+      'config',
       '{',
-      commaSepTrailing($.property),
-      '}',
-    ),
-
-    // ============================================================
-    // Keyframes: #0s, #1.5s, #+500ms
-    // ============================================================
-    absolute_keyframe: $ => prec.right(seq(
-      '#',
-      field('time', $.duration_literal),
-      repeat($._statement),
-    )),
-
-    relative_keyframe: $ => prec.right(seq(
-      '#+',
-      field('offset', $.duration_literal),
-      repeat($._statement),
-    )),
-
-    // ============================================================
-    // Declarations
-    // ============================================================
-    let_declaration: $ => seq(
-      optional(token('pub')),
-      token('let'),
-      field('name', $.identifier),
-      '=',
-      field('value', $._expression),
+      optional($.property_list),
+      '}'
     ),
 
     import_statement: $ => seq(
-      token('import'),
+      'import',
       field('path', $.string),
-      optional(seq(token('as'), field('alias', $.identifier))),
+      optional(seq('as', field('alias', $.identifier)))
     ),
 
-    use_statement: $ => seq(
-      token('use'),
-      field('path', $.identifier),
-      '.',
-      '{',
-      commaSepTrailing(field('item', $.identifier)),
-      '}',
+    let_declaration: $ => seq(
+      optional('pub'),
+      'let',
+      field('name', $.identifier),
+      '=',
+      field('value', $._expression)
     ),
 
-    // ============================================================
-    // Assignments: auto1.radius = 48 [700ms, ease: ease-in-out]
-    // ============================================================
-    assignment: $ => seq(
-      field('target', choice($.identifier, $.dotted_identifier)),
+    component_definition: $ => seq(
+      optional('pub'),
+      'component',
+      field('name', $.identifier),
+      optional($.parameter_list),
+      $.block
+    ),
+
+    parameter_list: $ => seq(
+      '(',
+      optional(seq(
+        $.parameter,
+        repeat(seq(',', $.parameter))
+      )),
+      ')'
+    ),
+
+    parameter: $ => seq(
+      field('name', $.identifier),
+      optional(seq(':', $._expression))
+    ),
+
+    action_definition: $ => seq(
+      'action',
+      field('name', $.identifier),
+      $.block
+    ),
+
+    scene_declaration: $ => seq(
+      '#',
+      field('name', $.identifier)
+    ),
+
+    keyframe: $ => seq(
+      '#',
+      choice(
+        seq(optional('+'), $.number, optional($.time_unit)),
+        seq('+', $.number, optional($.time_unit))
+      )
+    ),
+
+    time_unit: $ => choice('s', 'ms'),
+
+    actor_declaration: $ => seq(
+      field('label', $.identifier),
+      ':',
+      field('type', choice($.identifier, $.string)),
+      optional(seq(',', $.property_list)),
+      optional($.modifier_block),
+      optional($.children_block)
+    ),
+
+    property_assignment: $ => seq(
+      field('target', $._path_expression),
       '=',
       field('value', $._expression),
-      optional(field('modifiers', $.modifier_list)),
+      optional($.modifier_block)
     ),
 
-    dotted_identifier: $ => seq(
-      field('base', $.identifier),
-      repeat1(seq('.', field('segment', $.identifier))),
-    ),
-
-    // ============================================================
-    // SVG/Image statements
-    // ============================================================
-    svg_statement: $ => seq(
-      optional(seq(field('label', $.identifier), ':')),
-      'Svg',
-      '{',
-      commaSepTrailing($.property),
-      '}',
-    ),
-
-    image_statement: $ => seq(
-      optional(seq(field('label', $.identifier), ':')),
-      'Image',
-      '{',
-      commaSepTrailing($.property),
-      '}',
-    ),
-
-    // ============================================================
-    // Text shorthand: title: "Slide 1"
-    // ============================================================
-    text_shorthand: $ => seq(
-      field('label', $.identifier),
-      ':',
-      field('value', $.string),
-      optional(field('modifiers', $.modifier_list)),
-    ),
-
-    // ============================================================
-    // Actor declaration:
-    // label: Text, text: "Hello", font_size: 20, color: text.primary
-    // label: Text, text: "Hello" { children }
-    // pub label: Text
-    // ============================================================
-    actor_declaration: $ => seq(
-      optional('pub'),
-      field('label', $.identifier),
-      ':',
-      field('type', $.type_identifier),
-      optional($._actor_properties),
-      optional(field('modifiers', $.modifier_list)),
-      optional(field('children', $.inline_children_block)),
-    ),
-
-    // Actor properties - comma-separated after type
-    _actor_properties: $ => seq(
-      ',',
-      $.property,
-      repeat(seq(',', $.property)),
-    ),
-
-    // ============================================================
-    // Action: move btn to (100, 100) [2s]
-    // ============================================================
-    action_statement: $ => prec.right(seq(
+    action_invocation: $ => seq(
       field('verb', $.identifier),
-      repeat(field('target', $.identifier)),
-      repeat(field('arg', $._expression)),
-      optional(field('modifiers', $.modifier_list)),
-    )),
+      field('targets', $.target_list),
+      optional($.modifier_block)
+    ),
+
+    target_list: $ => seq(
+      $.identifier,
+      repeat(seq(',', $.identifier))
+    ),
+
+    sequence_block: $ => seq(
+      'sequence',
+      $.block
+    ),
+
+    stagger_block: $ => seq(
+      'stagger',
+      optional(seq('[', $._expression, ']')),
+      $.block
+    ),
+
+    always_block: $ => seq(
+      'always',
+      $.block
+    ),
+
+    for_block: $ => seq(
+      'for',
+      field('variable', $.identifier),
+      'in',
+      field('iterable', $._expression),
+      $.block
+    ),
+
+    if_statement: $ => seq(
+      'if',
+      field('condition', $._expression),
+      field('consequence', $.block),
+      optional(seq('else', field('alternative', $.block)))
+    ),
 
     play_statement: $ => seq(
-      token('play'),
+      'play',
       field('scene', $.identifier),
-      optional(field('transition', $.modifier_list)),
+      optional($.modifier_block)
     ),
 
-    drive_statement: $ => seq(
-      token('drive'),
-      field('label', $.identifier),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
+    slot_marker: $ => '@slot',
 
-    reactive_assignment: $ => seq(
-      field('target', $.dotted_identifier),
-      ':=',
-      field('value', $._expression),
-    ),
-
-    // ============================================================
-    // Sequence: sequence { ... }
-    // ============================================================
-    sequence_statement: $ => seq(
-      token('sequence'),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
-
-    // ============================================================
-    // Stagger: stagger [150ms] { ... }
-    // ============================================================
-    stagger_statement: $ => seq(
-      token('stagger'),
-      optional(field('modifiers', $.modifier_list)),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
-
-    // ============================================================
-    // Always blocks
-    // ============================================================
-    always_statement: $ => seq(
-      token('always'),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
-
-    labeled_always_statement: $ => seq(
-      field('label', $.identifier),
-      ':',
-      token('always'),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
-
-    // ============================================================
-    // Conditionals
-    // ============================================================
-    if_statement: $ => seq(
-      token('if'),
-      field('condition', $._expression),
-      '{',
-      field('consequence', repeat($._statement)),
-      '}',
-      optional(seq(
-        token('else'),
-        '{',
-        field('alternative', repeat($._statement)),
-        '}',
-      )),
-    ),
-
-    // ============================================================
-    // For loop
-    // ============================================================
-    for_statement: $ => seq(
-      token('for'),
-      field('variable', $.identifier),
-      token('in'),
-      field('iterable', $._expression),
-      '{',
-      field('body', repeat($._statement)),
-      '}',
-    ),
-
-    // ============================================================
-    // Component definition
-    // ============================================================
-    component_definition: $ => seq(
-      optional(token('pub')),
-      token('component'),
-      field('name', $.identifier),
-      optional(seq(
-        '(',
-        commaSepTrailing($.parameter_definition),
-        ')',
-      )),
-      '{',
-      repeat($._statement),
-      '}',
-    ),
-
-    parameter_definition: $ => seq(
-      field('name', $.identifier),
-      optional(seq(
-        ':',
-        choice(
-          seq($.type_annotation, optional(seq('=', field('default', $._expression)))),
-          field('default', $._expression),
-        ),
-      )),
-    ),
-
-    type_annotation: $ => choice(
-      'Num',
-      'Str',
-      'Bool',
-      'Vec2',
-      'Vec4',
-      'Color',
-      'Actor',
-      'Scene',
-      seq('List', '<', $.type_annotation, '>'),
-    ),
-
-    // ============================================================
-    // Inline children block for containers (Row, Col, Grid)
-    // Items are separated by newlines, commas are part of items with properties
-    // ============================================================
-    inline_children_block: $ => seq(
-      '{',
-      repeat($._inline_item),
-      '}',
-    ),
-
-    // Inline items - no commas between items, commas are part of items with properties
-    _inline_item: $ => choice(
-      $.inline_slot_fill,
-      $.inline_labeled_item_with_props,
-      $.inline_anon_with_props,
-      $.inline_labeled_item,
-      $.inline_anon,
-      $.property,
-    ),
-
-    inline_slot_fill: $ => seq(
+    slot_fill: $ => seq(
       '@',
       field('name', $.identifier),
+      $.block
+    ),
+
+    block: $ => seq(
       '{',
-      repeat($._inline_item),
-      '}',
+      repeat($._statement),
+      '}'
     ),
 
-    // Labeled inline item with properties: label: Type, prop1: val1, prop2: val2
-    inline_labeled_item_with_props: $ => seq(
-      field('label', $.identifier),
-      ':',
-      field('type', $.type_identifier),
-      ',',
+    children_block: $ => seq(
+      '{',
+      repeat($._statement),
+      '}'
+    ),
+
+    property_list: $ => seq(
       $.property,
-      repeat(seq(',', $.property)),
+      repeat(seq(',', $.property))
     ),
 
-    // Labeled inline item without properties: label: Type
-    inline_labeled_item: $ => seq(
-      field('label', $.identifier),
-      ':',
-      field('type', $.type_identifier),
-    ),
-
-    // Anonymous inline item with properties: Type, prop1: val1, prop2: val2
-    inline_anon_with_props: $ => seq(
-      field('type', $.type_identifier),
-      ',',
-      $.property,
-      repeat(seq(',', $.property)),
-    ),
-
-    // Anonymous inline item without properties: Type
-    inline_anon: $ => field('type', $.type_identifier),
-
-    // ============================================================
-    // Properties
-    // ============================================================
     property: $ => seq(
-      field('name', choice($.dotted_identifier, $.identifier)),
+      field('name', choice($.identifier, $.string)),
       ':',
-      field('value', $._expression),
+      field('value', $._expression)
     ),
 
-    // ============================================================
-    // Modifiers: [2s], [delay: 500ms, ease: bounce]
-    // ============================================================
-    modifier_list: $ => seq(
+    modifier_block: $ => seq(
       '[',
-      commaSepTrailing($.modifier),
-      ']',
+      optional($.modifier_list),
+      ']'
+    ),
+
+    modifier_list: $ => seq(
+      $.modifier,
+      repeat(seq(',', $.modifier))
     ),
 
     modifier: $ => choice(
-      $.named_modifier,
-      $.duration_literal,
       $._expression,
+      seq(
+        field('key', $.identifier),
+        ':',
+        field('value', $._expression)
+      )
     ),
 
-    named_modifier: $ => seq(
-      field('name', $.identifier),
-      ':',
-      field('value', $._expression),
-    ),
-
-    // ============================================================
     // Expressions
-    // ============================================================
     _expression: $ => choice(
-      $.closure_expression,
-      $.conditional_expression,
-      $.comparison_expression,
-      $.sum_expression,
-      $.product_expression,
-      $.power_expression,
-      $.unary_expression,
-      $.index_expression,
-      $.call_expression,
-      $.path_expression,
-      $.parenthesized_expression,
-      $.tuple_expression,
-      $.brace_array,
       $.number,
-      $.percentage,
+      $.time_literal,
       $.string,
       $.boolean,
-      $.null,
       $.identifier,
+      $._path_expression,
+      $.unary_expression,
+      $.binary_expression,
+      $.call_expression,
+      $.index_expression,
+      $.tuple_expression,
+      $.array_expression,
+      $.closure_expression,
+      $.object_expression,
+      $.parenthesized_expression,
+      $.method_call_expression,
     ),
 
-    closure_expression: $ => prec.right(PREC.closure, seq(
-      field('parameters', $.closure_parameters),
-      '=>',
-      field('body', $._expression),
+    _path_expression: $ => prec.left(seq(
+      field('base', choice($.identifier, $._path_expression)),
+      '.',
+      field('name', $.identifier)
     )),
 
-    closure_parameters: $ => choice(
-      $.identifier,
-      seq('(', commaSepTrailing($.identifier), ')'),
-    ),
-
-    conditional_expression: $ => prec.right(PREC.conditional, seq(
-      token('if'),
-      field('condition', $._expression),
-      '{',
-      field('consequence', $._expression),
-      '}',
-      token('else'),
-      '{',
-      field('alternative', $._expression),
-      '}',
-    )),
-
-    comparison_expression: $ => prec.left(PREC.compare, seq(
-      field('left', $._expression),
-      field('operator', choice('>=', '<=', '==', '!=', '>', '<')),
-      field('right', $._expression),
-    )),
-
-    sum_expression: $ => prec.left(PREC.sum, seq(
-      field('left', $._expression),
-      field('operator', choice('+', '-')),
-      field('right', $._expression),
-    )),
-
-    product_expression: $ => prec.left(PREC.product, seq(
-      field('left', $._expression),
-      field('operator', choice('*', '/', '%')),
-      field('right', $._expression),
-    )),
-
-    power_expression: $ => prec.right(PREC.power, seq(
-      field('left', $._expression),
-      '^',
-      field('right', $._expression),
-    )),
-
-    unary_expression: $ => prec.right(PREC.unary, seq(
+    unary_expression: $ => prec.left(3, seq(
       field('operator', choice('-', '!')),
-      field('argument', $._expression),
+      field('operand', $._expression)
     )),
 
-    call_expression: $ => prec(PREC.call, seq(
+    binary_expression: $ => choice(
+      prec.left(1, seq($._expression, choice('+', '-'), $._expression)),
+      prec.left(2, seq($._expression, choice('*', '/', '%', '^'), $._expression)),
+      prec.left(0, seq($._expression, choice('==', '!=', '<', '>', '<=', '>='), $._expression)),
+      prec.left(0, seq($._expression, choice('&&', '||'), $._expression)),
+    ),
+
+    call_expression: $ => prec(4, seq(
       field('function', $.identifier),
       '(',
-      commaSepTrailing($._expression),
-      ')',
+      optional($.argument_list),
+      ')'
     )),
 
-    index_expression: $ => prec(PREC.call, seq(
-      field('container', $._expression),
+    method_call_expression: $ => prec(4, seq(
+      field('object', $._expression),
+      '.',
+      field('method', $.identifier),
+      '(',
+      optional($.argument_list),
+      ')'
+    )),
+
+    argument_list: $ => seq(
+      $._expression,
+      repeat(seq(',', $._expression))
+    ),
+
+    index_expression: $ => prec(5, seq(
+      field('object', $._expression),
       '[',
       field('index', $._expression),
-      ']',
+      ']'
     )),
-
-    path_expression: $ => prec.left(PREC.path, seq(
-      field('base', $.identifier),
-      repeat1(seq('.', field('segment', $.identifier))),
-    )),
-
-    parenthesized_expression: $ => seq('(', $._expression, ')'),
 
     tuple_expression: $ => seq(
       '(',
-      $._expression,
-      ',',
-      commaSepTrailing($._expression),
-      optional(','),
+      optional(seq($._expression, repeat(seq(',', $._expression)))),
+      ')'
+    ),
+
+    array_expression: $ => seq(
+      '[',
+      optional(seq($._expression, repeat(seq(',', $._expression)))),
+      ']'
+    ),
+
+    closure_expression: $ => seq(
+      '(',
+      optional(seq($.identifier, repeat(seq(',', $.identifier)))),
       ')',
+      '=>',
+      $._expression
     ),
 
-    brace_array: $ => seq(
+    object_expression: $ => seq(
+      field('type', $.identifier),
       '{',
-      commaSepTrailing($._expression),
-      optional(','),
-      '}',
+      optional($.property_list),
+      '}'
     ),
 
-    boolean: _ => choice(token('true'), token('false')),
-    null: _ => token('null'),
+    parenthesized_expression: $ => seq(
+      '(',
+      $._expression,
+      ')'
+    ),
 
-    string: _ => token(seq('"', repeat(/[^"\r\n]/), '"')),
+    // Literals
+    number: $ => /\d+(\.\d+)?/,
 
-    number: _ => token(/\d+(?:\.\d+)?/),
+    time_literal: $ => seq($.number, $.time_unit),
 
-    percentage: _ => token(/\d+(?:\.\d+)?%/),
+    string: $ => choice(
+      seq('"', /[^"\\]*/, '"'),
+      seq("'", /[^'\\]*/, "'")
+    ),
 
-    duration_literal: _ => token(/\d+(?:\.\d+)?(?:ms|s)/),
+    boolean: $ => choice('true', 'false'),
 
-    // Identifiers allow hyphens: [A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z_][A-Za-z0-9_]*)*
-    identifier: _ => token(prec(-1, /[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z_][A-Za-z0-9_]*)*/)),
-
-    // Type identifiers start with uppercase (higher precedence to win over identifier)
-    type_identifier: _ => token(prec(1, /[A-Z][A-Za-z0-9_]*(?:-[A-Za-z_][A-Za-z0-9_]*)*/)),
-  },
+    identifier: $ => /[a-zA-Z_][a-zA-Z0-9_-]*/,
+  }
 });
-
-// Helper function for comma-separated lists with optional trailing comma
-function commaSepTrailing(rule) {
-  return optional(seq(rule, repeat(seq(',', rule)), optional(',')));
-}
