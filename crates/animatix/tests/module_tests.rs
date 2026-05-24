@@ -837,11 +837,68 @@ sequence {
      let expanded = program.expand_components();
      let expanded_debug = format!("{expanded:#?}");
 
-     assert!(expanded_debug.contains("card"));
+      assert!(expanded_debug.contains("card"));
      assert!(expanded_debug.contains("Custom Header"));
      assert!(expanded_debug.contains("Custom Footer"));
      assert!(!expanded_debug.contains("Default Header"));
      assert!(!expanded_debug.contains("Default Footer"));
      assert!(!expanded_debug.contains("Card"));
  }
+
+ #[test]
+ fn load_program_three_slot_fills() {
+     let dir = temp_project_dir("three_slot_fills");
+     let entry = dir.join("scene.amx");
+
+     write_file(
+         &entry,
+         r##"
+config { colorscheme: "editorial-dark", resolution: (800, 500) }
+
+pub component Card(title: "Card") {
+  frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
+  title_text: Text, text: title, font_size: 18, color: text.primary, at: (0, -30)
+  content: Col, gap: 8, at: (0, 20) {
+    @slot
+  }
+}
+
+#0s
+scene.background_color = "#1a1a2e"
+
+card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0) {
+  @content {
+    icon: Ellipse, size: (16, 16), color: accent.primary
+    desc: Text, text: "Visual systems", font_size: 12, color: text.secondary
+  }
+}
+
+card_b: Card, title: "Engineer", anchor: scene.center, offset: (120, 0) {
+  @content {
+    icon: Rect, size: (16, 16), color: accent.warning
+    desc: Text, text: "Build pipelines", font_size: 12, color: text.secondary
+  }
+}
+
+card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
+  @content {
+    icon: Rect, size: (16, 16), color: accent.danger
+    desc: Text, text: "Third card", font_size: 12, color: text.secondary
+  }
+}
+"##,
+     );
+
+     let program = ModuleGraph::new().load_program(&entry).unwrap();
+     
+     // Also verify timeline builds correctly
+     let expanded = program.expand_components();
+     let timeline = Timeline::build(&expanded);
+     
+     // Check that all 3 cards exist in the timeline
+     assert!(timeline.tracks().contains_key("card_a"), "card_a should exist");
+     assert!(timeline.tracks().contains_key("card_b"), "card_b should exist");
+     assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
+ }
+
 

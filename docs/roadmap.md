@@ -10,7 +10,6 @@
 
 | Item | What | Where | Severity |
 |------|------|-------|----------|
-| **P3** | **Component slot-fill parser fails after 2 instances** — exactly 2 top-level `@slotname { ... }` fills parse; a 3rd produces `expected '.', ':', found 'c'`. | `module/expand.rs` or parser | High |
 | **P4** | **Custom component actions can't resolve `self.*` nested paths** — `self.frame.color` expands to `instance.frame.color` but build reports "does not resolve to a declared actor". | `timeline/build/` | Medium |
 | **P5** | **Comments in `always` blocks produce IR warnings** — `//` inside `always { }` yields "Unsupported IR statement: comment". | `timeline/modifier_runtime/ir/` | Low |
 | **P6** | **`scene_width` / `scene_height` silently fail in `let`** — built-ins only work inside `always`, not top-level `let`. No diagnostic. | `timeline/env.rs` | Low |
@@ -21,7 +20,7 @@ Blocked by bug fixes above. Once resolved, update examples to remove workarounds
 
 | Blocked by | What |
 |------------|------|
-| P3, P4 | **06-components.amx** — restore 3rd card instance (currently limited to 2 due to slot-fill parser bug). Add custom `action highlight` back once `self.*` resolution works. Use a `Row` container for cards instead of manual `anchor`/`offset`. |
+| P4 | **06-components.amx** — add custom `action highlight` back once `self.*` resolution works. Use a `Row` container for cards instead of manual `anchor`/`offset`. |
 | P5 | **05-reactive.amx** — re-add explanatory comments inside `always` blocks. Use `let orbit_radius_x = scene_width / 4` instead of hardcoded values. |
 | P6 | **05-reactive.amx** — use `scene_width` / `scene_height` in top-level `let` declarations. |
 

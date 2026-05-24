@@ -34,8 +34,16 @@ card_b: Card, title: "Engineer", anchor: scene.center, offset: (120, 0) {
   }
 }
 
+card_c: Card, title: "Deploy", anchor: scene.center, offset: (0, 80) {
+  @content {
+    icon: Rect, size: (16, 16), color: accent.success
+    desc: Text, text: "Ship to prod", font_size: 12, color: text.secondary
+  }
+}
+
 #0.5s
 stagger [200ms] {
   fade-in card_a [500ms, ease: ease-out]
   fade-in card_b [500ms, ease: ease-out]
+  fade-in card_c [500ms, ease: ease-out]
 }
