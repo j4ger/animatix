@@ -741,8 +741,8 @@ impl Timeline {
             self.env.set(
                 &format!("{}_size", label),
                 Value::Vec2([
-                    initial_size[0] as f64 * 2.0,
-                    initial_size[1] as f64 * 2.0,
+                    initial_size[0] as f64,
+                    initial_size[1] as f64,
                 ]),
             );
         }
@@ -767,7 +767,9 @@ impl Timeline {
             let label_x = tick_labels_has_axis(&tick_labels, 'x');
             let label_y = tick_labels_has_axis(&tick_labels, 'y');
 
-            vello_paths = build_graph_axis_paths(size, x_domain, y_domain, stroke_color, grid, ticks, label_x || label_y);
+            // Use initial_size for axis paths so they match the parsed size
+            let axis_size = if size != default_size { size } else { initial_size };
+            vello_paths = build_graph_axis_paths(axis_size, x_domain, y_domain, stroke_color, grid, ticks, label_x || label_y);
 
             // Compute tick label positions (same logic as build_graph_axis_paths ticks section)
             let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
@@ -776,12 +778,12 @@ impl Timeline {
 
             // X-axis at y=0 screen position
             if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-                let axis_y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                let axis_y = axis_size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
                 if label_x {
                     let mut x = (x_domain[0] / x_step).ceil() * x_step;
                     while x <= x_domain[1] {
                         if x != 0.0 {
-                            let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                            let screen_x = axis_size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
                             tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
                         }
                         x += x_step;
@@ -791,12 +793,12 @@ impl Timeline {
 
             // Y-axis at x=0 screen position
             if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-                let axis_x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                let axis_x = axis_size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
                 if label_y {
                     let mut y = (y_domain[0] / y_step).ceil() * y_step;
                     while y <= y_domain[1] {
                         if y != 0.0 {
-                            let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                            let screen_y = axis_size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
                             tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
                         }
                         y += y_step;

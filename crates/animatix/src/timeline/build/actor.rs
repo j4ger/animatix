@@ -579,7 +579,15 @@ impl Timeline {
             &existing_track,
         ) {
             // Use returned values for keyframe insertion
-            let position = existing_track.position.last([0.0, 0.0]);
+            let mut position = existing_track.position.last([0.0, 0.0]);
+            let eval_env = self.build_eval_env(time_ms as u64);
+            for prop in props {
+                if prop.name == "at" || prop.name == "position" {
+                    if let Ok(super::Value::Vec2(pos)) = super::evaluate_expr(&prop.value, &eval_env) {
+                        position = [pos[0] as f32, pos[1] as f32];
+                    }
+                }
+            }
             let size = initial_size;
             let opacity = 1.0;
 
