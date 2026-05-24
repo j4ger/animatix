@@ -10,18 +10,7 @@
 
 No open bugs at this time.
 
-## Example Cleanup
 
-| Item | What |
-|------|------|
-| **06-components.amx** — Use a `Row` container for cards instead of manual `anchor`/`offset`. |
-
-## Colors & polish
-
-| Item | What |
-|------|------|
-| **P7** | **Add missing accent colors** — `accent.secondary` and `accent.info` do not exist in any built-in colorscheme. Several old and new examples naturally need 5–6 distinct accent colors. |
-| **P8** | **`check --render-smoke`** — optionally export 1 frame to catch renderer bugs (Graph mapping, multi-scene crashes) that `check` currently misses. |
 
 ---
 

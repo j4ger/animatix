@@ -159,6 +159,10 @@ enum Commands {
     Check {
         /// Path to the .amx file
         file: String,
+
+        /// Render one frame at time=0 to catch renderer bugs
+        #[arg(long)]
+        render_smoke: bool,
     },
 }
 
@@ -204,6 +208,70 @@ fn default_output_file(ext: &str) -> PathBuf {
         now.format("%y%m%d_%H%M%S"),
         ext
     ))
+}
+
+/// Render a single frame at time=0 to catch renderer bugs early.
+fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
+    use animatix::renderer::offscreen::OffscreenRenderer;
+    use animatix::timeline::{DebugRenderOptions, SceneDimensions};
+
+    let mut renderer = OffscreenRenderer::new().map_err(|e| e.to_string())?;
+    let dims = SceneDimensions {
+        width: 320,
+        height: 180,
+    };
+
+    match target {
+        BuildTarget::SingleScene(timeline) => {
+            renderer
+                .render_timeline_with_debug(timeline, 0.0, dims, DebugRenderOptions::default())
+                .map_err(|e| e.to_string())?;
+        }
+        BuildTarget::MultiScene(composition) => {
+            if !composition.has_scenes() {
+                return Err("Composition has no scenes to render".into());
+            }
+            let (scene_name, local_time_s, transition_blend) = composition.evaluate(0.0);
+            if let Some(blend) = transition_blend {
+                let from_scene = composition
+                    .scenes
+                    .get(&blend.from_scene)
+                    .ok_or_else(|| format!("From scene '{}' not found", blend.from_scene))?;
+                let to_scene = composition
+                    .scenes
+                    .get(&blend.to_scene)
+                    .ok_or_else(|| format!("To scene '{}' not found", blend.to_scene))?;
+                renderer
+                    .render_transition(
+                        &from_scene.timeline,
+                        blend.from_local,
+                        &to_scene.timeline,
+                        blend.to_local,
+                        blend.progress as f32,
+                        blend.id.clone(),
+                        blend.easing,
+                        dims,
+                        DebugRenderOptions::default(),
+                    )
+                    .map_err(|e| e.to_string())?;
+            } else {
+                let scene = composition
+                    .scenes
+                    .get(&scene_name)
+                    .ok_or_else(|| format!("Scene '{}' not found", scene_name))?;
+                renderer
+                    .render_timeline_with_debug(
+                        &scene.timeline,
+                        local_time_s,
+                        dims,
+                        DebugRenderOptions::default(),
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -450,7 +518,7 @@ fn main() {
             }
         }
 
-        Commands::Check { file } => {
+        Commands::Check { file, render_smoke } => {
             let source = match std::fs::read_to_string(&file) {
                 Ok(s) => s,
                 Err(e) => {
@@ -474,6 +542,16 @@ fn main() {
             let report = BuildTarget::from_ast(&ast, &namespaces);
             let mut diagnostics = type_diagnostics;
             diagnostics.extend(report.diagnostics);
+
+            if render_smoke {
+                if let Err(e) = run_render_smoke(&report.output) {
+                    diagnostics.push(animatix::diagnostics::Diagnostic::error(
+                        animatix::diagnostics::DiagnosticCode::RenderFailure,
+                        animatix::diagnostics::DiagnosticPhase::Render,
+                        format!("Render smoke test failed: {e}"),
+                    ));
+                }
+            }
 
             if diagnostics.is_empty() {
                 println!("{}: OK (no diagnostics)", file);

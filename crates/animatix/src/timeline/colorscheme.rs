@@ -50,12 +50,16 @@ impl BuiltInColorscheme {
                 colors.insert("surface.primary".to_string(), [0.11, 0.16, 0.24, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.18, 0.21, 0.27, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.38, 0.78, 1.0, 1.0]);
+                colors.insert("accent.secondary".to_string(), [0.85, 0.55, 0.95, 1.0]);
+                colors.insert("accent.info".to_string(), [0.50, 0.80, 0.95, 1.0]);
                 colors.insert("accent.success".to_string(), [0.35, 0.86, 0.63, 1.0]);
                 colors.insert("accent.warning".to_string(), [0.98, 0.83, 0.44, 1.0]);
                 colors.insert("accent.danger".to_string(), [1.0, 0.46, 0.54, 1.0]);
                 colors.insert("stroke.default".to_string(), [1.0, 1.0, 1.0, 1.0]);
                 vec![
                     [0.38, 0.78, 1.0, 1.0],
+                    [0.85, 0.55, 0.95, 1.0],
+                    [0.50, 0.80, 0.95, 1.0],
                     [0.35, 0.86, 0.63, 1.0],
                     [1.0, 0.46, 0.54, 1.0],
                     [0.98, 0.83, 0.44, 1.0],
@@ -68,12 +72,16 @@ impl BuiltInColorscheme {
                 colors.insert("surface.primary".to_string(), [0.9, 0.93, 0.97, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.84, 0.88, 0.93, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.16, 0.48, 0.88, 1.0]);
+                colors.insert("accent.secondary".to_string(), [0.65, 0.35, 0.85, 1.0]);
+                colors.insert("accent.info".to_string(), [0.25, 0.65, 0.90, 1.0]);
                 colors.insert("accent.success".to_string(), [0.18, 0.66, 0.46, 1.0]);
                 colors.insert("accent.warning".to_string(), [0.86, 0.62, 0.12, 1.0]);
                 colors.insert("accent.danger".to_string(), [0.84, 0.29, 0.35, 1.0]);
                 colors.insert("stroke.default".to_string(), [0.08, 0.1, 0.14, 1.0]);
                 vec![
                     [0.16, 0.48, 0.88, 1.0],
+                    [0.65, 0.35, 0.85, 1.0],
+                    [0.25, 0.65, 0.90, 1.0],
                     [0.18, 0.66, 0.46, 1.0],
                     [0.84, 0.29, 0.35, 1.0],
                     [0.86, 0.62, 0.12, 1.0],
@@ -86,12 +94,16 @@ impl BuiltInColorscheme {
                 colors.insert("surface.primary".to_string(), [0.11, 0.16, 0.24, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.17, 0.22, 0.3, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.38, 0.78, 1.0, 1.0]);
+                colors.insert("accent.secondary".to_string(), [0.82, 0.58, 0.92, 1.0]);
+                colors.insert("accent.info".to_string(), [0.52, 0.78, 0.93, 1.0]);
                 colors.insert("accent.success".to_string(), [0.35, 0.86, 0.63, 1.0]);
                 colors.insert("accent.warning".to_string(), [0.98, 0.83, 0.44, 1.0]);
                 colors.insert("accent.danger".to_string(), [1.0, 0.46, 0.54, 1.0]);
                 colors.insert("stroke.default".to_string(), [0.97, 0.98, 1.0, 1.0]);
                 vec![
                     [0.38, 0.78, 1.0, 1.0],
+                    [0.82, 0.58, 0.92, 1.0],
+                    [0.52, 0.78, 0.93, 1.0],
                     [0.35, 0.86, 0.63, 1.0],
                     [1.0, 0.46, 0.54, 1.0],
                     [0.98, 0.83, 0.44, 1.0],

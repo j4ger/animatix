@@ -24,25 +24,27 @@ scene.background_color = "#1a1a2e"
 
 header: Text, text: "Components", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 30)
 
-// Instantiate cards with different params and slot content
-card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0) {
-  @content {
-    icon: Ellipse, size: (16, 16), color: accent.primary
-    desc: Text, text: "Visual systems", font_size: 12, color: text.secondary
+// Cards laid out in a Row container instead of manual positioning
+cards: Row, gap: 24, anchor: scene.center {
+  card_a: Card, title: "Design" {
+    @content {
+      icon: Ellipse, size: (16, 16), color: accent.primary
+      desc: Text, text: "Visual systems", font_size: 12, color: text.secondary
+    }
   }
-}
 
-card_b: Card, title: "Engineer", anchor: scene.center, offset: (120, 0) {
-  @content {
-    icon: Rect, size: (16, 16), color: accent.warning
-    desc: Text, text: "Build pipelines", font_size: 12, color: text.secondary
+  card_b: Card, title: "Engineer" {
+    @content {
+      icon: Rect, size: (16, 16), color: accent.warning
+      desc: Text, text: "Build pipelines", font_size: 12, color: text.secondary
+    }
   }
-}
 
-card_c: Card, title: "Deploy", anchor: scene.center, offset: (0, 80) {
-  @content {
-    icon: Rect, size: (16, 16), color: accent.success
-    desc: Text, text: "Ship to prod", font_size: 12, color: text.secondary
+  card_c: Card, title: "Deploy" {
+    @content {
+      icon: Rect, size: (16, 16), color: accent.success
+      desc: Text, text: "Ship to prod", font_size: 12, color: text.secondary
+    }
   }
 }
 
