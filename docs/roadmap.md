@@ -10,8 +10,6 @@
 
 | Item | What | Where | Severity |
 |------|------|-------|----------|
-| **P1** | **Graph coordinate mapping broken** — `PlotCurve` children render at raw logical coords (top-left cluster) instead of being mapped into `Graph` container bounds. Affects both cartesian and polar plots. | `renderer/` or `timeline/plot.rs` | High |
-| **P2** | **Multi-scene image render panic at transitions** — `wgpu` bind-group validation fails (`TextureUsages` missing `STORAGE_BINDING`) when rendering a composition at a time that crosses a `play` transition. | `renderer/composition.rs` | High |
 | **P3** | **Component slot-fill parser fails after 2 instances** — exactly 2 top-level `@slotname { ... }` fills parse; a 3rd produces `expected '.', ':', found 'c'`. | `module/expand.rs` or parser | High |
 | **P4** | **Custom component actions can't resolve `self.*` nested paths** — `self.frame.color` expands to `instance.frame.color` but build reports "does not resolve to a declared actor". | `timeline/build/` | Medium |
 | **P5** | **Comments in `always` blocks produce IR warnings** — `//` inside `always { }` yields "Unsupported IR statement: comment". | `timeline/modifier_runtime/ir/` | Low |
@@ -25,8 +23,6 @@ Blocked by bug fixes above. Once resolved, update examples to remove workarounds
 |------------|------|
 | P3, P4 | **06-components.amx** — restore 3rd card instance (currently limited to 2 due to slot-fill parser bug). Add custom `action highlight` back once `self.*` resolution works. Use a `Row` container for cards instead of manual `anchor`/`offset`. |
 | P5 | **05-reactive.amx** — re-add explanatory comments inside `always` blocks. Use `let orbit_radius_x = scene_width / 4` instead of hardcoded values. |
-| P1 | **07-plotting.amx** — verify curves render inside Graph bounds correctly; add `VectorField` and `Heatmap` demos if renderer supports them. |
-| P2 | **08-multi-scene.amx** — verify image rendering works across scene transitions; add more scenes once stable. |
 | P6 | **05-reactive.amx** — use `scene_width` / `scene_height` in top-level `let` declarations. |
 
 ## Colors & polish
