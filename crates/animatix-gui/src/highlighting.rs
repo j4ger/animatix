@@ -216,7 +216,7 @@ pub fn highlight_source(
         if start < end {
             let color = match sh.kind {
                 crate::cell_editor::SemanticTokenKind::ActorName => {
-                    Color32::from_rgb(250, 189, 47) // amber/gold
+                    Color32::from_rgb(102, 153, 204) // blue, matching @label
                 }
                 crate::cell_editor::SemanticTokenKind::ComponentName => {
                     Color32::from_rgb(211, 134, 155) // pink
@@ -610,6 +610,76 @@ fade-in title [1s]
         assert!(
             backdrop_color != rect_color,
             "actor label 'backdrop' and type 'Rect' should have different colors"
+        );
+    }
+
+    #[test]
+    fn path_expression_base_and_name_have_distinct_colors() {
+        // Verify property access paths have different colors for base and property.
+        // Regression test: "orb.size" was all the same color.
+        let source = "orb.size = (120, 120)";
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let orb_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "orb")
+            .map(|s| s.format.color);
+        let size_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "size")
+            .map(|s| s.format.color);
+
+        assert!(
+            orb_color != size_color,
+            "path base 'orb' and property 'size' should have different colors"
+        );
+    }
+
+    #[test]
+    fn actor_label_is_blue_with_semantic_highlight() {
+        // Verify actor labels stay blue even when semantic highlights are applied.
+        // Regression test: ActorName semantic highlight (amber) was overriding
+        // the tree-sitter @label (blue), making labels look the same as types.
+        let source = "backdrop: Rect";
+
+        let style = egui::Style::default();
+        let semantic = &[crate::cell_editor::SemanticHighlight {
+            cell_index: 0,
+            rel_line: 0,
+            rel_col: 0,
+            rel_end_line: 0,
+            rel_end_col: 8,
+            kind: crate::cell_editor::SemanticTokenKind::ActorName,
+        }];
+        let job = highlight_source(source, &style, &[], None, semantic);
+
+        let backdrop_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "backdrop")
+            .map(|s| s.format.color);
+        let rect_color = job
+            .sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == "Rect")
+            .map(|s| s.format.color);
+
+        assert!(
+            backdrop_color != rect_color,
+            "actor label 'backdrop' should remain a different color from type 'Rect' \
+             even with semantic highlights applied"
+        );
+
+        // Also verify the label color matches the expected blue
+        let expected_blue = Color32::from_rgb(102, 153, 204);
+        assert_eq!(
+            backdrop_color,
+            Some(expected_blue),
+            "actor label 'backdrop' should be blue (#6699CC)"
         );
     }
 }

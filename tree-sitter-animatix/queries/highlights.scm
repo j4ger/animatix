@@ -122,6 +122,13 @@
 (slot_fill
   name: (identifier) @property)
 
+; Path expressions (property access / assignment targets)
+(path_expression
+  base: (identifier) @label)
+
+(path_expression
+  name: (identifier) @property)
+
 ; Labels in actor declarations (definition site)
 (actor_declaration
   label: (identifier) @label)

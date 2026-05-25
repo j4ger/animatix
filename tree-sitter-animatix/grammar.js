@@ -10,7 +10,7 @@ module.exports = grammar({
 
   conflicts: $ => [
     [$._expression, $.object_expression],
-    [$._expression, $._path_expression],
+    [$._expression, $.path_expression],
     [$._expression, $.call_expression],
     [$._expression, $.method_call_expression],
     [$._expression, $.closure_expression],
@@ -20,7 +20,7 @@ module.exports = grammar({
     [$._expression, $.array_expression],
     [$.tuple_expression, $.parenthesized_expression],
     [$.binary_expression, $.closure_expression],
-    [$.binary_expression, $._path_expression],
+    [$.binary_expression, $.path_expression],
     [$.binary_expression, $.call_expression],
     [$.binary_expression, $.method_call_expression],
     [$.binary_expression, $.index_expression],
@@ -131,7 +131,7 @@ module.exports = grammar({
     ),
 
     property_assignment: $ => seq(
-      field('target', $._path_expression),
+      field('target', $.path_expression),
       '=',
       field('value', $._expression),
       optional($.modifier_block)
@@ -243,7 +243,7 @@ module.exports = grammar({
       $.string,
       $.boolean,
       $.identifier,
-      $._path_expression,
+      $.path_expression,
       $.unary_expression,
       $.binary_expression,
       $.call_expression,
@@ -256,8 +256,8 @@ module.exports = grammar({
       $.method_call_expression,
     ),
 
-    _path_expression: $ => prec.left(seq(
-      field('base', choice($.identifier, $._path_expression)),
+    path_expression: $ => prec.left(seq(
+      field('base', choice($.identifier, $.path_expression)),
       '.',
       field('name', $.identifier)
     )),

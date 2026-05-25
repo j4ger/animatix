@@ -551,7 +551,7 @@
           "name": "target",
           "content": {
             "type": "SYMBOL",
-            "name": "_path_expression"
+            "name": "path_expression"
           }
         },
         {
@@ -1047,7 +1047,7 @@
         },
         {
           "type": "SYMBOL",
-          "name": "_path_expression"
+          "name": "path_expression"
         },
         {
           "type": "SYMBOL",
@@ -1091,7 +1091,7 @@
         }
       ]
     },
-    "_path_expression": {
+    "path_expression": {
       "type": "PREC_LEFT",
       "value": 0,
       "content": {
@@ -1109,7 +1109,7 @@
                 },
                 {
                   "type": "SYMBOL",
-                  "name": "_path_expression"
+                  "name": "path_expression"
                 }
               ]
             }
@@ -1743,7 +1743,7 @@
     ],
     [
       "_expression",
-      "_path_expression"
+      "path_expression"
     ],
     [
       "_expression",
@@ -1783,7 +1783,7 @@
     ],
     [
       "binary_expression",
-      "_path_expression"
+      "path_expression"
     ],
     [
       "binary_expression",
