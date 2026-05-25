@@ -107,10 +107,6 @@ pub(crate) struct PreviewPaneState {
     snap_hud_label: Option<String>,
     /// Time lens HUD state (Space-drag time scrubbing).
     pub time_lens: crate::app::preview::time_lens::TimeLens,
-    /// Diff preview mode: show A/B split-screen before/after.
-    pub diff_mode: bool,
-    /// Source text snapshot before last property edit (for diff "before" side).
-    pub diff_before_source: Option<String>,
     /// Scene slice state (A/B/C side-by-side comparison).
     pub scene_slices: crate::app::preview::scene_slices::SceneSliceState,
     /// Overlay toggle state.
@@ -148,8 +144,6 @@ impl PreviewPaneState {
             snap_threshold: 10.0,
             snap_hud_label: None,
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
-            diff_mode: false,
-            diff_before_source: None,
             scene_slices: crate::app::preview::scene_slices::SceneSliceState::default(),
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
         }

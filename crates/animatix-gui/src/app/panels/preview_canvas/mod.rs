@@ -110,25 +110,6 @@ impl WorkspaceViewer<'_> {
                     if show_all_buttons {
                         if crate::app::components::toolbar_toggle_button(
                             ui,
-                            egui_phosphor::regular::COLUMNS,
-                            Some("Diff"),
-                            "Toggle diff / before-after mode (D)",
-                            self.preview.diff_mode,
-                            show_labels,
-                        )
-                        .clicked()
-                        {
-                            self.preview.diff_mode = !self.preview.diff_mode;
-                            if self.preview.diff_mode {
-                                self.preview.status = "Diff mode: showing before/after".to_string();
-                            } else {
-                                self.preview.diff_before_source = None;
-                                self.preview.status = "Diff mode off".to_string();
-                            }
-                        }
-
-                        if crate::app::components::toolbar_toggle_button(
-                            ui,
                             egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL,
                             Some("Slices"),
                             "Toggle scene slice tabs (Shift+S)",
@@ -178,12 +159,11 @@ impl WorkspaceViewer<'_> {
                             ui,
                             egui_phosphor::regular::LIST,
                             None,
-                            "Additional preview controls (diff, slices, overlays)",
+                            "Additional preview controls (slices, overlays)",
                             false,
                         );
                         overflow.context_menu(|ui| {
                             ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
-                            ui.checkbox(&mut self.preview.diff_mode, "Diff mode");
                             let mut slices = self.preview.scene_slices.enabled;
                             if ui.checkbox(&mut slices, "Scene slices").changed() {
                                 self.preview.scene_slices.enabled = slices;
@@ -614,33 +594,6 @@ impl WorkspaceViewer<'_> {
                         TEXT_MUTED,
                     );
                 }
-            }
-
-            // ── Diff mode overlay ──
-            if self.preview.diff_mode {
-                let split_x = preview_rect.center().x;
-                // Vertical divider
-                ui.painter().line_segment(
-                    [egui::pos2(split_x, preview_rect.min.y), egui::pos2(split_x, preview_rect.max.y)],
-                    Stroke::new(2.0, AMBER),
-                );
-                // Labels
-                ui.painter().text(
-                    egui::pos2(preview_rect.min.x + SPACE_M, preview_rect.min.y + SPACE_S),
-                    egui::Align2::LEFT_TOP,
-                    format!("{} Before", egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE),
-                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                    TEXT_SECONDARY,
-                );
-                ui.painter().text(
-                    egui::pos2(preview_rect.max.x - SPACE_M, preview_rect.min.y + SPACE_S),
-                    egui::Align2::RIGHT_TOP,
-                    format!("After {}", egui_phosphor::regular::CLOCK_CLOCKWISE),
-                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                    ACCENT_BLUE,
-                );
-                // Note: true dual rendering requires a second preview texture.
-                // The left half currently shows the same as the right half.
             }
 
             // Draw grid overlay
