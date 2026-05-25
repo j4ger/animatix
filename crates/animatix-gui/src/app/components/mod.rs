@@ -928,3 +928,197 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
 
     clicked_tab
 }
+
+// ─── Toolbar Toggle Button ────────────────────────────────────────────────
+
+/// A toolbar toggle button with icon, optional label, tooltip, and active-state styling.
+///
+/// When `show_label` is true and the button has a label, renders "icon  label".
+/// Otherwise renders just the icon. Active state gets an accent background;
+/// hover gets a subtle hover background. All buttons show tooltips.
+///
+/// Returns the click [`Response`].
+pub fn toolbar_toggle_button(
+    ui: &mut egui::Ui,
+    icon: &'static str,
+    label: Option<&'static str>,
+    tooltip: &'static str,
+    is_active: bool,
+    show_label: bool,
+) -> Response {
+    let has_label = label.is_some() && show_label;
+    let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
+    let icon_font = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
+
+    // Compute width
+    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), TEXT_PRIMARY);
+    let mut width = icon_galley.size().x + SPACE_M * 2.0;
+    let mut label_galley = None;
+    if let Some(l) = label.filter(|_| has_label) {
+        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), TEXT_PRIMARY);
+        width += galley.size().x;
+        label_galley = Some(galley);
+    }
+    let height = ROW_M;
+    let size = Vec2::new(width.max(28.0), height);
+
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    // Background
+    let bg = if is_active {
+        BG_ACTIVE
+    } else if response.hovered() || response.is_pointer_button_down_on() {
+        BG_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, RADIUS_M, bg);
+    }
+
+    // Active accent line at bottom
+    if is_active {
+        let accent_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.min.x + 4.0, rect.max.y - 2.0),
+            Vec2::new(rect.width() - 8.0, 2.0),
+        );
+        ui.painter().rect_filled(accent_rect, RADIUS_S, ACCENT_BLUE);
+    }
+
+    let icon_color = if is_active {
+        ACCENT_BLUE
+    } else if response.hovered() {
+        TEXT_PRIMARY
+    } else {
+        TEXT_SECONDARY
+    };
+
+    let mut cursor_x = rect.min.x + SPACE_M;
+    let baseline_y = rect.center().y;
+
+    // Icon
+    ui.painter().text(
+        egui::pos2(cursor_x + icon_galley.size().x / 2.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        icon_font,
+        icon_color,
+    );
+    cursor_x += icon_galley.size().x;
+
+    // Label
+    if let Some(galley) = label_galley {
+        let label_color = if is_active { ACCENT_BLUE } else if response.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY };
+        ui.painter().galley(
+            egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+            galley,
+            label_color,
+        );
+    }
+
+    // Keyboard focus indicator
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            rect.shrink(1.0),
+            RADIUS_M,
+            Stroke::new(1.0, ACCENT_BLUE),
+            egui::StrokeKind::Inside,
+        );
+    }
+
+    response.on_hover_text(tooltip)
+}
+
+/// A toolbar action button (momentary command, not a toggle).
+///
+/// Unlike [`toolbar_toggle_button`], this never shows an active accent state.
+/// It uses a subtle background when the action is available and a hover highlight.
+pub fn toolbar_action_button(
+    ui: &mut egui::Ui,
+    icon: &'static str,
+    label: Option<&'static str>,
+    tooltip: &'static str,
+    show_label: bool,
+) -> Response {
+    let has_label = label.is_some() && show_label;
+    let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
+    let icon_font = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
+
+    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), TEXT_PRIMARY);
+    let mut width = icon_galley.size().x + SPACE_M * 2.0;
+    let mut label_galley = None;
+    if let Some(l) = label.filter(|_| has_label) {
+        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), TEXT_PRIMARY);
+        width += galley.size().x;
+        label_galley = Some(galley);
+    }
+    let height = ROW_M;
+    let size = Vec2::new(width.max(28.0), height);
+
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+
+    // Background: subtle at rest, hover on interaction
+    let bg = if response.is_pointer_button_down_on() {
+        BG_ACTIVE
+    } else if response.hovered() {
+        BG_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, RADIUS_M, bg);
+    }
+
+    let icon_color = if response.hovered() || response.is_pointer_button_down_on() {
+        TEXT_PRIMARY
+    } else {
+        TEXT_SECONDARY
+    };
+
+    let mut cursor_x = rect.min.x + SPACE_M;
+    let baseline_y = rect.center().y;
+
+    ui.painter().text(
+        egui::pos2(cursor_x + icon_galley.size().x / 2.0, baseline_y),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        icon_font,
+        icon_color,
+    );
+    cursor_x += icon_galley.size().x;
+
+    if let Some(galley) = label_galley {
+        let label_color = if response.hovered() || response.is_pointer_button_down_on() {
+            TEXT_PRIMARY
+        } else {
+            TEXT_SECONDARY
+        };
+        ui.painter().galley(
+            egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+            galley,
+            label_color,
+        );
+    }
+
+    // Keyboard focus indicator
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            rect.shrink(1.0),
+            RADIUS_M,
+            Stroke::new(1.0, ACCENT_BLUE),
+            egui::StrokeKind::Inside,
+        );
+    }
+
+    response.on_hover_text(tooltip)
+}
+
+/// A small vertical separator for toolbar button groups.
+pub fn toolbar_separator(ui: &mut egui::Ui) {
+    let height = ROW_M - 4.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());
+    ui.painter().line_segment(
+        [egui::pos2(rect.center().x, rect.min.y), egui::pos2(rect.center().x, rect.max.y)],
+        Stroke::new(1.0, BORDER),
+    );
+}

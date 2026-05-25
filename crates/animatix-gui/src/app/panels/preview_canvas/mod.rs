@@ -49,107 +49,182 @@ impl WorkspaceViewer<'_> {
 
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
+            // ── Header toolbar ──
             let header_avail = ui.available_width();
-            let header_h = ROW_S;
+            let header_h = ROW_L;
+            let show_labels = header_avail > 520.0;
+            let show_all_buttons = header_avail > 340.0;
+
             let (header_rect, _) = ui.allocate_exact_size(Vec2::new(header_avail, header_h), egui::Sense::hover());
-            let baseline_y = header_rect.center().y;
 
-            ui.painter().text(
-                egui::pos2(header_rect.min.x, baseline_y),
-                egui::Align2::LEFT_CENTER,
-                "Preview",
-                egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
-                TEXT_SECONDARY,
-            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(header_rect), |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
-            let (badge_label, badge_fill, badge_text) = if self.preview.is_playing {
-                ("Playing", GREEN, PLAYING_TEXT)
-            } else {
-                ("Paused", BORDER, TEXT_SECONDARY)
-            };
-            let badge_w = badge_label.len() as f32 * 7.0 + 16.0;
-            let badge_rect = egui::Rect::from_min_size(
-                egui::pos2(header_rect.max.x - badge_w, header_rect.min.y + 2.0),
-                Vec2::new(badge_w, header_h - 4.0),
-            );
-            ui.painter().rect_filled(badge_rect, RADIUS_L, badge_fill);
-            ui.painter().text(
-                badge_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                badge_label,
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-                badge_text,
-            );
+                    // Left: panel title — small, uppercase, muted
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new("PREVIEW").size(FONT_SIZE_S).color(TEXT_MUTED),
+                        )
+                        .selectable(false),
+                    );
 
-            // Toolbar buttons (right to left)
-            let mut btn_x = badge_rect.min.x - header_h - 4.0;
-            let btn_size = Vec2::new(header_h, header_h - 4.0);
+                    ui.add_space(SPACE_S);
 
-            // Grid toggle
-            let grid_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
-            let grid_icon = if self.preview.overlay.show_grid { egui_phosphor::regular::GRID_FOUR } else { egui_phosphor::regular::GRID_NINE };
-            let grid_color = if self.preview.overlay.show_grid { ACCENT_BLUE } else { TEXT_MUTED };
-            if crate::app::utils::painter_icon_button(ui, grid_btn_rect, grid_icon, grid_color).clicked() {
-                self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
-            }
-            btn_x -= header_h + 4.0;
+                    // ── Button group 1: View ──
+                    let grid_icon = if self.preview.overlay.show_grid {
+                        egui_phosphor::regular::GRID_FOUR
+                    } else {
+                        egui_phosphor::regular::GRID_NINE
+                    };
+                    if crate::app::components::toolbar_toggle_button(
+                        ui,
+                        grid_icon,
+                        Some("Grid"),
+                        "Toggle grid overlay (G)",
+                        self.preview.overlay.show_grid,
+                        show_labels,
+                    )
+                    .clicked()
+                    {
+                        self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
+                    }
 
-            // Reset zoom/pan
-            let reset_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
-            let reset_color = if self.preview.preview_zoom != 1.0 || self.preview.preview_pan != Vec2::ZERO { ACCENT_BLUE } else { TEXT_MUTED };
-            if crate::app::utils::painter_icon_button(ui, reset_btn_rect, egui_phosphor::regular::ARROWS_OUT_CARDINAL, reset_color).clicked() {
-                self.preview.preview_zoom = 1.0;
-                self.preview.preview_pan = Vec2::ZERO;
-                self.preview.status = "Zoom/Pan reset".to_string();
-            }
-            btn_x -= header_h + 4.0;
+                    if crate::app::components::toolbar_action_button(
+                        ui,
+                        egui_phosphor::regular::ARROWS_OUT_CARDINAL,
+                        Some("Reset"),
+                        "Reset zoom and pan to default (0)",
+                        show_labels,
+                    )
+                    .clicked()
+                    {
+                        self.preview.preview_zoom = 1.0;
+                        self.preview.preview_pan = Vec2::ZERO;
+                        self.preview.status = "Zoom/Pan reset".to_string();
+                    }
 
-            // Diff mode toggle
-            let diff_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
-            let diff_color = if self.preview.diff_mode { ACCENT_BLUE } else { TEXT_MUTED };
-            if crate::app::utils::painter_icon_button(ui, diff_btn_rect, egui_phosphor::regular::COLUMNS, diff_color).clicked() {
-                self.preview.diff_mode = !self.preview.diff_mode;
-                if self.preview.diff_mode {
-                    self.preview.status = "Diff mode: showing before/after".to_string();
-                } else {
-                    self.preview.diff_before_source = None;
-                    self.preview.status = "Diff mode off".to_string();
-                }
-            }
-            btn_x -= header_h + 4.0;
+                    crate::app::components::toolbar_separator(ui);
 
-            // Scene slices toggle
-            let slices_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
-            let slices_color = if self.preview.scene_slices.enabled { ACCENT_BLUE } else { TEXT_MUTED };
-            if crate::app::utils::painter_icon_button(ui, slices_btn_rect, egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL, slices_color).clicked() {
-                self.preview.scene_slices.toggle();
-                self.preview.status = if self.preview.scene_slices.enabled {
-                    "Scene slices enabled".to_string()
-                } else {
-                    "Scene slices disabled".to_string()
-                };
-            }
-            btn_x -= header_h + 4.0;
+                    // ── Button group 2: Modes ──
+                    if show_all_buttons {
+                        if crate::app::components::toolbar_toggle_button(
+                            ui,
+                            egui_phosphor::regular::COLUMNS,
+                            Some("Diff"),
+                            "Toggle diff / before-after mode (D)",
+                            self.preview.diff_mode,
+                            show_labels,
+                        )
+                        .clicked()
+                        {
+                            self.preview.diff_mode = !self.preview.diff_mode;
+                            if self.preview.diff_mode {
+                                self.preview.status = "Diff mode: showing before/after".to_string();
+                            } else {
+                                self.preview.diff_before_source = None;
+                                self.preview.status = "Diff mode off".to_string();
+                            }
+                        }
 
-            // Overlay toggle menu
-            let overlay_btn_rect = egui::Rect::from_min_size(egui::pos2(btn_x, header_rect.min.y + 2.0), btn_size);
-            let any_overlay_on = self.preview.overlay.show_grid
-                || self.preview.overlay.show_guides
-                || self.preview.overlay.show_hover_highlight
-                || self.preview.overlay.show_snap_guides;
-            let overlay_color = if any_overlay_on { ACCENT_BLUE } else { TEXT_MUTED };
-            let overlay_btn = crate::app::utils::painter_icon_button(ui, overlay_btn_rect, egui_phosphor::regular::EYE, overlay_color);
-            if overlay_btn.clicked() {
-                self.preview.overlay.show_grid = !self.preview.overlay.show_grid;
-            }
-            overlay_btn.context_menu(|ui| {
-                ui.checkbox(&mut self.preview.overlay.show_scene_bounds, "Scene bounds");
-                ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
-                ui.checkbox(&mut self.preview.overlay.show_guides, "Guides");
-                ui.checkbox(&mut self.preview.overlay.show_actor_labels, "Actor labels");
-                ui.checkbox(&mut self.preview.overlay.show_safe_area, "Safe area");
-                ui.checkbox(&mut self.preview.overlay.show_snap_guides, "Snap guides");
-                ui.checkbox(&mut self.preview.overlay.show_hover_highlight, "Hover highlight");
+                        if crate::app::components::toolbar_toggle_button(
+                            ui,
+                            egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL,
+                            Some("Slices"),
+                            "Toggle scene slice tabs (Shift+S)",
+                            self.preview.scene_slices.enabled,
+                            show_labels,
+                        )
+                        .clicked()
+                        {
+                            self.preview.scene_slices.toggle();
+                            self.preview.status = if self.preview.scene_slices.enabled {
+                                "Scene slices enabled".to_string()
+                            } else {
+                                "Scene slices disabled".to_string()
+                            };
+                        }
+
+                        crate::app::components::toolbar_separator(ui);
+
+                        // ── Button group 3: Overlays — menu only, no click toggle ──
+                        let any_overlay_on = self.preview.overlay.show_grid
+                            || self.preview.overlay.show_guides
+                            || self.preview.overlay.show_hover_highlight
+                            || self.preview.overlay.show_snap_guides
+                            || self.preview.overlay.show_scene_bounds
+                            || self.preview.overlay.show_actor_labels
+                            || self.preview.overlay.show_safe_area;
+                        let eye_response = crate::app::components::toolbar_toggle_button(
+                            ui,
+                            egui_phosphor::regular::EYE,
+                            Some("Overlays"),
+                            "Overlay options — right-click for menu",
+                            any_overlay_on,
+                            show_labels,
+                        );
+                        eye_response.context_menu(|ui| {
+                            ui.checkbox(&mut self.preview.overlay.show_scene_bounds, "Scene bounds");
+                            ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
+                            ui.checkbox(&mut self.preview.overlay.show_guides, "Guides");
+                            ui.checkbox(&mut self.preview.overlay.show_actor_labels, "Actor labels");
+                            ui.checkbox(&mut self.preview.overlay.show_safe_area, "Safe area");
+                            ui.checkbox(&mut self.preview.overlay.show_snap_guides, "Snap guides");
+                            ui.checkbox(&mut self.preview.overlay.show_hover_highlight, "Hover highlight");
+                        });
+                    } else {
+                        // Very narrow: overflow menu for Modes + Overlays
+                        let overflow = crate::app::components::toolbar_action_button(
+                            ui,
+                            egui_phosphor::regular::LIST,
+                            None,
+                            "Additional preview controls (diff, slices, overlays)",
+                            false,
+                        );
+                        overflow.context_menu(|ui| {
+                            ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
+                            ui.checkbox(&mut self.preview.diff_mode, "Diff mode");
+                            let mut slices = self.preview.scene_slices.enabled;
+                            if ui.checkbox(&mut slices, "Scene slices").changed() {
+                                self.preview.scene_slices.enabled = slices;
+                            }
+                            ui.checkbox(&mut self.preview.overlay.show_scene_bounds, "Scene bounds");
+                            ui.checkbox(&mut self.preview.overlay.show_guides, "Guides");
+                            ui.checkbox(&mut self.preview.overlay.show_actor_labels, "Actor labels");
+                            ui.checkbox(&mut self.preview.overlay.show_safe_area, "Safe area");
+                            ui.checkbox(&mut self.preview.overlay.show_snap_guides, "Snap guides");
+                            ui.checkbox(&mut self.preview.overlay.show_hover_highlight, "Hover highlight");
+                        });
+                    }
+
+                    // Push remaining space to the right
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+
+                        // Playback status badge — pill style
+                        let (badge_label, badge_fill, badge_text, badge_stroke) = if self.preview.is_playing {
+                            ("Playing", green_faint(), PLAYING_TEXT, Some(Stroke::new(1.0, GREEN)))
+                        } else {
+                            ("Paused", BG_WIDGET, TEXT_SECONDARY, Some(Stroke::new(1.0, BORDER)))
+                        };
+                        egui::Frame::new()
+                            .fill(badge_fill)
+                            .corner_radius(egui::CornerRadius::same(RADIUS_L as u8))
+                            .inner_margin(egui::Margin::symmetric(8, 2))
+                            .stroke(badge_stroke.unwrap_or(Stroke::NONE))
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(badge_label)
+                                            .size(FONT_SIZE_S)
+                                            .color(badge_text)
+                                            .strong(),
+                                    )
+                                    .selectable(false),
+                                );
+                            });
+                    });
+                });
             });
 
             ui.add_space(SPACE_S);
@@ -161,11 +236,19 @@ impl WorkspaceViewer<'_> {
             }
 
             let available = ui.available_size_before_wrap();
-            let desired = fit_preview(
-                self.scene_dimensions,
-                Vec2::new(available.x.max(200.0), available.y.max(180.0)),
+            // Reserve space for rulers so they don't overlap the header
+            let preview_available = Vec2::new(
+                (available.x - RULER_SIZE).max(200.0),
+                (available.y - RULER_SIZE).max(180.0),
             );
-            let (preview_rect, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
+            let desired = fit_preview(self.scene_dimensions, preview_available);
+            let total_size = desired + Vec2::new(RULER_SIZE, RULER_SIZE);
+            let (total_rect, _) = ui.allocate_exact_size(total_size, egui::Sense::hover());
+            let preview_rect = egui::Rect::from_min_size(
+                egui::pos2(total_rect.min.x + RULER_SIZE, total_rect.min.y + RULER_SIZE),
+                desired,
+            );
+            let response = ui.allocate_rect(preview_rect, egui::Sense::click_and_drag());
             ui.painter().rect_stroke(
                 preview_rect,
                 RADIUS_L,
