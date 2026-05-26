@@ -452,9 +452,8 @@ impl WorkspaceViewer<'_> {
                     if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                         let cursor_in_rect = preview_rect.contains(cursor);
                         if cursor_in_rect && prev_zoom > 0.01 {
-                            let center = preview_rect.center().to_vec2();
-                            let cursor_offset = cursor - preview_rect.min;
-                            let rel = cursor_offset - center;
+                            let center = preview_rect.center();
+                            let rel = cursor - center;
                             // Compute the scene point at cursor (pre-zoom)
                             let base_scale_x = self.scene_dimensions.width as f64 / preview_rect.width().max(1.0) as f64;
                             let base_scale_y = self.scene_dimensions.height as f64 / preview_rect.height().max(1.0) as f64;
@@ -571,13 +570,16 @@ impl WorkspaceViewer<'_> {
                     preview_rect, self.scene_dimensions, preview_rect.size(),
                     self.preview.preview_zoom, self.preview.preview_pan,
                 );
-                let bounds_screen = egui::Rect::from_min_max(bounds_rect, bounds_br);
-                ui.painter().rect_stroke(
-                    bounds_screen,
-                    0.0,
-                    Stroke::new(1.0, BORDER_HOVER),
-                    egui::StrokeKind::Inside,
-                );
+                let bounds_screen = egui::Rect::from_min_max(bounds_rect, bounds_br)
+                    .intersect(preview_rect);
+                if bounds_screen.is_positive() {
+                    ui.painter().rect_stroke(
+                        bounds_screen,
+                        0.0,
+                        Stroke::new(1.0, BORDER_HOVER),
+                        egui::StrokeKind::Inside,
+                    );
+                }
             }
 
             // ── Actor labels overlay ──
