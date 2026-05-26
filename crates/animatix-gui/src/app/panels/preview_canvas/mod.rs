@@ -446,31 +446,29 @@ impl WorkspaceViewer<'_> {
                 let scroll = ui.input(|i| i.smooth_scroll_delta);
                 if scroll.y != 0.0 {
                     let zoom_factor = 1.0 + scroll.y * 0.001;
-                    let new_zoom = (self.preview.preview_zoom * zoom_factor).clamp(0.1, 10.0);
+                    let new_zoom = (self.preview.preview_zoom * zoom_factor).clamp(1.0, 10.0);
                     let prev_zoom = self.preview.preview_zoom;
                     // Zoom toward cursor: keep the scene point under cursor fixed
                     if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                         let cursor_in_rect = preview_rect.contains(cursor);
                         if cursor_in_rect && prev_zoom > 0.01 {
-                            let center = preview_rect.center();
-                            let rel = cursor - center;
-                            // Compute the scene point at cursor (pre-zoom)
-                            let base_scale_x = self.scene_dimensions.width as f64 / preview_rect.width().max(1.0) as f64;
-                            let base_scale_y = self.scene_dimensions.height as f64 / preview_rect.height().max(1.0) as f64;
-                            let old_scale_x = base_scale_x / prev_zoom as f64;
-                            let old_scale_y = base_scale_y / prev_zoom as f64;
-                            let scene_at_cursor = kurbo::Point::new(
-                                self.preview.preview_pan.x as f64 + rel.x as f64 * old_scale_x,
-                                self.preview.preview_pan.y as f64 + rel.y as f64 * old_scale_y,
-                            );
+                            // Use PreviewTransform for consistent aspect-ratio-preserving scale
+                            let scene_at_cursor = self.preview_screen_to_scene(preview_rect, cursor);
+                            let rel = cursor - preview_rect.center();
+
                             // Set new zoom
                             self.preview.preview_zoom = new_zoom;
+
+                            // Compute new scale with updated zoom (PreviewTransform uses uniform scale)
+                            let tx = preview::PreviewTransform::new(
+                                self.scene_dimensions, preview_rect, new_zoom, Vec2::ZERO,
+                            );
+                            let (new_scale, _) = tx.scale();
+
                             // Adjust pan so cursor stays on the same scene point
-                            let new_scale_x = base_scale_x / new_zoom as f64;
-                            let new_scale_y = base_scale_y / new_zoom as f64;
                             self.preview.preview_pan = Vec2::new(
-                                (scene_at_cursor.x - rel.x as f64 * new_scale_x) as f32,
-                                (scene_at_cursor.y - rel.y as f64 * new_scale_y) as f32,
+                                (scene_at_cursor.x - rel.x as f64 * new_scale) as f32,
+                                (scene_at_cursor.y - rel.y as f64 * new_scale) as f32,
                             );
                             self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
                         }
@@ -487,13 +485,13 @@ impl WorkspaceViewer<'_> {
                     if preview_rect.contains(mouse) {
                         let delta = ui.input(|i| i.pointer.delta());
                         if delta != Vec2::ZERO {
-                            let base_scale_x = self.scene_dimensions.width as f64 / preview_rect.width().max(1.0) as f64;
-                            let base_scale_y = self.scene_dimensions.height as f64 / preview_rect.height().max(1.0) as f64;
-                            let scale_x = base_scale_x / self.preview.preview_zoom.max(0.01) as f64;
-                            let scale_y = base_scale_y / self.preview.preview_zoom.max(0.01) as f64;
+                            let tx = preview::PreviewTransform::new(
+                                self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
+                            );
+                            let (scale, _) = tx.scale();
                             self.preview.preview_pan = Vec2::new(
-                                self.preview.preview_pan.x - delta.x * scale_x as f32,
-                                self.preview.preview_pan.y - delta.y * scale_y as f32,
+                                self.preview.preview_pan.x - delta.x * scale as f32,
+                                self.preview.preview_pan.y - delta.y * scale as f32,
                             );
                         }
                     }

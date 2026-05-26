@@ -42,13 +42,44 @@ impl PreviewTransform {
         }
     }
 
-    /// Compute the scale factors used for scene ↔ screen conversion.
-    fn scale(&self) -> (f64, f64) {
+    /// Compute the uniform scale factor that preserves scene aspect ratio.
+    /// Uses "contain" logic: the entire scene fits inside the preview rect.
+    pub fn scale(&self) -> (f64, f64) {
         let desired = self.preview_rect.size();
-        let base_scale_x = self.scene_dimensions.width as f64 / desired.x.max(1.0) as f64;
-        let base_scale_y = self.scene_dimensions.height as f64 / desired.y.max(1.0) as f64;
+        let scene_w = self.scene_dimensions.width as f64;
+        let scene_h = self.scene_dimensions.height as f64;
+
+        // Pixels per scene pixel at zoom = 1.0 (screen / scene)
+        let px_per_scene_x = desired.x.max(1.0) as f64 / scene_w;
+        let px_per_scene_y = desired.y.max(1.0) as f64 / scene_h;
+        let px_per_scene = px_per_scene_x.min(px_per_scene_y);
+
+        // Scene pixels per screen pixel = inverse
+        let base_scale = 1.0 / px_per_scene;
         let z = self.zoom.max(0.01) as f64;
-        (base_scale_x / z, base_scale_y / z)
+        let scale = base_scale / z;
+        (scale, scale)
+    }
+
+    /// Return the display rect that the scene occupies when scaled uniformly
+    /// to fit inside the preview rect (letterboxed if aspect ratios differ).
+    pub fn display_rect(&self) -> egui::Rect {
+        let desired = self.preview_rect.size();
+        let scene_w = self.scene_dimensions.width as f64;
+        let scene_h = self.scene_dimensions.height as f64;
+
+        let px_per_scene_x = desired.x.max(1.0) as f64 / scene_w;
+        let px_per_scene_y = desired.y.max(1.0) as f64 / scene_h;
+        let px_per_scene = px_per_scene_x.min(px_per_scene_y);
+
+        let z = self.zoom.max(0.01) as f64;
+        let display_w = (scene_w * px_per_scene * z).min(desired.x as f64);
+        let display_h = (scene_h * px_per_scene * z).min(desired.y as f64);
+
+        egui::Rect::from_center_size(
+            self.preview_rect.center(),
+            egui::vec2(display_w as f32, display_h as f32),
+        )
     }
 
     /// Convert a screen position (e.g. mouse cursor) to scene coordinates.

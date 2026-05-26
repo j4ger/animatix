@@ -104,6 +104,12 @@ impl WorkspaceViewer<'_> {
                 let scene_w = self.scene_dimensions.width.max(1) as f32;
                 let scene_h = self.scene_dimensions.height.max(1) as f32;
 
+                // Compute letterboxed display rect (preserves scene aspect ratio)
+                let tx = preview::PreviewTransform::new(
+                    self.scene_dimensions, preview_rect, zoom, pan,
+                );
+                let display_rect = tx.display_rect();
+
                 if (zoom - 1.0).abs() > 0.001 || pan != Vec2::new(scene_w / 2.0, scene_h / 2.0) {
                     // Apply zoom/pan via UV coordinates
                     let half_inv_zx = 0.5 / zoom.max(0.01);
@@ -114,10 +120,10 @@ impl WorkspaceViewer<'_> {
                         egui::pos2((uv_cx - half_inv_zx).clamp(0.0, 1.0), (uv_cy - half_inv_zy).clamp(0.0, 1.0)),
                         egui::pos2((uv_cx + half_inv_zx).clamp(0.0, 1.0), (uv_cy + half_inv_zy).clamp(0.0, 1.0)),
                     );
-                    let image = egui::Image::new((texture_id, preview_rect.size())).uv(uv_rect);
-                    ui.put(preview_rect, image);
+                    let image = egui::Image::new((texture_id, display_rect.size())).uv(uv_rect);
+                    ui.put(display_rect, image);
                 } else {
-                    ui.put(preview_rect, egui::Image::new((texture_id, preview_rect.size())));
+                    ui.put(display_rect, egui::Image::new((texture_id, display_rect.size())));
                 }
             }
             None => {
