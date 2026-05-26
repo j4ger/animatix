@@ -1,7 +1,7 @@
 use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::{Action, Expr, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{Easing, ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Swaps the layout positions of two children in their parent container.
 pub struct Swap;
@@ -158,12 +158,13 @@ impl BuiltinAction for Swap {
         let mut new_order = current_order.clone();
         new_order.swap(idx_a, idx_b);
 
-        // Set keyframe
-        timeline
+        // Set keyframes: hold current order at start time, then transition to new order
+        let track = timeline
             .child_orders
             .entry(parent)
-            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order))
-            .add_keyframe(t_end_ms, new_order, easing);
+            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order.clone()));
+        track.add_keyframe(t_start_ms, current_order, Easing::Linear);
+        track.add_keyframe(t_end_ms, new_order, easing);
 
         // Invalidate frame cache so next evaluation picks up the new order
         timeline.invalidate_frame_cache();
@@ -334,12 +335,13 @@ impl BuiltinAction for Reorder {
             }
         }
 
-        // Set keyframe
-        timeline
+        // Set keyframes: hold current order at start time, then transition to new order
+        let track = timeline
             .child_orders
             .entry(container.clone())
-            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order))
-            .add_keyframe(t_end_ms, new_order, easing);
+            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order.clone()));
+        track.add_keyframe(t_start_ms, current_order, Easing::Linear);
+        track.add_keyframe(t_end_ms, new_order, easing);
 
         // Invalidate frame cache so next evaluation picks up the new order
         timeline.invalidate_frame_cache();

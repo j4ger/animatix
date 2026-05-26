@@ -439,9 +439,11 @@ mod tests {
         assert_eq!(timeline.child_orders.len(), 1);
 
         let track = timeline.child_orders.get("row").unwrap();
-        assert_eq!(track.keyframes.len(), 1);
-        let (order, _) = track.keyframes.get(&500).unwrap();
-        assert_eq!(order, &vec!["b".to_string(), "a".to_string()]);
+        assert_eq!(track.keyframes.len(), 2);
+        let (start_order, _) = track.keyframes.get(&0).unwrap();
+        assert_eq!(start_order, &vec!["a".to_string(), "b".to_string()]);
+        let (end_order, _) = track.keyframes.get(&500).unwrap();
+        assert_eq!(end_order, &vec!["b".to_string(), "a".to_string()]);
     }
 
     #[test]
@@ -503,9 +505,9 @@ mod tests {
         process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
-        // Only the first swap's keyframe should exist
+        // Only the first swap's keyframes should exist (start + end)
         let track = timeline.child_orders.get("row").unwrap();
-        assert_eq!(track.keyframes.len(), 1);
+        assert_eq!(track.keyframes.len(), 2);
     }
 
     #[test]
@@ -606,9 +608,11 @@ mod tests {
         assert_eq!(timeline.child_orders.len(), 1);
 
         let track = timeline.child_orders.get("row").unwrap();
-        assert_eq!(track.keyframes.len(), 1);
-        let (order, _) = track.keyframes.get(&500).unwrap();
-        assert_eq!(order, &vec!["c".to_string(), "b".to_string(), "a".to_string()]);
+        assert_eq!(track.keyframes.len(), 2);
+        let (start_order, _) = track.keyframes.get(&0).unwrap();
+        assert_eq!(start_order, &vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        let (end_order, _) = track.keyframes.get(&500).unwrap();
+        assert_eq!(end_order, &vec!["c".to_string(), "b".to_string(), "a".to_string()]);
     }
 
     #[test]
@@ -687,7 +691,80 @@ mod tests {
         process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
+        // Only the first reorder's keyframes should exist (start + end)
         let track = timeline.child_orders.get("row").unwrap();
-        assert_eq!(track.keyframes.len(), 1);
+        assert_eq!(track.keyframes.len(), 2);
+    }
+
+    #[test]
+    fn swap_action_bounds_transition_to_duration() {
+        // Regression test: consecutive swaps should not create a transition
+        // that spans the gap between the end of swap N and the end of swap N+1.
+        let mut timeline = Timeline::new();
+
+        let mut parent_track = AnimationTrack::new("row".to_string());
+        parent_track.children = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        timeline.tracks.insert("row".to_string(), parent_track);
+
+        for label in ["a", "b", "c"] {
+            let mut child = AnimationTrack::new(label.to_string());
+            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            timeline.tracks.insert(label.to_string(), child);
+        }
+
+        timeline.container_metadata.insert(
+            "row".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                padding: 0.0,
+                align: "center".to_string(),
+                cols: None,
+                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            },
+        );
+
+        // First swap at 0s, 500ms duration → keyframes at 0 and 500
+        let action1 = Action {
+            verb: "swap".to_string(),
+            targets: vec!["a".to_string(), "b".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+            byte_span: None,
+        };
+        process_action(&action1, 0.0, &mut timeline, &mut Vec::new(), None);
+
+        // Second swap at 1000ms, 500ms duration → keyframes at 1000 and 1500
+        let action2 = Action {
+            verb: "swap".to_string(),
+            targets: vec!["b".to_string(), "c".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+            byte_span: None,
+        };
+        process_action(&action2, 1000.0, &mut timeline, &mut Vec::new(), None);
+
+        let track = timeline.child_orders.get("row").unwrap();
+        assert_eq!(track.keyframes.len(), 4, "expected start+end for each swap");
+
+        // At 600ms (after first swap ends, before second starts) the order
+        // should be stable — not interpolating toward the second swap.
+        let layout_600 = timeline.compute_animated_layout("row", 600);
+        let layout_500 = timeline.compute_animated_layout("row", 500);
+        assert_eq!(layout_600, layout_500, "order should be stable between swaps");
+
+        // At 1250ms (midway through second swap) the order should be
+        // interpolating, not already finished.
+        let layout_1000 = timeline.compute_animated_layout("row", 1000);
+        let layout_1500 = timeline.compute_animated_layout("row", 1500);
+        let layout_1250 = timeline.compute_animated_layout("row", 1250);
+        assert_ne!(layout_1250, layout_1000, "should be mid-transition at 1250ms");
+        assert_ne!(layout_1250, layout_1500, "should not be finished at 1250ms");
     }
 }
