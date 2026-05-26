@@ -100,7 +100,9 @@ impl WorkspaceViewer<'_> {
                     .clicked()
                     {
                         self.preview.preview_zoom = 1.0;
-                        self.preview.preview_pan = Vec2::ZERO;
+                        let scene_w = self.scene_dimensions.width as f32;
+                        let scene_h = self.scene_dimensions.height as f32;
+                        self.preview.preview_pan = Vec2::new(scene_w / 2.0, scene_h / 2.0);
                         self.preview.status = "Zoom/Pan reset".to_string();
                     }
 
