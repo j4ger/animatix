@@ -37,6 +37,10 @@ impl WorkspaceViewer<'_> {
     }
 
     /// Clamp pan so the scene edges stay within the preview rect.
+    ///
+    /// At zoom=1.0 the scene fits entirely (possibly letterboxed), so pan is
+    /// locked to the centre. At zoom>1.0 only part of the scene is visible;
+    /// pan is limited so the viewport never shows empty space beyond edges.
     fn clamp_pan(&self, pan: Vec2, preview_rect: egui::Rect) -> Vec2 {
         let tx = preview::PreviewTransform::new(
             self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
@@ -46,11 +50,17 @@ impl WorkspaceViewer<'_> {
         let scene_h = self.scene_dimensions.height as f64;
         let preview_w = preview_rect.width() as f64;
         let preview_h = preview_rect.height() as f64;
-        let half_w = preview_w / 2.0 * scale;
-        let half_h = preview_h / 2.0 * scale;
+
+        // Visible scene dimensions (capped to actual scene size because
+        // letterboxing means the rendered scene may not fill the preview).
+        let visible_w = (preview_w * scale).min(scene_w);
+        let visible_h = (preview_h * scale).min(scene_h);
+        let half_w = visible_w / 2.0;
+        let half_h = visible_h / 2.0;
+
         Vec2::new(
-            pan.x.clamp((scene_w - half_w) as f32, half_w as f32),
-            pan.y.clamp((scene_h - half_h) as f32, half_h as f32),
+            pan.x.clamp(half_w as f32, (scene_w - half_w) as f32),
+            pan.y.clamp(half_h as f32, (scene_h - half_h) as f32),
         )
     }
 
