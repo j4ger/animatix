@@ -10,6 +10,12 @@ impl WorkspaceViewer<'_> {
     ) -> bool {
         let is_dragging = !matches!(self.drag_state, DragState::None);
         let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+
+        // Middle-click is reserved for canvas pan; ignore it for selection/drag interactions
+        if ui.input(|i| i.pointer.middle_down()) {
+            return false;
+        }
+
         let drag_started = response.drag_started()
             || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
         let hit_radius = preview::HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
@@ -905,6 +911,11 @@ impl WorkspaceViewer<'_> {
         _preview_rect: egui::Rect,
         response: &egui::Response,
     ) {
+        // Middle-click is reserved for canvas pan; ignore it for selection
+        if ui.input(|i| i.pointer.middle_down()) {
+            return;
+        }
+
         let is_dragging = !matches!(self.drag_state, DragState::None);
 
         if response.secondary_clicked() && !is_dragging {

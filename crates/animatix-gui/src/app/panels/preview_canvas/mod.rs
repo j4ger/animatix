@@ -36,6 +36,24 @@ impl WorkspaceViewer<'_> {
         )
     }
 
+    /// Clamp pan so the scene edges stay within the preview rect.
+    fn clamp_pan(&self, pan: Vec2, preview_rect: egui::Rect) -> Vec2 {
+        let tx = preview::PreviewTransform::new(
+            self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
+        );
+        let (scale, _) = tx.scale();
+        let scene_w = self.scene_dimensions.width as f64;
+        let scene_h = self.scene_dimensions.height as f64;
+        let preview_w = preview_rect.width() as f64;
+        let preview_h = preview_rect.height() as f64;
+        let half_w = preview_w / 2.0 * scale;
+        let half_h = preview_h / 2.0 * scale;
+        Vec2::new(
+            pan.x.clamp((scene_w - half_w) as f32, half_w as f32),
+            pan.y.clamp((scene_h - half_h) as f32, half_h as f32),
+        )
+    }
+
     fn preview_screen_to_scene(&self, preview_rect: egui::Rect, screen: egui::Pos2) -> kurbo::Point {
         self.preview_transform(preview_rect).screen_to_scene(screen)
     }
@@ -466,10 +484,11 @@ impl WorkspaceViewer<'_> {
                             let (new_scale, _) = tx.scale();
 
                             // Adjust pan so cursor stays on the same scene point
-                            self.preview.preview_pan = Vec2::new(
+                            let new_pan = Vec2::new(
                                 (scene_at_cursor.x - rel.x as f64 * new_scale) as f32,
                                 (scene_at_cursor.y - rel.y as f64 * new_scale) as f32,
                             );
+                            self.preview.preview_pan = self.clamp_pan(new_pan, preview_rect);
                             self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
                         }
                     } else {
@@ -489,10 +508,11 @@ impl WorkspaceViewer<'_> {
                                 self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
                             );
                             let (scale, _) = tx.scale();
-                            self.preview.preview_pan = Vec2::new(
+                            let new_pan = Vec2::new(
                                 self.preview.preview_pan.x - delta.x * scale as f32,
                                 self.preview.preview_pan.y - delta.y * scale as f32,
                             );
+                            self.preview.preview_pan = self.clamp_pan(new_pan, preview_rect);
                         }
                     }
                 }
