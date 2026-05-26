@@ -377,7 +377,11 @@ pub fn timeline_keyframe_times_s(
 }
 
 pub fn default_file_path() -> PathBuf {
-    PathBuf::from("untitled.amx")
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .unwrap_or_else(|| Path::new("."));
+    repo_root.join("examples/showcase.amx")
 }
 
 /// Convert a `ModuleError` into a vector of `Diagnostic`s.
