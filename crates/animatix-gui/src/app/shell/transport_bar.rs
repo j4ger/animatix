@@ -60,7 +60,7 @@ pub(crate) fn transport_bar_ui(
                     commands.push_back(Command::TogglePlayback);
                 }
 
-                // Speed control — single compact button + menu (saves ~90px vs 4 buttons)
+                // Speed control — single compact button + left-click floating menu
                 ui.add_space(SPACE_S);
                 let speeds: [(f32, &str); 7] = [
                     (0.125, "⅛×"), (0.25, "¼×"), (0.5, "½×"),
@@ -80,19 +80,38 @@ pub(crate) fn transport_bar_ui(
                 .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
                 .min_size(Vec2::new(32.0, ROW_S));
                 let speed_resp = ui.add(speed_btn).on_hover_text("Playback speed");
-                speed_resp.context_menu(|ui| {
-                    for (speed_val, label) in speeds {
-                        let is_active =
-                            (speed_val - preview.playback_speed).abs() < f32::EPSILON;
-                        if ui
-                            .selectable_label(is_active, format!("{}  {}×", label, speed_val))
-                            .clicked()
-                        {
-                            preview.playback_speed = speed_val;
-                            ui.close();
+
+                let popup_id = ui.id().with("speed_popup");
+                let mut menu_open = ui.data_mut(|d| *d.get_temp_mut_or_default::<bool>(popup_id));
+                if speed_resp.clicked() {
+                    menu_open = !menu_open;
+                }
+                if menu_open {
+                    let area = egui::Area::new(popup_id)
+                        .fixed_pos(speed_resp.rect.left_bottom())
+                        .order(egui::Order::Foreground);
+                    let menu_resp = area.show(ui.ctx(), |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            for (speed_val, label) in speeds {
+                                let is_active =
+                                    (speed_val - preview.playback_speed).abs() < f32::EPSILON;
+                                if ui.selectable_label(is_active, label).clicked() {
+                                    preview.playback_speed = speed_val;
+                                    menu_open = false;
+                                }
+                            }
+                        });
+                    });
+                    // Close on click outside
+                    if ui.input(|i| i.pointer.any_click()) {
+                        if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            if !menu_resp.response.rect.contains(pos) && !speed_resp.clicked() {
+                                menu_open = false;
+                            }
                         }
                     }
-                });
+                }
+                ui.data_mut(|d| d.insert_temp(popup_id, menu_open));
 
                 // Skip back
                 let prev_btn = egui::Button::new(
