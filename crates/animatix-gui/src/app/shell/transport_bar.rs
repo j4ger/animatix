@@ -60,24 +60,39 @@ pub(crate) fn transport_bar_ui(
                     commands.push_back(Command::TogglePlayback);
                 }
 
-                // Speed control — compact segmented buttons
+                // Speed control — single compact button + menu (saves ~90px vs 4 buttons)
                 ui.add_space(SPACE_S);
-                let speeds: [(f32, &str); 4] = [(0.25, "¼×"), (0.5, "½×"), (1.0, "1×"), (2.0, "2×")];
-                let current_speed = preview.playback_speed;
-                for (speed_val, label) in speeds {
-                    let is_active = (speed_val - current_speed).abs() < f32::EPSILON;
-                    let btn = egui::Button::new(
-                        RichText::new(label)
-                            .size(FONT_SIZE_S)
-                            .color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED }),
-                    )
-                    .fill(if is_active { BG_WIDGET } else { Color32::TRANSPARENT })
-                    .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
-                    .min_size(Vec2::new(28.0, ROW_S));
-                    if ui.add(btn).on_hover_text(format!("Speed: {}×", speed_val)).clicked() {
-                        preview.playback_speed = speed_val;
+                let speeds: [(f32, &str); 7] = [
+                    (0.125, "⅛×"), (0.25, "¼×"), (0.5, "½×"),
+                    (1.0, "1×"), (1.5, "1½×"), (2.0, "2×"), (4.0, "4×"),
+                ];
+                let current_label = speeds
+                    .iter()
+                    .find(|(v, _)| (*v - preview.playback_speed).abs() < f32::EPSILON)
+                    .map(|(_, l)| *l)
+                    .unwrap_or("?×");
+                let speed_btn = egui::Button::new(
+                    RichText::new(current_label)
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_PRIMARY),
+                )
+                .fill(BG_WIDGET)
+                .corner_radius(egui::CornerRadius::same(RADIUS_S as u8))
+                .min_size(Vec2::new(32.0, ROW_S));
+                let speed_resp = ui.add(speed_btn).on_hover_text("Playback speed");
+                speed_resp.context_menu(|ui| {
+                    for (speed_val, label) in speeds {
+                        let is_active =
+                            (speed_val - preview.playback_speed).abs() < f32::EPSILON;
+                        if ui
+                            .selectable_label(is_active, format!("{}  {}×", label, speed_val))
+                            .clicked()
+                        {
+                            preview.playback_speed = speed_val;
+                            ui.close();
+                        }
                     }
-                }
+                });
 
                 // Skip back
                 let prev_btn = egui::Button::new(
