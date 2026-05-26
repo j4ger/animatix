@@ -136,29 +136,8 @@ impl WorkspaceViewer<'_> {
 
                     crate::app::components::toolbar_separator(ui);
 
-                    // ── Button group 2: Modes ──
+                    // ── Button group 2: Overlays — menu only, no click toggle ──
                     if show_all_buttons {
-                        if crate::app::components::toolbar_toggle_button(
-                            ui,
-                            egui_phosphor::regular::SQUARE_SPLIT_HORIZONTAL,
-                            Some("Slices"),
-                            "Toggle scene slice tabs (Shift+S)",
-                            self.preview.scene_slices.enabled,
-                            show_labels,
-                        )
-                        .clicked()
-                        {
-                            self.preview.scene_slices.toggle();
-                            self.preview.status = if self.preview.scene_slices.enabled {
-                                "Scene slices enabled".to_string()
-                            } else {
-                                "Scene slices disabled".to_string()
-                            };
-                        }
-
-                        crate::app::components::toolbar_separator(ui);
-
-                        // ── Button group 3: Overlays — menu only, no click toggle ──
                         let any_overlay_on = self.preview.overlay.show_grid
                             || self.preview.overlay.show_guides
                             || self.preview.overlay.show_hover_highlight
@@ -184,20 +163,16 @@ impl WorkspaceViewer<'_> {
                             ui.checkbox(&mut self.preview.overlay.show_hover_highlight, "Hover highlight");
                         });
                     } else {
-                        // Very narrow: overflow menu for Modes + Overlays
+                        // Very narrow: overflow menu for overlays
                         let overflow = crate::app::components::toolbar_action_button(
                             ui,
                             egui_phosphor::regular::LIST,
                             None,
-                            "Additional preview controls (slices, overlays)",
+                            "Additional preview controls (overlays)",
                             false,
                         );
                         overflow.context_menu(|ui| {
                             ui.checkbox(&mut self.preview.overlay.show_grid, "Grid");
-                            let mut slices = self.preview.scene_slices.enabled;
-                            if ui.checkbox(&mut slices, "Scene slices").changed() {
-                                self.preview.scene_slices.enabled = slices;
-                            }
                             ui.checkbox(&mut self.preview.overlay.show_scene_bounds, "Scene bounds");
                             ui.checkbox(&mut self.preview.overlay.show_guides, "Guides");
                             ui.checkbox(&mut self.preview.overlay.show_actor_labels, "Actor labels");
@@ -238,12 +213,6 @@ impl WorkspaceViewer<'_> {
             });
 
             ui.add_space(SPACE_S);
-
-            // Scene slice tabs
-            if self.preview.scene_slices.enabled {
-                crate::app::preview::scene_slices::render_slice_tabs(ui, &mut self.preview.scene_slices);
-                ui.add_space(SPACE_S);
-            }
 
             let available = ui.available_size_before_wrap();
             // Reserve space for rulers so they don't overlap the header

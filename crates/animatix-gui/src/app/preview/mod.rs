@@ -3,7 +3,6 @@ pub mod floating_card;
 pub mod grid;
 pub mod overlay;
 pub mod selection;
-pub mod scene_slices;
 pub mod time_lens;
 
 use std::collections::HashSet;
