@@ -848,10 +848,20 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
         let action = ident
             .then(
+                // Comma-separated targets: `pulse btn, icon [200ms]`
                 ident
-                    .separated_by(just(',').padded())
-                    .at_least(1)
-                    .collect::<Vec<_>>()
+                    .then(
+                        just(',').padded().ignore_then(ident).repeated().at_least(1).collect::<Vec<_>>()
+                    )
+                    .map(|(first, rest)| {
+                        let mut targets = vec![first];
+                        targets.extend(rest);
+                        targets
+                    })
+                    .or(
+                        // Space-separated targets (backward compat): `swap bar1 bar2 [500ms]`
+                        ident.repeated().at_least(1).collect::<Vec<_>>()
+                    )
                     .or_not()
                     .map(|opt| opt.unwrap_or_default())
             ) // targets

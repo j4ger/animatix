@@ -767,4 +767,88 @@ mod tests {
         assert_ne!(layout_1250, layout_1000, "should be mid-transition at 1250ms");
         assert_ne!(layout_1250, layout_1500, "should not be finished at 1250ms");
     }
+
+    #[test]
+    fn swap_action_animates_positions_smoothly() {
+        // Regression test: verify that bar positions actually change during a swap.
+        let mut timeline = Timeline::new();
+        timeline.dynamic_layout = true;
+
+        let mut parent_track = AnimationTrack::new("bars".to_string());
+        parent_track.children = vec![
+            "bar1".to_string(),
+            "bar2".to_string(),
+            "bar3".to_string(),
+            "bar4".to_string(),
+            "bar5".to_string(),
+        ];
+        timeline.tracks.insert("bars".to_string(), parent_track);
+
+        let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
+        for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
+            let mut child = AnimationTrack::new(label.to_string());
+            child.layout_size = Some(PropertyTrack::new(sizes));
+            timeline.tracks.insert(label.to_string(), child);
+        }
+
+        timeline.container_metadata.insert(
+            "bars".to_string(),
+            ContainerMetadata {
+                layout_type: LayoutType::Row,
+                gap: 8.0,
+                padding: 0.0,
+                align: "bottom".to_string(),
+                cols: None,
+                child_order: vec![
+                    "bar1".to_string(),
+                    "bar2".to_string(),
+                    "bar3".to_string(),
+                    "bar4".to_string(),
+                    "bar5".to_string(),
+                ],
+            },
+        );
+
+        let action = Action {
+            verb: "swap".to_string(),
+            targets: vec!["bar1".to_string(), "bar2".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            }],
+            byte_span: None,
+        };
+        process_action(&action, 2000.0, &mut timeline, &mut Vec::new(), None);
+
+        // Positions at start (2000ms) and end (2500ms) should differ for swapped bars
+        let layout_start = timeline.compute_animated_layout("bars", 2000);
+        let layout_end = timeline.compute_animated_layout("bars", 2500);
+
+        let bar1_start = layout_start.get("bar1").copied().unwrap();
+        let bar1_end = layout_end.get("bar1").copied().unwrap();
+        let bar2_start = layout_start.get("bar2").copied().unwrap();
+        let bar2_end = layout_end.get("bar2").copied().unwrap();
+
+        assert_ne!(
+            bar1_start, bar1_end,
+            "bar1 should move during swap (start={:?}, end={:?})",
+            bar1_start, bar1_end
+        );
+        assert_ne!(
+            bar2_start, bar2_end,
+            "bar2 should move during swap (start={:?}, end={:?})",
+            bar2_start, bar2_end
+        );
+
+        // Mid-transition position should be between start and end
+        let layout_mid = timeline.compute_animated_layout("bars", 2250);
+        let bar1_mid = layout_mid.get("bar1").copied().unwrap();
+        let bar2_mid = layout_mid.get("bar2").copied().unwrap();
+
+        assert_ne!(bar1_mid, bar1_start, "bar1 should have left start position");
+        assert_ne!(bar1_mid, bar1_end, "bar1 should not yet be at end position");
+        assert_ne!(bar2_mid, bar2_start, "bar2 should have left start position");
+        assert_ne!(bar2_mid, bar2_end, "bar2 should not yet be at end position");
+    }
 }

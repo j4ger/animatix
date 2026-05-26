@@ -1129,6 +1129,28 @@ fn test_action() {
 }
 
 #[test]
+fn test_swap_action_space_separated_targets() {
+    let stmt = parse_single_stmt("swap bar1 bar2 [500ms, ease: ease-in-out]");
+    if let Stmt::Action(action, _) = stmt {
+        assert_eq!(action.verb, "swap");
+        assert_eq!(action.targets, vec!["bar1".to_string(), "bar2".to_string()]);
+    } else {
+        panic!("Expected Action, got {:?}", stmt);
+    }
+}
+
+#[test]
+fn test_action_comma_separated_targets() {
+    let stmt = parse_single_stmt("pulse btn, icon [200ms]");
+    if let Stmt::Action(action, _) = stmt {
+        assert_eq!(action.verb, "pulse");
+        assert_eq!(action.targets, vec!["btn".to_string(), "icon".to_string()]);
+    } else {
+        panic!("Expected Action, got {:?}", stmt);
+    }
+}
+
+#[test]
 fn test_comments() {
     assert_eq!(
         parse_single_stmt("// This is a comment"),
