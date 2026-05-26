@@ -8,7 +8,36 @@ use animatix::timeline::{
 };
 use animatix::vm::{VmCompileError, compile_modifier_bytecode};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+const REACTIVE_FIXTURE: &str = r#"// Reactive: always, time-driven behavior, if/else.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+center: Ellipse, size: (16, 16), color: text.primary, at: (640, 390)
+orbiter: Ellipse, size: (64, 64), color: accent.primary, at: (820, 390)
+pulse: Rect, size: (120, 120), color: (0.88, 0.42, 0.84, 1.0), at: (280, 390)
+echo: Ellipse, size: (40, 40), color: accent.warning, at: pulse.at
+
+always {
+  orbiter.at = (640 + 180 * cos(t), 390 + 120 * sin(t * 2))
+  pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
+  echo.size = (pulse.size.x / 3, pulse.size.x / 3)
+  echo.at = orbiter.at
+}
+
+// Explicit repeated declarations (for loops are top-level only)
+#0s
+dots: Row, anchor: scene.bottom, offset: (0, -120), gap: 30, align: "center" {
+  d0: Ellipse, size: (24, 24), color: accent.primary
+  d1: Ellipse, size: (32, 32), color: accent.success
+  d2: Ellipse, size: (40, 40), color: accent.warning
+  d3: Ellipse, size: (48, 48), color: accent.danger
+  d4: Ellipse, size: (56, 56), color: accent.primary
+}
+"#;
 
 #[test]
 fn ir_lowering_lowers_always_assignment_subset() {
@@ -348,7 +377,7 @@ fn modifier_bytecode_rejects_unsupported_ir_expr() {
 
 #[test]
 fn vm_parity_reactive_runtime_matches_ir() {
-    let expanded = load_example_program("examples/reactive.amx");
+    let expanded = load_fixture_program(REACTIVE_FIXTURE);
     let timeline = Timeline::build(&expanded);
     let ir = lower_modifier_ir(&expanded).expect("IR lowering should succeed");
     let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
@@ -511,16 +540,11 @@ fn vm_parity_nested_modifier_targets_match_ir() {
     assert_eq!(ir_overrides, vm_overrides);
 }
 
-fn load_example_program(path: &str) -> Vec<Stmt> {
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crate should live under workspace")
-        .parent()
-        .expect("workspace root should exist")
-        .to_path_buf();
-    let full_path = repo_root.join(path);
+fn load_fixture_program(source: &str) -> Vec<Stmt> {
+    let temp_path = std::env::temp_dir().join("animatix_test_reactive.amx");
+    fs::write(&temp_path, source).expect("write temp fixture should succeed");
     ModuleGraph::new()
-        .load_program(&full_path)
+        .load_program(&temp_path)
         .expect("program should load")
         .expand_components()
 }

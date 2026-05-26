@@ -430,14 +430,14 @@ mod tests {
             DiagnosticPhase::Parse,
             "Failed to load or parse source",
         )
-        .with_path("examples/showcase.amx");
+        .with_path("test/file.amx");
 
         let formatted = format_diagnostic(&diagnostic);
 
         assert!(
             formatted.contains("error[parse:source-load-failure] Failed to load or parse source")
         );
-        assert!(formatted.contains("path: examples/showcase.amx"));
+        assert!(formatted.contains("path: test/file.amx"));
     }
 
     #[test]

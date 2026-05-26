@@ -531,6 +531,191 @@ mod tests {
     use crate::ast::{Expr, Stmt, Time};
     use chumsky::Parser;
 
+    const SHOWCASE_FIXTURE: &str = r#"// Animatix Showcase
+// A 5-second demonstration of layout, animation, primitives, and composition.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
+
+#0s
+backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
+title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.top, offset: (0, 120)
+subtitle: Text, text: "Layout-first animation", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 200)
+
+#0.2s
+fade-in backdrop [800ms, ease: ease-out]
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+
+#0.8s
+fade-in subtitle [600ms, ease: ease-in-out]
+
+#1.0s
+features: Col, anchor: scene.left, offset: (180, 0), align: "center", gap: 16 {
+  label: Text, text: "Features", font_size: 28, color: accent.warning
+  a: Text, text: "Rich typography", font_size: 18, color: text.secondary
+  b: Text, text: "Math expressions", font_size: 18, color: text.secondary
+  c: Text, text: "Code highlighting", font_size: 18, color: text.secondary
+  d: Text, text: "Vector graphics", font_size: 18, color: text.secondary
+}
+
+#1.2s
+shift features [by: (60, 0), 800ms, ease: ease-out]
+
+#1.4s
+stagger [100ms] {
+  fade-in label [400ms]
+  fade-in a [400ms]
+  fade-in b [400ms]
+  fade-in c [400ms]
+  fade-in d [400ms]
+}
+
+#2.6s
+primitives: Row, anchor: scene.bottom, offset: (0, -140), gap: 80, align: "center" {
+  orb: Ellipse, size: (0, 0), color: accent.danger
+  connector: Line, from: (0, 0), to: (0, 0), stroke: accent.primary, stroke_width: 4
+  box: Rect, size: (0, 0), color: accent.success
+  equation: Math, math: "x", font_size: 48, color: accent.primary
+}
+
+#2.6s
+fade-in primitives [400ms]
+
+#2.8s
+orb.size = (120, 120) [600ms, ease: bounce]
+
+#2.9s
+connector.from = (-50, 0) [400ms, ease: ease-out]
+connector.to = (50, 0) [400ms, ease: ease-out]
+
+#3.0s
+box.size = (120, 80) [500ms, ease: ease-out]
+
+#3.2s
+equation: Math, math: "E = mc^2", font_size: 48, color: accent.primary [800ms, ease: ease-in-out]
+
+#3.4s
+orb.color = accent.success [600ms, ease: ease-in-out]
+
+#3.6s
+box.color = accent.warning [600ms, ease: ease-in-out]
+
+#4.2s
+panel: Rect, size: (400, 180), color: (0.15, 0.17, 0.22, 1.0), anchor: scene.right, offset: (-220, -40)
+
+#4.2s
+shift panel [by: (-40, 0), 600ms, ease: ease-out]
+
+#4.2s
+fade-in panel [400ms]
+
+#4.3s
+code: Code, code: "let velocity = x + 1", font_size: 20, color: text.primary, anchor: scene.right, offset: (-220, -40)
+shift code [by: (-40, 0), 600ms, ease: ease-out]
+fade-in code [800ms, ease: ease-in-out]
+
+#4.6s
+ending_halo: Ellipse, size: (0, 0), color: accent.primary, at: (1040, 540)
+ending_logo: Svg, url: "logo.svg", at: (1040, 540), scale: 0.0
+ending_beam_a: Line, from: (1040, 540), to: (1040, 540), stroke: accent.success, stroke_width: 4
+ending_beam_b: Line, from: (1040, 540), to: (1040, 540), stroke: accent.danger, stroke_width: 4
+ending_kicker: Text, text: "Scene → Story", font_size: 20, color: accent.warning, anchor: scene.right, offset: (-180, 84)
+ending_caption: Text, text: "Primitives composed in time", font_size: 16, color: text.secondary, anchor: scene.right, offset: (-180, 116)
+
+#4.6s
+stagger [80ms] {
+  fade-in ending_halo [260ms]
+  fade-in ending_logo [260ms]
+  fade-in ending_kicker [320ms]
+  fade-in ending_caption [320ms]
+}
+
+#4.68s
+ending_halo.size = (108, 108) [520ms, ease: ease-out]
+scale ending_logo [by: 1.0, 480ms, ease: bounce]
+
+#4.78s
+ending_beam_a.from = (990, 500) [420ms, ease: ease-out]
+ending_beam_a.to = (1090, 580) [420ms, ease: ease-out]
+ending_beam_b.from = (990, 580) [420ms, ease: ease-out]
+ending_beam_b.to = (1090, 500) [420ms, ease: ease-out]
+
+#4.92s
+rotate ending_logo [by: 0.12, 700ms, ease: ease-in-out]
+
+#5.0s
+sequence {
+  scale title [by: 1.02, 400ms, ease: ease-in-out]
+  scale title [by: 0.98, 400ms, ease: ease-in-out]
+}
+
+#5.1s
+pulse ending_halo [500ms, intensity: 0.18]
+
+#5.2s
+shift primitives [by: (0, -10), 2s, ease: ease-in-out]
+
+#5.2s
+shift ending_halo [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_logo [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_beam_a [by: (0, -8), 2s, ease: ease-in-out]
+shift ending_beam_b [by: (0, -8), 2s, ease: ease-in-out]
+
+#5.5s
+equation: Math, math: "E = mc^2", font_size: 48, color: accent.danger [1s, ease: ease-in-out]
+"#;
+
+    const REORDER_FIXTURE: &str = r#"// Reorder Demo
+// Demonstrates the reorder action for explicit full-order animation.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
+
+#0s
+title: Text, text: "Reorder Action", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+subtitle: Text, text: "Explicit full-order container animation", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 120)
+
+#0s
+blocks: Row, anchor: scene.center, gap: 16, align: "center" {
+  red: Rect, size: (80, 80), color: accent.danger
+  yellow: Rect, size: (80, 80), color: accent.warning
+  green: Rect, size: (80, 80), color: accent.success
+  blue: Rect, size: (80, 80), color: accent.primary
+}
+
+#0.5s
+fade-in title [800ms, ease: ease-out]
+fade-in subtitle [600ms, delay: 200ms, ease: ease-out]
+
+#1.0s
+fade-in blocks [600ms, ease: ease-out]
+
+// Reverse the row
+#2.0s
+reorder blocks [order: (blue, green, yellow, red), 800ms, ease: ease-in-out]
+
+// Shuffle: every other
+#3.5s
+reorder blocks [order: (yellow, blue, red, green), 800ms, ease: ease-in-out]
+
+// Back to original
+#5.0s
+reorder blocks [order: (red, yellow, green, blue), 800ms, ease: ease-in-out]
+
+// Highlight completion
+#6.5s
+red.color = accent.success [300ms]
+yellow.color = accent.success [300ms]
+green.color = accent.success [300ms]
+blue.color = accent.success [300ms]
+
+#7.0s
+done: Text, text: "Done!", font_size: 32, color: accent.success, anchor: scene.bottom, offset: (0, -80)
+
+#7.0s
+fade-in done [400ms, ease: ease-out]
+"#;
+
     #[test]
     fn roundtrip_simple_actor_decl() {
         let source = r#"backdrop: Rect, size: (1280, 720), color: scene.background"#;
@@ -651,7 +836,7 @@ features: Col, anchor: scene.left {
 
     #[test]
     fn roundtrip_full_showcase_file() {
-        let source = include_str!("../../../examples/showcase.amx");
+        let source = SHOWCASE_FIXTURE;
         let parsed = crate::parser::parser().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
         // Re-parsing should succeed
@@ -720,7 +905,7 @@ btn: Rect, size: (100, 200) // half-extents"#;
 
     #[test]
     fn parse_reorder_demo() {
-        let source = include_str!("../../../examples/reorder_demo.amx");
+        let source = REORDER_FIXTURE;
         let parsed = crate::parser::parser().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
         let reparsed = crate::parser::parser().parse(&serialized).unwrap();

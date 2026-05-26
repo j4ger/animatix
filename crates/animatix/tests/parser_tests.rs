@@ -23,6 +23,45 @@ fn parse_error(src: &str) -> bool {
     parser().parse(src).into_result().is_err()
 }
 
+const LAYOUT_FIXTURE: &str = r#"// Layout: Grid, Col, Row, Stack, anchors, offsets, nesting.
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+dashboard: Grid, cols: 2, gap: 28, anchor: scene.center, offset: (0, -40) {
+  p1: Rect, size: (200, 100), color: surface.primary
+  p2: Rect, size: (200, 100), color: surface.secondary
+  p3: Rect, size: (200, 100), color: surface.primary
+  p4: Rect, size: (200, 100), color: surface.secondary
+}
+
+sidebar: Col, anchor: scene.left, offset: (140, 0), gap: 16, align: "center" {
+  a: Rect, size: (120, 50), color: accent.primary
+  b: Rect, size: (120, 50), color: accent.success
+  c: Rect, size: (120, 50), color: accent.warning
+}
+
+toolbar: Row, anchor: scene.top, offset: (0, 100), gap: 20, align: "center" {
+  t1: Ellipse, size: (36, 36), color: accent.danger
+  t2: Ellipse, size: (36, 36), color: accent.primary
+  t3: Ellipse, size: (36, 36), color: accent.success
+}
+
+overlay: Stack, anchor: (82%, 76%) {
+  plate: Rect, size: (260, 100), color: (0.10, 0.14, 0.22, 1.0)
+  ring: Ellipse, size: (56, 56), color: accent.warning
+  core: Ellipse, size: (28, 28), color: text.primary
+}
+
+// Nested layout with a manual child override
+mixed: Row, anchor: scene.bottom, offset: (0, -100), gap: 24, align: "center" {
+  focus: Ellipse, size: (32, 32), color: text.primary, at: (-80, -20)
+  x: Ellipse, size: (56, 56), color: accent.danger
+  y: Ellipse, size: (44, 44), color: accent.success
+  z: Ellipse, size: (64, 64), color: accent.primary
+}
+"#;
+
 #[test]
 fn test_let_decl_types() {
     assert_eq!(
@@ -1067,7 +1106,7 @@ fn test_actor_decl_nested_with_children() {
 
 #[test]
 fn test_demo_layout_parse() {
-    let src = include_str!("../../../examples/layout.amx");
+    let src = LAYOUT_FIXTURE;
     let ast = parser().parse(src).into_result().unwrap();
     assert!(!ast.is_empty());
 }
