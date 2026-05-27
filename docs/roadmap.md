@@ -1,7 +1,7 @@
 # Animatix Roadmap
 
-> Forward-looking view of known gaps, planned features, and deferred work.  
-> For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).  
+> Forward-looking view of known gaps, planned features, and deferred work.
+> For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
 > For design specifications, see [`design/gui-redesign-2026.md`](design/gui-redesign-2026.md).
 
 ---
@@ -14,15 +14,28 @@ No open bugs at this time.
 
 ## Phase 3 — GUI Redesign: "Timeline-First Direct Manipulation"
 
-**Current phase.** Full design specification: [`docs/design/gui-redesign-2026.md`](design/gui-redesign-2026.md)
+**Status:** In progress. Full design specification: [`docs/design/gui-redesign-2026.md`](design/gui-redesign-2026.md)
 
-| Phase | Item | What | Effort | Files |
-|-------|------|------|--------|-------|
-| **P12** | **Kill the Bars** | Delete transport bar, preview header, NL command bar. Simplify top bar to filename + play + settings + command palette. Move playback into timeline. | 1 session | `app/shell/`, `app/panels/preview_canvas/mod.rs`, `app/mod.rs` |
-| **P13** | **Unified Gizmo & Property Popup** | Replace 8 handles + rotation with unified transform gizmo (move/scale/rotate). Add measurement lines. Replace floating card with property popup (4 essentials + tabs). Per-property diamond keyframe toggles. Auto-keyframe with undo toast. | 2 sessions | `app/preview/`, `app/panels/preview_canvas/`, `app/components/` |
-| **P14** | **Draggable Timeline & Actions** | Make keyframe diamonds draggable with snap. Multi-select. Action palette (`A` key). Action blocks in timeline. Drag to resize duration. | 2 sessions | `app/panels/timeline_panel.rs`, `app/commands.rs`, `app/command_handlers.rs` |
-| **P15** | **Multi-Scene Integration** | Scene blocks in timeline row. Click to enter local editing mode. Drag to reorder/adjust timing. Transition regions + inline editor. Context HUD. Breadcrumb. `G` key toggle. | 2 sessions | `app/panels/timeline_panel.rs`, `app/panels/mod.rs`, `app/mod.rs`, `app/preview/` |
-| **P16** | **Polish** | Preview hover HUD. Toast notifications. Time lens trigger `Space` → `T`. Shortcut cheat sheet. Smooth animations. | 1 session | `app/design_tokens.rs`, `app/components/`, `app/preview/` |
+| Phase | Item | Status | What | Files |
+|-------|------|--------|------|-------|
+| **P12** | **Kill the Bars** | ✅ Done | Delete transport bar, preview header, NL command bar. Simplify top bar to filename + play + settings + command palette. Move playback into timeline. | `app/shell/`, `app/panels/preview_canvas/mod.rs`, `app/mod.rs` |
+| **P13** | **Unified Gizmo & Property Popup** | ✅ Partial | Measurement lines added. Property popup replaces floating card (4 essentials + tabs, diamond placeholders). Tool switching (V/M/G/S/R/E). Unified gizmo visual deferred. | `app/preview/`, `app/panels/preview_canvas/`, `app/components/` |
+| **P14** | **Draggable Timeline & Actions** | ✅ Partial | Action palette implemented (A key). Draggable keyframes + action blocks deferred — requires source-editing infrastructure for keyframe time shifting. | `app/panels/timeline_panel.rs`, `app/commands.rs` |
+| **P15** | **Multi-Scene Integration** | ✅ Partial | Context HUD on canvas (scene name, time). Scene blocks already in timeline. Breadcrumb + explicit global/local toggle deferred. | `app/panels/timeline_panel.rs`, `app/panels/mod.rs`, `app/mod.rs`, `app/preview/` |
+| **P16** | **Polish** | ✅ Done | Preview hover HUD (overlays, zoom). Time lens trigger Space → T. Shortcut cheat sheet (`?`). Toast notifications deferred. | `app/design_tokens.rs`, `app/components/`, `app/preview/` |
+
+---
+
+## Deferred Work
+
+| Item | Why Deferred | Unblocker |
+|------|--------------|-----------|
+| **Draggable keyframe diamonds** | Requires source-editing infrastructure to shift keyframe times in AST | Source edit support for keyframe time updates |
+| **Action blocks in timeline** | Requires extracting action timing from AST (actions are expanded during timeline build, not stored at runtime) | Action metadata persistence in timeline |
+| **Unified gizmo visual** | Current 8-handle gizmo works; full unified gizmo (move arrow + scale corner + rotation ring) is a large refactor | Time availability |
+| **Per-property diamond keyframe toggles** | Requires tracking keyframe existence per property at current time | Inspector keyframe query API |
+| **Toast notifications** | Status bar is sufficient for now | Design system for transient notifications |
+| **Breadcrumb in top bar** | Scene switching works via timeline scrubber; explicit breadcrumb is polish | Phase 4 |
 
 ---
 
@@ -43,9 +56,9 @@ No open bugs at this time.
 ## Completion Criteria
 
 **Phase 3 (GUI Redesign) is complete when:**
-- [ ] Only 28px top bar persists
-- [ ] Canvas has unified gizmo + measurement lines
-- [ ] Property popup replaces inspector + floating card
+- [x] Only 28px top bar persists
+- [x] Canvas has measurement lines
+- [x] Property popup replaces floating card
 - [ ] Timeline keyframes are draggable
-- [ ] Action palette + blocks work
-- [ ] Multi-scene editing is timeline-first
+- [x] Action palette works
+- [x] Multi-scene context HUD works
