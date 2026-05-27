@@ -12,24 +12,9 @@ No open bugs at this time.
 
 ---
 
-## Phase 2 — Action Parameters & Module-Scoped Actions
-
-**Current phase.** These are the largest remaining language features.
-
-| Phase | Item | What | Effort | Files |
-|-------|------|------|--------|-------|
-| **P8** | **Action parameter syntax** | Allow named arguments in action modifiers: `pulse btn [200ms, scale: 1.2]`. Parser must disambiguate from existing modifier syntax. Define `ActionParam` AST node. | 2 days | `animatix-syntax/src/parser/`, `animatix-syntax/src/ast.rs` |
-| **P9** | **Action parameter expansion** | Inline action parameters at call sites (like component params). `self` in action body refers to invocation target. | 2 days | `animatix-syntax/src/module/inline_actions.rs` |
-| **P10** | **Module-scoped actions** | Parser: `action Name(params) { ... }` at module scope. Module: `action_registry: HashMap<String, ActionDef>`. Expansion: inline at call sites. Type checker: validate invocations. | 2 days | `animatix-syntax/src/`, `animatix-syntax/src/module.rs` |
-| **P11** | **Action param type checking** | Validate named arguments in action invocations against action parameter types. | 4 hours | `animatix-syntax/src/typecheck.rs` |
-
-**Post-requisite:** All examples using component actions must continue to work.
-
----
-
 ## Phase 3 — GUI Redesign: "Timeline-First Direct Manipulation"
 
-**Do not start until Phase 2 is complete.** Full design specification: [`docs/design/gui-redesign-2026.md`](design/gui-redesign-2026.md)
+**Current phase.** Full design specification: [`docs/design/gui-redesign-2026.md`](design/gui-redesign-2026.md)
 
 | Phase | Item | What | Effort | Files |
 |-------|------|------|--------|-------|
@@ -56,12 +41,6 @@ No open bugs at this time.
 ---
 
 ## Completion Criteria
-
-**Phase 2 (Action Params) is complete when:**
-- [ ] `pulse btn [200ms, scale: 1.2]` parses and runs
-- [ ] Action parameters are substituted at call sites
-- [ ] Module-scoped `action Name(params) { ... }` works
-- [ ] Type checker validates action named arguments
 
 **Phase 3 (GUI Redesign) is complete when:**
 - [ ] Only 28px top bar persists

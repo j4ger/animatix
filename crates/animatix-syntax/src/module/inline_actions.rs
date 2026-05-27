@@ -34,14 +34,14 @@ fn inline_stmt(
             // Try component instance actions first (more specific)
             if let Some(target) = action.targets.first() {
                 if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
-                    let body = substitute_action_params(template, &action.modifiers);
-                    return apply_modifiers_to_body(body, &action.modifiers, span);
+                    let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
+                    return apply_modifiers_to_body(body, &unconsumed, span);
                 }
             }
             // Fall back to module-scoped actions
             if let Some(template) = module_actions.get(&action.verb) {
-                let body = substitute_action_params(template, &action.modifiers);
-                return apply_modifiers_to_body(body, &action.modifiers, span);
+                let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
+                return apply_modifiers_to_body(body, &unconsumed, span);
             }
             vec![Stmt::Action(action, span)]
         }
@@ -106,36 +106,70 @@ fn inline_stmt(
     }
 }
 
-/// Substitute action parameter values from named invocation modifiers into the body.
+/// Substitute action parameter values from invocation modifiers into the body.
 ///
 /// Named modifiers like `scale: 1.5` are matched against action parameter names.
-/// Unmatched named modifiers are left for `apply_modifiers_to_body` to handle.
+/// Positional time modifiers (e.g. `200ms`) are bound to `duration` param if present.
+///
+/// Returns the substituted body plus any modifiers that were NOT consumed as params.
 fn substitute_action_params(
     template: &ActionTemplate,
     invocation_modifiers: &[Modifier],
-) -> Vec<Stmt> {
-    // Build param bindings from named modifiers that match param names
+) -> (Vec<Stmt>, Vec<Modifier>) {
+    // Build param bindings from defaults + invocation modifiers
     let mut bindings: HashMap<String, Expr> = HashMap::new();
+    let mut consumed: Vec<bool> = vec![false; invocation_modifiers.len()];
+
     for param in &template.params {
         if let Some(default) = &param.default {
             bindings.insert(param.name.clone(), default.clone());
         }
     }
-    for modifier in invocation_modifiers {
+
+    for (i, modifier) in invocation_modifiers.iter().enumerate() {
         if let Some(name) = &modifier.name {
-            bindings.insert(name.clone(), modifier.value.clone());
+            // Named modifier — bind if param exists
+            if template.params.iter().any(|p| p.name == *name) {
+                bindings.insert(name.clone(), modifier.value.clone());
+                consumed[i] = true;
+            }
+        } else if is_time_expr(&modifier.value)
+            && template.params.iter().any(|p| p.name == "duration")
+        {
+            // Positional time — bind to `duration` param if present
+            bindings.insert("duration".to_string(), modifier.value.clone());
+            consumed[i] = true;
         }
     }
 
+    let unconsumed: Vec<Modifier> = invocation_modifiers
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !consumed[*i])
+        .map(|(_, m)| m.clone())
+        .collect();
+
     if bindings.is_empty() {
-        return template.body.clone();
+        return (template.body.clone(), unconsumed);
     }
 
-    template
+    let body = template
         .body
         .iter()
         .map(|stmt| substitute_params_in_stmt(stmt, &bindings))
-        .collect()
+        .collect();
+
+    (body, unconsumed)
+}
+
+/// Check if an expression is a time literal (e.g. `200ms`, `2s`).
+fn is_time_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Ident(s) | Expr::Str(s) => {
+            s.ends_with("ms") || s.ends_with('s')
+        }
+        _ => false,
+    }
 }
 
 fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> Stmt {
@@ -474,6 +508,108 @@ mod tests {
         match &result[0] {
             Stmt::Assignment { value, .. } => {
                 assert_eq!(*value, Expr::Num(1.2));
+            }
+            other => panic!("expected assignment, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn action_params_positional_time_bound_to_duration() {
+        let template = ActionTemplate {
+            params: vec![
+                ParamDef {
+                    name: "duration".to_string(),
+                    param_type: Some(TypeAnnotation::Num),
+                    default: Some(Expr::Ident("100ms".to_string())),
+                },
+                ParamDef {
+                    name: "scale".to_string(),
+                    param_type: Some(TypeAnnotation::Num),
+                    default: Some(Expr::Num(1.15)),
+                },
+            ],
+            body: vec![make_assignment(
+                "self",
+                "scale",
+                Expr::Ident("scale".to_string()),
+            )],
+        };
+
+        let registry: InstanceActionRegistry =
+            [("btn".to_string(), [("pulse".to_string(), template)].into_iter().collect())]
+                .into_iter()
+                .collect();
+
+        // Positional time `200ms` should auto-bind to `duration` param
+        let invocation = make_action(
+            "pulse",
+            "btn",
+            vec![
+                Modifier {
+                    name: None,
+                    value: Expr::Ident("200ms".to_string()),
+                },
+                Modifier {
+                    name: Some("scale".to_string()),
+                    value: Expr::Num(1.5),
+                },
+            ],
+        );
+
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Stmt::Assignment { value, modifiers, .. } => {
+                assert_eq!(*value, Expr::Num(1.5));
+                // `duration` was consumed as param, `scale` was consumed as param,
+                // so no modifiers should remain to be applied to body
+                assert!(modifiers.is_empty(), "expected no modifiers, got {:?}", modifiers);
+            }
+            other => panic!("expected assignment, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn action_params_unconsumed_modifiers_applied_to_body() {
+        let template = ActionTemplate {
+            params: vec![ParamDef {
+                name: "scale".to_string(),
+                param_type: Some(TypeAnnotation::Num),
+                default: Some(Expr::Num(1.2)),
+            }],
+            body: vec![make_assignment("self", "scale", Expr::Ident("scale".to_string()))],
+        };
+
+        let registry: InstanceActionRegistry =
+            [("btn".to_string(), [("pulse".to_string(), template)].into_iter().collect())]
+                .into_iter()
+                .collect();
+
+        // `ease: bounce` is not a param, so it should be applied to the body
+        let invocation = make_action(
+            "pulse",
+            "btn",
+            vec![
+                Modifier {
+                    name: Some("scale".to_string()),
+                    value: Expr::Num(1.5),
+                },
+                Modifier {
+                    name: Some("ease".to_string()),
+                    value: Expr::Ident("bounce".to_string()),
+                },
+            ],
+        );
+
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Stmt::Assignment { value, modifiers, .. } => {
+                assert_eq!(*value, Expr::Num(1.5));
+                assert_eq!(modifiers.len(), 1);
+                assert_eq!(modifiers[0].name, Some("ease".to_string()));
             }
             other => panic!("expected assignment, got {:?}", other),
         }

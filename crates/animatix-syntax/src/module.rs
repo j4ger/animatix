@@ -522,18 +522,7 @@ impl ModuleGraph {
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
         // Collect module-scoped actions from flattened statements
-        let mut module_actions = HashMap::new();
-        for stmt in &statements {
-            if let Stmt::ComponentAction { name, params, body, .. } = stmt {
-                module_actions.insert(
-                    name.clone(),
-                    ActionTemplate {
-                        params: params.clone(),
-                        body: body.clone(),
-                    },
-                );
-            }
-        }
+        let module_actions = Self::collect_module_actions(&statements);
 
         let mut namespaces = HashMap::new();
         // Collect namespaces from the entry file's direct aliased imports,
@@ -562,6 +551,57 @@ impl ModuleGraph {
             module_actions,
             namespaces,
         })
+    }
+
+    /// Collect module-scoped actions from a list of statements.
+    /// Walks into keyframe / relative-keyframe / sequence / stagger / always / drive / conditional / for bodies.
+    #[doc(hidden)]
+    pub fn collect_module_actions(stmts: &[Stmt]) -> HashMap<String, ActionTemplate> {
+        let mut actions = HashMap::new();
+        for stmt in stmts {
+            Self::collect_module_actions_from_stmt(stmt, &mut actions);
+        }
+        actions
+    }
+
+    fn collect_module_actions_from_stmt(stmt: &Stmt, actions: &mut HashMap<String, ActionTemplate>) {
+        match stmt {
+            Stmt::ComponentAction { name, params, body, .. } => {
+                actions.insert(
+                    name.clone(),
+                    ActionTemplate {
+                        params: params.clone(),
+                        body: body.clone(),
+                    },
+                );
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::Drive { body, .. }
+            | Stmt::ForLoop { body, .. } => {
+                for stmt in body {
+                    Self::collect_module_actions_from_stmt(stmt, actions);
+                }
+            }
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                for stmt in then_branch {
+                    Self::collect_module_actions_from_stmt(stmt, actions);
+                }
+                if let Some(else_body) = else_branch {
+                    for stmt in else_body {
+                        Self::collect_module_actions_from_stmt(stmt, actions);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Collect resolved exports for a module, resolving re-export paths transitively.

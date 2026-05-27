@@ -1,11 +1,11 @@
 // Custom Component Actions Demo
-// Demonstrates defining and invoking custom actions inside components.
+// Demonstrates defining and invoking custom actions with typed parameters.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 #0s
 title: Text, text: "Custom Component Actions", font_size: 42, color: text.primary, anchor: scene.top, offset: (0, 50)
-subtitle: Text, text: "User-defined action sequences inlined at expansion time", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 110)
+subtitle: Text, text: "User-defined action sequences with typed parameters", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 110)
 
 #0s
 btns: Row, anchor: scene.center, gap: 24, align: "center" {
@@ -21,7 +21,7 @@ fade-in subtitle [600ms, delay: 200ms, ease: ease-out]
 #1.0s
 fade-in btns [600ms, ease: ease-out]
 
-// Invoke custom actions on each button instance
+// Invoke custom actions with explicit duration override
 #2.0s
 pulse primary [400ms, ease: ease-in-out]
 
@@ -53,16 +53,18 @@ done: Text, text: "Done!", font_size: 32, color: accent.success, anchor: scene.b
 #7.0s
 fade-in done [400ms, ease: ease-out]
 
-// Component definition with two custom actions
+// Component definition with parameterized actions
+// Positional time (e.g. [400ms]) auto-binds to `duration` param.
+// Named modifiers (e.g. scale: 1.3) bind to their param by name.
 pub component Button(text: "OK") {
-  action pulse {
-    self.frame.scale = 1.15 [100ms]
-    self.frame.scale = 1.0 [100ms]
+  action pulse(duration: Num, scale: Num = 1.15) {
+    self.frame.scale = scale [duration]
+    self.frame.scale = 1.0 [duration]
   }
 
-  action glow {
-    self.frame.color = accent.warning [150ms]
-    self.frame.color = accent.primary [150ms]
+  action glow(duration: Num, warn_color: Color = accent.warning) {
+    self.frame.color = warn_color [duration]
+    self.frame.color = accent.primary [duration]
   }
 
   frame: Rect, size: (140, 48), color: accent.primary {

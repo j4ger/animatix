@@ -398,7 +398,8 @@ fn expr_summary(expr: &Expr) -> String {
 mod tests {
     use super::*;
     use crate::ast::{ComponentDef, ParamDef, Property, Stmt};
-    use crate::module::ComponentEntry;
+    use crate::module::{ActionTemplate, ComponentEntry};
+    use chumsky::Parser;
     use std::collections::HashMap;
 
     fn make_env() -> TypeEnv<'static> {
@@ -523,5 +524,159 @@ mod tests {
         )];
         let diagnostics = env.check_statements(&stmts);
         assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn typecheck_validates_action_param_types() {
+        use crate::ast::Action;
+        let mut components = HashMap::new();
+        components.insert(
+            "Button".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Button".to_string(),
+                    params: vec![],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: {
+                    let mut actions = HashMap::new();
+                    actions.insert(
+                        "pulse".to_string(),
+                        ActionTemplate {
+                            params: vec![ParamDef {
+                                name: "scale".to_string(),
+                                param_type: Some(TypeAnnotation::Num),
+                                default: Some(Expr::Num(1.15)),
+                            }],
+                            body: vec![],
+                        },
+                    );
+                    actions
+                },
+            },
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "btn".to_string(),
+                ty: "Button".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::Action(
+                Action {
+                    verb: "pulse".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: Some("scale".to_string()),
+                        value: Expr::Str("too big".to_string()),
+                    }],
+                    byte_span: None,
+                },
+                None,
+            ),
+        ];
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("Type mismatch"));
+        assert!(diagnostics[0].message.contains("scale"));
+    }
+
+    #[test]
+    fn typecheck_accepts_valid_action_params() {
+        use crate::ast::Action;
+        let mut components = HashMap::new();
+        components.insert(
+            "Button".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Button".to_string(),
+                    params: vec![],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: {
+                    let mut actions = HashMap::new();
+                    actions.insert(
+                        "pulse".to_string(),
+                        ActionTemplate {
+                            params: vec![ParamDef {
+                                name: "scale".to_string(),
+                                param_type: Some(TypeAnnotation::Num),
+                                default: Some(Expr::Num(1.15)),
+                            }],
+                            body: vec![],
+                        },
+                    );
+                    actions
+                },
+            },
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "btn".to_string(),
+                ty: "Button".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::Action(
+                Action {
+                    verb: "pulse".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: Some("scale".to_string()),
+                        value: Expr::Num(1.5),
+                    }],
+                    byte_span: None,
+                },
+                None,
+            ),
+        ];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+    }
+
+    #[test]
+    fn example_component_actions_demo_parses_and_typechecks() {
+        let source = include_str!("../../../examples/component_actions_demo.amx");
+        let (ast, errors) = crate::parser::parser().parse(source).into_output_errors();
+        assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+        let ast = ast.expect("parsed AST");
+
+        // Typecheck directly without module loading (avoids path resolution)
+        let mut components = HashMap::new();
+        for def in crate::module::discovery::collect_component_defs(&ast) {
+            let actions = crate::module::discovery::collect_component_actions(&def);
+            components.insert(
+                def.name.clone(),
+                ComponentEntry {
+                    definition: def,
+                    source_path: std::path::PathBuf::new(),
+                    actions,
+                },
+            );
+        }
+        let module_actions = crate::module::ModuleGraph::collect_module_actions(&ast);
+        let mut env = TypeEnv::new(&components, &module_actions);
+        let type_errors = env.check_statements(&ast);
+        assert!(type_errors.is_empty(), "Type errors: {:?}", type_errors);
     }
 }
