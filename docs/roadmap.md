@@ -6,19 +6,6 @@
 
 ---
 
-## Phase 3.5 — GUI Redesign Completion
-
-| Item | What | Files | Effort |
-|------|------|-------|--------|
-| **Unified gizmo visual** | Replace 8 square handles with unified transform gizmo: move arrow on body, scale corner handles, rotation ring near corners. Measurement lines already done. | `app/preview/mod.rs` | 1 session |
-| **Breadcrumb in top bar** | Show `Intro → Diagram → Outro` breadcrumb when composition is active. Click to switch scene. | `app/shell/toolbar.rs`, `app/mod.rs` | ½ session |
-| **Toast notification system** | Replace status-bar spam with transient toast notifications (auto-dismiss, stacked). Used for auto-keyframe confirmation, undo/redo, build status. | `app/components/`, `app/mod.rs` | 1 session |
-| **Panel transition animations** | Smooth expand/collapse for inspector, diagnostics panel, sidebar tabs. | `app/panels/mod.rs`, `app/components/` | 1 session |
-| **Drag values in property popup** | Left/right drag on numeric values to change (like Figma). | `app/preview/property_popup.rs` | ½ session |
-| **Remove sidebar Scenes tab** | Scenes managed in timeline scene row; remove redundant tab. | `app/panels/mod.rs` | ½ session |
-
----
-
 ## Phase 4a — Source Editing Primitives
 
 | Item | What | Files | Effort |
@@ -83,7 +70,7 @@ Blocked by Phase 4a.
 
 ## Order
 
-1. **Phase 3.5** → 4a → 4b (sequential, no external blockers)
+1. **Phase 4a** → 4b (sequential, no external blockers)
 2. **Phase 8** (parallel with 4b, no blockers)
 3. **Phase 5** (after 4b)
 4. **Phase 7** (external AI service required)
