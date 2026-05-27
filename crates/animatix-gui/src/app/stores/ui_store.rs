@@ -1,4 +1,6 @@
 use crate::app::components::toast::ToastQueue;
+use crate::app::panels::SidebarTab;
+use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
 use crate::app::preview::{DragState, ToolMode};
 use crate::app::preview::selection::SelectionState;
 use crate::app::commands::CommandQueue;
@@ -90,6 +92,9 @@ pub struct UiStore {
     pub cursor_time_s: Option<f64>,
     pub keyframe_merge_window_s: f64,
     pub pivot_offsets: HashMap<String, [f32; 2]>,
+    pub sidebar_tab: SidebarTab,
+    pub property_view_mode: PropertyViewMode,
+    pub keyframe_view_mode: KeyframeViewMode,
     pub rebuild_debounce_ms: u64,
     pub scrub_step_s: f64,
     pub nudge_step_px: f32,
@@ -111,6 +116,9 @@ impl UiStore {
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
+            sidebar_tab: SidebarTab::Explorer,
+            property_view_mode: PropertyViewMode::Semantic,
+            keyframe_view_mode: KeyframeViewMode::List,
             rebuild_debounce_ms: 150,
             scrub_step_s: 0.1,
             nudge_step_px: 1.0,

@@ -15,13 +15,13 @@ use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, count_keyframes};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum PropertyViewMode {
+pub(crate) enum PropertyViewMode {
     Semantic,
     Intensity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum KeyframeViewMode {
+pub(crate) enum KeyframeViewMode {
     List,
     Curve,
 }
@@ -44,6 +44,8 @@ pub(super) fn inspector_ui(
     keyframe_mode: bool,
     scene_dimensions: animatix::timeline::SceneDimensions,
     pivot_offsets: &mut std::collections::HashMap<String, [f32; 2]>,
+    property_view_mode: &mut PropertyViewMode,
+    keyframe_view_mode: &mut KeyframeViewMode,
 ) {
     let should_reset = selected_actors
         .iter()
@@ -139,8 +141,7 @@ pub(super) fn inspector_ui(
 
                 // ── Active Properties ──
                 components::card(ui, |ui| {
-                    let view_mode_id = ui.id().with("property_view_mode");
-                    let mut view_mode = ui.data(|d| d.get_temp::<PropertyViewMode>(view_mode_id)).unwrap_or(PropertyViewMode::Semantic);
+                    let mut view_mode = *property_view_mode;
 
                     ui.horizontal(|ui| {
                         components::section_header(
@@ -159,7 +160,7 @@ pub(super) fn inspector_ui(
                                     PropertyViewMode::Semantic => PropertyViewMode::Intensity,
                                     PropertyViewMode::Intensity => PropertyViewMode::Semantic,
                                 };
-                                ui.data_mut(|d| d.insert_temp(view_mode_id, view_mode));
+                                *property_view_mode = view_mode;
                             }
                         });
                     });
@@ -266,8 +267,7 @@ pub(super) fn inspector_ui(
                 // ── Keyframes ──
                 let kf_count = count_keyframes(track);
                 components::card(ui, |ui| {
-                    let kf_view_id = ui.id().with("kf_view_mode");
-                    let mut kf_view = ui.data(|d| d.get_temp::<KeyframeViewMode>(kf_view_id)).unwrap_or(KeyframeViewMode::List);
+                    let mut kf_view = *keyframe_view_mode;
 
                     ui.horizontal(|ui| {
                         components::section_header(
@@ -286,7 +286,7 @@ pub(super) fn inspector_ui(
                                     KeyframeViewMode::List => KeyframeViewMode::Curve,
                                     KeyframeViewMode::Curve => KeyframeViewMode::List,
                                 };
-                                ui.data_mut(|d| d.insert_temp(kf_view_id, kf_view));
+                                *keyframe_view_mode = kf_view;
                             }
                         });
                     });

@@ -7,6 +7,7 @@ use animatix::timeline::Timeline;
 use crate::app::commands::CommandQueue;
 use crate::app::panels::panel_frame;
 use crate::app::panels::inspector;
+use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
 use crate::app::PreviewPaneState;
 use animatix::timeline::SceneDimensions;
 
@@ -20,6 +21,8 @@ pub(crate) struct InspectorViewer<'a> {
     pub keyframe_mode: bool,
     pub scene_dimensions: SceneDimensions,
     pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
+    pub property_view_mode: &'a mut PropertyViewMode,
+    pub keyframe_view_mode: &'a mut KeyframeViewMode,
 }
 
 pub(crate) fn inspector_ui(ctx: &mut InspectorViewer<'_>, ui: &mut egui::Ui) {
@@ -57,6 +60,8 @@ pub(crate) fn inspector_ui(ctx: &mut InspectorViewer<'_>, ui: &mut egui::Ui) {
             ctx.keyframe_mode,
             ctx.scene_dimensions,
             ctx.pivot_offsets,
+            ctx.property_view_mode,
+            ctx.keyframe_view_mode,
         );
     });
 }

@@ -516,6 +516,9 @@ impl GuiShell {
             pivot_offsets: &mut self.ui_store.pivot_offsets,
             tool_mode: &mut self.ui_store.view.tool_mode,
             rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
+            sidebar_tab: &mut self.ui_store.sidebar_tab,
+            property_view_mode: &mut self.ui_store.property_view_mode,
+            keyframe_view_mode: &mut self.ui_store.keyframe_view_mode,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };

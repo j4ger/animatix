@@ -31,6 +31,7 @@ pub(crate) struct SidebarViewer<'a> {
     pub timeline: Option<&'a Timeline>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
+    pub sidebar_tab: &'a mut SidebarTab,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -42,22 +43,16 @@ fn panel_frame() -> egui::Frame {
 
 pub(crate) fn sidebar_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
-        let tab_id = ui.id().with("sidebar_tab");
-        let mut active_tab = ui
-            .data(|d| d.get_temp::<SidebarTab>(tab_id))
-            .unwrap_or(SidebarTab::Explorer);
-
-        let prev_tab_id = ui.id().with("sidebar_prev_tab");
-        let prev_tab: Option<SidebarTab> = ui.data(|d| d.get_temp(prev_tab_id));
+        let mut active_tab = *ctx.sidebar_tab;
+        let prev_tab = *ctx.sidebar_tab;
 
         render_sidebar_tab_bar(ui, &mut active_tab);
         ui.add_space(SPACE_M);
 
         // Slide-in animation on tab switch
         let content_offset_id = ui.id().with("sidebar_slide");
-        if prev_tab != Some(active_tab) {
+        if prev_tab != active_tab {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
-            ui.data_mut(|d| d.insert_temp(prev_tab_id, active_tab));
             // Clear explorer filter when switching away from the Explorer tab
             if active_tab == SidebarTab::Layers {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
@@ -80,7 +75,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
             },
         );
 
-        ui.data_mut(|d| d.insert_temp(tab_id, active_tab));
+        *ctx.sidebar_tab = active_tab;
     });
 }
 

@@ -12,6 +12,7 @@ pub mod preview_panel;
 pub use crate::app::commands::{CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::preview::{self, selection, DragState};
 use crate::app::{FileTreeEntry, PreviewPaneState};
+use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
 use animatix::primitives;
@@ -71,6 +72,9 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) tool_mode: &'a mut preview::ToolMode,
     /// Rotation snap increment in degrees (Shift+rotate).
     pub(super) rotation_snap_degrees: f32,
+    pub(super) sidebar_tab: &'a mut SidebarTab,
+    pub(super) property_view_mode: &'a mut PropertyViewMode,
+    pub(super) keyframe_view_mode: &'a mut KeyframeViewMode,
 }
 
 /// Compute a "nice" tick interval for ruler marks.
@@ -118,6 +122,7 @@ impl WorkspaceViewer<'_> {
             timeline: self.timeline,
             selected_actors: self.selected_actors,
             collapsed_actors: self.collapsed_actors,
+            sidebar_tab: self.sidebar_tab,
         };
         sidebar::sidebar_ui(&mut ctx, ui);
     }
@@ -144,6 +149,8 @@ impl WorkspaceViewer<'_> {
             keyframe_mode: self.keyframe_mode,
             scene_dimensions: self.scene_dimensions,
             pivot_offsets: self.pivot_offsets,
+            property_view_mode: self.property_view_mode,
+            keyframe_view_mode: self.keyframe_view_mode,
         };
         inspector_panel::inspector_ui(&mut ctx, ui);
     }
@@ -179,5 +186,93 @@ impl WorkspaceViewer<'_> {
             keyframe_mode: self.keyframe_mode,
         };
         preview_panel::preview_ui(&mut ctx, ui);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::nice_tick_interval;
+
+    #[test]
+    fn nice_tick_interval_normal_range() {
+        // visible_range=100.0, target_ticks=10 → raw=10 → magnitude=10 → normalized=1 → nice_mul=1 → 10.0
+        let interval = nice_tick_interval(100.0, 10.0);
+        assert!((interval - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_rounds_to_two() {
+        // visible_range=50.0, target_ticks=10 → raw=5 → magnitude=1 → normalized=5 → nice_mul=5 → 5.0
+        let interval = nice_tick_interval(50.0, 10.0);
+        assert!((interval - 5.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_small_values() {
+        // visible_range=0.5, target_ticks=10 → raw=0.05 → magnitude=0.01 → normalized=5 → nice_mul=5 → 0.05
+        let interval = nice_tick_interval(0.5, 10.0);
+        assert!(interval > 0.0);
+        assert!((interval / 0.01 - 5.0).abs() < 0.001 || (interval / 0.05 - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_zero_range() {
+        // raw=0.0 → early return 1.0
+        assert_eq!(nice_tick_interval(0.0, 10.0), 1.0);
+    }
+
+    #[test]
+    fn nice_tick_interval_negative_range() {
+        // abs(visible_range) used
+        assert_eq!(nice_tick_interval(-100.0, 10.0), 10.0);
+    }
+
+    #[test]
+    fn nice_tick_interval_large_range_gives_round_numbers() {
+        // visible_range=10000.0, target_ticks=10 → raw=1000 → magnitude=100 → normalized=10 → nice_mul=10 → 1000.0
+        let interval = nice_tick_interval(10000.0, 10.0);
+        assert!((interval - 1000.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_always_positive() {
+        for &range in &[0.1, 1.0, 10.0, 100.0, 1000.0] {
+            let interval = nice_tick_interval(range, 10.0);
+            assert!(interval > 0.0, "interval must be positive for range={}", range);
+        }
+    }
+
+    #[test]
+    fn nice_tick_interval_boundary_near_one_point_five() {
+        // raw just below 1.5 → nice_mul=1
+        let interval = nice_tick_interval(14.9, 10.0);
+        assert!((interval - 1.0).abs() < 0.001);
+
+        // raw just above 1.5 → nice_mul=2
+        let interval = nice_tick_interval(15.1, 10.0);
+        // raw=1.51 → magnitude=1 → normalized=1.51 → nice_mul=2 → 2.0
+        assert!((interval - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_boundary_near_three_point_five() {
+        // raw just below 3.5 → nice_mul=2
+        let interval = nice_tick_interval(34.9, 10.0);
+        assert!((interval - 2.0).abs() < 0.001);
+
+        // raw just above 3.5 → nice_mul=5
+        let interval = nice_tick_interval(35.1, 10.0);
+        assert!((interval - 5.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn nice_tick_interval_boundary_near_seven_point_five() {
+        // raw just below 7.5 → nice_mul=5
+        let interval = nice_tick_interval(74.9, 10.0);
+        assert!((interval - 5.0).abs() < 0.001);
+
+        // raw just above 7.5 → nice_mul=10
+        let interval = nice_tick_interval(75.1, 10.0);
+        assert!((interval - 10.0).abs() < 0.001);
     }
 }
