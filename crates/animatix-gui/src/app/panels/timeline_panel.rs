@@ -201,6 +201,38 @@ pub(crate) fn timeline_panel_ui(
         }
     }
 
+    /// Render colored block segments for each scene in a composition track.
+    fn render_scene_blocks(
+        painter: &egui::Painter,
+        composition: &Composition,
+        track_rect: egui::Rect,
+        time_to_x: &dyn Fn(f64) -> f32,
+        label_color: Color32,
+        duration_s: f64,
+    ) {
+        let palette = [track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5()];
+        for (idx, sn) in composition.declaration_order.iter().enumerate() {
+            let Some(scene) = composition.scenes.get(sn) else { continue };
+            let Some(start_s) = composition.scene_start_times.get(sn).copied() else { continue };
+            let end_s = (start_s + scene.duration_s).min(duration_s);
+            if end_s <= start_s { continue; }
+            let sr = Rect::from_min_max(
+                Pos2::new(time_to_x(start_s), track_rect.top()),
+                Pos2::new(time_to_x(end_s), track_rect.bottom()),
+            );
+            painter.rect_filled(sr, 2.0, palette[idx % palette.len()]);
+            if sr.width() > 24.0 {
+                painter.text(
+                    sr.center(),
+                    Align2::CENTER_CENTER,
+                    sn.as_str(),
+                    FontId::monospace(FONT_SIZE_XS),
+                    label_color,
+                );
+            }
+        }
+    }
+
     // ── Interaction helper for bar areas ──
     let bar_interaction = |ui: &egui::Ui,
                            bar_rect: Rect,
@@ -393,16 +425,7 @@ pub(crate) fn timeline_panel_ui(
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_MUTED);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, st_top), Pos2::new(scroll_rect.right(), st_bot));
-                let palette = [track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5()];
-                for (idx, sn) in comp.declaration_order.iter().enumerate() {
-                    let Some(scene) = comp.scenes.get(sn) else { continue };
-                    let Some(start_s) = comp.scene_start_times.get(sn).copied() else { continue };
-                    let end_s = (start_s + scene.duration_s).min(duration_s);
-                    if end_s <= start_s { continue; }
-                    let sr = Rect::from_min_max(Pos2::new(time_to_x(start_s), bar_area.top()), Pos2::new(time_to_x(end_s), bar_area.bottom()));
-                    painter.rect_filled(sr, 2.0, palette[idx % palette.len()]);
-                    if sr.width() > 24.0 { painter.text(sr.center(), Align2::CENTER_CENTER, sn.as_str(), FontId::monospace(FONT_SIZE_XS), text_dim()); }
-                }
+                render_scene_blocks(&painter, comp, bar_area, &time_to_x, text_dim(), duration_s);
 
                 for (src_name, edge) in &comp.edges {
                     let Some(src_scene) = comp.scenes.get(src_name) else { continue };

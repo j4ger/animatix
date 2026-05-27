@@ -150,6 +150,23 @@ fn extend_track_times<T>(times: &mut Vec<u64>, track: &Option<PropertyTrack<T>>)
     }
 }
 
+/// Collect all keyframe times (in seconds) across all property tracks of an
+/// `AnimationTrack`, using the property registry to discover all possible fields.
+/// Used by the GUI to show keyframe markers on the mini timeline and time lens.
+pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
+    let indices = property_registry::allowed_property_indices(track.kind);
+    let mut times = std::collections::BTreeSet::new();
+
+    for &idx in &indices {
+        let schema = &property_registry::PROPERTY_REGISTRY[idx];
+        for t in property_keyframe_times(track, schema.field) {
+            times.insert(t);
+        }
+    }
+
+    times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
+}
+
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 

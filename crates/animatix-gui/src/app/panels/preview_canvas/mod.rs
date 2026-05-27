@@ -370,7 +370,7 @@ impl WorkspaceViewer<'_> {
             let mut all_kf: Vec<f64> = if let Some(tl) = self.timeline {
                 tl.root_actor_labels().iter().flat_map(|label| {
                     tl.get_track(label).map(|track| {
-                        crate::app::panels::inspector::collect_all_keyframe_times(track)
+                        animatix::timeline::collect_all_keyframe_times(track)
                     }).unwrap_or_default()
                 }).collect()
             } else {

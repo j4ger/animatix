@@ -1153,7 +1153,7 @@ impl GuiShell {
             }
 
             // Find and clone all keyframe assignments referencing the original actor
-            let keyframe_stmts = find_keyframes_for_actor(stmts, original_label);
+            let keyframe_stmts = crate::source_edit::find_keyframes_for_actor(stmts, original_label);
             for mut kf in keyframe_stmts {
                 // Rename references within the keyframe
                 crate::source_edit::rename_all_references(
@@ -1162,7 +1162,7 @@ impl GuiShell {
                     new_label,
                 );
                 // Shift absolute keyframe times by current_time_s
-                shift_keyframe_times(std::slice::from_mut(&mut kf), current_time_s);
+                crate::source_edit::shift_keyframe_times(std::slice::from_mut(&mut kf), current_time_s);
                 stmts.push(kf);
             }
 
@@ -1245,93 +1245,6 @@ impl GuiShell {
             }
         }
         format!("{}{}", base, existing.len() + 1)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers for copy/paste
-// ---------------------------------------------------------------------------
-
-/// Find all top-level keyframe or relative-keyframe statements whose body
-/// contains an assignment targeting the given actor label.
-fn find_keyframes_for_actor(stmts: &[animatix::ast::Stmt], actor: &str) -> Vec<animatix::ast::Stmt> {
-    let mut result = Vec::new();
-    for stmt in stmts {
-        match stmt {
-            animatix::ast::Stmt::Keyframe { .. } | animatix::ast::Stmt::RelativeKeyframe { .. } => {
-                if keyframe_references_actor(stmt, actor) {
-                    result.push(stmt.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-    result
-}
-
-/// Check if a keyframe statement (or any nested child) references the given actor.
-fn keyframe_references_actor(stmt: &animatix::ast::Stmt, actor: &str) -> bool {
-    match stmt {
-        animatix::ast::Stmt::Assignment { target, .. } => {
-            target.iter().any(|t| t == actor)
-        }
-        animatix::ast::Stmt::Keyframe { body, .. }
-        | animatix::ast::Stmt::RelativeKeyframe { body, .. }
-        | animatix::ast::Stmt::Sequence { body, .. }
-        | animatix::ast::Stmt::Stagger { body, .. }
-        | animatix::ast::Stmt::Always { body, .. }
-        | animatix::ast::Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
-        | animatix::ast::Stmt::ComponentAction { body, .. } => {
-            body.iter().any(|child| keyframe_references_actor(child, actor))
-        }
-        animatix::ast::Stmt::Conditional { then_branch, else_branch, .. } => {
-            then_branch.iter().any(|child| keyframe_references_actor(child, actor))
-                || else_branch.as_ref().is_some_and(|eb| eb.iter().any(|child| keyframe_references_actor(child, actor)))
-        }
-        animatix::ast::Stmt::ForLoop { body, .. } => {
-            body.iter().any(|child| keyframe_references_actor(child, actor))
-        }
-        _ => false,
-    }
-}
-
-/// Shift absolute keyframe times by `offset_s` seconds. Relative keyframes
-/// and non-keyframe statements are left untouched.
-fn shift_keyframe_times(stmts: &mut [animatix::ast::Stmt], offset_s: f64) {
-    if offset_s.abs() < 0.001 {
-        return;
-    }
-    for stmt in stmts.iter_mut() {
-        match stmt {
-            animatix::ast::Stmt::Keyframe { time, .. } => {
-                let t = match time {
-                    animatix::ast::Time::Seconds(s) => *s,
-                    animatix::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
-                };
-                let new_t = t + offset_s;
-                *time = animatix::ast::Time::Seconds(new_t);
-            }
-            animatix::ast::Stmt::RelativeKeyframe { .. } => {
-                // Relative keyframes keep their relative offset
-            }
-            animatix::ast::Stmt::Sequence { body, .. }
-            | animatix::ast::Stmt::Stagger { body, .. }
-            | animatix::ast::Stmt::Always { body, .. }
-            | animatix::ast::Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
-            | animatix::ast::Stmt::ComponentAction { body, .. } => {
-                shift_keyframe_times(body, offset_s);
-            }
-            animatix::ast::Stmt::Conditional { then_branch, else_branch, .. } => {
-                shift_keyframe_times(then_branch, offset_s);
-                if let Some(eb) = else_branch {
-                    shift_keyframe_times(eb, offset_s);
-                }
-            }
-            animatix::ast::Stmt::ForLoop { body, .. } => {
-                shift_keyframe_times(body, offset_s);
-            }
-            _ => {}
-        }
     }
 }
 

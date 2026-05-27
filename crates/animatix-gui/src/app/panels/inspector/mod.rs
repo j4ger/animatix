@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use animatix::timeline::{AnimationTrack, Timeline};
+use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, RichText, ScrollArea, Vec2};
 
 use crate::app::components;
@@ -13,7 +13,6 @@ pub(crate) mod graph_editor;
 
 use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, count_keyframes};
-pub(crate) use self::keyframe_table::collect_all_keyframe_times;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum PropertyViewMode {

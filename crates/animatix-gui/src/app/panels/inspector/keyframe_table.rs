@@ -68,21 +68,6 @@ pub(super) fn render_dope_sheet(
     ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
 }
 
-/// Collect all keyframe times across all property tracks (for mini timeline).
-pub(crate) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
-    let indices = allowed_property_indices(track.kind);
-    let mut times = std::collections::BTreeSet::new();
-
-    for &idx in &indices {
-        let schema = &PROPERTY_REGISTRY[idx];
-        for t in property_keyframe_times(track, schema.field) {
-            times.insert(t);
-        }
-    }
-
-    times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
-}
-
 // ─── Compact Track Row ────────────────────────────────────────────────────
 
 fn easing_display_name(easing: Easing) -> &'static str {

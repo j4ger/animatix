@@ -12,9 +12,11 @@
 
 mod apply;
 mod actor_edits;
+mod ast_utils;
 mod keyframe_edits;
 mod scene_edits;
 
 // Re-export public API
 pub use apply::{apply_edit, canonical_to_source, find_actor_decl, source_to_canonical, SourceEdit};
 pub(crate) use actor_edits::rename_all_references;
+pub use ast_utils::{find_keyframes_for_actor, keyframe_references_actor, shift_keyframe_times};
