@@ -13,6 +13,47 @@ pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
 pub const DEFAULT_WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
 // ─────────────────────────────────────────────────────────────
+// Action event metadata (for GUI timeline visualization)
+// ─────────────────────────────────────────────────────────────
+
+/// A recorded action event in the timeline.
+///
+/// Actions are processed at build time into keyframes, but their metadata
+/// is retained for GUI visualization (colored blocks in the timeline).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActionEvent {
+    /// Action verb (e.g. "fade-in", "move", "rotate").
+    pub verb: String,
+    /// Target actor labels.
+    pub targets: Vec<String>,
+    /// Start time in milliseconds.
+    pub start_time_ms: u64,
+    /// Duration in milliseconds.
+    pub duration_ms: u64,
+    /// Easing curve used.
+    pub easing: Easing,
+    /// Action category for UI color coding.
+    pub category: ActionCategory,
+}
+
+/// Category of an action for UI color coding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActionCategory {
+    /// Entrance actions (fade-in, wipe-in, etc.) — green.
+    Entrance,
+    /// Motion actions (move, shift, rotate, scale) — blue.
+    Motion,
+    /// Exit actions (fade-out, wipe-out) — red.
+    Exit,
+    /// Effect actions (bounce, pulse, shake) — amber.
+    Effect,
+    /// Reorder actions (swap, reorder) — purple.
+    Reorder,
+    /// Reveal actions (draw-in, reveal-in, draw-out, reveal-out) — cyan.
+    Reveal,
+}
+
+// ─────────────────────────────────────────────────────────────
 // Actor kind identification
 // ─────────────────────────────────────────────────────────────
 
@@ -1003,6 +1044,118 @@ impl AnimationTrack {
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
             _ => return None,
         })
+    }
+
+    /// Check if a keyframe exists for the given property at exactly `time_ms`.
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    pub fn has_keyframe_at(&self, property: &str, time_ms: u64) -> bool {
+        use crate::timeline::property_registry::ActorField;
+        let field = match property {
+            "position" => ActorField::Position,
+            "motion_offset" => ActorField::MotionOffset,
+            "size" => ActorField::Size,
+            "layout_size" => ActorField::LayoutSize,
+            "rotation" => ActorField::Rotation,
+            "scale" => ActorField::Scale,
+            "transform" => ActorField::Transform,
+            "color" => ActorField::Color,
+            "opacity" => ActorField::Opacity,
+            "stroke_width" => ActorField::StrokeWidth,
+            "stroke_color" => ActorField::StrokeColor,
+            "stroke_progress" => ActorField::StrokeProgress,
+            "fill_opacity" => ActorField::FillOpacity,
+            "shadow_offset" => ActorField::ShadowOffset,
+            "shadow_blur" => ActorField::ShadowBlur,
+            "shadow_color" => ActorField::ShadowColor,
+            "glow_radius" => ActorField::GlowRadius,
+            "glow_color" => ActorField::GlowColor,
+            "backdrop_blur" => ActorField::BackdropBlur,
+            "shape_type" => ActorField::ShapeType,
+            "line_from" => ActorField::LineFrom,
+            "line_to" => ActorField::LineTo,
+            "arc_angles" => ActorField::ArcAngles,
+            "points" => ActorField::Points,
+            "commands" => ActorField::Commands,
+            "text_content" => ActorField::TextContent,
+            "font_family" => ActorField::FontFamily,
+            "font_size" => ActorField::FontSize,
+            "placement_mode" => ActorField::PlacementMode,
+            "morph_options" => ActorField::MorphOptions,
+            _ => return false,
+        };
+
+        match self.field_ref(field) {
+            Some(TrackFieldRef::F32(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::Vec2(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::Vec4(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::Transform(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::String(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::U32(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::PointList(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::CommandList(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::ShapeType(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::PlacementMode(track)) => track.has_keyframe_at(time_ms),
+            Some(TrackFieldRef::MorphOptions(track)) => track.has_keyframe_at(time_ms),
+            None => false,
+        }
+    }
+
+    /// List all keyframe times (in ms) for the given property.
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    /// Returns a sorted, deduplicated list of timestamps.
+    pub fn list_keyframes(&self, property: &str) -> Vec<u64> {
+        use crate::timeline::property_registry::ActorField;
+        let field = match property {
+            "position" => ActorField::Position,
+            "motion_offset" => ActorField::MotionOffset,
+            "size" => ActorField::Size,
+            "layout_size" => ActorField::LayoutSize,
+            "rotation" => ActorField::Rotation,
+            "scale" => ActorField::Scale,
+            "transform" => ActorField::Transform,
+            "color" => ActorField::Color,
+            "opacity" => ActorField::Opacity,
+            "stroke_width" => ActorField::StrokeWidth,
+            "stroke_color" => ActorField::StrokeColor,
+            "stroke_progress" => ActorField::StrokeProgress,
+            "fill_opacity" => ActorField::FillOpacity,
+            "shadow_offset" => ActorField::ShadowOffset,
+            "shadow_blur" => ActorField::ShadowBlur,
+            "shadow_color" => ActorField::ShadowColor,
+            "glow_radius" => ActorField::GlowRadius,
+            "glow_color" => ActorField::GlowColor,
+            "backdrop_blur" => ActorField::BackdropBlur,
+            "shape_type" => ActorField::ShapeType,
+            "line_from" => ActorField::LineFrom,
+            "line_to" => ActorField::LineTo,
+            "arc_angles" => ActorField::ArcAngles,
+            "points" => ActorField::Points,
+            "commands" => ActorField::Commands,
+            "text_content" => ActorField::TextContent,
+            "font_family" => ActorField::FontFamily,
+            "font_size" => ActorField::FontSize,
+            "placement_mode" => ActorField::PlacementMode,
+            "morph_options" => ActorField::MorphOptions,
+            _ => return Vec::new(),
+        };
+
+        let mut times: Vec<u64> = match self.field_ref(field) {
+            Some(TrackFieldRef::F32(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::Vec2(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::Vec4(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::Transform(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::String(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::U32(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::PointList(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::CommandList(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::ShapeType(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::PlacementMode(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            Some(TrackFieldRef::MorphOptions(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
+            None => Vec::new(),
+        };
+        times.sort_unstable();
+        times.dedup();
+        times
     }
 }
 

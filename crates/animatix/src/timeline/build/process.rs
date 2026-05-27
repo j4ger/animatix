@@ -106,6 +106,22 @@ impl Timeline {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 }
                 Stmt::Action(action, span) => {
+                    // Record action metadata for GUI timeline visualization
+                    let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
+                    let category = categorize_action(&action.verb);
+                    for target in &action.targets {
+                        self.action_events.push(
+                            ActionEvent {
+                                verb: action.verb.clone(),
+                                targets: vec![target.clone()],
+                                start_time_ms: time_ms as u64,
+                                duration_ms,
+                                easing,
+                                category,
+                            },
+                        );
+                    }
+
                     process_action(action, time_ms, self, diagnostics, *span);
                 }
                 Stmt::LetDecl { name, value, .. } => {
@@ -136,5 +152,53 @@ impl Timeline {
                 _ => {}
             }
         }
+    }
+}
+
+/// Parse duration and easing from an action's modifiers without emitting diagnostics.
+/// This is called before `process_action` (which calls `parse_timing_modifiers`) to
+/// avoid duplicating diagnostic warnings.
+fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
+    let mut duration_ms: u64 = 1000;
+    let mut easing = Easing::EaseOut;
+
+    for modifier in modifiers {
+        match modifier.name.as_deref() {
+            // Named "ease" modifier: [ease: bounce]
+            Some("ease") => {
+                if let Some(raw) = config_string_value(&modifier.value) {
+                    if let Some(parsed_easing) = parse_easing_name(&raw) {
+                        easing = parsed_easing;
+                    }
+                }
+            }
+            // Named "delay" modifier: only relevant for start_time, not duration
+            Some("delay") => {}
+            // Named modifiers that aren't timing-related (e.g. "by", "to", "from") — skip
+            Some(_) => {}
+            // Bare (unnamed) modifiers: [2s] or [500ms]
+            None => {
+                if let Some(raw) = config_string_value(&modifier.value) {
+                    if let Some(d) = parse_duration_literal(&raw) {
+                        duration_ms = d as u64;
+                    }
+                }
+            }
+        }
+    }
+
+    (duration_ms, easing)
+}
+
+/// Categorize an action verb for UI color coding.
+fn categorize_action(verb: &str) -> ActionCategory {
+    match verb {
+        "fade-in" | "wipe-in" => ActionCategory::Entrance,
+        "fade-out" | "wipe-out" => ActionCategory::Exit,
+        "move" | "shift" | "rotate" | "scale" => ActionCategory::Motion,
+        "bounce" | "pulse" | "shake" => ActionCategory::Effect,
+        "swap" | "reorder" => ActionCategory::Reorder,
+        "draw-in" | "reveal-in" | "draw-out" | "reveal-out" => ActionCategory::Reveal,
+        _ => ActionCategory::Motion,
     }
 }

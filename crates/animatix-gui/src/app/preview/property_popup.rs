@@ -2,6 +2,7 @@ use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
 use crate::app::preview::ActorProps;
 use crate::app::design_tokens::*;
+use animatix::timeline::Timeline;
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Tab categories in the property popup.
@@ -24,6 +25,8 @@ pub fn show_property_popup(
     screen_pos: Pos2,
     commands: &mut CommandQueue,
     is_dragging: bool,
+    timeline: Option<&Timeline>,
+    current_time_s: f64,
 ) {
     if is_dragging {
         return; // Auto-hide during canvas drag
@@ -164,6 +167,8 @@ pub fn show_property_popup(
     tab_ui.set_clip_rect(content_rect);
 
     // Position row with diamond
+    let time_ms = (current_time_s * 1000.0) as u64;
+    let has_kf_pos = timeline.map(|tl| tl.has_keyframe_at(actor, "position", time_ms)).unwrap_or(false);
     popup_property_row(
         &mut tab_ui,
         actor,
@@ -171,10 +176,12 @@ pub fn show_property_popup(
         "Position",
         &format!("{:.1}, {:.1}", props.position[0], props.position[1]),
         commands,
-        true,
+        has_kf_pos,
+        current_time_s,
     );
 
     // Size row with diamond
+    let has_kf_size = timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
     popup_property_row(
         &mut tab_ui,
         actor,
@@ -182,10 +189,12 @@ pub fn show_property_popup(
         "Size",
         &format!("{:.1} × {:.1}", props.size[0], props.size[1]),
         commands,
-        true,
+        has_kf_size,
+        current_time_s,
     );
 
     // Rotation row with diamond
+    let has_kf_rot = timeline.map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms)).unwrap_or(false);
     popup_property_row(
         &mut tab_ui,
         actor,
@@ -193,7 +202,8 @@ pub fn show_property_popup(
         "Rotation",
         &format!("{:.1}°", props.rotation.to_degrees()),
         commands,
-        true,
+        has_kf_rot,
+        current_time_s,
     );
 }
 
@@ -232,21 +242,23 @@ fn popup_property_row(
     label: &str,
     value: &str,
     commands: &mut CommandQueue,
-    _has_keyframe: bool,
+    has_keyframe: bool,
+    current_time_s: f64,
 ) {
     let row_h = 22.0;
     let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
 
-    // Diamond keyframe toggle (◆/○)
+    // Diamond keyframe toggle (filled ◆ if keyframe exists, hollow ○ if not)
     let diamond_size = 8.0;
     let diamond_rect = Rect::from_center_size(
         Pos2::new(row_rect.min.x + 10.0, row_rect.center().y),
         Vec2::new(diamond_size, diamond_size),
     );
 
-    // Draw diamond (hollow for now — Phase 3 will wire keyframe state)
+    // Draw diamond based on keyframe state
     let diamond_color = AMBER;
     let center = diamond_rect.center();
+    let fill_color = if has_keyframe { diamond_color } else { Color32::TRANSPARENT };
     ui.painter().add(egui::Shape::convex_polygon(
         vec![
             Pos2::new(center.x, center.y - diamond_size / 2.0),
@@ -254,7 +266,7 @@ fn popup_property_row(
             Pos2::new(center.x, center.y + diamond_size / 2.0),
             Pos2::new(center.x - diamond_size / 2.0, center.y),
         ],
-        Color32::TRANSPARENT,
+        fill_color,
         Stroke::new(1.0, diamond_color),
     ));
 
@@ -279,7 +291,12 @@ fn popup_property_row(
     // Hover: show tooltip
     let interact = ui.interact(row_rect, ui.id().with((actor, property)), egui::Sense::hover());
     if interact.hovered() {
-        interact.on_hover_text(format!("{label}: {value}\nClick diamond to toggle keyframe"));
+        let tooltip = if has_keyframe {
+            format!("{label}: {value}\nKeyframe at {current_time_s:.2}s\nClick to remove keyframe")
+        } else {
+            format!("{label}: {value}\nNo keyframe at {current_time_s:.2}s")
+        };
+        interact.on_hover_text(tooltip);
     }
 
     ui.allocate_rect(row_rect, egui::Sense::hover());

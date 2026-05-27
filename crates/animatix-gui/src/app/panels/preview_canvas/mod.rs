@@ -641,6 +641,7 @@ impl WorkspaceViewer<'_> {
                         );
                         preview::property_popup::show_property_popup(
                             ui, actor, &props, screen_pos, self.commands, is_dragging,
+                            self.timeline, self.preview.current_time_s,
                         );
                     }
                 }

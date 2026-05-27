@@ -131,14 +131,14 @@ pub use shapes::{
 };
 pub use svg::parse_svg;
 pub use svg_import::{import_svg, SvgImportError};
-pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};
+pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers, config_string_value, parse_duration_literal};
 use timing::{
-    config_string_value, has_non_default_morph_options, parse_stagger_interval_ms,
+    has_non_default_morph_options, parse_stagger_interval_ms,
     push_modifier_diagnostic, push_unknown_target_path_diagnostic,
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use track::{
-    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
+    ActionCategory, ActionEvent, ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
     TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
@@ -386,6 +386,8 @@ pub struct Timeline {
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
+    /// Action events collected during build, for GUI timeline visualization.
+    pub action_events: Vec<crate::timeline::track::ActionEvent>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -428,6 +430,7 @@ impl Clone for Timeline {
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
+            action_events: self.action_events.clone(),
         }
     }
 }
@@ -469,6 +472,7 @@ impl Timeline {
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
+            action_events: Vec::new(),
         }
     }
 
@@ -742,6 +746,16 @@ impl Timeline {
     /// Returns a mutable reference to the track for the given label, if it exists.
     pub fn get_track_mut(&mut self, label: &str) -> Option<&mut AnimationTrack> {
         self.tracks.get_mut(label)
+    }
+
+    /// Check if a keyframe exists for the given actor and property at `time_ms`.
+    pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
+        self.tracks.get(actor).map(|t| t.has_keyframe_at(property, time_ms)).unwrap_or(false)
+    }
+
+    /// List all keyframe times (in ms) for the given actor and property.
+    pub fn list_keyframes(&self, actor: &str, property: &str) -> Vec<u64> {
+        self.tracks.get(actor).map(|t| t.list_keyframes(property)).unwrap_or_default()
     }
 
     /// Returns a reference to all tracks.

@@ -53,6 +53,8 @@ pub enum Command {
     // ── Keyframe ──────────────────────────────────────────────────────
     SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
     DeleteKeyframe { actor: String, property: String, time_s: f64 },
+    /// Move a keyframe to a new time. Phase 4b: emitted by timeline drag.
+    MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,

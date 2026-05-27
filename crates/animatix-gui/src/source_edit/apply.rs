@@ -139,6 +139,13 @@ pub enum SourceEdit {
         actor_labels: Vec<String>,
         target_scene: String,
     },
+    /// Move a keyframe to a new time.
+    MoveKeyframeTime {
+        actor: String,
+        property: String,
+        old_time_s: f64,
+        new_time_s: f64,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -211,6 +218,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             actor_labels,
             target_scene,
         } => super::scene_edits::move_to_scene(stmts, actor_labels, &target_scene),
+        SourceEdit::MoveKeyframeTime { actor, property, old_time_s, new_time_s } => {
+            super::keyframe_edits::move_keyframe_time(stmts, &actor, &property, old_time_s, new_time_s)
+        }
     }
 }
 

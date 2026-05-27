@@ -359,6 +359,159 @@ fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
 }
 
 // ---------------------------------------------------------------------------
+// MoveKeyframeTime
+// ---------------------------------------------------------------------------
+
+pub(super) fn move_keyframe_time(
+    stmts: &mut Vec<Stmt>,
+    actor: &str,
+    property: &str,
+    old_time_s: f64,
+    new_time_s: f64,
+) -> bool {
+    let source_prop = canonical_to_source(property);
+    let mut current_time = 0.0f64;
+    let mut found_idx: Option<usize> = None;
+    let mut found_old_time = 0.0f64;
+
+    // First pass: find the keyframe index and compute absolute times
+    for (i, stmt) in stmts.iter().enumerate() {
+        match stmt {
+            Stmt::Keyframe { time, body, .. } => {
+                current_time = time_to_seconds(time);
+                if (current_time - old_time_s).abs() < 0.001 {
+                    if contains_assignment(body, actor, source_prop) {
+                        found_idx = Some(i);
+                        found_old_time = current_time;
+                    }
+                }
+            }
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                current_time += time_to_seconds(offset);
+                if (current_time - old_time_s).abs() < 0.001 {
+                    if contains_assignment(body, actor, source_prop) {
+                        found_idx = Some(i);
+                        found_old_time = current_time;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let idx = match found_idx {
+        Some(i) => i,
+        None => return false,
+    };
+
+    let delta_s = new_time_s - found_old_time;
+    if delta_s.abs() < 0.001 {
+        return true; // No change needed
+    }
+
+    // Update the found keyframe's time
+    match &mut stmts[idx] {
+        Stmt::Keyframe { time, .. } => {
+            *time = if new_time_s < 1.0 {
+                Time::Milliseconds((new_time_s * 1000.0).round() as u64)
+            } else {
+                Time::Seconds(new_time_s)
+            };
+        }
+        Stmt::RelativeKeyframe { offset, .. } => {
+            // For relative keyframes, adjust this offset by delta_s
+            let new_offset_s = time_to_seconds(offset) + delta_s;
+            if new_offset_s < 0.001 {
+                return false; // Can't move before previous keyframe
+            }
+            *offset = if new_offset_s < 1.0 {
+                Time::Milliseconds((new_offset_s * 1000.0).round() as u64)
+            } else {
+                Time::Seconds(new_offset_s)
+            };
+            // Adjust next relative keyframe's offset to compensate
+            if idx + 1 < stmts.len() {
+                if let Stmt::RelativeKeyframe { offset: next_offset, .. } = &mut stmts[idx + 1] {
+                    let next_offset_s = time_to_seconds(next_offset) - delta_s;
+                    if next_offset_s >= 0.001 {
+                        *next_offset = if next_offset_s < 1.0 {
+                            Time::Milliseconds((next_offset_s * 1000.0).round() as u64)
+                        } else {
+                            Time::Seconds(next_offset_s)
+                        };
+                    }
+                }
+            }
+        }
+        _ => return false,
+    }
+
+    // If we changed an absolute keyframe, adjust the first subsequent
+    // relative keyframe's offset so its absolute time stays the same.
+    if matches!(stmts[idx], Stmt::Keyframe { .. }) {
+        for i in (idx + 1)..stmts.len() {
+            if let Stmt::RelativeKeyframe { offset, .. } = &mut stmts[i] {
+                let offset_s = time_to_seconds(offset) - delta_s;
+                if offset_s >= 0.001 {
+                    *offset = if offset_s < 1.0 {
+                        Time::Milliseconds((offset_s * 1000.0).round() as u64)
+                    } else {
+                        Time::Seconds(offset_s)
+                    };
+                }
+                break; // Only adjust the first subsequent relative keyframe
+            }
+            if matches!(stmts[i], Stmt::Keyframe { .. }) {
+                break; // Stop at next absolute keyframe
+            }
+        }
+    }
+
+    true
+}
+
+/// Check if any assignment in the statement tree matches the given actor + property.
+fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
+    for stmt in body {
+        match stmt {
+            Stmt::Assignment { target, property: prop, .. }
+                if target.iter().any(|t| t == actor) && prop == property =>
+            {
+                return true;
+            }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
+            | Stmt::ComponentAction { body, .. } => {
+                if contains_assignment(body, actor, property) {
+                    return true;
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if contains_assignment(then_branch, actor, property) {
+                    return true;
+                }
+                if let Some(else_b) = else_branch {
+                    if contains_assignment(else_b, actor, property) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if contains_assignment(body, actor, property) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -541,5 +694,133 @@ btn.color = red"#);
         } else {
             panic!("Expected RelativeKeyframe");
         }
+    }
+
+    #[test]
+    fn move_keyframe_time_absolute() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#2s
+btn.color = red
+
+#+2s
+btn.color = blue"#);
+
+        let edit = SourceEdit::MoveKeyframeTime {
+            actor: "btn".into(),
+            property: "color".into(),
+            old_time_s: 2.0,
+            new_time_s: 3.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // First keyframe should now be at 3s
+        if let Stmt::Keyframe { time, .. } = &stmts[1] {
+            assert_eq!(*time, Time::Seconds(3.0));
+        } else {
+            panic!("Expected Keyframe at index 1");
+        }
+
+        // The relative keyframe after it should have its offset adjusted
+        // Old: 2s + 2s = 4s. New: 3s + offset = 4s → offset = 1s
+        if let Stmt::RelativeKeyframe { offset, .. } = &stmts[2] {
+            assert_eq!(*offset, Time::Seconds(1.0));
+        } else {
+            panic!("Expected RelativeKeyframe at index 2");
+        }
+    }
+
+    #[test]
+    fn move_keyframe_time_relative() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#+2s
+btn.color = red
+
+#+3s
+btn.color = blue"#);
+
+        let edit = SourceEdit::MoveKeyframeTime {
+            actor: "btn".into(),
+            property: "color".into(),
+            old_time_s: 2.0, // 0s + 2s
+            new_time_s: 3.0,
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // First relative keyframe should now have offset 3s
+        if let Stmt::RelativeKeyframe { offset, .. } = &stmts[1] {
+            assert_eq!(*offset, Time::Seconds(3.0));
+        } else {
+            panic!("Expected RelativeKeyframe at index 1");
+        }
+
+        // Second relative keyframe: old total was 0+2+3=5s.
+        // New: first is at 3s, so second should stay at 5s → offset = 2s
+        if let Stmt::RelativeKeyframe { offset, .. } = &stmts[2] {
+            assert_eq!(*offset, Time::Seconds(2.0));
+        } else {
+            panic!("Expected RelativeKeyframe at index 2");
+        }
+    }
+
+    #[test]
+    fn move_keyframe_time_no_change() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#2s
+btn.color = red"#);
+
+        let edit = SourceEdit::MoveKeyframeTime {
+            actor: "btn".into(),
+            property: "color".into(),
+            old_time_s: 2.0,
+            new_time_s: 2.0, // same time
+        };
+        assert!(apply_edit(&mut stmts, edit));
+
+        // Should still be at 2s
+        if let Stmt::Keyframe { time, .. } = &stmts[1] {
+            assert_eq!(*time, Time::Seconds(2.0));
+        } else {
+            panic!("Expected Keyframe at index 1");
+        }
+    }
+
+    #[test]
+    fn move_keyframe_time_not_found() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#2s
+btn.color = red"#);
+
+        let edit = SourceEdit::MoveKeyframeTime {
+            actor: "btn".into(),
+            property: "color".into(),
+            old_time_s: 999.0, // doesn't exist
+            new_time_s: 3.0,
+        };
+        assert!(!apply_edit(&mut stmts, edit));
+    }
+
+    #[test]
+    fn move_keyframe_time_wrong_actor() {
+        let mut stmts = parse(r#"#0s
+btn: Rect, size: (100, 200)
+
+#2s
+btn.color = red"#);
+
+        let edit = SourceEdit::MoveKeyframeTime {
+            actor: "other".into(),
+            property: "color".into(),
+            old_time_s: 2.0,
+            new_time_s: 3.0,
+        };
+        assert!(!apply_edit(&mut stmts, edit));
     }
 }

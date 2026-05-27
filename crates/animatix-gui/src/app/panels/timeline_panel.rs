@@ -22,7 +22,7 @@ use crate::app::design_tokens::*;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
-use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
 /// Width of the track label column on the left.
 const LABEL_COL_WIDTH: f32 = 120.0;
@@ -37,6 +37,18 @@ const KF_DIAMOND_HALF: f32 = 4.0;
 /// Height of the playback strip at the top of the timeline.
 const PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
 
+fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
+    use animatix::timeline::ActionCategory;
+    match cat {
+        ActionCategory::Entrance => Color32::from_rgb(76, 175, 80),   // green
+        ActionCategory::Motion => Color32::from_rgb(66, 133, 244),    // blue
+        ActionCategory::Exit => Color32::from_rgb(234, 67, 53),      // red
+        ActionCategory::Effect => Color32::from_rgb(251, 188, 5),    // amber
+        ActionCategory::Reorder => Color32::from_rgb(156, 39, 176),   // purple
+        ActionCategory::Reveal => Color32::from_rgb(0, 188, 212),    // cyan
+    }
+}
+
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(
     ui: &mut egui::Ui,
@@ -48,6 +60,17 @@ pub(crate) fn timeline_panel_ui(
 ) {
     let duration_s = preview.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
+
+    // ── Keyframe drag state ──
+    let kf_drag_id = panel_id.with("kf_drag");
+    let kf_drag_data_id = kf_drag_id.with("data");
+    let kf_drag: Option<(String, u64, f64)> = ui.data(|d| d.get_temp(kf_drag_data_id));
+    let mut new_kf_drag: Option<(String, u64, f64)> = kf_drag.clone();
+
+    // ── Keyframe multi-select state ──
+    let kf_multi_select_id = panel_id.with("kf_multi");
+    let mut multi_selected: Vec<(String, u64)> = ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
+    let shift_held = ui.input(|i| i.modifiers.shift);
 
     // ── Track labels sidebar width ──
     let available = ui.available_width();
@@ -578,64 +601,192 @@ pub(crate) fn timeline_panel_ui(
                 Pos2::new(scroll_rect.right(), at_bot),
             );
 
-            // Draw keyframe diamonds for this actor
+// ── Draw action blocks for this actor ──
+            if let Some(tl) = timeline {
+                for event in &tl.action_events {
+                    if !event.targets.contains(actor_label) {
+                        continue;
+                    }
+                    let start_s = event.start_time_ms as f64 / 1000.0;
+                    let end_s = start_s + (event.duration_ms as f64 / 1000.0);
+                    let left = time_to_x(start_s);
+                    let right = time_to_x(end_s);
+                    
+                    if right > bar_area.left() && left < bar_area.right() {
+                        let block_rect = Rect::from_min_max(
+                            Pos2::new(left.max(bar_area.left()), bar_area.top() + 2.0),
+                            Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 2.0),
+                        );
+                        let color = action_category_color(event.category);
+                        painter.rect_filled(block_rect, RADIUS_S, color.linear_multiply(0.4));
+                        painter.rect_stroke(block_rect, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
+                        
+                        // Label if wide enough
+                        if block_rect.width() > 30.0 {
+                            painter.text(
+                                block_rect.center(),
+                                Align2::CENTER_CENTER,
+                                &event.verb,
+                                FontId::monospace(FONT_SIZE_XS),
+                                TEXT_PRIMARY,
+                            );
+                        }
+                    }
+                }
+            }
+
+            // ── Draw keyframe diamonds for this actor (multi-select + drag aware) ──
             if let Some(tl) = timeline {
                 if let Some(track) = tl.get_track(actor_label) {
-                    // Collect all keyframe times from the track
-                    let mut kf_times_ms: Vec<u64> = Vec::new();
-                    macro_rules! extend_kf {
-                        ($opt:expr) => {
+                    // Track which property each kf belongs to for potential future drag
+                    let mut kf_with_props: Vec<(u64, &str)> = Vec::new();
+                    macro_rules! collect_kf_props {
+                        ($opt:expr, $prop:expr) => {
                             if let Some(pt) = $opt.as_ref() {
-                                kf_times_ms.extend(pt.keyframes.keys().copied());
+                                for &ms in pt.keyframes.keys() {
+                                    kf_with_props.push((ms, $prop));
+                                }
                             }
                         };
                     }
-                    extend_kf!(track.position);
-                    extend_kf!(track.motion_offset);
-                    extend_kf!(track.rotation);
-                    extend_kf!(track.scale);
-                    extend_kf!(track.size);
-                    extend_kf!(track.color);
-                    extend_kf!(track.opacity);
-                    extend_kf!(track.stroke_width);
-                    extend_kf!(track.stroke_color);
-                    extend_kf!(track.stroke_progress);
-                    extend_kf!(track.fill_opacity);
-                    extend_kf!(track.text_content);
-                    extend_kf!(track.font_family);
-                    extend_kf!(track.font_size);
-                    extend_kf!(track.shape_type);
-                    extend_kf!(track.line_from);
-                    extend_kf!(track.line_to);
-                    extend_kf!(track.arc_angles);
+                    collect_kf_props!(track.position, "position");
+                    collect_kf_props!(track.motion_offset, "motion_offset");
+                    collect_kf_props!(track.rotation, "rotation");
+                    collect_kf_props!(track.scale, "scale");
+                    collect_kf_props!(track.size, "size");
+                    collect_kf_props!(track.color, "color");
+                    collect_kf_props!(track.opacity, "opacity");
+                    collect_kf_props!(track.stroke_width, "stroke_width");
+                    collect_kf_props!(track.stroke_color, "stroke_color");
+                    collect_kf_props!(track.stroke_progress, "stroke_progress");
+                    collect_kf_props!(track.fill_opacity, "fill_opacity");
+                    collect_kf_props!(track.text_content, "text_content");
+                    collect_kf_props!(track.font_family, "font_family");
+                    collect_kf_props!(track.font_size, "font_size");
+                    collect_kf_props!(track.shape_type, "shape_type");
+                    collect_kf_props!(track.line_from, "line_from");
+                    collect_kf_props!(track.line_to, "line_to");
+                    collect_kf_props!(track.arc_angles, "arc_angles");
+                    collect_kf_props!(track.points, "points");
+                    collect_kf_props!(track.commands, "commands");
                     if let Some(ls) = track.layout_size.as_ref() {
-                        kf_times_ms.extend(ls.keyframes.keys().copied());
+                        for &ms in ls.keyframes.keys() { kf_with_props.push((ms, "layout_size")); }
                     }
                     if let Some(vp) = track.vector_paths.as_ref() {
-                        kf_times_ms.extend(vp.keyframes.keys().copied());
+                        for &ms in vp.keyframes.keys() { kf_with_props.push((ms, "vector_paths")); }
                     }
+                    
+                    kf_with_props.sort_by_key(|(ms, _)| *ms);
+                    kf_with_props.dedup_by(|a, b| a.0 == b.0);
 
-                    kf_times_ms.sort_unstable();
-                    kf_times_ms.dedup();
-
-                    for &kf_ms in &kf_times_ms {
+                    for &(kf_ms, prop) in &kf_with_props {
                         let kf_s = kf_ms as f64 / 1000.0;
                         let kf_x = time_to_x(kf_s);
                         if kf_x >= bar_area.left() && kf_x <= bar_area.right() {
-                            // KF diamond
                             let is_active = (kf_s - preview.current_time_s).abs() < 0.01;
-                            let kf_color = if is_active { TEXT_PRIMARY } else { AMBER };
+                            let is_multi_selected = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
+                            let is_dragging = kf_drag.as_ref().is_some_and(|(l, t, _)| l == actor_label && *t == kf_ms);
+                            
+                            let diamond_size = if is_dragging { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
+                            let kf_color = if is_multi_selected { ACCENT_BLUE } else if is_active { TEXT_PRIMARY } else { AMBER };
+                            let center_y = bar_area.center().y;
+                            
+                            let diamond_rect = Rect::from_center_size(
+                                Pos2::new(kf_x, center_y),
+                                Vec2::new(diamond_size * 3.0, diamond_size * 3.0),
+                            );
+                            
+                            let diamond_id = ui.id().with(("kf_diamond", actor_label.clone(), kf_ms));
+                            let diamond_resp = ui.interact(diamond_rect, diamond_id, Sense::click_and_drag());
+                            
+                            // Draw diamond
                             let pts = vec![
-                                Pos2::new(kf_x, bar_area.center().y - KF_DIAMOND_HALF),
-                                Pos2::new(kf_x + KF_DIAMOND_HALF, bar_area.center().y),
-                                Pos2::new(kf_x, bar_area.center().y + KF_DIAMOND_HALF),
-                                Pos2::new(kf_x - KF_DIAMOND_HALF, bar_area.center().y),
+                                Pos2::new(kf_x, center_y - diamond_size),
+                                Pos2::new(kf_x + diamond_size, center_y),
+                                Pos2::new(kf_x, center_y + diamond_size),
+                                Pos2::new(kf_x - diamond_size, center_y),
                             ];
                             painter.add(egui::Shape::convex_polygon(
                                 pts,
-                                kf_color,
+                                if diamond_resp.hovered() || is_dragging { kf_color } else { kf_color.linear_multiply(0.7) },
                                 Stroke::NONE,
                             ));
+                            
+// Hover tooltip
+                            let diamond_resp = if diamond_resp.hovered() && !is_dragging {
+                                diamond_resp.on_hover_text(format!("{prop} @ {:.2}s", kf_s))
+                            } else {
+                                diamond_resp
+                            };
+                            
+                            // Click: select / multi-select / jump
+                            if diamond_resp.clicked() {
+                                if shift_held {
+                                    if let Some(pos) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) {
+                                        multi_selected.remove(pos);
+                                    } else {
+                                        multi_selected.push((actor_label.clone(), kf_ms));
+                                    }
+                                } else {
+                                    multi_selected.clear();
+                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                    commands.push_back(Command::ScrubTo(kf_s));
+                                    preview.current_time_s = kf_s;
+                                }
+                            }
+                            
+                            // Drag started
+                            if diamond_resp.drag_started() {
+                                new_kf_drag = Some((actor_label.clone(), kf_ms, kf_s));
+                                if !shift_held && !multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms) {
+                                    multi_selected.clear();
+                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                }
+                            }
+                            
+                            // During drag: show visual feedback
+                            if is_dragging {
+                                if let Some(pos) = diamond_resp.interact_pointer_pos() {
+                                    let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                                    let new_time_s = frac * duration_s;
+                                    let snapped_time = (new_time_s * 10.0).round() / 10.0;
+                                    new_kf_drag = Some((actor_label.clone(), kf_ms, snapped_time));
+                                    
+                                    // Vertical guide
+                                    let guide_x = time_to_x(snapped_time);
+                                    painter.line_segment(
+                                        [Pos2::new(guide_x, bar_area.top()), Pos2::new(guide_x, bar_area.bottom())],
+                                        Stroke::new(1.0, AMBER.linear_multiply(0.5)),
+                                    );
+                                    
+                                    // Tooltip
+                                    let tooltip_text = format!("{:.1}s → {:.1}s", kf_s, snapped_time);
+                                    let galley = painter.layout_no_wrap(
+                                        tooltip_text,
+                                        FontId::monospace(FONT_SIZE_XS),
+                                        TEXT_PRIMARY,
+                                    );
+                                    let tooltip_pos = Pos2::new(guide_x, bar_area.top() - 16.0);
+                                    let tooltip_rect = Rect::from_min_size(
+                                        tooltip_pos - Vec2::new(galley.size().x / 2.0, 0.0),
+                                        galley.size() + Vec2::new(8.0, 4.0),
+                                    );
+                                    painter.rect_filled(tooltip_rect, RADIUS_S, BG_SURFACE);
+                                    painter.galley(tooltip_rect.min + Vec2::new(4.0, 2.0), galley, TEXT_PRIMARY);
+                                }
+                            }
+                            
+                            // Drag stopped
+                            if diamond_resp.drag_stopped() && is_dragging {
+                                if let Some((_, _, new_time_s)) = new_kf_drag {
+                                    if (new_time_s - kf_s).abs() > 0.01 {
+                                        // For now just scrub to new time
+                                        commands.push_back(Command::ScrubTo(new_time_s));
+                                        preview.current_time_s = new_time_s;
+                                    }
+                                }
+                                new_kf_drag = None;
+                            }
                         }
                     }
                 }
@@ -831,6 +982,12 @@ pub(crate) fn timeline_panel_ui(
         }
     }
 
+    // ── Persist keyframe drag + multi-select state ──
+    ui.data_mut(|d| {
+        d.insert_temp(kf_drag_data_id, new_kf_drag.clone());
+        d.insert_temp(kf_multi_select_id, multi_selected.clone());
+    });
+
     // ── Scroll handling ──
     {
         let scroll_handle_id = panel_id.with("scroll_handle");
@@ -862,4 +1019,14 @@ pub(crate) fn timeline_panel_ui(
         Vec2::new(available, scroll_rect.height().max(60.0)),
         Sense::hover(),
     );
+
+    // ── Save keyframe drag + multi-select state ──
+    ui.data_mut(|d| {
+        if let Some(drag) = new_kf_drag {
+            d.insert_temp(kf_drag_data_id, drag);
+        } else {
+            d.remove::<(String, u64, f64)>(kf_drag_data_id);
+        }
+        d.insert_temp(kf_multi_select_id, multi_selected);
+    });
 }

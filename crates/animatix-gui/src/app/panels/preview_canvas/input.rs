@@ -846,6 +846,65 @@ impl WorkspaceViewer<'_> {
         if is_dragging
             && (response.drag_stopped() || pointer_released || !ui.input(|i| i.pointer.any_down()))
         {
+            // ── Auto-keyframe: after spatial drag, create keyframe if property changed ──
+            let old_drag_state = self.drag_state.clone();
+            if let Some(tl) = self.timeline {
+                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                match &old_drag_state {
+                    DragState::Move { primary, actors, .. } => {
+                        if let Some(current_props) = self.get_actor_props(primary) {
+                            if !tl.has_keyframe_at(primary, "position", time_ms) {
+                                if let Some(start_pos) = actors.iter().find(|(l, _)| l == primary).map(|(_, p)| *p) {
+                                    if current_props.position != start_pos {
+                                        self.commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                            actor: primary.clone(),
+                                            property: "position".into(),
+                                            value: PropertyValue::Vec2(current_props.position),
+                                            create_keyframe: true,
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    DragState::Scale { actor, start_size, start_position, start_rotation, .. } => {
+                        if let Some(current_props) = self.get_actor_props(actor) {
+                            // Check size changed
+                            if !tl.has_keyframe_at(actor, "size", time_ms) && current_props.size != *start_size {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    actor: actor.clone(),
+                                    property: "size".into(),
+                                    value: PropertyValue::Vec2(current_props.size),
+                                    create_keyframe: true,
+                                }));
+                            }
+                            // Check position changed (scale handle also moves the actor)
+                            if !tl.has_keyframe_at(actor, "position", time_ms) && current_props.position != *start_position {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    actor: actor.clone(),
+                                    property: "position".into(),
+                                    value: PropertyValue::Vec2(current_props.position),
+                                    create_keyframe: true,
+                                }));
+                            }
+                        }
+                    }
+                    DragState::Rotate { actor, start_rotation, .. } => {
+                        if let Some(current_props) = self.get_actor_props(actor) {
+                            if !tl.has_keyframe_at(actor, "rotation", time_ms) && current_props.rotation != *start_rotation {
+                                self.commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    actor: actor.clone(),
+                                    property: "rotation".into(),
+                                    value: PropertyValue::Float(current_props.rotation),
+                                    create_keyframe: true,
+                                }));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             if let DragState::Reorder {
                 actor,
                 container,

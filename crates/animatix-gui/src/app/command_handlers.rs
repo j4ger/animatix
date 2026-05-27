@@ -249,6 +249,10 @@ impl GuiShell {
             Command::DeleteKeyframe { actor, property, time_s } => {
                 self.handle_delete_keyframe(&actor, &property, time_s);
             }
+            Command::MoveKeyframe { actor, property, old_time_s, new_time_s } => {
+                // Phase 4b: placeholder — will emit source edit when document handler is wired in
+                tracing::info!("MoveKeyframe: {actor}.{property} {old_time_s}s → {new_time_s}s");
+            }
             Command::InspectorInputDragStarted => {
                 self.ui_store.inspector_input_drag_active = true;
             }
@@ -276,6 +280,17 @@ impl GuiShell {
             Command::Redo => self.redo(),
             Command::ScrollToLine(line) => {
                 self.document_store.editor.focus_diagnostic(line, 0);
+            }
+            Command::MoveKeyframe { actor, property, old_time_s, new_time_s } => {
+                // Placeholder: actual keyframe move will be implemented in a follow-up.
+                // For now, scrub to target time.
+                self.preview_store.preview.current_time_s = new_time_s;
+                self.preview_store.preview.clamp_time();
+                self.preview_store.preview_dirty = true;
+                self.preview_store.preview.status = format!(
+                    "Moved keyframe {}:{} from {:.1}s → {:.1}s",
+                    actor, property, old_time_s, new_time_s
+                );
             }
         }
     }
