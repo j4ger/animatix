@@ -1,3 +1,4 @@
+use crate::app::components::toast::ToastQueue;
 use crate::app::preview::{DragState, ToolMode};
 use crate::app::preview::selection::SelectionState;
 use crate::app::commands::CommandQueue;
@@ -34,6 +35,7 @@ pub struct UiStore {
     /// Shortcut cheat sheet open state.
     pub shortcuts_open: bool,
     pub pending_commands: CommandQueue,
+    pub toasts: ToastQueue,
 }
 
 impl UiStore {
@@ -65,6 +67,7 @@ impl UiStore {
             action_palette_open: false,
             shortcuts_open: false,
             pending_commands: CommandQueue::default(),
+            toasts: ToastQueue::default(),
         }
     }
 }

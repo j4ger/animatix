@@ -2,7 +2,7 @@ use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
 use crate::app::preview::ActorProps;
 use crate::app::design_tokens::*;
-use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
+use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Tab categories in the property popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +105,16 @@ pub fn show_property_popup(
         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
         let rot_deg = props.rotation.to_degrees();
-        property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
+        let rot_delta = property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
+        if let Some(delta) = rot_delta {
+            let new_rot_deg = (rot_deg + delta * 0.5).rem_euclid(360.0);
+            commands.push_back(Command::PropertyEdit(PropertyEdit {
+                actor: actor.to_string(),
+                property: "rotation".into(),
+                value: PropertyValue::Float(new_rot_deg.to_radians()),
+                create_keyframe: false,
+            }));
+        }
         // Opacity not in ActorProps — show placeholder
         property_essential(ui, "Opac", "100%", col_w);
     });
@@ -189,7 +198,8 @@ pub fn show_property_popup(
 }
 
 /// Render a single essential property (compact, no diamond).
-fn property_essential(ui: &mut egui::Ui, label: &str, value: &str, width: f32) {
+/// Returns `Some(drag_delta.x)` if the user is dragging on the value area.
+fn property_essential(ui: &mut egui::Ui, label: &str, value: &str, width: f32) -> Option<f32> {
     let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(width, 22.0));
     let mut local = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     local.set_clip_rect(rect);
@@ -200,7 +210,18 @@ fn property_essential(ui: &mut egui::Ui, label: &str, value: &str, width: f32) {
             ui.label(RichText::new(value).size(FONT_SIZE_S).color(TEXT_PRIMARY));
         });
     });
-    ui.allocate_rect(rect, egui::Sense::hover());
+
+    let response = ui.interact(rect, ui.id().with((label, "drag_value")), Sense::drag());
+
+    if response.hovered() {
+        response.clone().on_hover_text("Drag left/right to change");
+    }
+
+    if response.dragged() {
+        Some(response.drag_delta().x)
+    } else {
+        None
+    }
 }
 
 /// Render a property row with a diamond keyframe toggle.

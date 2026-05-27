@@ -20,6 +20,7 @@
 pub mod agent_suggestions;
 pub mod context_menu;
 pub mod easing_picker;
+pub mod toast;
 
 
 use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};

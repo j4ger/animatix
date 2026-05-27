@@ -449,6 +449,10 @@ impl GuiShell {
         if self.ui_store.shortcuts_open {
             self.shortcut_cheat_sheet_ui(ui);
         }
+
+        // Toast notifications
+        let now = Instant::now();
+        self.ui_store.toasts.show(ui, now);
     }
 
     fn workspace_ui(
@@ -532,6 +536,7 @@ impl GuiShell {
                 let error = self.document_store.document.last_rebuild_error.clone();
                 self.sync_preview_from_document(status, true, true);
                 self.preview_store.preview.error = error;
+                self.ui_store.toasts.push(crate::app::components::toast::Toast::info(format!("Opened {}", path.display())));
             }
             Err(error) => {
                 self.preview_store.preview.error = Some(error.to_string());
@@ -548,6 +553,7 @@ impl GuiShell {
         self.document_store.document.source_text = text;
         self.document_store.document.is_dirty = false;
         self.preview_store.preview.status = format!("Saved {}", self.document_store.document.file_path.display());
+        self.ui_store.toasts.push(crate::app::components::toast::Toast::success(format!("Saved {}", self.document_store.document.file_path.display())));
         Ok(())
     }
 
@@ -587,6 +593,7 @@ impl GuiShell {
                     )
                 };
                 self.sync_preview_from_document(status, false, false);
+                self.ui_store.toasts.push(crate::app::components::toast::Toast::success(format!("Built timeline • {:.2}s", self.document_store.document.duration_s.max(0.1))));
                 Ok(())
             }
             Err(error) => {
@@ -604,6 +611,7 @@ impl GuiShell {
                 self.preview_store.preview.status = status;
                 self.preview_store.preview.error = Some(error.to_string());
                 self.preview_store.preview_dirty = true;
+                self.ui_store.toasts.push(crate::app::components::toast::Toast::error("Rebuild failed"));
                 Err(error)
             }
         }
@@ -713,6 +721,7 @@ impl GuiShell {
             self.document_store.document.is_dirty = true;
             self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
             self.preview_store.preview.status = "Undo".to_string();
+            self.ui_store.toasts.push(crate::app::components::toast::Toast::info("Undo"));
         }
     }
 
@@ -728,6 +737,7 @@ impl GuiShell {
             self.document_store.document.is_dirty = true;
             self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
             self.preview_store.preview.status = "Redo".to_string();
+            self.ui_store.toasts.push(crate::app::components::toast::Toast::info("Redo"));
         }
     }
 

@@ -382,6 +382,27 @@ pub(super) fn selection_screen_rect(
 
 // ─── Selection Overlay ──────────────────────────────────────────────────────
 
+/// Draw a small corner arc (quarter circle) for rotation affordance.
+fn draw_corner_arc(
+    painter: &egui::Painter,
+    center: Pos2,
+    radius: f32,
+    start_angle: f32,
+    end_angle: f32,
+    stroke: Stroke,
+) {
+    let segments = 8;
+    for i in 0..segments {
+        let t0 = i as f32 / segments as f32;
+        let t1 = (i + 1) as f32 / segments as f32;
+        let a0 = start_angle + (end_angle - start_angle) * t0;
+        let a1 = start_angle + (end_angle - start_angle) * t1;
+        let p0 = Pos2::new(center.x + radius * a0.cos(), center.y + radius * a0.sin());
+        let p1 = Pos2::new(center.x + radius * a1.cos(), center.y + radius * a1.sin());
+        painter.line_segment([p0, p1], stroke);
+    }
+}
+
 /// Draw the selection bounding box, 8 scale handles, and rotation handle.
 ///
 /// When `props` is available the bounding box is correctly rotated;
@@ -459,22 +480,49 @@ pub(super) fn draw_selection_overlay(
             }
         }
 
-        // Scale handles (rotated)
+        // ── Unified transform gizmo handles ────────────────────────────────
         let handle_world = world_handle_positions(p);
         let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
             scene_to_screen(handle_world[i], preview_rect, scene_dimensions, desired, zoom, pan)
         });
-        let handle_px = HANDLE_SIZE * pixels_per_point;
-        for pos in &handle_screen {
+
+        // Corner handles (indices 0-3): filled circles with slight larger presence
+        let corner_radius = HANDLE_SIZE * 0.6 * pixels_per_point;
+        for i in 0..4 {
+            let pos = handle_screen[i];
+            painter.circle_filled(pos, corner_radius, TEXT_PRIMARY);
+            painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, SELECTION_COLOR));
+        }
+
+        // Edge handles (indices 4-7): smaller filled squares, more subtle
+        let edge_handle_px = HANDLE_SIZE * 0.7 * pixels_per_point;
+        for i in 4..8 {
+            let pos = handle_screen[i];
             let handle_rect =
-                egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
+                egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
-            painter.rect_stroke(
-                handle_rect,
-                1.0,
-                Stroke::new(1.0, SELECTION_COLOR),
-                egui::StrokeKind::Outside,
-            );
+            painter.rect_stroke(handle_rect, 1.0, Stroke::new(1.0, SELECTION_COLOR), egui::StrokeKind::Outside);
+        }
+
+        // Rotation ring arcs at corners (only when not dragging)
+        if !is_dragging {
+            let arc_radius = HANDLE_SIZE * 1.5 * pixels_per_point;
+            let arc_stroke = Stroke::new(1.0, SELECTION_COLOR.gamma_multiply(0.5));
+            // Arc orientations (screen coordinates, y-down): 0°=right, 90°=down
+            // TL (index 0): from 180° (left) up to 270° (up)    — outside of top-left
+            // TR (index 1): from 270° (up)   to 0° (right)       — outside of top-right
+            // BR (index 2): from 0° (right)  to 90° (down)       — outside of bottom-right
+            // BL (index 3): from 90° (down)  to 180° (left)      — outside of bottom-left
+            let arc_angles: [(f32, f32); 4] = [
+                (std::f32::consts::PI, 3.0 * std::f32::consts::PI / 2.0),
+                (3.0 * std::f32::consts::PI / 2.0, 2.0 * std::f32::consts::PI),
+                (0.0, std::f32::consts::PI / 2.0),
+                (std::f32::consts::PI / 2.0, std::f32::consts::PI),
+            ];
+            for i in 0..4 {
+                let (start_angle, end_angle) = arc_angles[i];
+                draw_corner_arc(painter, handle_screen[i], arc_radius, start_angle, end_angle, arc_stroke);
+            }
         }
 
         // Rotation handle: on the line from centre to above top-edge, offset by ROTATION_OFFSET

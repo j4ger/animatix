@@ -59,7 +59,6 @@ use std::path::{Path, PathBuf};
 pub(crate) enum SidebarTab {
     Explorer,
     Layers,
-    Scenes,
 }
 
 pub(crate) struct WorkspaceViewer<'a> {
@@ -107,7 +106,6 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let tabs = [
         (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
-        (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
     ];
     if let Some(new_tab) = components::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
@@ -178,16 +176,33 @@ impl WorkspaceViewer<'_> {
                 .data(|d| d.get_temp::<SidebarTab>(tab_id))
                 .unwrap_or(SidebarTab::Explorer);
 
+            let prev_tab_id = ui.id().with("sidebar_prev_tab");
+            let prev_tab: Option<SidebarTab> = ui.data(|d| d.get_temp(prev_tab_id));
+
             render_sidebar_tab_bar(ui, &mut active_tab);
             ui.add_space(6.0);
+
+            // Slide-in animation on tab switch
+            let content_offset_id = ui.id().with("sidebar_slide");
+            if prev_tab != Some(active_tab) {
+                // Tab just switched — reset animation to start from an offset
+                ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
+                ui.data_mut(|d| d.insert_temp(prev_tab_id, active_tab));
+            }
+            let offset = ui.ctx().animate_value_with_time(content_offset_id, 0.0, 0.12);
+            if offset > 0.01 {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
+            }
 
             ui.allocate_ui_with_layout(
                 ui.available_size(),
                 egui::Layout::top_down(egui::Align::Min),
-                |ui| match active_tab {
-                    SidebarTab::Explorer => self.explorer_content_ui(ui),
-                    SidebarTab::Layers => self.layers_content_ui(ui),
-                    SidebarTab::Scenes => self.scenes_content_ui(ui),
+                |ui| {
+                    ui.add_space(offset);
+                    match active_tab {
+                        SidebarTab::Explorer => self.explorer_content_ui(ui),
+                        SidebarTab::Layers => self.layers_content_ui(ui),
+                    }
                 },
             );
 
@@ -354,318 +369,6 @@ self.selected_actors,
                     );
                 }
             });
-    }
-
-    fn scenes_content_ui(&mut self, ui: &mut egui::Ui) {
-        if !self.is_composition {
-            ui.vertical_centered(|ui| {
-                ui.add_space(SPACE_XL * 3.0);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(egui_phosphor::regular::FILM_STRIP)
-                            .size(ROW_L)
-                            .color(TEXT_MUTED),
-                    )
-                    .selectable(false),
-                );
-                ui.add_space(SPACE_M);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new("No scenes — this is a single-scene file")
-                            .size(FONT_SIZE_M)
-                            .color(TEXT_SECONDARY),
-                    )
-                    .selectable(false),
-                );
-            });
-            return;
-        }
-
-        ui.vertical(|ui| {
-            let drag_id = ui.id().with("scene_drag");
-            let drag_idx: Option<usize> = ui.data(|d| d.get_temp(drag_id));
-            let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-            let mut drop_target: Option<usize> = None;
-            // Track actual row top/bottom positions for accurate drop targeting
-            let mut row_positions: Vec<(f32, f32)> = Vec::new();
-
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-
-                for (idx, scene_name) in self.scene_names.clone().into_iter().enumerate() {
-                    let row_top = ui.cursor().top();
-                    let is_active = self.active_scene.as_deref() == Some(scene_name.as_str());
-                    let row_id = ui.id().with(&scene_name);
-                    let edit_id = row_id.with("scene_name_edit");
-                    let mut is_editing = ui.data(|d| d.get_temp::<bool>(edit_id)).unwrap_or(false);
-                    let mut edit_buffer = ui
-                        .data(|d| d.get_temp::<String>(edit_id.with("buf")))
-                        .unwrap_or_else(|| scene_name.clone());
-
-                    // Drag handle
-                    let handle_width = 18.0;
-                    let row_height = crate::app::design_tokens::ROW_M;
-                    let handle_rect = ui.available_rect_before_wrap();
-                    let handle_rect = egui::Rect::from_min_size(
-                        egui::pos2(handle_rect.min.x, handle_rect.min.y),
-                        egui::vec2(handle_width, row_height),
-                    );
-                    let handle_response = ui.interact(handle_rect, row_id.with("drag"), egui::Sense::drag());
-                    ui.painter().text(
-                        handle_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        egui_phosphor::regular::DOTS_SIX_VERTICAL,
-                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                        if handle_response.hovered() { TEXT_SECONDARY } else { TEXT_MUTED },
-                    );
-                    ui.add_space(handle_width);
-
-                    if handle_response.drag_started() {
-                        ui.data_mut(|d| d.insert_temp(drag_id, idx));
-                    }
-                    if handle_response.dragged()
-                        && pointer_pos.is_some() {
-                            drop_target = Some(idx);
-                        }
-                    let pointer_released = ui.input(|i| i.pointer.any_released());
-                    if pointer_released && drag_idx == Some(idx) {
-                        ui.data_mut(|d| d.remove::<usize>(drag_id));
-                        if let Some(dragged_idx) = drag_idx {
-                            if let Some(pointer) = pointer_pos {
-                                // Compute drop target from actual row positions
-                                let mut target_idx = 0;
-                                for (i, &(top, bottom)) in row_positions.iter().enumerate() {
-                                    if pointer.y >= top && pointer.y <= bottom {
-                                        target_idx = i;
-                                        break;
-                                    }
-                                    if pointer.y < top {
-                                        break;
-                                    }
-                                    target_idx = i;
-                                }
-                                let target_idx = target_idx.min(self.scene_names.len().saturating_sub(1));
-                                if dragged_idx != target_idx {
-                                    let mut new_order = self.scene_names.clone();
-                                    let item = new_order.remove(dragged_idx);
-                                    let insert_at = target_idx.min(new_order.len());
-                                    new_order.insert(insert_at, item);
-                                    self.commands.push_back(Command::ReorderScenes(new_order));
-                                }
-                            }
-                        }
-                    }
-
-                    // Drop target indicator (uses handle_rect for the main row area)
-                    if drag_idx.is_some() {
-                        if let Some(pointer) = pointer_pos {
-                            let row_top = handle_rect.min.y;
-                            let row_bottom = handle_rect.max.y;
-                            let mid = (row_top + row_bottom) / 2.0;
-                            if pointer.y < mid && pointer.y >= row_top - 2.0 {
-                                ui.painter().line_segment(
-                                    [egui::pos2(handle_rect.min.x, row_top), egui::pos2(ui.available_width() + handle_rect.min.x, row_top)],
-                                    Stroke::new(2.0, ACCENT_BLUE),
-                                );
-                            } else if pointer.y >= mid && pointer.y < row_bottom + 2.0 {
-                                ui.painter().line_segment(
-                                    [egui::pos2(handle_rect.min.x, row_bottom), egui::pos2(ui.available_width() + handle_rect.min.x, row_bottom)],
-                                    Stroke::new(2.0, ACCENT_BLUE),
-                                );
-                            }
-                        }
-                    }
-
-                    if is_editing {
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut edit_buffer)
-                                .desired_width(ui.available_width())
-                                .font(egui::TextStyle::Body),
-                        );
-                        let commit = response.lost_focus()
-                            || ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        if commit {
-                            ui.data_mut(|d| d.insert_temp(edit_id, false));
-                            if edit_buffer != scene_name && !edit_buffer.is_empty() {
-                                self.commands.push_back(Command::RenameScene { old_name: scene_name.clone(), new_name: edit_buffer.clone() });
-                            }
-                            is_editing = false;
-                        }
-                        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                            ui.data_mut(|d| d.insert_temp(edit_id, false));
-                            edit_buffer = scene_name.clone();
-                            is_editing = false;
-                        }
-                        ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
-                    } else {
-                        let delete_id = row_id.with("delete");
-                        let response = components::Row::new(&scene_name)
-                            .selected(is_active)
-                            .right(|ui| {
-                                if components::icon_button(ui, egui_phosphor::regular::TRASH, "Delete scene").clicked() {
-                                    ui.data_mut(|d| d.insert_temp(delete_id, true));
-                                }
-                            })
-                            .show(ui, row_id);
-
-                        if ui.data(|d| d.get_temp::<bool>(delete_id)).unwrap_or(false) {
-                            self.commands.push_back(Command::DeleteScene(scene_name.clone()));
-                            ui.data_mut(|d| d.remove::<bool>(delete_id));
-                        }
-
-                        if response.row_double_clicked || response.row_secondary_clicked {
-                            ui.data_mut(|d| {
-                                d.insert_temp(edit_id, true);
-                                d.insert_temp(edit_id.with("buf"), scene_name.clone());
-                            });
-                        } else if response.row_clicked {
-                            self.commands.push_back(Command::SelectScene(scene_name.clone()));
-                        }
-                    }
-
-                    // Transition badge: show play target and transition type beneath the scene row
-                    if let Some(comp) = self.composition {
-                        if let Some(edge) = comp.edges.get(&scene_name) {
-                            let trans_edit_id = row_id.with("trans_edit");
-
-                            // If the transport bar requested opening this scene's transition editor, open it
-                            if self.panel_state.open_transition_editor.as_deref() == Some(scene_name.as_str()) {
-                                ui.data_mut(|d| d.insert_temp(trans_edit_id, true));
-                                self.panel_state.open_transition_editor = None;
-                            }
-
-                            let is_editing_trans = ui.data(|d| d.get_temp::<bool>(trans_edit_id)).unwrap_or(false);
-
-                            if is_editing_trans {
-                                let mut new_target = edge.to_scene.clone();
-                                let mut new_type = edge.transition.id.clone();
-                                let mut new_duration_ms = edge.transition.duration_ms;
-                                let mut new_easing = edge.transition.easing;
-
-                                ui.add_space(24.0);
-                                components::card(ui, |ui| {
-                                    ui.set_width(ui.available_width().min(340.0));
-
-                                    // Target scene dropdown
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new("Target:").size(FONT_SIZE_S).color(TEXT_MUTED));
-                                        egui::ComboBox::from_id_salt(trans_edit_id.with("target"))
-                                            .width(160.0)
-                                            .selected_text(&new_target)
-                                            .show_ui(ui, |ui| {
-                                                for s in &self.scene_names {
-                                                    ui.selectable_value(&mut new_target, s.clone(), s.as_str());
-                                                }
-                                            });
-                                    });
-
-                                    ui.add_space(SPACE_S);
-
-                                    // Transition type and duration in ms
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new("Type:").size(FONT_SIZE_S).color(TEXT_MUTED));
-                                        egui::ComboBox::from_id_salt(trans_edit_id.with("type"))
-                                            .width(100.0)
-                                            .selected_text(animatix::transition_registry::display_name(&new_type))
-                                            .show_ui(ui, |ui| {
-                                                for def in animatix::transition_registry::REGISTRY {
-                                                    ui.selectable_value(&mut new_type, def.id.to_string(), def.display_name);
-                                                }
-                                            });
-                                        ui.add_space(SPACE_M);
-                                        ui.label(RichText::new("Duration:").size(FONT_SIZE_S).color(TEXT_MUTED));
-                                        ui.add_sized(
-                                            [60.0, 0.0],
-                                            egui::DragValue::new(&mut new_duration_ms)
-                                                .speed(10)
-                                                .suffix(" ms")
-                                                .range(0..=10_000u64),
-                                        );
-                                    });
-
-                                    ui.add_space(SPACE_S);
-
-                                    // Easing picker
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new("Easing:").size(FONT_SIZE_S).color(TEXT_MUTED));
-                                        components::easing_picker::easing_picker(
-                                            ui,
-                                            trans_edit_id.with("easing"),
-                                            &mut new_easing,
-                                        );
-                                    });
-
-                                    ui.add_space(SPACE_S);
-
-                                    // Action buttons
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(ui.available_width() - 80.0);
-                                        if ui.button("✓").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                            self.commands.push_back(Command::SetTransition { from_scene: scene_name.clone(), transition: animatix::ast::Transition {
-                                                id: new_type,
-                                                duration_ms: new_duration_ms,
-                                                easing: new_easing,
-                                            } });
-                                            self.commands.push_back(Command::SetPlayTarget { from_scene: scene_name.clone(), target: Some(new_target) });
-                                            ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
-                                        }
-                                        if ui.button("✕").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                                            ui.data_mut(|d| d.insert_temp(trans_edit_id, false));
-                                        }
-                                    });
-                                });
-                            } else {
-                                let transition_label = if edge.transition.duration_ms > 0 {
-                                    format!(
-                                        "→ {} [{} · {}ms]",
-                                        edge.to_scene,
-                                        transition_type_label(&edge.transition.id),
-                                        edge.transition.duration_ms
-                                    )
-                                } else {
-                                    format!("→ {}", edge.to_scene)
-                                };
-                                let trans_response = ui.horizontal(|ui| {
-                                    ui.add_space(24.0);
-                                    ui.add(
-                                        egui::Label::new(
-                                            RichText::new(transition_label)
-                                                .size(FONT_SIZE_S)
-                                                .color(TEXT_MUTED),
-                                        )
-                                        .sense(egui::Sense::click()),
-                                    )
-                                });
-                                if trans_response.inner.clicked() {
-                                    ui.data_mut(|d| d.insert_temp(trans_edit_id, true));
-                                }
-                            }
-                        }
-                    }
-                    // Record actual row bounds for accurate drop targeting
-                    let row_bottom = ui.cursor().top();
-                    row_positions.push((row_top, row_bottom));
-                }
-            });
-
-            if !self.import_aliases.is_empty() {
-                ui.add_space(16.0);
-                ui.label(RichText::new("Imports").size(FONT_SIZE_S).color(TEXT_MUTED));
-                ui.separator();
-
-                for alias in &self.import_aliases {
-                    let row_id = ui.id().with(format!("import_{}", alias));
-                    let _response = components::Row::new(alias)
-                        .icon(Some(egui_phosphor::regular::FILE_ARROW_DOWN))
-                        .show(ui, row_id);
-                }
-            }
-
-            ui.add_space(8.0);
-            if ui.button("+ Add Scene").clicked() {
-                self.commands.push_back(Command::AddScene);
-            }
-        });
     }
 
     pub(super) fn editor_ui(&mut self, ui: &mut egui::Ui) {
