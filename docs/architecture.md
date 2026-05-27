@@ -31,6 +31,10 @@ The AST is round-trippable. The GUI inspector mutates the AST directly and re-se
 
 The `ModuleGraph` manages file dependencies: tracks `import` declarations, resolves relative paths, and collects `pub` exports (components via `pub component`, values via `pub let`).
 
+### Type Checking
+
+After parsing and module expansion, the gradual type checker validates component instantiation properties and action invocation arguments against parameter type annotations. Unannotated parameters accept any value. The checker produces `DiagnosticCode::TypeMismatch` errors that flow into both CLI and LSP diagnostics.
+
 ### Timeline Compilation
 
 `Timeline::build_with_diagnostics(...)` is the main compilation entry for single-scene files. For multi-scene files, `Composition::build(...)` orchestrates per-scene timelines.

@@ -2,7 +2,7 @@
 
 > Forward-looking view of known gaps, planned features, and deferred work.  
 > For the current language surface, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).  
-> For detailed implementation plans, see [`typing-plan.md`](typing-plan.md) and [`design/gui-redesign-2026.md`](design/gui-redesign-2026.md).
+> For design specifications, see [`design/gui-redesign-2026.md`](design/gui-redesign-2026.md).
 
 ---
 

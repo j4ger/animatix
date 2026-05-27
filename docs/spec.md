@@ -763,6 +763,25 @@ Type annotations are **optional everywhere**. Existing code without annotations 
 
 This means the type system can be adopted incrementally: annotate hot spots first (public component boundaries) while leaving internal code unannotated.
 
+### 13.7 Strict Mode
+
+Add `strict_types: true` to a `config` block to require type annotations on all component and action parameters:
+
+```animatix
+config { strict_types: true }
+
+pub component Button(text: Str, size: Vec2) { ... }
+// ✓ OK — all params are annotated
+
+pub component Card(title) { ... }
+// ✗ warning: parameter 'title' of component 'Card' is missing a type annotation
+```
+
+When strict mode is enabled:
+- Unannotated parameters emit warnings
+- Type mismatches continue to be reported as errors
+- Existing annotated code requires no changes
+
 ---
 
 ## 14. Math & Graphs
