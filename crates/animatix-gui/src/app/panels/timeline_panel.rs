@@ -40,13 +40,94 @@ const PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
 fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
     use animatix::timeline::ActionCategory;
     match cat {
-        ActionCategory::Entrance => Color32::from_rgb(76, 175, 80),   // green
-        ActionCategory::Motion => Color32::from_rgb(66, 133, 244),    // blue
-        ActionCategory::Exit => Color32::from_rgb(234, 67, 53),      // red
-        ActionCategory::Effect => Color32::from_rgb(251, 188, 5),    // amber
-        ActionCategory::Reorder => Color32::from_rgb(156, 39, 176),   // purple
-        ActionCategory::Reveal => Color32::from_rgb(0, 188, 212),    // cyan
+        ActionCategory::Entrance => GREEN,
+        ActionCategory::Motion => ACCENT_BLUE,
+        ActionCategory::Exit => RED,
+        ActionCategory::Effect => AMBER,
+        ActionCategory::Reorder => Color32::from_rgb(156, 39, 176),
+        ActionCategory::Reveal => ACCENT_CYAN,
     }
+}
+
+/// Trait for types that contain keyframe times.
+trait KeyframeSource {
+    fn keyframe_times(&self) -> Vec<u64>;
+}
+
+impl<T> KeyframeSource for animatix::timeline::PropertyTrack<T> {
+    fn keyframe_times(&self) -> Vec<u64> {
+        self.keyframes.keys().copied().collect()
+    }
+}
+
+fn push_kf_props(result: &mut Vec<(u64, &'static str)>, opt: &Option<impl KeyframeSource>, name: &'static str) {
+    if let Some(pt) = opt {
+        result.extend(pt.keyframe_times().into_iter().map(|ms| (ms, name)));
+    }
+}
+
+fn push_kf_times(result: &mut Vec<u64>, opt: &Option<impl KeyframeSource>) {
+    if let Some(pt) = opt {
+        result.extend(pt.keyframe_times());
+    }
+}
+
+/// Collect all keyframe times and their property names from a track.
+fn collect_track_keyframe_props(track: &animatix::timeline::AnimationTrack) -> Vec<(u64, &'static str)> {
+    let mut result = Vec::new();
+    push_kf_props(&mut result, &track.position, "position");
+    push_kf_props(&mut result, &track.motion_offset, "motion_offset");
+    push_kf_props(&mut result, &track.rotation, "rotation");
+    push_kf_props(&mut result, &track.scale, "scale");
+    push_kf_props(&mut result, &track.size, "size");
+    push_kf_props(&mut result, &track.color, "color");
+    push_kf_props(&mut result, &track.opacity, "opacity");
+    push_kf_props(&mut result, &track.stroke_width, "stroke_width");
+    push_kf_props(&mut result, &track.stroke_color, "stroke_color");
+    push_kf_props(&mut result, &track.stroke_progress, "stroke_progress");
+    push_kf_props(&mut result, &track.fill_opacity, "fill_opacity");
+    push_kf_props(&mut result, &track.text_content, "text_content");
+    push_kf_props(&mut result, &track.font_family, "font_family");
+    push_kf_props(&mut result, &track.font_size, "font_size");
+    push_kf_props(&mut result, &track.shape_type, "shape_type");
+    push_kf_props(&mut result, &track.line_from, "line_from");
+    push_kf_props(&mut result, &track.line_to, "line_to");
+    push_kf_props(&mut result, &track.arc_angles, "arc_angles");
+    push_kf_props(&mut result, &track.points, "points");
+    push_kf_props(&mut result, &track.commands, "commands");
+    push_kf_props(&mut result, &track.layout_size, "layout_size");
+    push_kf_props(&mut result, &track.vector_paths, "vector_paths");
+    result.sort_by_key(|(ms, _)| *ms);
+    result.dedup_by(|a, b| a.0 == b.0);
+    result
+}
+
+/// Collect all keyframe times from a track.
+fn collect_track_keyframe_times(track: &animatix::timeline::AnimationTrack) -> Vec<u64> {
+    let mut result = Vec::new();
+    push_kf_times(&mut result, &track.position);
+    push_kf_times(&mut result, &track.motion_offset);
+    push_kf_times(&mut result, &track.rotation);
+    push_kf_times(&mut result, &track.scale);
+    push_kf_times(&mut result, &track.size);
+    push_kf_times(&mut result, &track.color);
+    push_kf_times(&mut result, &track.opacity);
+    push_kf_times(&mut result, &track.stroke_width);
+    push_kf_times(&mut result, &track.stroke_color);
+    push_kf_times(&mut result, &track.stroke_progress);
+    push_kf_times(&mut result, &track.fill_opacity);
+    push_kf_times(&mut result, &track.text_content);
+    push_kf_times(&mut result, &track.font_family);
+    push_kf_times(&mut result, &track.font_size);
+    push_kf_times(&mut result, &track.shape_type);
+    push_kf_times(&mut result, &track.line_from);
+    push_kf_times(&mut result, &track.line_to);
+    push_kf_times(&mut result, &track.arc_angles);
+    push_kf_times(&mut result, &track.points);
+    push_kf_times(&mut result, &track.commands);
+    push_kf_times(&mut result, &track.layout_size);
+    push_kf_times(&mut result, &track.vector_paths);
+    result
 }
 
 /// Render the entire timeline panel.
@@ -618,7 +699,7 @@ pub(crate) fn timeline_panel_ui(
                             Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 2.0),
                         );
                         let color = action_category_color(event.category);
-                        painter.rect_filled(block_rect, RADIUS_S, color.linear_multiply(0.4));
+                        painter.rect_filled(block_rect, RADIUS_S, color.linear_multiply(0.6));
                         painter.rect_stroke(block_rect, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
                         
                         // Label if wide enough
@@ -638,46 +719,7 @@ pub(crate) fn timeline_panel_ui(
             // ── Draw keyframe diamonds for this actor (multi-select + drag aware) ──
             if let Some(tl) = timeline {
                 if let Some(track) = tl.get_track(actor_label) {
-                    // Track which property each kf belongs to for potential future drag
-                    let mut kf_with_props: Vec<(u64, &str)> = Vec::new();
-                    macro_rules! collect_kf_props {
-                        ($opt:expr, $prop:expr) => {
-                            if let Some(pt) = $opt.as_ref() {
-                                for &ms in pt.keyframes.keys() {
-                                    kf_with_props.push((ms, $prop));
-                                }
-                            }
-                        };
-                    }
-                    collect_kf_props!(track.position, "position");
-                    collect_kf_props!(track.motion_offset, "motion_offset");
-                    collect_kf_props!(track.rotation, "rotation");
-                    collect_kf_props!(track.scale, "scale");
-                    collect_kf_props!(track.size, "size");
-                    collect_kf_props!(track.color, "color");
-                    collect_kf_props!(track.opacity, "opacity");
-                    collect_kf_props!(track.stroke_width, "stroke_width");
-                    collect_kf_props!(track.stroke_color, "stroke_color");
-                    collect_kf_props!(track.stroke_progress, "stroke_progress");
-                    collect_kf_props!(track.fill_opacity, "fill_opacity");
-                    collect_kf_props!(track.text_content, "text_content");
-                    collect_kf_props!(track.font_family, "font_family");
-                    collect_kf_props!(track.font_size, "font_size");
-                    collect_kf_props!(track.shape_type, "shape_type");
-                    collect_kf_props!(track.line_from, "line_from");
-                    collect_kf_props!(track.line_to, "line_to");
-                    collect_kf_props!(track.arc_angles, "arc_angles");
-                    collect_kf_props!(track.points, "points");
-                    collect_kf_props!(track.commands, "commands");
-                    if let Some(ls) = track.layout_size.as_ref() {
-                        for &ms in ls.keyframes.keys() { kf_with_props.push((ms, "layout_size")); }
-                    }
-                    if let Some(vp) = track.vector_paths.as_ref() {
-                        for &ms in vp.keyframes.keys() { kf_with_props.push((ms, "vector_paths")); }
-                    }
-                    
-                    kf_with_props.sort_by_key(|(ms, _)| *ms);
-                    kf_with_props.dedup_by(|a, b| a.0 == b.0);
+                    let kf_with_props = collect_track_keyframe_props(track);
 
                     for &(kf_ms, prop) in &kf_with_props {
                         let kf_s = kf_ms as f64 / 1000.0;
@@ -691,9 +733,10 @@ pub(crate) fn timeline_panel_ui(
                             let kf_color = if is_multi_selected { ACCENT_BLUE } else if is_active { TEXT_PRIMARY } else { AMBER };
                             let center_y = bar_area.center().y;
                             
+                            let hit_size = (diamond_size * 3.0).max(16.0);
                             let diamond_rect = Rect::from_center_size(
                                 Pos2::new(kf_x, center_y),
-                                Vec2::new(diamond_size * 3.0, diamond_size * 3.0),
+                                Vec2::new(hit_size, hit_size),
                             );
                             
                             let diamond_id = ui.id().with(("kf_diamond", actor_label.clone(), kf_ms));
@@ -809,35 +852,7 @@ pub(crate) fn timeline_panel_ui(
                                 frac * duration_s
                             };
                             // Check proximity to any keyframe
-                            let mut kf_times_ms: Vec<u64> = Vec::new();
-                            macro_rules! collect_kf {
-                                ($opt:expr) => {
-                                    if let Some(pt) = $opt.as_ref() {
-                                        kf_times_ms.extend(pt.keyframes.keys().copied());
-                                    }
-                                };
-                            }
-                            collect_kf!(track.position);
-                            collect_kf!(track.motion_offset);
-                            collect_kf!(track.rotation);
-                            collect_kf!(track.scale);
-                            collect_kf!(track.size);
-                            collect_kf!(track.color);
-                            collect_kf!(track.opacity);
-                            collect_kf!(track.stroke_width);
-                            collect_kf!(track.stroke_color);
-                            collect_kf!(track.stroke_progress);
-                            collect_kf!(track.fill_opacity);
-                            collect_kf!(track.text_content);
-                            collect_kf!(track.font_family);
-                            collect_kf!(track.font_size);
-                            collect_kf!(track.shape_type);
-                            collect_kf!(track.line_from);
-                            collect_kf!(track.line_to);
-                            collect_kf!(track.arc_angles);
-                            if let Some(ls) = track.layout_size.as_ref() {
-                                kf_times_ms.extend(ls.keyframes.keys().copied());
-                            }
+                            let kf_times_ms = collect_track_keyframe_times(track);
 
                             let snap_threshold_s = (bar_width / duration_s as f32) * 6.0; // ~6px in time
                             let snapped = kf_times_ms.iter().find(|&&kf_ms| {
@@ -936,7 +951,7 @@ pub(crate) fn timeline_panel_ui(
             }
 
             // Start handle
-            let handle_size = Vec2::new(6.0, RANGE_HEIGHT - 4.0);
+            let handle_size = Vec2::new(10.0, RANGE_HEIGHT - 2.0);
             let start_handle_rect = Rect::from_center_size(
                 Pos2::new(ws_x, range_bar.center().y),
                 handle_size,

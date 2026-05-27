@@ -24,9 +24,23 @@ impl GuiShell {
             Command::ToggleDiagnosticsPanel => {
                 self.ui_store.diagnostics_panel_visible = !self.ui_store.diagnostics_panel_visible;
             }
-            Command::Save => { let _ = self.save(); }
-            Command::Reload => { let _ = self.reload(); }
-            Command::Rebuild => { let _ = self.rebuild(); }
+            Command::Save => {
+                if let Err(e) = self.save() {
+                    tracing::warn!("Save failed: {}", e);
+                    self.ui_store.toasts.push(crate::app::components::toast::Toast::error(format!("Save failed: {}", e)));
+                }
+            }
+            Command::Reload => {
+                if let Err(e) = self.reload() {
+                    tracing::warn!("Reload failed: {}", e);
+                    self.ui_store.toasts.push(crate::app::components::toast::Toast::error(format!("Reload failed: {}", e)));
+                }
+            }
+            Command::Rebuild => {
+                if let Err(e) = self.rebuild() {
+                    tracing::warn!("Rebuild command failed: {}", e);
+                }
+            }
             Command::ScrubTo(next_time) => {
                 self.preview_store.preview.current_time_s = next_time;
                 self.preview_store.preview.clamp_time();

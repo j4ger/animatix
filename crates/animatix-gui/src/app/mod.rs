@@ -335,7 +335,9 @@ impl GuiShell {
             // Clear any stale error before rebuild so a successful rebuild
             // doesn't leave an outdated error banner visible.
             self.preview_store.preview.error = None;
-            let _ = self.rebuild();
+            if let Err(e) = self.rebuild() {
+                tracing::warn!("Scheduled rebuild failed: {}", e);
+            }
         }
     }
 
@@ -345,7 +347,7 @@ impl GuiShell {
 
         // Global keyboard shortcuts for timeline toggles
         ui.input(|i| {
-            if i.key_pressed(egui::Key::S) && !i.modifiers.command {
+            if i.key_pressed(egui::Key::Y) && !i.modifiers.command {
                 commands.push_back(Command::ToggleEditorSync);
             }
             // Tool mode switching (V, M, G, S, R, E)
@@ -523,7 +525,9 @@ impl GuiShell {
                 self.ui_store.drag_snapshot_taken = false;
                 self.ui_store.inspector_input_drag_active = false;
                 if let Some(ref mut reloader) = self.workspace_store.hot_reloader {
-                    let _ = reloader.update_watched_file(&self.document_store.document.file_path);
+                    if let Err(e) = reloader.update_watched_file(&self.document_store.document.file_path) {
+                        tracing::warn!("Failed to update watched file: {}", e);
+                    }
                 }
                 let status = if has_source_load_failure(&self.document_store.document.diagnostics) {
                     format!(
@@ -692,7 +696,9 @@ impl GuiShell {
 
     fn save_persistence(&self) {
         if let Some(parent) = self.workspace_store.persistence_path.parent() {
-            let _ = fs::create_dir_all(parent);
+            if let Err(e) = fs::create_dir_all(parent) {
+                tracing::warn!("Failed to create persistence directory: {}", e);
+            }
         }
         let persistence = WorkspacePersistence {
             tree: self.ui_store.tree.clone(),
@@ -700,7 +706,9 @@ impl GuiShell {
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
         {
-            let _ = fs::write(&self.workspace_store.persistence_path, serialized);
+            if let Err(e) = fs::write(&self.workspace_store.persistence_path, serialized) {
+                tracing::warn!("Failed to write persistence file: {}", e);
+            }
         }
     }
 
@@ -743,7 +751,9 @@ impl GuiShell {
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        let _ = self.ui_store.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target));
+        if !self.ui_store.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target)) {
+            tracing::warn!("Failed to activate workspace tab {:?}", target);
+        }
     }
 
     /// Duplicate an actor, preserving its type and properties.

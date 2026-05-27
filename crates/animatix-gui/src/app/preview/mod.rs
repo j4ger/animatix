@@ -1024,12 +1024,10 @@ pub(super) fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 
     }
 }
 
-#[allow(dead_code)] // Used from dead code (transport_bar); keep for test coverage
 pub(super) fn timeline_fraction(current_time_s: f64, duration_s: f64) -> f32 {
     (current_time_s / duration_s.max(0.1)).clamp(0.0, 1.0) as f32
 }
 
-#[allow(dead_code)] // Used from dead code (transport_bar); keep for test coverage
 pub(super) fn time_from_pointer_x(rect: egui::Rect, pointer_x: f32, duration_s: f64) -> f64 {
     let width = rect.width().max(1.0);
     let normalized = ((pointer_x - rect.left()) / width).clamp(0.0, 1.0) as f64;

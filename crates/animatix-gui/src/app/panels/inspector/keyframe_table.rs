@@ -49,7 +49,12 @@ pub(super) fn render_dope_sheet(
     let groups = collect_track_groups(track);
 
     if groups.is_empty() {
-        render_empty_state(ui);
+        crate::app::components::empty_state(
+            ui,
+            egui_phosphor::regular::FILM_STRIP,
+            "No keyframes",
+            "Edit properties with keyframe mode enabled",
+        );
         return;
     }
 
@@ -76,40 +81,6 @@ pub(crate) fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
     }
 
     times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────
-
-fn render_empty_state(ui: &mut egui::Ui) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(SPACE_M * 3.0);
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
-                    .size(22.0)
-                    .color(TEXT_MUTED),
-            )
-            .selectable(false),
-        );
-        ui.add_space(SPACE_S);
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new("No keyframes")
-                    .size(FONT_SIZE_S)
-                    .color(TEXT_MUTED),
-            )
-            .selectable(false),
-        );
-        ui.add_space(SPACE_XS);
-        ui.add(
-            egui::Label::new(
-                egui::RichText::new("Edit properties with keyframe mode enabled")
-                    .size(FONT_SIZE_XS)
-                    .color(TEXT_MUTED),
-            )
-            .selectable(false),
-        );
-    });
 }
 
 // ─── Compact Track Row ────────────────────────────────────────────────────

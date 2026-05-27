@@ -67,7 +67,6 @@ pub enum Command {
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
-    #[allow(dead_code)] // Only constructed inside dead code (transport_bar)
     ToggleKeyframeMode,
     EditorChanged,
 

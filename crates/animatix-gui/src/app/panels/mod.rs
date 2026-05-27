@@ -274,26 +274,7 @@ impl WorkspaceViewer<'_> {
             comp.scenes.get(scene_name).map(|s| &s.timeline)
         });
         let Some(timeline) = timeline else {
-            ui.vertical_centered(|ui| {
-                ui.add_space(SPACE_XL * 3.0);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(egui_phosphor::regular::FILM_STRIP)
-                            .size(ROW_L)
-                            .color(TEXT_MUTED),
-                    )
-                    .selectable(false),
-                );
-                ui.add_space(SPACE_M);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new("No timeline loaded")
-                            .size(FONT_SIZE_L)
-                            .color(TEXT_SECONDARY),
-                    )
-                    .selectable(false),
-                );
-            });
+            components::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
             return;
         };
 
