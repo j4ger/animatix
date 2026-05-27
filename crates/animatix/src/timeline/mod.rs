@@ -405,6 +405,20 @@ pub struct Timeline {
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::track::ActionEvent>,
+    /// Viewport declarations for multi-viewport / PiP support.
+    pub viewports: Vec<Viewport>,
+}
+
+/// A viewport defines a rectangular region that displays a scene.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Viewport {
+    pub label: String,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub opacity: f32,
+    pub border: Option<f32>,
+    pub border_color: Option<[f32; 4]>,
+    pub scene: String,
 }
 
 /// Cache entry for frame evaluation results.
@@ -448,6 +462,7 @@ impl Clone for Timeline {
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
+            viewports: self.viewports.clone(),
         }
     }
 }
@@ -490,6 +505,7 @@ impl Timeline {
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
+            viewports: Vec::new(),
         }
     }
 
