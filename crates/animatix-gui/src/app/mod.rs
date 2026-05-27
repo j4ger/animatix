@@ -347,6 +347,29 @@ impl GuiShell {
             if i.key_pressed(egui::Key::S) && !i.modifiers.command {
                 commands.push_back(Command::ToggleEditorSync);
             }
+            // Tool mode switching (V, M, G, S, R, E)
+            if !i.modifiers.command {
+                if i.key_pressed(egui::Key::V) {
+                    self.ui_store.tool_mode = preview::ToolMode::Select;
+                    self.preview_store.preview.status = "Tool: Select".to_string();
+                }
+                if i.key_pressed(egui::Key::G) || i.key_pressed(egui::Key::M) {
+                    self.ui_store.tool_mode = preview::ToolMode::Move;
+                    self.preview_store.preview.status = "Tool: Move".to_string();
+                }
+                if i.key_pressed(egui::Key::S) {
+                    self.ui_store.tool_mode = preview::ToolMode::Scale;
+                    self.preview_store.preview.status = "Tool: Scale".to_string();
+                }
+                if i.key_pressed(egui::Key::R) {
+                    self.ui_store.tool_mode = preview::ToolMode::Rotate;
+                    self.preview_store.preview.status = "Tool: Rotate".to_string();
+                }
+                if i.key_pressed(egui::Key::E) {
+                    self.ui_store.tool_mode = preview::ToolMode::Vertex;
+                    self.preview_store.preview.status = "Tool: Vertex Edit".to_string();
+                }
+            }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
                 && !self.ui_store.selected_actors.is_empty() {

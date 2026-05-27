@@ -1,6 +1,7 @@
 
 pub mod floating_card;
 pub mod grid;
+pub mod property_popup;
 pub mod overlay;
 pub mod selection;
 pub mod time_lens;

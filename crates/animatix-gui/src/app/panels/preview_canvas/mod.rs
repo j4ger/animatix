@@ -508,8 +508,8 @@ impl WorkspaceViewer<'_> {
                             preview_rect, self.scene_dimensions, preview_rect.size(),
                             self.preview.preview_zoom, self.preview.preview_pan,
                         );
-                        preview::floating_card::show_floating_card(
-                            ui, actor, &props, screen_pos, self.commands,
+                        preview::property_popup::show_property_popup(
+                            ui, actor, &props, screen_pos, self.commands, is_dragging,
                         );
                     }
                 }

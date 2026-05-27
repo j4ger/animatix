@@ -1,4 +1,5 @@
 use super::super::*;
+use egui::Align2;
 
 impl WorkspaceViewer<'_> {
     /// Render cursor feedback for the preview.
@@ -253,6 +254,112 @@ impl WorkspaceViewer<'_> {
                     self.preview.preview_zoom,
                     self.preview.preview_pan,
                 );
+            }
+
+            // ── Measurement lines during drag ──
+            if is_dragging {
+                let measurement_color = ACCENT_BLUE;
+                let text_color = TEXT_PRIMARY;
+                let font = egui::FontId::monospace(FONT_SIZE_XS);
+
+                match &self.drag_state {
+                    DragState::Move { primary, actors, start_scene } => {
+                        if let Some(props) = self.get_actor_props(primary) {
+                            let start_screen = preview::scene_to_screen(
+                                kurbo::Point::new(start_scene.x, start_scene.y),
+                                preview_rect, self.scene_dimensions, preview_rect.size(),
+                                self.preview.preview_zoom, self.preview.preview_pan,
+                            );
+                            let current_screen = preview::scene_to_screen(
+                                kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+                                preview_rect, self.scene_dimensions, preview_rect.size(),
+                                self.preview.preview_zoom, self.preview.preview_pan,
+                            );
+
+                            // Horizontal measurement line
+                            let y = (start_screen.y + current_screen.y) / 2.0;
+                            ui.painter().line_segment(
+                                [Pos2::new(start_screen.x.min(current_screen.x), y), Pos2::new(start_screen.x.max(current_screen.x), y)],
+                                Stroke::new(1.0, measurement_color),
+                            );
+                            let dx = props.position[0] - start_scene.x as f32;
+                            ui.painter().text(
+                                Pos2::new((start_screen.x + current_screen.x) / 2.0, y - 8.0),
+                                Align2::CENTER_BOTTOM,
+                                format!("Δx: {:+.0}", dx),
+                                font.clone(),
+                                text_color,
+                            );
+
+                            // Vertical measurement line
+                            let x = (start_screen.x + current_screen.x) / 2.0;
+                            ui.painter().line_segment(
+                                [Pos2::new(x, start_screen.y.min(current_screen.y)), Pos2::new(x, start_screen.y.max(current_screen.y))],
+                                Stroke::new(1.0, measurement_color),
+                            );
+                            let dy = props.position[1] - start_scene.y as f32;
+                            ui.painter().text(
+                                Pos2::new(x + 4.0, (start_screen.y + current_screen.y) / 2.0),
+                                Align2::LEFT_CENTER,
+                                format!("Δy: {:+.0}", dy),
+                                font.clone(),
+                                text_color,
+                            );
+                        }
+                    }
+                    DragState::Scale { actor, start_size, .. } => {
+                        if let Some(props) = self.get_actor_props(actor) {
+                            let screen_pos = preview::scene_to_screen(
+                                kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+                                preview_rect, self.scene_dimensions, preview_rect.size(),
+                                self.preview.preview_zoom, self.preview.preview_pan,
+                            );
+                            let bottom_right = preview::scene_to_screen(
+                                kurbo::Point::new(
+                                    props.position[0] as f64 + props.size[0] as f64 / 2.0,
+                                    props.position[1] as f64 + props.size[1] as f64 / 2.0,
+                                ),
+                                preview_rect, self.scene_dimensions, preview_rect.size(),
+                                self.preview.preview_zoom, self.preview.preview_pan,
+                            );
+                            // Width label at bottom edge
+                            ui.painter().text(
+                                Pos2::new(screen_pos.x, bottom_right.y + 12.0),
+                                Align2::CENTER_TOP,
+                                format!("w: {:.0} → {:.0}", start_size[0], props.size[0]),
+                                font.clone(),
+                                text_color,
+                            );
+                            // Height label at right edge
+                            ui.painter().text(
+                                Pos2::new(bottom_right.x + 4.0, screen_pos.y),
+                                Align2::LEFT_CENTER,
+                                format!("h: {:.0} → {:.0}", start_size[1], props.size[1]),
+                                font.clone(),
+                                text_color,
+                            );
+                        }
+                    }
+                    DragState::Rotate { actor, start_rotation, .. } => {
+                        if let Some(props) = self.get_actor_props(actor) {
+                            let screen_pos = preview::scene_to_screen(
+                                kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+                                preview_rect, self.scene_dimensions, preview_rect.size(),
+                                self.preview.preview_zoom, self.preview.preview_pan,
+                            );
+                            let start_deg = start_rotation.to_degrees();
+                            let current_deg = props.rotation.to_degrees();
+                            ui.painter().text(
+                                Pos2::new(screen_pos.x, screen_pos.y - props.size[1] / 2.0 - 16.0),
+                                Align2::CENTER_BOTTOM,
+                                format!("{:.0}° → {:.0}°", start_deg, current_deg),
+                                font.clone(),
+                                text_color,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
 
             // Ghost Edit / Onion Skin: show outlines at prev/next keyframe times
