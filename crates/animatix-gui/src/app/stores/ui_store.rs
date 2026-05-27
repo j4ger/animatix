@@ -29,6 +29,8 @@ pub struct UiStore {
     pub nudge_step_px: f32,
     pub nudge_step_shift_px: f32,
     pub rotation_snap_degrees: f32,
+    /// Action palette open state.
+    pub action_palette_open: bool,
     pub pending_commands: CommandQueue,
 }
 
@@ -58,6 +60,7 @@ impl UiStore {
             nudge_step_px: 1.0,
             nudge_step_shift_px: 10.0,
             rotation_snap_degrees: 15.0,
+            action_palette_open: false,
             pending_commands: CommandQueue::default(),
         }
     }

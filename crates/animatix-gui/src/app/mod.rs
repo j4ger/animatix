@@ -369,6 +369,9 @@ impl GuiShell {
                     self.ui_store.tool_mode = preview::ToolMode::Vertex;
                     self.preview_store.preview.status = "Tool: Vertex Edit".to_string();
                 }
+                if i.key_pressed(egui::Key::A) && !self.ui_store.selected_actors.is_empty() {
+                    self.ui_store.action_palette_open = true;
+                }
             }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
@@ -432,6 +435,11 @@ impl GuiShell {
         // Export dialog overlay
         if self.export_store.export_dialog_open {
             self.export_dialog_ui(ui);
+        }
+
+        // Action palette overlay
+        if self.ui_store.action_palette_open {
+            self.action_palette_ui(ui);
         }
     }
 

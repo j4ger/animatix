@@ -1,3 +1,4 @@
+pub mod action_palette;
 pub mod export_dialog;
 pub mod toolbar;
 pub mod transport_bar;
