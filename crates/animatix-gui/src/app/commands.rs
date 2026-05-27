@@ -16,7 +16,9 @@ pub enum Command {
     ToggleExpandDir(PathBuf),
 
     // ── UI / Panels ───────────────────────────────────────────────────
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     ShowInspector,
+    #[allow(dead_code)]
     ToggleDiagnosticsPanel,
     OpenExportDialog,
     ScrollToLine(usize),
@@ -29,11 +31,17 @@ pub enum Command {
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
+    #[allow(dead_code)]
     PrevScene,
+    #[allow(dead_code)]
     NextScene,
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     AddScene,
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     DeleteScene(String),
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     RenameScene { old_name: String, new_name: String },
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
@@ -54,10 +62,12 @@ pub enum Command {
     SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
     DeleteKeyframe { actor: String, property: String, time_s: f64 },
     /// Move a keyframe to a new time. Phase 4b: emitted by timeline drag.
+    #[allow(dead_code)] // Handler wired; dispatch not yet plumbed
     MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
+    #[allow(dead_code)] // Only constructed inside dead code (transport_bar)
     ToggleKeyframeMode,
     EditorChanged,
 

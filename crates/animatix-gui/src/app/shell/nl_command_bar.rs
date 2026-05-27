@@ -8,6 +8,7 @@ use crate::app::design_tokens::*;
 use egui::{Color32, FontId, RichText, Vec2};
 
 /// Renders the NL command bar at the top of the window.
+#[allow(dead_code)]
 pub(crate) fn nl_command_bar_ui(
     ui: &mut egui::Ui,
     _commands: &mut CommandQueue,

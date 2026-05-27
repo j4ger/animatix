@@ -34,7 +34,9 @@ use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
 pub struct RowResponse {
     pub row_clicked: bool,
     pub chevron_clicked: bool,
+    #[allow(dead_code)]
     pub row_double_clicked: bool,
+    #[allow(dead_code)]
     pub row_secondary_clicked: bool,
     pub drag_started: bool,
     pub hovered: bool,
@@ -513,6 +515,7 @@ pub fn icon_button_colored(
 ///     // …
 /// }
 /// ```
+#[allow(dead_code)]
 pub fn badge_button(
     ui: &mut egui::Ui,
     icon: &str,
@@ -939,6 +942,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
 /// hover gets a subtle hover background. All buttons show tooltips.
 ///
 /// Returns the click [`Response`].
+#[allow(dead_code)]
 pub fn toolbar_toggle_button(
     ui: &mut egui::Ui,
     icon: &'static str,
@@ -1034,6 +1038,7 @@ pub fn toolbar_toggle_button(
 ///
 /// Unlike [`toolbar_toggle_button`], this never shows an active accent state.
 /// It uses a subtle background when the action is available and a hover highlight.
+#[allow(dead_code)]
 pub fn toolbar_action_button(
     ui: &mut egui::Ui,
     icon: &'static str,
@@ -1115,6 +1120,7 @@ pub fn toolbar_action_button(
 }
 
 /// A small vertical separator for toolbar button groups.
+#[allow(dead_code)]
 pub fn toolbar_separator(ui: &mut egui::Ui) {
     let height = ROW_M - 4.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());

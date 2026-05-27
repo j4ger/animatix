@@ -5,6 +5,7 @@ use egui::{Vec2, Pos2, Stroke, RichText};
 
 /// A translucent floating card that appears next to a selected actor
 /// on the preview canvas, offering direct manipulation of key properties.
+#[allow(dead_code)]
 pub fn show_floating_card(
     ui: &mut egui::Ui,
     actor: &str,

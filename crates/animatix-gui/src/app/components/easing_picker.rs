@@ -7,6 +7,7 @@ use crate::app::design_tokens::*;
 /// [`animatix::easing::EASING_REGISTRY`] with a 40×20px mini curve preview.
 ///
 /// Returns the response from the ComboBox so callers can check `.changed()`.
+#[allow(dead_code)] // Reusable widget — callers not yet wired
 pub fn easing_picker(ui: &mut egui::Ui, id: egui::Id, easing: &mut Easing) -> egui::Response {
     let mut response = None;
 
@@ -65,6 +66,7 @@ pub fn easing_picker(ui: &mut egui::Ui, id: egui::Id, easing: &mut Easing) -> eg
     response.unwrap_or_else(|| ui.allocate_response(Vec2::ZERO, Sense::hover()))
 }
 
+#[allow(dead_code)]
 fn easing_display_name(easing: Easing) -> &'static str {
     match easing {
         Easing::Linear => "Linear",
@@ -78,6 +80,7 @@ fn easing_display_name(easing: Easing) -> &'static str {
     }
 }
 
+#[allow(dead_code)]
 fn parse_easing_id(id: &str) -> Option<Easing> {
     match id {
         "linear" => Some(Easing::Linear),

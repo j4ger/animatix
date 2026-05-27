@@ -73,7 +73,6 @@ impl WorkspaceViewer<'_> {
     }
 
     pub(super) fn preview_ui(&mut self, ui: &mut egui::Ui) {
-        const PLAYING_TEXT: Color32 = crate::app::design_tokens::PLAYING_TEXT;
 
         panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
@@ -599,15 +598,15 @@ impl WorkspaceViewer<'_> {
                     ui.separator();
 
                     // Overlay toggles
-                    let mut grid = self.preview.overlay.show_grid;
+                    let grid = self.preview.overlay.show_grid;
                     if ui.selectable_label(grid, "Grid").clicked() {
                         self.preview.overlay.show_grid = !grid;
                     }
-                    let mut guides = self.preview.overlay.show_guides;
+                    let guides = self.preview.overlay.show_guides;
                     if ui.selectable_label(guides, "Guides").clicked() {
                         self.preview.overlay.show_guides = !guides;
                     }
-                    let mut labels = self.preview.overlay.show_actor_labels;
+                    let labels = self.preview.overlay.show_actor_labels;
                     if ui.selectable_label(labels, "Labels").clicked() {
                         self.preview.overlay.show_actor_labels = !labels;
                     }

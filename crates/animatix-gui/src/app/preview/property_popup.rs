@@ -9,8 +9,11 @@ use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PopupTab {
     Transform,
+    #[allow(dead_code)] // Future tab — not yet wired
     Style,
+    #[allow(dead_code)] // Future tab — not yet wired
     Shape,
+    #[allow(dead_code)] // Future tab — not yet wired
     Text,
 }
 
@@ -241,7 +244,7 @@ fn popup_property_row(
     property: &str,
     label: &str,
     value: &str,
-    commands: &mut CommandQueue,
+    _commands: &mut CommandQueue,
     has_keyframe: bool,
     current_time_s: f64,
 ) {

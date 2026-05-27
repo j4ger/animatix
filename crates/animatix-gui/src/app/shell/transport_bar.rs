@@ -10,6 +10,7 @@ use egui::{Align, Align2, Color32, FontId, RichText, Stroke, Vec2};
 ///
 /// Single-row layout: transport controls, scrubber, time, status.
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 pub(crate) fn transport_bar_ui(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
@@ -435,6 +436,7 @@ pub(crate) fn transport_bar_ui(
 }
 
 /// Paint the transport bar's full-width timeline scrubber with keyframe markers.
+#[allow(dead_code)]
 fn paint_transport_scrubber(
     ui: &mut egui::Ui,
     current_time_s: &mut f64,
@@ -730,6 +732,7 @@ fn paint_transport_scrubber(
     false
 }
 
+#[allow(dead_code)]
 fn transition_stripe_color(id: &str) -> Color32 {
     let palette = [
         transition_stripe_1(), transition_stripe_2(), transition_stripe_3(),
@@ -739,6 +742,7 @@ fn transition_stripe_color(id: &str) -> Color32 {
     palette[idx]
 }
 
+#[allow(dead_code)]
 fn transition_type_label(id: &str) -> &'static str {
     animatix::transition_registry::display_name(id)
 }

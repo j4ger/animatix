@@ -14,7 +14,7 @@ impl GuiShell {
         let toolbar_bg = BG_BASE;
         let border_color = BG_WIDGET;
         let text_primary = TEXT_PRIMARY;
-        let text_muted = TEXT_MUTED;
+        let _text_muted = TEXT_MUTED;
 
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)

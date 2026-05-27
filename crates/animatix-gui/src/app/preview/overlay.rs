@@ -15,6 +15,7 @@ pub struct PreviewOverlay {
     /// Show actor name labels near selected actors.
     pub show_actor_labels: bool,
     /// Show safe-area overlay (title-safe and action-safe regions).
+    #[allow(dead_code)]
     pub show_safe_area: bool,
     /// Show snap guides during drag.
     pub show_snap_guides: bool,

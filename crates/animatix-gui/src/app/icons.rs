@@ -11,6 +11,7 @@ pub use animatix::primitives::{actor_kind_meta, actor_kind_registry};
 // ── Icon + Label pair ───────────────────────────────────────────────────
 
 /// Concrete icon string + human label for use in egui widgets.
+#[allow(dead_code)]
 pub struct ActorIcon {
     pub icon: &'static str,
     pub label: &'static str,
@@ -19,6 +20,7 @@ pub struct ActorIcon {
 // ── Primary API ─────────────────────────────────────────────────────────
 
 /// Get the Phosphor icon and label for any actor kind.
+#[allow(dead_code)]
 pub fn actor_icon(kind: ActorKindId) -> ActorIcon {
     let meta = actor_kind_meta(kind);
     ActorIcon {
@@ -67,6 +69,7 @@ pub fn shape_type_icon(shape: ShapeType) -> &'static str {
 ///
 /// Derived directly from `actor_kind_registry()` — no hardcoded indices.
 /// `meta.advanced == true` items appear in a submenu.
+#[allow(dead_code)]
 pub fn actor_palette() -> &'static [ActorKindMeta] {
     actor_kind_registry()
 }

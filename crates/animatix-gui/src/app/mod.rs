@@ -115,6 +115,7 @@ pub(crate) struct PreviewPaneState {
 #[derive(Default)]
 pub(crate) struct PanelState {
     /// When set, the scene list panel should open the transition editor for this scene.
+    #[allow(dead_code)]
     pub open_transition_editor: Option<String>,
 }
 

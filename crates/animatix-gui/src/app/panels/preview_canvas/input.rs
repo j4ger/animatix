@@ -867,7 +867,7 @@ impl WorkspaceViewer<'_> {
                             }
                         }
                     }
-                    DragState::Scale { actor, start_size, start_position, start_rotation, .. } => {
+                    DragState::Scale { actor, start_size, start_position, start_rotation: _, .. } => {
                         if let Some(current_props) = self.get_actor_props(actor) {
                             // Check size changed
                             if !tl.has_keyframe_at(actor, "size", time_ms) && current_props.size != *start_size {

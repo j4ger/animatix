@@ -263,7 +263,7 @@ impl WorkspaceViewer<'_> {
                 let font = egui::FontId::monospace(FONT_SIZE_XS);
 
                 match &self.drag_state {
-                    DragState::Move { primary, actors, start_scene } => {
+                    DragState::Move { primary, actors: _, start_scene } => {
                         if let Some(props) = self.get_actor_props(primary) {
                             let start_screen = preview::scene_to_screen(
                                 kurbo::Point::new(start_scene.x, start_scene.y),

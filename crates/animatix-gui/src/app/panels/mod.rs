@@ -14,6 +14,7 @@ fn default_actor_type() -> &'static str {
         .unwrap_or("Rect")
 }
 
+#[allow(dead_code)]
 fn transition_type_label(id: &str) -> &'static str {
     animatix::transition_registry::display_name(id)
 }
@@ -51,7 +52,7 @@ use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
-use egui::{Color32, Pos2, RichText, Stroke, Vec2};
+use egui::{Pos2, RichText, Stroke, Vec2};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -62,7 +63,9 @@ pub(crate) enum SidebarTab {
 }
 
 pub(crate) struct WorkspaceViewer<'a> {
+    #[allow(dead_code)]
     pub(super) scene_names: Vec<String>,
+    #[allow(dead_code)]
     pub(super) import_aliases: Vec<String>,
     pub(super) active_scene: Option<String>,
     pub(super) is_composition: bool,
@@ -72,6 +75,7 @@ pub(crate) struct WorkspaceViewer<'a> {
     pub(super) file_tree: &'a [FileTreeEntry],
     pub(super) editor: &'a mut EditorBuffer,
     pub(super) preview: &'a mut PreviewPaneState,
+    #[allow(dead_code)]
     pub(super) panel_state: &'a mut crate::app::PanelState,
     pub(super) diagnostics: &'a [Diagnostic],
     pub(super) preview_texture_id: Option<egui::TextureId>,

@@ -281,17 +281,6 @@ impl GuiShell {
             Command::ScrollToLine(line) => {
                 self.document_store.editor.focus_diagnostic(line, 0);
             }
-            Command::MoveKeyframe { actor, property, old_time_s, new_time_s } => {
-                // Placeholder: actual keyframe move will be implemented in a follow-up.
-                // For now, scrub to target time.
-                self.preview_store.preview.current_time_s = new_time_s;
-                self.preview_store.preview.clamp_time();
-                self.preview_store.preview_dirty = true;
-                self.preview_store.preview.status = format!(
-                    "Moved keyframe {}:{} from {:.1}s → {:.1}s",
-                    actor, property, old_time_s, new_time_s
-                );
             }
-        }
     }
 }
