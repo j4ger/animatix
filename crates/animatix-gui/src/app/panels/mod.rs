@@ -155,6 +155,7 @@ impl WorkspaceViewer<'_> {
             composition: self.composition,
             active_scene: self.active_scene.as_deref(),
             commands: self.commands,
+            collapsed_actors: self.collapsed_actors,
         };
         timeline::timeline_ui(&mut ctx, ui);
     }

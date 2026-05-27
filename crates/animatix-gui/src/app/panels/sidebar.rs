@@ -15,6 +15,9 @@ use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use animatix::timeline::{Timeline, SceneDimensions, TrackAccessor};
 
+/// Id used to persist the explorer filter string in egui's data store.
+const EXPLORER_FILTER_ID: &str = "explorer_filter";
+
 pub(crate) struct SidebarViewer<'a> {
     pub active_scene: Option<&'a str>,
     pub is_composition: bool,
@@ -55,6 +58,10 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
         if prev_tab != Some(active_tab) {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
             ui.data_mut(|d| d.insert_temp(prev_tab_id, active_tab));
+            // Clear explorer filter when switching away from the Explorer tab
+            if active_tab == SidebarTab::Layers {
+                ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
+            }
         }
         let offset = ui.ctx().animate_value_with_time(content_offset_id, 0.0, 0.12);
         if offset > 0.01 {
@@ -88,9 +95,88 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
 }
 
 fn explorer_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
+    // ── Filter input ────────────────────────────────────────────────────────
+    let filter_id = egui::Id::new(EXPLORER_FILTER_ID);
+    let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
+
+    ui.horizontal(|ui| {
+        ui.add_space(SPACE_S);
+        let response = ui.add(
+            egui::TextEdit::singleline(&mut filter)
+                .hint_text("Filter files…")
+                .desired_width(f32::INFINITY),
+        );
+        if response.changed() {
+            ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
+        }
+        // If the field was cleared interactively, persist the empty string so
+        // the stored value stays in sync (clearing is distinct from never-set).
+        if filter.is_empty() && response.lost_focus() {
+            ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
+        }
+    });
+    ui.add_space(SPACE_S);
+
+    let filter_lower = filter.to_lowercase();
+    let has_filter = !filter_lower.is_empty();
+
+    // ── Pre-compute visibility ──────────────────────────────────────────────
+    // When a filter is active we build a `show` mask.  The rules are:
+    //   1. An entry is visible if its name contains the filter (case-insensitive).
+    //   2. If a directory is visible (by name), all its descendants are visible.
+    //   3. If any descendant is visible, the ancestor directory is also visible.
+    // When no filter is active every entry passes.
+    let show = if has_filter {
+        let len = ctx.file_tree.len();
+        let mut show = vec![false; len];
+
+        // --- Pass 1: direct name match ---
+        for (i, entry) in ctx.file_tree.iter().enumerate() {
+            show[i] = entry.name.to_lowercase().contains(&filter_lower);
+        }
+
+        // --- Pass 2 (forward): expand matching directories to all children ---
+        for i in 0..len {
+            if show[i] && ctx.file_tree[i].is_dir {
+                let parent_depth = ctx.file_tree[i].depth;
+                for j in (i + 1)..len {
+                    if ctx.file_tree[j].depth <= parent_depth {
+                        break;
+                    }
+                    show[j] = true;
+                }
+            }
+        }
+
+        // --- Pass 3 (backward): show ancestors of any visible entry ---
+        for i in (0..len).rev() {
+            if ctx.file_tree[i].is_dir {
+                let parent_depth = ctx.file_tree[i].depth;
+                for j in (i + 1)..len {
+                    if ctx.file_tree[j].depth <= parent_depth {
+                        break;
+                    }
+                    if show[j] {
+                        show[i] = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        show
+    } else {
+        vec![true; ctx.file_tree.len()]
+    };
+
+    // ── Render visible tree entries ─────────────────────────────────────────
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-        for entry in ctx.file_tree {
+        for (i, entry) in ctx.file_tree.iter().enumerate() {
+            if !show[i] {
+                continue;
+            }
+
             let is_selected = !entry.is_dir && entry.path == ctx.current_file;
             let is_expanded = entry.is_dir && ctx.expanded_dirs.contains(&entry.path);
             let has_children = entry.is_dir;

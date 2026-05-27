@@ -1,5 +1,7 @@
 //! Timeline panel: ruler, playback strip, actor tracks, keyframes, and range slider.
 
+use std::collections::HashSet;
+
 use crate::app::commands::CommandQueue;
 use crate::app::panels::panel_frame;
 use crate::app::panels::timeline_panel;
@@ -13,6 +15,7 @@ pub(crate) struct TimelineViewer<'a> {
     pub composition: Option<&'a Composition>,
     pub active_scene: Option<&'a str>,
     pub commands: &'a mut CommandQueue,
+    pub collapsed_actors: &'a mut HashSet<String>,
 }
 
 pub(crate) fn timeline_ui(ctx: &mut TimelineViewer<'_>, ui: &mut egui::Ui) {
@@ -30,6 +33,7 @@ pub(crate) fn timeline_ui(ctx: &mut TimelineViewer<'_>, ui: &mut egui::Ui) {
             ctx.composition,
             ctx.active_scene,
             ctx.commands,
+            ctx.collapsed_actors,
         );
     });
 }

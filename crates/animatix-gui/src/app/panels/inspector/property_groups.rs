@@ -362,13 +362,13 @@ pub(crate) fn render_property_row(
         ui.painter().rect_filled(input_rect, RADIUS_S, BG_WIDGET);
     }
 
-    // Flat widget styling: remove native widget backgrounds for DragValue/Slider/TextEdit
+    // Flat widget styling: remove extraneous widget chrome but keep visible input area
     let flat_style = {
         let mut s = (**ui.style()).clone();
         s.visuals.extreme_bg_color = Color32::TRANSPARENT;
-        s.visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
+        s.visuals.widgets.inactive.bg_fill = BG_WIDGET;   // visible background to show it's editable
         s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-        s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
+        s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT; // hover handled externally
         s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
         s.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
         s.visuals.widgets.active.bg_stroke = Stroke::NONE;
