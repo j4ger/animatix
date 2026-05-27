@@ -223,6 +223,54 @@ use super::{
     }
 
     #[test]
+    fn clamp_time_clamps_negative_to_zero() {
+        let mut preview = super::PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = -1.0;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 0.0);
+    }
+
+    #[test]
+    fn clamp_time_clamps_over_duration_to_max() {
+        let mut preview = super::PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = 10.0;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 5.0);
+    }
+
+    #[test]
+    fn clamp_time_uses_minimum_duration_of_point_one() {
+        let mut preview = super::PreviewPaneState::new(0.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = 5.0;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 0.1);
+    }
+
+    #[test]
+    fn clamp_time_preserves_valid_time() {
+        let mut preview = super::PreviewPaneState::new(10.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = 3.5;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 3.5);
+    }
+
+    #[test]
+    fn clamp_time_at_boundary_zero() {
+        let mut preview = super::PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = 0.0;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 0.0);
+    }
+
+    #[test]
+    fn clamp_time_at_boundary_max() {
+        let mut preview = super::PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        preview.playback.current_time_s = 5.0;
+        preview.clamp_time();
+        assert_eq!(preview.playback.current_time_s, 5.0);
+    }
+
+    #[test]
     fn clear_render_error_preserves_newer_non_render_failure_when_render_diagnostic_is_stale() {
         let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"));
         shell.set_render_error("preview failed".to_string());
