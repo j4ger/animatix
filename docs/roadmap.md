@@ -6,30 +6,6 @@
 
 ---
 
-## Phase 4a — Source Editing Primitives
-
-| Item | What | Files | Effort |
-|------|------|-------|--------|
-| **Keyframe time-shift source edit** | `SourceEdit::MoveKeyframeTime { actor, property, old_time_s, new_time_s }` — finds keyframe block, updates time expression. | `source_edit/keyframe_edits.rs` | 1 session |
-| **Per-property keyframe query API** | `TrackAccessor::has_keyframe_at(property, time_ms) -> bool` and `list_keyframes(property) -> Vec<u64>`. | `timeline/track.rs` | ½ session |
-| **Action metadata in timeline** | Store action blocks (verb, target, duration, easing, start_time) in `AnimationTrack` or a new `ActionTrack` so the GUI can render them. | `timeline/build.rs`, `timeline/track.rs` | 2 sessions |
-
----
-
-## Phase 4b — Draggable Keyframes & Actions
-
-Blocked by Phase 4a.
-
-| Item | What | Files | Effort |
-|------|------|-------|--------|
-| **Draggable keyframe diamonds** | Click-drag keyframe diamonds left/right in timeline. Snap to other KFs, ruler marks, 0.1s increments. Visual feedback: lifted diamond, vertical guide, tooltip (`2.0s → 3.2s`). | `app/panels/timeline_panel.rs` | 2 sessions |
-| **Action blocks in timeline** | Colored horizontal bars on actor tracks (entrance=green, motion=blue, exit=red, effect=amber). Drag edges to resize duration, drag body to move start time. | `app/panels/timeline_panel.rs` | 2 sessions |
-| **Per-property diamond toggles** | In property popup: filled ◆ = keyframe exists at playhead, hollow ○ = no keyframe. Click to toggle. Hover tooltip shows value + easing. | `app/preview/property_popup.rs` | 1 session |
-| **Auto-keyframe on canvas drag** | When canvas drag ends, check if property changed; if so and no keyframe exists at current time, create one automatically + show undo toast. | `app/panels/preview_canvas/input.rs` | 1 session |
-| **Multi-select keyframes** | `Shift+click` multiple diamonds, box-select by dragging empty area. Drag selection together. `Alt+drag` to duplicate. | `app/panels/timeline_panel.rs` | 1 session |
-
----
-
 ## Phase 5 — Multi-Viewport / PiP
 
 | Item | What | Files | Effort | Blocker |
@@ -70,8 +46,7 @@ Blocked by Phase 4a.
 
 ## Order
 
-1. **Phase 4a** → 4b (sequential, no external blockers)
-2. **Phase 8** (parallel with 4b, no blockers)
-3. **Phase 5** (after 4b)
-4. **Phase 7** (external AI service required)
-5. **Phase 6** (start after syntax stabilizes)
+1. **Phase 8** (no blockers — can do anytime)
+2. **Phase 5** (after current work)
+3. **Phase 7** (external AI service required)
+4. **Phase 6** (start after syntax stabilizes)
