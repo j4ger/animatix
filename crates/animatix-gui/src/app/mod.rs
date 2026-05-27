@@ -372,6 +372,9 @@ impl GuiShell {
                 if i.key_pressed(egui::Key::A) && !self.ui_store.selected_actors.is_empty() {
                     self.ui_store.action_palette_open = true;
                 }
+                if i.key_pressed(egui::Key::Slash) && !i.modifiers.command {
+                    self.ui_store.shortcuts_open = true;
+                }
             }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
@@ -440,6 +443,11 @@ impl GuiShell {
         // Action palette overlay
         if self.ui_store.action_palette_open {
             self.action_palette_ui(ui);
+        }
+
+        // Shortcut cheat sheet overlay
+        if self.ui_store.shortcuts_open {
+            self.shortcut_cheat_sheet_ui(ui);
         }
     }
 

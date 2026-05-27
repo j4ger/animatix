@@ -31,6 +31,8 @@ pub struct UiStore {
     pub rotation_snap_degrees: f32,
     /// Action palette open state.
     pub action_palette_open: bool,
+    /// Shortcut cheat sheet open state.
+    pub shortcuts_open: bool,
     pub pending_commands: CommandQueue,
 }
 
@@ -61,6 +63,7 @@ impl UiStore {
             nudge_step_shift_px: 10.0,
             rotation_snap_degrees: 15.0,
             action_palette_open: false,
+            shortcuts_open: false,
             pending_commands: CommandQueue::default(),
         }
     }
