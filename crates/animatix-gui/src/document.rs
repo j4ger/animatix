@@ -91,7 +91,7 @@ impl DocumentSession {
     /// not already available. Inspector edits mutate the AST directly and build
     /// the index from the mutated AST without re-parsing.
     pub fn rebuild_source_index(&mut self) {
-        if let Ok((raw_statements, _, _)) = self.load_program() {
+        if let Ok((raw_statements, _, _, _)) = self.load_program() {
             self.source_index = Some(SourceIndex::build(&raw_statements));
         }
     }
