@@ -26,6 +26,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Comment(..) => "comment",
         Stmt::Scene { .. } => "scene declaration",
         Stmt::Play { .. } => "play statement",
+        Stmt::ViewportDecl { .. } => "viewport declaration",
     }
 }
 

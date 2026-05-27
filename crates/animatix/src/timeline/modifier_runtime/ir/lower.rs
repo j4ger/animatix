@@ -115,7 +115,8 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::ComponentAction { .. }
         | Stmt::Config { .. }
         | Stmt::Scene { .. }
-        | Stmt::Play { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),
+        | Stmt::Play { .. }
+        | Stmt::ViewportDecl { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),
     }
 }
 

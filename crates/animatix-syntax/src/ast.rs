@@ -709,6 +709,27 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
+    // === Viewports ===
+    /// Viewport declaration: `viewport Name at (0, 0) size (1920, 1080) scene "SceneName"`
+    ViewportDecl {
+        /// Viewport label.
+        label: String,
+        /// Position (x, y).
+        position: Expr,
+        /// Size (width, height).
+        size: Expr,
+        /// Opacity (0.0–1.0).
+        opacity: Option<Expr>,
+        /// Border width.
+        border: Option<Expr>,
+        /// Border color.
+        border_color: Option<Expr>,
+        /// Assigned scene name.
+        scene: String,
+        /// Source span.
+        span: Option<Span>,
+    },
+
     // === Comments ===
     /// Standalone comment statement.
     Comment(String, Option<Span>),
