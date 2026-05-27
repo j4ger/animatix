@@ -61,12 +61,12 @@ impl GuiShell {
             egui::Sense::click(),
         );
         if backdrop_response.clicked() {
-            self.ui_store.action_palette_open = false;
+            self.ui_store.view.action_palette_open = false;
         }
 
         // Close on Escape
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.action_palette_open = false;
+            self.ui_store.view.action_palette_open = false;
         }
 
         // Centered palette
@@ -102,14 +102,14 @@ impl GuiShell {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(egui_phosphor::regular::X).clicked() {
-                    self.ui_store.action_palette_open = false;
+                    self.ui_store.view.action_palette_open = false;
                 }
             });
         });
         content.add_space(SPACE_M);
 
         // Selected actor info
-        let selected = self.ui_store.selected_actors.iter().next().cloned();
+        let selected = self.ui_store.selection.selected_actors.iter().next().cloned();
         if let Some(ref actor) = selected {
             content.label(
                 RichText::new(format!("Target: {}", actor))
@@ -171,7 +171,7 @@ impl GuiShell {
                     if btn_resp.clicked() {
                         if let Some(ref actor) = selected {
                             self.apply_action(verb, actor);
-                            self.ui_store.action_palette_open = false;
+                            self.ui_store.view.action_palette_open = false;
                         }
                     }
 
@@ -189,7 +189,7 @@ impl GuiShell {
             return;
         };
 
-        let time_s = self.preview_store.preview.current_time_s;
+        let time_s = self.preview_store.preview.playback.current_time_s;
         let time_ms = (time_s * 1000.0) as u64;
 
         // Find the keyframe block that contains this time

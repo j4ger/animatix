@@ -139,7 +139,7 @@ pub(crate) fn timeline_panel_ui(
     _active_scene: Option<&str>,
     commands: &mut CommandQueue,
 ) {
-    let duration_s = preview.duration_s.max(0.1);
+    let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
 
     // ── Keyframe drag state ──
@@ -166,302 +166,17 @@ pub(crate) fn timeline_panel_ui(
         Vec::new()
     };
 
-    // ── Vertical scroll area for all tracks ──
-    let total_track_count = {
-        let mut count = 0usize;
-        if composition.is_some() {
-            count += 1; // scene track
-        }
-        count += actor_labels.len();
-        count
-    };
-    let total_content_height = PLAYBACK_STRIP_HEIGHT
-        + RULER_HEIGHT
-        + total_track_count as f32 * TRACK_ROW_HEIGHT
-        + RANGE_HEIGHT;
-
-    let scroll_id = panel_id.with("scroll");
+    // Allocate the full timeline panel rect (outer frame)
     let (scroll_rect, _scroll_response) = ui.allocate_exact_size(
         Vec2::new(available, ui.available_height().max(60.0)),
         Sense::hover(),
     );
-    let mut scroll_offset: f32 = ui.data(|d| d.get_temp::<f32>(scroll_id)).unwrap_or(0.0);
-    let max_scroll = (total_content_height - scroll_rect.height()).max(0.0);
-
-    // Clip to the scroll area
-    let painter = ui.painter_at(scroll_rect);
-    let _clip_rect = scroll_rect;
-
-    // ── Helper to check if a y range is visible ──
-    let visible = |y_top: f32, y_bot: f32| -> bool {
-        y_bot >= scroll_rect.top() && y_top <= scroll_rect.bottom()
-    };
-
-    // Track the y position within the virtual canvas
-    let mut virtual_y = scroll_rect.top() - scroll_offset;
 
     // ── Helper: pixel X for a given time ──
     let time_to_x = |t: f64| -> f32 {
         let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
         bar_origin_x + frac * bar_width
     };
-
-    // ── Playback strip ──
-    {
-        let strip_top = virtual_y;
-        let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
-        virtual_y = strip_bot;
-
-        if visible(strip_top, strip_bot) {
-            // Background
-            painter.rect_filled(
-                Rect::from_min_max(
-                    Pos2::new(scroll_rect.left(), strip_top),
-                    Pos2::new(scroll_rect.right(), strip_bot),
-                ),
-                0.0,
-                BG_BASE,
-            );
-
-            // Layout: controls on left, time on right
-            let mut cx = scroll_rect.left() + SPACE_S;
-            let cy = (strip_top + strip_bot) / 2.0;
-
-            // Go to start
-            let start_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-            let start_id = ui.id().with("tl_start");
-            let start_resp = ui.interact(start_btn_rect, start_id, Sense::click());
-            painter.text(
-                start_btn_rect.center(),
-                Align2::CENTER_CENTER,
-                egui_phosphor::regular::SKIP_BACK,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                if start_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
-            );
-            if start_resp.clicked() {
-                commands.push_back(Command::ScrubTo(0.0));
-            }
-            cx += 22.0;
-
-            // Previous keyframe
-            let prev_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-            let prev_id = ui.id().with("tl_prev");
-            let prev_resp = ui.interact(prev_btn_rect, prev_id, Sense::click());
-            painter.text(
-                prev_btn_rect.center(),
-                Align2::CENTER_CENTER,
-                egui_phosphor::regular::CARET_LEFT,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                if prev_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
-            );
-            if prev_resp.clicked() {
-                commands.push_back(Command::PrevKeyframe);
-            }
-            cx += 22.0;
-
-            // Play / Pause
-            let play_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(24.0, 20.0));
-            let play_id = ui.id().with("tl_play");
-            let play_resp = ui.interact(play_btn_rect, play_id, Sense::click());
-            let play_icon = if preview.is_playing {
-                egui_phosphor::regular::PAUSE
-            } else {
-                egui_phosphor::regular::PLAY
-            };
-            let play_color = if preview.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
-            painter.text(
-                play_btn_rect.center(),
-                Align2::CENTER_CENTER,
-                play_icon,
-                FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-                if play_resp.hovered() { play_color } else { TEXT_MUTED },
-            );
-            if play_resp.clicked() {
-                commands.push_back(Command::TogglePlayback);
-            }
-            cx += 26.0;
-
-            // Next keyframe
-            let next_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-            let next_id = ui.id().with("tl_next");
-            let next_resp = ui.interact(next_btn_rect, next_id, Sense::click());
-            painter.text(
-                next_btn_rect.center(),
-                Align2::CENTER_CENTER,
-                egui_phosphor::regular::CARET_RIGHT,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                if next_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
-            );
-            if next_resp.clicked() {
-                commands.push_back(Command::NextKeyframe);
-            }
-            cx += 22.0;
-
-            // Go to end
-            let end_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-            let end_id = ui.id().with("tl_end");
-            let end_resp = ui.interact(end_btn_rect, end_id, Sense::click());
-            painter.text(
-                end_btn_rect.center(),
-                Align2::CENTER_CENTER,
-                egui_phosphor::regular::SKIP_FORWARD,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                if end_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
-            );
-            if end_resp.clicked() {
-                commands.push_back(Command::ScrubTo(preview.duration_s));
-            }
-            cx += 28.0;
-
-            // Speed dropdown
-            const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
-            let current_idx = SPEEDS
-                .iter()
-                .position(|(v, _)| (*v - preview.playback_speed).abs() < f32::EPSILON)
-                .unwrap_or(1);
-            let (_, speed_label) = SPEEDS[current_idx];
-            let speed_rect = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(32.0, 18.0));
-            let speed_id = ui.id().with("tl_speed");
-            let speed_resp = ui.interact(speed_rect, speed_id, Sense::click());
-            painter.rect_filled(speed_rect, RADIUS_S as u8, if speed_resp.hovered() { BG_WIDGET } else { BG_SURFACE });
-            painter.text(
-                speed_rect.center(),
-                Align2::CENTER_CENTER,
-                speed_label,
-                FontId::monospace(FONT_SIZE_XS),
-                if speed_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
-            );
-            if speed_resp.clicked() {
-                let next = (current_idx + 1) % SPEEDS.len();
-                preview.playback_speed = SPEEDS[next].0;
-            }
-            cx += 38.0;
-
-            // Loop toggle
-            let loop_active = preview.loop_start_s.is_some() && preview.loop_end_s.is_some();
-            let loop_rect = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(20.0, 18.0));
-            let loop_id = ui.id().with("tl_loop");
-            let loop_resp = ui.interact(loop_rect, loop_id, Sense::click());
-            let loop_color = if loop_active { ACCENT_CYAN } else if loop_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED };
-            painter.text(
-                loop_rect.center(),
-                Align2::CENTER_CENTER,
-                egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                loop_color,
-            );
-            if loop_resp.clicked() {
-                if loop_active {
-                    preview.loop_start_s = None;
-                    preview.loop_end_s = None;
-                } else {
-                    preview.loop_start_s = Some(0.0);
-                    preview.loop_end_s = Some(preview.duration_s);
-                }
-            }
-
-            // Time display (right-aligned)
-            let time_text = format!(
-                "{:02}:{:02.2} / {:02}:{:02.2}",
-                preview.current_time_s as i32 / 60,
-                preview.current_time_s % 60.0,
-                preview.duration_s as i32 / 60,
-                preview.duration_s % 60.0,
-            );
-            let time_size = painter.layout(
-                time_text.clone(),
-                FontId::monospace(FONT_SIZE_S),
-                TEXT_PRIMARY,
-                f32::INFINITY,
-            ).rect.size();
-            let time_x = scroll_rect.right() - SPACE_S - time_size.x;
-            painter.text(
-                Pos2::new(time_x, cy),
-                Align2::LEFT_CENTER,
-                time_text,
-                FontId::monospace(FONT_SIZE_S),
-                TEXT_PRIMARY,
-            );
-
-            // Bottom hairline
-            painter.line_segment(
-                [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
-                Stroke::new(1.0, BORDER),
-            );
-        }
-    }
-
-    // ── Draw ruler ──
-    {
-        let ruler_top = virtual_y;
-        let ruler_bot = ruler_top + RULER_HEIGHT;
-        virtual_y = ruler_bot;
-
-        if visible(ruler_top, ruler_bot) {
-            // Ruler background
-            painter.rect_filled(
-                Rect::from_min_max(
-                    Pos2::new(scroll_rect.left(), ruler_top),
-                    Pos2::new(scroll_rect.right(), ruler_bot),
-                ),
-                0.0,
-                BG_SURFACE,
-            );
-
-            // Ruler label column background
-            painter.rect_filled(
-                Rect::from_min_max(
-                    Pos2::new(scroll_rect.left(), ruler_top),
-                    Pos2::new(bar_origin_x, ruler_bot),
-                ),
-                0.0,
-                BG_BASE,
-            );
-
-            // Tick marks
-            let tick_step = if duration_s <= 2.0 {
-                0.25
-            } else if duration_s <= 5.0 {
-                0.5
-            } else if duration_s <= 15.0 {
-                1.0
-            } else if duration_s <= 45.0 {
-                5.0
-            } else {
-                10.0
-            };
-
-            let mut t = 0.0;
-            while t <= duration_s {
-                let x = time_to_x(t);
-                if x >= bar_origin_x && x <= bar_origin_x + bar_width {
-                    let tick_top = ruler_bot - 6.0;
-                    painter.line_segment(
-                        [Pos2::new(x, tick_top), Pos2::new(x, ruler_bot)],
-                        Stroke::new(1.0, BORDER),
-                    );
-
-                    // Time label
-                    let label = if tick_step >= 1.0 {
-                        format!("{:.0}s", t)
-                    } else {
-                        format!("{:.1}s", t)
-                    };
-                    painter.text(
-                        Pos2::new(x, ruler_top + RULER_HEIGHT * 0.35),
-                        Align2::CENTER_CENTER,
-                        label,
-                        FontId::monospace(FONT_SIZE_XS),
-                        TEXT_MUTED,
-                    );
-                }
-                t += tick_step;
-            }
-        }
-    }
-
-    // ── Helper: draw playhead ──
-    let playhead_x = time_to_x(preview.current_time_s);
 
     // ── Helper: draw loop region (function, not closure, to avoid borrow conflicts) ──
     fn draw_loop_region(
@@ -471,7 +186,7 @@ pub(crate) fn timeline_panel_ui(
         preview: &PreviewPaneState,
         time_to_x: &dyn Fn(f64) -> f32,
     ) {
-        if let (Some(ls), Some(le)) = (preview.loop_start_s, preview.loop_end_s) {
+        if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s) {
             if le > ls {
                 let lx = time_to_x(ls);
                 let rx = time_to_x(le);
@@ -499,549 +214,377 @@ pub(crate) fn timeline_panel_ui(
                 let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
                 let new_time = frac * duration_s;
                 cmds.push_back(Command::ScrubTo(new_time));
-                preview.current_time_s = new_time;
+                preview.playback.current_time_s = new_time;
             }
         }
     };
 
-    // ── Scene track (composition only) ──
-    if let Some(comp) = composition {
-        let st_top = virtual_y;
-        let st_bot = st_top + TRACK_ROW_HEIGHT;
-        virtual_y = st_bot;
+    // ── All content lives inside the ScrollArea ──
+    // ScrollArea handles: scroll offset persistence, wheel/mouse scrolling,
+    // clipping, and content culling.
+    egui::ScrollArea::vertical()
+        .id_salt("timeline_scroll")
+        .show(ui, |ui| {
+            let mut content_y = ui.cursor().min.y;
 
-        if visible(st_top, st_bot) {
-            let track_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), st_top),
-                Pos2::new(scroll_rect.right(), st_bot),
-            );
+            // ── Compute y positions for all sections ──
+            let strip_top = content_y;
+            let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
+            content_y = strip_bot;
 
-            // Label background
-            let label_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), st_top),
-                Pos2::new(bar_origin_x, st_bot),
-            );
-            painter.rect_filled(label_rect, 0.0, BG_BASE);
+            let ruler_top = content_y;
+            let ruler_bot = ruler_top + RULER_HEIGHT;
+            content_y = ruler_bot;
 
-            // Label text
-            painter.text(
-                Pos2::new(bar_origin_x - SPACE_S, track_rect.center().y),
-                Align2::RIGHT_CENTER,
-                format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                TEXT_MUTED,
-            );
-
-            // Bar area
-            let bar_area = Rect::from_min_max(
-                Pos2::new(bar_origin_x, st_top),
-                Pos2::new(scroll_rect.right(), st_bot),
-            );
-
-            // Scene blocks
-            let palette = [
-                track_block_1(),
-                track_block_2(),
-                track_block_3(),
-                track_block_4(),
-                track_block_5(),
-            ];
-            let total = duration_s;
-            for (idx, scene_name) in comp.declaration_order.iter().enumerate() {
-                let Some(scene) = comp.scenes.get(scene_name) else { continue };
-                let Some(start_s) = comp.scene_start_times.get(scene_name).copied() else { continue };
-                let end_s = (start_s + scene.duration_s).min(total);
-                if end_s <= start_s {
-                    continue;
-                }
-
-                let left = time_to_x(start_s);
-                let right = time_to_x(end_s);
-                let scene_rect = Rect::from_min_max(
-                    Pos2::new(left, bar_area.top()),
-                    Pos2::new(right, bar_area.bottom()),
-                );
-                let color = palette[idx % palette.len()];
-                painter.rect_filled(scene_rect, 2.0, color);
-
-                // Scene label
-                let scene_width = scene_rect.width();
-                if scene_width > 24.0 {
-                    painter.text(
-                        scene_rect.center(),
-                        Align2::CENTER_CENTER,
-                        scene_name.as_str(),
-                        FontId::monospace(FONT_SIZE_XS),
-                        text_dim(),
-                    );
-                }
+            let scene_track_top = content_y;
+            let scene_track_bot = scene_track_top + TRACK_ROW_HEIGHT;
+            if composition.is_some() {
+                content_y = scene_track_bot;
             }
 
-            // ── Play edge arrows ──
-            for (src_name, edge) in &comp.edges {
-                // Source scene must exist and have a start time
-                let Some(src_scene) = comp.scenes.get(src_name) else { continue };
-                let Some(src_start) = comp.scene_start_times.get(src_name).copied() else { continue };
-                let src_end_s = src_start + src_scene.duration_s;
-                let src_right = time_to_x(src_end_s);
+            let actor_track_count = actor_labels.len();
+            let actor_first_top = content_y;
+            let actor_last_bot = actor_first_top + actor_track_count as f32 * TRACK_ROW_HEIGHT;
+            content_y = actor_last_bot;
 
-                // Target scene must exist and have a start time
-                let Some(tgt_start) = comp.scene_start_times.get(&edge.to_scene).copied() else { continue };
-                let tgt_left = time_to_x(tgt_start);
+            let rs_top = content_y;
+            let rs_bot = rs_top + RANGE_HEIGHT;
+            content_y = rs_bot;
 
-                // Only draw forward arrows (target to the right of source)
-                if tgt_left <= src_right {
-                    continue;
+            let content_bottom = content_y;
+
+            // ── Allocate total space (releases mutable borrow of ui) ──
+            ui.allocate_space(Vec2::new(
+                scroll_rect.width(),
+                content_bottom - ui.cursor().min.y,
+            ));
+
+            // ── Get painter (immutable borrow) and draw everything ──
+            let painter = ui.painter();
+
+            // ── Playback strip ──
+            {
+                painter.rect_filled(
+                    Rect::from_min_max(
+                        Pos2::new(scroll_rect.left(), strip_top),
+                        Pos2::new(scroll_rect.right(), strip_bot),
+                    ),
+                    0.0,
+                    BG_BASE,
+                );
+
+                let mut cx = scroll_rect.left() + SPACE_S;
+                let cy = (strip_top + strip_bot) / 2.0;
+
+                // Go to start
+                let start_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+                let start_r = ui.interact(start_btn, ui.id().with("tl_start"), Sense::click());
+                painter.text(start_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::SKIP_BACK,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if start_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
+                if start_r.clicked() { commands.push_back(Command::ScrubTo(0.0)); }
+                cx += 22.0;
+
+                // Previous keyframe
+                let prev_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+                let prev_r = ui.interact(prev_btn, ui.id().with("tl_prev"), Sense::click());
+                painter.text(prev_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::CARET_LEFT,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if prev_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
+                if prev_r.clicked() { commands.push_back(Command::PrevKeyframe); }
+                cx += 22.0;
+
+                // Play / Pause
+                let play_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(24.0, 20.0));
+                let play_r = ui.interact(play_btn, ui.id().with("tl_play"), Sense::click());
+                let play_icon = if preview.playback.is_playing { egui_phosphor::regular::PAUSE } else { egui_phosphor::regular::PLAY };
+                let play_c = if preview.playback.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
+                painter.text(play_btn.center(), Align2::CENTER_CENTER, play_icon,
+                    FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional), if play_r.hovered() { play_c } else { TEXT_MUTED });
+                if play_r.clicked() { commands.push_back(Command::TogglePlayback); }
+                cx += 26.0;
+
+                // Next keyframe
+                let next_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+                let next_r = ui.interact(next_btn, ui.id().with("tl_next"), Sense::click());
+                painter.text(next_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::CARET_RIGHT,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if next_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
+                if next_r.clicked() { commands.push_back(Command::NextKeyframe); }
+                cx += 22.0;
+
+                // Go to end
+                let end_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+                let end_r = ui.interact(end_btn, ui.id().with("tl_end"), Sense::click());
+                painter.text(end_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::SKIP_FORWARD,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if end_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
+                if end_r.clicked() { commands.push_back(Command::ScrubTo(preview.playback.duration_s)); }
+                cx += 28.0;
+
+                // Speed dropdown
+                const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
+                let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
+                let speed_btn = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(32.0, 18.0));
+                let speed_r = ui.interact(speed_btn, ui.id().with("tl_speed"), Sense::click());
+                painter.rect_filled(speed_btn, RADIUS_S as u8, if speed_r.hovered() { BG_WIDGET } else { BG_SURFACE });
+                painter.text(speed_btn.center(), Align2::CENTER_CENTER, SPEEDS[si].1,
+                    FontId::monospace(FONT_SIZE_XS), if speed_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
+                if speed_r.clicked() { preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0; }
+                cx += 38.0;
+
+                // Loop toggle
+                let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
+                let loop_btn = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(20.0, 18.0));
+                let loop_r = ui.interact(loop_btn, ui.id().with("tl_loop"), Sense::click());
+                let loop_c = if loop_active { ACCENT_CYAN } else if loop_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED };
+                painter.text(loop_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), loop_c);
+                if loop_r.clicked() {
+                    if loop_active { preview.playback.loop_start_s = None; preview.playback.loop_end_s = None; }
+                    else { preview.playback.loop_start_s = Some(0.0); preview.playback.loop_end_s = Some(preview.playback.duration_s); }
                 }
 
-                let cy = bar_area.center().y;
-                let arrow_color = TEXT_MUTED;
+                // Time display (right-aligned)
+                let time_text = format!("{:02}:{:02.2} / {:02}:{:02.2}",
+                    preview.playback.current_time_s as i32 / 60, preview.playback.current_time_s % 60.0,
+                    preview.playback.duration_s as i32 / 60, preview.playback.duration_s % 60.0);
+                let time_sz = painter.layout(time_text.clone(), FontId::monospace(FONT_SIZE_S), TEXT_PRIMARY, f32::INFINITY).rect.size();
+                painter.text(Pos2::new(scroll_rect.right() - SPACE_S - time_sz.x, cy), Align2::LEFT_CENTER, time_text,
+                    FontId::monospace(FONT_SIZE_S), TEXT_PRIMARY);
 
-                // Horizontal connector line
                 painter.line_segment(
-                    [Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)],
-                    Stroke::new(1.0, arrow_color),
-                );
-
-                // Small triangular arrowhead at the target end
-                let arrow_len = 4.0;
-                let arrow_half = 2.5;
-                let tip = Pos2::new(tgt_left, cy);
-                let left_flank = Pos2::new(tgt_left - arrow_len, cy - arrow_half);
-                let right_flank = Pos2::new(tgt_left - arrow_len, cy + arrow_half);
-                painter.add(egui::Shape::convex_polygon(
-                    vec![tip, left_flank, right_flank],
-                    arrow_color,
-                    Stroke::NONE,
-                ));
+                    [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
+                    Stroke::new(1.0, BORDER));
             }
 
-            // Loop region on scene track
-            draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+            // ── Ruler ──
+            {
+                painter.rect_filled(
+                    Rect::from_min_max(Pos2::new(scroll_rect.left(), ruler_top), Pos2::new(scroll_rect.right(), ruler_bot)),
+                    0.0, BG_SURFACE);
+                painter.rect_filled(
+                    Rect::from_min_max(Pos2::new(scroll_rect.left(), ruler_top), Pos2::new(bar_origin_x, ruler_bot)),
+                    0.0, BG_BASE);
 
-            // Scene track interaction
-            bar_interaction(ui, bar_area, "scene_track", commands, preview);
-
-            // Playhead on scene track
-            let playhead_top = bar_area.top() - 2.0;
-            let playhead_bot = bar_area.bottom() + 2.0;
-            painter.line_segment(
-                [Pos2::new(playhead_x, playhead_top), Pos2::new(playhead_x, playhead_bot)],
-                Stroke::new(1.5, TEXT_PRIMARY),
-            );
-
-            // Bottom hairline
-            painter.line_segment(
-                [Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)],
-                Stroke::new(1.0, BORDER),
-            );
-        }
-    }
-
-    // ── Actor tracks ──
-    for (track_idx, actor_label) in actor_labels.iter().enumerate() {
-        let at_top = virtual_y;
-        let at_bot = at_top + TRACK_ROW_HEIGHT;
-        virtual_y = at_bot;
-
-        if visible(at_top, at_bot) {
-            let track_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), at_top),
-                Pos2::new(scroll_rect.right(), at_bot),
-            );
-
-            // Alternating row background
-            if track_idx % 2 == 0 {
-                painter.rect_filled(track_rect, 0.0, row_alt());
-            }
-
-            // Label background
-            let label_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), at_top),
-                Pos2::new(bar_origin_x, at_bot),
-            );
-            painter.rect_filled(label_rect, 0.0, BG_BASE);
-
-            // Label text — show actor label, truncated
-            let display_label = if actor_label.len() > 16 {
-                format!("{}…", &actor_label[..15])
-            } else {
-                actor_label.clone()
-            };
-            painter.text(
-                Pos2::new(bar_origin_x - SPACE_S, track_rect.center().y),
-                Align2::RIGHT_CENTER,
-                display_label,
-                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                TEXT_SECONDARY,
-            );
-
-            // Bar area
-            let bar_area = Rect::from_min_max(
-                Pos2::new(bar_origin_x, at_top),
-                Pos2::new(scroll_rect.right(), at_bot),
-            );
-
-// ── Draw action blocks for this actor ──
-            if let Some(tl) = timeline {
-                for event in &tl.action_events {
-                    if !event.targets.contains(actor_label) {
-                        continue;
+                let tick_step = if duration_s <= 2.0 { 0.25 } else if duration_s <= 5.0 { 0.5 }
+                    else if duration_s <= 15.0 { 1.0 } else if duration_s <= 45.0 { 5.0 } else { 10.0 };
+                let mut t = 0.0;
+                while t <= duration_s {
+                    let x = time_to_x(t);
+                    if x >= bar_origin_x && x <= bar_origin_x + bar_width {
+                        painter.line_segment([Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)], Stroke::new(1.0, BORDER));
+                        painter.text(Pos2::new(x, ruler_top + RULER_HEIGHT * 0.35), Align2::CENTER_CENTER,
+                            if tick_step >= 1.0 { format!("{:.0}s", t) } else { format!("{:.1}s", t) },
+                            FontId::monospace(FONT_SIZE_XS), TEXT_MUTED);
                     }
-                    let start_s = event.start_time_ms as f64 / 1000.0;
-                    let end_s = start_s + (event.duration_ms as f64 / 1000.0);
-                    let left = time_to_x(start_s);
-                    let right = time_to_x(end_s);
-                    
-                    if right > bar_area.left() && left < bar_area.right() {
-                        let block_rect = Rect::from_min_max(
-                            Pos2::new(left.max(bar_area.left()), bar_area.top() + 2.0),
-                            Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 2.0),
-                        );
-                        let color = action_category_color(event.category);
-                        painter.rect_filled(block_rect, RADIUS_S, color.linear_multiply(0.6));
-                        painter.rect_stroke(block_rect, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
-                        
-                        // Label if wide enough
-                        if block_rect.width() > 30.0 {
-                            painter.text(
-                                block_rect.center(),
-                                Align2::CENTER_CENTER,
-                                &event.verb,
-                                FontId::monospace(FONT_SIZE_XS),
-                                TEXT_PRIMARY,
-                            );
+                    t += tick_step;
+                }
+            }
+
+            // ── Playhead X position ──
+            let playhead_x = time_to_x(preview.playback.current_time_s);
+
+            // ── Scene track (composition only) ──
+            if let Some(comp) = composition {
+                let st_top = scene_track_top;
+                let st_bot = scene_track_bot;
+
+                let label_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), st_top), Pos2::new(bar_origin_x, st_bot));
+                painter.rect_filled(label_rect, 0.0, BG_BASE);
+                painter.text(Pos2::new(bar_origin_x - SPACE_S, (st_top + st_bot) / 2.0), Align2::RIGHT_CENTER,
+                    format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_MUTED);
+
+                let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, st_top), Pos2::new(scroll_rect.right(), st_bot));
+                let palette = [track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5()];
+                for (idx, sn) in comp.declaration_order.iter().enumerate() {
+                    let Some(scene) = comp.scenes.get(sn) else { continue };
+                    let Some(start_s) = comp.scene_start_times.get(sn).copied() else { continue };
+                    let end_s = (start_s + scene.duration_s).min(duration_s);
+                    if end_s <= start_s { continue; }
+                    let sr = Rect::from_min_max(Pos2::new(time_to_x(start_s), bar_area.top()), Pos2::new(time_to_x(end_s), bar_area.bottom()));
+                    painter.rect_filled(sr, 2.0, palette[idx % palette.len()]);
+                    if sr.width() > 24.0 { painter.text(sr.center(), Align2::CENTER_CENTER, sn.as_str(), FontId::monospace(FONT_SIZE_XS), text_dim()); }
+                }
+
+                for (src_name, edge) in &comp.edges {
+                    let Some(src_scene) = comp.scenes.get(src_name) else { continue };
+                    let Some(src_start) = comp.scene_start_times.get(src_name).copied() else { continue };
+                    let src_right = time_to_x(src_start + src_scene.duration_s);
+                    let Some(tgt_start) = comp.scene_start_times.get(&edge.to_scene).copied() else { continue };
+                    let tgt_left = time_to_x(tgt_start);
+                    if tgt_left <= src_right { continue; }
+                    let cy = bar_area.center().y;
+                    painter.line_segment([Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)], Stroke::new(1.0, TEXT_MUTED));
+                    painter.add(egui::Shape::convex_polygon(
+                        vec![Pos2::new(tgt_left, cy), Pos2::new(tgt_left - 4.0, cy - 2.5), Pos2::new(tgt_left - 4.0, cy + 2.5)],
+                        TEXT_MUTED, Stroke::NONE));
+                }
+
+                draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+                bar_interaction(ui, bar_area, "scene_track", commands, preview);
+                painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
+                painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
+            }
+
+            // ── Actor tracks ──
+            for (track_idx, actor_label) in actor_labels.iter().enumerate() {
+                let at_top = actor_first_top + track_idx as f32 * TRACK_ROW_HEIGHT;
+                let at_bot = at_top + TRACK_ROW_HEIGHT;
+                let track_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(scroll_rect.right(), at_bot));
+                if track_idx % 2 == 0 { painter.rect_filled(track_rect, 0.0, row_alt()); }
+
+                painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(bar_origin_x, at_bot)), 0.0, BG_BASE);
+                let label = if actor_label.len() > 16 { format!("{}…", &actor_label[..15]) } else { actor_label.clone() };
+                painter.text(Pos2::new(bar_origin_x - SPACE_S, track_rect.center().y), Align2::RIGHT_CENTER, label,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_SECONDARY);
+
+                let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, at_top), Pos2::new(scroll_rect.right(), at_bot));
+
+                // Action blocks
+                if let Some(tl) = timeline {
+                    for event in &tl.action_events {
+                        if !event.targets.contains(actor_label) { continue; }
+                        let left = time_to_x(event.start_time_ms as f64 / 1000.0);
+                        let right = time_to_x((event.start_time_ms + event.duration_ms) as f64 / 1000.0);
+                        if right > bar_area.left() && left < bar_area.right() {
+                            let br = Rect::from_min_max(Pos2::new(left.max(bar_area.left()), bar_area.top() + 2.0), Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 2.0));
+                            let color = action_category_color(event.category);
+                            painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.6));
+                            painter.rect_stroke(br, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
+                            if br.width() > 30.0 { painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY); }
                         }
                     }
                 }
-            }
 
-            // ── Draw keyframe diamonds for this actor (multi-select + drag aware) ──
-            if let Some(tl) = timeline {
-                if let Some(track) = tl.get_track(actor_label) {
-                    let kf_with_props = collect_track_keyframe_props(track);
-
-                    for &(kf_ms, prop) in &kf_with_props {
-                        let kf_s = kf_ms as f64 / 1000.0;
-                        let kf_x = time_to_x(kf_s);
-                        if kf_x >= bar_area.left() && kf_x <= bar_area.right() {
-                            let is_active = (kf_s - preview.current_time_s).abs() < 0.01;
-                            let is_multi_selected = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
-                            let is_dragging = kf_drag.as_ref().is_some_and(|(l, t, _)| l == actor_label && *t == kf_ms);
-                            
-                            let diamond_size = if is_dragging { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
-                            let kf_color = if is_multi_selected { ACCENT_BLUE } else if is_active { TEXT_PRIMARY } else { AMBER };
-                            let center_y = bar_area.center().y;
-                            
-                            let hit_size = (diamond_size * 3.0).max(16.0);
-                            let diamond_rect = Rect::from_center_size(
-                                Pos2::new(kf_x, center_y),
-                                Vec2::new(hit_size, hit_size),
-                            );
-                            
-                            let diamond_id = ui.id().with(("kf_diamond", actor_label.clone(), kf_ms));
-                            let diamond_resp = ui.interact(diamond_rect, diamond_id, Sense::click_and_drag());
-                            
-                            // Draw diamond
-                            let pts = vec![
-                                Pos2::new(kf_x, center_y - diamond_size),
-                                Pos2::new(kf_x + diamond_size, center_y),
-                                Pos2::new(kf_x, center_y + diamond_size),
-                                Pos2::new(kf_x - diamond_size, center_y),
-                            ];
+                // Keyframe diamonds
+                if let Some(tl) = timeline {
+                    if let Some(track) = tl.get_track(actor_label) {
+                        for &(kf_ms, prop) in &collect_track_keyframe_props(track) {
+                            let kf_s = kf_ms as f64 / 1000.0;
+                            let kf_x = time_to_x(kf_s);
+                            if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
+                            let is_act = (kf_s - preview.playback.current_time_s).abs() < 0.01;
+                            let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
+                            let is_drag = kf_drag.as_ref().is_some_and(|(l, t, _)| l == actor_label && *t == kf_ms);
+                            let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
+                            let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
+                            let cy = bar_area.center().y;
+                            let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
+                            let dresp = ui.interact(dr, ui.id().with(("kf_diamond", actor_label.clone(), kf_ms)), Sense::click_and_drag());
                             painter.add(egui::Shape::convex_polygon(
-                                pts,
-                                if diamond_resp.hovered() || is_dragging { kf_color } else { kf_color.linear_multiply(0.7) },
-                                Stroke::NONE,
-                            ));
-                            
-// Hover tooltip
-                            let diamond_resp = if diamond_resp.hovered() && !is_dragging {
-                                diamond_resp.on_hover_text(format!("{prop} @ {:.2}s", kf_s))
-                            } else {
-                                diamond_resp
-                            };
-                            
-                            // Click: select / multi-select / jump
-                            if diamond_resp.clicked() {
+                                vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
+                                if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
+
+                            let dresp = if dresp.hovered() && !is_drag { dresp.on_hover_text(format!("{prop} @ {:.2}s", kf_s)) } else { dresp };
+                            if dresp.clicked() {
                                 if shift_held {
-                                    if let Some(pos) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) {
-                                        multi_selected.remove(pos);
-                                    } else {
-                                        multi_selected.push((actor_label.clone(), kf_ms));
-                                    }
-                                } else {
-                                    multi_selected.clear();
-                                    multi_selected.push((actor_label.clone(), kf_ms));
-                                    commands.push_back(Command::ScrubTo(kf_s));
-                                    preview.current_time_s = kf_s;
-                                }
+                                    if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
+                                    else { multi_selected.push((actor_label.clone(), kf_ms)); }
+                                } else { multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms));
+                                    commands.push_back(Command::ScrubTo(kf_s)); preview.playback.current_time_s = kf_s; }
                             }
-                            
-                            // Drag started
-                            if diamond_resp.drag_started() {
+                            if dresp.drag_started() {
                                 new_kf_drag = Some((actor_label.clone(), kf_ms, kf_s));
                                 if !shift_held && !multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms) {
-                                    multi_selected.clear();
-                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                    multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms)); }
+                            }
+                            if is_drag {
+                                if let Some(pos) = dresp.interact_pointer_pos() {
+                                    let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                                    let snapped = (nt * 10.0).round() / 10.0;
+                                    new_kf_drag = Some((actor_label.clone(), kf_ms, snapped));
+                                    let gx = time_to_x(snapped);
+                                    painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(1.0, AMBER.linear_multiply(0.5)));
+                                    let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
+                                    let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0) - Vec2::new(0.0, 0.0), g.size() + Vec2::new(8.0, 4.0));
+                                    painter.rect_filled(tr, RADIUS_S, BG_SURFACE);
+                                    painter.galley(tr.min + Vec2::new(4.0, 2.0), g, TEXT_PRIMARY);
                                 }
                             }
-                            
-                            // During drag: show visual feedback
-                            if is_dragging {
-                                if let Some(pos) = diamond_resp.interact_pointer_pos() {
-                                    let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                                    let new_time_s = frac * duration_s;
-                                    let snapped_time = (new_time_s * 10.0).round() / 10.0;
-                                    new_kf_drag = Some((actor_label.clone(), kf_ms, snapped_time));
-                                    
-                                    // Vertical guide
-                                    let guide_x = time_to_x(snapped_time);
-                                    painter.line_segment(
-                                        [Pos2::new(guide_x, bar_area.top()), Pos2::new(guide_x, bar_area.bottom())],
-                                        Stroke::new(1.0, AMBER.linear_multiply(0.5)),
-                                    );
-                                    
-                                    // Tooltip
-                                    let tooltip_text = format!("{:.1}s → {:.1}s", kf_s, snapped_time);
-                                    let galley = painter.layout_no_wrap(
-                                        tooltip_text,
-                                        FontId::monospace(FONT_SIZE_XS),
-                                        TEXT_PRIMARY,
-                                    );
-                                    let tooltip_pos = Pos2::new(guide_x, bar_area.top() - 16.0);
-                                    let tooltip_rect = Rect::from_min_size(
-                                        tooltip_pos - Vec2::new(galley.size().x / 2.0, 0.0),
-                                        galley.size() + Vec2::new(8.0, 4.0),
-                                    );
-                                    painter.rect_filled(tooltip_rect, RADIUS_S, BG_SURFACE);
-                                    painter.galley(tooltip_rect.min + Vec2::new(4.0, 2.0), galley, TEXT_PRIMARY);
-                                }
-                            }
-                            
-                            // Drag stopped
-                            if diamond_resp.drag_stopped() && is_dragging {
-                                if let Some((_, _, new_time_s)) = new_kf_drag {
-                                    if (new_time_s - kf_s).abs() > 0.01 {
-                                        // For now just scrub to new time
-                                        commands.push_back(Command::ScrubTo(new_time_s));
-                                        preview.current_time_s = new_time_s;
-                                    }
-                                }
+                            if dresp.drag_stopped() && is_drag {
+                                if let Some((_, _, n)) = new_kf_drag { if (n - kf_s).abs() > 0.01 { commands.push_back(Command::ScrubTo(n)); preview.playback.current_time_s = n; } }
                                 new_kf_drag = None;
                             }
                         }
                     }
                 }
-            }
 
-            // Loop region on this track
-            draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+                draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
-            // Interaction: click/drag to scrub, click KF to jump
-            let bar_id = ui.id().with(format!("actor_track_{}", actor_label));
-            let response = ui.interact(bar_area, bar_id, Sense::click_and_drag());
-
-            if response.clicked() {
-                if let Some(pos) = response.interact_pointer_pos() {
-                    // Check if click landed on a keyframe
-                    if let Some(tl) = timeline {
-                        if let Some(track) = tl.get_track(actor_label) {
-                            let click_s = {
-                                let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                                frac * duration_s
-                            };
-                            // Check proximity to any keyframe
-                            let kf_times_ms = collect_track_keyframe_times(track);
-
-                            let snap_threshold_s = (bar_width / duration_s as f32) * 6.0; // ~6px in time
-                            let snapped = kf_times_ms.iter().find(|&&kf_ms| {
-                                let kf_s = kf_ms as f64 / 1000.0;
-                                (kf_s - click_s).abs() < snap_threshold_s as f64
-                            });
-
-                            if let Some(&kf_ms) = snapped {
-                                let jump_s = kf_ms as f64 / 1000.0;
-                                commands.push_back(Command::ScrubTo(jump_s));
-                                preview.current_time_s = jump_s;
-                            } else {
-                                commands.push_back(Command::ScrubTo(click_s));
-                                preview.current_time_s = click_s;
+                let resp = ui.interact(bar_area, ui.id().with(format!("actor_track_{}", actor_label)), Sense::click_and_drag());
+                if resp.clicked() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        if let Some(tl) = timeline {
+                            if let Some(track) = tl.get_track(actor_label) {
+                                let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                                let thr = (bar_width / duration_s as f32) * 6.0;
+                                let snapped = collect_track_keyframe_times(track).iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
+                                if let Some(kf_ms) = snapped {
+                                    let js = kf_ms as f64 / 1000.0;
+                                    commands.push_back(Command::ScrubTo(js)); preview.playback.current_time_s = js;
+                                } else { commands.push_back(Command::ScrubTo(click_s)); preview.playback.current_time_s = click_s; }
                             }
                         }
                     }
+                } else if resp.dragged() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                        commands.push_back(Command::ScrubTo(nt)); preview.playback.current_time_s = nt;
+                    }
                 }
-            } else if response.dragged() {
-                if let Some(pos) = response.interact_pointer_pos() {
-                    let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                    let new_time = frac * duration_s;
-                    commands.push_back(Command::ScrubTo(new_time));
-                    preview.current_time_s = new_time;
-                }
+
+                painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(1.0, text_faint()));
+                painter.line_segment([Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)], Stroke::new(1.0, BORDER));
             }
 
-            // Playhead on this track
-            painter.line_segment(
-                [
-                    Pos2::new(playhead_x, bar_area.top()),
-                    Pos2::new(playhead_x, bar_area.bottom()),
-                ],
-                Stroke::new(1.0, text_faint()),
-            );
+            // ── Range slider for work/export region ──
+            {
+                painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), rs_top), Pos2::new(bar_origin_x, rs_bot)), 0.0, BG_BASE);
+                painter.text(Pos2::new(bar_origin_x - SPACE_S, (rs_top + rs_bot) / 2.0), Align2::RIGHT_CENTER, "Region",
+                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), TEXT_MUTED);
 
-            // Bottom hairline
-            painter.line_segment(
-                [Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)],
-                Stroke::new(1.0, BORDER),
-            );
-        }
-    }
+                let range_bar = Rect::from_min_max(Pos2::new(bar_origin_x, rs_top), Pos2::new(scroll_rect.right(), rs_bot));
+                let ws = preview.playback.loop_start_s.unwrap_or(0.0);
+                let we = preview.playback.loop_end_s.unwrap_or(duration_s);
+                let wx = time_to_x(ws);
+                let wy = time_to_x(we);
 
-    // ── Range slider for work/export region ──
-    {
-        let rs_top = virtual_y;
-        let rs_bot = rs_top + RANGE_HEIGHT;
-        virtual_y = rs_bot;
-
-        if visible(rs_top, rs_bot) {
-            let range_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), rs_top),
-                Pos2::new(scroll_rect.right(), rs_bot),
-            );
-
-            // Label background
-            let label_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), rs_top),
-                Pos2::new(bar_origin_x, rs_bot),
-            );
-            painter.rect_filled(label_rect, 0.0, BG_BASE);
-
-            // Label
-            painter.text(
-                Pos2::new(bar_origin_x - SPACE_S, range_rect.center().y),
-                Align2::RIGHT_CENTER,
-                "Region",
-                FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-                TEXT_MUTED,
-            );
-
-            // Range bar area
-            let range_bar = Rect::from_min_max(
-                Pos2::new(bar_origin_x, rs_top),
-                Pos2::new(scroll_rect.right(), rs_bot),
-            );
-
-            // Default work region = full range
-            let work_start_s = preview.loop_start_s.unwrap_or(0.0);
-            let work_end_s = preview.loop_end_s.unwrap_or(duration_s);
-
-            let ws_x = time_to_x(work_start_s);
-            let we_x = time_to_x(work_end_s);
-
-            // Draw the range bar track
-            painter.rect_filled(range_bar, RADIUS_S, BG_WIDGET);
-
-            // Draw the active region highlight
-            if (we_x - ws_x).abs() > 2.0 {
-                painter.rect_filled(
-                    Rect::from_min_max(Pos2::new(ws_x, range_bar.top() + 2.0), Pos2::new(we_x, range_bar.bottom() - 2.0)),
-                    RADIUS_S,
-                    ACCENT_BLUE.linear_multiply(0.3),
-                );
-            }
-
-            // Start handle
-            let handle_size = Vec2::new(10.0, RANGE_HEIGHT - 2.0);
-            let start_handle_rect = Rect::from_center_size(
-                Pos2::new(ws_x, range_bar.center().y),
-                handle_size,
-            );
-            let start_id = ui.id().with("range_start_handle");
-            let start_resp = ui.interact(start_handle_rect, start_id, Sense::click_and_drag());
-            if start_resp.dragged() {
-                if let Some(pos) = start_resp.interact_pointer_pos() {
-                    let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                    let new_start = frac * duration_s;
-                    preview.loop_start_s = Some(new_start.min(work_end_s - 0.05));
+                painter.rect_filled(range_bar, RADIUS_S, BG_WIDGET);
+                if (wy - wx).abs() > 2.0 {
+                    painter.rect_filled(Rect::from_min_max(Pos2::new(wx, range_bar.top() + 2.0), Pos2::new(wy, range_bar.bottom() - 2.0)), RADIUS_S, ACCENT_BLUE.linear_multiply(0.3));
                 }
-            }
-            painter.rect_filled(start_handle_rect, RADIUS_S, ACCENT_BLUE);
 
-            // End handle
-            let end_handle_rect = Rect::from_center_size(
-                Pos2::new(we_x, range_bar.center().y),
-                handle_size,
-            );
-            let end_id = ui.id().with("range_end_handle");
-            let end_resp = ui.interact(end_handle_rect, end_id, Sense::click_and_drag());
-            if end_resp.dragged() {
-                if let Some(pos) = end_resp.interact_pointer_pos() {
-                    let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                    let new_end = frac * duration_s;
-                    preview.loop_end_s = Some(new_end.max(work_start_s + 0.05));
+                let hs = Vec2::new(10.0, RANGE_HEIGHT - 2.0);
+                let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
+                let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
+                if sr.dragged() {
+                    if let Some(pos) = sr.interact_pointer_pos() {
+                        preview.playback.loop_start_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).min(we - 0.05));
+                    }
                 }
+                painter.rect_filled(sh, RADIUS_S, ACCENT_BLUE);
+
+                let eh = Rect::from_center_size(Pos2::new(wy, range_bar.center().y), hs);
+                let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
+                if er.dragged() {
+                    if let Some(pos) = er.interact_pointer_pos() {
+                        preview.playback.loop_end_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).max(ws + 0.05));
+                    }
+                }
+                painter.rect_filled(eh, RADIUS_S, ACCENT_BLUE);
             }
-            painter.rect_filled(end_handle_rect, RADIUS_S, ACCENT_BLUE);
-        }
-    }
 
-    // ── Global playhead line spanning the full content height ──
-    {
-        let global_head_top = scroll_rect.top();
-        let global_head_bot = virtual_y.min(scroll_rect.bottom());
-        if playhead_x >= bar_origin_x && playhead_x <= bar_origin_x + bar_width + 2.0 {
-            painter.line_segment(
-                [Pos2::new(playhead_x, global_head_top), Pos2::new(playhead_x, global_head_bot)],
-                Stroke::new(1.5, AMBER),
-            );
-        }
-    }
+            // ── Global playhead ──
+            if playhead_x >= bar_origin_x && playhead_x <= bar_origin_x + bar_width + 2.0 {
+                painter.line_segment([Pos2::new(playhead_x, scroll_rect.top()), Pos2::new(playhead_x, content_bottom)], Stroke::new(1.5, AMBER));
+            }
 
-    // ── Persist keyframe drag + multi-select state ──
-    ui.data_mut(|d| {
-        d.insert_temp(kf_drag_data_id, new_kf_drag.clone());
-        d.insert_temp(kf_multi_select_id, multi_selected.clone());
-    });
+            // ── Save keyframe drag + multi-select state ──
+            ui.data_mut(|d| {
+                if let Some(drag) = new_kf_drag.clone() { d.insert_temp(kf_drag_data_id, drag); }
+                else { d.remove::<(String, u64, f64)>(kf_drag_data_id); }
+                d.insert_temp(kf_multi_select_id, multi_selected.clone());
+            });
+        });
 
-    // ── Scroll handling ──
-    {
-        let scroll_handle_id = panel_id.with("scroll_handle");
-        let _scroll_response = ui.interact(scroll_rect, scroll_handle_id, Sense::click_and_drag());
-
-        // Mouse wheel scrolling
-        let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-        if scroll_delta != 0.0 {
-            scroll_offset = (scroll_offset - scroll_delta * 2.0).clamp(0.0, max_scroll);
-            ui.data_mut(|d| d.insert_temp(scroll_id, scroll_offset));
-            ui.ctx().request_repaint();
-        }
-
-        // Clamp offset
-        scroll_offset = scroll_offset.clamp(0.0, max_scroll);
-        ui.data_mut(|d| d.insert_temp(scroll_id, scroll_offset));
-    }
-
-    // Draw clip rect border
-    painter.rect_stroke(
-        scroll_rect,
-        0.0,
-        Stroke::new(1.0, BORDER),
-        egui::StrokeKind::Inside,
-    );
-
-    // Claim the space we used
-    ui.allocate_exact_size(
-        Vec2::new(available, scroll_rect.height().max(60.0)),
-        Sense::hover(),
-    );
-
-    // ── Save keyframe drag + multi-select state ──
-    ui.data_mut(|d| {
-        if let Some(drag) = new_kf_drag {
-            d.insert_temp(kf_drag_data_id, drag);
-        } else {
-            d.remove::<(String, u64, f64)>(kf_drag_data_id);
-        }
-        d.insert_temp(kf_multi_select_id, multi_selected);
-    });
+    // Draw clip rect border outside the ScrollArea
+    ui.painter().rect_stroke(scroll_rect, 0.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
 }

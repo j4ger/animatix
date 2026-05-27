@@ -348,8 +348,8 @@ impl GuiShell {
         let format = self.export_store.export_state.format;
         let scene_dims = self.document_store.document.scene_dimensions;
         let timeline_duration = self.document_store.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
-        let max_time = self.preview_store.preview.duration_s as f32;
-        let current_time = self.preview_store.preview.current_time_s as f32;
+        let max_time = self.preview_store.preview.playback.duration_s as f32;
+        let current_time = self.preview_store.preview.playback.current_time_s as f32;
 
         // Scope mutable borrows so we can call &self methods afterward.
         {
@@ -744,7 +744,7 @@ impl GuiShell {
         }
 
         let debug = animatix::timeline::DebugRenderOptions {
-            draw_bounds: self.ui_store.debug_bounds,
+            draw_bounds: self.ui_store.view.debug_bounds,
             compute_hit_regions: true,
         };
 

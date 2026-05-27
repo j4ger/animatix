@@ -72,39 +72,50 @@ pub(crate) struct FileTreeEntry {
     is_dir: bool,
 }
 
+/// Playback state: time, duration, play/pause, speed, loop region.
+#[derive(Debug, Clone)]
+pub(crate) struct PlaybackState {
+    pub current_time_s: f64,
+    pub duration_s: f64,
+    pub is_playing: bool,
+    pub playback_speed: f32,
+    pub loop_start_s: Option<f64>,
+    pub loop_end_s: Option<f64>,
+}
+
+/// Viewport state: zoom and pan for the preview canvas.
+#[derive(Debug, Clone)]
+pub(crate) struct ViewportState {
+    pub preview_zoom: f32,
+    pub preview_pan: Vec2,
+}
+
+/// Guide lines drawn on the preview canvas.
+#[derive(Debug, Clone)]
+pub(crate) struct GuideState {
+    pub horizontal_guides: Vec<f32>,
+    pub vertical_guides: Vec<f32>,
+}
+
+/// Smart snap state for drag interactions.
+#[derive(Debug, Clone)]
+pub(crate) struct SnapState {
+    pub snap_lines_h: Vec<f32>,
+    pub snap_lines_v: Vec<f32>,
+    pub snap_line_color: Option<Color32>,
+    pub snap_enabled: bool,
+    pub snap_threshold: f32,
+    pub snap_hud_label: Option<String>,
+}
+
 pub(crate) struct PreviewPaneState {
-    current_time_s: f64,
-    duration_s: f64,
-    is_playing: bool,
-    status: String,
-    error: Option<String>,
-    dimensions: SceneDimensions,
-    /// Preview canvas zoom level (1.0 = 100%).
-    preview_zoom: f32,
-    /// Preview canvas pan offset in scene coordinates (scene point centered in preview).
-    preview_pan: Vec2,
-    /// Playback speed multiplier (0.25, 0.5, 1.0, 2.0).
-    playback_speed: f32,
-    /// Loop region start time (A marker). None = not set.
-    loop_start_s: Option<f64>,
-    /// Loop region end time (B marker). None = not set.
-    loop_end_s: Option<f64>,
-    /// Horizontal guide positions in scene y-coordinates (pixels).
-    horizontal_guides: Vec<f32>,
-    /// Vertical guide positions in scene x-coordinates (pixels).
-    vertical_guides: Vec<f32>,
-    /// Snap lines to draw this frame (cleared at start of each preview_ui).
-    snap_lines_h: Vec<f32>,
-    /// Snap lines to draw this frame (cleared at start of each preview_ui).
-    snap_lines_v: Vec<f32>,
-    /// Color of the current snap lines.
-    snap_line_color: Option<Color32>,
-    /// Whether smart snap is enabled during drag.
-    snap_enabled: bool,
-    /// Snap threshold in scene pixels. Default 10.0.
-    snap_threshold: f32,
-    /// HUD label text when snapped (e.g. "Circle_2 center", "Container left").
-    snap_hud_label: Option<String>,
+    pub playback: PlaybackState,
+    pub viewport: ViewportState,
+    pub guides: GuideState,
+    pub snap: SnapState,
+    pub status: String,
+    pub error: Option<String>,
+    pub dimensions: SceneDimensions,
     /// Time lens HUD state (Space-drag time scrubbing).
     pub time_lens: crate::app::preview::time_lens::TimeLens,
     /// Overlay toggle state.
@@ -123,33 +134,41 @@ pub(crate) struct PanelState {
 impl PreviewPaneState {
     fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
         Self {
-            current_time_s: 0.0,
-            duration_s,
-            is_playing: false,
+            playback: PlaybackState {
+                current_time_s: 0.0,
+                duration_s,
+                is_playing: false,
+                playback_speed: 1.0,
+                loop_start_s: None,
+                loop_end_s: None,
+            },
+            viewport: ViewportState {
+                preview_zoom: 1.0,
+                preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
+            },
+            guides: GuideState {
+                horizontal_guides: vec![],
+                vertical_guides: vec![],
+            },
+            snap: SnapState {
+                snap_lines_h: vec![],
+                snap_lines_v: vec![],
+                snap_line_color: None,
+                snap_enabled: true,
+                snap_threshold: 10.0,
+                snap_hud_label: None,
+            },
             status: "Loaded file".to_string(),
             error: None,
             dimensions,
-            preview_zoom: 1.0,
-            preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
-            playback_speed: 1.0,
-            loop_start_s: None,
-            loop_end_s: None,
-            horizontal_guides: vec![],
-            vertical_guides: vec![],
-            snap_lines_h: vec![],
-            snap_lines_v: vec![],
-            snap_line_color: None,
-            snap_enabled: true,
-            snap_threshold: 10.0,
-            snap_hud_label: None,
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
         }
     }
 
     fn clamp_time(&mut self) {
-        let max_duration = self.duration_s.max(0.1);
-        self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
+        let max_duration = self.playback.duration_s.max(0.1);
+        self.playback.current_time_s = self.playback.current_time_s.clamp(0.0, max_duration);
     }
 
     fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
@@ -158,12 +177,12 @@ impl PreviewPaneState {
         }
         let next = keyframes
             .iter()
-            .find(|&&t| t > self.current_time_s)
+            .find(|&&t| t > self.playback.current_time_s)
             .copied()
-            .unwrap_or(self.duration_s);
-        self.current_time_s = next;
+            .unwrap_or(self.playback.duration_s);
+        self.playback.current_time_s = next;
         self.clamp_time();
-        self.is_playing = false;
+        self.playback.is_playing = false;
     }
 
     fn go_to_previous_keyframe(&mut self, keyframes: &[f64]) {
@@ -173,38 +192,38 @@ impl PreviewPaneState {
         let prev = keyframes
             .iter()
             .rev()
-            .find(|&&t| t < self.current_time_s)
+            .find(|&&t| t < self.playback.current_time_s)
             .copied()
             .unwrap_or(0.0);
-        self.current_time_s = prev;
+        self.playback.current_time_s = prev;
         self.clamp_time();
-        self.is_playing = false;
+        self.playback.is_playing = false;
     }
 
     fn toggle_playback(&mut self) {
-        if self.current_time_s >= self.duration_s {
-            self.current_time_s = 0.0;
+        if self.playback.current_time_s >= self.playback.duration_s {
+            self.playback.current_time_s = 0.0;
         }
-        self.is_playing = !self.is_playing;
+        self.playback.is_playing = !self.playback.is_playing;
     }
 
     fn tick(&mut self, delta: Duration) {
-        if !self.is_playing {
+        if !self.playback.is_playing {
             return;
         }
 
-        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64;
+        self.playback.current_time_s += delta.as_secs_f64() * self.playback.playback_speed as f64;
 
         // Loop region: if A and B are set and we've reached B, jump back to A.
-        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
-            if end > start && self.current_time_s >= end {
-                self.current_time_s = start;
+        if let (Some(start), Some(end)) = (self.playback.loop_start_s, self.playback.loop_end_s) {
+            if end > start && self.playback.current_time_s >= end {
+                self.playback.current_time_s = start;
             }
         }
 
-        if self.current_time_s >= self.duration_s {
-            self.current_time_s = self.duration_s;
-            self.is_playing = false;
+        if self.playback.current_time_s >= self.playback.duration_s {
+            self.playback.current_time_s = self.playback.duration_s;
+            self.playback.is_playing = false;
         }
     }
 }
@@ -312,12 +331,12 @@ impl GuiShell {
         // Poll background export status
         self.export_store.poll_export_status();
 
-        if self.preview_store.preview.is_playing {
+        if self.preview_store.preview.playback.is_playing {
             self.preview_store.preview.tick(delta);
             self.preview_store.preview_dirty = true;
 
             if self.ui_store.editor_sync_enabled {
-                if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.current_time_s) {
+                if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
                     if self.document_store.editor.highlighted_line != Some(line) {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
@@ -353,40 +372,40 @@ impl GuiShell {
             // Tool mode switching (V, M, G, S, R, E)
             if !i.modifiers.command {
                 if i.key_pressed(egui::Key::V) {
-                    self.ui_store.tool_mode = preview::ToolMode::Select;
+                    self.ui_store.view.tool_mode = preview::ToolMode::Select;
                     self.preview_store.preview.status = "Tool: Select".to_string();
                 }
                 if i.key_pressed(egui::Key::G) || i.key_pressed(egui::Key::M) {
-                    self.ui_store.tool_mode = preview::ToolMode::Move;
+                    self.ui_store.view.tool_mode = preview::ToolMode::Move;
                     self.preview_store.preview.status = "Tool: Move".to_string();
                 }
                 if i.key_pressed(egui::Key::S) {
-                    self.ui_store.tool_mode = preview::ToolMode::Scale;
+                    self.ui_store.view.tool_mode = preview::ToolMode::Scale;
                     self.preview_store.preview.status = "Tool: Scale".to_string();
                 }
                 if i.key_pressed(egui::Key::R) {
-                    self.ui_store.tool_mode = preview::ToolMode::Rotate;
+                    self.ui_store.view.tool_mode = preview::ToolMode::Rotate;
                     self.preview_store.preview.status = "Tool: Rotate".to_string();
                 }
                 if i.key_pressed(egui::Key::E) {
-                    self.ui_store.tool_mode = preview::ToolMode::Vertex;
+                    self.ui_store.view.tool_mode = preview::ToolMode::Vertex;
                     self.preview_store.preview.status = "Tool: Vertex Edit".to_string();
                 }
-                if i.key_pressed(egui::Key::A) && !self.ui_store.selected_actors.is_empty() {
-                    self.ui_store.action_palette_open = true;
+                if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
+                    self.ui_store.view.action_palette_open = true;
                 }
                 if i.key_pressed(egui::Key::Slash) && !i.modifiers.command {
-                    self.ui_store.shortcuts_open = true;
+                    self.ui_store.view.shortcuts_open = true;
                 }
             }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
-                && !self.ui_store.selected_actors.is_empty() {
+                && !self.ui_store.selection.selected_actors.is_empty() {
                     self.copy_selected_actors();
                 }
             // Paste actors (Ctrl+V)
             if i.modifiers.command && i.key_pressed(egui::Key::V)
-                && !self.ui_store.clipboard_actors.is_empty() {
+                && !self.ui_store.clipboard.clipboard_actors.is_empty() {
                     commands.push_back(Command::PasteActors);
                 }
         });
@@ -399,7 +418,7 @@ impl GuiShell {
         let diagnostics = self.document_store.combined_diagnostics();
 
         // Diagnostics panel (collapsible)
-        if self.ui_store.diagnostics_panel_visible && !diagnostics.is_empty() {
+        if self.ui_store.view.diagnostics_panel_visible && !diagnostics.is_empty() {
             egui::Panel::bottom("diagnostics_panel")
                 .resizable(true)
                 .default_size(180.0)
@@ -434,7 +453,7 @@ impl GuiShell {
         self.handle_commands(commands);
 
         // Settings modal overlay (rendered on top of everything)
-        if self.ui_store.settings_open {
+        if self.ui_store.view.settings_open {
             self.settings_dialog_ui(ui);
         }
 
@@ -444,12 +463,12 @@ impl GuiShell {
         }
 
         // Action palette overlay
-        if self.ui_store.action_palette_open {
+        if self.ui_store.view.action_palette_open {
             self.action_palette_ui(ui);
         }
 
         // Shortcut cheat sheet overlay
-        if self.ui_store.shortcuts_open {
+        if self.ui_store.view.shortcuts_open {
             self.shortcut_cheat_sheet_ui(ui);
         }
 
@@ -486,19 +505,19 @@ impl GuiShell {
             source_dirty: &mut self.document_store.document.source_text,
             scene_dimensions,
             timeline: self.document_store.document.timeline.as_ref(),
-            selected_actors: &mut self.ui_store.selected_actors,
-            hit_regions: &self.ui_store.hit_regions,
-            drag_state: &mut self.ui_store.drag_state,
-            selection: &mut self.ui_store.selection,
+            selected_actors: &mut self.ui_store.selection.selected_actors,
+            hit_regions: &self.ui_store.selection.hit_regions,
+            drag_state: &mut self.ui_store.interaction.drag_state,
+            selection: &mut self.ui_store.selection.selection,
             keyframe_mode: self.ui_store.keyframe_mode,
-            collapsed_actors: &mut self.ui_store.collapsed_actors,
+            collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             pivot_offsets: &mut self.ui_store.pivot_offsets,
-            tool_mode: &mut self.ui_store.tool_mode,
+            tool_mode: &mut self.ui_store.view.tool_mode,
             rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
         };
 
         let mut behavior = panels::behavior::WorkspaceBehavior { viewer };
-        self.ui_store.tree.ui(&mut behavior, ui);
+        self.ui_store.view.tree.ui(&mut behavior, ui);
     }
 
     fn handle_commands(&mut self, commands: CommandQueue) {
@@ -522,8 +541,8 @@ impl GuiShell {
                 // Clear undo/redo history when switching files
                 self.document_store.undo_stack.clear();
                 self.document_store.redo_stack.clear();
-                self.ui_store.drag_snapshot_taken = false;
-                self.ui_store.inspector_input_drag_active = false;
+                self.ui_store.interaction.drag_snapshot_taken = false;
+                self.ui_store.interaction.inspector_input_drag_active = false;
                 if let Some(ref mut reloader) = self.workspace_store.hot_reloader {
                     if let Err(e) = reloader.update_watched_file(&self.document_store.document.file_path) {
                         tracing::warn!("Failed to update watched file: {}", e);
@@ -610,7 +629,7 @@ impl GuiShell {
                 } else {
                     "Rebuild blocked".to_string()
                 };
-                self.preview_store.preview.duration_s = self.document_store.document.duration_s.max(0.1);
+                self.preview_store.preview.playback.duration_s = self.document_store.document.duration_s.max(0.1);
                 self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
                 self.preview_store.preview.clamp_time();
                 self.preview_store.preview.status = status;
@@ -628,12 +647,12 @@ impl GuiShell {
         reset_time: bool,
         stop_playback: bool,
     ) {
-        self.preview_store.preview.duration_s = self.document_store.document.duration_s.max(0.1);
+        self.preview_store.preview.playback.duration_s = self.document_store.document.duration_s.max(0.1);
         self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
         if reset_time {
-            self.preview_store.preview.current_time_s = 0.0;
-            self.preview_store.preview.preview_zoom = 1.0;
-            self.preview_store.preview.preview_pan = Vec2::new(
+            self.preview_store.preview.playback.current_time_s = 0.0;
+            self.preview_store.preview.viewport.preview_zoom = 1.0;
+            self.preview_store.preview.viewport.preview_pan = Vec2::new(
                 self.document_store.document.scene_dimensions.width as f32 / 2.0,
                 self.document_store.document.scene_dimensions.height as f32 / 2.0,
             );
@@ -641,7 +660,7 @@ impl GuiShell {
             self.preview_store.preview.clamp_time();
         }
         if stop_playback {
-            self.preview_store.preview.is_playing = false;
+            self.preview_store.preview.playback.is_playing = false;
         }
         self.clear_any_error(status);
         self.preview_store.preview_dirty = true;
@@ -649,7 +668,7 @@ impl GuiShell {
 
     fn sync_active_scene_from_time(&mut self) {
         if let Some(composition) = self.document_store.document.composition.as_ref() {
-            let (scene, _, _) = composition.evaluate(self.preview_store.preview.current_time_s);
+            let (scene, _, _) = composition.evaluate(self.preview_store.preview.playback.current_time_s);
             self.document_store.document.active_scene = (!scene.is_empty()).then_some(scene);
         }
     }
@@ -701,7 +720,7 @@ impl GuiShell {
             }
         }
         let persistence = WorkspacePersistence {
-            tree: self.ui_store.tree.clone(),
+            tree: self.ui_store.view.tree.clone(),
         };
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
@@ -751,7 +770,7 @@ impl GuiShell {
     }
 
     fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        if !self.ui_store.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target)) {
+        if !self.ui_store.view.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target)) {
             tracing::warn!("Failed to activate workspace tab {:?}", target);
         }
     }
@@ -803,17 +822,17 @@ impl GuiShell {
         self.preview_store.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
 
         // Select new actor and start move drag
-        self.ui_store.selected_actors.clear();
-        self.ui_store.selected_actors.insert(new_label.clone());
+        self.ui_store.selection.selected_actors.clear();
+        self.ui_store.selection.selected_actors.insert(new_label.clone());
         self.preview_store.preview_dirty = true;
         self.preview_store.preview.status = format!("Duplicated '{}' → '{}'", original_label, new_label);
 
         // Start move drag for the new actor at the original position
-        let time_ms = (self.preview_store.preview.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
         if let Some(timeline) = self.document_store.document.timeline.as_ref() {
             if let Some(track) = timeline.get_track(original_label) {
                 let position = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-                self.ui_store.drag_state = DragState::Move {
+                self.ui_store.interaction.drag_state = DragState::Move {
                     primary: new_label.clone(),
                     actors: vec![(new_label, position)],
                     start_scene: kurbo::Point::new(position[0] as f64, position[1] as f64),
@@ -831,7 +850,7 @@ impl GuiShell {
             return;
         };
 
-        let to_delete: Vec<String> = self.ui_store.selected_actors.iter().cloned().collect();
+        let to_delete: Vec<String> = self.ui_store.selection.selected_actors.iter().cloned().collect();
         if to_delete.is_empty() {
             return;
         }
@@ -862,7 +881,7 @@ impl GuiShell {
         self.preview_store.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
 
         // Clear selection
-        self.ui_store.selected_actors.clear();
+        self.ui_store.selection.selected_actors.clear();
         self.preview_store.preview_dirty = true;
         self.preview_store.preview.status = format!("Deleted {} actor(s)", deleted.len());
     }
@@ -1079,8 +1098,8 @@ impl GuiShell {
 
     /// Copy currently selected actor labels into the clipboard buffer.
     fn copy_selected_actors(&mut self) {
-        let count = self.ui_store.selected_actors.len();
-        self.ui_store.clipboard_actors = self.ui_store.selected_actors.iter().cloned().collect();
+        let count = self.ui_store.selection.selected_actors.len();
+        self.ui_store.clipboard.clipboard_actors = self.ui_store.selection.selected_actors.iter().cloned().collect();
         self.preview_store.preview.status = format!("Copied {} actor(s)", count);
     }
 
@@ -1095,8 +1114,8 @@ impl GuiShell {
     fn paste_actors(&mut self) {
         self.snapshot(Command::PasteActors);
 
-        let current_time_s = self.preview_store.preview.current_time_s;
-        let clipboard = self.ui_store.clipboard_actors.clone();
+        let current_time_s = self.preview_store.preview.playback.current_time_s;
+        let clipboard = self.ui_store.clipboard.clipboard_actors.clone();
 
         // Pre-generate all unique labels before mutating the AST.
         let label_map: Vec<(String, String)> = clipboard
@@ -1164,9 +1183,9 @@ impl GuiShell {
         self.preview_store.pending_rebuild_at = Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
 
         // Select the pasted actors
-        self.ui_store.selected_actors.clear();
+        self.ui_store.selection.selected_actors.clear();
         for label in &pasted_labels {
-            self.ui_store.selected_actors.insert(label.clone());
+            self.ui_store.selection.selected_actors.insert(label.clone());
         }
         self.preview_store.preview_dirty = true;
         self.preview_store.preview.status = format!("Pasted {} actor(s)", pasted_labels.len());
@@ -1198,7 +1217,7 @@ impl GuiShell {
         {
             return true;
         }
-        if self.ui_store.clipboard_actors.contains(&label.to_string()) {
+        if self.ui_store.clipboard.clipboard_actors.contains(&label.to_string()) {
             return true;
         }
         if let Some(ref stmts) = self.document_store.document.raw_statements {

@@ -137,11 +137,11 @@ impl GuiShell {
                             )
                             .clicked()
                             {
-                                self.ui_store.settings_open = true;
+                                self.ui_store.view.settings_open = true;
                             }
 
                             // Play / Pause
-                            let is_playing = self.preview_store.preview.is_playing;
+                            let is_playing = self.preview_store.preview.playback.is_playing;
                             let play_icon = if is_playing {
                                 egui_phosphor::regular::PAUSE
                             } else {

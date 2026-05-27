@@ -68,11 +68,11 @@ impl GuiShell {
             egui::Sense::click(),
         );
         if backdrop_response.clicked() {
-            self.ui_store.shortcuts_open = false;
+            self.ui_store.view.shortcuts_open = false;
         }
 
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.shortcuts_open = false;
+            self.ui_store.view.shortcuts_open = false;
         }
 
         // Centered panel
@@ -106,7 +106,7 @@ impl GuiShell {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(egui_phosphor::regular::X).clicked() {
-                    self.ui_store.shortcuts_open = false;
+                    self.ui_store.view.shortcuts_open = false;
                 }
             });
         });

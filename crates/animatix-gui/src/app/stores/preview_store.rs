@@ -23,7 +23,7 @@ impl PreviewStore {
     }
 
     pub fn is_playing(&self) -> bool {
-        self.preview.is_playing
+        self.preview.playback.is_playing
     }
 
     pub fn has_pending_rebuild(&self) -> bool {

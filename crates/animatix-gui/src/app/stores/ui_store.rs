@@ -5,24 +5,89 @@ use crate::app::commands::CommandQueue;
 use egui_tiles::Tree;
 use std::collections::{HashMap, HashSet};
 
-/// Owns all UI-specific state that does not affect the document or runtime.
-pub struct UiStore {
-    pub tree: Tree<crate::app::WorkspaceTab>,
+/// Selection state for the UI.
+pub struct SelectionStore {
     pub selected_actors: HashSet<String>,
-    pub clipboard_actors: Vec<String>,
     pub hit_regions: Vec<(String, kurbo::Rect)>,
-    pub drag_state: DragState,
     pub selection: SelectionState,
+}
+
+impl SelectionStore {
+    fn new() -> Self {
+        Self {
+            selected_actors: HashSet::new(),
+            hit_regions: Vec::new(),
+            selection: SelectionState::default(),
+        }
+    }
+}
+
+/// Interaction state (drag, inspector input, snapshots).
+pub struct InteractionStore {
+    pub drag_state: DragState,
     pub drag_snapshot_taken: bool,
     pub inspector_input_drag_active: bool,
-    pub editor_sync_enabled: bool,
-    pub keyframe_mode: bool,
-    pub cursor_time_s: Option<f64>,
+}
+
+impl InteractionStore {
+    fn new() -> Self {
+        Self {
+            drag_state: DragState::None,
+            drag_snapshot_taken: false,
+            inspector_input_drag_active: false,
+        }
+    }
+}
+
+/// Clipboard buffer for copy/paste.
+pub struct ClipboardStore {
+    pub clipboard_actors: Vec<String>,
+}
+
+impl ClipboardStore {
+    fn new() -> Self {
+        Self {
+            clipboard_actors: Vec::new(),
+        }
+    }
+}
+
+/// View settings and panel state.
+pub struct ViewStore {
+    pub tree: Tree<crate::app::WorkspaceTab>,
     pub collapsed_actors: HashSet<String>,
     pub diagnostics_panel_visible: bool,
     pub settings_open: bool,
     pub tool_mode: ToolMode,
     pub debug_bounds: bool,
+    pub action_palette_open: bool,
+    pub shortcuts_open: bool,
+}
+
+impl ViewStore {
+    fn new(tree: Tree<crate::app::WorkspaceTab>) -> Self {
+        Self {
+            tree,
+            collapsed_actors: HashSet::new(),
+            diagnostics_panel_visible: false,
+            settings_open: false,
+            tool_mode: ToolMode::Select,
+            debug_bounds: false,
+            action_palette_open: false,
+            shortcuts_open: false,
+        }
+    }
+}
+
+/// Owns all UI-specific state that does not affect the document or runtime.
+pub struct UiStore {
+    pub selection: SelectionStore,
+    pub interaction: InteractionStore,
+    pub clipboard: ClipboardStore,
+    pub view: ViewStore,
+    pub editor_sync_enabled: bool,
+    pub keyframe_mode: bool,
+    pub cursor_time_s: Option<f64>,
     pub keyframe_merge_window_s: f64,
     pub pivot_offsets: HashMap<String, [f32; 2]>,
     pub rebuild_debounce_ms: u64,
@@ -30,10 +95,6 @@ pub struct UiStore {
     pub nudge_step_px: f32,
     pub nudge_step_shift_px: f32,
     pub rotation_snap_degrees: f32,
-    /// Action palette open state.
-    pub action_palette_open: bool,
-    /// Shortcut cheat sheet open state.
-    pub shortcuts_open: bool,
     pub pending_commands: CommandQueue,
     pub toasts: ToastQueue,
 }
@@ -41,22 +102,13 @@ pub struct UiStore {
 impl UiStore {
     pub fn new(tree: Tree<crate::app::WorkspaceTab>) -> Self {
         Self {
-            tree,
-            selected_actors: HashSet::new(),
-            clipboard_actors: Vec::new(),
-            hit_regions: Vec::new(),
-            drag_state: DragState::None,
-            selection: SelectionState::default(),
-            drag_snapshot_taken: false,
-            inspector_input_drag_active: false,
+            selection: SelectionStore::new(),
+            interaction: InteractionStore::new(),
+            clipboard: ClipboardStore::new(),
+            view: ViewStore::new(tree),
             editor_sync_enabled: true,
             keyframe_mode: true,
             cursor_time_s: None,
-            collapsed_actors: HashSet::new(),
-            diagnostics_panel_visible: false,
-            settings_open: false,
-            tool_mode: ToolMode::Select,
-            debug_bounds: false,
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
             rebuild_debounce_ms: 150,
@@ -64,8 +116,6 @@ impl UiStore {
             nudge_step_px: 1.0,
             nudge_step_shift_px: 10.0,
             rotation_snap_degrees: 15.0,
-            action_palette_open: false,
-            shortcuts_open: false,
             pending_commands: CommandQueue::default(),
             toasts: ToastQueue::default(),
         }

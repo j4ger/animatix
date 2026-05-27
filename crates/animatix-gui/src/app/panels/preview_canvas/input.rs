@@ -26,7 +26,7 @@ impl WorkspaceViewer<'_> {
                 let props = self.get_actor_props(&actor);
 
                 if let Some(ref p) = props {
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     let vertex_points = self.timeline
                         .and_then(|t| t.get_track(&actor))
                         .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
@@ -40,7 +40,7 @@ impl WorkspaceViewer<'_> {
                         preview::ToolMode::Vertex => {
                             if let Some(ref points) = vertex_points {
                                 // Find nearest vertex even if not directly hitting it
-                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius * 2.0, self.preview.preview_zoom, self.preview.preview_pan) {
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius * 2.0, self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan) {
                                     *self.drag_state = DragState::EditVertices {
                                         actor,
                                         vertex: vidx,
@@ -129,7 +129,7 @@ impl WorkspaceViewer<'_> {
                         preview::ToolMode::Select => {
                             // Standard auto-detect priority
                             if let Some(ref points) = vertex_points {
-                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius, self.preview.preview_zoom, self.preview.preview_pan) {
+                                if let Some(vidx) = preview::hit_test_vertex(mouse, p, points, preview_rect, self.scene_dimensions, preview_rect.size(), hit_radius, self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan) {
                                     *self.drag_state = DragState::EditVertices {
                                         actor: actor.clone(),
                                         vertex: vidx,
@@ -350,10 +350,10 @@ impl WorkspaceViewer<'_> {
                     };
 
                     // Snap is disabled when Alt is held during drag
-                    let snap_enabled = self.preview.snap_enabled && !ui.input(|i| i.modifiers.alt);
-                    let threshold = self.preview.snap_threshold;
+                    let snap_enabled = self.preview.snap.snap_enabled && !ui.input(|i| i.modifiers.alt);
+                    let threshold = self.preview.snap.snap_threshold;
 
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     for (actor, start_position) in actors {
                         let mut nx = start_position[0] + dx;
                         let mut ny = start_position[1] + dy;
@@ -375,14 +375,14 @@ impl WorkspaceViewer<'_> {
 
                         if snap_enabled {
                             // ── Guide snap ──
-                            for &guide_y in &self.preview.horizontal_guides {
+                            for &guide_y in &self.preview.guides.horizontal_guides {
                                 if (ny - guide_y).abs() < threshold {
                                     ny = guide_y;
                                     snapped_guide_h = true;
                                     snap_hud_text = Some(format!("Guide y={}", guide_y as i32));
                                 }
                             }
-                            for &guide_x in &self.preview.vertical_guides {
+                            for &guide_x in &self.preview.guides.vertical_guides {
                                 if (nx - guide_x).abs() < threshold {
                                     nx = guide_x;
                                     snapped_guide_v = true;
@@ -512,22 +512,22 @@ impl WorkspaceViewer<'_> {
 
                         // ── Record snap lines for rendering ──
                         if snapped_guide_h || snapped_actor_h || snapped_container || snapped_keyframe {
-                            self.preview.snap_lines_h.push(ny);
+                            self.preview.snap.snap_lines_h.push(ny);
                         }
                         if snapped_guide_v || snapped_actor_v || snapped_container || snapped_keyframe {
-                            self.preview.snap_lines_v.push(nx);
+                            self.preview.snap.snap_lines_v.push(nx);
                         }
                         if snapped_guide_h || snapped_guide_v || snapped_actor_h || snapped_actor_v || snapped_container || snapped_keyframe {
                             // Priority: guide > keyframe > container > actor
                             let use_guide_color = snapped_guide_h || snapped_guide_v;
                             let use_keyframe_color = snapped_keyframe;
-                            self.preview.snap_line_color = Some(
+                            self.preview.snap.snap_line_color = Some(
                                 if use_guide_color { AMBER }
                                 else if use_keyframe_color { ACCENT_CYAN }
                                 else if snapped_container { ACCENT_BLUE }
                                 else { GREEN }
                             );
-                            self.preview.snap_hud_label = snap_hud_text;
+                            self.preview.snap.snap_hud_label = snap_hud_text;
                         }
 
                         let binding = self
@@ -665,7 +665,7 @@ impl WorkspaceViewer<'_> {
                         }));
                     }
 
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     let binding = self
                         .timeline
                         .and_then(|t| t.get_track(&actor))
@@ -737,7 +737,7 @@ impl WorkspaceViewer<'_> {
                     target_index: _,
                     layout_type,
                 } => {
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     if let Some(timeline) = self.timeline {
                         let order = timeline.get_child_order(&container, time_ms);
                         let siblings: Vec<String> = order.into_iter().filter(|l| l != &actor).collect();
@@ -849,7 +849,7 @@ impl WorkspaceViewer<'_> {
             // ── Auto-keyframe: after spatial drag, create keyframe if property changed ──
             let old_drag_state = self.drag_state.clone();
             if let Some(tl) = self.timeline {
-                let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                 match &old_drag_state {
                     DragState::Move { primary, actors, .. } => {
                         if let Some(current_props) = self.get_actor_props(primary) {
@@ -914,7 +914,7 @@ impl WorkspaceViewer<'_> {
             } = self.drag_state.clone()
             {
                 if source_index != target_index {
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     if let Some(timeline) = self.timeline {
                         let mut new_order = timeline.get_child_order(&container, time_ms);
                         if let Some(pos) = new_order.iter().position(|label| label == &actor) {
@@ -980,8 +980,8 @@ impl WorkspaceViewer<'_> {
         if response.secondary_clicked() && !is_dragging {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
-                let zoom = self.preview.preview_zoom;
-                let pan = self.preview.preview_pan;
+                let zoom = self.preview.viewport.preview_zoom;
+                let pan = self.preview.viewport.preview_pan;
                 selection::handle_right_click(
                     self.selection,
                     self.hit_regions,
@@ -1019,8 +1019,8 @@ impl WorkspaceViewer<'_> {
         if response.clicked() && !is_dragging && !self.selection.context_menu_open && !suppress_click {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
-                let zoom = self.preview.preview_zoom;
-                let pan = self.preview.preview_pan;
+                let zoom = self.preview.viewport.preview_zoom;
+                let pan = self.preview.viewport.preview_pan;
                 let modifiers = ui.ctx().input(|i| i.modifiers);
                 selection::handle_click(
                     self.selection,

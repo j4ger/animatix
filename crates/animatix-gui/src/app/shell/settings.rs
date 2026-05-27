@@ -25,12 +25,12 @@ impl GuiShell {
             egui::Sense::click(),
         );
         if backdrop_response.clicked() {
-            self.ui_store.settings_open = false;
+            self.ui_store.view.settings_open = false;
         }
 
         // Close on Escape
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.settings_open = false;
+            self.ui_store.view.settings_open = false;
         }
 
         // Centered dialog using egui window for proper layout
@@ -62,7 +62,7 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let close_resp = ui.button(egui_phosphor::regular::X);
                         if close_resp.clicked() {
-                            self.ui_store.settings_open = false;
+                            self.ui_store.view.settings_open = false;
                         }
                     });
                 });
@@ -208,19 +208,19 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                let mut debug = self.ui_store.debug_bounds;
+                let mut debug = self.ui_store.view.debug_bounds;
                 ui.checkbox(
                     &mut debug,
                     RichText::new("Draw debug bounding boxes")
                         .size(FONT_SIZE_S)
                         .color(TEXT_SECONDARY),
                 );
-                self.ui_store.debug_bounds = debug;
+                self.ui_store.view.debug_bounds = debug;
             });
 
         if window_response.is_none() {
             // Window was closed via egui chrome
-            self.ui_store.settings_open = false;
+            self.ui_store.view.settings_open = false;
         }
     }
 }

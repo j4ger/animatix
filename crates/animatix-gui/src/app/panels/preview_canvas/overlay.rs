@@ -23,8 +23,8 @@ impl WorkspaceViewer<'_> {
                         preview_rect,
                         self.scene_dimensions,
                         preview_rect.size(),
-                        self.preview.preview_zoom,
-                        self.preview.preview_pan,
+                        self.preview.viewport.preview_zoom,
+                        self.preview.viewport.preview_pan,
                     ) {
                         selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
                     }
@@ -41,7 +41,7 @@ impl WorkspaceViewer<'_> {
 
         // ── Snap HUD label ──
         if self.preview.overlay.show_snap_guides {
-            if let Some(ref label) = self.preview.snap_hud_label {
+            if let Some(ref label) = self.preview.snap.snap_hud_label {
                 if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                     let hud_pos = mouse + Vec2::new(12.0, -24.0);
                     let galley = ui.painter().layout_no_wrap(
@@ -90,7 +90,7 @@ impl WorkspaceViewer<'_> {
                 let world = preview::local_to_world(*corner, p.position, p.rotation);
                 let screen = preview::scene_to_screen(
                     world, preview_rect, self.scene_dimensions, preview_rect.size(),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 min_x = min_x.min(screen.x);
                 min_y = min_y.min(screen.y);
@@ -102,11 +102,11 @@ impl WorkspaceViewer<'_> {
             self.hit_regions.iter().find(|(l, _)| l == primary).map(|(_, bounds)| {
                 let tl = preview::scene_to_screen(
                     kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
-                    preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                    preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 let br = preview::scene_to_screen(
                     kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
-                    preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                    preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 egui::Rect::from_min_max(tl, br)
             }).unwrap_or(preview_rect)
@@ -122,11 +122,11 @@ impl WorkspaceViewer<'_> {
             }
             let tl = preview::scene_to_screen(
                 kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
-                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
             );
             let br = preview::scene_to_screen(
                 kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
-                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
             );
             let other_rect = egui::Rect::from_min_max(tl, br);
 

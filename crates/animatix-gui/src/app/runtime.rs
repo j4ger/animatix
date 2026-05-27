@@ -145,7 +145,7 @@ impl AnimatixApp {
             self.shell.preview_store.preview.go_to_previous_keyframe(&keyframes);
             self.shell.preview_store.preview.status = format!(
                 "Previous keyframe \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.current_time_s, self.shell.preview_store.preview.duration_s
+                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
             );
             self.shell.preview_store.preview_dirty = true;
         }
@@ -161,13 +161,13 @@ impl AnimatixApp {
             self.shell.preview_store.preview.go_to_next_keyframe(&keyframes);
             self.shell.preview_store.preview.status = format!(
                 "Next keyframe \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.current_time_s, self.shell.preview_store.preview.duration_s
+                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
             );
             self.shell.preview_store.preview_dirty = true;
         }
 
         // Arrow keys: nudge selected actors OR scrub timeline
-        let has_selection = !self.shell.ui_store.selected_actors.is_empty();
+        let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let arrow_left = ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft));
         let arrow_right = ctx.input(|i| i.key_pressed(egui::Key::ArrowRight));
         let arrow_up = ctx.input(|i| i.key_pressed(egui::Key::ArrowUp));
@@ -184,9 +184,9 @@ impl AnimatixApp {
             let dx = if arrow_left { -nudge_step } else if arrow_right { nudge_step } else { 0.0 };
             let dy = if arrow_up { -nudge_step } else if arrow_down { nudge_step } else { 0.0 };
 
-            let time_ms = (self.shell.preview_store.preview.current_time_s * 1000.0) as u64;
+            let time_ms = (self.shell.preview_store.preview.playback.current_time_s * 1000.0) as u64;
             let keyframe_mode = self.shell.ui_store.keyframe_mode;
-            let selected: Vec<String> = self.shell.ui_store.selected_actors.iter().cloned().collect();
+            let selected: Vec<String> = self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
             let mut edits = Vec::new();
             if let Some(ref timeline) = self.shell.document_store.document.timeline {
                 for actor in &selected {
@@ -206,22 +206,22 @@ impl AnimatixApp {
                 self.shell.handle_property_edit(edit);
             }
         } else if arrow_left {
-            self.shell.preview_store.preview.current_time_s -= scrub_step_s;
+            self.shell.preview_store.preview.playback.current_time_s -= scrub_step_s;
             self.shell.preview_store.preview.clamp_time();
-            self.shell.preview_store.preview.is_playing = false;
+            self.shell.preview_store.preview.playback.is_playing = false;
             self.shell.preview_store.preview_dirty = true;
             self.shell.preview_store.preview.status = format!(
                 "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.current_time_s, self.shell.preview_store.preview.duration_s
+                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
             );
         } else if arrow_right {
-            self.shell.preview_store.preview.current_time_s += scrub_step_s;
+            self.shell.preview_store.preview.playback.current_time_s += scrub_step_s;
             self.shell.preview_store.preview.clamp_time();
-            self.shell.preview_store.preview.is_playing = false;
+            self.shell.preview_store.preview.playback.is_playing = false;
             self.shell.preview_store.preview_dirty = true;
             self.shell.preview_store.preview.status = format!(
                 "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.current_time_s, self.shell.preview_store.preview.duration_s
+                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
             );
         }
 
@@ -232,41 +232,41 @@ impl AnimatixApp {
 
         // Duplicate selected actor(s) (Ctrl+D)
         if ctx.input(|i| i.key_pressed(egui::Key::D) && i.modifiers.ctrl) && has_selection {
-            for label in self.shell.ui_store.selected_actors.iter().cloned().collect::<Vec<_>>() {
+            for label in self.shell.ui_store.selection.selected_actors.iter().cloned().collect::<Vec<_>>() {
                 self.shell.ui_store.pending_commands.push_back(Command::DuplicateActor(label));
             }
         }
 
         // Esc: cancel active drag or reset tool mode to Select
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if !matches!(self.shell.ui_store.drag_state, crate::app::preview::DragState::None) {
-                self.shell.ui_store.drag_state = crate::app::preview::DragState::None;
+            if !matches!(self.shell.ui_store.interaction.drag_state, crate::app::preview::DragState::None) {
+                self.shell.ui_store.interaction.drag_state = crate::app::preview::DragState::None;
                 self.shell.preview_store.preview.status = "Drag cancelled".to_string();
-            } else if self.shell.ui_store.tool_mode != crate::app::preview::ToolMode::Select {
-                self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Select;
+            } else if self.shell.ui_store.view.tool_mode != crate::app::preview::ToolMode::Select {
+                self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Select;
                 self.shell.preview_store.preview.status = "Tool: Select".to_string();
             }
         }
 
         // Tool mode shortcuts
         if ctx.input(|i| i.key_pressed(egui::Key::M)) {
-            self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Move;
+            self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Move;
             self.shell.preview_store.preview.status = "Tool: Move".to_string();
         }
         if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.shift) {
-            self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Scale;
+            self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Scale;
             self.shell.preview_store.preview.status = "Tool: Scale".to_string();
         }
         if ctx.input(|i| i.key_pressed(egui::Key::R)) {
-            self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Rotate;
+            self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Rotate;
             self.shell.preview_store.preview.status = "Tool: Rotate".to_string();
         }
         if ctx.input(|i| i.key_pressed(egui::Key::V)) {
-            self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Vertex;
+            self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Vertex;
             self.shell.preview_store.preview.status = "Tool: Vertex".to_string();
         }
         if ctx.input(|i| i.key_pressed(egui::Key::P)) {
-            self.shell.ui_store.tool_mode = crate::app::preview::ToolMode::Pivot;
+            self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Pivot;
             self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
         }
     }
@@ -283,7 +283,7 @@ impl AnimatixApp {
 
         if self.shell.preview_store.preview_dirty {
             let debug = animatix::timeline::DebugRenderOptions {
-                draw_bounds: self.shell.ui_store.debug_bounds,
+                draw_bounds: self.shell.ui_store.view.debug_bounds,
                 compute_hit_regions: true,
             };
 
@@ -293,7 +293,7 @@ impl AnimatixApp {
                     device,
                     queue,
                     composition,
-                    self.shell.preview_store.preview.current_time_s,
+                    self.shell.preview_store.preview.playback.current_time_s,
                     debug,
                 )
             } else if let Some(timeline) = self.shell.document_store.document.timeline.as_ref() {
@@ -301,7 +301,7 @@ impl AnimatixApp {
                     device,
                     queue,
                     timeline,
-                    self.shell.preview_store.preview.current_time_s,
+                    self.shell.preview_store.preview.playback.current_time_s,
                     debug,
                 )
             } else {
@@ -336,7 +336,7 @@ impl AnimatixApp {
             }
 
             self.shell.preview_store.preview_dirty = false;
-            self.shell.ui_store.hit_regions = self.preview_surface.hit_regions().to_vec();
+            self.shell.ui_store.selection.hit_regions = self.preview_surface.hit_regions().to_vec();
             self.shell
                 .clear_any_error(live_preview_status(
                     &self.shell.preview_store.preview,
@@ -457,12 +457,12 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
     if let Some(scene) = active_scene {
         format!(
             "{} \u{2022} t = {:.2}s / {:.2}s",
-            scene, preview.current_time_s, preview.duration_s
+            scene, preview.playback.current_time_s, preview.playback.duration_s
         )
     } else {
         format!(
             "Live preview \u{2022} t = {:.2}s / {:.2}s",
-            preview.current_time_s, preview.duration_s
+            preview.playback.current_time_s, preview.playback.duration_s
         )
     }
 }

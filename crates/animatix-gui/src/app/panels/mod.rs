@@ -118,7 +118,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
 
 impl WorkspaceViewer<'_> {
     fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
-        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
         self.get_actor_props_at_time(actor, time_ms)
     }
 
@@ -148,7 +148,7 @@ impl WorkspaceViewer<'_> {
             comp.scenes.get(scene_name).map(|s| &s.timeline)
         });
         let Some(timeline) = timeline else { return false; };
-        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
         preview::is_layout_managed(actor, timeline, time_ms)
     }
 
@@ -337,7 +337,7 @@ impl WorkspaceViewer<'_> {
             return;
         }
 
-        let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
@@ -366,7 +366,7 @@ self.selected_actors,
             }
             if let Some(time_s) = self.editor.pending_scrub_to_time.take() {
                 self.commands.push_back(Command::ScrubTo(time_s));
-                if !self.preview.is_playing {
+                if !self.preview.playback.is_playing {
                     self.commands.push_back(Command::TogglePlayback);
                 }
             }
@@ -376,7 +376,7 @@ self.selected_actors,
 
     pub(super) fn inspector_ui(&mut self, ui: &mut egui::Ui) {
         panel_frame().show(ui, |ui| {
-            let current_time_s = self.preview.current_time_s;
+            let current_time_s = self.preview.playback.current_time_s;
             // For compositions, use the active scene's timeline.
             // During a transition, if the selected actor is in the other scene,
             // use that scene's timeline so the inspector shows correct properties.

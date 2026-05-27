@@ -31,8 +31,8 @@ impl WorkspaceViewer<'_> {
         preview::PreviewTransform::new(
             self.scene_dimensions,
             preview_rect,
-            self.preview.preview_zoom,
-            self.preview.preview_pan,
+            self.preview.viewport.preview_zoom,
+            self.preview.viewport.preview_pan,
         )
     }
 
@@ -43,7 +43,7 @@ impl WorkspaceViewer<'_> {
     /// pan is limited so the viewport never shows empty space beyond edges.
     fn clamp_pan(&self, pan: Vec2, preview_rect: egui::Rect) -> Vec2 {
         let tx = preview::PreviewTransform::new(
-            self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
+            self.scene_dimensions, preview_rect, self.preview.viewport.preview_zoom, Vec2::ZERO,
         );
         let (scale, _) = tx.scale();
         let scene_w = self.scene_dimensions.width as f64;
@@ -127,11 +127,11 @@ impl WorkspaceViewer<'_> {
             // Compute visible scene bounds
             let scene_tl = preview_screen_to_scene(
                 self.scene_dimensions, preview_rect, preview_rect.left_top(),
-                self.preview.preview_zoom, self.preview.preview_pan,
+                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
             );
             let scene_br = preview_screen_to_scene(
                 self.scene_dimensions, preview_rect, preview_rect.right_bottom(),
-                self.preview.preview_zoom, self.preview.preview_pan,
+                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
             );
             let visible_w = (scene_br.x - scene_tl.x) as f32;
             let visible_h = (scene_br.y - scene_tl.y) as f32;
@@ -147,7 +147,7 @@ impl WorkspaceViewer<'_> {
                 let screen_pt = preview_scene_to_screen(
                     self.scene_dimensions, preview_rect,
                     kurbo::Point::new(tick_x as f64, scene_tl.y),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
                     let rel_x = screen_pt.x - h_ruler_rect.min.x;
@@ -183,7 +183,7 @@ impl WorkspaceViewer<'_> {
                 let screen_pt = preview_scene_to_screen(
                     self.scene_dimensions, preview_rect,
                     kurbo::Point::new(scene_tl.x, tick_y as f64),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
                     let rel_y = screen_pt.y - v_ruler_rect.min.y;
@@ -266,9 +266,9 @@ impl WorkspaceViewer<'_> {
                         if preview_rect.contains(mouse) {
                             let scene = self.preview_screen_to_scene(preview_rect, mouse);
                             if is_vertical {
-                                self.preview.vertical_guides.push(scene.x as f32);
+                                self.preview.guides.vertical_guides.push(scene.x as f32);
                             } else {
-                                self.preview.horizontal_guides.push(scene.y as f32);
+                                self.preview.guides.horizontal_guides.push(scene.y as f32);
                             }
                         }
                     }
@@ -279,7 +279,7 @@ impl WorkspaceViewer<'_> {
             // ── Draw existing guides ──
             if self.preview.overlay.show_guides {
                 let guide_color = AMBER;
-                for &guide_y in &self.preview.horizontal_guides {
+                for &guide_y in &self.preview.guides.horizontal_guides {
                     let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
                     if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
                         ui.painter().line_segment(
@@ -289,7 +289,7 @@ impl WorkspaceViewer<'_> {
                         );
                     }
                 }
-                for &guide_x in &self.preview.vertical_guides {
+                for &guide_x in &self.preview.guides.vertical_guides {
                     let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
                     if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
                         ui.painter().line_segment(
@@ -306,8 +306,8 @@ impl WorkspaceViewer<'_> {
                 let scroll = ui.input(|i| i.smooth_scroll_delta);
                 if scroll.y != 0.0 {
                     let zoom_factor = 1.0 + scroll.y * 0.001;
-                    let new_zoom = (self.preview.preview_zoom * zoom_factor).clamp(1.0, 10.0);
-                    let prev_zoom = self.preview.preview_zoom;
+                    let new_zoom = (self.preview.viewport.preview_zoom * zoom_factor).clamp(1.0, 10.0);
+                    let prev_zoom = self.preview.viewport.preview_zoom;
                     // Zoom toward cursor: keep the scene point under cursor fixed
                     if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                         let cursor_in_rect = preview_rect.contains(cursor);
@@ -317,7 +317,7 @@ impl WorkspaceViewer<'_> {
                             let rel = cursor - preview_rect.center();
 
                             // Set new zoom
-                            self.preview.preview_zoom = new_zoom;
+                            self.preview.viewport.preview_zoom = new_zoom;
 
                             // Compute new scale with updated zoom (PreviewTransform uses uniform scale)
                             let tx = preview::PreviewTransform::new(
@@ -330,12 +330,12 @@ impl WorkspaceViewer<'_> {
                                 (scene_at_cursor.x - rel.x as f64 * new_scale) as f32,
                                 (scene_at_cursor.y - rel.y as f64 * new_scale) as f32,
                             );
-                            self.preview.preview_pan = self.clamp_pan(new_pan, preview_rect);
-                            self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
+                            self.preview.viewport.preview_pan = self.clamp_pan(new_pan, preview_rect);
+                            self.preview.status = format!("Zoom: {:.0}%", self.preview.viewport.preview_zoom * 100.0);
                         }
                     } else {
-                        self.preview.preview_zoom = new_zoom;
-                        self.preview.status = format!("Zoom: {:.0}%", self.preview.preview_zoom * 100.0);
+                        self.preview.viewport.preview_zoom = new_zoom;
+                        self.preview.status = format!("Zoom: {:.0}%", self.preview.viewport.preview_zoom * 100.0);
                     }
                 }
             }
@@ -347,24 +347,24 @@ impl WorkspaceViewer<'_> {
                         let delta = ui.input(|i| i.pointer.delta());
                         if delta != Vec2::ZERO {
                             let tx = preview::PreviewTransform::new(
-                                self.scene_dimensions, preview_rect, self.preview.preview_zoom, Vec2::ZERO,
+                                self.scene_dimensions, preview_rect, self.preview.viewport.preview_zoom, Vec2::ZERO,
                             );
                             let (scale, _) = tx.scale();
                             let new_pan = Vec2::new(
-                                self.preview.preview_pan.x - delta.x * scale as f32,
-                                self.preview.preview_pan.y - delta.y * scale as f32,
+                                self.preview.viewport.preview_pan.x - delta.x * scale as f32,
+                                self.preview.viewport.preview_pan.y - delta.y * scale as f32,
                             );
-                            self.preview.preview_pan = self.clamp_pan(new_pan, preview_rect);
+                            self.preview.viewport.preview_pan = self.clamp_pan(new_pan, preview_rect);
                         }
                     }
                 }
             }
 
             // Clear snap lines from previous frame
-            self.preview.snap_lines_h.clear();
-            self.preview.snap_lines_v.clear();
-            self.preview.snap_line_color = None;
-            self.preview.snap_hud_label = None;
+            self.preview.snap.snap_lines_h.clear();
+            self.preview.snap.snap_lines_v.clear();
+            self.preview.snap.snap_line_color = None;
+            self.preview.snap.snap_hud_label = None;
 
             // ── Time Lens (Space-drag HUD) ──
             let mut all_kf: Vec<f64> = if let Some(tl) = self.timeline {
@@ -380,8 +380,8 @@ impl WorkspaceViewer<'_> {
             all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
             if let Some(new_time) = self.preview.time_lens.update_and_show(
                 ui,
-                self.preview.current_time_s,
-                self.preview.duration_s,
+                self.preview.playback.current_time_s,
+                self.preview.playback.duration_s,
                 &all_kf,
             ) {
                 self.commands.push_back(Command::ScrubTo(new_time));
@@ -397,8 +397,8 @@ impl WorkspaceViewer<'_> {
                 .input(|i| i.pointer.latest_pos())
                 .filter(|p| preview_rect.contains(*p));
             let scene_dimensions = self.scene_dimensions;
-            let zoom = self.preview.preview_zoom;
-            let pan = self.preview.preview_pan;
+            let zoom = self.preview.viewport.preview_zoom;
+            let pan = self.preview.viewport.preview_pan;
             let screen_to_scene = move |screen: egui::Pos2| preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan);
 
             if !self.selection.context_menu_open {
@@ -423,12 +423,12 @@ impl WorkspaceViewer<'_> {
                 let bounds_rect = preview::scene_to_screen(
                     kurbo::Point::new(0.0, 0.0),
                     preview_rect, self.scene_dimensions, preview_rect.size(),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 let bounds_br = preview::scene_to_screen(
                     kurbo::Point::new(self.scene_dimensions.width as f64, self.scene_dimensions.height as f64),
                     preview_rect, self.scene_dimensions, preview_rect.size(),
-                    self.preview.preview_zoom, self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                 );
                 let bounds_screen = egui::Rect::from_min_max(bounds_rect, bounds_br)
                     .intersect(preview_rect);
@@ -448,7 +448,7 @@ impl WorkspaceViewer<'_> {
                     let center = preview::scene_to_screen(
                         kurbo::Point::new((bounds.x0 + bounds.x1) / 2.0, bounds.y0 - 4.0),
                         preview_rect, self.scene_dimensions, preview_rect.size(),
-                        self.preview.preview_zoom, self.preview.preview_pan,
+                        self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                     );
                     ui.painter().text(
                         center,
@@ -466,15 +466,15 @@ impl WorkspaceViewer<'_> {
                     ui.painter(),
                     self.scene_dimensions,
                     preview_rect,
-                    self.preview.preview_zoom,
-                    self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom,
+                    self.preview.viewport.preview_pan,
                     self.preview.overlay.grid_size,
                 );
             }
 
             // ── Draw snap indicator lines ──
-            if let Some(color) = self.preview.snap_line_color {
-                for &sy in &self.preview.snap_lines_h {
+            if let Some(color) = self.preview.snap.snap_line_color {
+                for &sy in &self.preview.snap.snap_lines_h {
                     let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, sy as f64));
                     if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
                         ui.painter().line_segment(
@@ -484,7 +484,7 @@ impl WorkspaceViewer<'_> {
                         );
                     }
                 }
-                for &sx in &self.preview.snap_lines_v {
+                for &sx in &self.preview.snap.snap_lines_v {
                     let screen_pt = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(sx as f64, 0.0));
                     if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
                         ui.painter().line_segment(
@@ -526,7 +526,7 @@ impl WorkspaceViewer<'_> {
                 let scene_label = if let Some(scene) = active_scene {
                     scene.to_string()
                 } else if let Some(comp) = composition {
-                    let (scene, _, _) = comp.evaluate(self.preview.current_time_s);
+                    let (scene, _, _) = comp.evaluate(self.preview.playback.current_time_s);
                     scene
                 } else {
                     "Scene".to_string()
@@ -543,7 +543,7 @@ impl WorkspaceViewer<'_> {
                 // Time display
                 let time_text = format!(
                     "{:.2}s / {:.2}s",
-                    self.preview.current_time_s, self.preview.duration_s
+                    self.preview.playback.current_time_s, self.preview.playback.duration_s
                 );
                 ui.painter().text(
                     egui::pos2(hud_rect.min.x + SPACE_S, hud_rect.max.y - SPACE_S - 2.0),
@@ -578,7 +578,7 @@ impl WorkspaceViewer<'_> {
                     ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                     // Play/Pause
-                    let play_icon = if self.preview.is_playing {
+                    let play_icon = if self.preview.playback.is_playing {
                         egui_phosphor::regular::PAUSE
                     } else {
                         egui_phosphor::regular::PLAY
@@ -589,7 +589,7 @@ impl WorkspaceViewer<'_> {
 
                     // Time
                     ui.label(
-                        RichText::new(format!("{:.2}s", self.preview.current_time_s))
+                        RichText::new(format!("{:.2}s", self.preview.playback.current_time_s))
                             .monospace()
                             .size(FONT_SIZE_S)
                             .color(TEXT_PRIMARY),
@@ -614,17 +614,17 @@ impl WorkspaceViewer<'_> {
                     ui.separator();
 
                     // Zoom presets
-                    if ui.selectable_label(self.preview.preview_zoom == 1.0, "100%").clicked() {
-                        self.preview.preview_zoom = 1.0;
+                    if ui.selectable_label(self.preview.viewport.preview_zoom == 1.0, "100%").clicked() {
+                        self.preview.viewport.preview_zoom = 1.0;
                         let scene_w = self.scene_dimensions.width as f32;
                         let scene_h = self.scene_dimensions.height as f32;
-                        self.preview.preview_pan = Vec2::new(scene_w / 2.0, scene_h / 2.0);
+                        self.preview.viewport.preview_pan = Vec2::new(scene_w / 2.0, scene_h / 2.0);
                     }
-                    if ui.selectable_label(self.preview.preview_zoom == 1.5, "150%").clicked() {
-                        self.preview.preview_zoom = 1.5;
+                    if ui.selectable_label(self.preview.viewport.preview_zoom == 1.5, "150%").clicked() {
+                        self.preview.viewport.preview_zoom = 1.5;
                     }
-                    if ui.selectable_label(self.preview.preview_zoom == 2.0, "200%").clicked() {
-                        self.preview.preview_zoom = 2.0;
+                    if ui.selectable_label(self.preview.viewport.preview_zoom == 2.0, "200%").clicked() {
+                        self.preview.viewport.preview_zoom = 2.0;
                     }
                 });
             }
@@ -636,11 +636,11 @@ impl WorkspaceViewer<'_> {
                         let screen_pos = preview::scene_to_screen(
                             kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
                             preview_rect, self.scene_dimensions, preview_rect.size(),
-                            self.preview.preview_zoom, self.preview.preview_pan,
+                            self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                         );
                         preview::property_popup::show_property_popup(
                             ui, actor, &props, screen_pos, self.commands, is_dragging,
-                            self.timeline, self.preview.current_time_s,
+                            self.timeline, self.preview.playback.current_time_s,
                         );
                     }
                 }

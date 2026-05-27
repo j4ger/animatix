@@ -22,7 +22,7 @@ impl GuiShell {
                 }
             }
             Command::ToggleDiagnosticsPanel => {
-                self.ui_store.diagnostics_panel_visible = !self.ui_store.diagnostics_panel_visible;
+                self.ui_store.view.diagnostics_panel_visible = !self.ui_store.view.diagnostics_panel_visible;
             }
             Command::Save => {
                 if let Err(e) = self.save() {
@@ -42,9 +42,9 @@ impl GuiShell {
                 }
             }
             Command::ScrubTo(next_time) => {
-                self.preview_store.preview.current_time_s = next_time;
+                self.preview_store.preview.playback.current_time_s = next_time;
                 self.preview_store.preview.clamp_time();
-                self.preview_store.preview.is_playing = false;
+                self.preview_store.preview.playback.is_playing = false;
                 self.preview_store.preview_dirty = true;
                 self.sync_active_scene_from_time();
                 if self.ui_store.editor_sync_enabled {
@@ -89,11 +89,11 @@ impl GuiShell {
                 self.preview_store.preview.go_to_previous_keyframe(&keyframes);
                 self.preview_store.preview.status = format!(
                     "Previous keyframe • t = {:.2}s / {:.2}s",
-                    self.preview_store.preview.current_time_s, self.preview_store.preview.duration_s
+                    self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
                 );
                 self.preview_store.preview_dirty = true;
                 if self.ui_store.editor_sync_enabled {
-                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.current_time_s) {
+                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
                     }
@@ -108,11 +108,11 @@ impl GuiShell {
                 self.preview_store.preview.go_to_next_keyframe(&keyframes);
                 self.preview_store.preview.status = format!(
                     "Next keyframe • t = {:.2}s / {:.2}s",
-                    self.preview_store.preview.current_time_s, self.preview_store.preview.duration_s
+                    self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
                 );
                 self.preview_store.preview_dirty = true;
                 if self.ui_store.editor_sync_enabled {
-                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.current_time_s) {
+                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
                     }
@@ -131,13 +131,13 @@ impl GuiShell {
                     if let Some(target_name) = composition.declaration_order.get(target_idx) {
                         self.document_store.document.active_scene = Some(target_name.clone());
                         if let Some(start) = composition.scene_start_times.get(target_name) {
-                            self.preview_store.preview.current_time_s = *start;
+                            self.preview_store.preview.playback.current_time_s = *start;
                             self.preview_store.preview.clamp_time();
-                            self.preview_store.preview.is_playing = false;
+                            self.preview_store.preview.playback.is_playing = false;
                             self.preview_store.preview_dirty = true;
                             self.preview_store.preview.status = format!(
                                 "Scene {} • t = {:.2}s / {:.2}s",
-                                target_name, self.preview_store.preview.current_time_s, self.preview_store.preview.duration_s
+                                target_name, self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
                             );
                         }
                     }
@@ -155,13 +155,13 @@ impl GuiShell {
                                     break;
                                 }
                             }
-                            self.preview_store.preview.current_time_s = target_time;
+                            self.preview_store.preview.playback.current_time_s = target_time;
                             self.preview_store.preview.clamp_time();
-                            self.preview_store.preview.is_playing = false;
+                            self.preview_store.preview.playback.is_playing = false;
                             self.preview_store.preview_dirty = true;
                             self.preview_store.preview.status = format!(
                                 "Scene {} • t = {:.2}s / {:.2}s",
-                                scene, self.preview_store.preview.current_time_s, self.preview_store.preview.duration_s
+                                scene, self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
                             );
                         }
                     }
@@ -268,7 +268,7 @@ impl GuiShell {
                 tracing::info!("MoveKeyframe: {actor}.{property} {old_time_s}s → {new_time_s}s");
             }
             Command::InspectorInputDragStarted => {
-                self.ui_store.inspector_input_drag_active = true;
+                self.ui_store.interaction.inspector_input_drag_active = true;
             }
             Command::ReparentActor { actor, new_parent } => {
                 self.handle_reparent_actor(&actor, new_parent);
@@ -283,12 +283,12 @@ impl GuiShell {
                 self.handle_property_edit(edit);
             }
             Command::DragEnded => {
-                self.ui_store.drag_state = DragState::None;
-                self.ui_store.drag_snapshot_taken = false;
+                self.ui_store.interaction.drag_state = DragState::None;
+                self.ui_store.interaction.drag_snapshot_taken = false;
             }
             Command::InspectorInputDragEnded => {
-                self.ui_store.inspector_input_drag_active = false;
-                self.ui_store.drag_snapshot_taken = false;
+                self.ui_store.interaction.inspector_input_drag_active = false;
+                self.ui_store.interaction.drag_snapshot_taken = false;
             }
             Command::Undo => self.undo(),
             Command::Redo => self.redo(),

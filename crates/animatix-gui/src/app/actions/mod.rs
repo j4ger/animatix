@@ -5,37 +5,37 @@ use crate::validation::validate_roundtrip;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
-        let is_drag = !matches!(self.ui_store.drag_state, DragState::None) || self.ui_store.inspector_input_drag_active;
-        if !is_drag || !self.ui_store.drag_snapshot_taken {
+        let is_drag = !matches!(self.ui_store.interaction.drag_state, DragState::None) || self.ui_store.interaction.inspector_input_drag_active;
+        if !is_drag || !self.ui_store.interaction.drag_snapshot_taken {
             self.snapshot(Command::PropertyEdit(edit.clone()));
-            if is_drag { self.ui_store.drag_snapshot_taken = true; }
+            if is_drag { self.ui_store.interaction.drag_snapshot_taken = true; }
         }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
         if let Some(ref mut timeline) = self.document_store.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview_store.preview.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
                 timeline.invalidate_frame_cache();
             }
         }
 
-        let prev_time_s = self.document_store.document.prev_keyframe_time(self.preview_store.preview.current_time_s);
-        let delta_s = self.preview_store.preview.current_time_s - prev_time_s;
+        let prev_time_s = self.document_store.document.prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
+        let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
         let source_result = if let Some(ref mut stmts) = self.document_store.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
             let validation_expr = expr.clone();
             let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
                 crate::source_edit::SourceEdit::MergeKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: prev_time_s }
             } else {
-                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview_store.preview.current_time_s, prev_time_s }
+                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview_store.preview.playback.current_time_s, prev_time_s }
             };
 
             if crate::source_edit::apply_edit(stmts, source_edit) {
                 let new_source = animatix::to_source::stmts_to_source(stmts);
                 if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
                     tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
-                    self.preview_store.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview_store.preview.current_time_s, err);
+                    self.preview_store.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s, err);
                 }
                 Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
             } else { None }
@@ -56,22 +56,22 @@ impl GuiShell {
             self.preview_store.preview.status = if delta_s < self.ui_store.keyframe_merge_window_s {
                 format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
-                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview_store.preview.current_time_s)
+                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s)
             };
         } else {
-            self.preview_store.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview_store.preview.current_time_s);
+            self.preview_store.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s);
         }
     }
 
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
         if edit.create_keyframe { self.handle_keyframe_edit(edit); return; }
-        let is_drag = !matches!(self.ui_store.drag_state, DragState::None) || self.ui_store.inspector_input_drag_active;
-        if !is_drag || !self.ui_store.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.ui_store.drag_snapshot_taken = true; } }
+        let is_drag = !matches!(self.ui_store.interaction.drag_state, DragState::None) || self.ui_store.interaction.inspector_input_drag_active;
+        if !is_drag || !self.ui_store.interaction.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.ui_store.interaction.drag_snapshot_taken = true; } }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
         if let Some(ref mut timeline) = self.document_store.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview_store.preview.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
             timeline.invalidate_frame_cache();
@@ -453,7 +453,7 @@ impl GuiShell {
         let props = default_props_for_actor(ty, position, self.document_store.document.scene_dimensions);
 
         // If a container is selected, offer to insert inside it
-        let container = self.ui_store.selected_actors.iter().next().cloned().filter(|sel| {
+        let container = self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
             self.document_store
                 .document
                 .timeline
@@ -479,7 +479,7 @@ impl GuiShell {
                 label: label.into(),
                 props,
                 container: container.clone(),
-                time_s: self.preview_store.preview.current_time_s,
+                time_s: self.preview_store.preview.playback.current_time_s,
             };
 
             if crate::source_edit::apply_edit(stmts, edit) {
@@ -500,8 +500,8 @@ impl GuiShell {
         }
 
         // Auto-select the new actor
-        self.ui_store.selected_actors.clear();
-        self.ui_store.selected_actors.insert(label.into());
+        self.ui_store.selection.selected_actors.clear();
+        self.ui_store.selection.selected_actors.insert(label.into());
         self.preview_store.preview_dirty = true;
     }
 
@@ -543,9 +543,9 @@ impl GuiShell {
         }
 
         // Update selection to the new name
-        if self.ui_store.selected_actors.contains(old_label) {
-            self.ui_store.selected_actors.remove(old_label);
-            self.ui_store.selected_actors.insert(new_label.into());
+        if self.ui_store.selection.selected_actors.contains(old_label) {
+            self.ui_store.selection.selected_actors.remove(old_label);
+            self.ui_store.selection.selected_actors.insert(new_label.into());
         }
         self.preview_store.preview_dirty = true;
     }

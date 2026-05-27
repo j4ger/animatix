@@ -100,8 +100,8 @@ impl WorkspaceViewer<'_> {
     pub(super) fn render_preview_content(&self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
         match self.preview_texture_id {
             Some(texture_id) => {
-                let zoom = self.preview.preview_zoom;
-                let pan = self.preview.preview_pan;
+                let zoom = self.preview.viewport.preview_zoom;
+                let pan = self.preview.viewport.preview_pan;
                 let scene_w = self.scene_dimensions.width.max(1) as f32;
                 let scene_h = self.scene_dimensions.height.max(1) as f32;
 
@@ -163,7 +163,7 @@ impl WorkspaceViewer<'_> {
                         let world = preview::local_to_world(*corner, props.position, props.rotation);
                         let screen = preview::scene_to_screen(
                             world, preview_rect, self.scene_dimensions,
-                            preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                            preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                         );
                         min_x = min_x.min(screen.x);
                         min_y = min_y.min(screen.y);
@@ -176,11 +176,11 @@ impl WorkspaceViewer<'_> {
                 } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
                     let top_left = preview::scene_to_screen(
                         kurbo::Point::new(bounds.x0, bounds.y0), preview_rect, self.scene_dimensions,
-                        preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                        preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                     );
                     let bottom_right = preview::scene_to_screen(
                         kurbo::Point::new(bounds.x1, bounds.y1), preview_rect, self.scene_dimensions,
-                        preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                        preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                     );
                     screen_rects.push(egui::Rect::from_min_max(top_left, bottom_right));
                 }
@@ -203,16 +203,16 @@ impl WorkspaceViewer<'_> {
                         preview_rect,
                         self.scene_dimensions,
                         preview_rect.size(),
-                        self.preview.preview_zoom,
-                        self.preview.preview_pan,
+                        self.preview.viewport.preview_zoom,
+                        self.preview.viewport.preview_pan,
                     );
                     let bottom_right = preview::scene_to_screen(
                         kurbo::Point::new(bounds.x1, bounds.y1),
                         preview_rect,
                         self.scene_dimensions,
                         preview_rect.size(),
-                        self.preview.preview_zoom,
-                        self.preview.preview_pan,
+                        self.preview.viewport.preview_zoom,
+                        self.preview.viewport.preview_pan,
                     );
                     egui::Rect::from_min_max(top_left, bottom_right)
                 });
@@ -225,12 +225,12 @@ impl WorkspaceViewer<'_> {
                 self.scene_dimensions,
                 preview_rect.size(),
                 ui.ctx().pixels_per_point(),
-                self.preview.preview_zoom,
-                self.preview.preview_pan,
+                self.preview.viewport.preview_zoom,
+                self.preview.viewport.preview_pan,
             );
 
             // Draw polygon vertex handles
-            let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+            let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
             let points = self.timeline
                 .and_then(|t| t.get_track(actor))
                 .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
@@ -251,8 +251,8 @@ impl WorkspaceViewer<'_> {
                     preview_rect.size(),
                     active_vertex,
                     ui.ctx().pixels_per_point(),
-                    self.preview.preview_zoom,
-                    self.preview.preview_pan,
+                    self.preview.viewport.preview_zoom,
+                    self.preview.viewport.preview_pan,
                 );
             }
 
@@ -268,12 +268,12 @@ impl WorkspaceViewer<'_> {
                             let start_screen = preview::scene_to_screen(
                                 kurbo::Point::new(start_scene.x, start_scene.y),
                                 preview_rect, self.scene_dimensions, preview_rect.size(),
-                                self.preview.preview_zoom, self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                             );
                             let current_screen = preview::scene_to_screen(
                                 kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
                                 preview_rect, self.scene_dimensions, preview_rect.size(),
-                                self.preview.preview_zoom, self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                             );
 
                             // Horizontal measurement line
@@ -312,7 +312,7 @@ impl WorkspaceViewer<'_> {
                             let screen_pos = preview::scene_to_screen(
                                 kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
                                 preview_rect, self.scene_dimensions, preview_rect.size(),
-                                self.preview.preview_zoom, self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                             );
                             let bottom_right = preview::scene_to_screen(
                                 kurbo::Point::new(
@@ -320,7 +320,7 @@ impl WorkspaceViewer<'_> {
                                     props.position[1] as f64 + props.size[1] as f64 / 2.0,
                                 ),
                                 preview_rect, self.scene_dimensions, preview_rect.size(),
-                                self.preview.preview_zoom, self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                             );
                             // Width label at bottom edge
                             ui.painter().text(
@@ -345,7 +345,7 @@ impl WorkspaceViewer<'_> {
                             let screen_pos = preview::scene_to_screen(
                                 kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
                                 preview_rect, self.scene_dimensions, preview_rect.size(),
-                                self.preview.preview_zoom, self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                             );
                             let start_deg = start_rotation.to_degrees();
                             let current_deg = props.rotation.to_degrees();
@@ -365,7 +365,7 @@ impl WorkspaceViewer<'_> {
             // Ghost Edit / Onion Skin: show outlines at prev/next keyframe times
             if !is_dragging {
                 if let Some(timeline) = self.timeline {
-                    let current_time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let current_time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     let keyframe_times = timeline.keyframe_times_s();
                     let mut prev_time_ms: Option<u64> = None;
                     let mut next_time_ms: Option<u64> = None;
@@ -384,7 +384,7 @@ impl WorkspaceViewer<'_> {
                             let ghost_color = ghost_prev();
                             preview::draw_ghost_overlay(
                                 ui.painter(), &prev_props, preview_rect, self.scene_dimensions,
-                                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                                preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                                 ghost_color,
                             );
                         }
@@ -395,7 +395,7 @@ impl WorkspaceViewer<'_> {
                             let ghost_color = ghost_next();
                             preview::draw_ghost_overlay(
                                 ui.painter(), &next_props, preview_rect, self.scene_dimensions,
-                                preview_rect.size(), self.preview.preview_zoom, self.preview.preview_pan,
+                                preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
                                 ghost_color,
                             );
                         }
@@ -412,7 +412,7 @@ impl WorkspaceViewer<'_> {
             } = self.drag_state.clone()
             {
                 if &drag_actor == actor {
-                    let time_ms = (self.preview.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
                     if let Some(timeline) = self.timeline {
                         let order = timeline.get_child_order(&container, time_ms);
                         let siblings: Vec<(String, [f32; 2])> = order
@@ -430,8 +430,8 @@ impl WorkspaceViewer<'_> {
                                 self.scene_dimensions,
                                 preview_rect.size(),
                                 layout_type == animatix::timeline::LayoutType::Row,
-                                self.preview.preview_zoom,
-                                self.preview.preview_pan,
+                                self.preview.viewport.preview_zoom,
+                                self.preview.viewport.preview_pan,
                             );
                         }
                     }
