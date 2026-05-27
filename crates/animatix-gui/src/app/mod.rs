@@ -347,9 +347,6 @@ impl GuiShell {
             if i.key_pressed(egui::Key::S) && !i.modifiers.command {
                 commands.push_back(Command::ToggleEditorSync);
             }
-            if i.key_pressed(egui::Key::K) && !i.modifiers.command {
-                commands.push_back(Command::ToggleKeyframeMode);
-            }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
                 && !self.ui_store.selected_actors.is_empty() {
@@ -362,67 +359,14 @@ impl GuiShell {
                 }
         });
 
-        // Compact toolbar
+        // Compact toolbar — 28px, only persistent chrome
         egui::Panel::top("toolbar")
             .resizable(false)
             .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
 
-        // NL Command Bar
-        egui::Panel::top("nl_command_bar")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                shell::nl_command_bar::nl_command_bar_ui(ui, &mut commands);
-            });
-
-        // Transport bar at the very bottom
-        let keyframe_count = self
-            .document_store
-            .document
-            .active_timeline()
-            .map(|t| t.keyframe_times_s().len())
-            .unwrap_or(0);
-        let actor_count = self
-            .document_store
-            .document
-            .active_timeline()
-            .map(|t| t.tracks().len())
-            .unwrap_or(0);
-        let timeline_markers = timeline_keyframe_times_s(
-            if self.document_store.document.composition.is_some() {
-                None
-            } else {
-                self.document_store.document.active_timeline()
-            },
-            self.document_store.document.composition.as_ref(),
-            self.document_store.document.active_scene.as_deref(),
-        );
-        let has_error = self.preview_store.preview.error.is_some();
         let diagnostics = self.document_store.combined_diagnostics();
 
-        egui::Panel::bottom("transport_bar")
-            .resizable(false)
-            .show_inside(ui, |ui| {
-                shell::transport_bar::transport_bar_ui(
-                    ui,
-                    &mut self.preview_store.preview,
-                    &mut self.preview_store.panel_state,
-                    self.document_store.document.scene_dimensions,
-                    &timeline_markers,
-                    actor_count,
-                    keyframe_count,
-                    self.document_store.document.is_dirty,
-                    has_error,
-                    &diagnostics,
-                    &mut commands,
-                    self.ui_store.editor_sync_enabled,
-                    self.ui_store.keyframe_mode,
-                    self.ui_store.cursor_time_s,
-                    self.document_store.document.composition.as_ref(),
-                    self.document_store.document.active_scene.as_deref(),
-                );
-            });
-
-        // Diagnostics panel (above transport bar, collapsible)
+        // Diagnostics panel (collapsible)
         if self.ui_store.diagnostics_panel_visible && !diagnostics.is_empty() {
             egui::Panel::bottom("diagnostics_panel")
                 .resizable(true)

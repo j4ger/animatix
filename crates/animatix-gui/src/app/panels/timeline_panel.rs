@@ -34,6 +34,8 @@ const RULER_HEIGHT: f32 = 22.0;
 const RANGE_HEIGHT: f32 = 20.0;
 /// Diamond keyframe marker half-size.
 const KF_DIAMOND_HALF: f32 = 4.0;
+/// Height of the playback strip at the top of the timeline.
+const PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
 
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(
@@ -69,7 +71,8 @@ pub(crate) fn timeline_panel_ui(
         count += actor_labels.len();
         count
     };
-    let total_content_height = RULER_HEIGHT
+    let total_content_height = PLAYBACK_STRIP_HEIGHT
+        + RULER_HEIGHT
         + total_track_count as f32 * TRACK_ROW_HEIGHT
         + RANGE_HEIGHT;
 
@@ -98,6 +101,191 @@ pub(crate) fn timeline_panel_ui(
         let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
         bar_origin_x + frac * bar_width
     };
+
+    // ── Playback strip ──
+    {
+        let strip_top = virtual_y;
+        let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
+        virtual_y = strip_bot;
+
+        if visible(strip_top, strip_bot) {
+            // Background
+            painter.rect_filled(
+                Rect::from_min_max(
+                    Pos2::new(scroll_rect.left(), strip_top),
+                    Pos2::new(scroll_rect.right(), strip_bot),
+                ),
+                0.0,
+                BG_BASE,
+            );
+
+            // Layout: controls on left, time on right
+            let mut cx = scroll_rect.left() + SPACE_S;
+            let cy = (strip_top + strip_bot) / 2.0;
+
+            // Go to start
+            let start_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+            let start_id = ui.id().with("tl_start");
+            let start_resp = ui.interact(start_btn_rect, start_id, Sense::click());
+            painter.text(
+                start_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::SKIP_BACK,
+                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                if start_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+            );
+            if start_resp.clicked() {
+                commands.push_back(Command::ScrubTo(0.0));
+            }
+            cx += 22.0;
+
+            // Previous keyframe
+            let prev_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+            let prev_id = ui.id().with("tl_prev");
+            let prev_resp = ui.interact(prev_btn_rect, prev_id, Sense::click());
+            painter.text(
+                prev_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::CARET_LEFT,
+                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                if prev_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+            );
+            if prev_resp.clicked() {
+                commands.push_back(Command::PrevKeyframe);
+            }
+            cx += 22.0;
+
+            // Play / Pause
+            let play_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(24.0, 20.0));
+            let play_id = ui.id().with("tl_play");
+            let play_resp = ui.interact(play_btn_rect, play_id, Sense::click());
+            let play_icon = if preview.is_playing {
+                egui_phosphor::regular::PAUSE
+            } else {
+                egui_phosphor::regular::PLAY
+            };
+            let play_color = if preview.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
+            painter.text(
+                play_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                play_icon,
+                FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                if play_resp.hovered() { play_color } else { TEXT_MUTED },
+            );
+            if play_resp.clicked() {
+                commands.push_back(Command::TogglePlayback);
+            }
+            cx += 26.0;
+
+            // Next keyframe
+            let next_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+            let next_id = ui.id().with("tl_next");
+            let next_resp = ui.interact(next_btn_rect, next_id, Sense::click());
+            painter.text(
+                next_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::CARET_RIGHT,
+                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                if next_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+            );
+            if next_resp.clicked() {
+                commands.push_back(Command::NextKeyframe);
+            }
+            cx += 22.0;
+
+            // Go to end
+            let end_btn_rect = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
+            let end_id = ui.id().with("tl_end");
+            let end_resp = ui.interact(end_btn_rect, end_id, Sense::click());
+            painter.text(
+                end_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::SKIP_FORWARD,
+                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                if end_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+            );
+            if end_resp.clicked() {
+                commands.push_back(Command::ScrubTo(preview.duration_s));
+            }
+            cx += 28.0;
+
+            // Speed dropdown
+            const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
+            let current_idx = SPEEDS
+                .iter()
+                .position(|(v, _)| (*v - preview.playback_speed).abs() < f32::EPSILON)
+                .unwrap_or(1);
+            let (_, speed_label) = SPEEDS[current_idx];
+            let speed_rect = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(32.0, 18.0));
+            let speed_id = ui.id().with("tl_speed");
+            let speed_resp = ui.interact(speed_rect, speed_id, Sense::click());
+            painter.rect_filled(speed_rect, RADIUS_S as u8, if speed_resp.hovered() { BG_WIDGET } else { BG_SURFACE });
+            painter.text(
+                speed_rect.center(),
+                Align2::CENTER_CENTER,
+                speed_label,
+                FontId::monospace(FONT_SIZE_XS),
+                if speed_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+            );
+            if speed_resp.clicked() {
+                let next = (current_idx + 1) % SPEEDS.len();
+                preview.playback_speed = SPEEDS[next].0;
+            }
+            cx += 38.0;
+
+            // Loop toggle
+            let loop_active = preview.loop_start_s.is_some() && preview.loop_end_s.is_some();
+            let loop_rect = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(20.0, 18.0));
+            let loop_id = ui.id().with("tl_loop");
+            let loop_resp = ui.interact(loop_rect, loop_id, Sense::click());
+            let loop_color = if loop_active { ACCENT_CYAN } else if loop_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED };
+            painter.text(
+                loop_rect.center(),
+                Align2::CENTER_CENTER,
+                egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE,
+                FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                loop_color,
+            );
+            if loop_resp.clicked() {
+                if loop_active {
+                    preview.loop_start_s = None;
+                    preview.loop_end_s = None;
+                } else {
+                    preview.loop_start_s = Some(0.0);
+                    preview.loop_end_s = Some(preview.duration_s);
+                }
+            }
+
+            // Time display (right-aligned)
+            let time_text = format!(
+                "{:02}:{:02.2} / {:02}:{:02.2}",
+                preview.current_time_s as i32 / 60,
+                preview.current_time_s % 60.0,
+                preview.duration_s as i32 / 60,
+                preview.duration_s % 60.0,
+            );
+            let time_size = painter.layout(
+                time_text.clone(),
+                FontId::monospace(FONT_SIZE_S),
+                TEXT_PRIMARY,
+                f32::INFINITY,
+            ).rect.size();
+            let time_x = scroll_rect.right() - SPACE_S - time_size.x;
+            painter.text(
+                Pos2::new(time_x, cy),
+                Align2::LEFT_CENTER,
+                time_text,
+                FontId::monospace(FONT_SIZE_S),
+                TEXT_PRIMARY,
+            );
+
+            // Bottom hairline
+            painter.line_segment(
+                [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
+                Stroke::new(1.0, BORDER),
+            );
+        }
+    }
 
     // ── Draw ruler ──
     {

@@ -44,7 +44,7 @@ impl UiStore {
             drag_snapshot_taken: false,
             inspector_input_drag_active: false,
             editor_sync_enabled: true,
-            keyframe_mode: false,
+            keyframe_mode: true,
             cursor_time_s: None,
             collapsed_actors: HashSet::new(),
             diagnostics_panel_visible: false,

@@ -53,12 +53,8 @@ impl GuiShell {
                 };
             }
             Command::ToggleKeyframeMode => {
-                self.ui_store.keyframe_mode = !self.ui_store.keyframe_mode;
-                self.preview_store.preview.status = if self.ui_store.keyframe_mode {
-                    "Keyframe mode ON — edits create timestamps".to_string()
-                } else {
-                    "Keyframe mode OFF — edits overwrite defaults".to_string()
-                };
+                // Global keyframe mode toggle removed in GUI redesign Phase 1.
+                // Per-property diamond controls will replace this in Phase 2.
             }
             Command::EditorChanged => {
                 self.document_store
