@@ -567,6 +567,31 @@ pub fn badge_button(
     response
 }
 
+/// Returns the play/pause icon character based on playback state.
+pub fn play_pause_icon(is_playing: bool) -> &'static str {
+    if is_playing {
+        egui_phosphor::regular::PAUSE
+    } else {
+        egui_phosphor::regular::PLAY
+    }
+}
+
+/// A play/pause toggle button.
+///
+/// Shows a PLAY icon when stopped and a PAUSE icon when playing.
+/// Wraps [`icon_button`] with a standard "Play/Pause (Space)" tooltip.
+/// Returns the [`Response`] so callers can check `.clicked()`.
+///
+/// ```ignore
+/// if play_pause_button(ui, is_playing).clicked() {
+///     commands.push_back(Command::TogglePlayback);
+/// }
+/// ```
+pub fn play_pause_button(ui: &mut egui::Ui, is_playing: bool) -> Response {
+    let icon = play_pause_icon(is_playing);
+    icon_button(ui, icon, "Play/Pause (Space)")
+}
+
 // ─── KeyframeDot ──────────────────────────────────────────────────────────
 
 /// Draws a diamond-shaped keyframe marker.

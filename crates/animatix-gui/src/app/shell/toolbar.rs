@@ -24,7 +24,7 @@ impl GuiShell {
                 ui.set_height(28.0);
 
                 ui.horizontal_centered(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
+                    ui.spacing_mut().item_spacing = Vec2::new(SPACE_L, 0.0);
 
                     // App mark
                     let (mark_rect, _response) =
@@ -83,9 +83,9 @@ impl GuiShell {
                         if scene_names.len() >= 2 {
                             let active_scene = self.document_store.document.active_scene.as_deref();
                             // Left-align the breadcrumb with some spacing from the filename
-                            ui.add_space(12.0);
+                            ui.add_space(SPACE_XL);
                             ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                                ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                                 for (i, name) in scene_names.iter().enumerate() {
                                     if i > 0 {
                                         ui.label(
@@ -115,7 +115,7 @@ impl GuiShell {
                     ui.with_layout(
                         egui::Layout::right_to_left(Align::Center),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                             // Command palette button
                             let shortcut =
@@ -142,18 +142,7 @@ impl GuiShell {
 
                             // Play / Pause
                             let is_playing = self.preview_store.preview.playback.is_playing;
-                            let play_icon = if is_playing {
-                                egui_phosphor::regular::PAUSE
-                            } else {
-                                egui_phosphor::regular::PLAY
-                            };
-                            if components::icon_button(
-                                ui,
-                                play_icon,
-                                "Play/Pause (Space)",
-                            )
-                            .clicked()
-                            {
+                            if components::play_pause_button(ui, is_playing).clicked() {
                                 commands.push_back(Command::TogglePlayback);
                             }
                         },

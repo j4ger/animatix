@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Pos2, RichText, Vec2};
 
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
+use crate::app::components;
 use crate::app::design_tokens::*;
 use crate::app::panels::{nice_tick_interval, RULER_SIZE, panel_frame};
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
@@ -1573,8 +1574,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewViewer<'_>, ui: &mut egui::Ui) {
                 let mut hover_ui = ui.new_child(egui::UiBuilder::new().max_rect(hover_rect));
                 hover_ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-                    let play_icon = if ctx.preview.playback.is_playing { egui_phosphor::regular::PAUSE } else { egui_phosphor::regular::PLAY };
-                    if ui.button(play_icon).clicked() { ctx.commands.push_back(Command::TogglePlayback); }
+                    if components::play_pause_button(ui, ctx.preview.playback.is_playing).clicked() { ctx.commands.push_back(Command::TogglePlayback); }
                     ui.label(RichText::new(format!("{:.2}s", ctx.preview.playback.current_time_s)).monospace().size(FONT_SIZE_S).color(TEXT_PRIMARY));
                     ui.separator();
                     let grid = ctx.preview.overlay.show_grid;

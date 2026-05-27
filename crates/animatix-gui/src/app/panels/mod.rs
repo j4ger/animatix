@@ -14,6 +14,7 @@ use crate::app::preview::{self, selection, DragState};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
+use animatix::primitives;
 use animatix::timeline::{SceneDimensions, Timeline};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -22,6 +23,17 @@ use std::path::{Path, PathBuf};
 pub(crate) enum SidebarTab {
     Explorer,
     Layers,
+}
+
+/// Returns the canonical default actor type: the first non-advanced Shape actor.
+pub(crate) fn default_actor_type() -> &'static str {
+    primitives::actor_kind_registry()
+        .iter()
+        .find(|meta| {
+            meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced
+        })
+        .map(|meta| meta.type_name)
+        .unwrap_or("Rect")
 }
 
 pub(crate) struct WorkspaceViewer<'a> {

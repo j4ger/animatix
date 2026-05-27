@@ -235,10 +235,9 @@ pub(crate) fn timeline_panel_ui(
 
     // ── Interaction helper for bar areas ──
     let bar_interaction = |ui: &egui::Ui,
-                           bar_rect: Rect,
-                           id_salt: &str,
-                           cmds: &mut CommandQueue,
-                           preview: &mut PreviewPaneState| {
+                            bar_rect: Rect,
+                            id_salt: &str,
+                            cmds: &mut CommandQueue| {
         let bar_id = ui.id().with(id_salt);
         let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
         if response.clicked() || response.dragged() {
@@ -246,7 +245,6 @@ pub(crate) fn timeline_panel_ui(
                 let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
                 let new_time = frac * duration_s;
                 cmds.push_back(Command::ScrubTo(new_time));
-                preview.playback.current_time_s = new_time;
             }
         }
     };
@@ -327,7 +325,7 @@ pub(crate) fn timeline_panel_ui(
                 // Play / Pause
                 let play_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(24.0, 20.0));
                 let play_r = ui.interact(play_btn, ui.id().with("tl_play"), Sense::click());
-                let play_icon = if preview.playback.is_playing { egui_phosphor::regular::PAUSE } else { egui_phosphor::regular::PLAY };
+                let play_icon = crate::app::components::play_pause_icon(preview.playback.is_playing);
                 let play_c = if preview.playback.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
                 painter.text(play_btn.center(), Align2::CENTER_CENTER, play_icon,
                     FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional), if play_r.hovered() { play_c } else { TEXT_MUTED });
@@ -442,7 +440,7 @@ pub(crate) fn timeline_panel_ui(
                 }
 
                 draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
-                bar_interaction(ui, bar_area, "scene_track", commands, preview);
+                bar_interaction(ui, bar_area, "scene_track", commands);
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
             }
@@ -502,7 +500,7 @@ pub(crate) fn timeline_panel_ui(
                                     if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
                                     else { multi_selected.push((actor_label.clone(), kf_ms)); }
                                 } else { multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms));
-                                    commands.push_back(Command::ScrubTo(kf_s)); preview.playback.current_time_s = kf_s; }
+                                    commands.push_back(Command::ScrubTo(kf_s)); }
                             }
                             if dresp.drag_started() {
                                 new_kf_drag = Some((actor_label.clone(), kf_ms, kf_s));
@@ -523,7 +521,7 @@ pub(crate) fn timeline_panel_ui(
                                 }
                             }
                             if dresp.drag_stopped() && is_drag {
-                                if let Some((_, _, n)) = new_kf_drag { if (n - kf_s).abs() > 0.01 { commands.push_back(Command::ScrubTo(n)); preview.playback.current_time_s = n; } }
+                                if let Some((_, _, n)) = new_kf_drag { if (n - kf_s).abs() > 0.01 { commands.push_back(Command::ScrubTo(n)); } }
                                 new_kf_drag = None;
                             }
                         }
@@ -542,15 +540,15 @@ pub(crate) fn timeline_panel_ui(
                                 let snapped = collect_track_keyframe_times(track).iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
                                 if let Some(kf_ms) = snapped {
                                     let js = kf_ms as f64 / 1000.0;
-                                    commands.push_back(Command::ScrubTo(js)); preview.playback.current_time_s = js;
-                                } else { commands.push_back(Command::ScrubTo(click_s)); preview.playback.current_time_s = click_s; }
+                                    commands.push_back(Command::ScrubTo(js));
+                                } else { commands.push_back(Command::ScrubTo(click_s)); }
                             }
                         }
                     }
                 } else if resp.dragged() {
                     if let Some(pos) = resp.interact_pointer_pos() {
                         let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
-                        commands.push_back(Command::ScrubTo(nt)); preview.playback.current_time_s = nt;
+                        commands.push_back(Command::ScrubTo(nt));
                     }
                 }
 

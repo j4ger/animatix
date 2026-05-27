@@ -26,16 +26,6 @@ enum KeyframeViewMode {
     Curve,
 }
 
-fn default_actor_type() -> &'static str {
-    animatix::primitives::actor_kind_registry()
-        .iter()
-        .find(|meta| {
-            meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced
-        })
-        .map(|meta| meta.type_name)
-        .unwrap_or("Rect")
-}
-
 // ─── Main Entry Point ─────────────────────────────────────────────────────
 
 /// Renders the unified actor inspector panel.
@@ -109,7 +99,7 @@ pub(super) fn inspector_ui(
                     scene_dimensions.height as f32 / 2.0,
                 ];
                 commands.push_back(Command::CreateActor {
-                    ty: default_actor_type().into(),
+                    ty: super::default_actor_type().into(),
                     label,
                     position: pos,
                 });
@@ -375,7 +365,7 @@ fn render_property_stream(
     // Find max keyframe count for bar scaling
     let max_kf = all_entries.iter().map(|(_, e)| e.keyframe_count).max().unwrap_or(1).max(1);
 
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_XS);
     for (group, entry) in &all_entries {
         let row_height = INSPECTOR_ROW_HEIGHT;
         let available = ui.available_width();

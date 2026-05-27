@@ -267,7 +267,7 @@ pub(crate) fn render_property_group(
     }
 
     if expanded {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 2.0);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_XS);
         for entry in &group.properties {
             render_property_row(ui, actor_label, entry, commands, keyframe_mode, current_time_s);
         }
@@ -477,7 +477,7 @@ pub(crate) fn render_property_row(
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                             let half_w = ui.available_width() / 2.0 - 2.0;
                             let rx = ui.add_sized(
                                 Vec2::new(half_w.max(30.0), row_height - 4.0),
@@ -529,7 +529,7 @@ pub(crate) fn render_property_row(
                         ui.with_layout(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                                ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                                 let slider_w = ui.available_width() * 0.55;
                                 let slider = ui.add_sized(
                                     Vec2::new(slider_w.max(40.0), row_height - 4.0),
@@ -654,7 +654,7 @@ pub(crate) fn render_property_row(
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                             let btn = ui.color_edit_button_srgba(&mut color);
                             ui.add(
                                 egui::Label::new(

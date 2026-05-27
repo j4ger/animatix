@@ -30,16 +30,6 @@ pub(crate) struct SidebarViewer<'a> {
     pub collapsed_actors: &'a mut HashSet<String>,
 }
 
-fn default_actor_type() -> &'static str {
-    animatix::primitives::actor_kind_registry()
-        .iter()
-        .find(|meta| {
-            meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced
-        })
-        .map(|meta| meta.type_name)
-        .unwrap_or("Rect")
-}
-
 /// Uniform panel frame: 8 px padding, transparent fill.
 fn panel_frame() -> egui::Frame {
     egui::Frame::new()
@@ -58,7 +48,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
         let prev_tab: Option<SidebarTab> = ui.data(|d| d.get_temp(prev_tab_id));
 
         render_sidebar_tab_bar(ui, &mut active_tab);
-        ui.add_space(6.0);
+        ui.add_space(SPACE_M);
 
         // Slide-in animation on tab switch
         let content_offset_id = ui.id().with("sidebar_slide");
@@ -165,7 +155,7 @@ fn layers_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
     if ctx.is_composition {
         if let Some(scene_name) = ctx.active_scene.as_ref() {
             ui.horizontal(|ui| {
-                ui.add_space(8.0);
+                ui.add_space(SPACE_L);
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
@@ -175,7 +165,7 @@ fn layers_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
                     .selectable(false),
                 );
             });
-            ui.add_space(4.0);
+            ui.add_space(SPACE_S);
         }
     }
 
@@ -200,7 +190,7 @@ fn layers_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
                 )
                 .selectable(false),
             );
-            ui.add_space(12.0);
+            ui.add_space(SPACE_XL);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
@@ -214,7 +204,7 @@ fn layers_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
-                ctx.commands.push_back(Command::CreateActor { ty: default_actor_type().into(), label, position: pos });
+                ctx.commands.push_back(Command::CreateActor { ty: super::default_actor_type().into(), label, position: pos });
             }
         });
         return;
