@@ -1,8 +1,8 @@
-//! Time Lens — Space-Drag HUD
+//! Time Lens — T-Drag HUD
 //!
-//! Hold `Space` → circular time lens appears at cursor.
+//! Hold `T` → circular time lens appears at cursor.
 //! Ring shows keyframe dots. Drag horizontally to scrub time.
-//! Scroll wheel zooms time range. Release `Space` → lens vanishes.
+//! Scroll wheel zooms time range. Release `T` → lens vanishes.
 
 use crate::app::design_tokens::*;
 use egui::{FontId, Pos2, Stroke};
@@ -44,17 +44,17 @@ impl TimeLens {
         duration_s: f64,
         keyframe_times: &[f64],
     ) -> Option<f64> {
-        let space_held = ui.input(|i| i.key_pressed(egui::Key::Space) || i.key_down(egui::Key::Space));
+        let t_held = ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
 
-        // Activate on Space press
-        if space_held && !self.active {
+        // Activate on T press
+        if t_held && !self.active {
             self.active = true;
             self.origin = ui.ctx().input(|i| i.pointer.latest_pos()).unwrap_or(Pos2::ZERO);
             self.drag_offset_s = 0.0;
         }
 
-        // Deactivate on Space release
-        if !space_held && self.active {
+        // Deactivate on T release
+        if !t_held && self.active {
             self.active = false;
             return None;
         }

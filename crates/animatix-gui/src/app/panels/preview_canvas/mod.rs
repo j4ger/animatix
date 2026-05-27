@@ -499,6 +499,137 @@ impl WorkspaceViewer<'_> {
 
             self.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
+            // ── Context HUD (bottom-left, always visible) ──
+            {
+                let hud_margin = 8.0;
+                let hud_x = preview_rect.min.x + hud_margin;
+                let hud_y = preview_rect.max.y - hud_margin - 48.0;
+                let hud_w = 180.0;
+                let hud_h = 48.0;
+                let hud_rect = egui::Rect::from_min_size(
+                    egui::pos2(hud_x, hud_y),
+                    egui::vec2(hud_w, hud_h),
+                );
+
+                // Background
+                ui.painter().rect_filled(hud_rect, RADIUS_M as u8, BG_BASE.linear_multiply(0.85));
+                ui.painter().rect_stroke(
+                    hud_rect,
+                    RADIUS_M as u8,
+                    Stroke::new(1.0, BORDER),
+                    egui::StrokeKind::Outside,
+                );
+
+                let composition = self.composition;
+                let active_scene = self.active_scene.as_deref();
+
+                // Scene name
+                let scene_label = if let Some(scene) = active_scene {
+                    scene.to_string()
+                } else if let Some(comp) = composition {
+                    let (scene, _, _) = comp.evaluate(self.preview.current_time_s);
+                    scene
+                } else {
+                    "Scene".to_string()
+                };
+
+                ui.painter().text(
+                    egui::pos2(hud_rect.min.x + SPACE_S, hud_rect.min.y + SPACE_S + 2.0),
+                    egui::Align2::LEFT_TOP,
+                    scene_label,
+                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TEXT_PRIMARY,
+                );
+
+                // Time display
+                let time_text = format!(
+                    "{:.2}s / {:.2}s",
+                    self.preview.current_time_s, self.preview.duration_s
+                );
+                ui.painter().text(
+                    egui::pos2(hud_rect.min.x + SPACE_S, hud_rect.max.y - SPACE_S - 2.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    time_text,
+                    egui::FontId::monospace(FONT_SIZE_XS),
+                    TEXT_MUTED,
+                );
+            }
+
+            // ── Hover HUD (bottom-center, appears on hover) ──
+            if response.hovered() {
+                let hover_h = 28.0;
+                let hover_w = 280.0;
+                let hover_x = preview_rect.center().x - hover_w / 2.0;
+                let hover_y = preview_rect.max.y - hover_h - 4.0;
+                let hover_rect = egui::Rect::from_min_size(
+                    egui::pos2(hover_x, hover_y),
+                    egui::vec2(hover_w, hover_h),
+                );
+
+                ui.painter().rect_filled(hover_rect, RADIUS_L as u8, BG_BASE.linear_multiply(0.9));
+                ui.painter().rect_stroke(
+                    hover_rect,
+                    RADIUS_L as u8,
+                    Stroke::new(1.0, BORDER),
+                    egui::StrokeKind::Outside,
+                );
+
+                let mut hover_ui = ui.new_child(egui::UiBuilder::new().max_rect(hover_rect));
+                hover_ui.horizontal_centered(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+
+                    // Play/Pause
+                    let play_icon = if self.preview.is_playing {
+                        egui_phosphor::regular::PAUSE
+                    } else {
+                        egui_phosphor::regular::PLAY
+                    };
+                    if ui.button(play_icon).clicked() {
+                        self.commands.push_back(Command::TogglePlayback);
+                    }
+
+                    // Time
+                    ui.label(
+                        RichText::new(format!("{:.2}s", self.preview.current_time_s))
+                            .monospace()
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_PRIMARY),
+                    );
+
+                    ui.separator();
+
+                    // Overlay toggles
+                    let mut grid = self.preview.overlay.show_grid;
+                    if ui.selectable_label(grid, "Grid").clicked() {
+                        self.preview.overlay.show_grid = !grid;
+                    }
+                    let mut guides = self.preview.overlay.show_guides;
+                    if ui.selectable_label(guides, "Guides").clicked() {
+                        self.preview.overlay.show_guides = !guides;
+                    }
+                    let mut labels = self.preview.overlay.show_actor_labels;
+                    if ui.selectable_label(labels, "Labels").clicked() {
+                        self.preview.overlay.show_actor_labels = !labels;
+                    }
+
+                    ui.separator();
+
+                    // Zoom presets
+                    if ui.selectable_label(self.preview.preview_zoom == 1.0, "100%").clicked() {
+                        self.preview.preview_zoom = 1.0;
+                        let scene_w = self.scene_dimensions.width as f32;
+                        let scene_h = self.scene_dimensions.height as f32;
+                        self.preview.preview_pan = Vec2::new(scene_w / 2.0, scene_h / 2.0);
+                    }
+                    if ui.selectable_label(self.preview.preview_zoom == 1.5, "150%").clicked() {
+                        self.preview.preview_zoom = 1.5;
+                    }
+                    if ui.selectable_label(self.preview.preview_zoom == 2.0, "200%").clicked() {
+                        self.preview.preview_zoom = 2.0;
+                    }
+                });
+            }
+
             // Floating property cards for selected actors
             if !is_dragging && self.selected_actors.len() == 1 {
                 if let Some(actor) = self.selected_actors.iter().next() {
