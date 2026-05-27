@@ -622,7 +622,150 @@ slide: SlideLayout {
 
 ---
 
-## 13. Math & Graphs
+## 13. Type Annotations
+
+Animatix has a **gradual type system**. Type annotations are optional and may be added to component and action parameters. When present, the type checker validates property assignments and action invocations at build time, reporting type mismatches as diagnostics.
+
+### 13.1 Syntax
+
+Type annotations appear after a colon in parameter declarations:
+
+```animatix
+pub component Button(size: Vec2, color: Color, label: Str) {
+    bg: Rect, size: size, color: color
+    text: Text, text: label
+}
+```
+
+Action parameters follow the same syntax:
+
+```animatix
+pub component Badge(color: Color) {
+    action pulse(count: Num, intensity: Num) {
+        // count and intensity are typed parameters
+    }
+}
+```
+
+### 13.2 Available Types
+
+| Type | Description | Literal Syntax |
+|------|-------------|----------------|
+| `Num` | Numeric values (integers and floats) | `42`, `3.14`, `-1.5` |
+| `Str` | String literals | `"hello"`, `"path/to/file.amx"` |
+| `Bool` | Boolean values | `true`, `false` |
+| `Vec2` | 2D vector | `(100, 200)`, `(50%, 75%)` |
+| `Vec4` | 4D vector | `(0.5, 0.2, 0.8, 1.0)` |
+| `Color` | RGBA color | `rgb(0.38, 0.78, 1.0)` |
+| `Actor` | Actor reference | `btn`, `self` |
+| `Scene` | Scene reference | `scene` |
+| `List<T>` | Homogeneous list of type `T` | `(1, 2, 3)` (inferred as `List<Num>`) |
+| `Any` | Top type, accepts any value | — |
+
+**Properties of `Color`** (inherited from `Vec4`):
+| Accessor | Description |
+|----------|-------------|
+| `value.r` | Red channel |
+| `value.g` | Green channel |
+| `value.b` | Blue channel |
+| `value.a` | Alpha channel |
+
+### 13.3 Subtyping Rules
+
+The subtyping relation `<:` is reflexive and transitive:
+
+| Rule | Explanation |
+|------|-------------|
+| `Color <: Vec4` | A color **is** a 4D vector — all `Vec4` operations apply to `Color` values |
+| `T <: Any` | Every type is a subtype of `Any` |
+| `T <: T` | Identity — every type subtypes itself |
+| `List<A> <: List<B>` iff `A <: B` | List subtyping is covariant with respect to element type |
+
+**Examples:**
+- A `Color` value may be assigned where `Vec4` is expected: `button.tint = rgb(1, 0, 0)` for a field typed `Vec4`.
+- A `List<Color>` may be passed where `List<Vec4>` is expected.
+- Any value may be passed where `Any` is expected: `debug(value: Any)`.
+
+### 13.4 Type Inference
+
+When no explicit type annotation is given, the type checker infers the type of common expressions:
+
+| Expression | Inferred Type | Examples |
+|------------|---------------|----------|
+| Integer literal | `Num` | `42`, `0`, `-5` |
+| Float literal | `Num` | `3.14`, `-0.5` |
+| String literal | `Str` | `"hello"` |
+| Boolean literal | `Bool` | `true`, `false` |
+| Tuple `(a, b)` | `Vec2` | `(100, 200)`, `(50%, 75%)` |
+| Tuple `(a, b, c, d)` | `Vec4` | `(0.1, 0.5, 0.8, 1.0)` |
+| Function `rgb(r, g, b)` | `Color` | `rgb(0.38, 0.78, 1.0)` |
+| Function `rgba(r, g, b, a)` | `Color` | `rgba(0.1, 0.5, 0.8, 0.5)` |
+| Actor label | `Actor` | `btn`, `title` |
+| List literal | `List<T>` (element-dependent) | `(1, 2, 3)` → `List<Num>` |
+
+**Tuples of other arities** (3-tuple `(a, b, c)`) are treated as generic list values and do not receive a special vector type inference.
+
+### 13.5 Examples
+
+**With type annotations:**
+```animatix
+pub component Card(title: Str, width: Num, height: Num, bg: Color) {
+    frame: Rect, size: (width, height), color: bg
+    label: Text, text: title
+}
+```
+
+The type checker verifies these at instantiation:
+```animatix
+my_card: Card, title: "Stats", width: 200, height: 150, bg: rgb(0.9, 0.9, 0.95)
+// ✓ "Stats" : Str, 200 : Num, 150 : Num, rgb(...) : Color
+```
+
+```animatix
+my_card: Card, title: 42, width: 200, height: 150, bg: rgb(0.9, 0.9, 0.95)
+// ✗ type mismatch: expected 'Str' for parameter 'title', got 'Num'
+```
+
+**Without annotations (inference):**
+```animatix
+// No annotations — all types are inferred from usage
+pub component Badge(label, size, color) {
+    frame: Rect, size: size, color: color
+    text: Text, text: label
+}
+```
+
+**Example with `Any`:**
+```animatix
+pub component DebugBox(value: Any) {
+    frame: Rect, size: (200, 50)
+    // value can be Num, Str, Vec2, Color, etc.
+}
+```
+
+**Example with `List`:**
+```animatix
+pub component Palette(colors: List<Color>) {
+    // colors is a homogeneous list of Color values
+    swatch1: Rect, size: (40, 40), color: colors[0]
+    swatch2: Rect, size: (40, 40), color: colors[1]
+    swatch3: Rect, size: (40, 40), color: colors[2]
+}
+```
+
+### 13.6 Backward Compatibility
+
+Type annotations are **optional everywhere**. Existing code without annotations continues to work unchanged:
+
+- Component and action parameters without annotations accept any value (equivalent to `Any`).
+- The type checker only fires on annotated parameters — unannotated code raises no type diagnostics.
+- Adding annotations to existing components is a **non-breaking change** that enables stricter validation.
+
+This means the type system can be adopted incrementally: annotate hot spots first (public component boundaries) while leaving internal code unannotated.
+
+---
+
+## 14. Math & Graphs
 
 **`Graph`**: Container mapping logical domains to physical bounds. Supports axes, optional grid lines, and ticks.
 ```animatix
@@ -670,7 +813,7 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 
 
 ---
 
-## 14. Expressions & Access
+## 15. Expressions & Access
 
 ### Dotted Paths
 
@@ -734,7 +877,7 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 
 ---
 
-## 15. Known Gaps & Limitations
+## 16. Known Gaps & Limitations
 
 - **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
 - **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
@@ -742,7 +885,7 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 
 ---
 
-## 16. CLI Export
+## 17. CLI Export
 
 **Video (`animatix video`) and GIF (`animatix gif`) exports:**
 
@@ -789,7 +932,7 @@ animatix gif examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
 
 ---
 
-## 17. Multi-Scene Composition
+## 18. Multi-Scene Composition
 
 > **Status:** Phases 1–3 shipped (parser, composition engine, CLI export). Phases 4–8 pending (GUI, transitions, cross-file scenes).  
 > **Design doc:** [`docs/multi-scene-composition-design.md`](multi-scene-composition-design.md)

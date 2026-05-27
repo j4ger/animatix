@@ -18,6 +18,7 @@ module.exports = grammar({
     [$._expression, $.index_expression],
     [$._expression, $.parenthesized_expression],
     [$._expression, $.array_expression],
+    [$._expression, $.type_annotation],
     [$.tuple_expression, $.parenthesized_expression],
     [$.binary_expression, $.closure_expression],
     [$.binary_expression, $.path_expression],
@@ -97,7 +98,21 @@ module.exports = grammar({
 
     parameter: $ => seq(
       field('name', $.identifier),
-      optional(seq(':', $._expression))
+      optional(seq(':', field('type', $.type_annotation), optional(seq('=', field('default', $._expression))))),
+      optional(seq('=', field('default', $._expression)))
+    ),
+
+    type_annotation: $ => choice(
+      'Num',
+      'Str',
+      'Bool',
+      'Vec2',
+      'Vec4',
+      'Color',
+      'Actor',
+      'Scene',
+      'Any',
+      seq('List', '<', $.type_annotation, '>')
     ),
 
     action_definition: $ => seq(

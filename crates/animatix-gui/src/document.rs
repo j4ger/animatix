@@ -114,9 +114,9 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
-        let (raw_statements, expanded_statements, namespaces) = match self.load_program() {
-            Ok((raw_statements, expanded_statements, namespaces)) => {
-                (raw_statements, expanded_statements, namespaces)
+        let (raw_statements, expanded_statements, namespaces, type_diagnostics) = match self.load_program() {
+            Ok((raw_statements, expanded_statements, namespaces, type_diagnostics)) => {
+                (raw_statements, expanded_statements, namespaces, type_diagnostics)
             }
             Err(err) => {
                 let err_string = err.to_string();
@@ -148,7 +148,9 @@ impl DocumentSession {
         self.expanded_statements = Some(expanded_statements);
         self.source_index = Some(source_index);
         self.namespaces = namespaces;
-        self.diagnostics = report.diagnostics;
+        let mut all_diagnostics = type_diagnostics;
+        all_diagnostics.extend(report.diagnostics);
+        self.diagnostics = all_diagnostics;
         match report.output {
             BuildTarget::SingleScene(timeline) => {
                 self.timeline = Some(timeline);
@@ -178,14 +180,18 @@ impl DocumentSession {
     /// Load the program, returning (raw_statements, expanded_statements, namespaces).
     /// Raw statements are the parsed statements before component expansion.
     #[allow(clippy::type_complexity)]
-    fn load_program(&self) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>), ModuleError> {
+    fn load_program(
+        &self,
+    ) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>, Vec<Diagnostic>), ModuleError>
+    {
         let mut graph = ModuleGraph::new();
-        let program = graph
+        let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
+        let type_diagnostics = program.typecheck();
         let raw_statements = program.statements.clone();
         let expanded_statements = program.expand_components();
         let namespaces = program.namespaces;
-        Ok((raw_statements, expanded_statements, namespaces))
+        Ok((raw_statements, expanded_statements, namespaces, type_diagnostics))
     }
 
     pub fn raw_program_statements(&self) -> Option<&[Stmt]> {

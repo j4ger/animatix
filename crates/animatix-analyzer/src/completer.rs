@@ -75,8 +75,8 @@ pub fn completions_at(
                 CompletionContext::ModifierList => {
                     items.extend(modifier_completions());
                 }
-                CompletionContext::PropertyValue { property_name } => {
-                    items.extend(value_for_property(&property_name));
+                CompletionContext::PropertyValue { property_name, actor_type } => {
+                    items.extend(value_for_property(&property_name, actor_type.as_deref(), symbols));
                 }
                 CompletionContext::Unknown => {
                     items.extend(keyword_completions(symbols));
@@ -109,7 +109,10 @@ enum CompletionContext {
     /// Inside a modifier list [ ... ] (expecting modifier names)
     ModifierList,
     /// Inside a property value (after "=" or ":")
-    PropertyValue { property_name: Option<String> },
+    PropertyValue {
+        property_name: Option<String>,
+        actor_type: Option<String>,
+    },
     /// Unknown context
     Unknown,
 }
@@ -150,7 +153,11 @@ impl CompletionContext {
                 "property" => {
                     if kind == "identifier" || kind == "string" || kind == "number" {
                         let prop_name = find_property_name(parent, source);
-                        return CompletionContext::PropertyValue { property_name: prop_name };
+                        let actor_type = find_actor_type(parent, source);
+                        return CompletionContext::PropertyValue {
+                            property_name: prop_name,
+                            actor_type,
+                        };
                     }
                 }
 
@@ -500,35 +507,83 @@ fn value_completions() -> Vec<CompletionItem> {
     ]
 }
 
-/// Value completions based on property name.
-fn value_for_property(property_name: &Option<String>) -> Vec<CompletionItem> {
+/// Value completions based on property name and expected type.
+fn value_for_property(
+    property_name: &Option<String>,
+    actor_type: Option<&str>,
+    symbols: &SymbolTable,
+) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
-    if let Some(name) = property_name {
-        match name.as_str() {
-            "text_align" => {
-                items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+    // Look up expected type from component definition
+    let expected_type = if let (Some(ty), Some(prop)) = (actor_type, property_name) {
+        symbols.components.get(ty).and_then(|info| {
+            info.params.iter().find(|p| p.name == *prop).and_then(|p| p.param_type.clone())
+        })
+    } else {
+        None
+    };
+
+    // Provide type-specific completions
+    if let Some(ref ty) = expected_type {
+        match ty {
+            animatix_syntax::ast::TypeAnnotation::Bool => {
+                items.extend(["true", "false"].iter().map(|v| CompletionItem {
                     label: v.to_string(),
                     kind: CompletionKind::Value,
-                    detail: Some("Alignment".to_string()),
+                    detail: Some("Boolean".to_string()),
                     documentation: None,
-                    insert_text: Some(format!("\"{}\"", v)),
+                    insert_text: None,
                 }));
             }
-            "anchor" => {
-                items.extend(["center", "top", "bottom", "left", "right",
-                              "top-left", "top-right", "bottom-left", "bottom-right"]
-                    .iter().map(|v| CompletionItem {
+            animatix_syntax::ast::TypeAnnotation::Vec2 => {
+                items.push(CompletionItem {
+                    label: "(0, 0)".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("Vec2".to_string()),
+                    documentation: Some("2D vector (x, y)".to_string()),
+                    insert_text: Some("(${1:x}, ${2:y})".to_string()),
+                });
+            }
+            animatix_syntax::ast::TypeAnnotation::Vec4 => {
+                items.push(CompletionItem {
+                    label: "(0, 0, 0, 0)".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("Vec4".to_string()),
+                    documentation: Some("4D vector (x, y, z, w)".to_string()),
+                    insert_text: Some("(${1:x}, ${2:y}, ${3:z}, ${4:w})".to_string()),
+                });
+            }
+            animatix_syntax::ast::TypeAnnotation::Color => {
+                items.extend(["red", "blue", "green", "yellow", "white", "black"].iter().map(
+                    |v| CompletionItem {
                         label: v.to_string(),
                         kind: CompletionKind::Value,
-                        detail: Some("Anchor point".to_string()),
+                        detail: Some("Color".to_string()),
                         documentation: None,
-                        insert_text: Some(format!("\"{}\"", v)),
-                    }));
+                        insert_text: None,
+                    },
+                ));
+                items.push(CompletionItem {
+                    label: "rgb(...)".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("Color".to_string()),
+                    documentation: Some("RGB color: rgb(r, g, b)".to_string()),
+                    insert_text: Some("rgb(${1:255}, ${2:255}, ${3:255})".to_string()),
+                });
             }
-            "opacity" | "scale" => {
-                items.extend([0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|v| CompletionItem {
-                    label: format!("{}", v),
+            animatix_syntax::ast::TypeAnnotation::Str => {
+                items.push(CompletionItem {
+                    label: "\"\"".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("String".to_string()),
+                    documentation: Some("String literal".to_string()),
+                    insert_text: Some("\"${1:text}\"".to_string()),
+                });
+            }
+            animatix_syntax::ast::TypeAnnotation::Num => {
+                items.extend(["0", "1", "0.5"].iter().map(|v| CompletionItem {
+                    label: v.to_string(),
                     kind: CompletionKind::Value,
                     detail: Some("Number".to_string()),
                     documentation: None,
@@ -536,6 +591,56 @@ fn value_for_property(property_name: &Option<String>) -> Vec<CompletionItem> {
                 }));
             }
             _ => {}
+        }
+    }
+
+    // Property-name-specific completions (fallback when no type annotation)
+    if expected_type.is_none() {
+        if let Some(name) = property_name {
+            match name.as_str() {
+                "text_align" => {
+                    items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+                        label: v.to_string(),
+                        kind: CompletionKind::Value,
+                        detail: Some("Alignment".to_string()),
+                        documentation: None,
+                        insert_text: Some(format!("\"{}\"", v)),
+                    }));
+                }
+                "anchor" => {
+                    items.extend(
+                        [
+                            "center",
+                            "top",
+                            "bottom",
+                            "left",
+                            "right",
+                            "top-left",
+                            "top-right",
+                            "bottom-left",
+                            "bottom-right",
+                        ]
+                        .iter()
+                        .map(|v| CompletionItem {
+                            label: v.to_string(),
+                            kind: CompletionKind::Value,
+                            detail: Some("Anchor point".to_string()),
+                            documentation: None,
+                            insert_text: Some(format!("\"{}\"", v)),
+                        }),
+                    );
+                }
+                "opacity" | "scale" => {
+                    items.extend([0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|v| CompletionItem {
+                        label: format!("{}", v),
+                        kind: CompletionKind::Value,
+                        detail: Some("Number".to_string()),
+                        documentation: None,
+                        insert_text: None,
+                    }));
+                }
+                _ => {}
+            }
         }
     }
 

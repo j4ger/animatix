@@ -18,6 +18,8 @@ pub struct TypeEnv<'a> {
     module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
     /// Actor label → component type name (accumulated during AST walk).
     labels: HashMap<String, String>,
+    /// When true, unannotated parameters produce warnings.
+    strict_types: bool,
 }
 
 impl<'a> TypeEnv<'a> {
@@ -30,7 +32,14 @@ impl<'a> TypeEnv<'a> {
             components,
             module_actions,
             labels: HashMap::new(),
+            strict_types: false,
         }
+    }
+
+    /// Enable or disable strict type mode.
+    pub fn with_strict_types(mut self, strict: bool) -> Self {
+        self.strict_types = strict;
+        self
     }
 
     /// Check all statements in a program, returning any type errors.
@@ -124,6 +133,25 @@ impl<'a> TypeEnv<'a> {
                     self.check_stmt(stmt, diagnostics);
                 }
             }
+            Stmt::ComponentDef(def, _span) => {
+                if self.strict_types {
+                    self.check_param_annotations(&def.name, "component", &def.params, diagnostics);
+                }
+                for stmt in &def.body {
+                    self.check_stmt(stmt, diagnostics);
+                }
+            }
+            Stmt::ComponentAction { name, params, body, .. } => {
+                if self.strict_types {
+                    self.check_param_annotations(name, "action", params, diagnostics);
+                }
+                for stmt in body {
+                    self.check_stmt(stmt, diagnostics);
+                }
+            }
+            Stmt::Config { .. } => {
+                // Config is handled at the program level, not per-statement
+            }
             _ => {}
         }
     }
@@ -209,6 +237,31 @@ impl<'a> TypeEnv<'a> {
                         .with_subject(format!("{}.{}.{}", component_name, action_name, param.name)),
                     );
                 }
+            }
+        }
+    }
+
+    /// Check that all parameters have type annotations when strict_types is enabled.
+    fn check_param_annotations(
+        &self,
+        owner_name: &str,
+        owner_kind: &str,
+        params: &[ParamDef],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for param in params {
+            if param.param_type.is_none() {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::TypeMismatch,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Parameter '{}' of {} '{}' is missing a type annotation (required in strict mode)",
+                            param.name, owner_kind, owner_name
+                        ),
+                    )
+                    .with_subject(format!("{}.{}.{}", owner_kind, owner_name, param.name)),
+                );
             }
         }
     }
@@ -338,5 +391,137 @@ fn expr_summary(expr: &Expr) -> String {
         Expr::Unary(op, _) => format!("unary {:?} expression", op),
         Expr::Call(name, args) => format!("call '{}({})'", name, args.len()),
         _ => "expression".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{ComponentDef, ParamDef, Property, Stmt};
+    use crate::module::ComponentEntry;
+    use std::collections::HashMap;
+
+    fn make_env() -> TypeEnv<'static> {
+        let mut components = HashMap::new();
+        components.insert(
+            "Button".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Button".to_string(),
+                    params: vec![
+                        ParamDef {
+                            name: "size".to_string(),
+                            param_type: Some(TypeAnnotation::Vec2),
+                            default: Some(Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(40.0)])),
+                        },
+                        ParamDef {
+                            name: "color".to_string(),
+                            param_type: Some(TypeAnnotation::Color),
+                            default: Some(Expr::Ident("blue".to_string())),
+                        },
+                    ],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())))
+    }
+
+    #[test]
+    fn typecheck_accepts_valid_props() {
+        let env = make_env();
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "btn".to_string(),
+            ty: "Button".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let mut env = env;
+        let diagnostics = env.check_statements(&stmts);
+        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+    }
+
+    #[test]
+    fn typecheck_rejects_mismatched_prop() {
+        let env = make_env();
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "btn".to_string(),
+            ty: "Button".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Str("too big".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let mut env = env;
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("Type mismatch"));
+    }
+
+    #[test]
+    fn strict_types_warns_on_missing_annotations() {
+        let mut env = make_env();
+        env.strict_types = true;
+        let stmts = vec![Stmt::ComponentDef(
+            ComponentDef {
+                name: "Card".to_string(),
+                params: vec![ParamDef {
+                    name: "title".to_string(),
+                    param_type: None,
+                    default: Some(Expr::Str("Untitled".to_string())),
+                }],
+                body: vec![],
+                is_pub: false,
+            },
+            None,
+        )];
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("missing a type annotation"));
+        assert!(diagnostics[0].message.contains("strict mode"));
+    }
+
+    #[test]
+    fn strict_types_no_warning_when_annotated() {
+        let mut env = make_env();
+        env.strict_types = true;
+        let stmts = vec![Stmt::ComponentDef(
+            ComponentDef {
+                name: "Card".to_string(),
+                params: vec![ParamDef {
+                    name: "title".to_string(),
+                    param_type: Some(TypeAnnotation::Str),
+                    default: Some(Expr::Str("Untitled".to_string())),
+                }],
+                body: vec![],
+                is_pub: false,
+            },
+            None,
+        )];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(diagnostics.is_empty());
     }
 }

@@ -89,7 +89,7 @@ pub struct ParamInfo {
     /// The parameter name.
     pub name: String,
     /// The type annotation, if any (e.g. `Num`, `Vec2`).
-    pub param_type: Option<String>,
+    pub param_type: Option<TypeAnnotation>,
     /// The default value, if any, as a source string.
     pub default: Option<String>,
 }
@@ -273,7 +273,7 @@ impl SymbolTable {
                     name: def.name.clone(),
                     params: def.params.iter().map(|p| ParamInfo {
                         name: p.name.clone(),
-                        param_type: p.param_type.as_ref().map(|t| t.to_string()),
+                        param_type: p.param_type.clone(),
                         default: p.default.as_ref().map(|e| e.to_source()),
                     }).collect(),
                     line: 0, // populated by Analyzer::enrich_positions from tree-sitter

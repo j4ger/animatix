@@ -1,7 +1,7 @@
 //! Module system for the Animatix language: multi-file programs, imports,
 //! component collection, and namespace resolution.
 
-mod discovery;
+pub mod discovery;
 mod expand;
 mod inline_actions;
 mod rewrite;
@@ -116,8 +116,28 @@ impl LoadedProgram {
     /// annotations. Returns diagnostics for any type mismatches found.
     /// Unannotated parameters accept any value.
     pub fn typecheck(&mut self) -> Vec<crate::diagnostics::Diagnostic> {
-        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_actions);
+        let strict_types = self.extract_strict_types();
+        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_actions)
+            .with_strict_types(strict_types);
         env.check_statements(&self.statements)
+    }
+
+    /// Extract `strict_types` config value from prelude config statements.
+    fn extract_strict_types(&self) -> bool {
+        for stmt in &self.statements {
+            if let Stmt::Config { settings, .. } = stmt {
+                for setting in settings {
+                    if setting.name == "strict_types" {
+                        return match &setting.value {
+                            crate::ast::Expr::Bool(b) => *b,
+                            crate::ast::Expr::Str(s) => s.parse().unwrap_or(false),
+                            _ => false,
+                        };
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Expand component instances into concrete statements and inline custom actions.

@@ -1,3 +1,5 @@
+//! AST discovery helpers for collecting definitions and imports.
+
 use super::{ComponentDef, Import, Stmt};
 use std::collections::HashMap;
 
@@ -74,7 +76,8 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
     }
 }
 
-pub(super) fn collect_component_defs(statements: &[Stmt]) -> Vec<ComponentDef> {
+/// Collect all component definitions from a slice of statements.
+pub fn collect_component_defs(statements: &[Stmt]) -> Vec<ComponentDef> {
     let mut definitions = Vec::new();
     for stmt in statements {
         collect_component_defs_from_stmt(stmt, &mut definitions);
@@ -99,7 +102,7 @@ fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<Component
 
 /// Collect custom action templates from a component definition body.
 /// Returns a map of action_name → action template.
-pub(super) fn collect_component_actions(
+pub fn collect_component_actions(
     definition: &ComponentDef,
 ) -> HashMap<String, crate::module::ActionTemplate> {
     let mut actions = HashMap::new();

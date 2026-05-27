@@ -64,6 +64,9 @@
   "}"
 ] @punctuation.bracket
 
+; Type annotations in parameters
+(type_annotation) @type
+
 ; Identifiers used as types in actor declarations
 (actor_declaration
   type: (identifier) @type)

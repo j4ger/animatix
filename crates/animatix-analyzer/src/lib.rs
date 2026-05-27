@@ -50,6 +50,7 @@ pub struct Analyzer {
     tree: Option<Tree>,
     symbols: SymbolTable,
     workspace: Option<std::sync::Arc<Workspace>>,
+    type_diagnostics: Vec<diagnostics::Diagnostic>,
 }
 
 impl Analyzer {
@@ -68,6 +69,7 @@ impl Analyzer {
             tree: None,
             symbols: SymbolTable::default(),
             workspace: None,
+            type_diagnostics: Vec::new(),
         };
         analyzer.update(source);
         analyzer
@@ -132,7 +134,68 @@ impl Analyzer {
             }
         }
 
+        // Run gradual type checker
+        self.type_diagnostics = if let Some(ref stmts) = self.ast {
+            let components = Self::build_component_registry(stmts);
+            let module_actions = std::collections::HashMap::new();
+            let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
+            let syntax_diagnostics = env.check_statements(stmts);
+            syntax_diagnostics
+                .into_iter()
+                .map(Self::convert_type_diagnostic)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
         self.symbols = table;
+    }
+
+    /// Build a component registry from AST statements for the type checker.
+    fn build_component_registry(
+        stmts: &[Stmt],
+    ) -> std::collections::HashMap<String, animatix_syntax::module::ComponentEntry> {
+        use animatix_syntax::module::ComponentEntry;
+        use std::collections::HashMap;
+
+        let mut registry = HashMap::new();
+        for def in animatix_syntax::module::discovery::collect_component_defs(stmts) {
+            let actions = animatix_syntax::module::discovery::collect_component_actions(&def);
+            registry.insert(
+                def.name.clone(),
+                ComponentEntry {
+                    definition: def,
+                    source_path: std::path::PathBuf::new(),
+                    actions,
+                },
+            );
+        }
+        registry
+    }
+
+    /// Convert a syntax-level diagnostic to an analyzer diagnostic.
+    fn convert_type_diagnostic(
+        d: animatix_syntax::diagnostics::Diagnostic,
+    ) -> diagnostics::Diagnostic {
+        let severity = match d.severity {
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
+                diagnostics::DiagnosticSeverity::Error
+            }
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
+                diagnostics::DiagnosticSeverity::Warning
+            }
+        };
+        let line = d.location.line.unwrap_or(1).saturating_sub(1);
+        let col = d.location.column.unwrap_or(1).saturating_sub(1);
+        diagnostics::Diagnostic {
+            severity,
+            line,
+            col,
+            end_line: line,
+            end_col: col + 1,
+            message: d.message,
+            code: Some(d.code.to_string()),
+        }
     }
 
     /// Walk the tree-sitter tree and populate symbol table entries with real line/col positions.
@@ -269,7 +332,14 @@ impl Analyzer {
 
     /// All diagnostics (parse errors + semantic checks).
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        diagnostics::collect_diagnostics(&self.source, &self.parse_errors, &self.symbols, self.ast.as_deref())
+        let mut diagnostics = diagnostics::collect_diagnostics(
+            &self.source,
+            &self.parse_errors,
+            &self.symbols,
+            self.ast.as_deref(),
+        );
+        diagnostics.extend(self.type_diagnostics.clone());
+        diagnostics
     }
 
     /// Hover information at cursor position.
