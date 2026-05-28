@@ -129,3 +129,66 @@ impl UiStore {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::persistence::default_tree;
+
+    #[test]
+    fn ui_store_new_creates_valid_store() {
+        let tree = default_tree();
+        let store = UiStore::new(tree);
+
+        assert!(store.editor_sync_enabled);
+        assert!(store.keyframe_mode);
+        assert_eq!(store.cursor_time_s, None);
+        assert_eq!(store.sidebar_tab, SidebarTab::Explorer);
+        assert_eq!(store.property_view_mode, PropertyViewMode::Semantic);
+        assert_eq!(store.keyframe_view_mode, KeyframeViewMode::List);
+        assert_eq!(store.scrub_step_s, 0.1);
+        assert_eq!(store.nudge_step_px, 1.0);
+        assert_eq!(store.rotation_snap_degrees, 15.0);
+    }
+
+    #[test]
+    fn selection_store_select_actor_adds_to_selected_actors() {
+        let tree = default_tree();
+        let mut store = UiStore::new(tree);
+
+        store.selection.selected_actors.insert("box".to_string());
+        store.selection.selected_actors.insert("circle".to_string());
+
+        assert_eq!(store.selection.selected_actors.len(), 2);
+        assert!(store.selection.selected_actors.contains("box"));
+        assert!(store.selection.selected_actors.contains("circle"));
+    }
+
+    #[test]
+    fn selection_store_clear_selection_empties_selected_actors() {
+        let tree = default_tree();
+        let mut store = UiStore::new(tree);
+
+        store.selection.selected_actors.insert("box".to_string());
+        store.selection.selected_actors.insert("circle".to_string());
+        assert_eq!(store.selection.selected_actors.len(), 2);
+
+        store.selection.selected_actors.clear();
+
+        assert!(store.selection.selected_actors.is_empty());
+    }
+
+    #[test]
+    fn view_store_defaults() {
+        let tree = default_tree();
+        let store = UiStore::new(tree);
+
+        assert!(store.view.collapsed_actors.is_empty());
+        assert!(!store.view.diagnostics_panel_visible);
+        assert!(!store.view.settings_open);
+        assert!(!store.view.action_palette_open);
+        assert!(!store.view.shortcuts_open);
+        assert!(!store.view.debug_bounds);
+        assert_eq!(store.view.tool_mode, ToolMode::Select);
+    }
+}

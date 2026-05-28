@@ -98,7 +98,7 @@ impl GuiShell {
             Command::TogglePlayback => {
                 self.preview_store.preview.playback.toggle_playback();
                 self.preview_store.preview_dirty = true;
-                vec![]
+                vec![Effect::Repaint]
             }
             Command::ToggleEditorSync => {
                 self.ui_store.editor_sync_enabled = !self.ui_store.editor_sync_enabled;
@@ -128,7 +128,7 @@ impl GuiShell {
             }
             Command::RequestRepaint => {
                 self.preview_store.preview_dirty = true;
-                vec![]
+                vec![Effect::Repaint]
             }
             Command::PrevKeyframe => {
                 let keyframes = timeline_keyframe_times_s(
@@ -437,5 +437,298 @@ impl GuiShell {
                 vec![]
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::commands::{Command, Effect};
+    use crate::app::persistence::default_tree;
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// Create a unique temp directory for test isolation.
+    fn temp_project_dir(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_gui_test_{}_{}_{}",
+            name,
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Build a minimal GuiShell for testing command handlers.
+    fn make_test_shell() -> GuiShell {
+        let dir = temp_project_dir("command_handlers");
+        let path = dir.join("test.amx");
+        fs::write(&path, "box: Rect, size: (100, 100)\n").unwrap();
+
+        let document = DocumentSession::load(path.clone()).expect("load test document");
+        let editor = EditorBuffer::new(&path, document.source_text.clone());
+
+        let workspace_root = dir;
+        let expanded_dirs = HashSet::from([workspace_root.clone()]);
+        let file_tree = build_file_tree(&workspace_root, &path, &expanded_dirs);
+
+        let preview = PreviewPaneState::new(
+            document.duration_s.max(0.1),
+            document.scene_dimensions,
+        );
+
+        let tree = default_tree();
+
+        GuiShell {
+            document_store: DocumentStore::new(document, editor),
+            workspace_store: WorkspaceStore::new(
+                workspace_root,
+                expanded_dirs,
+                file_tree,
+                PathBuf::from(".test_persistence.ron"),
+                None,
+            ),
+            preview_store: PreviewStore::new(preview),
+            ui_store: UiStore::new(tree),
+            export_store: ExportStore::new(),
+        }
+    }
+
+    // ── TogglePlayback ───────────────────────────────────────────────
+
+    #[test]
+    fn toggle_playback_returns_repaint_effect() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::TogglePlayback);
+        assert_eq!(effects.len(), 1, "expected exactly 1 effect");
+        assert!(
+            matches!(&effects[0], Effect::Repaint),
+            "expected Repaint effect"
+        );
+    }
+
+    #[test]
+    fn toggle_playback_toggles_playing_flag() {
+        let mut shell = make_test_shell();
+        assert!(!shell.preview_store.preview.playback.is_playing);
+        shell.handle_command(Command::TogglePlayback);
+        assert!(shell.preview_store.preview.playback.is_playing);
+        shell.handle_command(Command::TogglePlayback);
+        assert!(!shell.preview_store.preview.playback.is_playing);
+    }
+
+    #[test]
+    fn toggle_playback_resets_time_when_at_end() {
+        let mut shell = make_test_shell();
+        shell.preview_store.preview.playback.current_time_s =
+            shell.preview_store.preview.playback.duration_s;
+        shell.handle_command(Command::TogglePlayback);
+        assert_eq!(shell.preview_store.preview.playback.current_time_s, 0.0);
+        assert!(shell.preview_store.preview.playback.is_playing);
+    }
+
+    // ── ScrubTo ──────────────────────────────────────────────────────
+
+    #[test]
+    fn scrub_to_updates_current_time_and_stops_playback() {
+        let mut shell = make_test_shell();
+        // Document has no keyframes → duration is 0.1s min, so use a time within range
+        let target = shell.preview_store.preview.playback.duration_s * 0.5;
+        let clamped = target.max(0.0).min(shell.preview_store.preview.playback.duration_s.max(0.1));
+        shell.preview_store.preview.playback.is_playing = true;
+
+        let _effects = shell.handle_command(Command::ScrubTo(target));
+
+        assert_eq!(shell.preview_store.preview.playback.current_time_s, clamped);
+        assert!(!shell.preview_store.preview.playback.is_playing);
+        assert!(shell.preview_store.preview_dirty);
+    }
+
+    #[test]
+    fn scrub_to_clamps_negative_time() {
+        let mut shell = make_test_shell();
+        shell.handle_command(Command::ScrubTo(-5.0));
+        assert_eq!(shell.preview_store.preview.playback.current_time_s, 0.0);
+    }
+
+    #[test]
+    fn scrub_to_clamps_overshoot_time() {
+        let mut shell = make_test_shell();
+        shell.handle_command(Command::ScrubTo(999.0));
+        let max = shell.preview_store.preview.playback.duration_s.max(0.1);
+        assert_eq!(shell.preview_store.preview.playback.current_time_s, max);
+    }
+
+    // ── ToggleEditorSync ─────────────────────────────────────────────
+
+    #[test]
+    fn toggle_editor_sync_turns_off_when_on() {
+        let mut shell = make_test_shell();
+        shell.ui_store.editor_sync_enabled = true;
+        let effects = shell.handle_command(Command::ToggleEditorSync);
+        assert!(!shell.ui_store.editor_sync_enabled);
+        assert_eq!(effects.len(), 1);
+        assert!(
+            matches!(&effects[0], Effect::Status(msg) if msg == "Editor sync OFF"),
+            "expected Status('Editor sync OFF'), got {:?}",
+            effects[0]
+        );
+    }
+
+    #[test]
+    fn toggle_editor_sync_turns_on_when_off() {
+        let mut shell = make_test_shell();
+        shell.ui_store.editor_sync_enabled = false;
+        let effects = shell.handle_command(Command::ToggleEditorSync);
+        assert!(shell.ui_store.editor_sync_enabled);
+        assert_eq!(effects.len(), 1);
+        assert!(
+            matches!(&effects[0], Effect::Status(msg) if msg == "Editor sync ON"),
+            "expected Status('Editor sync ON'), got {:?}",
+            effects[0]
+        );
+    }
+
+    // ── RequestRepaint ───────────────────────────────────────────────
+
+    #[test]
+    fn request_repaint_returns_repaint_effect() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::RequestRepaint);
+        assert_eq!(effects.len(), 1, "expected exactly 1 effect");
+        assert!(
+            matches!(&effects[0], Effect::Repaint),
+            "expected Repaint effect"
+        );
+    }
+
+    #[test]
+    fn request_repaint_sets_preview_dirty() {
+        let mut shell = make_test_shell();
+        shell.preview_store.preview_dirty = false;
+        shell.handle_command(Command::RequestRepaint);
+        assert!(shell.preview_store.preview_dirty);
+    }
+
+    // ── Save ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn save_returns_status_and_toast_effects_on_success() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::Save);
+        assert_eq!(effects.len(), 2, "expected 2 effects from Save");
+        assert!(
+            matches!(&effects[0], Effect::Status(msg) if msg.starts_with("Saved ")),
+            "expected Effect::Status starting with 'Saved ', got {:?}",
+            effects[0]
+        );
+        assert!(
+            matches!(&effects[1], Effect::Toast(_)),
+            "expected Effect::Toast as second effect, got {:?}",
+            effects[1]
+        );
+    }
+
+    #[test]
+    fn save_persists_file_to_disk() {
+        let mut shell = make_test_shell();
+        let path = shell.document_store.document.file_path.clone();
+        let before = std::fs::read_to_string(&path).unwrap();
+        shell.document_store
+            .document
+            .set_source_text("modified content".to_string());
+        shell.document_store
+            .editor
+            .replace_text("modified content".to_string());
+
+        shell.handle_command(Command::Save);
+
+        let after = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            after, "modified content",
+            "file content should match editor state after save"
+        );
+        assert!(
+            !shell.document_store.document.is_dirty,
+            "document should not be dirty after save"
+        );
+        assert_eq!(
+            shell.document_store.document.source_text,
+            "modified content",
+            "source_text should reflect saved content"
+        );
+        assert_ne!(before, after, "file should have changed after save");
+    }
+
+    // ── EditorChanged ────────────────────────────────────────────────
+
+    #[test]
+    fn editor_changed_returns_status_and_rebuild_scheduled() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::EditorChanged);
+        assert_eq!(effects.len(), 2);
+        assert!(
+            matches!(&effects[0], Effect::Status(msg) if msg.contains("Editing source")),
+            "expected Status about editing source, got {:?}",
+            effects[0]
+        );
+        assert!(
+            matches!(&effects[1], Effect::RebuildScheduled),
+            "expected RebuildScheduled, got {:?}",
+            effects[1]
+        );
+    }
+
+    // ── ToggleKeyframeMode ───────────────────────────────────────────
+
+    #[test]
+    fn toggle_keyframe_mode_returns_empty() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::ToggleKeyframeMode);
+        assert!(effects.is_empty());
+    }
+
+    // ── ShowInspector ────────────────────────────────────────────────
+
+    #[test]
+    fn show_inspector_returns_empty() {
+        let mut shell = make_test_shell();
+        let effects = shell.handle_command(Command::ShowInspector);
+        assert!(effects.is_empty());
+    }
+
+    // ── ToggleDiagnosticsPanel ───────────────────────────────────────
+
+    #[test]
+    fn toggle_diagnostics_toggles_visibility_flag() {
+        let mut shell = make_test_shell();
+        shell.ui_store.view.diagnostics_panel_visible = false;
+        let effects = shell.handle_command(Command::ToggleDiagnosticsPanel);
+        assert!(shell.ui_store.view.diagnostics_panel_visible);
+        assert!(effects.is_empty());
+    }
+
+    // ── DragEnded ────────────────────────────────────────────────────
+
+    #[test]
+    fn drag_ended_resets_drag_state() {
+        let mut shell = make_test_shell();
+        shell.ui_store.interaction.drag_snapshot_taken = true;
+
+        let effects = shell.handle_command(Command::DragEnded);
+
+        assert!(
+            matches!(shell.ui_store.interaction.drag_state, super::preview::DragState::None),
+            "expected DragState::None after DragEnded"
+        );
+        assert!(!shell.ui_store.interaction.drag_snapshot_taken);
+        assert!(effects.is_empty());
     }
 }

@@ -416,3 +416,74 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
         PropertyValue::Transform(v) => format!("[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]", v[0], v[1], v[2], v[3], v[4], v[5]),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use animatix::easing::Easing;
+    use animatix::timeline::track::PropertyTrack;
+    use animatix::timeline::ActorKindId;
+
+    fn make_track(kind: ActorKindId) -> AnimationTrack {
+        let mut track = AnimationTrack::new("test".to_string());
+        track.kind = kind;
+        track
+    }
+
+    #[test]
+    fn test_count_keyframes_empty_track() {
+        let track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+        assert_eq!(count_keyframes(&track), 0);
+    }
+
+    #[test]
+    fn test_count_keyframes_one_keyframe() {
+        let mut track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+        let mut pt = PropertyTrack::new([0.0, 0.0]);
+        pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
+        track.position = Some(pt);
+        assert_eq!(count_keyframes(&track), 1);
+    }
+
+    #[test]
+    fn test_count_keyframes_multiple_properties() {
+        let mut track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+
+        // Two keyframes on position
+        let mut pos = PropertyTrack::new([0.0, 0.0]);
+        pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
+        pos.add_keyframe(1000, [200.0, 0.0], Easing::EaseInOut);
+        track.position = Some(pos);
+
+        // One keyframe on rotation
+        let mut rot = PropertyTrack::new(0.0);
+        rot.add_keyframe(500, 1.57, Easing::EaseOut);
+        track.rotation = Some(rot);
+
+        assert_eq!(count_keyframes(&track), 3);
+    }
+
+    #[test]
+    fn test_count_keyframes_skips_non_applicable_properties() {
+        // Text kinds do not have shape-specific properties like stroke_width applicable
+        let mut track = make_track(ActorKindId::Text);
+
+        // position is applicable to Everything
+        let mut pos = PropertyTrack::new([0.0, 0.0]);
+        pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
+        track.position = Some(pos);
+
+        // stroke_width is only applicable to AllShapes — not Text
+        let mut sw = PropertyTrack::new(1.0);
+        sw.add_keyframe(0, 2.0, Easing::Linear);
+        track.stroke_width = Some(sw);
+
+        // text is applicable to Text
+        let mut txt = PropertyTrack::new(String::new());
+        txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
+        track.text_content = Some(txt);
+
+        // Only position and text_content should count (stroke_width is not applicable)
+        assert_eq!(count_keyframes(&track), 2);
+    }
+}

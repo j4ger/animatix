@@ -147,3 +147,83 @@ impl<T> KeyframeSource for animatix::timeline::PropertyTrack<T> {
         self.keyframes.keys().copied().collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::commands::Command;
+    use std::path::PathBuf;
+
+    /// Helper to create a minimal DocumentStore for testing.
+    fn make_store() -> DocumentStore {
+        let document = DocumentSession::from_error(PathBuf::from("test.amx"));
+        let editor = EditorBuffer::new(&PathBuf::from("test.amx"), document.source_text.clone());
+        DocumentStore::new(document, editor)
+    }
+
+    #[test]
+    fn snapshot_pushes_onto_undo_stack_and_clears_redo() {
+        let mut store = make_store();
+
+        store.snapshot(Command::Rebuild);
+        store.snapshot(Command::TogglePlayback);
+        store.snapshot(Command::Save);
+
+        assert_eq!(store.undo_stack.len(), 3);
+        assert!(store.redo_stack.is_empty());
+    }
+
+    #[test]
+    fn snapshot_removes_oldest_when_exceeding_limit() {
+        let mut store = make_store();
+        store.undo_limit = 2;
+
+        store.snapshot(Command::Rebuild);
+        store.snapshot(Command::Save);
+        store.snapshot(Command::TogglePlayback);
+
+        assert_eq!(store.undo_stack.len(), 2);
+        // The oldest entry (Rebuild) should have been removed
+        assert!(matches!(store.undo_stack[0].command, Command::Save));
+        assert!(matches!(store.undo_stack[1].command, Command::TogglePlayback));
+    }
+
+    #[test]
+    fn snapshot_clears_redo_stack() {
+        let mut store = make_store();
+
+        store.snapshot(Command::Rebuild);
+        // Simulate an undo by moving one entry from undo to redo
+        let entry = store.undo_stack.pop().unwrap();
+        store.redo_stack.push(entry);
+
+        assert_eq!(store.undo_stack.len(), 0);
+        assert_eq!(store.redo_stack.len(), 1);
+
+        // Pushing a new snapshot should clear redo
+        store.snapshot(Command::Save);
+        assert!(store.redo_stack.is_empty());
+        assert_eq!(store.undo_stack.len(), 1);
+    }
+
+    #[test]
+    fn invalidate_cache_sets_cache_valid_to_false() {
+        let mut store = make_store();
+        store.cache_valid = true;
+
+        store.invalidate_cache();
+
+        assert!(!store.cache_valid);
+    }
+
+    #[test]
+    fn cached_actor_labels_can_be_set_and_read() {
+        let mut store = make_store();
+        assert!(store.cached_actor_labels.is_empty());
+
+        let labels = vec!["box".to_string(), "circle".to_string()];
+        store.cached_actor_labels = labels.clone();
+
+        assert_eq!(store.cached_actor_labels, labels);
+    }
+}

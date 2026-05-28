@@ -521,6 +521,20 @@ mod tests {
     }
 
     #[test]
+    fn timeline_keyframe_times_none_timeline_none_composition() {
+        let times = timeline_keyframe_times_s(None, None, None);
+        assert!(times.is_empty(), "expected empty vec, got {times:?}");
+    }
+
+    #[test]
+    fn timeline_keyframe_times_empty_timeline() {
+        let ast: Vec<Stmt> = vec![];
+        let timeline = Timeline::build(&ast);
+        let times = timeline_keyframe_times_s(Some(&timeline), None, None);
+        assert!(times.is_empty(), "expected empty vec, got {times:?}");
+    }
+
+    #[test]
     fn timeline_keyframe_times_are_sorted_and_deduped() {
         let ast = vec![
             Stmt::Keyframe {

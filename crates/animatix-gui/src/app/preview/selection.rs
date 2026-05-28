@@ -306,3 +306,57 @@ pub(crate) fn draw_cycle_indicator(
         TEXT_PRIMARY,
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_same_position_identical() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        // Strict < tolerance: 0.0 < 0.001 is true
+        assert!(is_same_position(a, a, 0.001));
+    }
+
+    #[test]
+    fn test_is_same_position_within_tolerance() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        let b = kurbo::Point::new(10.3, 20.4);
+        assert!(is_same_position(a, b, 0.5));
+    }
+
+    #[test]
+    fn test_is_same_position_at_tolerance_boundary() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        let b = kurbo::Point::new(10.5, 20.5);
+        // Strict < tolerance: dx=0.5, dy=0.5, tolerance=0.5 → 0.5 < 0.5 is false
+        assert!(!is_same_position(a, b, 0.5));
+    }
+
+    #[test]
+    fn test_is_same_position_beyond_tolerance() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        let b = kurbo::Point::new(15.0, 30.0);
+        assert!(!is_same_position(a, b, 1.0));
+    }
+
+    #[test]
+    fn test_is_same_position_dx_within_dy_beyond() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        let b = kurbo::Point::new(10.1, 25.0);
+        // dx=0.1 < 5.0, dy=5.0 < 5.0 is false (equal, not less)
+        assert!(!is_same_position(a, b, 5.0));
+    }
+
+    #[test]
+    fn test_is_same_position_zero_tolerance() {
+        let a = kurbo::Point::new(10.0, 20.0);
+        let b = kurbo::Point::new(10.0, 20.0);
+        // Strict < tolerance: 0.0 < 0.0 is false
+        assert!(!is_same_position(a, b, 0.0));
+        // But with epsilon > 0, identical points should pass
+        assert!(is_same_position(a, b, 1e-12));
+        let c = kurbo::Point::new(10.0, 20.001);
+        assert!(!is_same_position(a, c, 0.0));
+    }
+}
