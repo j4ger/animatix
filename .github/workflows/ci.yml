@@ -75,3 +75,17 @@ jobs:
         run: cargo install cargo-audit
       - name: Run audit
         run: cargo audit
+
+  commit-check:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install cocogitto
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cocogitto/cocogitto/main/install.sh | sh
+      - name: Check commit messages
+        run: cog check

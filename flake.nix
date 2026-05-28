@@ -35,6 +35,8 @@
 	    wayland
 
             rust-bin.stable.latest.default
+
+            cocogitto
           ];
 
           shellHook = ''

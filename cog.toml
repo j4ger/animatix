@@ -1,0 +1,23 @@
+ignore_merge_commits = true
+
+# Valid scopes for this project
+scopes = [
+    "animatix",
+    "gui",
+    "analyzer",
+    "lsp",
+    "syntax",
+    "parser",
+    "renderer",
+    "timeline",
+    "ci",
+    "docs",
+]
+
+[commit_types]
+chore = { changelog_title = "Chores", omit_from_changelog = true }
+ci = { changelog_title = "CI", omit_from_changelog = true }
+
+[changelog]
+path = "CHANGELOG.md"
+template = "remote"

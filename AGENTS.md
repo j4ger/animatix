@@ -24,9 +24,10 @@ Other paths:
 
 1. **Investigate before changing.** Read relevant docs in `docs/`.
 2. **Keep tests green.** Run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing.
-3. **Update docs.** If your change affects user-visible behavior, update `docs/spec.md` or `docs/architecture.md`. 
+3. **Update docs.** If your change affects user-visible behavior, update `docs/spec.md` or `docs/architecture.md`.
 4. **Keep the todo list clean.** In `docs/roadmap.md`, remove completed items rather than marking them done. The file should read as "what's left," not a history log.
-5. **Ask if unsure.** If you are unclear or need to decide between critical design choices, ask the user and present with pros and cons. Also inform the user if you spot any design flaw during any work.
+5. **Follow conventional commits.** All commits must follow the Conventional Commits spec (e.g., `feat(gui): add scrubbing`, `fix(parser): handle empty keyframes`). Use `cog commit` if unsure.
+6. **Ask if unsure.** If you are unclear or need to decide between critical design choices, ask the user and present with pros and cons. Also inform the user if you spot any design flaw during any work.
 
 ### Error handling
 

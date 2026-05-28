@@ -279,4 +279,54 @@ cargo run --bin widget-screenshot --features dev-screenshots \
 
 ---
 
+---
+
+## Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced by [Cocogitto](https://docs.cocogitto.io/).
+
+### Quick Reference
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+**Scopes (common):** `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`
+
+### Examples
+
+```bash
+# Feature in the GUI
+cog commit feat "add timeline scrubbing" gui
+
+# Bug fix in the parser
+cog commit fix "handle empty keyframes" parser
+
+# Breaking change
+cog commit fix -B "drop support for old scene format" animatix
+
+# Simple docs update
+cog commit docs "document timeline evaluation order"
+```
+
+### Validation
+
+```bash
+# Check all commits since the last tag
+cog check
+
+# Check a specific range
+cog check --from <commit-sha>
+```
+
+CI enforces conventional commits on every pull request.
+
+---
+
 *For the language specification, see [`spec.md`](spec.md). For the system architecture, see [`architecture.md`](architecture.md). For work items, see [`roadmap.md`](roadmap.md).
