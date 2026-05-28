@@ -111,6 +111,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     stores::document_store::rebuild_cache(
                         &mut self.document_store.cached_actor_labels,
                         &mut self.document_store.cached_actor_keyframes,
+                        &mut self.document_store.cached_hit_regions,
+                        &mut self.document_store.cached_actor_bounds,
                         &mut self.document_store.cache_valid,
                         tl,
                     );

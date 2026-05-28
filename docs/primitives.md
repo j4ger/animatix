@@ -85,7 +85,7 @@ Note: Missing files or invalid SVG contents report build diagnostics. Source cha
 
 **Example:**
 ```animatix
-photo: Image { url: "examples/checker.ppm", at: (640, 360), size: (180, 180) }
+photo: Image { url: "examples/checker.png", at: (640, 360), size: (180, 180) }
 ```
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).

@@ -393,22 +393,14 @@ pub fn default_file_path() -> PathBuf {
 }
 
 /// Convert a `ModuleError` into a vector of `Diagnostic`s.
-/// Parse errors are preserved as individual diagnostics with location info.
+/// Parse errors are preserved as individual diagnostics with location info
+/// via `ParseError::to_diagnostic()`.
 /// Other module errors become a single `SourceLoadFailure` diagnostic.
 fn diagnostics_from_module_error(err: &ModuleError, file_path: &Path) -> Vec<Diagnostic> {
     match err {
         ModuleError::ParseErrors(parse_errors) => parse_errors
             .iter()
-            .map(|e| {
-                let mut msg = format!("line {}, col {}: {}", e.line, e.column, e.message);
-                if !e.context.is_empty() {
-                    msg.push_str("\n  ");
-                    msg.push_str(&e.context.join("\n  "));
-                }
-                Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg)
-                    .with_path(file_path)
-                    .with_location(e.line, e.column, e.span.clone())
-            })
+            .map(|e| e.to_diagnostic().with_path(file_path))
             .collect(),
         _ => vec![Diagnostic::error(
             DiagnosticCode::SourceLoadFailure,
@@ -794,7 +786,8 @@ scene: Rect, size: (100, 100)
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
         assert_eq!(diagnostic.code, DiagnosticCode::ParseError);
         assert!(
-            diagnostic.message.contains("line ") && diagnostic.message.contains("col ")
+            !diagnostic.message.is_empty(),
+            "parse error message should not be empty"
         );
         assert!(diagnostic.location.line.is_some());
         assert!(diagnostic.location.column.is_some());

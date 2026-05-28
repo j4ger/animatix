@@ -607,7 +607,7 @@ fn test_code_stmt_parse() {
 fn test_image_stmt() {
     assert_eq!(
         parse_single_stmt(
-            "photo: Image { url: \"examples/checker.ppm\", at: (100, 120), size: (240, 180) }"
+            "photo: Image { url: \"examples/checker.png\", at: (100, 120), size: (240, 180) }"
         ),
         Stmt::ActorDecl {
             is_pub: false,
@@ -617,7 +617,7 @@ fn test_image_stmt() {
             props: vec![
                 Property {
                     name: "url".to_string(),
-                    value: Expr::Str("examples/checker.ppm".to_string()),
+                    value: Expr::Str("examples/checker.png".to_string()),
                     value_span: Some(ByteSpan { start: 20, end: 42 }),
                     trailing_comment: None,
                 },
@@ -689,7 +689,7 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
 fn test_image_stmt_preserves_anchor_and_offset() {
     assert_eq!(
         parse_single_stmt(
-            "photo: Image { url: \"examples/checker.ppm\", anchor: scene.bottom, offset: (0, -40), size: (240, 180) }"
+            "photo: Image { url: \"examples/checker.png\", anchor: scene.bottom, offset: (0, -40), size: (240, 180) }"
         ),
         Stmt::ActorDecl {
             is_pub: false,
@@ -699,7 +699,7 @@ fn test_image_stmt_preserves_anchor_and_offset() {
             props: vec![
                 Property {
                     name: "url".to_string(),
-                    value: Expr::Str("examples/checker.ppm".to_string()),
+                    value: Expr::Str("examples/checker.png".to_string()),
                     value_span: Some(ByteSpan { start: 20, end: 42 }),
                     trailing_comment: None,
                 },

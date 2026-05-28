@@ -65,7 +65,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 
 ## Assets
 
-- `checker.ppm` — raster image for `Image`/`Svg` demos
+- `checker.png` — raster image for `Image`/`Svg` demos
 - `vector.svg` — vector graphic for `Svg` demo
 
 ## Running Demos

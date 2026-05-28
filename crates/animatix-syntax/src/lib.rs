@@ -11,6 +11,9 @@ pub mod easing;
 pub mod icon_glyphs;
 pub mod module;
 pub mod parser;
+/// Re-export of chumsky for integration tests that need `chumsky::Parser`.
+#[doc(hidden)]
+pub use chumsky;
 pub mod source_index;
 pub mod to_source;
 pub mod transition_registry;

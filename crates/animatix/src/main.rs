@@ -557,21 +557,7 @@ fn main() {
                 println!("{}: OK (no diagnostics)", file);
             } else {
                 for diag in &diagnostics {
-                    let prefix = match diag.phase {
-                        animatix::diagnostics::DiagnosticPhase::Parse => "[parse]",
-                        animatix::diagnostics::DiagnosticPhase::Build => "[build]",
-                        animatix::diagnostics::DiagnosticPhase::Render => "[render]",
-                    };
-                    let severity = if diag.is_error() { "ERROR" } else { "WARNING" };
-                    println!("{prefix} {severity}: {}", diag.message);
-                    if let Some(line) = diag.location.line {
-                        if let Some(col) = diag.location.column {
-                            println!("  at {}:{}", line, col);
-                        }
-                    }
-                    if let Some(subject) = &diag.location.subject {
-                        println!("  subject: {subject}");
-                    }
+                    println!("{}", format_diagnostic(diag));
                 }
                 if diagnostics.iter().any(|d| d.is_error()) {
                     std::process::exit(1);

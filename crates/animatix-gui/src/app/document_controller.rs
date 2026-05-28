@@ -44,6 +44,78 @@ impl DocumentController<'_> {
 
     // ── Actor management ────────────────────────────────────────────────
 
+    /// Create a new actor from a type/label/position.
+    /// NOTE: The caller should have called `snapshot()` before this.
+    pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
+        let props = crate::app::actions::default_props_for_actor(
+            ty,
+            position,
+            self.document_store.document.scene_dimensions,
+        );
+
+        // If a container is selected, offer to insert inside it
+        let container =
+            self.ui_store
+                .selection
+                .selected_actors
+                .iter()
+                .next()
+                .cloned()
+                .filter(|sel| {
+                    self.document_store
+                        .document
+                        .timeline
+                        .as_ref()
+                        .is_some_and(|t| {
+                            t.get_track(sel).is_some_and(|tr| {
+                                matches!(
+                                    tr.kind,
+                                    animatix::timeline::ActorKindId::Row
+                                        | animatix::timeline::ActorKindId::Col
+                                        | animatix::timeline::ActorKindId::Grid
+                                        | animatix::timeline::ActorKindId::Stack
+                                        | animatix::timeline::ActorKindId::Group
+                                )
+                            })
+                        })
+                });
+
+        if let Some(ref mut stmts) = self.document_store.document.raw_statements {
+            let edit = crate::source_edit::SourceEdit::InsertActor {
+                ty: ty.into(),
+                label: label.into(),
+                props,
+                container: container.clone(),
+                time_s: self.preview_store.preview.playback.current_time_s,
+            };
+
+            if crate::source_edit::apply_edit(stmts, edit) {
+                let new_source = animatix::to_source::stmts_to_source(stmts);
+                let source_index = animatix::source_index::SourceIndex::build(stmts);
+                self.apply_source(new_source, source_index);
+                self.preview_store.preview.status = format!(
+                    "Created {} ({}) at ({:.0}, {:.0})",
+                    label, ty, position[0], position[1]
+                );
+            } else {
+                self.preview_store.preview.status =
+                    format!("Failed to create {} — source edit failed", label);
+                return;
+            }
+        } else {
+            self.preview_store.preview.status =
+                "Failed to create actor — no AST available".to_string();
+            return;
+        }
+
+        // Auto-select the new actor
+        self.ui_store.selection.selected_actors.clear();
+        self.ui_store.selection.selected_actors.insert(label.into());
+        self.preview_store.preview_dirty = true;
+    }
+
+    // ── Actor management ────────────────────────────────────────────────
+
     /// Duplicate an actor, preserving its type and properties.
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_duplicate_actor(&mut self, original_label: &str) {

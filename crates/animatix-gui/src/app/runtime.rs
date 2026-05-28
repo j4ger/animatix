@@ -336,7 +336,21 @@ impl AnimatixApp {
             }
 
             self.shell.preview_store.preview_dirty = false;
-            self.shell.ui_store.selection.hit_regions = self.preview_surface.hit_regions().to_vec();
+
+            // Transfer hit regions from the preview surface (moved, not cloned)
+            // into the document store cache.  A small clone is still needed for
+            // ui_store because Behavior borrows document_store mutably and cannot
+            // alias &cached_hit_regions simultaneously.
+            let fresh_hit_regions = self.preview_surface.take_hit_regions();
+            self.shell.document_store.cached_actor_bounds = fresh_hit_regions
+                .iter()
+                .map(|(label, bounds)| (label.clone(), *bounds))
+                .collect();
+            self.shell.document_store.cached_hit_regions = fresh_hit_regions;
+            self.shell.ui_store.selection.hit_regions = self.shell
+                .document_store
+                .cached_hit_regions
+                .clone();
             self.shell
                 .clear_any_error(live_preview_status(
                     &self.shell.preview_store.preview,

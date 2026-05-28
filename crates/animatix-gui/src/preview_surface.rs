@@ -50,6 +50,13 @@ impl PreviewSurface {
         &self.hit_regions
     }
 
+    /// Takes ownership of the hit regions, leaving an empty Vec in their place.
+    /// This avoids a per-frame `.to_vec()` allocation when transferring data
+    /// to the document store cache.
+    pub fn take_hit_regions(&mut self) -> Vec<(String, Rect)> {
+        std::mem::take(&mut self.hit_regions)
+    }
+
     /// Returns the sample texture view for registration with egui.
     pub fn sample_view(&self) -> Option<&wgpu::TextureView> {
         self.sample_view.as_ref()

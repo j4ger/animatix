@@ -15,7 +15,7 @@ pub(crate) mod stores;
 pub mod design_tokens;
 mod utils;
 
-use crate::document::{DocumentSession, default_file_path, timeline_keyframe_times_s};
+use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
@@ -23,7 +23,7 @@ use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnos
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
-use egui_tiles::{Tile, Tree};
+use egui_tiles::Tree;
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path};
 #[cfg(test)]
@@ -34,11 +34,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{Command, CommandQueue, Effect, UndoEntry};
+use crate::app::commands::{Command, CommandQueue, Effect};
 use crate::app::utils::*;
 use crate::app::stores::*;
-use document_controller::DocumentController;
-use crate::error::GuiError;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -359,9 +357,12 @@ impl GuiShell {
             // Clear any stale error before rebuild so a successful rebuild
             // doesn't leave an outdated error banner visible.
             self.preview_store.preview.error = None;
-            if let Err(e) = self.rebuild() {
-                tracing::warn!("Scheduled rebuild failed: {}", e);
-            }
+            let effects = crate::app::command_handlers::handle_rebuild(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            );
+            self.apply_effects(effects);
         }
     }
 
@@ -549,146 +550,35 @@ impl GuiShell {
         }
     }
 
-    fn open_document(&mut self, path: PathBuf) {
-        match DocumentSession::load(path.clone()) {
-            Ok(document) => {
-                let new_workspace_root = workspace_root_for(&path);
-                if new_workspace_root != self.workspace_store.workspace_root {
-                    self.workspace_store.workspace_root = new_workspace_root;
-                    self.workspace_store.expanded_dirs = HashSet::from([self.workspace_store.workspace_root.clone()]);
-                }
-                self.workspace_store.file_tree = build_file_tree(&self.workspace_store.workspace_root, &path, &self.workspace_store.expanded_dirs);
-                self.document_store.document = document;
-                self.document_store.editor
-                    .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
-                // Clear undo/redo history when switching files
-                self.document_store.undo_stack.clear();
-                self.document_store.redo_stack.clear();
-                self.ui_store.interaction.drag_snapshot_taken = false;
-                self.ui_store.interaction.inspector_input_drag_active = false;
-                if let Some(ref mut reloader) = self.workspace_store.hot_reloader {
-                    if let Err(e) = reloader.update_watched_file(&self.document_store.document.file_path) {
-                        tracing::warn!("Failed to update watched file: {}", e);
-                    }
-                }
-                let status = if has_source_load_failure(&self.document_store.document.diagnostics) {
-                    format!(
-                        "Opened {} • parse/load error • {}",
-                        self.document_store.document.file_path.display(),
-                        diagnostics_phase_summary(&self.document_store.document.diagnostics)
-                    )
-                } else {
-                    self.document_store.document_status(format!("Opened {}", self.document_store.document.file_path.display()))
-                };
-                let error = self.document_store.document.last_rebuild_error.clone();
-                self.sync_preview_from_document(status, true, true);
-                self.preview_store.preview.error = error;
-                self.ui_store.toasts.push(crate::app::components::toast::Toast::info(format!("Opened {}", path.display())));
-            }
-            Err(error) => {
-                self.preview_store.preview.error = Some(error.to_string());
-                self.preview_store.preview.status = format!("Open failed • {}", path.display());
+    /// Force-clear any active error state (parse or render).
+    fn clear_any_error(&mut self, status: String) {
+        self.document_store.render_diagnostics.clear();
+        self.preview_store.preview.error = None;
+        self.preview_store.preview.status = status;
+    }
+
+    fn save_persistence(&self) {
+        if let Some(parent) = self.workspace_store.persistence_path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                tracing::warn!("Failed to create persistence directory: {}", e);
             }
         }
-    }
-
-    fn save(&mut self) -> Result<(), GuiError> {
-        let text = self.document_store.editor.text().to_string();
-        let path = self.document_store.document.file_path.clone();
-        std::fs::write(&path, &text)
-            .map_err(|err| GuiError::Io { path, source: err })?;
-        self.document_store.document.source_text = text;
-        self.document_store.document.is_dirty = false;
-        // Status and toast are emitted as Effects from the Save command handler.
-        Ok(())
-    }
-
-    fn reload(&mut self) -> Result<(), GuiError> {
-        self.document_store.invalidate_cache();
-        self.document_store.document.reload_from_disk()?;
-        self.document_store.editor
-            .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
-        let status = if has_source_load_failure(&self.document_store.document.diagnostics) {
-            format!(
-                "Reloaded {} • parse/load error • {}",
-                self.document_store.document.file_path.display(),
-                diagnostics_phase_summary(&self.document_store.document.diagnostics)
-            )
-        } else {
-            self.document_store.document_status(format!("Reloaded {}", self.document_store.document.file_path.display()))
+        let persistence = WorkspacePersistence {
+            tree: self.ui_store.view.tree.clone(),
         };
-        let error = self.document_store.document.last_rebuild_error.clone();
-        self.sync_preview_from_document(status, false, false);
-        self.preview_store.preview.error = error;
-        self.workspace_store.file_tree = build_file_tree(&self.workspace_store.workspace_root, &self.document_store.document.file_path, &self.workspace_store.expanded_dirs);
-        Ok(())
-    }
-
-    fn rebuild(&mut self) -> Result<(), GuiError> {
-        // Invalidate hot-path caches since the timeline is about to change.
-        self.document_store.invalidate_cache();
-        match self.document_store.document.rebuild() {
-            Ok(()) => {
-                let status = if self.document_store.document.diagnostics.is_empty() {
-                    format!(
-                        "Built timeline • {:.2}s total duration",
-                        self.document_store.document.duration_s.max(0.1)
-                    )
-                } else {
-                    format!(
-                        "Built timeline • {:.2}s total duration • {}",
-                        self.document_store.document.duration_s.max(0.1),
-                        diagnostics_phase_summary(&self.document_store.document.diagnostics)
-                    )
-                };
-                self.sync_preview_from_document(status, false, false);
-                self.ui_store.toasts.push(crate::app::components::toast::Toast::success(format!("Built timeline • {:.2}s", self.document_store.document.duration_s.max(0.1))));
-                Ok(())
-            }
-            Err(error) => {
-                let status = if has_source_load_failure(&self.document_store.document.diagnostics) {
-                    format!(
-                        "Rebuild blocked • parse/load error • {}",
-                        diagnostics_phase_summary(&self.document_store.document.diagnostics)
-                    )
-                } else {
-                    "Rebuild blocked".to_string()
-                };
-                self.preview_store.preview.playback.duration_s = self.document_store.document.duration_s.max(0.1);
-                self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
-                self.preview_store.preview.playback.clamp_time();
-                self.preview_store.preview.status = status;
-                self.preview_store.preview.error = Some(error.to_string());
-                self.preview_store.preview_dirty = true;
-                self.ui_store.toasts.push(crate::app::components::toast::Toast::error("Rebuild failed"));
-                Err(error)
+        if let Ok(serialized) =
+            ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
+        {
+            if let Err(e) = fs::write(&self.workspace_store.persistence_path, serialized) {
+                tracing::warn!("Failed to write persistence file: {}", e);
             }
         }
     }
 
-    fn sync_preview_from_document(
-        &mut self,
-        status: String,
-        reset_time: bool,
-        stop_playback: bool,
-    ) {
-        self.preview_store.preview.playback.duration_s = self.document_store.document.duration_s.max(0.1);
-        self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
-        if reset_time {
-            self.preview_store.preview.playback.current_time_s = 0.0;
-            self.preview_store.preview.viewport.preview_zoom = 1.0;
-            self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                self.document_store.document.scene_dimensions.width as f32 / 2.0,
-                self.document_store.document.scene_dimensions.height as f32 / 2.0,
-            );
-        } else {
-            self.preview_store.preview.playback.clamp_time();
-        }
-        if stop_playback {
-            self.preview_store.preview.playback.is_playing = false;
-        }
-        self.clear_any_error(status);
-        self.preview_store.preview_dirty = true;
+    /// Take a snapshot of the current source text for undo/redo.
+    /// Call this BEFORE making a change to the source.
+    fn snapshot(&mut self, command: Command) {
+        self.document_store.snapshot(command);
     }
 
     fn sync_active_scene_from_time(&mut self) {
@@ -731,190 +621,11 @@ impl GuiShell {
         }
     }
 
-    /// Force-clear any active error state (parse or render).
-    fn clear_any_error(&mut self, status: String) {
-        self.document_store.render_diagnostics.clear();
-        self.preview_store.preview.error = None;
-        self.preview_store.preview.status = status;
-    }
-
-    fn save_persistence(&self) {
-        if let Some(parent) = self.workspace_store.persistence_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                tracing::warn!("Failed to create persistence directory: {}", e);
-            }
-        }
-        let persistence = WorkspacePersistence {
-            tree: self.ui_store.view.tree.clone(),
-        };
-        if let Ok(serialized) =
-            ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
-        {
-            if let Err(e) = fs::write(&self.workspace_store.persistence_path, serialized) {
-                tracing::warn!("Failed to write persistence file: {}", e);
-            }
-        }
-    }
-
-    /// Take a snapshot of the current source text for undo/redo.
-    /// Call this BEFORE making a change to the source.
-    fn snapshot(&mut self, command: Command) {
-        self.document_store.snapshot(command);
-    }
-
-    /// Undo the last command by restoring the source text captured before it ran.
-    fn undo(&mut self) {
-        if let Some(entry) = self.document_store.undo_stack.pop() {
-            self.document_store.redo_stack.push(UndoEntry {
-                command: entry.command,
-                source_before: self.document_store.document.source_text.clone(),
-            });
-            self.document_store.document.source_text = entry.source_before.clone();
-            self.document_store.editor.replace_text(entry.source_before);
-            self.document_store.document.is_dirty = true;
-            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-            self.preview_store.preview.status = "Undo".to_string();
-            self.ui_store.toasts.push(crate::app::components::toast::Toast::info("Undo"));
-        }
-    }
-
-    /// Redo the last undone command.
-    fn redo(&mut self) {
-        if let Some(entry) = self.document_store.redo_stack.pop() {
-            self.document_store.undo_stack.push(UndoEntry {
-                command: entry.command,
-                source_before: self.document_store.document.source_text.clone(),
-            });
-            self.document_store.document.source_text = entry.source_before.clone();
-            self.document_store.editor.replace_text(entry.source_before);
-            self.document_store.document.is_dirty = true;
-            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-            self.preview_store.preview.status = "Redo".to_string();
-            self.ui_store.toasts.push(crate::app::components::toast::Toast::info("Redo"));
-        }
-    }
-
-    fn open_workspace_tab(&mut self, target: WorkspaceTab) {
-        if !self.ui_store.view.tree.make_active(|_, tile| matches!(tile, Tile::Pane(tab) if *tab == target)) {
-            tracing::warn!("Failed to activate workspace tab {:?}", target);
-        }
-    }
-
-    /// Duplicate an actor, preserving its type and properties.
-    fn handle_duplicate_actor(&mut self, original_label: &str) {
-        self.snapshot(Command::DuplicateActor(original_label.to_string()));
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_duplicate_actor(original_label);
-    }
-
-    /// Delete all selected actors from the source AST.
-    fn handle_delete_selected_actors(&mut self) {
-        self.snapshot(Command::DeleteSelectedActors);
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_delete_selected_actors();
-    }
-
-    /// Update the transition on a scene's play statement.
-    fn handle_set_transition(&mut self, from_scene: &str, transition: animatix::ast::Transition) {
-        self.snapshot(Command::SetTransition { from_scene: from_scene.to_string(), transition: transition.clone() });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_set_transition(from_scene, transition);
-    }
-
-    /// Update the play target for a scene.
-    fn handle_set_play_target(&mut self, from_scene: &str, target: Option<String>) {
-        self.snapshot(Command::SetPlayTarget { from_scene: from_scene.to_string(), target: target.clone() });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_set_play_target(from_scene, target);
-    }
-
-    /// Handle a keyframe easing change request.
-    fn handle_set_keyframe_easing(&mut self, actor: &str, property: &str, time_s: f64, easing: animatix::easing::Easing) {
-        self.snapshot(Command::SetKeyframeEasing { actor: actor.to_string(), property: property.to_string(), time_s, easing });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_set_keyframe_easing(actor, property, time_s, easing);
-    }
-
-    /// Handle a keyframe deletion request.
-    fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
-        self.snapshot(Command::DeleteKeyframe { actor: actor.to_string(), property: property.to_string(), time_s });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_delete_keyframe(actor, property, time_s);
-    }
-
-    /// Reparent an actor under a new parent (or to top-level).
-    fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
-        self.snapshot(Command::ReparentActor { actor: actor.to_string(), new_parent: new_parent.clone() });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_reparent_actor(actor, new_parent);
-    }
-
-    /// Extract selected actors into a new scene.
-    fn handle_extract_scene(&mut self, actor_labels: Vec<String>, new_scene_name: String) {
-        self.snapshot(Command::ExtractScene { actor_labels: actor_labels.clone(), new_scene_name: new_scene_name.clone() });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_extract_scene(actor_labels, new_scene_name);
-    }
-
-    /// Move selected actors to an existing scene.
-    fn handle_move_to_scene(&mut self, actor_labels: Vec<String>, target_scene: String) {
-        self.snapshot(Command::MoveToScene { actor_labels: actor_labels.clone(), target_scene: target_scene.clone() });
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.handle_move_to_scene(actor_labels, target_scene);
-    }
-
     /// Copy currently selected actor labels into the clipboard buffer.
     fn copy_selected_actors(&mut self) {
         let count = self.ui_store.selection.selected_actors.len();
         self.ui_store.clipboard.clipboard_actors = self.ui_store.selection.selected_actors.iter().cloned().collect();
         self.preview_store.preview.status = format!("Copied {} actor(s)", count);
-    }
-
-    /// Paste actors from the clipboard into the current scene.
-    fn paste_actors(&mut self) {
-        self.snapshot(Command::PasteActors);
-        let mut ctrl = DocumentController {
-            document_store: &mut self.document_store,
-            preview_store: &mut self.preview_store,
-            ui_store: &mut self.ui_store,
-        };
-        ctrl.paste_actors();
     }
 }
 

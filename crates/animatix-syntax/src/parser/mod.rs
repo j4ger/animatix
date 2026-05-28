@@ -40,6 +40,7 @@ pub(crate) mod stmt;
 pub(crate) mod top_level;
 
 use crate::ast::*;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::parse_easing_name;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
@@ -82,6 +83,24 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    /// Convert this parse error into a `Diagnostic` for use with the unified
+    /// [`format_diagnostic`](crate::diagnostics::format_diagnostic) formatter.
+    ///
+    /// The resulting diagnostic has:
+    /// * `code`: [`DiagnosticCode::ParseError`]
+    /// * `phase`: [`DiagnosticPhase::Parse`]
+    /// * `severity`: [`DiagnosticSeverity::Error`]
+    /// * `message`: the parse error message plus parser context
+    /// * `location`: the line, column, and byte span of the error
+    pub fn to_diagnostic(&self) -> Diagnostic {
+        let mut msg = self.message.clone();
+        if !self.context.is_empty() {
+            msg.push_str(&format!("\n  in {}", self.context.join(" > ")));
+        }
+        Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg)
+            .with_location(self.line, self.column, self.span.clone())
+    }
+
     /// Convert a chumsky `Rich` error into a structured `ParseError`.
     pub fn from_rich(source: &str, err: &Rich<'_, char>) -> Self {
         let span = err.span();
@@ -1046,7 +1065,20 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .clone()
                     .repeated()
                     .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
+                    .delimited_by(just('{').padded(), just('}').padded())
+                    .try_map(|body: Vec<Stmt>, span| {
+                        // Reject imports inside component bodies — components are
+                        // actor templates, not module-level containers.
+                        for stmt in &body {
+                            if matches!(stmt, Stmt::Import { .. }) {
+                                return Err(Rich::custom(
+                                    span,
+                                    "import statements are not allowed inside component bodies",
+                                ));
+                            }
+                        }
+                        Ok(body)
+                    }),
             )
             .map(|(((is_pub, name), params), body)| {
                 Stmt::ComponentDef(ComponentDef {

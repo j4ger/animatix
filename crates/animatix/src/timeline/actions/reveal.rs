@@ -484,7 +484,7 @@ mod tests {
             props: vec![
                 Property {
                     name: "url".to_string(),
-                    value: Expr::Str("../../examples/checker.ppm".to_string()),
+                    value: Expr::Str("../../examples/checker.png".to_string()),
                     value_span: None,
                     trailing_comment: None,
                 },

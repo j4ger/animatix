@@ -523,6 +523,19 @@ pub component MetricCard(title: "Metric") {
 }
 ```
 
+**Component bodies** are pure actor templates — not scene containers. Only the following are valid inside `component { ... }`:
+- Actor declarations (`label: Type, props`)
+- Custom `action` blocks
+- Assignments (`actor.prop = value`)
+- `let` declarations
+- Control flow: `if`, `for`, `sequence`, `stagger`
+- Reactive blocks: `always`, `drive`
+- Comments
+- Nested `component` definitions
+
+The following are **not allowed** in component bodies: `config { }`, keyframes (`#0s`/`#+1s`), `import`, `use`,
+`play`, scene declarations (`# SceneName`), and `viewport` declarations.
+
 **Import and instantiation:**
 ```animatix
 import "button.actor.amx"
@@ -579,8 +592,6 @@ Slots allow component authors to declare fillable regions that can be customized
 
 ```animatix
 pub component SlideLayout {
-  config { colorscheme: "editorial-dark", resolution: (1280, 720) }
-  #0s
   backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
 
   // Required slot — error if not filled:
