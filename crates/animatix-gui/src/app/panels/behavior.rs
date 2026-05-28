@@ -19,6 +19,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) preview_texture_id: Option<egui::TextureId>,
     pub(crate) collapsed_actors: &'a mut HashSet<String>,
     pub(crate) selected_actors: &'a mut HashSet<String>,
+    pub(crate) selected_viewport: &'a mut Option<String>,
     pub(crate) hit_regions: &'a [(String, kurbo::Rect)],
     pub(crate) drag_state: &'a mut preview::DragState,
     pub(crate) selection: &'a mut selection::SelectionState,
@@ -69,6 +70,9 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 editor::editor_ui(&mut ctx, ui);
             }
             WorkspaceTab::Preview => {
+                let vps = self.document_store.document.timeline.as_ref()
+                    .map(|t| &t.viewports[..])
+                    .unwrap_or(&[]);
                 let mut ctx = preview_panel::PreviewContext {
                     scene_dimensions: self.document_store.document.scene_dimensions,
                     preview: &mut self.preview_store.preview,
@@ -77,7 +81,9 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     drag_state: self.drag_state,
                     selection: self.selection,
                     selected_actors: self.selected_actors,
+                    selected_viewport: self.selected_viewport,
                     hit_regions: self.hit_regions,
+                    viewports: vps,
                     timeline: self.document_store.document.timeline.as_ref(),
                     pivot_offsets: self.pivot_offsets,
                     tool_mode: self.tool_mode,
@@ -113,6 +119,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                         &mut self.document_store.cached_actor_keyframes,
                         &mut self.document_store.cached_hit_regions,
                         &mut self.document_store.cached_actor_bounds,
+                        &mut self.document_store.cached_viewports,
                         &mut self.document_store.cache_valid,
                         tl,
                     );
@@ -126,6 +133,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     collapsed_actors: self.collapsed_actors,
                     actor_labels: &self.document_store.cached_actor_labels,
                     actor_keyframes: &self.document_store.cached_actor_keyframes,
+                    viewports: &self.document_store.cached_viewports,
                 };
                 timeline::timeline_ui(&mut ctx, ui);
             }

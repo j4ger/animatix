@@ -726,6 +726,8 @@ pub enum Stmt {
         border_color: Option<Expr>,
         /// Assigned scene name.
         scene: String,
+        /// Optional mask shape label (e.g. "circle").
+        mask: Option<String>,
         /// Source span.
         span: Option<Span>,
     },

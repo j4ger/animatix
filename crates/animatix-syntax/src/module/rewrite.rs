@@ -201,7 +201,7 @@ Stmt::Always { body, .. } => Stmt::Always {
             transition: transition.clone(),
             span: *span,
         },
-        Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, span } => Stmt::ViewportDecl {
+        Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, mask, span } => Stmt::ViewportDecl {
             label: label.clone(),
             position: position.clone(),
             size: size.clone(),
@@ -209,6 +209,7 @@ Stmt::Always { body, .. } => Stmt::Always {
             border: border.clone(),
             border_color: border_color.clone(),
             scene: scene.clone(),
+            mask: mask.clone(),
             span: *span,
         },
     }

@@ -149,7 +149,7 @@ impl Timeline {
                         }
                     }
                 }
-                Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, .. } => {
+                Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, mask, .. } => {
                     let eval_env = self.build_eval_env(time_ms as u64);
                     let pos = evaluate_expr(position, &eval_env)
                         .map(|v| {
@@ -184,6 +184,7 @@ impl Timeline {
                         border: bd,
                         border_color: bc,
                         scene: scene.clone(),
+                        mask: mask.clone(),
                     });
                 }
                 Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Comment(..) | Stmt::Import { .. } | Stmt::Use { .. } | Stmt::Config { .. } | Stmt::Scene { .. } | Stmt::Play { .. } | Stmt::ComponentDef(..) | Stmt::ComponentAction { .. } | Stmt::Conditional { .. } => {}

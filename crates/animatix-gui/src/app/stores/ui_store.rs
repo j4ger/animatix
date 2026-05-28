@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 /// Selection state for the UI.
 pub struct SelectionStore {
     pub selected_actors: HashSet<String>,
+    pub selected_viewport: Option<String>,
     pub hit_regions: Vec<(String, kurbo::Rect)>,
     pub selection: SelectionState,
 }
@@ -18,6 +19,7 @@ impl SelectionStore {
     fn new() -> Self {
         Self {
             selected_actors: HashSet::new(),
+            selected_viewport: None,
             hit_regions: Vec::new(),
             selection: SelectionState::default(),
         }

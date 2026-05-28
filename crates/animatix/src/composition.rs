@@ -330,6 +330,22 @@ impl Composition {
 
         let global_duration_s = current_time;
 
+        // 5. Populate viewport_scene_timelines for each scene
+        let scene_timelines: std::collections::HashMap<String, Timeline> = scenes
+            .iter()
+            .map(|(name, scene)| (name.clone(), scene.timeline.clone()))
+            .collect();
+        for scene in scenes.values_mut() {
+            for viewport in &scene.timeline.viewports.clone() {
+                if let Some(tl) = scene_timelines.get(&viewport.scene) {
+                    scene.timeline.viewport_scene_timelines.insert(
+                        viewport.scene.clone(),
+                        tl.clone(),
+                    );
+                }
+            }
+        }
+
         BuildReport::new(
             Composition {
                 scenes,

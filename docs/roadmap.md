@@ -6,17 +6,6 @@
 
 ---
 
-## Phase 6 — Multi-Viewport / PiP
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 6.1 | **Explicit `Viewport` type** | New AST node + primitive for viewport rectangles with position, size, opacity, border, mask, and scene assignment. | `ast.rs`, `primitives/` | 1 week | — |
-| 6.2 | **Viewport tracks in timeline** | Timeline shows viewport tracks with scene blocks (like current scene row but for viewports). | `timeline/build.rs`, `timeline/track.rs` | 2 weeks | 6.1 |
-| 6.3 | **Composite rendering** | Renderer composites multiple viewport scenes into a single frame. Each viewport renders its assigned scene at its rectangle. | `renderer/core.rs`, `renderer/offscreen.rs` | 2–3 weeks | 6.2 |
-| 6.4 | **Viewport selection + gizmo** | Click viewport border → select, show move/resize gizmo. Double-click → enter scene editing inside. | `app/panels/preview_canvas/` | 1 week | 6.3 |
-
----
-
 ## Phase 7 — Audio
 
 | # | Item | What | Files | Effort | Blocker |
@@ -46,9 +35,6 @@
 
 ## Order
 
-1. **Phase 7** (audio — no blockers, can parallelize with other work)
-2. **Phase 6** (multi-viewport)
-3. **Phase 8** (external AI service required)
-4. **Phase 9** (start after syntax stabilizes)
-
-(End of file - total 69 lines)
+1. **Phase 7** (audio — no blockers)
+2. **Phase 8** (external AI service required)
+3. **Phase 9** (start after syntax stabilizes)

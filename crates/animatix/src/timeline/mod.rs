@@ -410,6 +410,9 @@ pub struct Timeline {
     pub action_events: Vec<crate::timeline::track::ActionEvent>,
     /// Viewport declarations for multi-viewport / PiP support.
     pub viewports: Vec<Viewport>,
+    /// Cached timelines for viewport scenes, populated after composition build.
+    /// Maps scene name → timeline for rendering viewport content.
+    pub viewport_scene_timelines: std::collections::HashMap<String, Timeline>,
 }
 
 /// A viewport defines a rectangular region that displays a scene.
@@ -429,6 +432,8 @@ pub struct Viewport {
     pub border_color: Option<[f32; 4]>,
     /// Label of the scene to render inside this viewport.
     pub scene: String,
+    /// Optional mask shape label (e.g. "circle") for clipping viewport content.
+    pub mask: Option<String>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -473,6 +478,7 @@ impl Clone for Timeline {
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
             viewports: self.viewports.clone(),
+            viewport_scene_timelines: self.viewport_scene_timelines.clone(),
         }
     }
 }
@@ -516,6 +522,7 @@ impl Timeline {
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             viewports: Vec::new(),
+            viewport_scene_timelines: std::collections::HashMap::new(),
         }
     }
 

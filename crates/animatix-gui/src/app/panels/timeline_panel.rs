@@ -63,6 +63,7 @@ pub(crate) fn timeline_panel_ui(
     collapsed_actors: &mut HashSet<String>,
     actor_labels: &Vec<String>,
     actor_keyframes: &Vec<(String, Vec<(u64, &'static str)>)>,
+    viewports: &[(String, String)],
 ) {
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
@@ -191,6 +192,13 @@ pub(crate) fn timeline_panel_ui(
             let scene_track_bot = scene_track_top + TRACK_ROW_HEIGHT;
             if composition.is_some() {
                 content_y = scene_track_bot;
+            }
+
+            let viewport_track_count = viewports.len();
+            let viewport_track_top = content_y;
+            let viewport_track_bot = viewport_track_top + viewport_track_count as f32 * TRACK_ROW_HEIGHT;
+            if viewport_track_count > 0 {
+                content_y = viewport_track_bot;
             }
 
             let actor_track_count = actor_labels.len();
@@ -360,6 +368,45 @@ pub(crate) fn timeline_panel_ui(
                 bar_interaction(ui, bar_area, "scene_track", commands);
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
+            }
+
+            // ── Viewport tracks ──
+            for (vp_idx, (vp_label, vp_scene)) in viewports.iter().enumerate() {
+                let vp_top = viewport_track_top + vp_idx as f32 * TRACK_ROW_HEIGHT;
+                let vp_bot = vp_top + TRACK_ROW_HEIGHT;
+                let track_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), vp_top), Pos2::new(scroll_rect.right(), vp_bot));
+                if vp_idx % 2 == 0 { painter.rect_filled(track_rect, 0.0, row_alt()); }
+
+                // Label area background
+                painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), vp_top), Pos2::new(bar_origin_x, vp_bot)), 0.0, BG_BASE);
+
+                // Viewport label text: "vp_label → scene_name"
+                painter.text(
+                    Pos2::new(bar_origin_x - SPACE_S, track_rect.center().y),
+                    Align2::RIGHT_CENTER,
+                    format!("{} → {}", vp_label, vp_scene),
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    PURPLE,
+                );
+
+                // Viewport span bar (full width — viewports are active for the whole scene)
+                let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, vp_top), Pos2::new(scroll_rect.right(), vp_bot));
+                painter.rect_filled(bar_area, 2.0, PURPLE.linear_multiply(0.3));
+
+                // Draw loop region overlay
+                draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+
+                // Allow scrubbing by clicking on the bar
+                let resp = ui.interact(bar_area, ui.id().with(("viewport_track", vp_idx)), Sense::click_and_drag());
+                if resp.clicked() || resp.dragged() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                        commands.push_back(Command::ScrubTo(frac * duration_s));
+                    }
+                }
+
+                // Separator
+                painter.line_segment([Pos2::new(scroll_rect.left(), vp_bot), Pos2::new(scroll_rect.right(), vp_bot)], Stroke::new(1.0, BORDER));
             }
 
             // ── Actor tracks ──
