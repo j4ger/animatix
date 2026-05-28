@@ -76,6 +76,30 @@ jobs:
       - name: Run audit
         run: cargo audit
 
+  examples:
+    name: Example Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffmpeg-dev pkg-config
+      - name: Build animatix CLI
+        run: cargo build --bin animatix
+      - name: Validate all examples
+        run: |
+          exit_code=0
+          for f in examples/*.amx; do
+            echo "Checking $f..."
+            if ! cargo run --bin animatix -- check "$f"; then
+              exit_code=1
+            fi
+          done
+          exit $exit_code
+
   commit-check:
     name: Conventional Commits
     runs-on: ubuntu-latest

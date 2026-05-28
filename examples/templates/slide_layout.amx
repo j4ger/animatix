@@ -2,8 +2,6 @@
 // Slot marker @slot indicates a fillable container position.
 // Non-@slot children in the same container are used as defaults when the slot is not filled.
 pub component SlideLayout {
-  config { colorscheme: "editorial-dark", resolution: (1280, 720) }
-  #0s
   backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
 
   header: Col, anchor: scene.top, offset: (0, 100), gap: 12, align: "center" {

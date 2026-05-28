@@ -24,5 +24,5 @@ text: Text, text: "Text primitive", font_size: 28, color: text.primary, anchor: 
 math: Math, math: "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 170)
 code: Code, code: "let x = 42", font_size: 20, color: accent.primary, anchor: scene.bottom, offset: (0, -120)
 
-photo: Image, url: "examples/checker.ppm", size: (80, 80), anchor: scene.left, offset: (120, 0)
+photo: Image, url: "examples/checker.png", size: (80, 80), anchor: scene.left, offset: (120, 0)
 logo: Svg, url: "examples/vector.svg", scale: 1.2, anchor: scene.right, offset: (-120, 0)
