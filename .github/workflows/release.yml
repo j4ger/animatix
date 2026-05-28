@@ -1,4 +1,4 @@
-name: Release
+name: Release Nightly
 
 on:
   workflow_dispatch:
@@ -16,22 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config
-
       - name: Build CLI (animatix)
-        run: cargo build --release -p animatix
+        run: nix develop --command cargo build --release -p animatix
 
       - name: Build GUI (animatix-gui)
-        run: cargo build --release -p animatix-gui
+        run: nix develop --command cargo build --release -p animatix-gui
 
       - name: Strip binaries
         run: |
