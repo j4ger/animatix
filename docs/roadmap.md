@@ -44,24 +44,9 @@
 
 ---
 
-## Phase 9 — Examples Health
-
-Fix examples that fail `animatix check` so the demo suite is trustworthy.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 9.1 | **Fix `slot_demo.amx`** | Parse error at `/` — verify syntax against spec, fix example or parser. | `examples/slot_demo.amx` | 2 hours | — |
-| 9.2 | **Fix `primitives.amx`** | Image load failure: PPM format not supported. Either convert asset or add PPM decoder. | `examples/primitives.amx`, `examples/checker.ppm` | 2 hours | — |
-| 9.3 | **Fix `path_animation_demo.amx`** | Stagger blocks reject comments. Either allow comments in stagger/sequence per spec, or fix example. | `examples/path_animation_demo.amx` | 2 hours | — |
-| 9.4 | **Fix `rotation_demo.amx`** | Same as 9.3 — stagger and sequence blocks reject comments. | `examples/rotation_demo.amx` | 2 hours | — |
-| 9.5 | **Add CI example validation** | Run `animatix check` on all `.amx` files in CI so regressions are caught. | `.github/workflows/` | 2 hours | 9.1–9.4 |
-
----
-
 ## Order
 
-1. **Phase 9** (no blockers — can do anytime; user trust)
-2. **Phase 8** (no blockers — can do anytime)
-3. **Phase 5** (after examples health)
-4. **Phase 7** (external AI service required)
-5. **Phase 6** (start after syntax stabilizes)
+1. **Phase 8** (no blockers — can do anytime)
+2. **Phase 5** (after audio)
+3. **Phase 7** (external AI service required)
+4. **Phase 6** (start after syntax stabilizes)
