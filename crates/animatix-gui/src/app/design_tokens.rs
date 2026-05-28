@@ -31,6 +31,7 @@ pub const ACCENT_CYAN: Color32 = Color32::from_rgb(137, 200, 235);
 pub const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
 pub const RED: Color32 = Color32::from_rgb(255, 100, 100);
 pub const GREEN: Color32 = Color32::from_rgb(80, 200, 140);
+pub const PURPLE: Color32 = Color32::from_rgb(156, 39, 176);
 
 // ── Borders ──
 pub const BORDER: Color32 = Color32::from_rgb(40, 44, 52);

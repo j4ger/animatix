@@ -24,7 +24,9 @@ impl HotReloader {
 
         let mut watcher = RecommendedWatcher::new(
             move |res| {
-                let _ = tx.send(res);
+                if let Err(e) = tx.send(res) {
+                    tracing::warn!("Hot reload watcher send failed: {:?}", e);
+                }
             },
             Config::default().with_poll_interval(Duration::from_millis(100)),
         )
@@ -75,7 +77,9 @@ impl HotReloader {
     pub fn update_watched_file(&mut self, new_path: &PathBuf) -> Result<(), String> {
         if new_path != &self.watched_path {
             // Unwatch old file
-            let _ = self._watcher.unwatch(&self.watched_path);
+            if let Err(e) = self._watcher.unwatch(&self.watched_path) {
+                tracing::warn!("Failed to unwatch file {:?}: {:?}", self.watched_path, e);
+            }
 
             // Watch new file
             self._watcher

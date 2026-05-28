@@ -55,7 +55,9 @@ impl DocumentSession {
             keyframe_lines: Vec::new(),
         };
 
-        let _ = document.rebuild();
+        if let Err(e) = document.rebuild() {
+            tracing::warn!("Initial document rebuild failed: {}", e);
+        }
         Ok(document)
     }
 
@@ -101,7 +103,9 @@ impl DocumentSession {
         self.source_text = fs::read_to_string(&path)
             .map_err(|err| GuiError::Io { path, source: err })?;
         self.is_dirty = false;
-        let _ = self.rebuild();
+        if let Err(e) = self.rebuild() {
+            tracing::warn!("Document reload rebuild failed: {}", e);
+        }
         Ok(())
     }
 
@@ -203,7 +207,7 @@ impl DocumentSession {
     /// Find the 0-indexed source line of the keyframe whose absolute time
     /// is closest to and ≤ `time_s`. Returns `None` if no keyframe exists.
     pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
-        let _ = self.active_timeline()?;
+        self.active_timeline()?;
         self.timeline_index.line_for_time((time_s * 1000.0) as u64)
     }
 

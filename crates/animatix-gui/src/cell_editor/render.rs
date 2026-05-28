@@ -305,6 +305,7 @@ fn render_code_cell(
                         });
                         // Access the header response to keep the hover state
                         // animation id warm even when the pointer leaves.
+                        // Keep response alive for hover animation state
                         let _ = header_response.response;
 
                         if expanded {
@@ -495,6 +496,7 @@ fn render_keyframe_cell(
                                         },
                                     );
                                 });
+                                // Keep response alive for hover animation state
                                 let _ = header_response.response;
                             });
 

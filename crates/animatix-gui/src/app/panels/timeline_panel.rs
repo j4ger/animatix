@@ -46,7 +46,7 @@ fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
         ActionCategory::Motion => ACCENT_BLUE,
         ActionCategory::Exit => RED,
         ActionCategory::Effect => AMBER,
-        ActionCategory::Reorder => Color32::from_rgb(156, 39, 176),
+        ActionCategory::Reorder => PURPLE,
         ActionCategory::Reveal => ACCENT_CYAN,
     }
 }
@@ -618,7 +618,7 @@ pub(crate) fn timeline_panel_ui(
                     painter.rect_filled(Rect::from_min_max(Pos2::new(wx, range_bar.top() + 2.0), Pos2::new(wy, range_bar.bottom() - 2.0)), RADIUS_S, ACCENT_BLUE.linear_multiply(0.3));
                 }
 
-                let hs = Vec2::new(10.0, RANGE_HEIGHT - 2.0);
+                let hs = Vec2::new(12.0, RANGE_HEIGHT);
                 let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
                 let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
                 if sr.dragged() {
