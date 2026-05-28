@@ -33,6 +33,9 @@
 	    libxkbcommon
 	    vulkan-loader
 	    wayland
+	    libdrm
+	    zlib
+	    mesa
 
             rust-bin.stable.latest.default
 
