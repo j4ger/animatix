@@ -20,9 +20,7 @@ pub(crate) struct PreviewContext<'a> {
     pub drag_state: &'a mut DragState,
     pub selection: &'a mut selection::SelectionState,
     pub selected_actors: &'a mut HashSet<String>,
-    pub selected_viewport: &'a mut Option<String>,
     pub hit_regions: &'a [(String, kurbo::Rect)],
-    pub viewports: &'a [animatix::timeline::Viewport],
     pub timeline: Option<&'a Timeline>,
     pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub tool_mode: &'a mut preview::ToolMode,
@@ -851,25 +849,7 @@ impl PreviewContext<'_> {
             self.selected_actors.clear();
         }
 
-        // ── Double-click on viewport to enter its scene ──
-        if response.double_clicked() && !is_dragging {
-            if let Some(click_pos) = response.interact_pointer_pos() {
-                let scene_point = self.preview_screen_to_scene(_preview_rect, click_pos);
-                for vp in self.viewports {
-                    let vp_rect = kurbo::Rect::new(
-                        vp.position[0] as f64,
-                        vp.position[1] as f64,
-                        (vp.position[0] + vp.size[0]) as f64,
-                        (vp.position[1] + vp.size[1]) as f64,
-                    );
-                    if vp_rect.contains(scene_point) {
-                        self.commands.push_back(Command::SelectScene(vp.scene.clone()));
-                        break;
-                    }
-                }
-            }
-        }
-
+        // ── End of context-menu / click handling ──
         if response.clicked() && !is_dragging && !self.selection.context_menu_open && !suppress_click {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
@@ -884,28 +864,6 @@ impl PreviewContext<'_> {
                     },
                     &modifiers,
                 );
-
-                // 6.4: Check if click selected a viewport (label starts with "viewport:")
-                let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
-                let viewport_selected: Vec<String> = self.selected_actors.iter()
-                    .filter(|l| l.starts_with("viewport:"))
-                    .cloned()
-                    .collect();
-                for vp_label in &viewport_selected {
-                    self.selected_actors.remove(vp_label);
-                    let clean_label = vp_label.strip_prefix("viewport:").unwrap_or(vp_label).to_string();
-                    *self.selected_viewport = Some(clean_label);
-                }
-
-                // If a regular actor was selected, clear viewport selection
-                if !self.selected_actors.is_empty() {
-                    *self.selected_viewport = None;
-                }
-
-                // If click on empty canvas with no modifiers, clear viewport selection
-                if viewport_selected.is_empty() && self.selected_actors.is_empty() && !multi {
-                    *self.selected_viewport = None;
-                }
 
                 if let Some(comp) = self.composition {
                     if let Some(actor) = self.selected_actors.iter().next().cloned() {
@@ -1235,111 +1193,6 @@ impl PreviewContext<'_> {
             ui.painter().rect_filled(marquee_rect, 0.0, crate::app::design_tokens::accent_faint());
             ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(1.0, crate::app::design_tokens::accent_subtle()), egui::StrokeKind::Outside);
         }
-
-        // 6.4: Draw viewport selection gizmo when a viewport is selected
-        if let Some(ref vp_label) = *self.selected_viewport {
-            self.render_viewport_gizmo(ui, preview_rect, vp_label, is_dragging);
-        }
-    }
-
-    /// Draw a selection gizmo around a selected viewport: outline + 8 resize handles.
-    fn render_viewport_gizmo(&self, ui: &mut egui::Ui, preview_rect: egui::Rect, vp_label: &str, is_dragging: bool) {
-        // Find the viewport by label
-        let vp = match self.viewports.iter().find(|v| v.label == vp_label) {
-            Some(vp) => vp,
-            None => return,
-        };
-
-        let vp_rect_scene = kurbo::Rect::new(
-            vp.position[0] as f64,
-            vp.position[1] as f64,
-            (vp.position[0] + vp.size[0]) as f64,
-            (vp.position[1] + vp.size[1]) as f64,
-        );
-
-        // Convert corners to screen space
-        let tl = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(vp_rect_scene.x0, vp_rect_scene.y0));
-        let br = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(vp_rect_scene.x1, vp_rect_scene.y1));
-        let tr = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(vp_rect_scene.x1, vp_rect_scene.y0));
-        let bl = self.preview_scene_to_screen(preview_rect, kurbo::Point::new(vp_rect_scene.x0, vp_rect_scene.y1));
-
-        let screen_rect = egui::Rect::from_min_max(tl, br);
-
-        let stroke = if is_dragging {
-            egui::Stroke::new(1.5, crate::app::design_tokens::ACCENT_BLUE)
-        } else {
-            egui::Stroke::new(1.5, crate::app::design_tokens::ACCENT_BLUE)
-        };
-
-        // Draw selection outline
-        ui.painter().rect_stroke(screen_rect, 0.0, stroke, egui::StrokeKind::Outside);
-
-        // Dashed overlay during drag
-        if is_dragging {
-            let dash_len = 6.0;
-            let gap_len = 4.0;
-            let dash_stroke = egui::Stroke::new(1.0, crate::app::design_tokens::text_faint());
-            let corners = [tl, tr, br, bl];
-            for i in 0..4 {
-                let start = corners[i];
-                let end = corners[(i + 1) % 4];
-                let total = start.distance(end);
-                let mut pos = 0.0;
-                while pos < total {
-                    let t0 = pos / total;
-                    let t1 = ((pos + dash_len).min(total)) / total;
-                    let p0 = egui::Pos2::new(
-                        start.x + (end.x - start.x) * t0,
-                        start.y + (end.y - start.y) * t0,
-                    );
-                    let p1 = egui::Pos2::new(
-                        start.x + (end.x - start.x) * t1,
-                        start.y + (end.y - start.y) * t1,
-                    );
-                    ui.painter().line_segment([p0, p1], dash_stroke);
-                    pos += dash_len + gap_len;
-                }
-            }
-        }
-
-        // 8 handle positions: corners (0-3) + edges (4-7)
-        let handle_positions = [
-            tl,                               // 0: top-left
-            tr,                               // 1: top-right
-            br,                               // 2: bottom-right
-            bl,                               // 3: bottom-left
-            egui::Pos2::new(screen_rect.center().x, screen_rect.top()),    // 4: top-center
-            egui::Pos2::new(screen_rect.right(), screen_rect.center().y),   // 5: right-center
-            egui::Pos2::new(screen_rect.center().x, screen_rect.bottom()), // 6: bottom-center
-            egui::Pos2::new(screen_rect.left(), screen_rect.center().y),   // 7: left-center
-        ];
-
-        let pixels_per_point = ui.ctx().pixels_per_point();
-
-        // Corner handles (0-3): filled circles
-        let corner_radius = 6.0 * 0.6 * pixels_per_point;
-        for &pos in &handle_positions[..4] {
-            ui.painter().circle_filled(pos, corner_radius, crate::app::design_tokens::TEXT_PRIMARY);
-            ui.painter().circle_stroke(pos, corner_radius, egui::Stroke::new(1.5, crate::app::design_tokens::ACCENT_BLUE));
-        }
-
-        // Edge handles (4-7): smaller filled squares
-        let edge_handle_px = 6.0 * 0.7 * pixels_per_point;
-        for &pos in &handle_positions[4..] {
-            let handle_rect = egui::Rect::from_center_size(pos, egui::Vec2::new(edge_handle_px, edge_handle_px));
-            ui.painter().rect_filled(handle_rect, 1.0, crate::app::design_tokens::TEXT_PRIMARY);
-            ui.painter().rect_stroke(handle_rect, 1.0, egui::Stroke::new(1.0, crate::app::design_tokens::ACCENT_BLUE), egui::StrokeKind::Outside);
-        }
-
-        // Label above the viewport
-        let label_pos = egui::Pos2::new(screen_rect.center().x, screen_rect.top() - 20.0);
-        ui.painter().text(
-            label_pos,
-            egui::Align2::CENTER_BOTTOM,
-            format!("viewport: {}", vp_label),
-            egui::FontId::new(crate::app::design_tokens::FONT_SIZE_S, egui::FontFamily::Proportional),
-            crate::app::design_tokens::ACCENT_BLUE,
-        );
     }
 }
 

@@ -133,7 +133,7 @@ impl Timeline {
                 easing,
                 instant_delayed,
                 duration_ms,
-                font_context: &self.font_context,
+                font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
             };
             if primitive.handle_assignment(track, property, value, &mut ctx, &eval_env, diagnostics, &assignment_subject) {

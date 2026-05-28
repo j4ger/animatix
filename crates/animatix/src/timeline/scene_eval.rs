@@ -230,7 +230,7 @@ impl Timeline {
                 _ => TextKind::Text,
             };
             let mut compiler = self.text_compiler.borrow_mut();
-            compiler.compile(&content, &font_family, font_size, color, kind, &self.font_context)
+            compiler.compile(&content, &font_family, font_size, color, kind, self.font_context.as_ref())
         } else {
             Ok(track.evaluate_text_paths(time_ms).into())
         }
@@ -1051,55 +1051,6 @@ impl Timeline {
                     frame_env.as_ref(),
                 );
             }
-        }
-
-        // 6.3: Render viewports (picture-in-picture)
-        for viewport in &self.viewports {
-            let vp_timeline = self.viewport_scene_timelines.get(&viewport.scene);
-            let vp_timeline = match vp_timeline {
-                Some(tl) => tl,
-                None => continue,
-            };
-
-            // Evaluate the viewport's scene at the same global time (not local time)
-            let vp_scene = vp_timeline.evaluate_with_debug(
-                time_s,
-                scene_dimensions,
-                debug_options,
-            );
-
-            // Viewport rect in scene coordinates
-            let vp_rect = kurbo::Rect::new(
-                viewport.position[0] as f64,
-                viewport.position[1] as f64,
-                (viewport.position[0] + viewport.size[0]) as f64,
-                (viewport.position[1] + viewport.size[1]) as f64,
-            );
-
-            // Append the viewport scene content (translated to viewport position)
-            scene.append(&vp_scene, Some(kurbo::Affine::IDENTITY));
-
-            // Draw border if specified
-            if let Some(border_width) = viewport.border {
-                if border_width > 0.0 {
-                    let border_color = viewport.border_color.unwrap_or([1.0, 1.0, 1.0, 1.0]);
-                    scene.stroke(
-                        &vello::kurbo::Stroke::new(border_width as f64),
-                        kurbo::Affine::IDENTITY,
-                        vello::peniko::Color::new([
-                            border_color[0],
-                            border_color[1],
-                            border_color[2],
-                            border_color[3],
-                        ]),
-                        None,
-                        &vp_rect,
-                    );
-                }
-            }
-
-            // 6.4: Add viewport hit regions for click selection in preview
-            hit_regions.push((format!("viewport:{}", viewport.label), vp_rect));
         }
 
         // P2.24: Only store hit regions when explicitly requested.

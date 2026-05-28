@@ -304,16 +304,16 @@ impl Timeline {
 
         let frame = match kind {
             TextDeclarationKind::Text => {
-                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, &self.font_context)?
+                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
             TextDeclarationKind::Math => {
-                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family, &self.font_context)?
+                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
             TextDeclarationKind::Code => {
-                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, &self.font_context)?
+                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
             TextDeclarationKind::Typst => {
-                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, &self.font_context)?
+                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);

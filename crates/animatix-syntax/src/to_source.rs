@@ -465,27 +465,6 @@ impl ToSource for Stmt {
                 }
                 s
             }
-            Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, mask, .. } => {
-                let mut parts = vec![
-                    format!("viewport {}", label),
-                    format!("at {}", position.to_source()),
-                    format!("size {}", size.to_source()),
-                    format!("scene \"{}\"", scene),
-                ];
-                if let Some(o) = opacity {
-                    parts.push(format!("opacity {}", o.to_source()));
-                }
-                if let Some(b) = border {
-                    parts.push(format!("border {}", b.to_source()));
-                }
-                if let Some(c) = border_color {
-                    parts.push(format!("border_color {}", c.to_source()));
-                }
-                if let Some(m) = mask {
-                    parts.push(format!("mask \"{}\"", m));
-                }
-                parts.join(" ")
-            }
             Stmt::Comment(text, ..) => format!("//{}", text),
         }
     }

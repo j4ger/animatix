@@ -101,8 +101,6 @@ pub enum ActorKindId {
     Mask,
     /// Audio track actor.
     Audio,
-    /// Viewport / picture-in-picture display.
-    Viewport,
 }
 
 impl ActorKindId {

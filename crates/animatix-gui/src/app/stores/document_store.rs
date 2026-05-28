@@ -26,8 +26,6 @@ pub struct DocumentStore {
     pub cached_hit_regions: Vec<(String, Rect)>,
     /// Cached per-actor world-space bounds, keyed by actor label.
     pub cached_actor_bounds: HashMap<String, Rect>,
-    /// Cached viewport data (viewport_label, scene_name) from the timeline.
-    pub cached_viewports: Vec<(String, String)>,
     /// Flag; when false, cached fields must be recomputed.
     pub cache_valid: bool,
 }
@@ -48,7 +46,6 @@ impl DocumentStore {
             cached_actor_keyframes: Vec::new(),
             cached_hit_regions: Vec::new(),
             cached_actor_bounds: HashMap::new(),
-            cached_viewports: Vec::new(),
             cache_valid: false,
         }
     }
@@ -91,20 +88,18 @@ impl DocumentStore {
         self.cached_actor_keyframes.clear();
         self.cached_hit_regions.clear();
         self.cached_actor_bounds.clear();
-        self.cached_viewports.clear();
         self.cache_valid = false;
     }
 }
 
-/// Rebuild cached actor labels, per-actor keyframe lists, hit regions, actor
-/// bounds, and viewport data from the timeline.  This is a free function to
+/// Rebuild cached actor labels, per-actor keyframe lists, hit regions, and actor
+/// bounds from the timeline.  This is a free function to
 /// avoid borrow conflicts when called from behavior.rs.
 pub fn rebuild_cache(
     cached_actor_labels: &mut Vec<String>,
     cached_actor_keyframes: &mut Vec<(String, Vec<(u64, &'static str)>)>,
     cached_hit_regions: &mut Vec<(String, Rect)>,
     cached_actor_bounds: &mut HashMap<String, Rect>,
-    cached_viewports: &mut Vec<(String, String)>,
     cache_valid: &mut bool,
     timeline: Option<&animatix::timeline::Timeline>,
 ) {
@@ -160,16 +155,6 @@ pub fn rebuild_cache(
     *cached_actor_keyframes = keyframes;
     *cached_hit_regions = hit_regions;
     *cached_actor_bounds = actor_bounds;
-
-    // Populate cached_viewports from the timeline
-    *cached_viewports = timeline
-        .map(|tl| {
-            tl.viewports
-                .iter()
-                .map(|vp| (vp.label.clone(), vp.scene.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
 
     *cache_valid = true;
 }
@@ -297,7 +282,6 @@ mod tests {
         store.cached_actor_keyframes.push(("actor1".to_string(), vec![(0, "position")]));
         store.cached_hit_regions.push(("actor1".to_string(), Rect::ZERO));
         store.cached_actor_bounds.insert("actor1".to_string(), Rect::ZERO);
-        store.cached_viewports.push(("vp1".to_string(), "Scene2".to_string()));
         store.cache_valid = true;
 
         store.invalidate_cache();
@@ -306,7 +290,6 @@ mod tests {
         assert!(store.cached_actor_keyframes.is_empty());
         assert!(store.cached_hit_regions.is_empty());
         assert!(store.cached_actor_bounds.is_empty());
-        assert!(store.cached_viewports.is_empty());
         assert!(!store.cache_valid);
     }
 }

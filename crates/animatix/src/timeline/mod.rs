@@ -374,8 +374,8 @@ pub struct Timeline {
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
-    pub(crate) asset_cache: assets::AssetCache,
-    pub(crate) font_context: crate::renderer::text::FontContext,
+    pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
+    pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
@@ -408,32 +408,6 @@ pub struct Timeline {
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::track::ActionEvent>,
-    /// Viewport declarations for multi-viewport / PiP support.
-    pub viewports: Vec<Viewport>,
-    /// Cached timelines for viewport scenes, populated after composition build.
-    /// Maps scene name → timeline for rendering viewport content.
-    pub viewport_scene_timelines: std::collections::HashMap<String, Timeline>,
-}
-
-/// A viewport defines a rectangular region that displays a scene.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Viewport {
-    /// Human-readable identifier for this viewport.
-    pub label: String,
-    /// Position of the viewport's top-left corner in parent coordinates.
-    pub position: [f32; 2],
-    /// Size of the viewport rectangle (width, height).
-    pub size: [f32; 2],
-    /// Opacity multiplier for the viewport content (0.0–1.0).
-    pub opacity: f32,
-    /// Optional border width in logical pixels.
-    pub border: Option<f32>,
-    /// Optional RGBA border color.
-    pub border_color: Option<[f32; 4]>,
-    /// Label of the scene to render inside this viewport.
-    pub scene: String,
-    /// Optional mask shape label (e.g. "circle") for clipping viewport content.
-    pub mask: Option<String>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -465,8 +439,8 @@ impl Clone for Timeline {
             container_metadata: self.container_metadata.clone(),
             layout_engine: self.layout_engine.clone(),
             dynamic_layout: self.dynamic_layout,
-            asset_cache: self.asset_cache.clone(),
-            font_context: self.font_context.clone(),
+            asset_cache: std::sync::Arc::clone(&self.asset_cache),
+            font_context: std::sync::Arc::clone(&self.font_context),
             child_orders: self.child_orders.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
@@ -477,8 +451,6 @@ impl Clone for Timeline {
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
-            viewports: self.viewports.clone(),
-            viewport_scene_timelines: self.viewport_scene_timelines.clone(),
         }
     }
 }
@@ -486,11 +458,11 @@ impl Clone for Timeline {
 impl Timeline {
     /// Create a new empty timeline with a fresh font context.
     pub fn new() -> Self {
-        Self::new_with_font_context(crate::renderer::text::FontContext::new())
+        Self::new_with_font_context(std::sync::Arc::new(crate::renderer::text::FontContext::new()))
     }
 
     /// Create a new empty timeline with the given font context.
-    pub fn new_with_font_context(font_context: crate::renderer::text::FontContext) -> Self {
+    pub fn new_with_font_context(font_context: std::sync::Arc<crate::renderer::text::FontContext>) -> Self {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
@@ -509,7 +481,7 @@ impl Timeline {
             container_metadata: BTreeMap::new(),
             layout_engine: LayoutEngine,
             dynamic_layout: false,
-            asset_cache: assets::AssetCache::new(),
+            asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
             child_orders: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
@@ -521,8 +493,6 @@ impl Timeline {
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
-            viewports: Vec::new(),
-            viewport_scene_timelines: std::collections::HashMap::new(),
         }
     }
 

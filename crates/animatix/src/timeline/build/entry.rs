@@ -77,7 +77,7 @@ impl Timeline {
         namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
         font_context: crate::renderer::text::FontContext,
     ) -> BuildReport<Self> {
-        let mut timeline = Self::new_with_font_context(font_context);
+        let mut timeline = Self::new_with_font_context(std::sync::Arc::new(font_context));
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         // Seed build-time environment with scene dimensions so `let` declarations

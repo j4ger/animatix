@@ -20,8 +20,6 @@ pub(crate) struct TimelineContext<'a> {
     pub actor_labels: &'a Vec<String>,
     /// Cached per-actor keyframe property lists.
     pub actor_keyframes: &'a Vec<(String, Vec<(u64, &'static str)>)>,
-    /// Cached viewport data (viewport_label, scene_name).
-    pub viewports: &'a Vec<(String, String)>,
 }
 
 pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
@@ -42,7 +40,6 @@ pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             ctx.collapsed_actors,
             ctx.actor_labels,
             ctx.actor_keyframes,
-            ctx.viewports,
         );
     });
 }

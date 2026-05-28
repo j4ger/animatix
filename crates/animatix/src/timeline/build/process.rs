@@ -149,44 +149,6 @@ impl Timeline {
                         }
                     }
                 }
-                Stmt::ViewportDecl { label, position, size, opacity, border, border_color, scene, mask, .. } => {
-                    let eval_env = self.build_eval_env(time_ms as u64);
-                    let pos = evaluate_expr(position, &eval_env)
-                        .map(|v| {
-                            let v2 = v.as_vec2();
-                            [v2[0] as f32, v2[1] as f32]
-                        })
-                        .unwrap_or([0.0, 0.0]);
-                    let sz = evaluate_expr(size, &eval_env)
-                        .map(|v| {
-                            let v2 = v.as_vec2();
-                            [v2[0] as f32, v2[1] as f32]
-                        })
-                        .unwrap_or([1920.0, 1080.0]);
-                    let op = opacity.as_ref()
-                        .and_then(|e| evaluate_expr(e, &eval_env).ok())
-                        .map(|v| v.as_num() as f32)
-                        .unwrap_or(1.0);
-                    let bd = border.as_ref()
-                        .and_then(|e| evaluate_expr(e, &eval_env).ok())
-                        .map(|v| v.as_num() as f32);
-                    let bc = border_color.as_ref()
-                        .and_then(|e| evaluate_expr(e, &eval_env).ok())
-                        .map(|v| {
-                            let c = v.as_color();
-                            [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32]
-                        });
-                    self.viewports.push(crate::timeline::Viewport {
-                        label: label.clone(),
-                        position: pos,
-                        size: sz,
-                        opacity: op,
-                        border: bd,
-                        border_color: bc,
-                        scene: scene.clone(),
-                        mask: mask.clone(),
-                    });
-                }
                 Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Comment(..) | Stmt::Import { .. } | Stmt::Use { .. } | Stmt::Config { .. } | Stmt::Scene { .. } | Stmt::Play { .. } | Stmt::ComponentDef(..) | Stmt::ComponentAction { .. } | Stmt::Conditional { .. } => {}
             }
         }

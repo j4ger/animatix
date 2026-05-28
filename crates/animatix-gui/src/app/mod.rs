@@ -498,7 +498,6 @@ impl GuiShell {
             preview_texture_id,
             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             selected_actors: &mut self.ui_store.selection.selected_actors,
-            selected_viewport: &mut self.ui_store.selection.selected_viewport,
             hit_regions: &self.ui_store.selection.hit_regions,
             drag_state: &mut self.ui_store.interaction.drag_state,
             selection: &mut self.ui_store.selection.selection,

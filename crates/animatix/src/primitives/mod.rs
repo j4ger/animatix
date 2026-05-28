@@ -65,8 +65,6 @@ mod stack;      pub use stack::STACK;
 mod group;      pub use group::GROUP;
 mod mask;       pub use mask::MASK;
 
-mod viewport;   pub use viewport::VIEWPORT;
-
 mod typst;      pub use typst::TYPST;
 
 mod audio;      pub use audio::AUDIO;
@@ -263,7 +261,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Plots
     &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE,
     // Containers
-    &ROW, &COL, &GRID, &STACK, &GROUP, &MASK, &VIEWPORT,
+    &ROW, &COL, &GRID, &STACK, &GROUP, &MASK,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -399,7 +397,7 @@ mod tests {
             ActorKindId::NumberPlane,
             ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
             ActorKindId::Stack, ActorKindId::Group, ActorKindId::Mask,
-            ActorKindId::Viewport, ActorKindId::Audio,
+            ActorKindId::Audio,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }
