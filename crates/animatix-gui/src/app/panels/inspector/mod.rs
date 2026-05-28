@@ -72,7 +72,7 @@ pub(super) fn inspector_ui(
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(ROW_L)
+                        .size(components::EMPTY_STATE_ICON_SIZE)
                         .color(TEXT_MUTED),
                 )
                 .selectable(false),
@@ -143,27 +143,42 @@ pub(super) fn inspector_ui(
                 components::card(ui, |ui| {
                     let mut view_mode = *property_view_mode;
 
-                    ui.horizontal(|ui| {
-                        components::section_header(
-                            ui,
-                            egui_phosphor::regular::WRENCH,
-                            "Properties",
-                            None,
+                    components::section_header(
+                        ui,
+                        egui_phosphor::regular::WRENCH,
+                        "Properties",
+                        None,
+                    );
+
+                    // View-mode toggle button overlaid on the sticky header row
+                    {
+                        let clip = ui.clip_rect();
+                        let row_top = clip.min.y + SPACE_M + 2.0 + SPACE_M; // matches header row y
+                        let label = match view_mode {
+                            PropertyViewMode::Semantic => format!("{} Semantic", egui_phosphor::regular::ROWS),
+                            PropertyViewMode::Intensity => format!("{} Stream", egui_phosphor::regular::FIRE),
+                        };
+                        let btn_width = 110.0;
+                        let btn_rect = egui::Rect::from_min_size(
+                            egui::pos2(clip.max.x - SPACE_S - btn_width, row_top),
+                            egui::Vec2::new(btn_width, ROW_S),
                         );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let label = match view_mode {
-                                PropertyViewMode::Semantic => format!("{} Semantic", egui_phosphor::regular::ROWS),
-                                PropertyViewMode::Intensity => format!("{} Stream", egui_phosphor::regular::FIRE),
+                        let mut btn_ui = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(btn_rect)
+                                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+                        );
+                        if btn_ui
+                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .clicked()
+                        {
+                            view_mode = match view_mode {
+                                PropertyViewMode::Semantic => PropertyViewMode::Intensity,
+                                PropertyViewMode::Intensity => PropertyViewMode::Semantic,
                             };
-                            if ui.button(RichText::new(label).size(FONT_SIZE_XS).color(TEXT_MUTED)).clicked() {
-                                view_mode = match view_mode {
-                                    PropertyViewMode::Semantic => PropertyViewMode::Intensity,
-                                    PropertyViewMode::Intensity => PropertyViewMode::Semantic,
-                                };
-                                *property_view_mode = view_mode;
-                            }
-                        });
-                    });
+                            *property_view_mode = view_mode;
+                        }
+                    }
 
                     let current_time_ms = (current_time_s * 1000.0) as u64;
                     let groups = build_property_groups(track, current_time_ms);
@@ -269,27 +284,42 @@ pub(super) fn inspector_ui(
                 components::card(ui, |ui| {
                     let mut kf_view = *keyframe_view_mode;
 
-                    ui.horizontal(|ui| {
-                        components::section_header(
-                            ui,
-                            egui_phosphor::regular::KEY,
-                            "Keyframes",
-                            Some(kf_count),
+                    components::section_header(
+                        ui,
+                        egui_phosphor::regular::KEY,
+                        "Keyframes",
+                        Some(kf_count),
+                    );
+
+                    // View-mode toggle button overlaid on the sticky header row
+                    {
+                        let clip = ui.clip_rect();
+                        let row_top = clip.min.y + SPACE_M + 2.0 + SPACE_M;
+                        let label = match kf_view {
+                            KeyframeViewMode::List => format!("{} List", egui_phosphor::regular::LIST),
+                            KeyframeViewMode::Curve => format!("{} Curve", egui_phosphor::regular::CHART_LINE_UP),
+                        };
+                        let btn_width = 90.0;
+                        let btn_rect = egui::Rect::from_min_size(
+                            egui::pos2(clip.max.x - SPACE_S - btn_width, row_top),
+                            egui::Vec2::new(btn_width, ROW_S),
                         );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let label = match kf_view {
-                                KeyframeViewMode::List => format!("{} List", egui_phosphor::regular::LIST),
-                                KeyframeViewMode::Curve => format!("{} Curve", egui_phosphor::regular::CHART_LINE_UP),
+                        let mut btn_ui = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(btn_rect)
+                                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+                        );
+                        if btn_ui
+                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .clicked()
+                        {
+                            kf_view = match kf_view {
+                                KeyframeViewMode::List => KeyframeViewMode::Curve,
+                                KeyframeViewMode::Curve => KeyframeViewMode::List,
                             };
-                            if ui.button(RichText::new(label).size(FONT_SIZE_XS).color(TEXT_MUTED)).clicked() {
-                                kf_view = match kf_view {
-                                    KeyframeViewMode::List => KeyframeViewMode::Curve,
-                                    KeyframeViewMode::Curve => KeyframeViewMode::List,
-                                };
-                                *keyframe_view_mode = kf_view;
-                            }
-                        });
-                    });
+                            *keyframe_view_mode = kf_view;
+                        }
+                    }
 
                     match kf_view {
                         KeyframeViewMode::List => {

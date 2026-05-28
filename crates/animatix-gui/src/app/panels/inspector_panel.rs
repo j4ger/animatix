@@ -11,7 +11,7 @@ use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
 use crate::app::PreviewPaneState;
 use animatix::timeline::SceneDimensions;
 
-pub(crate) struct InspectorViewer<'a> {
+pub(crate) struct InspectorContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a animatix::composition::Composition>,
@@ -25,7 +25,7 @@ pub(crate) struct InspectorViewer<'a> {
     pub keyframe_view_mode: &'a mut KeyframeViewMode,
 }
 
-pub(crate) fn inspector_ui(ctx: &mut InspectorViewer<'_>, ui: &mut egui::Ui) {
+pub(crate) fn inspector_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         let current_time_s = ctx.preview.playback.current_time_s;
         // For compositions, use the active scene's timeline.

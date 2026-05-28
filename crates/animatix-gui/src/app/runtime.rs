@@ -118,7 +118,7 @@ impl AnimatixApp {
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
-            self.shell.preview_store.preview.toggle_playback();
+            self.shell.preview_store.preview.playback.toggle_playback();
             self.shell.preview_store.preview_dirty = true;
         }
 
@@ -142,7 +142,7 @@ impl AnimatixApp {
                 .active_timeline()
                 .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
-            self.shell.preview_store.preview.go_to_previous_keyframe(&keyframes);
+            self.shell.preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
             self.shell.preview_store.preview.status = format!(
                 "Previous keyframe \u{2022} t = {:.2}s / {:.2}s",
                 self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
@@ -158,7 +158,7 @@ impl AnimatixApp {
                 .active_timeline()
                 .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
                 .unwrap_or_default();
-            self.shell.preview_store.preview.go_to_next_keyframe(&keyframes);
+            self.shell.preview_store.preview.playback.go_to_next_keyframe(&keyframes);
             self.shell.preview_store.preview.status = format!(
                 "Next keyframe \u{2022} t = {:.2}s / {:.2}s",
                 self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
@@ -207,7 +207,7 @@ impl AnimatixApp {
             }
         } else if arrow_left {
             self.shell.preview_store.preview.playback.current_time_s -= scrub_step_s;
-            self.shell.preview_store.preview.clamp_time();
+            self.shell.preview_store.preview.playback.clamp_time();
             self.shell.preview_store.preview.playback.is_playing = false;
             self.shell.preview_store.preview_dirty = true;
             self.shell.preview_store.preview.status = format!(
@@ -216,7 +216,7 @@ impl AnimatixApp {
             );
         } else if arrow_right {
             self.shell.preview_store.preview.playback.current_time_s += scrub_step_s;
-            self.shell.preview_store.preview.clamp_time();
+            self.shell.preview_store.preview.playback.clamp_time();
             self.shell.preview_store.preview.playback.is_playing = false;
             self.shell.preview_store.preview_dirty = true;
             self.shell.preview_store.preview.status = format!(

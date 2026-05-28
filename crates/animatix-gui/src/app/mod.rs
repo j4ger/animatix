@@ -34,8 +34,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{Command, CommandQueue, UndoEntry};
-use crate::app::panels::WorkspaceViewer;
+use crate::app::commands::{Command, CommandQueue, Effect, UndoEntry};
 use crate::app::utils::*;
 use crate::app::stores::*;
 use document_controller::DocumentController;
@@ -74,15 +73,78 @@ pub(crate) struct FileTreeEntry {
     is_dir: bool,
 }
 
-/// Playback state: time, duration, play/pause, speed, loop region.
+/// Playback controller: time, duration, play/pause, speed, loop region.
 #[derive(Debug, Clone)]
-pub(crate) struct PlaybackState {
+pub(crate) struct PlaybackController {
     pub current_time_s: f64,
     pub duration_s: f64,
     pub is_playing: bool,
     pub playback_speed: f32,
     pub loop_start_s: Option<f64>,
     pub loop_end_s: Option<f64>,
+}
+
+impl PlaybackController {
+    fn clamp_time(&mut self) {
+        let max_duration = self.duration_s.max(0.1);
+        self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
+    }
+
+    fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
+        if keyframes.is_empty() {
+            return;
+        }
+        let next = keyframes
+            .iter()
+            .find(|&&t| t > self.current_time_s)
+            .copied()
+            .unwrap_or(self.duration_s);
+        self.current_time_s = next;
+        self.clamp_time();
+        self.is_playing = false;
+    }
+
+    fn go_to_previous_keyframe(&mut self, keyframes: &[f64]) {
+        if keyframes.is_empty() {
+            return;
+        }
+        let prev = keyframes
+            .iter()
+            .rev()
+            .find(|&&t| t < self.current_time_s)
+            .copied()
+            .unwrap_or(0.0);
+        self.current_time_s = prev;
+        self.clamp_time();
+        self.is_playing = false;
+    }
+
+    fn toggle_playback(&mut self) {
+        if self.current_time_s >= self.duration_s {
+            self.current_time_s = 0.0;
+        }
+        self.is_playing = !self.is_playing;
+    }
+
+    fn tick(&mut self, delta: std::time::Duration) {
+        if !self.is_playing {
+            return;
+        }
+
+        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64;
+
+        // Loop region: if A and B are set and we've reached B, jump back to A.
+        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
+            if end > start && self.current_time_s >= end {
+                self.current_time_s = start;
+            }
+        }
+
+        if self.current_time_s >= self.duration_s {
+            self.current_time_s = self.duration_s;
+            self.is_playing = false;
+        }
+    }
 }
 
 /// Viewport state: zoom and pan for the preview canvas.
@@ -111,7 +173,7 @@ pub(crate) struct SnapState {
 }
 
 pub(crate) struct PreviewPaneState {
-    pub playback: PlaybackState,
+    pub playback: PlaybackController,
     pub viewport: ViewportState,
     pub guides: GuideState,
     pub snap: SnapState,
@@ -124,19 +186,11 @@ pub(crate) struct PreviewPaneState {
     pub overlay: crate::app::preview::overlay::PreviewOverlay,
 }
 
-/// Transient UI state for panels (not preview/playback state).
-#[derive(Default)]
-pub(crate) struct PanelState {
-    /// When set, the scene list panel should open the transition editor for this scene.
-    #[allow(dead_code)]
-    pub open_transition_editor: Option<String>,
-}
-
 
 impl PreviewPaneState {
     fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
         Self {
-            playback: PlaybackState {
+            playback: PlaybackController {
                 current_time_s: 0.0,
                 duration_s,
                 is_playing: false,
@@ -167,68 +221,16 @@ impl PreviewPaneState {
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
         }
     }
-
-    fn clamp_time(&mut self) {
-        let max_duration = self.playback.duration_s.max(0.1);
-        self.playback.current_time_s = self.playback.current_time_s.clamp(0.0, max_duration);
-    }
-
-    fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
-        if keyframes.is_empty() {
-            return;
-        }
-        let next = keyframes
-            .iter()
-            .find(|&&t| t > self.playback.current_time_s)
-            .copied()
-            .unwrap_or(self.playback.duration_s);
-        self.playback.current_time_s = next;
-        self.clamp_time();
-        self.playback.is_playing = false;
-    }
-
-    fn go_to_previous_keyframe(&mut self, keyframes: &[f64]) {
-        if keyframes.is_empty() {
-            return;
-        }
-        let prev = keyframes
-            .iter()
-            .rev()
-            .find(|&&t| t < self.playback.current_time_s)
-            .copied()
-            .unwrap_or(0.0);
-        self.playback.current_time_s = prev;
-        self.clamp_time();
-        self.playback.is_playing = false;
-    }
-
-    fn toggle_playback(&mut self) {
-        if self.playback.current_time_s >= self.playback.duration_s {
-            self.playback.current_time_s = 0.0;
-        }
-        self.playback.is_playing = !self.playback.is_playing;
-    }
-
-    fn tick(&mut self, delta: Duration) {
-        if !self.playback.is_playing {
-            return;
-        }
-
-        self.playback.current_time_s += delta.as_secs_f64() * self.playback.playback_speed as f64;
-
-        // Loop region: if A and B are set and we've reached B, jump back to A.
-        if let (Some(start), Some(end)) = (self.playback.loop_start_s, self.playback.loop_end_s) {
-            if end > start && self.playback.current_time_s >= end {
-                self.playback.current_time_s = start;
-            }
-        }
-
-        if self.playback.current_time_s >= self.playback.duration_s {
-            self.playback.current_time_s = self.playback.duration_s;
-            self.playback.is_playing = false;
-        }
-    }
 }
+
+/// Transient UI state for panels (not preview/playback state).
+#[derive(Default)]
+pub(crate) struct PanelState {
+    /// When set, the scene list panel should open the transition editor for this scene.
+    #[allow(dead_code)]
+    pub open_transition_editor: Option<String>,
+}
+
 
 struct GuiShell {
     document_store: DocumentStore,
@@ -253,6 +255,7 @@ impl GuiShell {
                         self.preview_store.preview.error = Some(err.to_string());
                         self.preview_store.preview.status = "Hot reload failed".to_string();
                     } else {
+                        self.document_store.invalidate_cache();
                         self.document_store.editor
                             .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
                         self.workspace_store.last_reload_time = Some(app_time);
@@ -334,7 +337,7 @@ impl GuiShell {
         self.export_store.poll_export_status();
 
         if self.preview_store.preview.playback.is_playing {
-            self.preview_store.preview.tick(delta);
+            self.preview_store.preview.playback.tick(delta);
             self.preview_store.preview_dirty = true;
 
             if self.ui_store.editor_sync_enabled {
@@ -485,49 +488,64 @@ impl GuiShell {
         preview_texture_id: Option<egui::TextureId>,
         commands: &mut CommandQueue,
     ) {
-        let diagnostics = self.document_store.combined_diagnostics();
-
-        let scene_dimensions = self.document_store.document.scene_dimensions;
-
-        let viewer = WorkspaceViewer {
-            scene_names: self.document_store.document.scene_names(),
-            import_aliases: self.document_store.document.import_aliases(),
-            active_scene: self.document_store.document.active_scene.clone(),
-            is_composition: self.document_store.document.is_composition(),
-            composition: self.document_store.document.composition.as_ref(),
-            current_file: &self.document_store.document.file_path,
-            expanded_dirs: &mut self.workspace_store.expanded_dirs,
-            file_tree: &self.workspace_store.file_tree,
-            editor: &mut self.document_store.editor,
-            preview: &mut self.preview_store.preview,
-            panel_state: &mut self.preview_store.panel_state,
-            diagnostics: &diagnostics,
-            preview_texture_id,
+        let tree = &mut self.ui_store.view.tree;
+        let mut behavior = panels::behavior::WorkspaceBehavior {
+            document_store: &mut self.document_store,
+            workspace_store: &mut self.workspace_store,
+            preview_store: &mut self.preview_store,
             commands,
-            source_dirty: &mut self.document_store.document.source_text,
-            scene_dimensions,
-            timeline: self.document_store.document.timeline.as_ref(),
+            preview_texture_id,
+            collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             selected_actors: &mut self.ui_store.selection.selected_actors,
             hit_regions: &self.ui_store.selection.hit_regions,
             drag_state: &mut self.ui_store.interaction.drag_state,
             selection: &mut self.ui_store.selection.selection,
-            keyframe_mode: self.ui_store.keyframe_mode,
-            collapsed_actors: &mut self.ui_store.view.collapsed_actors,
             pivot_offsets: &mut self.ui_store.pivot_offsets,
             tool_mode: &mut self.ui_store.view.tool_mode,
-            rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
             sidebar_tab: &mut self.ui_store.sidebar_tab,
             property_view_mode: &mut self.ui_store.property_view_mode,
             keyframe_view_mode: &mut self.ui_store.keyframe_view_mode,
+            keyframe_mode: self.ui_store.keyframe_mode,
+            rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
         };
-
-        let mut behavior = panels::behavior::WorkspaceBehavior { viewer };
-        self.ui_store.view.tree.ui(&mut behavior, ui);
+        tree.ui(&mut behavior, ui);
     }
 
     fn handle_commands(&mut self, commands: CommandQueue) {
         for command in commands {
-            self.handle_command(command);
+            let effects = self.handle_command(command);
+            self.apply_effects(effects);
+        }
+    }
+
+    /// Apply a collection of side effects produced by a command handler.
+    ///
+    /// Effects are applied *after* all state mutations for the command have been
+    /// performed, ensuring that side-effect code (UI toasts, status text, editor
+    /// sync, etc.) runs in a consistent state.
+    fn apply_effects(&mut self, effects: Vec<Effect>) {
+        for effect in effects {
+            match effect {
+                Effect::Toast(toast) => {
+                    self.ui_store.toasts.push(toast);
+                }
+                Effect::Status(status) => {
+                    self.preview_store.preview.status = status;
+                }
+                Effect::Repaint => {
+                    self.preview_store.preview_dirty = true;
+                }
+                Effect::EditorScroll(line) => {
+                    self.document_store.editor.scroll_to_line(line);
+                }
+                Effect::EditorHighlight(line) => {
+                    self.document_store.editor.set_highlighted_line(Some(line));
+                }
+                Effect::RebuildScheduled => {
+                    // The status has already been set; the pending rebuild
+                    // timer is set directly in the command handler.
+                }
+            }
         }
     }
 
@@ -581,12 +599,12 @@ impl GuiShell {
             .map_err(|err| GuiError::Io { path, source: err })?;
         self.document_store.document.source_text = text;
         self.document_store.document.is_dirty = false;
-        self.preview_store.preview.status = format!("Saved {}", self.document_store.document.file_path.display());
-        self.ui_store.toasts.push(crate::app::components::toast::Toast::success(format!("Saved {}", self.document_store.document.file_path.display())));
+        // Status and toast are emitted as Effects from the Save command handler.
         Ok(())
     }
 
     fn reload(&mut self) -> Result<(), GuiError> {
+        self.document_store.invalidate_cache();
         self.document_store.document.reload_from_disk()?;
         self.document_store.editor
             .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
@@ -607,6 +625,8 @@ impl GuiShell {
     }
 
     fn rebuild(&mut self) -> Result<(), GuiError> {
+        // Invalidate hot-path caches since the timeline is about to change.
+        self.document_store.invalidate_cache();
         match self.document_store.document.rebuild() {
             Ok(()) => {
                 let status = if self.document_store.document.diagnostics.is_empty() {
@@ -636,7 +656,7 @@ impl GuiShell {
                 };
                 self.preview_store.preview.playback.duration_s = self.document_store.document.duration_s.max(0.1);
                 self.preview_store.preview.dimensions = self.document_store.document.scene_dimensions;
-                self.preview_store.preview.clamp_time();
+                self.preview_store.preview.playback.clamp_time();
                 self.preview_store.preview.status = status;
                 self.preview_store.preview.error = Some(error.to_string());
                 self.preview_store.preview_dirty = true;
@@ -662,7 +682,7 @@ impl GuiShell {
                 self.document_store.document.scene_dimensions.height as f32 / 2.0,
             );
         } else {
-            self.preview_store.preview.clamp_time();
+            self.preview_store.preview.playback.clamp_time();
         }
         if stop_playback {
             self.preview_store.preview.playback.is_playing = false;

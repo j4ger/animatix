@@ -5,7 +5,7 @@ use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
 use animatix::diagnostics::Diagnostic;
 
-pub(crate) struct EditorViewer<'a> {
+pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,
     pub diagnostics: &'a [Diagnostic],
     pub source_dirty: &'a mut String,
@@ -13,7 +13,7 @@ pub(crate) struct EditorViewer<'a> {
     pub is_playing: bool,
 }
 
-pub(crate) fn editor_ui(ctx: &mut EditorViewer<'_>, ui: &mut egui::Ui) {
+pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         ctx.editor.set_diagnostics(ctx.diagnostics);
         let response = ctx.editor.show(ui);

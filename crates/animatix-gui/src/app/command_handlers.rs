@@ -1,122 +1,194 @@
 use super::*;
+use crate::app::commands::{Command, Effect};
 
 impl GuiShell {
-    pub(crate) fn handle_command(&mut self, command: Command) {
+    /// Handle a single command, returning any collected side effects.
+    ///
+    /// State mutations happen inline; side effects (toasts, status messages,
+    /// editor scroll/highlight, etc.) are returned as a `Vec<Effect>` and
+    /// applied by `apply_effects` after the handler returns.
+    pub(crate) fn handle_command(&mut self, command: Command) -> Vec<Effect> {
         use crate::app::commands::Command;
 
         match command {
-            Command::OpenFile(path) => self.open_document(path),
+            Command::OpenFile(path) => {
+                self.open_document(path);
+                vec![]
+            }
             Command::ToggleExpandDir(path) => {
                 if self.workspace_store.expanded_dirs.contains(&path) {
                     self.workspace_store.expanded_dirs.remove(&path);
                 } else {
                     self.workspace_store.expanded_dirs.insert(path.clone());
                 }
-                self.workspace_store.file_tree = build_file_tree(&self.workspace_store.workspace_root, &self.document_store.document.file_path, &self.workspace_store.expanded_dirs);
+                self.workspace_store.file_tree = build_file_tree(
+                    &self.workspace_store.workspace_root,
+                    &self.document_store.document.file_path,
+                    &self.workspace_store.expanded_dirs,
+                );
+                vec![]
             }
-            Command::ShowInspector => self.open_workspace_tab(WorkspaceTab::Inspector),
+            Command::ShowInspector => {
+                self.open_workspace_tab(WorkspaceTab::Inspector);
+                vec![]
+            }
             Command::OpenExportDialog => {
                 self.export_store.export_dialog_open = true;
                 if self.export_store.export_state.output_path.is_empty() {
                     self.update_default_export_filename();
                 }
+                vec![]
             }
             Command::ToggleDiagnosticsPanel => {
-                self.ui_store.view.diagnostics_panel_visible = !self.ui_store.view.diagnostics_panel_visible;
+                self.ui_store.view.diagnostics_panel_visible =
+                    !self.ui_store.view.diagnostics_panel_visible;
+                vec![]
             }
             Command::Save => {
                 if let Err(e) = self.save() {
                     tracing::warn!("Save failed: {}", e);
-                    self.ui_store.toasts.push(crate::app::components::toast::Toast::error(format!("Save failed: {}", e)));
+                    vec![Effect::Toast(crate::app::components::toast::Toast::error(
+                        format!("Save failed: {}", e),
+                    ))]
+                } else {
+                    vec![
+                        Effect::Status(format!("Saved {}", self.document_store.document.file_path.display())),
+                        Effect::Toast(crate::app::components::toast::Toast::success(
+                            format!("Saved {}", self.document_store.document.file_path.display()),
+                        )),
+                    ]
                 }
             }
             Command::Reload => {
                 if let Err(e) = self.reload() {
                     tracing::warn!("Reload failed: {}", e);
-                    self.ui_store.toasts.push(crate::app::components::toast::Toast::error(format!("Reload failed: {}", e)));
+                    vec![Effect::Toast(crate::app::components::toast::Toast::error(
+                        format!("Reload failed: {}", e),
+                    ))]
+                } else {
+                    vec![]
                 }
             }
             Command::Rebuild => {
+                self.document_store.invalidate_cache();
                 if let Err(e) = self.rebuild() {
                     tracing::warn!("Rebuild command failed: {}", e);
                 }
+                vec![]
             }
             Command::ScrubTo(next_time) => {
                 self.preview_store.preview.playback.current_time_s = next_time;
-                self.preview_store.preview.clamp_time();
+                self.preview_store.preview.playback.clamp_time();
                 self.preview_store.preview.playback.is_playing = false;
                 self.preview_store.preview_dirty = true;
                 self.sync_active_scene_from_time();
+                let mut effects: Vec<Effect> = vec![];
                 if self.ui_store.editor_sync_enabled {
-                    if let Some(line) = self.document_store.document.find_keyframe_line_at(next_time) {
+                    if let Some(line) =
+                        self.document_store.document.find_keyframe_line_at(next_time)
+                    {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
+                        effects.push(Effect::EditorScroll(line));
+                        effects.push(Effect::EditorHighlight(line));
                     }
                 }
+                effects
             }
             Command::TogglePlayback => {
-                self.preview_store.preview.toggle_playback();
+                self.preview_store.preview.playback.toggle_playback();
                 self.preview_store.preview_dirty = true;
+                vec![]
             }
             Command::ToggleEditorSync => {
                 self.ui_store.editor_sync_enabled = !self.ui_store.editor_sync_enabled;
-                self.preview_store.preview.status = if self.ui_store.editor_sync_enabled {
-                    "Editor sync ON".to_string()
+                vec![if self.ui_store.editor_sync_enabled {
+                    Effect::Status("Editor sync ON".to_string())
                 } else {
-                    "Editor sync OFF".to_string()
-                };
+                    Effect::Status("Editor sync OFF".to_string())
+                }]
             }
             Command::ToggleKeyframeMode => {
                 // Global keyframe mode toggle removed in GUI redesign Phase 1.
                 // Per-property diamond controls will replace this in Phase 2.
+                vec![]
             }
             Command::EditorChanged => {
                 self.document_store
                     .document
                     .set_source_text(self.document_store.editor.text().to_string());
-                self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-                self.preview_store.preview.status = "Editing source • rebuild scheduled".to_string();
+                self.preview_store.pending_rebuild_at =
+                    Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
                 self.preview_store.preview.error = None;
                 self.document_store.document.diagnostics.clear();
+                vec![
+                    Effect::Status("Editing source • rebuild scheduled".to_string()),
+                    Effect::RebuildScheduled,
+                ]
             }
-            Command::RequestRepaint => self.preview_store.preview_dirty = true,
+            Command::RequestRepaint => {
+                self.preview_store.preview_dirty = true;
+                vec![]
+            }
             Command::PrevKeyframe => {
                 let keyframes = timeline_keyframe_times_s(
-                    if self.document_store.document.composition.is_some() { None } else { self.document_store.document.active_timeline() },
+                    if self.document_store.document.composition.is_some() {
+                        None
+                    } else {
+                        self.document_store.document.active_timeline()
+                    },
                     self.document_store.document.composition.as_ref(),
                     self.document_store.document.active_scene.as_deref(),
                 );
-                self.preview_store.preview.go_to_previous_keyframe(&keyframes);
-                self.preview_store.preview.status = format!(
-                    "Previous keyframe • t = {:.2}s / {:.2}s",
-                    self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
-                );
+                self.preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
                 self.preview_store.preview_dirty = true;
+                let status = format!(
+                    "Previous keyframe • t = {:.2}s / {:.2}s",
+                    self.preview_store.preview.playback.current_time_s,
+                    self.preview_store.preview.playback.duration_s
+                );
+                let mut effects = vec![Effect::Status(status)];
                 if self.ui_store.editor_sync_enabled {
-                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
+                    if let Some(line) = self.document_store.document.find_keyframe_line_at(
+                        self.preview_store.preview.playback.current_time_s,
+                    ) {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
+                        effects.push(Effect::EditorScroll(line));
+                        effects.push(Effect::EditorHighlight(line));
                     }
                 }
+                effects
             }
             Command::NextKeyframe => {
                 let keyframes = timeline_keyframe_times_s(
-                    if self.document_store.document.composition.is_some() { None } else { self.document_store.document.active_timeline() },
+                    if self.document_store.document.composition.is_some() {
+                        None
+                    } else {
+                        self.document_store.document.active_timeline()
+                    },
                     self.document_store.document.composition.as_ref(),
                     self.document_store.document.active_scene.as_deref(),
                 );
-                self.preview_store.preview.go_to_next_keyframe(&keyframes);
-                self.preview_store.preview.status = format!(
-                    "Next keyframe • t = {:.2}s / {:.2}s",
-                    self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
-                );
+                self.preview_store.preview.playback.go_to_next_keyframe(&keyframes);
                 self.preview_store.preview_dirty = true;
+                let status = format!(
+                    "Next keyframe • t = {:.2}s / {:.2}s",
+                    self.preview_store.preview.playback.current_time_s,
+                    self.preview_store.preview.playback.duration_s
+                );
+                let mut effects = vec![Effect::Status(status)];
                 if self.ui_store.editor_sync_enabled {
-                    if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
+                    if let Some(line) = self.document_store.document.find_keyframe_line_at(
+                        self.preview_store.preview.playback.current_time_s,
+                    ) {
                         self.document_store.editor.scroll_to_line(line);
                         self.document_store.editor.set_highlighted_line(Some(line));
+                        effects.push(Effect::EditorScroll(line));
+                        effects.push(Effect::EditorHighlight(line));
                     }
                 }
+                effects
             }
             Command::PrevScene | Command::NextScene => {
                 if let Some(composition) = self.document_store.document.composition.as_ref() {
@@ -132,16 +204,19 @@ impl GuiShell {
                         self.document_store.document.active_scene = Some(target_name.clone());
                         if let Some(start) = composition.scene_start_times.get(target_name) {
                             self.preview_store.preview.playback.current_time_s = *start;
-                            self.preview_store.preview.clamp_time();
+                            self.preview_store.preview.playback.clamp_time();
                             self.preview_store.preview.playback.is_playing = false;
                             self.preview_store.preview_dirty = true;
-                            self.preview_store.preview.status = format!(
+                            return vec![Effect::Status(format!(
                                 "Scene {} • t = {:.2}s / {:.2}s",
-                                target_name, self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
-                            );
+                                target_name,
+                                self.preview_store.preview.playback.current_time_s,
+                                self.preview_store.preview.playback.duration_s
+                            ))];
                         }
                     }
                 }
+                vec![]
             }
             Command::SelectScene(scene) => {
                 if let Some(composition) = self.document_store.document.composition.as_ref() {
@@ -156,16 +231,19 @@ impl GuiShell {
                                 }
                             }
                             self.preview_store.preview.playback.current_time_s = target_time;
-                            self.preview_store.preview.clamp_time();
+                            self.preview_store.preview.playback.clamp_time();
                             self.preview_store.preview.playback.is_playing = false;
                             self.preview_store.preview_dirty = true;
-                            self.preview_store.preview.status = format!(
+                            return vec![Effect::Status(format!(
                                 "Scene {} • t = {:.2}s / {:.2}s",
-                                scene, self.preview_store.preview.playback.current_time_s, self.preview_store.preview.playback.duration_s
-                            );
+                                scene,
+                                self.preview_store.preview.playback.current_time_s,
+                                self.preview_store.preview.playback.duration_s
+                            ))];
                         }
                     }
                 }
+                vec![]
             }
             Command::DeleteScene(scene) => {
                 if let Some(ref mut stmts) = self.document_store.document.raw_statements {
@@ -175,14 +253,17 @@ impl GuiShell {
                         self.document_store.document.source_text = new_source.clone();
                         self.document_store.editor.replace_text(new_source);
                         self.document_store.document.is_dirty = true;
-                        self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                        self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-                        self.preview_store.preview.status = format!("Deleted scene {}", scene);
+                        self.document_store.document.source_index =
+                            Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.preview_store.pending_rebuild_at =
+                            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
                         if self.document_store.document.active_scene.as_ref() == Some(&scene) {
                             self.document_store.document.active_scene = None;
                         }
+                        return vec![Effect::Status(format!("Deleted scene {}", scene))];
                     }
                 }
+                vec![]
             }
             Command::AddScene => {
                 let existing: std::collections::HashSet<String> =
@@ -191,7 +272,9 @@ impl GuiShell {
                     let mut i = 1;
                     let new_name = loop {
                         let candidate = format!("Scene{}", i);
-                        if !existing.contains(&candidate) { break candidate; }
+                        if !existing.contains(&candidate) {
+                            break candidate;
+                        }
                         i += 1;
                     };
                     let edit = crate::source_edit::SourceEdit::AddScene { name: new_name.clone() };
@@ -200,101 +283,159 @@ impl GuiShell {
                         self.document_store.document.source_text = new_source.clone();
                         self.document_store.editor.replace_text(new_source);
                         self.document_store.document.is_dirty = true;
-                        self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                        self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-                        self.preview_store.preview.status = format!("Added scene {}", new_name);
+                        self.document_store.document.source_index =
+                            Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.preview_store.pending_rebuild_at =
+                            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+                        return vec![Effect::Status(format!("Added scene {}", new_name))];
                     }
                 }
+                vec![]
             }
             Command::RenameScene { old_name, new_name } => {
                 if old_name != new_name && !new_name.is_empty() {
                     if let Some(ref mut stmts) = self.document_store.document.raw_statements {
-                        let edit = crate::source_edit::SourceEdit::RenameScene { old_name, new_name: new_name.clone() };
+                        let edit = crate::source_edit::SourceEdit::RenameScene {
+                            old_name,
+                            new_name: new_name.clone(),
+                        };
                         if crate::source_edit::apply_edit(stmts, edit) {
                             let new_source = animatix::to_source::stmts_to_source(stmts);
                             self.document_store.document.source_text = new_source.clone();
                             self.document_store.editor.replace_text(new_source);
                             self.document_store.document.is_dirty = true;
-                            self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-                            self.preview_store.preview.status = format!("Renamed scene to {}", new_name);
+                            self.document_store.document.source_index =
+                                Some(animatix::source_index::SourceIndex::build(stmts));
+                            self.preview_store.pending_rebuild_at =
+                                Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+                            return vec![Effect::Status(format!("Renamed scene to {}", new_name))];
                         }
                     }
                 }
+                vec![]
             }
             Command::ReorderScenes(new_order) => {
                 if let Some(ref mut stmts) = self.document_store.document.raw_statements {
-                    let edit = crate::source_edit::SourceEdit::ReorderScenes { new_order: new_order.clone() };
+                    let edit = crate::source_edit::SourceEdit::ReorderScenes {
+                        new_order: new_order.clone(),
+                    };
                     if crate::source_edit::apply_edit(stmts, edit) {
                         let new_source = animatix::to_source::stmts_to_source(stmts);
                         self.document_store.document.source_text = new_source.clone();
                         self.document_store.editor.replace_text(new_source);
                         self.document_store.document.is_dirty = true;
-                        self.document_store.document.source_index = Some(animatix::source_index::SourceIndex::build(stmts));
-                        self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-                        self.preview_store.preview.status = "Reordered scenes".to_string();
+                        self.document_store.document.source_index =
+                            Some(animatix::source_index::SourceIndex::build(stmts));
+                        self.preview_store.pending_rebuild_at =
+                            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+                        return vec![Effect::Status("Reordered scenes".to_string())];
                     }
                 }
+                vec![]
             }
             Command::CreateActor { ty, label, position } => {
                 self.handle_create_actor(&ty, &label, position);
+                vec![]
             }
             Command::DuplicateActor(original_label) => {
                 self.handle_duplicate_actor(&original_label);
+                vec![]
             }
             Command::DeleteSelectedActors => {
                 self.handle_delete_selected_actors();
+                vec![]
             }
             Command::PasteActors => {
                 self.paste_actors();
+                vec![]
             }
             Command::SetTransition { from_scene, transition } => {
                 self.handle_set_transition(&from_scene, transition);
+                vec![]
             }
             Command::SetPlayTarget { from_scene, target } => {
                 self.handle_set_play_target(&from_scene, target);
+                vec![]
             }
             Command::RenameActor { old_label, new_label } => {
                 self.handle_rename_actor(&old_label, &new_label);
+                vec![]
             }
-            Command::SetKeyframeEasing { actor, property, time_s, easing } => {
+            Command::SetKeyframeEasing {
+                actor,
+                property,
+                time_s,
+                easing,
+            } => {
                 self.handle_set_keyframe_easing(&actor, &property, time_s, easing);
+                vec![]
             }
-            Command::DeleteKeyframe { actor, property, time_s } => {
+            Command::DeleteKeyframe {
+                actor,
+                property,
+                time_s,
+            } => {
                 self.handle_delete_keyframe(&actor, &property, time_s);
+                vec![]
             }
-            Command::MoveKeyframe { actor, property, old_time_s, new_time_s } => {
+            Command::MoveKeyframe {
+                actor,
+                property,
+                old_time_s,
+                new_time_s,
+            } => {
                 // Phase 4b: placeholder — will emit source edit when document handler is wired in
                 tracing::info!("MoveKeyframe: {actor}.{property} {old_time_s}s → {new_time_s}s");
+                vec![]
             }
             Command::InspectorInputDragStarted => {
                 self.ui_store.interaction.inspector_input_drag_active = true;
+                vec![]
             }
             Command::ReparentActor { actor, new_parent } => {
                 self.handle_reparent_actor(&actor, new_parent);
+                vec![]
             }
-            Command::ExtractScene { actor_labels, new_scene_name } => {
+            Command::ExtractScene {
+                actor_labels,
+                new_scene_name,
+            } => {
                 self.handle_extract_scene(actor_labels, new_scene_name);
+                vec![]
             }
-            Command::MoveToScene { actor_labels, target_scene } => {
+            Command::MoveToScene {
+                actor_labels,
+                target_scene,
+            } => {
                 self.handle_move_to_scene(actor_labels, target_scene);
+                vec![]
             }
             Command::PropertyEdit(edit) => {
                 self.handle_property_edit(edit);
+                vec![]
             }
             Command::DragEnded => {
                 self.ui_store.interaction.drag_state = DragState::None;
                 self.ui_store.interaction.drag_snapshot_taken = false;
+                vec![]
             }
             Command::InspectorInputDragEnded => {
                 self.ui_store.interaction.inspector_input_drag_active = false;
                 self.ui_store.interaction.drag_snapshot_taken = false;
+                vec![]
             }
-            Command::Undo => self.undo(),
-            Command::Redo => self.redo(),
+            Command::Undo => {
+                self.undo();
+                vec![]
+            }
+            Command::Redo => {
+                self.redo();
+                vec![]
+            }
             Command::ScrollToLine(line) => {
                 self.document_store.editor.focus_diagnostic(line, 0);
+                vec![]
             }
-            }
+        }
     }
 }

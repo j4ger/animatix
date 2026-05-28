@@ -6,48 +6,15 @@
 
 ---
 
-## Phase 2 — Structural Decoupling
-
-Decompose god objects and restructure state before feature work continues.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 2.1 | **Extract `PlaybackController`** | Move time scrubbing, play/pause, keyframe jumping, loop logic out of `GuiShell`. | `app/mod.rs:150–210,621–644` | 2 days | — |
-| 2.2 | **Split `UiStore`** | Group into `SelectionStore`, `InteractionStore`, `ClipboardStore`, `ViewStore`. | `app/stores/ui_store.rs` | 2 days | — |
-| 2.3 | **Replace custom timeline scroll** | Swap manual scroll impl for `egui::ScrollArea::vertical().show_rows()`. | `app/panels/timeline_panel.rs:88–106,992–1007` | 2 days | — |
-| 2.4 | **Move `collect_all_keyframe_times`** | Relocate from inspector to `animatix::timeline` to fix preview→inspector illegal dependency. | `app/panels/inspector/`, `app/panels/preview_canvas/mod.rs:373` | 1 day | — |
-| 2.5 | **Decompose `WorkspaceViewer`** | Split 25-field struct into per-panel contexts (`SidebarContext`, `InspectorContext`, `TimelineContext`, `PreviewContext`). | `app/panels/mod.rs:65–100` | 3 days | 2.2 |
-
----
-
-## Phase 3 — Quality & Polish
-
-Unify components, enforce command compliance, and cache hot-path allocations.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 3.1 | **Unify button components** | Refactor transport bar / timeline to use `toolbar_action_button` / `toolbar_toggle_button` from `components/mod.rs`. Remove manual button construction. | `app/shell/transport_bar.rs`, `app/panels/timeline_panel.rs` | 2 days | — |
-| 3.2 | **Extract `TransportScrubber` struct** | Replace 290-line `paint_transport_scrubber` with a struct holding state + `.show(ui)` method. | `app/shell/transport_bar.rs:440–733` | 1 day | — |
-| 3.3 | **Extract `play_pause_button()`** | Deduplicate play/pause icon logic across toolbar, transport, timeline, preview. | `app/components/mod.rs`, 4 call sites | 2 hours | — |
-| 3.4 | **Extract `default_actor_type()`** | Move duplicate definition to shared `app::utils` or `animatix::primitives`. | `app/panels/mod.rs:7`, `app/panels/inspector/mod.rs:30` | 1 hour | — |
-| 3.5 | **Introduce `CommandResult`/`Effect`** | Make side effects explicit: commands mutate state, a separate effect system handles toasts/status updates. | `app/commands.rs`, `app/command_handlers.rs` | 3 days | 2.1 |
-| 3.6 | **Cache hot-path allocations** | Cache `actor_labels` and keyframe collections on `DocumentStore`, invalidate on rebuild. | `app/stores/document_store.rs`, `app/panels/timeline_panel.rs` | 2 days | — |
-| 3.7 | **Fix flat input affordance** | Add subtle bottom border or background to inspector input widgets. | `app/panels/inspector/property_groups.rs:366–378` | 1 day | — |
-| 3.8 | **Consolidate preview HUDs** | Merge context + hover HUDs into one adaptive overlay. Move property popup to inspector or make dismissable. | `app/panels/preview_canvas/mod.rs:501–630` | 2 days | — |
-| 3.9 | **Add sticky section headers** | Make inspector card headers sticky during scroll so users don't lose context. | `app/panels/inspector/mod.rs:135–346` | 1 day | — |
-| 3.10 | **Standardize empty state sizing** | Create `EMPTY_STATE_ICON_SIZE` token, apply consistently. | `app/components/mod.rs`, `app/panels/` | 2 hours | — |
-
----
-
 ## Phase 4 — Testing
 
 Add unit tests for extracted pure functions and store mutations.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 4.1 | **Unit tests for pure functions** | Test `nice_tick_interval`, `clamp_pan`, `PreviewPaneState::clamp_time`, `timeline_fraction`, `time_from_pointer_x`. | `app/panels/mod.rs`, `app/preview/` | 2 days | — |
-| 4.2 | **Command handler tests** | Test command dispatch using a test harness with mock stores. | `app/command_handlers.rs` | 2 days | 3.5 |
-| 4.3 | **Store state tests** | Test store mutations (undo/redo, dirty tracking, persistence round-trip). | `app/stores/` | 2 days | 2.2 |
+| 4.1 | **Unit tests for pure functions** | Test `nice_tick_interval`, `clamp_pan`, `PlaybackController::clamp_time`, `timeline_fraction`, `time_from_pointer_x`. | `app/panels/mod.rs`, `app/preview/` | 2 days | — |
+| 4.2 | **Command handler tests** | Test command dispatch using a test harness with mock stores. | `app/command_handlers.rs` | 2 days | — |
+| 4.3 | **Store state tests** | Test store mutations (undo/redo, dirty tracking, persistence round-trip). | `app/stores/` | 2 days | — |
 
 ---
 
@@ -105,11 +72,9 @@ Fix examples that fail `animatix check` so the demo suite is trustworthy.
 
 ## Order
 
-1. **Phase 2** (no blockers — architectural foundation)
-2. **Phase 3** (after Phase 2; quality consolidation)
-3. **Phase 4** (after Phase 3; validate refactors)
-4. **Phase 9** (no blockers — can do anytime; user trust)
-5. **Phase 8** (no blockers — can do anytime)
-6. **Phase 5** (after Phase 4)
-7. **Phase 7** (external AI service required)
-8. **Phase 6** (start after syntax stabilizes)
+1. **Phase 4** (validate refactors)
+2. **Phase 9** (no blockers — can do anytime; user trust)
+3. **Phase 8** (no blockers — can do anytime)
+4. **Phase 5** (after Phase 4)
+5. **Phase 7** (external AI service required)
+6. **Phase 6** (start after syntax stabilizes)

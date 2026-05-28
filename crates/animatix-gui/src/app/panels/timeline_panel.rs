@@ -20,6 +20,7 @@
 use std::collections::HashSet;
 
 use crate::app::commands::{Command, CommandQueue};
+use crate::app::components::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
 use crate::app::design_tokens::*;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
@@ -51,87 +52,6 @@ fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
     }
 }
 
-/// Trait for types that contain keyframe times.
-trait KeyframeSource {
-    fn keyframe_times(&self) -> Vec<u64>;
-}
-
-impl<T> KeyframeSource for animatix::timeline::PropertyTrack<T> {
-    fn keyframe_times(&self) -> Vec<u64> {
-        self.keyframes.keys().copied().collect()
-    }
-}
-
-fn push_kf_props(result: &mut Vec<(u64, &'static str)>, opt: &Option<impl KeyframeSource>, name: &'static str) {
-    if let Some(pt) = opt {
-        result.extend(pt.keyframe_times().into_iter().map(|ms| (ms, name)));
-    }
-}
-
-fn push_kf_times(result: &mut Vec<u64>, opt: &Option<impl KeyframeSource>) {
-    if let Some(pt) = opt {
-        result.extend(pt.keyframe_times());
-    }
-}
-
-/// Collect all keyframe times and their property names from a track.
-fn collect_track_keyframe_props(track: &animatix::timeline::AnimationTrack) -> Vec<(u64, &'static str)> {
-    let mut result = Vec::new();
-    push_kf_props(&mut result, &track.position, "position");
-    push_kf_props(&mut result, &track.motion_offset, "motion_offset");
-    push_kf_props(&mut result, &track.rotation, "rotation");
-    push_kf_props(&mut result, &track.scale, "scale");
-    push_kf_props(&mut result, &track.size, "size");
-    push_kf_props(&mut result, &track.color, "color");
-    push_kf_props(&mut result, &track.opacity, "opacity");
-    push_kf_props(&mut result, &track.stroke_width, "stroke_width");
-    push_kf_props(&mut result, &track.stroke_color, "stroke_color");
-    push_kf_props(&mut result, &track.stroke_progress, "stroke_progress");
-    push_kf_props(&mut result, &track.fill_opacity, "fill_opacity");
-    push_kf_props(&mut result, &track.text_content, "text_content");
-    push_kf_props(&mut result, &track.font_family, "font_family");
-    push_kf_props(&mut result, &track.font_size, "font_size");
-    push_kf_props(&mut result, &track.shape_type, "shape_type");
-    push_kf_props(&mut result, &track.line_from, "line_from");
-    push_kf_props(&mut result, &track.line_to, "line_to");
-    push_kf_props(&mut result, &track.arc_angles, "arc_angles");
-    push_kf_props(&mut result, &track.points, "points");
-    push_kf_props(&mut result, &track.commands, "commands");
-    push_kf_props(&mut result, &track.layout_size, "layout_size");
-    push_kf_props(&mut result, &track.vector_paths, "vector_paths");
-    result.sort_by_key(|(ms, _)| *ms);
-    result.dedup_by(|a, b| a.0 == b.0);
-    result
-}
-
-/// Collect all keyframe times from a track.
-fn collect_track_keyframe_times(track: &animatix::timeline::AnimationTrack) -> Vec<u64> {
-    let mut result = Vec::new();
-    push_kf_times(&mut result, &track.position);
-    push_kf_times(&mut result, &track.motion_offset);
-    push_kf_times(&mut result, &track.rotation);
-    push_kf_times(&mut result, &track.scale);
-    push_kf_times(&mut result, &track.size);
-    push_kf_times(&mut result, &track.color);
-    push_kf_times(&mut result, &track.opacity);
-    push_kf_times(&mut result, &track.stroke_width);
-    push_kf_times(&mut result, &track.stroke_color);
-    push_kf_times(&mut result, &track.stroke_progress);
-    push_kf_times(&mut result, &track.fill_opacity);
-    push_kf_times(&mut result, &track.text_content);
-    push_kf_times(&mut result, &track.font_family);
-    push_kf_times(&mut result, &track.font_size);
-    push_kf_times(&mut result, &track.shape_type);
-    push_kf_times(&mut result, &track.line_from);
-    push_kf_times(&mut result, &track.line_to);
-    push_kf_times(&mut result, &track.arc_angles);
-    push_kf_times(&mut result, &track.points);
-    push_kf_times(&mut result, &track.commands);
-    push_kf_times(&mut result, &track.layout_size);
-    push_kf_times(&mut result, &track.vector_paths);
-    result
-}
-
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(
     ui: &mut egui::Ui,
@@ -141,6 +61,8 @@ pub(crate) fn timeline_panel_ui(
     _active_scene: Option<&str>,
     commands: &mut CommandQueue,
     collapsed_actors: &mut HashSet<String>,
+    actor_labels: &Vec<String>,
+    actor_keyframes: &Vec<(String, Vec<(u64, &'static str)>)>,
 ) {
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
@@ -162,12 +84,8 @@ pub(crate) fn timeline_panel_ui(
     let bar_origin_x = ui.cursor().min.x + label_col_w;
     let bar_width = (available - label_col_w).max(80.0);
 
-    // Collect tracks to display
-    let actor_labels: Vec<String> = if let Some(tl) = timeline {
-        tl.root_actor_labels().to_vec()
-    } else {
-        Vec::new()
-    };
+    // ── Cached hot-path data ──
+    // actor_labels and actor_keyframes are precomputed by behavior.rs.
 
     // Allocate the full timeline panel rect (outer frame)
     let (scroll_rect, _scroll_response) = ui.allocate_exact_size(
@@ -292,100 +210,96 @@ pub(crate) fn timeline_panel_ui(
                 content_bottom - ui.cursor().min.y,
             ));
 
-            // ── Get painter (immutable borrow) and draw everything ──
-            let painter = ui.painter();
-
-            // ── Playback strip ──
+            // ── Playback strip (sub-ui, needs mutable borrow before main painter) ──
             {
-                painter.rect_filled(
-                    Rect::from_min_max(
-                        Pos2::new(scroll_rect.left(), strip_top),
-                        Pos2::new(scroll_rect.right(), strip_bot),
-                    ),
-                    0.0,
-                    BG_BASE,
+                let strip_rect = Rect::from_min_size(
+                    Pos2::new(scroll_rect.left(), strip_top),
+                    Vec2::new(scroll_rect.width(), PLAYBACK_STRIP_HEIGHT),
                 );
 
-                let mut cx = scroll_rect.left() + SPACE_S;
-                let cy = (strip_top + strip_bot) / 2.0;
+                ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
+                    // Background fill
+                    ui.painter().rect_filled(
+                        Rect::from_min_max(
+                            Pos2::new(scroll_rect.left(), strip_top),
+                            Pos2::new(scroll_rect.right(), strip_bot),
+                        ),
+                        0.0,
+                        BG_BASE,
+                    );
 
-                // Go to start
-                let start_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-                let start_r = ui.interact(start_btn, ui.id().with("tl_start"), Sense::click());
-                painter.text(start_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::SKIP_BACK,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if start_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
-                if start_r.clicked() { commands.push_back(Command::ScrubTo(0.0)); }
-                cx += 22.0;
+                    ui.horizontal(|ui| {
+                        ui.add_space(SPACE_S);
 
-                // Previous keyframe
-                let prev_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-                let prev_r = ui.interact(prev_btn, ui.id().with("tl_prev"), Sense::click());
-                painter.text(prev_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::CARET_LEFT,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if prev_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
-                if prev_r.clicked() { commands.push_back(Command::PrevKeyframe); }
-                cx += 22.0;
+                        // Go to start
+                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start (Home)", false).clicked() {
+                            commands.push_back(Command::ScrubTo(0.0));
+                        }
 
-                // Play / Pause
-                let play_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(24.0, 20.0));
-                let play_r = ui.interact(play_btn, ui.id().with("tl_play"), Sense::click());
-                let play_icon = crate::app::components::play_pause_icon(preview.playback.is_playing);
-                let play_c = if preview.playback.is_playing { ACCENT_BLUE } else { TEXT_PRIMARY };
-                painter.text(play_btn.center(), Align2::CENTER_CENTER, play_icon,
-                    FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional), if play_r.hovered() { play_c } else { TEXT_MUTED });
-                if play_r.clicked() { commands.push_back(Command::TogglePlayback); }
-                cx += 26.0;
+                        // Previous keyframe
+                        if toolbar_action_button(ui, egui_phosphor::regular::CARET_LEFT, None, "Previous keyframe", false).clicked() {
+                            commands.push_back(Command::PrevKeyframe);
+                        }
 
-                // Next keyframe
-                let next_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-                let next_r = ui.interact(next_btn, ui.id().with("tl_next"), Sense::click());
-                painter.text(next_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::CARET_RIGHT,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if next_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
-                if next_r.clicked() { commands.push_back(Command::NextKeyframe); }
-                cx += 22.0;
+                        // Play / Pause
+                        if play_pause_button(ui, preview.playback.is_playing).clicked() {
+                            commands.push_back(Command::TogglePlayback);
+                        }
 
-                // Go to end
-                let end_btn = Rect::from_min_size(Pos2::new(cx, cy - 10.0), Vec2::new(20.0, 20.0));
-                let end_r = ui.interact(end_btn, ui.id().with("tl_end"), Sense::click());
-                painter.text(end_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::SKIP_FORWARD,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), if end_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
-                if end_r.clicked() { commands.push_back(Command::ScrubTo(preview.playback.duration_s)); }
-                cx += 28.0;
+                        // Next keyframe
+                        if toolbar_action_button(ui, egui_phosphor::regular::CARET_RIGHT, None, "Next keyframe", false).clicked() {
+                            commands.push_back(Command::NextKeyframe);
+                        }
 
-                // Speed dropdown
-                const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
-                let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
-                let speed_btn = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(32.0, 18.0));
-                let speed_r = ui.interact(speed_btn, ui.id().with("tl_speed"), Sense::click());
-                painter.rect_filled(speed_btn, RADIUS_S as u8, if speed_r.hovered() { BG_WIDGET } else { BG_SURFACE });
-                painter.text(speed_btn.center(), Align2::CENTER_CENTER, SPEEDS[si].1,
-                    FontId::monospace(FONT_SIZE_XS), if speed_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED });
-                if speed_r.clicked() { preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0; }
-                cx += 38.0;
+                        // Go to end
+                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end (End)", false).clicked() {
+                            commands.push_back(Command::ScrubTo(preview.playback.duration_s));
+                        }
 
-                // Loop toggle
-                let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
-                let loop_btn = Rect::from_min_size(Pos2::new(cx, cy - 9.0), Vec2::new(20.0, 18.0));
-                let loop_r = ui.interact(loop_btn, ui.id().with("tl_loop"), Sense::click());
-                let loop_c = if loop_active { ACCENT_CYAN } else if loop_r.hovered() { TEXT_PRIMARY } else { TEXT_MUTED };
-                painter.text(loop_btn.center(), Align2::CENTER_CENTER, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), loop_c);
-                if loop_r.clicked() {
-                    if loop_active { preview.playback.loop_start_s = None; preview.playback.loop_end_s = None; }
-                    else { preview.playback.loop_start_s = Some(0.0); preview.playback.loop_end_s = Some(preview.playback.duration_s); }
-                }
+                        toolbar_separator(ui);
 
-                // Time display (right-aligned)
-                let time_text = format!("{:02}:{:02.2} / {:02}:{:02.2}",
-                    preview.playback.current_time_s as i32 / 60, preview.playback.current_time_s % 60.0,
-                    preview.playback.duration_s as i32 / 60, preview.playback.duration_s % 60.0);
-                let time_sz = painter.layout(time_text.clone(), FontId::monospace(FONT_SIZE_S), TEXT_PRIMARY, f32::INFINITY).rect.size();
-                painter.text(Pos2::new(scroll_rect.right() - SPACE_S - time_sz.x, cy), Align2::LEFT_CENTER, time_text,
-                    FontId::monospace(FONT_SIZE_S), TEXT_PRIMARY);
+                        // Speed dropdown
+                        const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
+                        let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
+                        if toolbar_action_button(ui, SPEEDS[si].1, None, "Playback speed", false).clicked() {
+                            preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0;
+                        }
 
+                        // Loop toggle
+                        let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
+                        if toolbar_toggle_button(ui, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE, None, "Toggle loop playback", loop_active, false).clicked() {
+                            if loop_active {
+                                preview.playback.loop_start_s = None;
+                                preview.playback.loop_end_s = None;
+                            } else {
+                                preview.playback.loop_start_s = Some(0.0);
+                                preview.playback.loop_end_s = Some(preview.playback.duration_s);
+                            }
+                        }
+
+                        // Time display (right-aligned)
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let time_text = format!("{:02}:{:02.2} / {:02}:{:02.2}",
+                                preview.playback.current_time_s as i32 / 60, preview.playback.current_time_s % 60.0,
+                                preview.playback.duration_s as i32 / 60, preview.playback.duration_s % 60.0);
+                            ui.add(egui::Label::new(
+                                egui::RichText::new(time_text)
+                                    .font(FontId::monospace(FONT_SIZE_S))
+                                    .color(TEXT_PRIMARY),
+                            ).selectable(false));
+                        });
+                    });
+                });
+
+                // Bottom border
+                let painter = ui.painter();
                 painter.line_segment(
                     [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
                     Stroke::new(1.0, BORDER));
             }
+
+            // ── Get painter (immutable borrow) and draw everything ──
+            let painter = ui.painter();
 
             // ── Ruler ──
             {
@@ -518,10 +432,13 @@ pub(crate) fn timeline_panel_ui(
                         }
                     }
 
-                    // Keyframe diamonds
-                    if let Some(tl) = timeline {
-                        if let Some(track) = tl.get_track(actor_label) {
-                            for &(kf_ms, prop) in &collect_track_keyframe_props(track) {
+                    // Keyframe diamonds (using cached data)
+                    let kf_props: &[(u64, &'static str)] = actor_keyframes
+                        .iter()
+                        .find(|(l, _)| l == actor_label)
+                        .map(|(_, props)| props.as_slice())
+                        .unwrap_or(&[]);
+                    for &(kf_ms, prop) in kf_props {
                                 let kf_s = kf_ms as f64 / 1000.0;
                                 let kf_x = time_to_x(kf_s);
                                 if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
@@ -568,25 +485,24 @@ pub(crate) fn timeline_panel_ui(
                                     new_kf_drag = None;
                                 }
                             }
-                        }
-                    }
 
                     draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
                     let resp = ui.interact(bar_area, ui.id().with(format!("actor_track_{}", actor_label)), Sense::click_and_drag());
                     if resp.clicked() {
                         if let Some(pos) = resp.interact_pointer_pos() {
-                            if let Some(tl) = timeline {
-                                if let Some(track) = tl.get_track(actor_label) {
-                                    let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
-                                    let thr = (bar_width / duration_s as f32) * 6.0;
-                                    let snapped = collect_track_keyframe_times(track).iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
-                                    if let Some(kf_ms) = snapped {
-                                        let js = kf_ms as f64 / 1000.0;
-                                        commands.push_back(Command::ScrubTo(js));
-                                    } else { commands.push_back(Command::ScrubTo(click_s)); }
-                                }
-                            }
+                            let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                            let thr = (bar_width / duration_s as f32) * 6.0;
+                            let kf_times: Vec<u64> = actor_keyframes
+                                .iter()
+                                .find(|(l, _)| l == actor_label)
+                                .map(|(_, props)| props.iter().map(|(ms, _)| *ms).collect())
+                                .unwrap_or_default();
+                            let snapped = kf_times.iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
+                            if let Some(kf_ms) = snapped {
+                                let js = kf_ms as f64 / 1000.0;
+                                commands.push_back(Command::ScrubTo(js));
+                            } else { commands.push_back(Command::ScrubTo(click_s)); }
                         }
                     } else if resp.dragged() {
                         if let Some(pos) = resp.interact_pointer_pos() {

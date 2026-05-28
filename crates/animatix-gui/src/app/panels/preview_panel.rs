@@ -12,7 +12,7 @@ use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::PreviewPaneState;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
 
-pub(crate) struct PreviewViewer<'a> {
+pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
     pub preview: &'a mut PreviewPaneState,
     pub preview_texture_id: Option<egui::TextureId>,
@@ -32,7 +32,7 @@ pub(crate) struct PreviewViewer<'a> {
 
 // ─── Helper methods ─────────────────────────────────────────────────────────
 
-impl PreviewViewer<'_> {
+impl PreviewContext<'_> {
     fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
         let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
         self.get_actor_props_at_time(actor, time_ms)
@@ -1210,7 +1210,7 @@ fn preview_scene_to_screen(
 
 // ─── Main preview_ui function ──────────────────────────────────────────────
 
-pub(crate) fn preview_ui(ctx: &mut PreviewViewer<'_>, ui: &mut egui::Ui) {
+pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         ui.vertical(|ui| {
             let available = ui.available_size_before_wrap();
@@ -1539,57 +1539,67 @@ pub(crate) fn preview_ui(ctx: &mut PreviewViewer<'_>, ui: &mut egui::Ui) {
 
             ctx.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
-            // ── Context HUD ──
+            // ── Unified HUD ──
             {
-                let hud_margin = 8.0;
+                let hud_height = 32.0;
+                let hud_width = 540.0;
                 let hud_rect = egui::Rect::from_min_size(
-                    egui::pos2(preview_rect.min.x + hud_margin, preview_rect.max.y - hud_margin - 48.0),
-                    egui::vec2(180.0, 48.0),
+                    egui::pos2(preview_rect.center().x - hud_width / 2.0, preview_rect.max.y - hud_height - 8.0),
+                    egui::vec2(hud_width, hud_height),
                 );
-                ui.painter().rect_filled(hud_rect, RADIUS_M as u8, BG_BASE.linear_multiply(0.85));
-                ui.painter().rect_stroke(hud_rect, RADIUS_M as u8, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
+                ui.painter().rect_filled(hud_rect, RADIUS_L as u8, BG_BASE.linear_multiply(0.9));
+                ui.painter().rect_stroke(hud_rect, RADIUS_L as u8, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
 
-                let active_scene = ctx.active_scene;
-                let composition = ctx.composition;
-                let scene_label = if let Some(scene) = active_scene { scene.to_string() }
-                    else if let Some(comp) = composition { let (scene, _, _) = comp.evaluate(ctx.preview.playback.current_time_s); scene }
-                    else { "Scene".to_string() };
-
-                ui.painter().text(egui::pos2(hud_rect.min.x + SPACE_S, hud_rect.min.y + SPACE_S + 2.0),
-                    egui::Align2::LEFT_TOP, scene_label, egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_PRIMARY);
-                ui.painter().text(egui::pos2(hud_rect.min.x + SPACE_S, hud_rect.max.y - SPACE_S - 2.0),
-                    egui::Align2::LEFT_BOTTOM, format!("{:.2}s / {:.2}s", ctx.preview.playback.current_time_s, ctx.preview.playback.duration_s),
-                    egui::FontId::monospace(FONT_SIZE_XS), TEXT_MUTED);
-            }
-
-            // ── Hover HUD ──
-            if response.hovered() {
-                let hover_rect = egui::Rect::from_min_size(
-                    egui::pos2(preview_rect.center().x - 140.0, preview_rect.max.y - 32.0),
-                    egui::vec2(280.0, 28.0),
-                );
-                ui.painter().rect_filled(hover_rect, RADIUS_L as u8, BG_BASE.linear_multiply(0.9));
-                ui.painter().rect_stroke(hover_rect, RADIUS_L as u8, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
-
-                let mut hover_ui = ui.new_child(egui::UiBuilder::new().max_rect(hover_rect));
-                hover_ui.horizontal_centered(|ui| {
+                let mut hud_ui = ui.new_child(egui::UiBuilder::new().max_rect(hud_rect.shrink2(egui::vec2(SPACE_S, 0.0))));
+                hud_ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-                    if components::play_pause_button(ui, ctx.preview.playback.is_playing).clicked() { ctx.commands.push_back(Command::TogglePlayback); }
-                    ui.label(RichText::new(format!("{:.2}s", ctx.preview.playback.current_time_s)).monospace().size(FONT_SIZE_S).color(TEXT_PRIMARY));
+
+                    // Scene label
+                    let active_scene = ctx.active_scene;
+                    let composition = ctx.composition;
+                    let scene_label = if let Some(scene) = active_scene { scene.to_string() }
+                        else if let Some(comp) = composition { let (scene, _, _) = comp.evaluate(ctx.preview.playback.current_time_s); scene }
+                        else { "Scene".to_string() };
+                    ui.label(RichText::new(scene_label).size(FONT_SIZE_S).color(TEXT_PRIMARY));
+
                     ui.separator();
+
+                    // Play/pause button
+                    if components::play_pause_button(ui, ctx.preview.playback.is_playing).clicked() {
+                        ctx.commands.push_back(Command::TogglePlayback);
+                    }
+
+                    // Current time / duration
+                    ui.label(RichText::new(format!("{:.2}s / {:.2}s", ctx.preview.playback.current_time_s, ctx.preview.playback.duration_s))
+                        .monospace().size(FONT_SIZE_XS).color(TEXT_MUTED));
+
+                    ui.separator();
+
+                    // Grid toggle
                     let grid = ctx.preview.overlay.show_grid;
                     if ui.selectable_label(grid, "Grid").clicked() { ctx.preview.overlay.show_grid = !grid; }
+
+                    // Guides toggle
                     let guides = ctx.preview.overlay.show_guides;
                     if ui.selectable_label(guides, "Guides").clicked() { ctx.preview.overlay.show_guides = !guides; }
+
+                    // Labels toggle
                     let labels = ctx.preview.overlay.show_actor_labels;
                     if ui.selectable_label(labels, "Labels").clicked() { ctx.preview.overlay.show_actor_labels = !labels; }
+
                     ui.separator();
+
+                    // Zoom buttons
                     if ui.selectable_label(ctx.preview.viewport.preview_zoom == 1.0, "100%").clicked() {
                         ctx.preview.viewport.preview_zoom = 1.0;
                         ctx.preview.viewport.preview_pan = Vec2::new(ctx.scene_dimensions.width as f32 / 2.0, ctx.scene_dimensions.height as f32 / 2.0);
                     }
-                    if ui.selectable_label(ctx.preview.viewport.preview_zoom == 1.5, "150%").clicked() { ctx.preview.viewport.preview_zoom = 1.5; }
-                    if ui.selectable_label(ctx.preview.viewport.preview_zoom == 2.0, "200%").clicked() { ctx.preview.viewport.preview_zoom = 2.0; }
+                    if ui.selectable_label(ctx.preview.viewport.preview_zoom == 1.5, "150%").clicked() {
+                        ctx.preview.viewport.preview_zoom = 1.5;
+                    }
+                    if ui.selectable_label(ctx.preview.viewport.preview_zoom == 2.0, "200%").clicked() {
+                        ctx.preview.viewport.preview_zoom = 2.0;
+                    }
                 });
             }
 

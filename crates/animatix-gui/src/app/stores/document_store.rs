@@ -14,6 +14,14 @@ pub struct DocumentStore {
     pub undo_stack: Vec<UndoEntry>,
     pub redo_stack: Vec<UndoEntry>,
     pub undo_limit: usize,
+
+    // ── Cached hot-path allocations ──
+    /// Cached actor labels from the timeline, to avoid re-collecting every frame.
+    pub cached_actor_labels: Vec<String>,
+    /// Cached per-actor keyframe property lists (actor_label, keyframes).
+    pub cached_actor_keyframes: Vec<(String, Vec<(u64, &'static str)>)>,
+    /// Flag; when false, cached fields must be recomputed.
+    pub cache_valid: bool,
 }
 
 impl DocumentStore {
@@ -28,6 +36,9 @@ impl DocumentStore {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             undo_limit: 100,
+            cached_actor_labels: Vec::new(),
+            cached_actor_keyframes: Vec::new(),
+            cache_valid: false,
         }
     }
 
@@ -60,5 +71,79 @@ impl DocumentStore {
                 diagnostics_phase_summary(&self.document.diagnostics)
             )
         }
+    }
+
+    /// Mark all cached hot-path data as stale.
+    /// Call this whenever the timeline is rebuilt or the document text changes.
+    pub fn invalidate_cache(&mut self) {
+        self.cache_valid = false;
+    }
+}
+
+/// Rebuild cached actor labels and per-actor keyframe lists from the timeline.
+/// This is a free function to avoid borrow conflicts when called from behavior.rs.
+pub fn rebuild_cache(
+    cached_actor_labels: &mut Vec<String>,
+    cached_actor_keyframes: &mut Vec<(String, Vec<(u64, &'static str)>)>,
+    cache_valid: &mut bool,
+    timeline: Option<&animatix::timeline::Timeline>,
+) {
+    let labels: Vec<String> = timeline.map(|tl| tl.root_actor_labels().to_vec()).unwrap_or_default();
+    let keyframes: Vec<(String, Vec<(u64, &'static str)>)> = labels
+        .iter()
+        .map(|label| {
+            let props = timeline
+                .and_then(|tl| tl.get_track(label))
+                .map(|track| {
+                    let mut result = Vec::new();
+                    push_kf_props(&mut result, &track.position, "position");
+                    push_kf_props(&mut result, &track.motion_offset, "motion_offset");
+                    push_kf_props(&mut result, &track.rotation, "rotation");
+                    push_kf_props(&mut result, &track.scale, "scale");
+                    push_kf_props(&mut result, &track.size, "size");
+                    push_kf_props(&mut result, &track.color, "color");
+                    push_kf_props(&mut result, &track.opacity, "opacity");
+                    push_kf_props(&mut result, &track.stroke_width, "stroke_width");
+                    push_kf_props(&mut result, &track.stroke_color, "stroke_color");
+                    push_kf_props(&mut result, &track.stroke_progress, "stroke_progress");
+                    push_kf_props(&mut result, &track.fill_opacity, "fill_opacity");
+                    push_kf_props(&mut result, &track.text_content, "text_content");
+                    push_kf_props(&mut result, &track.font_family, "font_family");
+                    push_kf_props(&mut result, &track.font_size, "font_size");
+                    push_kf_props(&mut result, &track.shape_type, "shape_type");
+                    push_kf_props(&mut result, &track.line_from, "line_from");
+                    push_kf_props(&mut result, &track.line_to, "line_to");
+                    push_kf_props(&mut result, &track.arc_angles, "arc_angles");
+                    push_kf_props(&mut result, &track.points, "points");
+                    push_kf_props(&mut result, &track.commands, "commands");
+                    push_kf_props(&mut result, &track.layout_size, "layout_size");
+                    push_kf_props(&mut result, &track.vector_paths, "vector_paths");
+                    result.sort_by_key(|(ms, _)| *ms);
+                    result.dedup_by(|a, b| a.0 == b.0);
+                    result
+                })
+                .unwrap_or_default();
+            (label.clone(), props)
+        })
+        .collect();
+    *cached_actor_labels = labels;
+    *cached_actor_keyframes = keyframes;
+    *cache_valid = true;
+}
+
+// ── Helper: push keyframe times for a property track ──
+fn push_kf_props(result: &mut Vec<(u64, &'static str)>, opt: &Option<impl KeyframeSource>, name: &'static str) {
+    if let Some(pt) = opt {
+        result.extend(pt.keyframe_times().into_iter().map(|ms| (ms, name)));
+    }
+}
+
+trait KeyframeSource {
+    fn keyframe_times(&self) -> Vec<u64>;
+}
+
+impl<T> KeyframeSource for animatix::timeline::PropertyTrack<T> {
+    fn keyframe_times(&self) -> Vec<u64> {
+        self.keyframes.keys().copied().collect()
     }
 }

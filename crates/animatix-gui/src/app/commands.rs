@@ -1,6 +1,50 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
+/// Side effects that can be produced by handling a command.
+///
+/// These are collected by `handle_command` and applied by `GuiShell::apply_effects`
+/// after all state mutations for the command have been performed. This separates
+/// side-effect concerns (UI notifications, repaint requests, editor interaction)
+/// from the pure data mutations in the handler.
+#[derive(Debug, Clone)]
+pub enum Effect {
+    /// Push a toast notification to the UI overlay.
+    Toast(crate::app::components::toast::Toast),
+    /// Update the status bar text.
+    Status(String),
+    /// Request a preview repaint on the next frame.
+    Repaint,
+    /// Scroll the source editor to a specific line.
+    EditorScroll(usize),
+    /// Highlight a line in the source editor.
+    EditorHighlight(usize),
+    /// Mark that a rebuild has been scheduled (status update already set).
+    RebuildScheduled,
+}
+
+/// The result of handling a command, containing any collected side effects.
+///
+/// State mutations are performed directly in `handle_command`; only effects
+/// that reach outside the state (UI notifications, editor scrolling, etc.)
+/// are returned and applied afterward.
+#[derive(Debug, Default)]
+pub struct CommandResult {
+    pub effects: Vec<Effect>,
+}
+
+impl CommandResult {
+    pub fn new(effects: Vec<Effect>) -> Self {
+        Self { effects }
+    }
+
+    /// Convenience: push a single effect and return self for chaining in builders.
+    pub fn with(mut self, effect: Effect) -> Self {
+        self.effects.push(effect);
+        self
+    }
+}
+
 /// A unified command enum that replaces the 40+ `Option<T>` fields in `UiActions`.
 /// Every user intent is expressed as a `Command` and pushed into a `VecDeque<Command>`
 /// for ordered, frame-batched processing.

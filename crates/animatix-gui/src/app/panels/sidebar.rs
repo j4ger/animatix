@@ -18,7 +18,7 @@ use animatix::timeline::{Timeline, SceneDimensions, TrackAccessor};
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
 
-pub(crate) struct SidebarViewer<'a> {
+pub(crate) struct SidebarContext<'a> {
     pub active_scene: Option<&'a str>,
     pub is_composition: bool,
     pub composition: Option<&'a animatix::composition::Composition>,
@@ -41,7 +41,7 @@ fn panel_frame() -> egui::Frame {
         .inner_margin(egui::Margin::same(8))
 }
 
-pub(crate) fn sidebar_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
+pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
@@ -89,7 +89,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     }
 }
 
-fn explorer_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
+fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     // ── Filter input ────────────────────────────────────────────────────────
     let filter_id = egui::Id::new(EXPLORER_FILTER_ID);
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
@@ -220,7 +220,7 @@ fn explorer_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
     });
 }
 
-fn layers_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
+fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     // For compositions, use the active scene's timeline
     let timeline = ctx.timeline.or_else(|| {
         let comp = ctx.composition?;

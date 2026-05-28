@@ -23,7 +23,7 @@ pub mod easing_picker;
 pub mod toast;
 
 
-use egui::{Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};
+use egui::{Align2, Color32, CornerRadius, Id, Margin, Rect, Response, RichText, Sense, Stroke, UiBuilder, Vec2};
 
 use crate::app::design_tokens::*;
 use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
@@ -257,23 +257,73 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
 
 // ─── Section Header ───────────────────────────────────────────────────────
 
-/// A collapsible section header with an accent line and icon.
+/// A section header that sticks to the top of the visible scroll area.
+///
+/// Allocates space in the natural layout flow, but paints the visual row at
+/// the top of the viewport (`clip_rect.min`) once the header has scrolled
+/// past, creating a sticky-header effect within a [`ScrollArea`].
 pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<usize>) {
-    let header_rect = ui.available_rect_before_wrap();
-    let line_rect = Rect::from_min_size(header_rect.min, Vec2::new(24.0, 2.0));
-    ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
-    ui.add_space(SPACE_M);
-
+    let clip_rect = ui.clip_rect();
     let available = ui.available_width();
+
+    // Layout sizing
+    let line_h = 2.0;
     let row_h = ROW_S;
-    let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+    let header_height = SPACE_M + line_h + SPACE_M + row_h + SPACE_M;
+
+    // Reserve space in the natural layout (this scrolls away)
+    let (alloc_rect, _) =
+        ui.allocate_exact_size(Vec2::new(available, header_height), egui::Sense::hover());
+
+    // Natural vs sticky paint position
+    let natural_y = alloc_rect.min.y;
+    let paint_y = natural_y.max(clip_rect.min.y);
+    let paint_x = alloc_rect.min.x;
+
+    // Don't paint if completely scrolled past (below viewport)
+    if paint_y > clip_rect.max.y {
+        return;
+    }
+
+    let is_sticky = paint_y > natural_y;
+
+    // Background ─ covers content underneath when sticky
+    if is_sticky {
+        let bg_rect = Rect::from_min_size(
+            egui::pos2(paint_x, paint_y),
+            Vec2::new(available, header_height),
+        );
+        ui.painter().rect_filled(bg_rect, RADIUS_M, BG_SURFACE);
+
+        // Bottom separator
+        ui.painter().line_segment(
+            [
+                egui::pos2(paint_x, paint_y + header_height),
+                egui::pos2(paint_x + available, paint_y + header_height),
+            ],
+            Stroke::new(1.0, BORDER),
+        );
+    }
+
+    // Accent line
+    let line_rect = Rect::from_min_size(
+        egui::pos2(paint_x, paint_y + SPACE_M),
+        Vec2::new(24.0, line_h),
+    );
+    ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
+
+    // Text row
+    let row_rect = Rect::from_min_size(
+        egui::pos2(paint_x, paint_y + SPACE_M + line_h + SPACE_M),
+        Vec2::new(available, row_h),
+    );
     let baseline_y = row_rect.center().y;
     let mut cursor_x = row_rect.min.x;
 
     // Icon
     ui.painter().text(
         egui::pos2(cursor_x + 7.0, baseline_y),
-        egui::Align2::CENTER_CENTER,
+        Align2::CENTER_CENTER,
         icon,
         egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
         TEXT_MUTED,
@@ -283,7 +333,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     // Title
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
-        egui::Align2::LEFT_CENTER,
+        Align2::LEFT_CENTER,
         title.to_uppercase(),
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
         TEXT_MUTED,
@@ -293,24 +343,25 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     if let Some(n) = count {
         ui.painter().text(
             egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
-            egui::Align2::RIGHT_CENTER,
+            Align2::RIGHT_CENTER,
             n.to_string(),
             egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
             TEXT_MUTED,
         );
     }
-
-    ui.add_space(SPACE_M);
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────
+
+/// Standard icon size for empty-state placeholders (px).
+pub const EMPTY_STATE_ICON_SIZE: f32 = 28.0;
 
 /// Centered empty-state placeholder with icon, title, and subtitle.
 pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
     ui.vertical_centered(|ui| {
         ui.add_space(SPACE_XL * 3.0);
         ui.add(
-            egui::Label::new(egui::RichText::new(icon).size(28.0).color(TEXT_MUTED))
+            egui::Label::new(egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(TEXT_MUTED))
                 .selectable(false),
         );
         ui.add_space(SPACE_M);

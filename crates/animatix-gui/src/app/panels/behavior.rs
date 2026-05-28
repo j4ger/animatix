@@ -1,11 +1,34 @@
 use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
-use crate::app::{WorkspaceTab, WorkspaceViewer};
+use crate::app::WorkspaceTab;
 use crate::app::design_tokens::*;
+use crate::app::panels::{sidebar, editor, inspector_panel, timeline, preview_panel};
+use crate::app::stores;
+use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
+use crate::app::commands::CommandQueue;
+use crate::app::preview;
+use crate::app::preview::selection;
+use std::collections::{HashMap, HashSet};
 
 pub(crate) struct WorkspaceBehavior<'a> {
-    pub(crate) viewer: WorkspaceViewer<'a>,
+    pub(crate) document_store: &'a mut DocumentStore,
+    pub(crate) workspace_store: &'a mut WorkspaceStore,
+    pub(crate) preview_store: &'a mut PreviewStore,
+    pub(crate) commands: &'a mut CommandQueue,
+    pub(crate) preview_texture_id: Option<egui::TextureId>,
+    pub(crate) collapsed_actors: &'a mut HashSet<String>,
+    pub(crate) selected_actors: &'a mut HashSet<String>,
+    pub(crate) hit_regions: &'a [(String, kurbo::Rect)],
+    pub(crate) drag_state: &'a mut preview::DragState,
+    pub(crate) selection: &'a mut selection::SelectionState,
+    pub(crate) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
+    pub(crate) tool_mode: &'a mut preview::ToolMode,
+    pub(crate) sidebar_tab: &'a mut crate::app::panels::SidebarTab,
+    pub(crate) property_view_mode: &'a mut crate::app::panels::inspector::PropertyViewMode,
+    pub(crate) keyframe_view_mode: &'a mut crate::app::panels::inspector::KeyframeViewMode,
+    pub(crate) keyframe_mode: bool,
+    pub(crate) rotation_snap_degrees: f32,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -16,11 +39,94 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         pane: &mut WorkspaceTab,
     ) -> UiResponse {
         match pane {
-            WorkspaceTab::Sidebar => self.viewer.sidebar_ui(ui),
-            WorkspaceTab::Editor => self.viewer.editor_ui(ui),
-            WorkspaceTab::Preview => self.viewer.preview_ui(ui),
-            WorkspaceTab::Inspector => self.viewer.inspector_ui(ui),
-            WorkspaceTab::Timeline => self.viewer.timeline_ui(ui),
+            WorkspaceTab::Sidebar => {
+                let mut ctx = sidebar::SidebarContext {
+                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    is_composition: self.document_store.document.is_composition(),
+                    composition: self.document_store.document.composition.as_ref(),
+                    current_file: &self.document_store.document.file_path,
+                    expanded_dirs: &mut self.workspace_store.expanded_dirs,
+                    file_tree: &self.workspace_store.file_tree,
+                    preview: &mut self.preview_store.preview,
+                    commands: self.commands,
+                    scene_dimensions: self.document_store.document.scene_dimensions,
+                    timeline: self.document_store.document.timeline.as_ref(),
+                    selected_actors: self.selected_actors,
+                    collapsed_actors: self.collapsed_actors,
+                    sidebar_tab: self.sidebar_tab,
+                };
+                sidebar::sidebar_ui(&mut ctx, ui);
+            }
+            WorkspaceTab::Editor => {
+                let diagnostics = self.document_store.combined_diagnostics();
+                let mut ctx = editor::EditorContext {
+                    editor: &mut self.document_store.editor,
+                    diagnostics: &diagnostics,
+                    source_dirty: &mut self.document_store.document.source_text,
+                    commands: self.commands,
+                    is_playing: self.preview_store.preview.playback.is_playing,
+                };
+                editor::editor_ui(&mut ctx, ui);
+            }
+            WorkspaceTab::Preview => {
+                let mut ctx = preview_panel::PreviewContext {
+                    scene_dimensions: self.document_store.document.scene_dimensions,
+                    preview: &mut self.preview_store.preview,
+                    preview_texture_id: self.preview_texture_id,
+                    commands: self.commands,
+                    drag_state: self.drag_state,
+                    selection: self.selection,
+                    selected_actors: self.selected_actors,
+                    hit_regions: self.hit_regions,
+                    timeline: self.document_store.document.timeline.as_ref(),
+                    pivot_offsets: self.pivot_offsets,
+                    tool_mode: self.tool_mode,
+                    rotation_snap_degrees: self.rotation_snap_degrees,
+                    composition: self.document_store.document.composition.as_ref(),
+                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    keyframe_mode: self.keyframe_mode,
+                };
+                preview_panel::preview_ui(&mut ctx, ui);
+            }
+            WorkspaceTab::Inspector => {
+                let mut ctx = inspector_panel::InspectorContext {
+                    preview: &mut self.preview_store.preview,
+                    timeline: self.document_store.document.timeline.as_ref(),
+                    composition: self.document_store.document.composition.as_ref(),
+                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    selected_actors: self.selected_actors,
+                    commands: self.commands,
+                    keyframe_mode: self.keyframe_mode,
+                    scene_dimensions: self.document_store.document.scene_dimensions,
+                    pivot_offsets: self.pivot_offsets,
+                    property_view_mode: self.property_view_mode,
+                    keyframe_view_mode: self.keyframe_view_mode,
+                };
+                inspector_panel::inspector_ui(&mut ctx, ui);
+            }
+            WorkspaceTab::Timeline => {
+                // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
+                if !self.document_store.cache_valid {
+                    let tl = self.document_store.document.timeline.as_ref();
+                    stores::document_store::rebuild_cache(
+                        &mut self.document_store.cached_actor_labels,
+                        &mut self.document_store.cached_actor_keyframes,
+                        &mut self.document_store.cache_valid,
+                        tl,
+                    );
+                }
+                let mut ctx = timeline::TimelineContext {
+                    preview: &mut self.preview_store.preview,
+                    timeline: self.document_store.document.timeline.as_ref(),
+                    composition: self.document_store.document.composition.as_ref(),
+                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    commands: self.commands,
+                    collapsed_actors: self.collapsed_actors,
+                    actor_labels: &self.document_store.cached_actor_labels,
+                    actor_keyframes: &self.document_store.cached_actor_keyframes,
+                };
+                timeline::timeline_ui(&mut ctx, ui);
+            }
         }
         UiResponse::None
     }
