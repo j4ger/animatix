@@ -33,9 +33,6 @@
 	    libxkbcommon
 	    vulkan-loader
 	    wayland
-	    libdrm
-	    zlib
-	    mesa
 
             rust-bin.stable.latest.default
 
@@ -43,7 +40,7 @@
           ];
 
           shellHook = ''
-		export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
+		export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}:/usr/lib:/usr/lib64";
           '';
         };
       }
