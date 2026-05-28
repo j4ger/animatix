@@ -180,6 +180,7 @@ impl Timeline {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     pub(super) fn apply_modifier_stmt(
         &self,
         stmt: &Stmt,

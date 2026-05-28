@@ -363,7 +363,7 @@ fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
 // ---------------------------------------------------------------------------
 
 pub(super) fn move_keyframe_time(
-    stmts: &mut Vec<Stmt>,
+    stmts: &mut [Stmt],
     actor: &str,
     property: &str,
     old_time_s: f64,
@@ -379,20 +379,20 @@ pub(super) fn move_keyframe_time(
         match stmt {
             Stmt::Keyframe { time, body, .. } => {
                 current_time = time_to_seconds(time);
-                if (current_time - old_time_s).abs() < 0.001 {
-                    if contains_assignment(body, actor, source_prop) {
-                        found_idx = Some(i);
-                        found_old_time = current_time;
-                    }
+                if (current_time - old_time_s).abs() < 0.001
+                    && contains_assignment(body, actor, source_prop)
+                {
+                    found_idx = Some(i);
+                    found_old_time = current_time;
                 }
             }
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
-                if (current_time - old_time_s).abs() < 0.001 {
-                    if contains_assignment(body, actor, source_prop) {
-                        found_idx = Some(i);
-                        found_old_time = current_time;
-                    }
+                if (current_time - old_time_s).abs() < 0.001
+                    && contains_assignment(body, actor, source_prop)
+                {
+                    found_idx = Some(i);
+                    found_old_time = current_time;
                 }
             }
             _ => {}
@@ -449,8 +449,8 @@ pub(super) fn move_keyframe_time(
     // If we changed an absolute keyframe, adjust the first subsequent
     // relative keyframe's offset so its absolute time stays the same.
     if matches!(stmts[idx], Stmt::Keyframe { .. }) {
-        for i in (idx + 1)..stmts.len() {
-            if let Stmt::RelativeKeyframe { offset, .. } = &mut stmts[i] {
+        for stmt in stmts[(idx + 1)..].iter_mut() {
+            if let Stmt::RelativeKeyframe { offset, .. } = stmt {
                 let offset_s = time_to_seconds(offset) - delta_s;
                 if offset_s >= 0.001 {
                     *offset = if offset_s < 1.0 {
@@ -461,7 +461,7 @@ pub(super) fn move_keyframe_time(
                 }
                 break; // Only adjust the first subsequent relative keyframe
             }
-            if matches!(stmts[i], Stmt::Keyframe { .. }) {
+            if matches!(stmt, Stmt::Keyframe { .. }) {
                 break; // Stop at next absolute keyframe
             }
         }

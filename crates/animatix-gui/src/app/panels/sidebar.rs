@@ -134,11 +134,11 @@ fn explorer_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
         for i in 0..len {
             if show[i] && ctx.file_tree[i].is_dir {
                 let parent_depth = ctx.file_tree[i].depth;
-                for j in (i + 1)..len {
-                    if ctx.file_tree[j].depth <= parent_depth {
+                for s in show[(i + 1)..].iter_mut().zip(ctx.file_tree[(i + 1)..].iter()) {
+                    if s.1.depth <= parent_depth {
                         break;
                     }
-                    show[j] = true;
+                    *s.0 = true;
                 }
             }
         }
@@ -147,11 +147,11 @@ fn explorer_content_ui(ctx: &mut SidebarViewer<'_>, ui: &mut egui::Ui) {
         for i in (0..len).rev() {
             if ctx.file_tree[i].is_dir {
                 let parent_depth = ctx.file_tree[i].depth;
-                for j in (i + 1)..len {
-                    if ctx.file_tree[j].depth <= parent_depth {
+                for s in show[(i + 1)..].iter().zip(ctx.file_tree[(i + 1)..].iter()) {
+                    if s.1.depth <= parent_depth {
                         break;
                     }
-                    if show[j] {
+                    if *s.0 {
                         show[i] = true;
                         break;
                     }

@@ -428,6 +428,7 @@ impl DocumentController<'_> {
     ///   - Renames references to the new label
     ///   - Shifts absolute keyframe times by `current_time_s`
     ///   - Inserts everything into the AST at the end
+    ///
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn paste_actors(&mut self) {
         let current_time_s = self.preview_store.preview.playback.current_time_s;

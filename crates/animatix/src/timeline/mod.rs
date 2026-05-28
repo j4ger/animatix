@@ -351,6 +351,9 @@ impl HasDuration for VariableTrack {
     }
 }
 
+/// Cached transform entry: (time_ms, parent_transform_coeffs, node_transform).
+type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
+
 /// Compiled animation package containing the full scene graph, tracks, and
 /// evaluation state.
 pub struct Timeline {
@@ -384,7 +387,7 @@ pub struct Timeline {
     /// Per-actor transform cache for temporal coherence (P2.18).
     /// Maps actor_label -> (time_ms, parent_transform_coeffs, NodeTransform).
     /// Cleared on timeline rebuild.
-    transform_cache: std::cell::RefCell<std::collections::HashMap<String, (u64, [f64; 6], scene_eval::NodeTransform)>>,
+    transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     /// Static subtree scene fragment cache (P2.17).
     /// Maps root_label -> cached vello Scene for fully-static subtrees.
     /// Cleared on timeline rebuild.
@@ -412,12 +415,19 @@ pub struct Timeline {
 /// A viewport defines a rectangular region that displays a scene.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Viewport {
+    /// Human-readable identifier for this viewport.
     pub label: String,
+    /// Position of the viewport's top-left corner in parent coordinates.
     pub position: [f32; 2],
+    /// Size of the viewport rectangle (width, height).
     pub size: [f32; 2],
+    /// Opacity multiplier for the viewport content (0.0–1.0).
     pub opacity: f32,
+    /// Optional border width in logical pixels.
     pub border: Option<f32>,
+    /// Optional RGBA border color.
     pub border_color: Option<[f32; 4]>,
+    /// Label of the scene to render inside this viewport.
     pub scene: String,
 }
 

@@ -151,7 +151,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_a.as_ref().ok_or_else(|| "Missing offscreen texture_a".to_string())?)
+        self.texture_a.as_ref().ok_or_else(|| "Missing offscreen texture_a".to_string())
     }
 
     /// Render a timeline to the secondary offscreen texture (texture_b).
@@ -177,7 +177,7 @@ impl OffscreenRenderer {
             .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene)
             .map_err(|e| e.to_string())?;
 
-        Ok(self.texture_b.as_ref().ok_or_else(|| "Missing offscreen texture_b".to_string())?)
+        self.texture_b.as_ref().ok_or_else(|| "Missing offscreen texture_b".to_string())
     }
 
     /// Render a transition between two timelines by compositing them with the

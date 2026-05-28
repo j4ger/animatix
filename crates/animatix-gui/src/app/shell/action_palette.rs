@@ -3,8 +3,11 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 use crate::app::design_tokens::*;
 use crate::app::GuiShell;
 
+/// A categorized action entry: (category name, category color, list of (verb, display label)).
+type ActionCategory = (&'static str, Color32, &'static [(&'static str, &'static str)]);
+
 /// Action categories with their color and actions.
-const ACTION_CATEGORIES: &[(&str, Color32, &[(&str, &str)])] = &[
+const ACTION_CATEGORIES: &[ActionCategory] = &[
     (
         "Entrance",
         GREEN,
@@ -211,7 +214,7 @@ impl GuiShell {
                 let lines: Vec<&str> = current.lines().collect();
                 let insert_line = line.min(lines.len().saturating_sub(1));
                 let mut new_lines = lines.clone();
-                new_lines.insert(insert_line + 1, &action_text.trim());
+                new_lines.insert(insert_line + 1, action_text.trim());
                 let new_source = new_lines.join("\n");
                 self.document_store.document.source_text = new_source.clone();
                 self.document_store.editor.replace_text(new_source);

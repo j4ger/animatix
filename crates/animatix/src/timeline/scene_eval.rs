@@ -920,7 +920,7 @@ impl Timeline {
                     && cached.dimensions == scene_dimensions
                     && cached.has_modifiers == needs_frame_env
                     && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders == !self.child_orders.is_empty()
+                    && cached.has_child_orders != self.child_orders.is_empty()
                 {
                     return cached.scene.clone();
                 }
@@ -928,7 +928,7 @@ impl Timeline {
         }
 
         // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
-        let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_else(vello::Scene::new);
+        let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_default();
         scene.reset();
         let bg_color = self.background_color.evaluate(time_ms);
 

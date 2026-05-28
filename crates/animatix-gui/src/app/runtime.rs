@@ -124,7 +124,7 @@ impl AnimatixApp {
 
         // Scene jump hotkeys (1/2/3) — jump to Nth scene in composition
         let scene_names = self.shell.document_store.document.scene_names();
-        if ctx.input(|i| i.key_pressed(egui::Key::Num1)) && scene_names.len() >= 1 {
+        if ctx.input(|i| i.key_pressed(egui::Key::Num1)) && !scene_names.is_empty() {
             self.shell.ui_store.pending_commands.push_back(Command::SelectScene(scene_names[0].clone()));
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Num2)) && scene_names.len() >= 2 {

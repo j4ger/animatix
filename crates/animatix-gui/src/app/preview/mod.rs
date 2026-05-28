@@ -488,16 +488,14 @@ pub(super) fn draw_selection_overlay(
 
         // Corner handles (indices 0-3): filled circles with slight larger presence
         let corner_radius = HANDLE_SIZE * 0.6 * pixels_per_point;
-        for i in 0..4 {
-            let pos = handle_screen[i];
+        for &pos in handle_screen[..4].iter() {
             painter.circle_filled(pos, corner_radius, TEXT_PRIMARY);
             painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, SELECTION_COLOR));
         }
 
         // Edge handles (indices 4-7): smaller filled squares, more subtle
         let edge_handle_px = HANDLE_SIZE * 0.7 * pixels_per_point;
-        for i in 4..8 {
-            let pos = handle_screen[i];
+        for &pos in handle_screen[4..].iter() {
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
@@ -1024,10 +1022,12 @@ pub(super) fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn timeline_fraction(current_time_s: f64, duration_s: f64) -> f32 {
     (current_time_s / duration_s.max(0.1)).clamp(0.0, 1.0) as f32
 }
 
+#[allow(dead_code)]
 pub(super) fn time_from_pointer_x(rect: egui::Rect, pointer_x: f32, duration_s: f64) -> f64 {
     let width = rect.width().max(1.0);
     let normalized = ((pointer_x - rect.left()) / width).clamp(0.0, 1.0) as f64;

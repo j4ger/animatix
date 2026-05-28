@@ -426,7 +426,7 @@ pub(crate) fn timeline_panel_ui(
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_MUTED);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, st_top), Pos2::new(scroll_rect.right(), st_bot));
-                render_scene_blocks(&painter, comp, bar_area, &time_to_x, text_dim(), duration_s);
+                render_scene_blocks(painter, comp, bar_area, &time_to_x, text_dim(), duration_s);
 
                 for (src_name, edge) in &comp.edges {
                     let Some(src_scene) = comp.scenes.get(src_name) else { continue };
@@ -442,7 +442,7 @@ pub(crate) fn timeline_panel_ui(
                         TEXT_MUTED, Stroke::NONE));
                 }
 
-                draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+                draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
                 bar_interaction(ui, bar_area, "scene_track", commands);
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
@@ -571,7 +571,7 @@ pub(crate) fn timeline_panel_ui(
                         }
                     }
 
-                    draw_loop_region(&painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+                    draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
                     let resp = ui.interact(bar_area, ui.id().with(format!("actor_track_{}", actor_label)), Sense::click_and_drag());
                     if resp.clicked() {

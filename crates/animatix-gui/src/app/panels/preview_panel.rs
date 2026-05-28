@@ -1454,7 +1454,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewViewer<'_>, ui: &mut egui::Ui) {
             // ── Time Lens ──
             let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
                 tl.root_actor_labels().iter().flat_map(|label| {
-                    tl.get_track(label).map(|track| animatix::timeline::collect_all_keyframe_times(track)).unwrap_or_default()
+                    tl.get_track(label).map(animatix::timeline::collect_all_keyframe_times).unwrap_or_default()
                 }).collect()
             } else { Vec::new() };
             all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));

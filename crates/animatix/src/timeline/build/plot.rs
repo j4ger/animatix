@@ -926,7 +926,7 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
-            if primitive.is_graph_host() && (tick_label_data.x_labels.len() > 0 || tick_label_data.y_labels.len() > 0) {
+            if primitive.is_graph_host() && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty()) {
                 Some(tick_label_data)
             } else {
                 None

@@ -683,7 +683,7 @@ pub fn run_composition_with_options(
 ) -> Result<(), RenderError> {
     let event_loop = EventLoop::new().map_err(|e| RenderError::EventLoopCreation(format!("{e:?}")))?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    let loop_duration_s = loop_playback.then(|| composition.global_duration_s);
+    let loop_duration_s = loop_playback.then_some(composition.global_duration_s);
 
     let mut app = CompositionApp {
         window: None,

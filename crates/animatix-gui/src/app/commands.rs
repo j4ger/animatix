@@ -67,6 +67,7 @@ pub enum Command {
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
+    #[allow(dead_code)]
     ToggleKeyframeMode,
     EditorChanged,
 
