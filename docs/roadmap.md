@@ -6,18 +6,6 @@
 
 ---
 
-## Phase 1 — GUI Bug Fixes
-
-Fix critical UX bugs and eliminate duplication that directly impacts users.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1.1 | **Replace all silent failures** | Replace `let _ =` with `if let Err(e)` + `tracing::warn!` + toast notifications for user-facing ops (save, reload, rebuild, persistence). | `app/mod.rs`, `app/command_handlers.rs` | 1 day | — |
-| 1.2 | **Increase minimum hit targets** | Expand hit rects to 16×16px for keyframe diamonds, 12×20px for range handles, 18×18px for inspector KF button. | `app/panels/timeline_panel.rs`, `app/panels/inspector/property_groups.rs` | 1 day | — |
-| 1.3 | **Tokenize hardcoded action colors** | Replace raw RGB in `action_category_color()` with existing design tokens. Increase block opacity from 0.4 to 0.6. | `app/panels/timeline_panel.rs:40–50,621` | 2 hours | — |
-
----
-
 ## Phase 2 — Structural Decoupling
 
 Decompose god objects and restructure state before feature work continues.
@@ -101,12 +89,26 @@ Add unit tests for extracted pure functions and store mutations.
 
 ---
 
+## Phase 9 — Examples Health
+
+Fix examples that fail `animatix check` so the demo suite is trustworthy.
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 9.1 | **Fix `slot_demo.amx`** | Parse error at `/` — verify syntax against spec, fix example or parser. | `examples/slot_demo.amx` | 2 hours | — |
+| 9.2 | **Fix `primitives.amx`** | Image load failure: PPM format not supported. Either convert asset or add PPM decoder. | `examples/primitives.amx`, `examples/checker.ppm` | 2 hours | — |
+| 9.3 | **Fix `path_animation_demo.amx`** | Stagger blocks reject comments. Either allow comments in stagger/sequence per spec, or fix example. | `examples/path_animation_demo.amx` | 2 hours | — |
+| 9.4 | **Fix `rotation_demo.amx`** | Same as 9.3 — stagger and sequence blocks reject comments. | `examples/rotation_demo.amx` | 2 hours | — |
+| 9.5 | **Add CI example validation** | Run `animatix check` on all `.amx` files in CI so regressions are caught. | `.github/workflows/` | 2 hours | 9.1–9.4 |
+
+---
+
 ## Order
 
-1. **Phase 1** (no blockers — start immediately; user-facing bugs)
-2. **Phase 2** (after Phase 1; architectural foundation)
-3. **Phase 3** (after Phase 2; quality consolidation)
-4. **Phase 4** (after Phase 3; validate refactors)
+1. **Phase 2** (no blockers — architectural foundation)
+2. **Phase 3** (after Phase 2; quality consolidation)
+3. **Phase 4** (after Phase 3; validate refactors)
+4. **Phase 9** (no blockers — can do anytime; user trust)
 5. **Phase 8** (no blockers — can do anytime)
 6. **Phase 5** (after Phase 4)
 7. **Phase 7** (external AI service required)
