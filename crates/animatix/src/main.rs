@@ -202,12 +202,12 @@ fn resolve_duration(duration: Option<f32>, target: &BuildTarget, hold: f32, min_
 
 /// Generates a timestamped default filename when `--output` is omitted.
 fn default_output_file(ext: &str) -> PathBuf {
-    let now = chrono::Local::now();
-    PathBuf::from(format!(
-        "animatix_{}.{}",
-        now.format("%y%m%d_%H%M%S"),
-        ext
-    ))
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = now.as_secs();
+    // Simple unix timestamp: animatix_1234567890.png
+    PathBuf::from(format!("animatix_{}.{}", secs, ext))
 }
 
 /// Render a single frame at time=0 to catch renderer bugs early.

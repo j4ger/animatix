@@ -169,7 +169,7 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set(
         "rand",
-        Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(rand::random::<f64>())))),
+        Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))),
     );
 
     // Deterministic pseudo-random using splitmix64 hash.

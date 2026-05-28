@@ -14,22 +14,21 @@ svg = ["dep:usvg", "dep:roxmltree"]
 [dependencies]
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
-chrono = "0.4.44"
 clap = { version = "4.5.0", features = ["derive"] }
+fastrand = "2.4"
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
 image = { version = "0.25.10", default-features = false, features = ["png", "gif", "jpeg"], optional = true }
 kurbo = "0.13.0"
 mitex = { version = "0.2.4", optional = true }
 pollster = { version = "0.4.0", optional = true }
-rand = "0.10.0"
 roxmltree = { version = "0.20.0", optional = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"], optional = true }
 ttf-parser = { version = "0.25.1", optional = true }
 typst = { version = "0.14.2", optional = true }
 typst-layout = { version = "0.14.2", optional = true }
 usvg = { version = "0.47.0", optional = true }
-vello = { git = "https://github.com/linebender/vello", rev = "17166312", optional = true }
-wgpu = { version = "29.0.0", optional = true }
+vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
+wgpu = { version = "29.0.0", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }
 winit = "0.30.13"
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = "2.0"
