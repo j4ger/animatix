@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffmpeg-dev pkg-config
+
+      - name: Build CLI (animatix)
+        run: cargo build --release -p animatix
+
+      - name: Build GUI (animatix-gui)
+        run: cargo build --release -p animatix-gui
+
+      - name: Strip binaries
+        run: |
+          strip target/release/animatix
+          strip target/release/animatix-gui
+
+      - name: Create release tag
+        id: tag
+        run: |
+          TAG="nightly-$(date -u +%y%m%d-%H%M)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          files: |
+            target/release/animatix
+            target/release/animatix-gui
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
