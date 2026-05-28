@@ -6,18 +6,6 @@
 
 ---
 
-## Phase 4 — Testing
-
-Add unit tests for extracted pure functions and store mutations.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 4.1 | **Unit tests for pure functions** | Test `nice_tick_interval`, `clamp_pan`, `PlaybackController::clamp_time`, `timeline_fraction`, `time_from_pointer_x`. | `app/panels/mod.rs`, `app/preview/` | 2 days | — |
-| 4.2 | **Command handler tests** | Test command dispatch using a test harness with mock stores. | `app/command_handlers.rs` | 2 days | — |
-| 4.3 | **Store state tests** | Test store mutations (undo/redo, dirty tracking, persistence round-trip). | `app/stores/` | 2 days | — |
-
----
-
 ## Phase 5 — Multi-Viewport / PiP
 
 | # | Item | What | Files | Effort | Blocker |
@@ -72,9 +60,8 @@ Fix examples that fail `animatix check` so the demo suite is trustworthy.
 
 ## Order
 
-1. **Phase 4** (validate refactors)
-2. **Phase 9** (no blockers — can do anytime; user trust)
-3. **Phase 8** (no blockers — can do anytime)
-4. **Phase 5** (after Phase 4)
-5. **Phase 7** (external AI service required)
-6. **Phase 6** (start after syntax stabilizes)
+1. **Phase 9** (no blockers — can do anytime; user trust)
+2. **Phase 8** (no blockers — can do anytime)
+3. **Phase 5** (after examples health)
+4. **Phase 7** (external AI service required)
+5. **Phase 6** (start after syntax stabilizes)
