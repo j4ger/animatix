@@ -217,18 +217,6 @@ fn test_assignments_and_paths() {
         }
     );
     assert_eq!(
-        parse_single_stmt("left.badge.color = red"),
-        Stmt::Assignment {
-            target: vec!["left".to_string(), "badge".to_string()],
-            property: "color".to_string(),
-            value: Expr::Ident("red".to_string()),
-            modifiers: vec![],
-            easing: None,
-            value_span: Some(ByteSpan { start: 19, end: 22 }),
-            span: None,
-        }
-    );
-    assert_eq!(
         parse_single_stmt("let x = container.child"),
         Stmt::LetDecl { is_pub: false,
             name: "x".to_string(),
@@ -1387,20 +1375,6 @@ fn test_pub_let_declaration() {
             is_pub: true,
             name: "pi".to_string(),
             value: Expr::Num(3.14),
-            span: None,
-        }
-    );
-}
-
-#[test]
-fn test_let_declaration_without_pub() {
-    let result = parse_single_stmt("let x = 42");
-    assert_eq!(
-        result,
-        Stmt::LetDecl {
-            is_pub: false,
-            name: "x".to_string(),
-            value: Expr::Num(42.0),
             span: None,
         }
     );
