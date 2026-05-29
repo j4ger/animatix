@@ -57,6 +57,16 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ---
 
+## Phase 6.9 — Testing Infrastructure
+
+Gaps discovered during Phase 6 cleanup.
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 6.9.1 | **Integration tests bypass comment stripping** | `crates/animatix/tests/parser_tests.rs` calls `parser().parse()` directly instead of `parse_source()`, so it never exercises the comment-stripping preprocessor. If any test fixture adds `//` comments inside `{}`, `[]`, or `()`, it will fail. Migrate helpers to use `parse_source()`. | `tests/parser_tests.rs` | 1–2 hrs | — |
+
+---
+
 ## Phase 7 — Audio
 
 | # | Item | What | Files | Effort | Blocker |
@@ -77,12 +87,14 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ---
 
-## Phase 9 — Agent / NL Integration
+## Phase 9 — GUI Polish
+
+Small interaction refinements discovered during dead-code cleanup. Each is low-effort and improves perceived quality.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 9.1 | **NL command bar dispatch** | Send NL input to an external AI service, parse structured response into `Command` queue. | `app/shell/nl_command_bar.rs`, `app/commands.rs` | 1 week | External AI service |
-| 9.2 | **Agent suggestion UI** | Inline suggestion widget that proposes edits (e.g. "Add fade-in to Circle_1"). User accepts/rejects with keyboard shortcut. | `app/components/agent_suggestions.rs` | 3 days | 9.1 |
+| 9.1 | **Precise diagnostic navigation** | `DiagnosticTarget` already captures `column` from parse errors but the GUI only jumps to the line. Wire the column into the source editor cursor position so clicking a diagnostic lands on the exact token. | `app/components/mod.rs`, `editor.rs` | 2–3 hrs | — |
+| 9.2 | **Context menu hover highlighting** | `MenuItemResponse` already computes `rect` for each rendered item but never uses it. Add a subtle hover background to menu items. | `app/components/context_menu.rs` | 2–3 hrs | — |
 
 ---
 
@@ -99,10 +111,10 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 ## Order
 
 1. **Phase 6** (architecture cleanup — completed)
-2. **Phase 6.5–6.8** (DX & documentation — user report findings; do before feature work)
-3. **Phase 7** (audio — no blockers, can parallelize with 6.x)
+2. **Phase 6.5–6.8** (DX & documentation — completed)
+3. **Phase 7** (audio — no blockers)
 4. **Phase 8** (PiP — after syntax and renderer are stable)
-5. **Phase 9** (external AI service required)
+5. **Phase 9** (GUI polish — small, can be done anytime)
 6. **Phase 10** (start after syntax stabilizes)
 
 ---
@@ -113,3 +125,6 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 |------|--------------|--------------|
 | `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 10 / green tree) | 10 |
 | `let` variable animation | Superseded by easing functions in `always` blocks (6.8.3). Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-10 |
+| **AI / NL Integration** | Requires external AI service (OpenAI, Claude, local LLM). No runtime dependency on AI should be mandatory. Includes: NL command bar (9.1), agent suggestion UI (9.2), agent_suggestions component. | Post-10 or separate product |
+| **Row double-click / right-click** | No defined user story. Fields were wired to egui events but no caller consumed them. Re-add when a feature needs them. | When needed |
+| **Badge button component** | Fully implemented but no caller. Re-add when the UI needs count badges (e.g. "Errors: 3"). | When needed |
