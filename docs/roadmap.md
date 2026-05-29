@@ -46,7 +46,8 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 |---|------|------|-------|--------|---------|
 | 6.8.1 | **Graph nested element animation** | Support `g.vec.to = (5, 2)` dotted path syntax for assignments targeting children inside containers. Currently only `actor.property` works. | `parser/mod.rs`, `timeline/build/` | 3–5 days | — |
 | 6.8.2 | **Arrow primitive** | Dedicated `Arrow` actor with `from`, `to`, `head_size` properties (vs. using `Line` with manual arrowheads). | `primitives/`, `timeline/track.rs` | 1–2 days | — |
-| 6.8.3 | **Underused element examples** | Add dedicated examples for `ContourSet` (currently 0), `Path` (1), `VectorField` (1), `Heatmap` (1). | `examples/` | 2–3 days | — |
+| 6.8.3 | **Easing functions in `always` blocks** | Expose named easing functions (`ease_in`, `ease_out`, `bounce`, `elastic`, etc.) as `num1` builtins so users can compose eased interpolation inside `always` blocks. Enables `let x = lerp(0, 100, ease_out(t / 2.0))`. | `builtins.rs` | 2–3 hrs | — |
+| 6.8.4 | **Underused element examples** | Add dedicated examples for `ContourSet` (currently 0), `Path` (1), `VectorField` (1), `Heatmap` (1). | `examples/` | 2–3 days | — |
 
 ---
 
@@ -105,4 +106,4 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 | Item | Why deferred | Likely phase |
 |------|--------------|--------------|
 | `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 10 / green tree) | 10 |
-| `let` variable animation | High effort, niche use case; `always` blocks cover most dynamic computation needs | Post-10 |
+| `let` variable animation | Superseded by easing functions in `always` blocks (6.8.3). Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-10 |
