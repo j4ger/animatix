@@ -43,13 +43,16 @@ impl Timeline {
 
     /// Build a `Timeline` from an AST with the default font context.
     pub fn build(ast: &[Stmt]) -> Self {
-        Self::build_with_font_context(ast, crate::renderer::text::FontContext::new())
+        Self::build_with_font_context(
+            ast,
+            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+        )
     }
 
     /// Build a `Timeline` from an AST with a custom font context.
     pub fn build_with_font_context(
         ast: &[Stmt],
-        font_context: crate::renderer::text::FontContext,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     ) -> Self {
         Self::build_with_diagnostics_and_font_context(ast, &std::collections::HashMap::new(), font_context)
             .output
@@ -65,19 +68,19 @@ impl Timeline {
         Self::build_with_diagnostics_and_font_context(
             ast,
             namespaces,
-            crate::renderer::text::FontContext::new(),
+            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
         )
     }
 
     /// Build a `Timeline` from an AST with full control over diagnostics and
     /// font context.
-    #[instrument(skip(ast, namespaces), fields(ast_statements = ast.len()))]
+    #[instrument(skip(ast, namespaces, font_context), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics_and_font_context(
         ast: &[Stmt],
         namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
-        font_context: crate::renderer::text::FontContext,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     ) -> BuildReport<Self> {
-        let mut timeline = Self::new_with_font_context(std::sync::Arc::new(font_context));
+        let mut timeline = Self::new_with_font_context(font_context);
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         // Seed build-time environment with scene dimensions so `let` declarations

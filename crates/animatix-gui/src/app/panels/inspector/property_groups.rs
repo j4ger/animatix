@@ -24,7 +24,6 @@ pub(crate) struct PropertyEntry {
     pub has_keyframes: bool,
     pub has_keyframe_at_current_time: bool,
     pub keyframe_count: usize,
-    pub keyframe_times_ms: Vec<u64>,
 }
 
 pub(crate) enum PropertyKind {
@@ -66,7 +65,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let value = read_property_value_or_default(track, schema.field, time_ms, track.kind);
         let has_kf = property_has_keyframes(track, schema.field);
         let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
-        let kf_times = animatix::timeline::property_keyframe_times(track, schema.field);
+        let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
 
         let value = convert_for_display(value, schema.name, track.kind);
         let kind = value_to_kind(value, schema.value_type, schema.name);
@@ -75,8 +74,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             kind,
             has_keyframes: has_kf,
             has_keyframe_at_current_time: has_kf_now,
-            keyframe_count: kf_times.len(),
-            keyframe_times_ms: kf_times,
+            keyframe_count: kf_count,
         };
 
         match schema.field {
@@ -423,11 +421,7 @@ pub(crate) fn render_property_row(
     if entry.has_keyframe_at_current_time {
         kf_btn_resp.context_menu(|ui| {
             ui.set_min_width(140.0);
-            ui.strong(format!("Keyframe @ {:.2}s", 
-                entry.keyframe_times_ms.iter().find(|&&t| t == (current_time_s * 1000.0) as u64)
-                    .map(|&t| t as f64 / 1000.0)
-                    .unwrap_or(current_time_s)
-            ));
+            ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
             if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
                 commands.push_back(Command::DeleteKeyframe {

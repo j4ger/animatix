@@ -408,7 +408,7 @@ pub(crate) fn timeline_panel_ui(
                 }
 
                 // Track label (shifted left to make room for chevron)
-                let label = if actor_label.len() > 14 { format!("{}…", &actor_label[..13]) } else { actor_label.clone() };
+                let label: &str = if actor_label.len() > 14 { &actor_label[..13] } else { actor_label.as_str() };
                 painter.text(Pos2::new(chevron_x - 2.0, track_rect.center().y), Align2::RIGHT_CENTER, label,
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_SECONDARY);
 

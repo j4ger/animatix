@@ -152,7 +152,7 @@ impl BuildTarget {
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
     ) -> BuildReport<Self> {
-        let font_context = crate::renderer::text::FontContext::new();
+        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         if has_scenes {
             let report = Composition::build_with_font_context(statements, namespaces, font_context);
@@ -191,14 +191,18 @@ impl Composition {
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
     ) -> BuildReport<Self> {
-        Self::build_with_font_context(statements, namespaces, crate::renderer::text::FontContext::new())
+        Self::build_with_font_context(
+            statements,
+            namespaces,
+            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+        )
     }
 
     /// Build a `Composition` from parsed AST statements with a shared `FontContext`.
     pub fn build_with_font_context(
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
-        font_context: crate::renderer::text::FontContext,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     ) -> BuildReport<Self> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut scenes: BTreeMap<String, CompositionScene> = BTreeMap::new();

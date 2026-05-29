@@ -6,18 +6,6 @@
 
 ---
 
-## Phase 6 — Architecture Cleanup
-
-Fix structural debt discovered during Phases 2–5. These are prerequisites for reliable feature work.
-
-| # | Item | What | Rationale | Files | Effort |
-|---|------|------|-----------|-------|--------|
-| 6.1 | **Remove statement-level viewport system** | The `viewport Name at ... scene "X"` statement syntax and `timeline::Viewport` are half-baked — parsed and stored but never rendered. They create confusion with any future PiP primitive. Strip `Stmt::ViewportDecl`, `timeline::Viewport`, and all downstream references. | Dead code. The correct PiP design will be an actor-level `Scene` primitive, not a statement. | `ast.rs`, `parser/mod.rs`, `timeline/mod.rs`, `timeline/build/process.rs`, `composition.rs` | 1 day |
-| 6.2 | **Wrap Timeline heavy fields in `Arc`** | `Timeline::clone()` manually deep-copies `font_context` and `asset_cache` on every clone. In compositions with viewport/scene references this is expensive. Wrap both in `Arc<...>` so clones are cheap reference bumps. | `font_context` is heavy (font database); `asset_cache` holds loaded images/SVGs. Copying them per-scene during composition build is wasteful. | `timeline/mod.rs` | 4 hours |
-| 6.3 | **Audit remaining per-frame allocations** | After 5.5's hit_regions fix, profile the inspector panel and preview canvas for remaining per-frame Vec/String allocations. Cache where patterns repeat. | Inspector `build_property_groups()` and timeline label truncation both allocate collections every frame. | `panels/inspector/`, `panels/timeline_panel.rs` | 1 day |
-
----
-
 ## Phase 7 — Audio
 
 | # | Item | What | Files | Effort | Blocker |

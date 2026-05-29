@@ -92,7 +92,6 @@ fn demo_vec2_entry() -> PropertyEntry {
         has_keyframes: true,
         has_keyframe_at_current_time: false,
         keyframe_count: 2,
-        keyframe_times_ms: vec![0, 1000],
     }
 }
 
@@ -103,7 +102,6 @@ fn demo_float_entry() -> PropertyEntry {
         has_keyframes: false,
         has_keyframe_at_current_time: false,
         keyframe_count: 0,
-        keyframe_times_ms: vec![],
     }
 }
 
@@ -114,7 +112,6 @@ fn demo_slider_entry() -> PropertyEntry {
         has_keyframes: true,
         has_keyframe_at_current_time: true,
         keyframe_count: 3,
-        keyframe_times_ms: vec![0, 500, 1000],
     }
 }
 
@@ -125,7 +122,6 @@ fn demo_color_entry() -> PropertyEntry {
         has_keyframes: false,
         has_keyframe_at_current_time: false,
         keyframe_count: 0,
-        keyframe_times_ms: vec![],
     }
 }
 
@@ -136,7 +132,6 @@ fn demo_text_entry() -> PropertyEntry {
         has_keyframes: false,
         has_keyframe_at_current_time: false,
         keyframe_count: 0,
-        keyframe_times_ms: vec![],
     }
 }
 
@@ -171,7 +166,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: true,
                     has_keyframe_at_current_time: false,
                     keyframe_count: 2,
-                    keyframe_times_ms: vec![0, 1000],
                 },
                 PropertyEntry {
                     name: "rotation",
@@ -179,7 +173,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
                     keyframe_count: 0,
-                    keyframe_times_ms: vec![],
                 },
                 PropertyEntry {
                     name: "scale",
@@ -187,7 +180,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
                     keyframe_count: 0,
-                    keyframe_times_ms: vec![],
                 },
             ],
         };
@@ -203,7 +195,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
                     keyframe_count: 0,
-                    keyframe_times_ms: vec![],
                 },
                 PropertyEntry {
                     name: "opacity",
@@ -211,7 +202,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: true,
                     has_keyframe_at_current_time: true,
                     keyframe_count: 3,
-                    keyframe_times_ms: vec![0, 500, 1000],
                 },
                 PropertyEntry {
                     name: "stroke_width",
@@ -219,7 +209,6 @@ fn render_demo_inspector(ui: &mut egui::Ui) {
                     has_keyframes: false,
                     has_keyframe_at_current_time: false,
                     keyframe_count: 0,
-                    keyframe_times_ms: vec![],
                 },
             ],
         };
