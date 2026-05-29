@@ -41,7 +41,8 @@ impl Timeline {
         self.apply_container_layout(label, time_ms as f64, diagnostics);
     }
 
-    /// Build a `Timeline` from an AST with the default font context.
+    /// Build a `Timeline` from an AST with the default font context and
+    /// production quality.
     pub fn build(ast: &[Stmt]) -> Self {
         Self::build_with_font_context(
             ast,
@@ -54,7 +55,7 @@ impl Timeline {
         ast: &[Stmt],
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     ) -> Self {
-        Self::build_with_diagnostics_and_font_context(ast, &std::collections::HashMap::new(), font_context)
+        Self::build_with_diagnostics_and_font_context(ast, &std::collections::HashMap::new(), font_context, super::BuildQuality::Production)
             .output
     }
 
@@ -69,18 +70,21 @@ impl Timeline {
             ast,
             namespaces,
             std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+            super::BuildQuality::Production,
         )
     }
 
-    /// Build a `Timeline` from an AST with full control over diagnostics and
-    /// font context.
+    /// Build a `Timeline` from an AST with full control over diagnostics,
+    /// font context, and build quality.
     #[instrument(skip(ast, namespaces, font_context), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics_and_font_context(
         ast: &[Stmt],
         namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: super::BuildQuality,
     ) -> BuildReport<Self> {
         let mut timeline = Self::new_with_font_context(font_context);
+        timeline.build_quality = build_quality;
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         // Seed build-time environment with scene dimensions so `let` declarations

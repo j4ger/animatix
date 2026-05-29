@@ -65,6 +65,7 @@ impl Timeline {
                 stroke_width,
                 stroke_color,
                 eval_env,
+                build_quality: self.build_quality,
             };
             return build_plot_curve_paths(&curve_params);
         }

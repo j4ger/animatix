@@ -33,7 +33,7 @@
 //! algorithm but differ in how they map mathematical coordinates to screen space.
 
 use std::collections::HashMap;
-use super::{Environment, EvalError, Value, evaluate_expr};
+use super::{Environment, Value, evaluate_expr};
 use crate::ast::Expr;
 
 // ─────────────────────────────────────────────────────────────
@@ -62,18 +62,6 @@ impl PlotCurveKind {
     }
 }
 
-/// Evaluate `body` with `arg_name` bound to `arg_value`, without mutating `env`.
-fn evaluate_with_binding(
-    env: &Environment,
-    arg_name: &str,
-    arg_value: f64,
-    body: &Expr,
-) -> Result<Value, EvalError> {
-    let mut local_env = env.clone();
-    local_env.set(arg_name, Value::Num(arg_value));
-    evaluate_expr(body, &local_env)
-}
-
 pub(crate) fn sample_recursive_cartesian(
     min_t: f64,
     max_t: f64,
@@ -82,7 +70,7 @@ pub(crate) fn sample_recursive_cartesian(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &Environment,
+    env: &mut Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
@@ -127,8 +115,9 @@ pub(crate) fn sample_recursive_cartesian(
     let mid_t = (min_t + max_t) / 2.0;
     let mid_key = mid_t.to_bits();
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        let result = evaluate_with_binding(env, arg_name, mid_t, body)
-            .unwrap_or(Value::Num(f64::NAN));
+        env.set_binding(arg_name, Value::Num(mid_t));
+        let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
+        env.clear_binding();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -195,7 +184,7 @@ pub(crate) fn sample_recursive_polar(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &Environment,
+    env: &mut Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
@@ -236,8 +225,9 @@ pub(crate) fn sample_recursive_polar(
     let mid_t = (min_t + max_t) / 2.0;
     let mid_key = mid_t.to_bits();
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        let result = evaluate_with_binding(env, arg_name, mid_t, body)
-            .unwrap_or(Value::Num(f64::NAN));
+        env.set_binding(arg_name, Value::Num(mid_t));
+        let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
+        env.clear_binding();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -305,7 +295,7 @@ pub(crate) fn sample_recursive_parametric(
     depth: usize,
     max_depth: usize,
     tolerance: f64,
-    env: &Environment,
+    env: &mut Environment,
     arg_name: &str,
     body: &Expr,
     p_x_domain: &[f64; 2],
@@ -346,8 +336,9 @@ pub(crate) fn sample_recursive_parametric(
     let mid_t = (min_t + max_t) / 2.0;
     let mid_key = mid_t.to_bits();
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        let result = evaluate_with_binding(env, arg_name, mid_t, body)
-            .unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+        env.set_binding(arg_name, Value::Num(mid_t));
+        let result = evaluate_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+        env.clear_binding();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -615,7 +606,7 @@ pub struct ProceduralPlot {
 
 /// Re-sample a procedural plot at frame time using the given environment.
 /// This allows plot functions to reference timeline variables like `t`.
-pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<VelloPath> {
+pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
     let arg_name = if !plot.func_args.is_empty() {
@@ -660,8 +651,10 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
             },
         });
     } else {
-        let start_eval = evaluate_with_binding(env, &arg_name, min_t, &plot.func_body)
+        env.set_binding(&arg_name, Value::Num(min_t));
+        let start_eval = evaluate_expr(&plot.func_body, env)
             .unwrap_or(Value::Num(f64::NAN));
+        env.clear_binding();
         let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (min_t, start_eval.as_num())
         } else if plot.kind == PlotCurveKind::Parametric {
@@ -682,8 +675,10 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &Environment) -> Vec<V
                 * ((start_math_y - plot.p_y_domain[0])
                     / (plot.p_y_domain[1] - plot.p_y_domain[0]));
 
-        let end_eval = evaluate_with_binding(env, &arg_name, max_t, &plot.func_body)
+        env.set_binding(&arg_name, Value::Num(max_t));
+        let end_eval = evaluate_expr(&plot.func_body, env)
             .unwrap_or(Value::Num(f64::NAN));
+        env.clear_binding();
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (max_t, end_eval.as_num())
         } else if plot.kind == PlotCurveKind::Parametric {

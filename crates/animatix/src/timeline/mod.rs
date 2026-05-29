@@ -132,6 +132,52 @@ pub use shapes::{
 pub use svg::parse_svg;
 pub use svg_import::{import_svg, SvgImportError};
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers, config_string_value, parse_duration_literal};
+
+// ─────────────────────────────────────────────────────────────
+// Build quality levels (Phase 6.3)
+// ─────────────────────────────────────────────────────────────
+
+/// Controls plot sampling fidelity during timeline build.
+///
+/// - `Draft` — fastest, used during live GUI editing.
+/// - `Preview` — balanced, used when paused or scrubbing.
+/// - `Production` — maximum fidelity, used for export.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum BuildQuality {
+    /// Fastest quality for live GUI editing.
+    #[default]
+    Draft,
+    /// Balanced quality for paused/scrubbing preview.
+    Preview,
+    /// Maximum fidelity for export.
+    Production,
+}
+
+impl BuildQuality {
+    /// Apply quality scaling to plot sampling parameters.
+    pub fn scale_plot_params(
+        &self,
+        tolerance: &mut f64,
+        max_depth: &mut usize,
+        resolution: &mut usize,
+    ) {
+        match self {
+            BuildQuality::Draft => {
+                *tolerance = (*tolerance * 4.0).max(0.5);
+                *max_depth = max_depth.saturating_sub(4).max(6);
+                *resolution = (*resolution / 4).max(16);
+            }
+            BuildQuality::Preview => {
+                *tolerance = (*tolerance * 2.0).max(0.5);
+                *max_depth = max_depth.saturating_sub(2).max(6);
+                *resolution = (*resolution / 2).max(16);
+            }
+            BuildQuality::Production => {
+                // No scaling — use values as-is (already clamped by caller)
+            }
+        }
+    }
+}
 use timing::{
     has_non_default_morph_options, parse_stagger_interval_ms,
     push_modifier_diagnostic, push_unknown_target_path_diagnostic,
@@ -376,6 +422,9 @@ pub struct Timeline {
     pub(crate) dynamic_layout: bool,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
     pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+    /// Build quality level used during timeline construction (Phase 6.3).
+    /// Affects plot sampling fidelity: Draft for GUI editing, Production for export.
+    pub(crate) build_quality: BuildQuality,
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
@@ -408,6 +457,9 @@ pub struct Timeline {
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::track::ActionEvent>,
+    /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
+    /// Survives across rebuilds when the GUI copies it from the old timeline.
+    pub plot_path_cache: std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -441,6 +493,7 @@ impl Clone for Timeline {
             dynamic_layout: self.dynamic_layout,
             asset_cache: std::sync::Arc::clone(&self.asset_cache),
             font_context: std::sync::Arc::clone(&self.font_context),
+            build_quality: self.build_quality,
             child_orders: self.child_orders.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
@@ -451,6 +504,7 @@ impl Clone for Timeline {
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
+            plot_path_cache: self.plot_path_cache.clone(),
         }
     }
 }
@@ -483,6 +537,7 @@ impl Timeline {
             dynamic_layout: false,
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
+            build_quality: BuildQuality::Production,
             child_orders: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),
@@ -493,6 +548,7 @@ impl Timeline {
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
+            plot_path_cache: std::collections::HashMap::new(),
         }
     }
 

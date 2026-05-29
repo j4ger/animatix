@@ -46,6 +46,7 @@ pub(crate) struct PlotCurveParams<'a> {
     pub(super) stroke_width: f32,
     pub(super) stroke_color: [f32; 4],
     pub(super) eval_env: &'a Environment,
+    pub(super) build_quality: crate::timeline::BuildQuality,
 }
 
 /// Build plot curve VelloPaths from the given parameters.
@@ -54,8 +55,17 @@ pub(crate) struct PlotCurveParams<'a> {
 pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
+    // Apply build-quality scaling to plot sampling parameters (Phase 6.3)
+    let mut tolerance = params.tolerance;
+    let mut max_depth = params.max_depth as usize;
+    let mut resolution = params.resolution as usize;
+    params.build_quality.scale_plot_params(&mut tolerance,
+        &mut max_depth,
+        &mut resolution,
+    );
+
     if let Some((args, body)) = params.func {
-        let env_copy = params.eval_env.clone();
+        let mut env_copy = params.eval_env.clone();
         let arg_name = if !args.is_empty() {
             args[0].clone()
         } else {
@@ -78,7 +88,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 &params.p_x_domain,
                 &params.p_y_domain,
                 &params.p_size,
-                params.resolution.round().max(8.0) as usize,
+                resolution.max(8),
             );
             vello_paths.push(VelloPath {
                 path,
@@ -98,8 +108,10 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 },
             });
         } else {
-            let start_eval = evaluate_with_binding(&env_copy, &arg_name, min_t, body)
+            env_copy.set_binding(&arg_name, Value::Num(min_t));
+            let start_eval = evaluate_expr(body, &env_copy)
                 .unwrap_or(Value::Num(f64::NAN));
+            env_copy.clear_binding();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
             } else if params.kind == PlotCurveKind::Parametric {
@@ -120,8 +132,10 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     * ((start_math_y - params.p_y_domain[0])
                         / (params.p_y_domain[1] - params.p_y_domain[0]));
 
-            let end_eval = evaluate_with_binding(&env_copy, &arg_name, max_t, body)
+            env_copy.set_binding(&arg_name, Value::Num(max_t));
+            let end_eval = evaluate_expr(body, &env_copy)
                 .unwrap_or(Value::Num(f64::NAN));
+            env_copy.clear_binding();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
             } else if params.kind == PlotCurveKind::Parametric {
@@ -155,9 +169,9 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     p0,
                     p1,
                     0,
-                    params.max_depth as usize,
-                    params.tolerance,
-                    &env_copy,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
@@ -173,9 +187,9 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     p0,
                     p1,
                     0,
-                    params.max_depth as usize,
-                    params.tolerance,
-                    &env_copy,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
@@ -191,9 +205,9 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     p0,
                     p1,
                     0,
-                    params.max_depth as usize,
-                    params.tolerance,
-                    &env_copy,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
                     &arg_name,
                     body,
                     &params.p_x_domain,
@@ -809,6 +823,10 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                let mut scaled_density = density as usize;
+                let mut _max_depth = 0usize;
+                let mut _tolerance = 0.0f64;
+                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_density);
                 vello_paths = build_vector_field_paths(
                     &eval_env,
                     args,
@@ -816,7 +834,7 @@ impl Timeline {
                     x_domain,
                     y_domain,
                     full_size,
-                    density as usize,
+                    scaled_density.max(4),
                     stroke_color,
                     stroke_width,
                 );
@@ -825,6 +843,10 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                let mut scaled_res = resolution.max(2.0).round() as usize;
+                let mut _max_depth = 0usize;
+                let mut _tolerance = 0.0f64;
+                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
                 vello_paths = build_heatmap_paths(
                     &eval_env,
                     args,
@@ -832,7 +854,7 @@ impl Timeline {
                     x_domain,
                     y_domain,
                     full_size,
-                    resolution.max(2.0).round() as usize,
+                    scaled_res.max(4),
                     color,
                 );
             }
@@ -840,6 +862,10 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
+                let mut scaled_res = resolution.max(8.0) as usize;
+                let mut _max_depth = 0usize;
+                let mut _tolerance = 0.0f64;
+                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
                 vello_paths = build_contour_set_paths(
                     &eval_env,
                     args,
@@ -848,7 +874,7 @@ impl Timeline {
                     x_domain,
                     y_domain,
                     full_size,
-                    resolution.max(8.0) as usize,
+                    scaled_res.max(8),
                     stroke_color,
                     stroke_width,
                 );
@@ -874,21 +900,70 @@ impl Timeline {
             }
 
             let eval_env = self.build_eval_env(time_ms as u64);
-            let curve_params = PlotCurveParams {
-                kind,
-                func: &func,
-                p_x_domain,
-                p_y_domain,
-                p_size,
-                t_domain,
-                tolerance,
-                max_depth,
-                resolution,
-                stroke_width,
-                stroke_color,
-                eval_env: &eval_env,
+
+            // Phase 6.4: Check cache for static plot paths before rebuilding.
+            let is_static = func.as_ref().map_or(true, |(_, body)| !body.references_ident("t"));
+            let cache_key = if is_static {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                format!("{:?}", kind).hash(&mut hasher);
+                format!("{:?}", func).hash(&mut hasher);
+                p_x_domain.map(|v| v.to_bits()).hash(&mut hasher);
+                p_y_domain.map(|v| v.to_bits()).hash(&mut hasher);
+                p_size.map(|v| v.to_bits()).hash(&mut hasher);
+                t_domain.map(|v| v.to_bits()).hash(&mut hasher);
+                tolerance.to_bits().hash(&mut hasher);
+                max_depth.to_bits().hash(&mut hasher);
+                resolution.to_bits().hash(&mut hasher);
+                stroke_width.to_bits().hash(&mut hasher);
+                stroke_color.map(|v| v.to_bits()).hash(&mut hasher);
+                self.build_quality.hash(&mut hasher);
+                Some(hasher.finish())
+            } else {
+                None
             };
-            vello_paths = build_plot_curve_paths(&curve_params);
+
+            if let Some(key) = cache_key {
+                if let Some(cached) = self.plot_path_cache.get(&key) {
+                    vello_paths = cached.clone();
+                } else {
+                    let curve_params = PlotCurveParams {
+                        kind,
+                        func: &func,
+                        p_x_domain,
+                        p_y_domain,
+                        p_size,
+                        t_domain,
+                        tolerance,
+                        max_depth,
+                        resolution,
+                        stroke_width,
+                        stroke_color,
+                        eval_env: &eval_env,
+                        build_quality: self.build_quality,
+                    };
+                    vello_paths = build_plot_curve_paths(&curve_params);
+                    self.plot_path_cache.insert(key, vello_paths.clone());
+                }
+            } else {
+                let curve_params = PlotCurveParams {
+                    kind,
+                    func: &func,
+                    p_x_domain,
+                    p_y_domain,
+                    p_size,
+                    t_domain,
+                    tolerance,
+                    max_depth,
+                    resolution,
+                    stroke_width,
+                    stroke_color,
+                    eval_env: &eval_env,
+                    build_quality: self.build_quality,
+                };
+                vello_paths = build_plot_curve_paths(&curve_params);
+            }
 
             // Only create a procedural_plot for dynamic plots (funcs that reference `t`).
             // Static plots use the build-time sampled paths directly, avoiding
@@ -933,18 +1008,6 @@ impl Timeline {
             },
         ))
     }
-}
-
-/// Evaluate `body` with `arg_name` bound to `arg_value`, without mutating `env`.
-fn evaluate_with_binding(
-    env: &Environment,
-    arg_name: &str,
-    arg_value: f64,
-    body: &Expr,
-) -> Result<Value, EvalError> {
-    let mut local_env = env.clone();
-    local_env.set(arg_name, Value::Num(arg_value));
-    evaluate_expr(body, &local_env)
 }
 
 // ── Helpers for VectorField, Heatmap, ContourSet ────────────────────────

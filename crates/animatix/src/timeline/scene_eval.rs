@@ -431,12 +431,12 @@ impl Timeline {
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).
         if let Some(procedural_plot) = track.procedural_plot.as_ref() {
-            if let Some(env) = frame_env {
-                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, env);
+            let mut local_env = if let Some(env) = frame_env {
+                env.clone()
             } else {
-                let env = self.frame_eval_env(time_ms, scene_dimensions, overrides);
-                vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &env);
-            }
+                self.frame_eval_env(time_ms, scene_dimensions, overrides)
+            };
+            vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &mut local_env);
         }
 
         let node_overrides = overrides.get(node_label);

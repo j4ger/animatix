@@ -153,16 +153,26 @@ impl BuildTarget {
         namespaces: &std::collections::HashMap<String, Namespace>,
         source_path: Option<&std::path::Path>,
     ) -> BuildReport<Self> {
+        Self::from_ast_with_quality(statements, namespaces, source_path, crate::timeline::BuildQuality::Production)
+    }
+
+    /// Build from AST with explicit build quality.
+    pub fn from_ast_with_quality(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
+        build_quality: crate::timeline::BuildQuality,
+    ) -> BuildReport<Self> {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         let mut report = if has_scenes {
-            let report = Composition::build_with_font_context(statements, namespaces, font_context);
+            let report = Composition::build_with_font_context(statements, namespaces, font_context, build_quality);
             BuildReport {
                 output: BuildTarget::MultiScene(report.output),
                 diagnostics: report.diagnostics,
             }
         } else {
-            let report = Timeline::build_with_diagnostics_and_font_context(statements, namespaces, font_context);
+            let report = Timeline::build_with_diagnostics_and_font_context(statements, namespaces, font_context, build_quality);
             BuildReport {
                 output: BuildTarget::SingleScene(report.output),
                 diagnostics: report.diagnostics,
@@ -202,6 +212,7 @@ impl Composition {
             statements,
             namespaces,
             std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+            crate::timeline::BuildQuality::Production,
         )
     }
 
@@ -210,6 +221,7 @@ impl Composition {
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: crate::timeline::BuildQuality,
     ) -> BuildReport<Self> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut scenes: BTreeMap<String, CompositionScene> = BTreeMap::new();
@@ -244,7 +256,7 @@ impl Composition {
                     let mut merged_body = shared_prelude.clone();
                     merged_body.extend(body.clone());
 
-                    let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone());
+                    let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone(), build_quality);
                     diagnostics.extend(
                         build_report
                             .diagnostics

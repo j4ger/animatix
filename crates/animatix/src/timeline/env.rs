@@ -182,6 +182,9 @@ pub struct Environment {
     /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
     /// to base. This avoids copying ~90 stdlib entries on every frame_eval_env.
     pub(crate) base: Option<Arc<HashMap<String, Value>>>,
+    /// P6.2: Single-variable binding overlay for plot sampling.
+    /// Avoids cloning the entire overrides HashMap for every sample point.
+    pub(crate) binding: Option<(String, Value)>,
 }
 
 impl Default for Environment {
@@ -196,6 +199,7 @@ impl Environment {
         Environment {
             overrides: HashMap::new(),
             base: None,
+            binding: None,
         }
     }
 
@@ -204,6 +208,7 @@ impl Environment {
         Environment {
             overrides: HashMap::with_capacity(capacity),
             base: None,
+            binding: None,
         }
     }
 
@@ -212,6 +217,7 @@ impl Environment {
         Environment {
             overrides: HashMap::new(),
             base: Some(base),
+            binding: None,
         }
     }
 
@@ -240,11 +246,28 @@ impl Environment {
         }
     }
 
-    /// Look up a variable by name, checking overrides before the base layer.
+    /// Look up a variable by name.
+    /// Checks single binding → overrides → base, in that order.
     pub fn get(&self, name: &str) -> Option<Value> {
+        if let Some((ref binding_name, ref binding_value)) = self.binding {
+            if binding_name == name {
+                return Some(binding_value.clone());
+            }
+        }
         self.overrides.get(name).cloned().or_else(|| {
             self.base.as_ref().and_then(|b| b.get(name).cloned())
         })
+    }
+
+    /// Set a single-variable binding overlay.
+    /// Used by plot sampling to avoid cloning the entire environment per sample.
+    pub fn set_binding(&mut self, name: &str, value: Value) {
+        self.binding = Some((name.to_string(), value));
+    }
+
+    /// Clear the single-variable binding overlay.
+    pub fn clear_binding(&mut self) {
+        self.binding = None;
     }
 
     /// Return all variable names defined in this environment, sorted.
