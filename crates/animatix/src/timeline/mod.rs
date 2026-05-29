@@ -425,6 +425,10 @@ pub struct Timeline {
     /// Build quality level used during timeline construction (Phase 6.3).
     /// Affects plot sampling fidelity: Draft for GUI editing, Production for export.
     pub(crate) build_quality: BuildQuality,
+    /// Default opacity for first actor declarations without explicit `opacity` property.
+    /// Set to 0.0 for pre-keyframe declarations (actors are hidden until entrance action).
+    /// Set to 1.0 for declarations inside keyframes (actors are visible immediately).
+    pub(crate) default_opacity: f32,
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
@@ -494,6 +498,7 @@ impl Clone for Timeline {
             asset_cache: std::sync::Arc::clone(&self.asset_cache),
             font_context: std::sync::Arc::clone(&self.font_context),
             build_quality: self.build_quality,
+            default_opacity: self.default_opacity,
             child_orders: self.child_orders.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
@@ -538,6 +543,7 @@ impl Timeline {
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
             build_quality: BuildQuality::Production,
+            default_opacity: 1.0,
             child_orders: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),

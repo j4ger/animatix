@@ -151,6 +151,10 @@ impl Timeline {
         if !modifiers.is_empty() {
             push_unsupported_media_modifier_diagnostics(diagnostics, label, actor_type, modifiers);
         }
+        // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
+        let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
+        let is_first_decl = !self.tracks.contains_key(label);
+
         let track = self
             .tracks
             .entry(label.to_string())
@@ -167,6 +171,10 @@ impl Timeline {
         // actors before they are declared
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = time_ms as u64;
+        }
+
+        if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         let mut url = String::new();

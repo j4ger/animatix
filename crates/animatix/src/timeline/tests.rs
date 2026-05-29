@@ -1085,12 +1085,12 @@ fn test_hierarchical_assignment_target() {
 
     let timeline = report.output;
 
-    // At t=0s, circ.opacity should be 1.0 (default)
+    // At t=0s, circ.opacity should be 0.0 (pre-keyframe default is hidden)
     let circ_track = timeline.tracks.get("circ").expect("circ track should exist");
     let opacity_at_0 = circ_track.opacity.as_ref().unwrap().evaluate(0);
     assert!(
-        (opacity_at_0 - 1.0).abs() < 0.01,
-        "Expected circ.opacity=1.0 at t=0, got {:?}",
+        (opacity_at_0 - 0.0).abs() < 0.01,
+        "Expected circ.opacity=0.0 at t=0 (pre-keyframe default), got {:?}",
         opacity_at_0
     );
 

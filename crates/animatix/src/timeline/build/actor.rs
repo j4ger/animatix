@@ -233,7 +233,13 @@ impl Timeline {
         let mut line_to = existing_track.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_track.arc_angles.last(default_arc);
         let mut color = existing_track.color.last(DEFAULT_WHITE);
-        let opacity = existing_track.opacity.last(1.0);
+        let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
+        let is_first_decl = !self.tracks.contains_key(label);
+        let opacity = if is_first_decl && !has_explicit_opacity {
+            self.default_opacity
+        } else {
+            existing_track.opacity.last(1.0)
+        };
         let mut stroke_width = existing_track.stroke_width.last(2.0);
         let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
         let mut stroke_progress = existing_track.stroke_progress.last(1.0);
@@ -471,6 +477,12 @@ impl Timeline {
             track.first_seen_ms = t_start_ms;
         }
 
+        // Pre-seed opacity for pre-keyframe first declarations so that
+        // insert_start_keyframes captures the correct invisible start value.
+        if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+        }
+
         if let Some((binding, bound_position)) = position_binding {
             preserve_discrete_position_state_before(track, t_start_ms);
             set_track_position_binding(track, t_start_ms, binding);
@@ -590,7 +602,13 @@ impl Timeline {
                 }
             }
             let size = initial_size;
-            let opacity = 1.0;
+            let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
+            let is_first_decl = !self.tracks.contains_key(label);
+            let opacity = if is_first_decl && !has_explicit_opacity {
+                self.default_opacity
+            } else {
+                1.0
+            };
 
             let ParsedTimingModifiers {
                 duration_ms,
@@ -615,6 +633,12 @@ impl Timeline {
 
             if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;
+            }
+
+            // Pre-seed opacity for pre-keyframe first declarations so that
+            // insert_start_keyframes captures the correct invisible start value.
+            if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+                track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
             }
 
             // === Keyframe Insertion ===

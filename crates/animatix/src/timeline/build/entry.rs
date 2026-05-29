@@ -129,14 +129,19 @@ impl Timeline {
             }
         }
 
+        let mut has_seen_keyframe = false;
         for stmt in ast {
             match stmt {
                 Stmt::Config { .. } => {}
                 Stmt::Keyframe { time, body, .. } => {
+                    has_seen_keyframe = true;
+                    timeline.default_opacity = 1.0;
                     current_build_time_ms = time_to_ms(time);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 }
                 Stmt::RelativeKeyframe { offset, body, .. } => {
+                    has_seen_keyframe = true;
+                    timeline.default_opacity = 1.0;
                     current_build_time_ms += time_to_ms(offset);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 }
@@ -145,12 +150,17 @@ impl Timeline {
                 | Stmt::Sequence { .. }
                 | Stmt::Stagger { .. }
                 | Stmt::LetDecl { .. } => {
+                    let saved_opacity = timeline.default_opacity;
+                    if !has_seen_keyframe {
+                        timeline.default_opacity = 0.0;
+                    }
                     timeline.process_body(
                         current_build_time_ms,
                         std::slice::from_ref(stmt),
                         None,
                         &mut diagnostics,
                     );
+                    timeline.default_opacity = saved_opacity;
                 }
                 _ => {}
             }

@@ -226,6 +226,10 @@ impl Timeline {
             }
         }
 
+        // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
+        let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
+        let is_first_decl = !self.tracks.contains_key(&label_str);
+
         let track = self
             .tracks
             .entry(label_str.clone())
@@ -244,6 +248,10 @@ impl Timeline {
         // actors before they are declared
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
+        }
+
+        if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some(track_color) = initial_track_color {
