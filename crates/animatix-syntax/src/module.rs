@@ -296,11 +296,31 @@ impl fmt::Display for ModuleError {
                 write!(f, "File not found: {}", path.display())
             }
             ModuleError::ParseErrors(errors) => {
-                if errors.len() == 1 {
-                    write!(f, "Parse error: {}", errors[0].message)
-                } else {
-                    write!(f, "{} parse errors", errors.len())
+                for (i, err) in errors.iter().enumerate() {
+                    if i > 0 {
+                        writeln!(f)?;
+                    }
+                    let location = if err.line > 0 && err.column > 0 {
+                        format!("{}:{}", err.line, err.column)
+                    } else {
+                        String::new()
+                    };
+                    if location.is_empty() {
+                        write!(f, "parse error: {}", err.message)?;
+                    } else {
+                        write!(f, "parse error at {}: {}", location, err.message)?;
+                    }
+                    if !err.expected.is_empty() {
+                        write!(f, "\n  expected: {}", err.expected.join(", "))?;
+                    }
+                    if let Some(found) = &err.found {
+                        write!(f, "\n  found: '{}'", found)?;
+                    }
+                    if !err.context.is_empty() {
+                        write!(f, "\n  context: {}", err.context.join(" > "))?;
+                    }
                 }
+                Ok(())
             }
             ModuleError::CycleDetected(paths) => {
                 let cycle = paths

@@ -309,27 +309,92 @@ impl DiagnosticPhaseSummary {
     }
 }
 
-/// Formats a single diagnostic into a human-readable string.
+/// Formats a single diagnostic into a rustc-style human-readable string.
+///
+/// Format:
+/// ```text
+/// [severity:code] message
+///  --> path:line:col
+/// ```
+/// With indented continuation lines for subject when present.
 pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
-    let location = if let (Some(line), Some(col)) = (diagnostic.location.line, diagnostic.location.column) {
-        format!("{}:{}:", line, col)
-    } else {
-        String::new()
+    let mut lines = Vec::new();
+
+    // Primary line: severity + code + message
+    lines.push(format!(
+        "{}[{}:{}] {}",
+        diagnostic.severity, diagnostic.phase, diagnostic.code, diagnostic.message
+    ));
+
+    // Location line
+    let location = match (
+        diagnostic.location.path.as_ref(),
+        diagnostic.location.line,
+        diagnostic.location.column,
+    ) {
+        (Some(path), Some(line), Some(col)) => {
+            format!(" --> {}:{}:{}", path.display(), line, col)
+        }
+        (Some(path), None, None) => format!(" --> {}", path.display()),
+        (None, Some(line), Some(col)) => format!(" --> {}:{}", line, col),
+        _ => String::new(),
     };
-    let mut parts = vec![format!(
-        "{}{}[{}:{}] {}",
-        location, diagnostic.severity, diagnostic.phase, diagnostic.code, diagnostic.message
-    )];
+    if !location.is_empty() {
+        lines.push(location);
+    }
 
+    // Subject line
     if let Some(subject) = &diagnostic.location.subject {
-        parts.push(format!("subject: {subject}"));
+        lines.push(format!("  subject: {subject}"));
     }
 
-    if let Some(path) = &diagnostic.location.path {
-        parts.push(format!("path: {}", path.display()));
+    lines.join("\n")
+}
+
+/// Formats a diagnostic with a source snippet when a byte span is available.
+///
+/// If the diagnostic has `location.span`, extracts the offending source line
+/// and prints it with a `^` underline pointing to the exact token.
+pub fn format_diagnostic_with_source(diagnostic: &Diagnostic, source: &str) -> String {
+    let mut output = format_diagnostic(diagnostic);
+
+    if let Some(span) = &diagnostic.location.span {
+        if let Some((line_text, caret_offset, caret_len)) = extract_source_snippet(source, span) {
+            output.push('\n');
+            output.push_str(&line_text);
+            output.push('\n');
+            output.push_str(&" ".repeat(caret_offset));
+            output.push_str(&"^".repeat(caret_len.max(1)));
+        }
     }
 
-    parts.join(" • ")
+    output
+}
+
+/// Extract the source line containing `span` and the caret position within it.
+fn extract_source_snippet(
+    source: &str,
+    span: &Range<usize>,
+) -> Option<(String, usize, usize)> {
+    let start = span.start;
+    let end = span.end;
+    if start > source.len() || end > source.len() {
+        return None;
+    }
+
+    // Find the start of the line containing `start`
+    let line_start = source[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    // Find the end of the line containing `end`
+    let line_end = source[end..]
+        .find('\n')
+        .map(|i| end + i)
+        .unwrap_or(source.len());
+
+    let line_text = source[line_start..line_end].to_string();
+    let caret_offset = start - line_start;
+    let caret_len = end.saturating_sub(start);
+
+    Some((line_text, caret_offset, caret_len))
 }
 
 /// Returns a summary string counting total warnings and errors.
@@ -437,7 +502,7 @@ mod tests {
         assert!(
             formatted.contains("error[parse:source-load-failure] Failed to load or parse source")
         );
-        assert!(formatted.contains("path: test/file.amx"));
+        assert!(formatted.contains(" --> test/file.amx"));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use animatix::composition::BuildTarget;
-use animatix::diagnostics::{format_diagnostic, Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::module::ModuleGraph;
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
@@ -202,7 +202,7 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diag
         }
     };
 
-    let report = BuildTarget::from_ast(&ast, &namespaces);
+    let report = BuildTarget::from_ast(&ast, &namespaces, Some(input));
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);
     print_build_diagnostics(&all_diagnostics);
@@ -573,7 +573,11 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let report = BuildTarget::from_ast(&ast, &namespaces);
+            let report = BuildTarget::from_ast(
+                &ast,
+                &namespaces,
+                if file_label == "-" { None } else { Some(std::path::Path::new(&file_label)) },
+            );
             let mut diagnostics = type_diagnostics;
             diagnostics.extend(report.diagnostics);
 
@@ -610,7 +614,7 @@ fn main() {
                         println!("{}: OK (no diagnostics)", file_label);
                     } else {
                         for diag in &diagnostics {
-                            println!("{}", format_diagnostic(diag));
+                            println!("{}", format_diagnostic_with_source(diag, &source));
                         }
                         if diagnostics.iter().any(|d| d.is_error()) {
                             std::process::exit(1);

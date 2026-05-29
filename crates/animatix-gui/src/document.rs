@@ -144,7 +144,7 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&raw_statements);
 
-        let report = BuildTarget::from_ast(&expanded_statements, &namespaces);
+        let report = BuildTarget::from_ast(&expanded_statements, &namespaces, Some(&self.file_path));
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);

@@ -151,10 +151,11 @@ impl BuildTarget {
     pub fn from_ast(
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
     ) -> BuildReport<Self> {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
-        if has_scenes {
+        let mut report = if has_scenes {
             let report = Composition::build_with_font_context(statements, namespaces, font_context);
             BuildReport {
                 output: BuildTarget::MultiScene(report.output),
@@ -166,7 +167,13 @@ impl BuildTarget {
                 output: BuildTarget::SingleScene(report.output),
                 diagnostics: report.diagnostics,
             }
+        };
+        if let Some(path) = source_path {
+            for diag in &mut report.diagnostics {
+                diag.location.path = Some(path.to_path_buf());
+            }
         }
+        report
     }
 
     /// Returns the total duration in seconds, regardless of target type.
