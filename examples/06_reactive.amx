@@ -29,8 +29,9 @@ always {
   wave.at = (cx - 300, cy)
 }
 
-#0s
 backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
+
+#0s
 
 #1s
 fade-in backdrop [1s]

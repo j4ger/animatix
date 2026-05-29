@@ -3,12 +3,13 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 a: Rect, size: (80, 80), color: accent.primary, at: (200, 360)
 b: Rect, size: (80, 80), color: accent.success, at: (440, 360)
 c: Rect, size: (80, 80), color: accent.warning, at: (680, 360)
 d: Rect, size: (80, 80), color: accent.danger, at: (920, 360)
 e: Rect, size: (80, 80), color: text.primary, at: (1160, 360)
+
+#0s
 
 #0.5s
 fade-in a [400ms]

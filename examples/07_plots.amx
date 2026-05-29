@@ -3,7 +3,6 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 // Four graph panels
 g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200) {
   parabola: PlotCurve, kind: "cartesian", func: (x) => x^2, color: accent.danger, width: 2
@@ -20,6 +19,8 @@ g3: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 280), at: (280, 520
 g4: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 280), at: (720, 520) {
   circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 1, resolution: 100, color: accent.warning, width: 2
 }
+
+#0s
 
 #0.5s
 stagger [150ms] {

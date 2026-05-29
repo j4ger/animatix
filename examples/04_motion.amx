@@ -3,8 +3,9 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 actor: Rect, size: (120, 120), color: accent.primary, at: (640, 360)
+
+#0s
 
 #0.5s
 fade-in actor [600ms, ease: ease-out]

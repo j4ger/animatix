@@ -3,7 +3,6 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
-#0s
 backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
 
 // Title group
@@ -26,6 +25,8 @@ prims: Row, anchor: scene.bottom, offset: (0, -140), gap: 60, align: "center" {
   box: Rect, size: (0, 0), color: accent.success
   eq: Math, math: "E = mc^2", font_size: 40, color: accent.primary
 }
+
+#0s
 
 #0.2s
 fade-in backdrop [600ms]

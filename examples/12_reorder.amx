@@ -3,11 +3,9 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
-#0s
 title: Text, text: "Container Reordering", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
 sub: Text, text: "swap and reorder actions with easing", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 120)
 
-#0s
 bars: Row, anchor: scene.center, gap: 12, align: "bottom" {
   bar1: Rect, size: (80, 100), color: accent.primary
   bar2: Rect, size: (80, 180), color: accent.success
@@ -15,6 +13,8 @@ bars: Row, anchor: scene.center, gap: 12, align: "bottom" {
   bar4: Rect, size: (80, 220), color: accent.danger
   bar5: Rect, size: (80, 60), color: accent.primary
 }
+
+#0s
 
 #0.5s
 fade-in title [600ms]

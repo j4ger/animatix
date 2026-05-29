@@ -3,7 +3,6 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 gallery: Grid, cols: 4, gap: 40, padding: 80, anchor: scene.center {
   circle: Ellipse, size: (100, 100), color: accent.primary
   square: Rect, size: (100, 100), color: accent.success
@@ -14,6 +13,8 @@ gallery: Grid, cols: 4, gap: 40, padding: 80, anchor: scene.center {
   math: Math, math: "sum_(i=1)^n i^2", font_size: 28, color: accent.warning
   code: Code, code: "fn main() {}", font_size: 18, color: accent.danger
 }
+
+#0s
 
 #0.5s
 stagger [80ms] {

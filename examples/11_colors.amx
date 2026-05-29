@@ -3,7 +3,6 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 // Auto colors: each primitive gets a distinct scheme color
 auto_row: Row, anchor: scene.center, offset: (0, -80), gap: 24, align: "center" {
   a: Rect, size: (80, 80), color: auto
@@ -31,6 +30,8 @@ scheme_row: Row, anchor: scene.center, offset: (0, 160), gap: 16, align: "center
   t5: Rect, size: (50, 50), color: text.primary
   t6: Rect, size: (50, 50), color: surface.primary
 }
+
+#0s
 
 #0.5s
 stagger [60ms] {

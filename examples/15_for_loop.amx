@@ -3,8 +3,9 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 title: Text, text: "For Loop Expansion", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+
+#0s
 
 #0.5s
 fade-in title [500ms]

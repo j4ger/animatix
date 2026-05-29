@@ -3,7 +3,6 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-#0s
 row: Row, anchor: scene.top, offset: (0, 80), gap: 16, align: "center" {
   r1: Rect, size: (60, 60), color: accent.primary
   r2: Rect, size: (60, 60), color: accent.success
@@ -30,6 +29,8 @@ stack: Stack, anchor: scene.right, offset: (-160, 0) {
   mid: Ellipse, size: (100, 100), color: accent.primary
   front: Rect, size: (60, 60), color: text.primary
 }
+
+#0s
 
 #0.5s
 stagger [100ms] {
