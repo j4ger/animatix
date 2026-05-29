@@ -23,12 +23,12 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ## Phase 6.6 — Parser Robustness
 
-> **Partially complete.** 6.6.1 was attempted but reverted due to chumsky 0.12 type system complexity when combining whitespace and comment skippers. A preprocessing approach may be needed instead.
+> **Complete.** Both items implemented.
 
 | # | Item | What | Rationale | Files | Effort |
 |---|------|------|-----------|-------|--------|
-| 6.6.1 | **Comments inside brackets/lists** | `//` line comments inside `{}`, `[]`, `()` delimiters are currently rejected. Replace `.padded()` with a custom `whitespace_or_comment` skipper throughout the parser. | LLM and humans naturally comment inside blocks. Current error `expected '}', found '/'` is confusing. | `parser/mod.rs` | 1–2 days |
-| 6.6.2 | **Parse error context** | Include enclosing grammar rule (e.g., "in property list of actor declaration") in parse errors. | Helps LLM/scripting identify which construct failed. | `parser/mod.rs` | 4–6 hrs |
+| ~~6.6.1~~ | **Comments inside brackets/lists** | `//` line comments inside `{}`, `[]`, `()` delimiters are currently rejected. Replace `.padded()` with a custom `whitespace_or_comment` skipper throughout the parser. | LLM and humans naturally comment inside blocks. Current error `expected '}', found '/'` is confusing. | `parser/mod.rs` | 1–2 days |
+| ~~6.6.2~~ | **Parse error context** | Include enclosing grammar rule (e.g., "in property list of actor declaration") in parse errors. | Helps LLM/scripting identify which construct failed. | `parser/mod.rs` | 4–6 hrs |
 
 ---
 
@@ -46,11 +46,11 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ## Phase 6.8 — Language Features & Examples
 
-> **Partially complete.** 6.8.1 remains open (requires parser + build pipeline changes). 6.8.2–6.8.4 done.
+> **Complete.** All items implemented.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 6.8.1 | **Graph nested element animation** | Support `g.vec.to = (5, 2)` dotted path syntax for assignments targeting children inside containers. Currently only `actor.property` works. | `parser/mod.rs`, `timeline/build/` | 3–5 days | — |
+| ~~6.8.1~~ | **Graph nested element animation** | Support `g.vec.to = (5, 2)` dotted path syntax for assignments targeting children inside containers. Currently only `actor.property` works. | `parser/mod.rs`, `timeline/build/` | 3–5 days | — |
 | ~~6.8.2~~ | **Arrow primitive** | Dedicated `Arrow` actor with `from`, `to`, `head_size` properties (vs. using `Line` with manual arrowheads). | `primitives/`, `timeline/track.rs` | 1–2 days | — |
 | ~~6.8.3~~ | **Easing functions in `always` blocks** | Expose named easing functions (`ease_in`, `ease_out`, `bounce`, `elastic`, etc.) as `num1` builtins so users can compose eased interpolation inside `always` blocks. Enables `let x = lerp(0, 100, ease_out(t / 2.0))`. | `builtins.rs` | 2–3 hrs | — |
 | ~~6.8.4~~ | **Underused element examples** | Add dedicated examples for `ContourSet` (currently 0), `Path` (1), `VectorField` (1), `Heatmap` (1). | `examples/` | 2–3 days | — |

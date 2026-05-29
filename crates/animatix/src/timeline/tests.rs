@@ -1053,3 +1053,52 @@ fn test_reactive_binding_desugars_to_modifier() {
         panic!("Expected Vec2 override for orbiter.at, got {:?}", orbiter_at);
     }
 }
+
+#[test]
+fn test_hierarchical_assignment_target() {
+    let source = r#"
+        g: Graph {
+            circ: Ellipse {
+                at: (0, 0),
+                radius: 10,
+            }
+        }
+
+        #+1s
+        g.circ.opacity = 0.5
+    "#;
+
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+
+    let report = Timeline::build_with_diagnostics(
+        &ast,
+        &std::collections::HashMap::new(),
+    );
+
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let timeline = report.output;
+
+    // At t=0s, circ.opacity should be 1.0 (default)
+    let circ_track = timeline.tracks.get("circ").expect("circ track should exist");
+    let opacity_at_0 = circ_track.opacity.as_ref().unwrap().evaluate(0);
+    assert!(
+        (opacity_at_0 - 1.0).abs() < 0.01,
+        "Expected circ.opacity=1.0 at t=0, got {:?}",
+        opacity_at_0
+    );
+
+    // At t=1s, circ.opacity should be 0.5
+    let opacity_at_1s = circ_track.opacity.as_ref().unwrap().evaluate(1000);
+    assert!(
+        (opacity_at_1s - 0.5).abs() < 0.01,
+        "Expected circ.opacity=0.5 at t=1s, got {:?}",
+        opacity_at_1s
+    );
+}

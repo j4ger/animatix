@@ -19,6 +19,40 @@ use crate::timeline::property_registry::{lookup_property, PropertyFlags};
 use crate::timeline::track::TrackAccessor;
 
 impl Timeline {
+    /// Resolve an assignment target path that may traverse the scene hierarchy.
+    ///
+    /// For a path like `["g", "vec"]`:
+    /// - First checks if a track named `"g.vec"` exists directly.
+    /// - If not, walks the hierarchy: finds `"g"`, checks if `"vec"` is its child,
+    ///   and returns `"vec"` as the resolved track key.
+    /// - Returns `None` if the path cannot be resolved.
+    fn resolve_hierarchical_target(&self, target: &[String]) -> Option<String> {
+        if target.is_empty() {
+            return None;
+        }
+
+        let direct_key = assignment_target_key(target);
+        if self.tracks.contains_key(&direct_key) {
+            return Some(direct_key);
+        }
+
+        if target.len() == 1 {
+            return None;
+        }
+
+        // Walk the hierarchy
+        let mut current = target[0].clone();
+        for segment in &target[1..] {
+            let track = self.tracks.get(&current)?;
+            if track.children.contains(segment) {
+                current = segment.clone();
+            } else {
+                return None;
+            }
+        }
+
+        Some(current)
+    }
     pub(super) fn process_assignment_statement(
         &mut self,
         target: &[String],
@@ -78,12 +112,22 @@ impl Timeline {
         }
 
         // ── Resolve target track ──
-        let target_key = assignment_target_key(target);
-        if target.len() > 1 && !self.tracks.contains_key(&target_key) {
-            let suggestion = best_path_suggestion(&target_key, self.tracks.keys().map(String::as_str));
-            push_unknown_target_path_diagnostic(diagnostics, &assignment_subject, &target_key, suggestion);
-            return;
-        }
+        let target_key = match self.resolve_hierarchical_target(target) {
+            Some(key) => key,
+            None => {
+                let suggestion = best_path_suggestion(
+                    &assignment_target_key(target),
+                    self.tracks.keys().map(String::as_str),
+                );
+                push_unknown_target_path_diagnostic(
+                    diagnostics,
+                    &assignment_subject,
+                    &assignment_target_key(target),
+                    suggestion,
+                );
+                return;
+            }
+        };
 
         let track = self.tracks
             .entry(target_key.clone())
