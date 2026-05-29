@@ -326,7 +326,7 @@ fn rebuild_vector_paths(
     let fill_opacity = track.fill_opacity.last(1.0);
     let _shape_type = track.shape_type.last(ShapeType::Rect);
 
-    // Build vector shape state and compute paths
+        // Build vector shape state and compute paths
     let shape_type = track.shape_type.last(ShapeType::Rect);
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);
     // Restore shape-specific fields from track data
@@ -334,6 +334,11 @@ fn rebuild_vector_paths(
         VectorShapeState::Line(line) => {
             line.line_from = track.line_from.last([-50.0, 0.0]);
             line.line_to = track.line_to.last([50.0, 0.0]);
+        }
+        VectorShapeState::Arrow(arrow) => {
+            arrow.from = track.line_from.last([-50.0, 0.0]);
+            arrow.to = track.line_to.last([50.0, 0.0]);
+            arrow.head_size = track.head_size.last(10.0);
         }
         VectorShapeState::Polygon(poly) => {
             // Restore points for Polygon actors

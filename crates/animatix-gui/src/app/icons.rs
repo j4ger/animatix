@@ -60,6 +60,7 @@ pub fn shape_type_icon(shape: ShapeType) -> &'static str {
         ShapeType::Path => egui_phosphor::regular::PEN,
         ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
         ShapeType::Plot => egui_phosphor::regular::CHART_LINE_UP,
+        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
     }
 }
 

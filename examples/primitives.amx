@@ -11,7 +11,7 @@ shapes: Row, anchor: scene.center, offset: (0, -60), gap: 60, align: "center" {
   arc: Ellipse, radius_x: 50, radius_y: 40, stroke: accent.primary, width: 4
   poly: Polygon, points: {(-40, -30), (40, -30), (50, 20), (0, 50), (-50, 20)}, color: accent.success, stroke: stroke.default, stroke_width: 2
   path: Path, commands: {move_to(-30, 0), line_to(0, -40), line_to(30, 0), close()}, stroke: accent.warning, stroke_width: 3
-  arrow: Line, from: (-30, 0), to: (30, 0), color: accent.danger
+  arrow: Arrow, from: (-30, 0), to: (30, 0), head_size: 10, color: accent.danger
 }
 
 breadth: Row, anchor: scene.center, offset: (0, 60), gap: 60, align: "center" {

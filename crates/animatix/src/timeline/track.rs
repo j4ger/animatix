@@ -123,6 +123,8 @@ pub enum ShapeKind {
     Polygon,
     /// Arbitrary Bézier path.
     Path,
+    /// Arrow with a dedicated arrowhead.
+    Arrow,
 }
 
 impl From<super::shapes::ShapeType> for ShapeKind {
@@ -135,6 +137,7 @@ impl From<super::shapes::ShapeType> for ShapeKind {
             super::shapes::ShapeType::Path => Self::Path,
             super::shapes::ShapeType::Graph => Self::Rect,
             super::shapes::ShapeType::Plot => Self::Rect,
+            super::shapes::ShapeType::Arrow => Self::Arrow,
         }
     }
 }
@@ -582,6 +585,8 @@ pub struct AnimationTrack {
     pub line_from: Option<PropertyTrack<[f32; 2]>>,
     /// Line end point.
     pub line_to: Option<PropertyTrack<[f32; 2]>>,
+    /// Arrow head size.
+    pub head_size: Option<PropertyTrack<f32>>,
     /// Arc start and end angles.
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
     /// Polygon vertex list.
@@ -655,6 +660,7 @@ impl AnimationTrack {
             shape_type: None,
             line_from: None,
             line_to: None,
+            head_size: None,
             arc_angles: None,
             points: None,
             commands: None,
@@ -738,6 +744,7 @@ impl AnimationTrack {
             self.shadow_offset.last_time(), self.shadow_blur.last_time(),
             self.shadow_color.last_time(), self.glow_radius.last_time(),
             self.glow_color.last_time(), self.backdrop_blur.last_time(),
+            self.head_size.last_time(),
         ];
         times.into_iter().flatten().max()
     }
@@ -779,6 +786,7 @@ impl AnimationTrack {
             || self.glow_radius.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.glow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.backdrop_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.head_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
     }
 }
 
@@ -996,6 +1004,7 @@ impl AnimationTrack {
             ShapeType => TrackFieldRef::ShapeType(&self.shape_type),
             LineFrom => TrackFieldRef::Vec2(&self.line_from),
             LineTo => TrackFieldRef::Vec2(&self.line_to),
+            HeadSize => TrackFieldRef::F32(&self.head_size),
             ArcAngles => TrackFieldRef::Vec2(&self.arc_angles),
             Points => TrackFieldRef::PointList(&self.points),
             Commands => TrackFieldRef::CommandList(&self.commands),
@@ -1034,6 +1043,7 @@ impl AnimationTrack {
             ShapeType => TrackFieldMut::ShapeType(&mut self.shape_type),
             LineFrom => TrackFieldMut::Vec2(&mut self.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.line_to),
+            HeadSize => TrackFieldMut::F32(&mut self.head_size),
             ArcAngles => TrackFieldMut::Vec2(&mut self.arc_angles),
             Points => TrackFieldMut::PointList(&mut self.points),
             Commands => TrackFieldMut::CommandList(&mut self.commands),
@@ -1076,6 +1086,7 @@ impl AnimationTrack {
             "arc_angles" => ActorField::ArcAngles,
             "points" => ActorField::Points,
             "commands" => ActorField::Commands,
+            "head_size" => ActorField::HeadSize,
             "text_content" => ActorField::TextContent,
             "font_family" => ActorField::FontFamily,
             "font_size" => ActorField::FontSize,
@@ -1131,6 +1142,7 @@ impl AnimationTrack {
             "arc_angles" => ActorField::ArcAngles,
             "points" => ActorField::Points,
             "commands" => ActorField::Commands,
+            "head_size" => ActorField::HeadSize,
             "text_content" => ActorField::TextContent,
             "font_family" => ActorField::FontFamily,
             "font_size" => ActorField::FontSize,

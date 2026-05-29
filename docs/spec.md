@@ -24,6 +24,7 @@
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
+| 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
@@ -144,6 +145,21 @@ title: Text, text: "Hello"           // color: text.primary
 panel: Rect, size: (200, 100)       // color: surface.primary
 badge: Ellipse, size: (40, 40), color: auto
 ```
+
+**RGBA format:** `(r, g, b, a)` where each component is a **0–1 float**.
+```animatix
+// Correct
+red: Rect, color: (1.0, 0.0, 0.0, 1.0)
+// NOT supported: hex strings like #ff0000
+```
+
+**Colorscheme tokens** (available when a colorscheme is active):
+- `accent.primary`, `accent.success`, `accent.warning`, `accent.danger`
+- `text.primary`, `text.secondary`, `text.muted`
+- `stroke.default`
+- `surface.primary`, `surface.secondary`
+
+**Built-in color constants** (available everywhere): `RED`, `GREEN`, `BLUE`, `BLACK`, `WHITE`
 
 `Colorscheme` primitive with `extends` inheritance is supported. See [`architecture.md`](architecture.md) §Colorscheme System.
 
@@ -397,10 +413,29 @@ Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` pr
 ```animatix
 graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (-10, 10) {
   // These are math coordinates, mapped to screen automatically
-  point: Circle, at: (2, 2), size: (10, 10)
+  point: Ellipse, at: (2, 2), size: (10, 10)
   arrow: Line, from: (0, 0), to: (5, 5)
 }
 ```
+
+### Available Primitives & Common Confusions
+
+**Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`
+
+**Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
+
+**Plotting:** `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
+
+**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`
+
+**Other:** `Audio`
+
+> **Not supported (common LLM hallucinations):**
+> - `Circle` — use `Ellipse` with equal `size`
+> - `Arrow` — use `Line` with manual arrowheads (dedicated `Arrow` primitive planned)
+> - `Triangle` — use `Polygon` with 3 points
+> - `Graph3D`, `Line3D`, `Polyhedron` — 3D is not supported; all rendering is 2D
+> - `Chart`, `Diagram` — use `Graph` or `PlotCurve`
 
 ---
 
@@ -840,6 +875,29 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 
 ```
 
 **Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `atan2(y, x)`, `clamp(val, min, max)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `floor(x)`, `ceil(x)`, `lerp(a, b, t)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
+
+**Easing helpers (for use in `always` blocks):** `ease_linear(t)`, `ease_in(t)`, `ease_out(t)`, `ease_in_out(t)`, `bounce(t)`, `elastic(t)`, `back(t)`, `expo(t)` — each takes a progress value `t` in `[0, 1]` and returns the eased progress.
+
+### Typst vs LaTeX Cheat Sheet
+
+The `Math` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
+
+| LaTeX | Typst | Notes |
+|-------|-------|-------|
+| `\frac{a}{b}` | `frac(a, b)` | Function call, not command |
+| `\frac{a+b}{c}` | `frac(a + b, c)` | Parentheses required for compound numerators |
+| `\lim_{x \to 1}` | `lim_(x -> 1)` | Underscore + arrow, no braces |
+| `\sum_{i=1}^{n}` | `sum_(i=1)^n` | Same pattern as lim |
+| `\sqrt{x}` | `sqrt(x)` | Function call |
+| `\pi` | `pi` | No backslash |
+| `\alpha` | `alpha` | Greek letters are bare words |
+| `\times` | `times` | Multiplication symbol |
+| `x^2` | `x^2` | Superscripts work the same |
+| `x_{ij}` | `x_(ij)` | Subscripts use parens |
+| `\int_a^b` | `integral_a^b` | Named function |
+| `\infty` | `infinity` | Named constant |
+
+**Full Typst math reference:** <https://typst.app/docs/reference/math/>
 
 ---
 

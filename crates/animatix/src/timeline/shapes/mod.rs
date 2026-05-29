@@ -22,6 +22,8 @@ pub enum ShapeType {
     Graph = 5,
     /// Plot curve.
     Plot = 6,
+    /// Arrow with a dedicated arrowhead.
+    Arrow = 7,
 }
 
 impl ShapeType {
@@ -35,6 +37,7 @@ impl ShapeType {
             Self::Path => "Path",
             Self::Graph => "Graph",
             Self::Plot => "Plot",
+            Self::Arrow => "Arrow",
         }
     }
 }
@@ -51,6 +54,7 @@ impl std::str::FromStr for ShapeType {
             "Path" => Ok(Self::Path),
             "Graph" => Ok(Self::Graph),
             "PlotCurve" => Ok(Self::Plot),
+            "Arrow" => Ok(Self::Arrow),
             _ => Err(()),
         }
     }
@@ -72,6 +76,7 @@ impl From<u32> for ShapeType {
             4 => Self::Path,
             5 => Self::Graph,
             6 => Self::Plot,
+            7 => Self::Arrow,
             _ => Self::Rect,
         }
     }
@@ -186,6 +191,27 @@ impl Default for PathState {
     }
 }
 
+/// State for an arrow shape with a dedicated arrowhead.
+#[derive(Clone, Debug)]
+pub struct ArrowState {
+    /// Start point of the arrow.
+    pub from: [f32; 2],
+    /// End point of the arrow (arrowhead points here).
+    pub to: [f32; 2],
+    /// Size of the arrowhead triangle (length and half-width derived from this).
+    pub head_size: f32,
+}
+
+impl Default for ArrowState {
+    fn default() -> Self {
+        Self {
+            from: [-50.0, 0.0],
+            to: [50.0, 0.0],
+            head_size: 10.0,
+        }
+    }
+}
+
 /// Per-shape state enum that only holds fields relevant to each shape type.
 ///
 /// Previously `VectorShapeState` was a flat struct with dead fields
@@ -203,6 +229,8 @@ pub enum VectorShapeState {
     Polygon(PolygonState),
     /// Free-form path shape state.
     Path(PathState),
+    /// Arrow shape state with a dedicated arrowhead.
+    Arrow(ArrowState),
 }
 
 impl VectorShapeState {
@@ -237,6 +265,11 @@ impl VectorShapeState {
             }),
             // Graph/Plot are not vector shapes with state
             ShapeType::Graph | ShapeType::Plot => Self::Rect(RectState { size }),
+            ShapeType::Arrow => Self::Arrow(ArrowState {
+                from: [-50.0, 0.0],
+                to: [50.0, 0.0],
+                head_size: 10.0,
+            }),
         }
     }
 
@@ -248,6 +281,7 @@ impl VectorShapeState {
             Self::Line(s) => s.size,
             Self::Polygon(s) => s.size,
             Self::Path(s) => s.size,
+            Self::Arrow(_a) => [0.0, 0.0],
         }
     }
 
@@ -259,6 +293,7 @@ impl VectorShapeState {
             Self::Line(s) => &mut s.size,
             Self::Polygon(s) => &mut s.size,
             Self::Path(s) => &mut s.size,
+            Self::Arrow(_) => panic!("Arrow has no size field"),
         }
     }
 }
@@ -290,6 +325,7 @@ pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
                 "Line" => Some(ShapeType::Line),
                 "Polygon" => Some(ShapeType::Polygon),
                 "Path" => Some(ShapeType::Path),
+                "Arrow" => Some(ShapeType::Arrow),
                 _ => None,
             };
         }
@@ -345,6 +381,11 @@ pub fn vector_shape_uses_custom_path(shape_type: ShapeType) -> bool {
     matches!(shape_type, ShapeType::Polygon | ShapeType::Path)
 }
 
+/// Whether this shape type represents an arrow with a dedicated arrowhead.
+pub fn vector_shape_is_arrow(shape_type: ShapeType) -> bool {
+    matches!(shape_type, ShapeType::Arrow)
+}
+
 /// Extract the individual shape-state values for backward-compatible APIs.
 ///
 /// Returns `(size, line_from, line_to, arc_angles)`.
@@ -352,6 +393,7 @@ pub fn extract_shape_state_values(state: &VectorShapeState) -> ([f32; 2], [f32; 
     let size = state.size();
     let (line_from, line_to, arc_angles) = match state {
         VectorShapeState::Line(line) => (line.line_from, line.line_to, [0.0, 0.0]),
+        VectorShapeState::Arrow(arrow) => (arrow.from, arrow.to, [0.0, 0.0]),
         VectorShapeState::Ellipse(ellipse) => ([-50.0, 0.0], [50.0, 0.0], ellipse.arc_angles),
         _ => ([-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]),
     };
@@ -371,6 +413,7 @@ pub fn build_vector_shape_vello_path(
         ShapeType::Line => "Line",
         ShapeType::Polygon => "Polygon",
         ShapeType::Path => "Path",
+        ShapeType::Arrow => "Arrow",
         _ => return None,
     };
     crate::primitives::find_primitive(type_name)
@@ -552,6 +595,10 @@ pub fn build_shape(
             p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
             p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
         },
+        ShapeType::Arrow => KurboShape::Line {
+            p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
+            p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
+        },
         _ => KurboShape::Rect {
             x0: -(size[0] as f64),
             y0: -(size[1] as f64),
@@ -571,7 +618,7 @@ pub fn shape_fill_color(
         return None;
     }
 
-    if shape_type == ShapeType::Line { return None }
+    if shape_type == ShapeType::Line || shape_type == ShapeType::Arrow { return None }
 
     Some(vello::peniko::Color::from_rgba8(
         (color[0] * 255.0) as u8,
@@ -675,6 +722,11 @@ pub fn build_shape_vello_path(
         ShapeType::Path => VectorShapeState::Path(PathState {
             size,
             custom_path: None,
+        }),
+        ShapeType::Arrow => VectorShapeState::Arrow(ArrowState {
+            from: line_from,
+            to: line_to,
+            head_size: 10.0,
         }),
         _ => return VelloPath {
             path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),

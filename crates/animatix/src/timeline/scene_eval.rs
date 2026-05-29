@@ -162,6 +162,11 @@ impl Timeline {
                     poly.rotation = rot;
                 }
             }
+            VectorShapeState::Arrow(arrow) => {
+                arrow.from = track.line_from.get(time_ms, [-50.0, 0.0]);
+                arrow.to = track.line_to.get(time_ms, [50.0, 0.0]);
+                arrow.head_size = track.head_size.get(time_ms, 10.0);
+            }
             _ => {}
         }
         if vector_shape_uses_custom_path(shape_type) {

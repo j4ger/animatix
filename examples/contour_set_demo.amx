@@ -1,0 +1,52 @@
+// ContourSet Demo: Level-set curves for scalar functions
+// Shows how to visualize 2D scalar fields with contour lines
+
+config { colorscheme: "editorial-dark" }
+
+#0s
+title: Text, text: "ContourSet Demo", font_size: 56, color: auto, anchor: scene.top, offset: (0, 80)
+subtitle: Text, text: "Level-set curves for scalar functions", font_size: 24, color: text.secondary, anchor: scene.top, offset: (0, 140)
+
+// Paraboloid: z = x^2 + y^2
+g1: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (420, 420), at: (360, 420) {
+  c1: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 96, color: accent.primary
+}
+g1_label: Text, text: "z = x\u00b2 + y\u00b2", font_size: 16, color: accent.primary, at: (360, 190)
+
+// Saddle: z = x^2 - y^2
+g2: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (420, 420), at: (900, 420) {
+  c2: ContourSet, func: (x, y) => x^2 - y^2, levels: (-2, 0, 2), resolution: 96, color: accent.success
+}
+g2_label: Text, text: "z = x\u00b2 - y\u00b2", font_size: 16, color: accent.success, at: (900, 190)
+
+// Ripple: z = sin(x^2 + y^2)
+g3: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (420, 420), at: (360, 860) {
+  c3: ContourSet, func: (x, y) => sin(x^2 + y^2), levels: (-0.5, 0, 0.5), resolution: 96, color: accent.warning
+}
+g3_label: Text, text: "z = sin(x\u00b2 + y\u00b2)", font_size: 16, color: accent.warning, at: (360, 650)
+
+// Wave: z = sin(x) + cos(y)
+g4: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (420, 420), at: (900, 860) {
+  c4: ContourSet, func: (x, y) => sin(x) + cos(y), levels: (-1, 0, 1), resolution: 96, color: accent.danger
+}
+g4_label: Text, text: "z = sin(x) + cos(y)", font_size: 16, color: accent.danger, at: (900, 650)
+
+#1s
+stagger [200ms] {
+  fade-in g1 [800ms, ease: ease-out]
+  fade-in g2 [800ms, ease: ease-out]
+  fade-in g3 [800ms, ease: ease-out]
+  fade-in g4 [800ms, ease: ease-out]
+}
+
+#3s
+g1.size = (460, 460) [2s, ease: ease-in-out]
+g2.size = (460, 460) [2s, ease: ease-in-out]
+
+#5s
+g3.size = (460, 460) [2s, ease: ease-in-out]
+g4.size = (460, 460) [2s, ease: ease-in-out]
+
+#7s
+fade-out title [500ms]
+fade-out subtitle [500ms]

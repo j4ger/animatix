@@ -486,6 +486,7 @@ fn shape_type_to_u32(st: ShapeType) -> u32 {
         ShapeType::Path => 4,
         ShapeType::Graph => 5,
         ShapeType::Plot => 6,
+        ShapeType::Arrow => 7,
     }
 }
 

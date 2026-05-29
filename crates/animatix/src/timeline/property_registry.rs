@@ -175,6 +175,8 @@ pub enum ActorField {
     Commands,
     /// Cached vector paths after tessellation.
     VectorPaths,
+    /// Arrowhead size for arrow shapes.
+    HeadSize,
 
     // ── Text payload ──
     /// Raw text content.
@@ -270,6 +272,7 @@ impl ActorField {
             ActorField::ArcAngles => PropertyValue::Vec2([0.0, std::f32::consts::PI]),
             ActorField::Points => PropertyValue::PointList(Vec::new()),
             ActorField::Commands => PropertyValue::CommandList(String::new()),
+            ActorField::HeadSize => PropertyValue::F32(10.0),
             ActorField::VectorPaths => return None,
 
             // ── Text payload ──
@@ -455,12 +458,13 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("fill_opacity",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FillOpacity,         None,                             Applicable::AllShapesExceptLine, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Math, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
     schema!("font_size",     ValueType::F32,         F::ASSIGNABLE_A,              ActorField::FontSize,            None,                             Applicable::ActorKinds(&[A::Text, A::Math, A::Code]), |kind| match kind { A::Text => super::property_engine::PropertyValue::F32(48.0), A::Math => super::property_engine::PropertyValue::F32(36.0), A::Code => super::property_engine::PropertyValue::F32(24.0), _ => super::property_engine::PropertyValue::F32(24.0) }),
-    schema!("from",          ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineFrom,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
+    schema!("from",          ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineFrom,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line, S::Arrow]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("func",          ValueType::BuildTimeOnly, F::empty(),                 ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("gap",           ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("glow_color",    ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::GlowColor,           None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.0])),
     schema!("glow_radius",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::GlowRadius,          None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("grid",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
+    schema!("head_size",     ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::HeadSize,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Arrow]), |_| super::property_engine::PropertyValue::F32(10.0)),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("levels",        ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
@@ -488,7 +492,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("text",          ValueType::String,      F::ASSIGNABLE_A,              ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Text]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("tick_labels",   ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("ticks",         ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
-    schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),
+    schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line, S::Arrow]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),
     schema!("tolerance",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::F32(0.1)),
     schema!("transform",     ValueType::Transform,   F::ASSIGNABLE_AI,             ActorField::Transform,           None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])),
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),

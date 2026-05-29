@@ -1,9 +1,9 @@
 use animatix::composition::BuildTarget;
-use animatix::diagnostics::format_diagnostic;
+use animatix::diagnostics::{format_diagnostic, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::module::ModuleGraph;
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
-use clap::{Parser as ClapParser, Subcommand};
+use clap::{Parser as ClapParser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::path::PathBuf;
 use tracing::{error, info, warn};
@@ -16,8 +16,21 @@ struct Args {
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
 
+    /// Suppress ANSI color codes in output
+    #[arg(long)]
+    no_color: bool,
+
     #[command(subcommand)]
     command: Commands,
+}
+
+/// Output format for diagnostic reporting.
+#[derive(Clone, ValueEnum, Debug)]
+enum OutputFormat {
+    /// Human-readable text output
+    Text,
+    /// Structured JSON output
+    Json,
 }
 
 #[derive(Subcommand, Debug)]
@@ -157,12 +170,16 @@ enum Commands {
     },
     /// Parse an .amx file and print build diagnostics
     Check {
-        /// Path to the .amx file
+        /// Path to the .amx file (use "-" for stdin)
         file: String,
 
         /// Render one frame at time=0 to catch renderer bugs
         #[arg(long)]
         render_smoke: bool,
+
+        /// Output format (text or json)
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
     },
 }
 
@@ -292,6 +309,7 @@ fn main() {
     };
     tracing_subscriber::fmt()
         .with_env_filter(filter)
+        .with_ansi(!args.no_color)
         .init();
 
     match args.command {
@@ -518,17 +536,33 @@ fn main() {
             }
         }
 
-        Commands::Check { file, render_smoke } => {
-            let source = match std::fs::read_to_string(&file) {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Cannot read {}: {}", file, e);
-                    std::process::exit(1);
-                }
+        Commands::Check {
+            file,
+            render_smoke,
+            format,
+        } => {
+            let (source, file_label) = if file == "-" {
+                let source = match std::io::read_to_string(std::io::stdin()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Cannot read from stdin: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                (source, "-".to_string())
+            } else {
+                let source = match std::fs::read_to_string(&file) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Cannot read {}: {}", file, e);
+                        std::process::exit(1);
+                    }
+                };
+                (source, file.clone())
             };
             let mut module_graph = ModuleGraph::new();
             let (ast, namespaces, type_diagnostics) = match module_graph
-                .load_program_with_source(std::path::Path::new(&file), Some(&source))
+                .load_program_with_source(std::path::Path::new(&file_label), Some(&source))
             {
                 Ok(mut program) => {
                     let diagnostics = program.typecheck();
@@ -545,29 +579,90 @@ fn main() {
 
             if render_smoke {
                 if let Err(e) = run_render_smoke(&report.output) {
-                    diagnostics.push(animatix::diagnostics::Diagnostic::error(
-                        animatix::diagnostics::DiagnosticCode::RenderFailure,
-                        animatix::diagnostics::DiagnosticPhase::Render,
+                    diagnostics.push(Diagnostic::error(
+                        DiagnosticCode::RenderFailure,
+                        DiagnosticPhase::Render,
                         format!("Render smoke test failed: {e}"),
                     ));
                 }
             }
 
-            if diagnostics.is_empty() {
-                println!("{}: OK (no diagnostics)", file);
-            } else {
-                for diag in &diagnostics {
-                    println!("{}", format_diagnostic(diag));
+            match format {
+                OutputFormat::Json => {
+                    if diagnostics.is_empty() {
+                        println!(r#"{{"passed":true}}"#);
+                    } else {
+                        let errors: Vec<String> = diagnostics
+                            .iter()
+                            .map(|d| diagnostic_to_json(d))
+                            .collect();
+                        println!(
+                            r#"{{"passed":false,"errors":[{}]}}"#,
+                            errors.join(",")
+                        );
+                        if diagnostics.iter().any(|d| d.is_error()) {
+                            std::process::exit(1);
+                        }
+                    }
                 }
-                if diagnostics.iter().any(|d| d.is_error()) {
-                    std::process::exit(1);
+                OutputFormat::Text => {
+                    if diagnostics.is_empty() {
+                        println!("{}: OK (no diagnostics)", file_label);
+                    } else {
+                        for diag in &diagnostics {
+                            println!("{}", format_diagnostic(diag));
+                        }
+                        if diagnostics.iter().any(|d| d.is_error()) {
+                            std::process::exit(1);
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-fn print_build_diagnostics(diagnostics: &[animatix::diagnostics::Diagnostic]) {
+/// Escapes a string for safe inclusion in JSON output.
+fn escape_json(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => result.push_str("\\\""),
+            '\\' => result.push_str("\\\\"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            c if c.is_control() => {
+                result.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => result.push(c),
+        }
+    }
+    result
+}
+
+/// Serializes a single diagnostic as a JSON object string.
+fn diagnostic_to_json(d: &Diagnostic) -> String {
+    let line = match d.location.line {
+        Some(l) => l.to_string(),
+        None => "null".to_string(),
+    };
+    let col = match d.location.column {
+        Some(c) => c.to_string(),
+        None => "null".to_string(),
+    };
+    format!(
+        r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}","phase":"{}"}}"#,
+        line,
+        col,
+        escape_json(&d.message),
+        d.code,
+        d.severity,
+        d.phase,
+    )
+}
+
+fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
     for diagnostic in diagnostics {
         let formatted = format_diagnostic(diagnostic);
         if diagnostic.is_error() {

@@ -26,6 +26,10 @@ impl Timeline {
                 line.line_from = line_from;
                 line.line_to = line_to;
             }
+            VectorShapeState::Arrow(arrow) => {
+                arrow.from = line_from;
+                arrow.to = line_to;
+            }
             VectorShapeState::Ellipse(ellipse) => {
                 ellipse.arc_angles = arc_angles;
             }

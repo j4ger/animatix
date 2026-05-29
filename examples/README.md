@@ -20,6 +20,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 | `reactive.amx` | ~5s | **Reactive blocks** — `always`, time-driven properties, `if/else` |
 | `colorschemes.amx` | ~4s | **Color themes** — `colorscheme`, `auto` colors, overrides |
 | `plotting.amx` | ~6s | **Graph plotting** — Cartesian, polar, parametric, implicit curves |
+| `contour_set_demo.amx` | ~7s | **Contour plots** — `ContourSet` level-set curves for scalar fields |
 | `font_demo.amx` | ~8s | **Font system** — `font_family`, runtime recompilation, dynamic sizing |
 | `rotation_demo.amx` | ~5s | **Shape rotation** — `angle` property on primitives |
 | `path_animation_demo.amx` | ~8s | **Path morphing** — `Polygon.points` animation, shape interpolation |
@@ -41,7 +42,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 - **`showcase.amx`** — Combined hero scene with layout + animation + primitives
 
 ### Primitives & Media
-- **`primitives.amx`** — All shapes: `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, `Text`, `Math`, `Code`, `Image`, `Svg`
+- **`primitives.amx`** — All shapes: `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, `Arrow`, `Text`, `Math`, `Code`, `Image`, `Svg`
 - **`rotation_demo.amx`** — `angle` property for rotating primitives
 - **`path_animation_demo.amx`** — Morphing `Polygon.points` over time
 
@@ -53,6 +54,7 @@ Runnable `.amx` demos organized by feature area. The GUI opens `showcase.amx` by
 
 ### Specialized
 - **`plotting.amx`** — `Graph`, `PlotCurve` (`kind: cartesian`, `polar`, `parametric`, `implicit`)
+- **`contour_set_demo.amx`** — `ContourSet` level-set curves for 2D scalar fields
 - **`font_demo.amx`** — `font_family` selection, runtime text recompilation, dynamic `font_size`
 
 ## Helper Modules (not standalone demos)

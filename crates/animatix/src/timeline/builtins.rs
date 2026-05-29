@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::{Environment, EvalError, Value};
+use crate::easing::{apply_easing, Easing};
 
 fn expect_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), EvalError> {
     if args.len() != expected {
@@ -166,6 +167,91 @@ pub fn load_standard_library(env: &mut Environment) {
         t * t * (3.0 - 2.0 * t)
     });
     register_num3!(env, "lerp", |start, end, t| start + (end - start) * t);
+
+    // Easing helper functions — each takes a progress t in [0,1] and returns eased t
+    register_num1!(env, "ease_linear", |t| {
+        apply_easing(t as f32, Easing::Linear) as f64
+    });
+    register_num1!(env, "ease_in", |t| {
+        apply_easing(t as f32, Easing::EaseIn) as f64
+    });
+    register_num1!(env, "ease_out", |t| {
+        apply_easing(t as f32, Easing::EaseOut) as f64
+    });
+    register_num1!(env, "ease_in_out", |t| {
+        apply_easing(t as f32, Easing::EaseInOut) as f64
+    });
+    register_num1!(env, "bounce", |t| {
+        apply_easing(t as f32, Easing::Bounce) as f64
+    });
+    register_num1!(env, "elastic", |t| {
+        apply_easing(t as f32, Easing::Elastic) as f64
+    });
+    register_num1!(env, "back", |t| {
+        apply_easing(t as f32, Easing::Back) as f64
+    });
+    register_num1!(env, "expo", |t| {
+        apply_easing(t as f32, Easing::Expo) as f64
+    });
+
+    // Composable interpolation helpers
+    env.set(
+        "lerp_vec2",
+        Value::NativeFn(Arc::new(|args, _env| {
+            expect_arg_count("lerp_vec2", args, 3)?;
+            let start = match &args[0] {
+                Value::Vec2(v) => *v,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_vec2 expects start as Vec2".to_string(),
+                    ))
+                }
+            };
+            let end = match &args[1] {
+                Value::Vec2(v) => *v,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_vec2 expects end as Vec2".to_string(),
+                    ))
+                }
+            };
+            let t = expect_num("lerp_vec2", &args[2])?;
+            Ok(Value::Vec2([
+                start[0] + (end[0] - start[0]) * t,
+                start[1] + (end[1] - start[1]) * t,
+            ]))
+        })),
+    );
+
+    env.set(
+        "lerp_color",
+        Value::NativeFn(Arc::new(|args, _env| {
+            expect_arg_count("lerp_color", args, 3)?;
+            let start = match &args[0] {
+                Value::Color(c) => *c,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_color expects start as Color".to_string(),
+                    ))
+                }
+            };
+            let end = match &args[1] {
+                Value::Color(c) => *c,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_color expects end as Color".to_string(),
+                    ))
+                }
+            };
+            let t = expect_num("lerp_color", &args[2])?;
+            Ok(Value::Color([
+                start[0] + (end[0] - start[0]) * t,
+                start[1] + (end[1] - start[1]) * t,
+                start[2] + (end[2] - start[2]) * t,
+                start[3] + (end[3] - start[3]) * t,
+            ]))
+        })),
+    );
 
     env.set(
         "rand",

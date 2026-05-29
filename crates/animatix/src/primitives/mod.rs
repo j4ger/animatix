@@ -50,6 +50,7 @@ use crate::timeline::{
 mod rect;       pub use rect::RECT;
 mod ellipse;    pub use ellipse::ELLIPSE;
 mod line;       pub use line::LINE;
+mod arrow;      pub use arrow::ARROW;
 mod polygon;    pub use polygon::POLYGON;
 mod path;       pub use path::PATH;
 mod text;       pub use text::TEXT;
@@ -253,7 +254,7 @@ pub trait Primitive: Send + Sync {
 /// **This is the only place you add a new primitive.**
 pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Shapes
-    &RECT, &ELLIPSE, &LINE, &POLYGON, &PATH,
+    &RECT, &ELLIPSE, &LINE, &ARROW, &POLYGON, &PATH,
     // Text
     &TEXT, &MATH, &CODE, &TYPST,
     // Media
@@ -383,6 +384,7 @@ mod tests {
         let shape_kinds = [
             ShapeKind::Rect, ShapeKind::Ellipse,
             ShapeKind::Line, ShapeKind::Polygon, ShapeKind::Path,
+            ShapeKind::Arrow,
         ];
         for sk in &shape_kinds {
             let id = ActorKindId::Shape(*sk);
