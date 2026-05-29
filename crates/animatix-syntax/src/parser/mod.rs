@@ -1241,16 +1241,23 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .labelled("keyframe")
         .padded();
 
-    // Top-level: scenes, keyframes, play, config, or standalone statements
+    // Top-level: scenes, keyframes, play, config, or standalone statements.
+    // Actions, sequences, and staggers are wrapped in a default #0s keyframe
+    // because they need a timeline context. Actor declarations and other
+    // statements remain top-level so the compiler can distinguish pre-keyframe
+    // actors (hidden by default) from in-keyframe actors (visible by default).
     choice((
         keyframe,
         scene_decl,
         play_stmt,
         config_stmt,
-        stmt.map(|s| Stmt::Keyframe {
-            time: Time::Seconds(0.0), // default timeline wrapper
-            body: vec![s],
-            span: None,
+        stmt.map(|s| match s {
+            Stmt::Action(..) | Stmt::Sequence { .. } | Stmt::Stagger { .. } => Stmt::Keyframe {
+                time: Time::Seconds(0.0),
+                body: vec![s],
+                span: None,
+            },
+            other => other,
         }),
     ))
     .repeated()
@@ -1338,26 +1345,22 @@ mod tests {
         let res = parser().parse(input).unwrap();
 
         // Find the LetDecl stmt
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::LetDecl { is_pub, name, value, .. } = &body[0] {
-                assert_eq!(*is_pub, false);
-                assert_eq!(name, "f");
-                assert_eq!(
-                    *value,
-                    Expr::Closure(
-                        vec!["x".to_string()],
-                        Box::new(Expr::Binary(
-                            Box::new(Expr::Ident("x".to_string())),
-                            BinaryOp::Pow,
-                            Box::new(Expr::Num(2.0))
-                        ))
-                    )
-                );
-            } else {
-                panic!("Expected LetDecl");
-            }
+        if let Stmt::LetDecl { is_pub, name, value, .. } = &res[0] {
+            assert_eq!(*is_pub, false);
+            assert_eq!(name, "f");
+            assert_eq!(
+                *value,
+                Expr::Closure(
+                    vec!["x".to_string()],
+                    Box::new(Expr::Binary(
+                        Box::new(Expr::Ident("x".to_string())),
+                        BinaryOp::Pow,
+                        Box::new(Expr::Num(2.0))
+                    ))
+                )
+            );
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected LetDecl");
         }
     }
 
@@ -1366,30 +1369,26 @@ mod tests {
         let input = r#"a: "hello world""#;
         let res = parser().parse(input).unwrap();
 
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ActorDecl {
-                is_pub,
-                label,
-                ty,
-                props,
-                modifiers,
-                children,
-                ..
-            } = &body[0]
-            {
-                assert_eq!(*is_pub, false);
-                assert_eq!(label, "a");
-                assert_eq!(ty, "Text");
-                assert_eq!(props.len(), 1);
-                assert_eq!(props[0].name, "text");
-                assert_eq!(props[0].value, Expr::Str("hello world".to_string()));
-                assert!(modifiers.is_empty());
-                assert!(children.is_empty());
-            } else {
-                panic!("Expected ActorDecl, got {:?}", body[0]);
-            }
+        if let Stmt::ActorDecl {
+            is_pub,
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(*is_pub, false);
+            assert_eq!(label, "a");
+            assert_eq!(ty, "Text");
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "text");
+            assert_eq!(props[0].value, Expr::Str("hello world".to_string()));
+            assert!(modifiers.is_empty());
+            assert!(children.is_empty());
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected ActorDecl, got {:?}", res[0]);
         }
     }
 
@@ -1398,26 +1397,22 @@ mod tests {
         let input = r#"title: "Slide 1" [2s, ease: ease-in-out]"#;
         let res = parser().parse(input).unwrap();
 
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ActorDecl {
-                label,
-                ty,
-                props,
-                modifiers,
-                ..
-            } = &body[0]
-            {
-                assert_eq!(label, "title");
-                assert_eq!(ty, "Text");
-                assert_eq!(props.len(), 1);
-                assert_eq!(props[0].name, "text");
-                assert_eq!(props[0].value, Expr::Str("Slide 1".to_string()));
-                assert_eq!(modifiers.len(), 2);
-            } else {
-                panic!("Expected ActorDecl, got {:?}", body[0]);
-            }
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            modifiers,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(label, "title");
+            assert_eq!(ty, "Text");
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "text");
+            assert_eq!(props[0].value, Expr::Str("Slide 1".to_string()));
+            assert_eq!(modifiers.len(), 2);
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected ActorDecl, got {:?}", res[0]);
         }
     }
 
@@ -1427,27 +1422,23 @@ mod tests {
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;
         let res = parser().parse(input).unwrap();
 
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ActorDecl { props, .. } = &body[0] {
-                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
-                let span = size_prop.value_span.unwrap();
+        if let Stmt::ActorDecl { props, .. } = &res[0] {
+            let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+            let span = size_prop.value_span.unwrap();
 
-                // The value in source is "(2494.552, 1377.7778)"
-                // Find its actual position in the input
-                let value_start = input.find("(2494.552").unwrap();
-                let value_end = input.find("1377.7778)").unwrap() + "1377.7778)".len();
+            // The value in source is "(2494.552, 1377.7778)"
+            // Find its actual position in the input
+            let value_start = input.find("(2494.552").unwrap();
+            let value_end = input.find("1377.7778)").unwrap() + "1377.7778)".len();
 
-                assert_eq!(span.start, value_start, "span start mismatch");
-                assert_eq!(span.end, value_end, "span end mismatch");
+            assert_eq!(span.start, value_start, "span start mismatch");
+            assert_eq!(span.end, value_end, "span end mismatch");
 
-                // Verify the span extracts the correct text
-                let extracted = &input[span.start..span.end];
-                assert_eq!(extracted, "(2494.552, 1377.7778)", "span extracts wrong text");
-            } else {
-                panic!("Expected ActorDecl");
-            }
+            // Verify the span extracts the correct text
+            let extracted = &input[span.start..span.end];
+            assert_eq!(extracted, "(2494.552, 1377.7778)", "span extracts wrong text");
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected ActorDecl");
         }
     }
 
@@ -1457,25 +1448,21 @@ mod tests {
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#;
         let res = parser().parse(input).unwrap();
 
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ActorDecl { props, .. } = &body[0] {
-                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
-                let span = size_prop.value_span.unwrap();
+        if let Stmt::ActorDecl { props, .. } = &res[0] {
+            let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+            let span = size_prop.value_span.unwrap();
 
-                // The value in source is "(2494.552, 1377.7778,)"
-                let value_start = input.find("(2494.552").unwrap();
-                let value_end = input.find("1377.7778,)").unwrap() + "1377.7778,)".len();
+            // The value in source is "(2494.552, 1377.7778,)"
+            let value_start = input.find("(2494.552").unwrap();
+            let value_end = input.find("1377.7778,)").unwrap() + "1377.7778,)".len();
 
-                assert_eq!(span.start, value_start, "span start mismatch");
-                assert_eq!(span.end, value_end, "span end mismatch");
+            assert_eq!(span.start, value_start, "span start mismatch");
+            assert_eq!(span.end, value_end, "span end mismatch");
 
-                let extracted = &input[span.start..span.end];
-                assert_eq!(extracted, "(2494.552, 1377.7778,)", "span extracts wrong text");
-            } else {
-                panic!("Expected ActorDecl");
-            }
+            let extracted = &input[span.start..span.end];
+            assert_eq!(extracted, "(2494.552, 1377.7778,)", "span extracts wrong text");
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected ActorDecl");
         }
     }
 
@@ -1485,33 +1472,29 @@ mod tests {
         let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
         let res = parser().parse(input).unwrap();
 
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ActorDecl { props, .. } = &body[0] {
-                let size_prop = props.iter().find(|p| p.name == "size").unwrap();
-                let color_prop = props.iter().find(|p| p.name == "color").unwrap();
-                let anchor_prop = props.iter().find(|p| p.name == "anchor").unwrap();
+        if let Stmt::ActorDecl { props, .. } = &res[0] {
+            let size_prop = props.iter().find(|p| p.name == "size").unwrap();
+            let color_prop = props.iter().find(|p| p.name == "color").unwrap();
+            let anchor_prop = props.iter().find(|p| p.name == "anchor").unwrap();
 
-                let size_span = size_prop.value_span.unwrap();
-                let color_span = color_prop.value_span.unwrap();
-                let anchor_span = anchor_prop.value_span.unwrap();
+            let size_span = size_prop.value_span.unwrap();
+            let color_span = color_prop.value_span.unwrap();
+            let anchor_span = anchor_prop.value_span.unwrap();
 
-                // Verify spans don't overlap
-                assert!(size_span.end <= color_span.start, "size span overlaps color span");
-                assert!(color_span.end <= anchor_span.start, "color span overlaps anchor span");
+            // Verify spans don't overlap
+            assert!(size_span.end <= color_span.start, "size span overlaps color span");
+            assert!(color_span.end <= anchor_span.start, "color span overlaps anchor span");
 
-                // Verify extracted text
-                let size_text = &input[size_span.start..size_span.end];
-                let color_text = &input[color_span.start..color_span.end];
-                let anchor_text = &input[anchor_span.start..anchor_span.end];
+            // Verify extracted text
+            let size_text = &input[size_span.start..size_span.end];
+            let color_text = &input[color_span.start..color_span.end];
+            let anchor_text = &input[anchor_span.start..anchor_span.end];
 
-                assert_eq!(size_text, "(100, 200)");
-                assert_eq!(color_text, "red");
-                assert_eq!(anchor_text, "center");
-            } else {
-                panic!("Expected ActorDecl");
-            }
+            assert_eq!(size_text, "(100, 200)");
+            assert_eq!(color_text, "red");
+            assert_eq!(anchor_text, "center");
         } else {
-            panic!("Expected Keyframe");
+            panic!("Expected ActorDecl");
         }
     }
 
@@ -1522,27 +1505,23 @@ mod tests {
 }"#;
         let res = parser().parse(input).unwrap();
         assert_eq!(res.len(), 1);
-        // Top-level statements are wrapped in a default keyframe
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::Drive { label, body: drive_body, .. } = &body[0] {
-                assert_eq!(label, "tracker");
-                assert_eq!(drive_body.len(), 1);
-                if let Stmt::Assignment {
-                    target,
-                    property,
-                    ..
-                } = &drive_body[0]
-                {
-                    assert!(target.is_empty(), "Expected empty target for single-segment assignment inside drive");
-                    assert_eq!(property, "at");
-                } else {
-                    panic!("Expected Assignment");
-                }
+        // Drive statements are not wrapped in a default keyframe
+        if let Stmt::Drive { label, body: drive_body, .. } = &res[0] {
+            assert_eq!(label, "tracker");
+            assert_eq!(drive_body.len(), 1);
+            if let Stmt::Assignment {
+                target,
+                property,
+                ..
+            } = &drive_body[0]
+            {
+                assert!(target.is_empty(), "Expected empty target for single-segment assignment inside drive");
+                assert_eq!(property, "at");
             } else {
-                panic!("Expected Drive");
+                panic!("Expected Assignment");
             }
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected Drive");
         }
     }
 
@@ -1552,16 +1531,12 @@ mod tests {
         let input = r#"at = (100, 200)"#;
         let res = parser().parse(input).unwrap();
         assert_eq!(res.len(), 1);
-        // Top-level statements are wrapped in a default keyframe
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::Assignment { target, property, .. } = &body[0] {
-                assert!(target.is_empty());
-                assert_eq!(property, "at");
-            } else {
-                panic!("Expected Assignment");
-            }
+        // Single-segment assignments are not wrapped in a default keyframe
+        if let Stmt::Assignment { target, property, .. } = &res[0] {
+            assert!(target.is_empty());
+            assert_eq!(property, "at");
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected Assignment");
         }
     }
 
@@ -1570,26 +1545,22 @@ mod tests {
         let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
         let res = parser().parse(input).unwrap();
         assert_eq!(res.len(), 1);
-        // Top-level statements are wrapped in a default keyframe
-        if let Stmt::Keyframe { body, .. } = &res[0] {
-            if let Stmt::ReactiveBinding { target, property, value, .. } = &body[0] {
-                assert_eq!(target, &["orbiter"]);
-                assert_eq!(property, "at");
-                // Verify it's a binary expression (tracker.at + (...))
-                if let Expr::Binary(left, BinaryOp::Add, _right) = value {
-                    if let Expr::Path(parts) = left.as_ref() {
-                        assert_eq!(parts, &["tracker", "at"]);
-                    } else {
-                        panic!("Expected Path for left side");
-                    }
+        // Reactive bindings are not wrapped in a default keyframe
+        if let Stmt::ReactiveBinding { target, property, value, .. } = &res[0] {
+            assert_eq!(target, &["orbiter"]);
+            assert_eq!(property, "at");
+            // Verify it's a binary expression (tracker.at + (...))
+            if let Expr::Binary(left, BinaryOp::Add, _right) = value {
+                if let Expr::Path(parts) = left.as_ref() {
+                    assert_eq!(parts, &["tracker", "at"]);
                 } else {
-                    panic!("Expected Binary Add expression");
+                    panic!("Expected Path for left side");
                 }
             } else {
-                panic!("Expected ReactiveBinding");
+                panic!("Expected Binary Add expression");
             }
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected ReactiveBinding");
         }
     }
 
@@ -1612,20 +1583,16 @@ mod tests {
         assert!(errors.is_empty(), "Parse errors: {:?}", errors);
         let ast = ast.expect("parsed AST");
         assert_eq!(ast.len(), 1);
-        if let Stmt::Keyframe { body, .. } = &ast[0] {
-            if let Stmt::Assignment { property, value, .. } = &body[0] {
-                assert_eq!(property, "circ");
-                if let Expr::Construct(name, props) = value {
-                    assert_eq!(name, "Circle");
-                    assert_eq!(props.len(), 2);
-                } else {
-                    panic!("Expected Construct value");
-                }
+        if let Stmt::Assignment { property, value, .. } = &ast[0] {
+            assert_eq!(property, "circ");
+            if let Expr::Construct(name, props) = value {
+                assert_eq!(name, "Circle");
+                assert_eq!(props.len(), 2);
             } else {
-                panic!("Expected Assignment, got {:?}", body[0]);
+                panic!("Expected Construct value");
             }
         } else {
-            panic!("Expected Keyframe wrapper, got {:?}", ast[0]);
+            panic!("Expected Assignment, got {:?}", ast[0]);
         }
     }
 
@@ -1639,22 +1606,18 @@ mod tests {
         let (ast, errors) = parse_source(input);
         assert!(errors.is_empty(), "Parse errors: {:?}", errors);
         let ast = ast.expect("parsed AST");
-        if let Stmt::Keyframe { body, .. } = &ast[0] {
-            if let Stmt::Assignment { value, .. } = &body[0] {
-                if let Expr::Construct(_, props) = value {
-                    if let Expr::Str(text) = &props[0].value {
-                        assert_eq!(text, "Visit https://example.com // not a comment");
-                    } else {
-                        panic!("Expected string value");
-                    }
+        if let Stmt::Assignment { value, .. } = &ast[0] {
+            if let Expr::Construct(_, props) = value {
+                if let Expr::Str(text) = &props[0].value {
+                    assert_eq!(text, "Visit https://example.com // not a comment");
                 } else {
-                    panic!("Expected Construct");
+                    panic!("Expected string value");
                 }
             } else {
-                panic!("Expected Assignment");
+                panic!("Expected Construct");
             }
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected Assignment");
         }
     }
 

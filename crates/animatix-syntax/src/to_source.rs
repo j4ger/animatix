@@ -919,16 +919,12 @@ btn: Rect, size: (100, 200) // half-extents"#;
 }"#;
         let parsed = crate::parser::parser().parse(source).unwrap();
         assert_eq!(parsed.len(), 1);
-        // Top-level statements are wrapped in a default keyframe
-        if let Stmt::Keyframe { body, .. } = &parsed[0] {
-            if let Stmt::Drive { label, body: drive_body, .. } = &body[0] {
-                assert_eq!(label, "tracker");
-                assert_eq!(drive_body.len(), 1);
-            } else {
-                panic!("Expected Drive statement");
-            }
+        // Drive statements are not wrapped in a default keyframe
+        if let Stmt::Drive { label, body: drive_body, .. } = &parsed[0] {
+            assert_eq!(label, "tracker");
+            assert_eq!(drive_body.len(), 1);
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected Drive statement");
         }
         let serialized = stmts_to_source(&parsed);
         let reparsed = crate::parser::parser().parse(&serialized).unwrap();
@@ -940,15 +936,11 @@ btn: Rect, size: (100, 200) // half-extents"#;
         let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
         let parsed = crate::parser::parser().parse(source).unwrap();
         assert_eq!(parsed.len(), 1);
-        if let Stmt::Keyframe { body, .. } = &parsed[0] {
-            if let Stmt::ReactiveBinding { target, property, .. } = &body[0] {
-                assert_eq!(target, &["orbiter"]);
-                assert_eq!(property, "at");
-            } else {
-                panic!("Expected ReactiveBinding");
-            }
+        if let Stmt::ReactiveBinding { target, property, .. } = &parsed[0] {
+            assert_eq!(target, &["orbiter"]);
+            assert_eq!(property, "at");
         } else {
-            panic!("Expected Keyframe wrapper");
+            panic!("Expected ReactiveBinding");
         }
         let serialized = stmts_to_source(&parsed);
         let reparsed = crate::parser::parser().parse(&serialized).unwrap();
