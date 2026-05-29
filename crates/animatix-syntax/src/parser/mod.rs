@@ -46,6 +46,59 @@ use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 use std::ops::Range;
 
+/// Replace `//` line comments with spaces while preserving newlines.
+///
+/// This allows comments inside `{}`, `[]`, and `()` delimiters where chumsky's
+/// `.padded()` only skips whitespace. String literals are respected so `//`
+/// inside a string is left untouched.
+///
+/// Comment text is replaced with spaces (not removed) so that byte spans in
+/// parse errors remain valid for the original source.
+pub fn strip_comments(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+
+    while let Some(c) = chars.next() {
+        if in_string {
+            result.push(c);
+            if c == '"' {
+                in_string = false;
+            }
+        } else if c == '"' {
+            result.push(c);
+            in_string = true;
+        } else if c == '/' && chars.peek() == Some(&'/') {
+            // Line comment: replace with spaces until newline
+            chars.next(); // consume second '/'
+            result.push(' ');
+            result.push(' ');
+            while let Some(&next) = chars.peek() {
+                if next == '\n' {
+                    break;
+                }
+                chars.next();
+                result.push(' ');
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
+/// Parse source after replacing line comments with spaces.
+///
+/// Use this for all production parsing so that `//` comments work everywhere,
+/// including inside delimiters. Test code may call `parser().parse()` directly.
+pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+    let stripped = strip_comments(source);
+    let (ast, errors) = parser().parse(&stripped).into_output_errors();
+    let owned_errors = errors.iter().map(|e| ParseError::from_rich(source, e)).collect();
+    (ast, owned_errors)
+}
+
 /// Scan modifiers for `ease: ...` and extract the easing value.
 /// Removes the ease modifier from the list so it doesn't get processed twice.
 fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing> {
@@ -315,6 +368,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
             .map(|(name, props)| Expr::Construct(name, props))
+            .labelled("type constructor")
+            .as_context()
             .boxed();
 
         // Prefix operators for unary negation and logical NOT
@@ -527,7 +582,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .collect::<Vec<_>>()
         .delimited_by(just('[').padded(), just(']').padded())
         .or_not()
-        .map(|m: Option<Vec<Modifier>>| m.unwrap_or_default());
+        .map(|m: Option<Vec<Modifier>>| m.unwrap_or_default())
+        .labelled("modifier list")
+        .as_context();
 
     let type_ident = ident
         .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()));
@@ -647,6 +704,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         .ignore_then(config_props)
         .map(|settings| Stmt::Config { settings, span: None })
         .labelled("config")
+        .as_context()
         .padded();
 
     // --- Statement parser (recursive) ---
@@ -666,6 +724,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 value,
                 span: None,
             })
+            .labelled("let declaration")
+            .as_context()
             .padded();
 
         let import_stmt = text::keyword("import")
@@ -683,6 +743,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             )
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
             .labelled("import")
+            .as_context()
             .padded();
 
         let assignment = dotted_ident
@@ -728,6 +789,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 }
             })
             .labelled("assignment")
+            .as_context()
             .padded();
 
         // Reactive binding: actor.prop := expr
@@ -936,12 +998,16 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         let always_stmt = text::keyword("always")
             .ignore_then(always_body.clone())
             .map(|body| Stmt::Always { body, span: None })
+            .labelled("always block")
+            .as_context()
             .padded();
 
         let drive_stmt = text::keyword("drive")
             .ignore_then(ident)
             .then(always_body.clone())
             .map(|(label, body)| Stmt::Drive { label, body, span: None })
+            .labelled("drive block")
+            .as_context()
             .padded();
 
         // Conditional: if expr { }
@@ -961,6 +1027,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     span: None,
                 },
             )
+            .labelled("if statement")
+            .as_context()
             .padded();
 
         // For loop: for i in items { }
@@ -981,6 +1049,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 body,
                 span: None,
             })
+            .labelled("for loop")
+            .as_context()
             .padded();
 
         // Type annotation: Num | Str | Bool | Vec2 | Vec4 | Color | Actor | Scene | List<Type>
@@ -1088,6 +1158,8 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     body,
                 }, None)
             })
+            .labelled("component definition")
+            .as_context()
             .padded();
 
         // Reject block comments with a clear diagnostic.
@@ -1149,10 +1221,11 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             name,
             config: vec![],
             body: vec![],
-            span: None,
-        })
-        .labelled("scene declaration")
-        .padded();
+                span: None,
+            })
+            .labelled("reactive binding")
+            .as_context()
+            .padded();
 
     let keyframe = just('#')
         .ignore_then(just('+').or_not())
@@ -1525,5 +1598,85 @@ mod tests {
         let input = r#"at := (100, 200)"#;
         let res = parser().parse(input);
         assert!(res.has_errors(), "Expected parse error for single-segment reactive binding");
+    }
+
+    #[test]
+    fn test_comments_inside_delimiters() {
+        let input = r#"
+            circ = Circle {
+                at: (0, 0), // center
+                radius: 100, // size
+            }
+        "#;
+        let (ast, errors) = parse_source(input);
+        assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+        let ast = ast.expect("parsed AST");
+        assert_eq!(ast.len(), 1);
+        if let Stmt::Keyframe { body, .. } = &ast[0] {
+            if let Stmt::Assignment { property, value, .. } = &body[0] {
+                assert_eq!(property, "circ");
+                if let Expr::Construct(name, props) = value {
+                    assert_eq!(name, "Circle");
+                    assert_eq!(props.len(), 2);
+                } else {
+                    panic!("Expected Construct value");
+                }
+            } else {
+                panic!("Expected Assignment, got {:?}", body[0]);
+            }
+        } else {
+            panic!("Expected Keyframe wrapper, got {:?}", ast[0]);
+        }
+    }
+
+    #[test]
+    fn test_comment_strip_preserves_strings() {
+        let input = r#"
+            label = Text {
+                text: "Visit https://example.com // not a comment",
+            }
+        "#;
+        let (ast, errors) = parse_source(input);
+        assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+        let ast = ast.expect("parsed AST");
+        if let Stmt::Keyframe { body, .. } = &ast[0] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                if let Expr::Construct(_, props) = value {
+                    if let Expr::Str(text) = &props[0].value {
+                        assert_eq!(text, "Visit https://example.com // not a comment");
+                    } else {
+                        panic!("Expected string value");
+                    }
+                } else {
+                    panic!("Expected Construct");
+                }
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected Keyframe wrapper");
+        }
+    }
+
+    #[test]
+    fn test_parse_error_includes_context() {
+        // Trigger a parse error inside an actor declaration to verify context
+        let input = r#"
+            circ: Circle {
+                at: (0, 0),
+                radius: // missing value
+            }
+        "#;
+        let (_ast, errors) = parse_source(input);
+        assert!(!errors.is_empty(), "Expected parse errors");
+        // The error should include context about being in an actor declaration
+        let has_context = errors.iter().any(|e| {
+            e.context.iter().any(|c| c.contains("actor declaration"))
+        });
+        assert!(
+            has_context,
+            "Expected error context to include 'actor declaration', got: {:?}",
+            errors
+        );
     }
 }

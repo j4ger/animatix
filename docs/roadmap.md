@@ -23,6 +23,8 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ## Phase 6.6 — Parser Robustness
 
+> **Partially complete.** 6.6.1 was attempted but reverted due to chumsky 0.12 type system complexity when combining whitespace and comment skippers. A preprocessing approach may be needed instead.
+
 | # | Item | What | Rationale | Files | Effort |
 |---|------|------|-----------|-------|--------|
 | 6.6.1 | **Comments inside brackets/lists** | `//` line comments inside `{}`, `[]`, `()` delimiters are currently rejected. Replace `.padded()` with a custom `whitespace_or_comment` skipper throughout the parser. | LLM and humans naturally comment inside blocks. Current error `expected '}', found '/'` is confusing. | `parser/mod.rs` | 1–2 days |
@@ -32,22 +34,26 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ## Phase 6.7 — CLI Tooling
 
+> **Complete.** All items implemented.
+
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 6.7.1 | **`check --format json`** | Structured JSON output: `{"passed": bool, "errors": [{"line", "col", "message", "code"}]}` for IDE/scripting integration. | `src/main.rs` | 4–6 hrs | — |
-| 6.7.2 | **stdin support** | `animatix-cli check -` or pipe support for scripting workflows. | `src/main.rs` | 2–3 hrs | — |
-| 6.7.3 | **Clean ANSI output** | Add `--no-color` flag; ensure plain text mode strips ANSI escapes from `tracing` and `format_diagnostic`. | `src/main.rs`, `diagnostics.rs` | 2–3 hrs | — |
+| ~~6.7.1~~ | **`check --format json`** | Structured JSON output: `{"passed": bool, "errors": [{"line", "col", "message", "code"}]}` for IDE/scripting integration. | `src/main.rs` | 4–6 hrs | — |
+| ~~6.7.2~~ | **stdin support** | `animatix-cli check -` or pipe support for scripting workflows. | `src/main.rs` | 2–3 hrs | — |
+| ~~6.7.3~~ | **Clean ANSI output** | Add `--no-color` flag; ensure plain text mode strips ANSI escapes from `tracing` and `format_diagnostic`. | `src/main.rs`, `diagnostics.rs` | 2–3 hrs | — |
 
 ---
 
 ## Phase 6.8 — Language Features & Examples
 
+> **Partially complete.** 6.8.1 remains open (requires parser + build pipeline changes). 6.8.2–6.8.4 done.
+
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
 | 6.8.1 | **Graph nested element animation** | Support `g.vec.to = (5, 2)` dotted path syntax for assignments targeting children inside containers. Currently only `actor.property` works. | `parser/mod.rs`, `timeline/build/` | 3–5 days | — |
-| 6.8.2 | **Arrow primitive** | Dedicated `Arrow` actor with `from`, `to`, `head_size` properties (vs. using `Line` with manual arrowheads). | `primitives/`, `timeline/track.rs` | 1–2 days | — |
-| 6.8.3 | **Easing functions in `always` blocks** | Expose named easing functions (`ease_in`, `ease_out`, `bounce`, `elastic`, etc.) as `num1` builtins so users can compose eased interpolation inside `always` blocks. Enables `let x = lerp(0, 100, ease_out(t / 2.0))`. | `builtins.rs` | 2–3 hrs | — |
-| 6.8.4 | **Underused element examples** | Add dedicated examples for `ContourSet` (currently 0), `Path` (1), `VectorField` (1), `Heatmap` (1). | `examples/` | 2–3 days | — |
+| ~~6.8.2~~ | **Arrow primitive** | Dedicated `Arrow` actor with `from`, `to`, `head_size` properties (vs. using `Line` with manual arrowheads). | `primitives/`, `timeline/track.rs` | 1–2 days | — |
+| ~~6.8.3~~ | **Easing functions in `always` blocks** | Expose named easing functions (`ease_in`, `ease_out`, `bounce`, `elastic`, etc.) as `num1` builtins so users can compose eased interpolation inside `always` blocks. Enables `let x = lerp(0, 100, ease_out(t / 2.0))`. | `builtins.rs` | 2–3 hrs | — |
+| ~~6.8.4~~ | **Underused element examples** | Add dedicated examples for `ContourSet` (currently 0), `Path` (1), `VectorField` (1), `Heatmap` (1). | `examples/` | 2–3 days | — |
 
 ---
 

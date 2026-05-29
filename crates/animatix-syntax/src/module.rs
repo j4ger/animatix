@@ -9,8 +9,7 @@ mod rewrite;
 use crate::ast::{
     Action, ComponentDef, Expr, Import, InlineItem, Modifier, ParamDef, Property, Stmt,
 };
-use crate::parser::{parser, ParseError};
-use chumsky::Parser;
+use crate::parser::{parse_source, ParseError};
 use discovery::{collect_component_actions, collect_component_defs, collect_imports, strip_imports};
 use expand::expand_statements;
 use std::collections::{HashMap, HashSet};
@@ -386,14 +385,10 @@ impl ModuleGraph {
             .map(|override_source| override_source.source.to_owned())
             .unwrap_or(fs::read_to_string(&canonical).map_err(ModuleError::IoError)?);
 
-        let (statements, parse_errors) = parser().parse(&source).into_output_errors();
+        let (statements, parse_errors) = parse_source(&source);
 
         if !parse_errors.is_empty() {
-            let errors: Vec<ParseError> = parse_errors
-                .iter()
-                .map(|e| ParseError::from_rich(&source, e))
-                .collect();
-            return Err(ModuleError::ParseErrors(errors));
+            return Err(ModuleError::ParseErrors(parse_errors));
         }
 
         let mut statements = statements.unwrap_or_default();

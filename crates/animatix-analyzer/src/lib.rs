@@ -32,7 +32,7 @@ pub use workspace::Workspace;
 pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 
 use animatix_syntax::ast::{Span, Stmt};
-use animatix_syntax::parser::{parser, ParseError};
+use animatix_syntax::parser::{parse_source, ParseError};
 use chumsky::Parser;
 use std::path::{Path, PathBuf};
 use tree_sitter::{Parser as TsParser, Tree};
@@ -107,12 +107,9 @@ impl Analyzer {
         let source = &self.source;
 
         // Parse with chumsky (source of truth for AST)
-        let (ast, errors): (Option<Vec<Stmt>>, _) = parser().parse(source).into_output_errors();
+        let (ast, errors) = parse_source(source);
         self.ast = ast;
-        self.parse_errors = errors
-            .iter()
-            .map(|e| ParseError::from_rich(source, e))
-            .collect();
+        self.parse_errors = errors;
 
         // Build symbol table from AST
         let mut table = if let Some(ref stmts) = self.ast {

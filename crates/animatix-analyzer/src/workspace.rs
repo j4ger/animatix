@@ -27,10 +27,9 @@ impl Workspace {
 
     /// Add or update a file in the workspace.
     pub fn add_file(&mut self, path: PathBuf, source: &str) {
-        use animatix_syntax::parser::parser;
-        use chumsky::Parser;
+        use animatix_syntax::parser::parse_source;
 
-        let (ast, _) = parser().parse(source).into_output_errors();
+        let (ast, _) = parse_source(source);
         let symbols = ast
             .as_ref()
             .map(|stmts| SymbolTable::build_from_ast(stmts))
