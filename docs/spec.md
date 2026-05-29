@@ -361,8 +361,8 @@ row: Row, gap: 12, padding: 20, align: "center" {
 
 ```animatix
 circle: Ellipse, size: (100, 100)
-poly: Polygon, points: [(0,0), (100,0), (50,100)]
-path: Path, commands: [move_to(0, 0), line_to(100, 100), close()]
+poly: Polygon, points: {(0,0), (100,0), (50,100)}
+path: Path, commands: {move_to(0, 0), line_to(100, 100), close()}
 img: Image, url: "photo.png", at: (100, 100), size: (200, 150)
 ```
 
