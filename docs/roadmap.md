@@ -59,11 +59,11 @@ Quick wins from user report analysis. Target: AI/codegen compile rate 86.5% → 
 
 ## Phase 6.9 — Testing Infrastructure
 
-Gaps discovered during Phase 6 cleanup.
+> **Complete.**
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 6.9.1 | **Integration tests bypass comment stripping** | `crates/animatix/tests/parser_tests.rs` calls `parser().parse()` directly instead of `parse_source()`, so it never exercises the comment-stripping preprocessor. If any test fixture adds `//` comments inside `{}`, `[]`, or `()`, it will fail. Migrate helpers to use `parse_source()`. | `tests/parser_tests.rs` | 1–2 hrs | — |
+| ~~6.9.1~~ | **Integration tests bypass comment stripping** | `crates/animatix/tests/parser_tests.rs` calls `parser().parse()` directly instead of `parse_source()`, so it never exercises the comment-stripping preprocessor. Migrate helpers to use `parse_source()`. | `tests/parser_tests.rs` | 1–2 hrs | — |
 
 ---
 
@@ -111,7 +111,7 @@ Small interaction refinements discovered during dead-code cleanup. Each is low-e
 ## Order
 
 1. **Phase 6** (architecture cleanup — completed)
-2. **Phase 6.5–6.8** (DX & documentation — completed)
+2. **Phase 6.5–6.9** (DX, documentation, testing — completed)
 3. **Phase 7** (audio — no blockers)
 4. **Phase 8** (PiP — after syntax and renderer are stable)
 5. **Phase 9** (GUI polish — small, can be done anytime)

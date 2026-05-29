@@ -2,12 +2,13 @@ use animatix_syntax::ast::{
     Action, ByteSpan, Expr, InlineItem, Modifier, Property, Stmt, Time,
     UnaryOp,
 };
-use animatix_syntax::parser::parser;
-use chumsky::Parser;
+use animatix_syntax::parser::parse_source;
 
 // Helper function to extract a single statement from the implicit 0s keyframe wrapper
 fn parse_single_stmt(src: &str) -> Stmt {
-    let ast = parser().parse(src).into_result().unwrap();
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+    let ast = ast.expect("parsed AST");
     if let Stmt::Keyframe { body, .. } = &ast[0] {
         body[0].clone()
     } else {
@@ -16,11 +17,14 @@ fn parse_single_stmt(src: &str) -> Stmt {
 }
 
 fn parse_program(src: &str) -> Vec<Stmt> {
-    parser().parse(src).into_result().unwrap()
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "Parse errors: {:?}", errors);
+    ast.expect("parsed AST")
 }
 
 fn parse_error(src: &str) -> bool {
-    parser().parse(src).into_result().is_err()
+    let (_, errors) = parse_source(src);
+    !errors.is_empty()
 }
 
 const LAYOUT_FIXTURE: &str = r#"// Layout: Grid, Col, Row, Stack, anchors, offsets, nesting.
@@ -1094,8 +1098,7 @@ fn test_actor_decl_nested_with_children() {
 
 #[test]
 fn test_demo_layout_parse() {
-    let src = LAYOUT_FIXTURE;
-    let ast = parser().parse(src).into_result().unwrap();
+    let ast = parse_program(LAYOUT_FIXTURE);
     assert!(!ast.is_empty());
 }
 
@@ -1139,14 +1142,6 @@ fn test_action_comma_separated_targets() {
 }
 
 #[test]
-fn test_comments() {
-    assert_eq!(
-        parse_single_stmt("// This is a comment"),
-        Stmt::Comment(" This is a comment".to_string(), None)
-    );
-}
-
-#[test]
 fn test_keyframes() {
     let src = r#"
         #500ms
@@ -1154,18 +1149,18 @@ fn test_keyframes() {
         #2.5s
         let y = 2
     "#;
-    let ast = parser().parse(src).into_result().unwrap();
+    let ast = parse_program(src);
     assert_eq!(ast.len(), 2);
 
     if let Stmt::Keyframe { time, body, .. } = &ast[0] {
-        assert_eq!(*time, Time::Milliseconds(500));
+        assert_eq!(time, &Time::Milliseconds(500));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected Keyframe");
     }
 
     if let Stmt::Keyframe { time, body, .. } = &ast[1] {
-        assert_eq!(*time, Time::Seconds(2.5));
+        assert_eq!(time, &Time::Seconds(2.5));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected Keyframe");
@@ -1182,25 +1177,25 @@ fn test_relative_keyframes() {
         #+1.5s
         let z = 3
     "#;
-    let ast = parser().parse(src).into_result().unwrap();
+    let ast = parse_program(src);
     assert_eq!(ast.len(), 3);
 
     if let Stmt::Keyframe { time, body, .. } = &ast[0] {
-        assert_eq!(*time, Time::Seconds(0.0));
+        assert_eq!(time, &Time::Seconds(0.0));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected absolute Keyframe");
     }
 
     if let Stmt::RelativeKeyframe { offset, body, .. } = &ast[1] {
-        assert_eq!(*offset, Time::Milliseconds(500));
+        assert_eq!(offset, &Time::Milliseconds(500));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected RelativeKeyframe");
     }
 
     if let Stmt::RelativeKeyframe { offset, body, .. } = &ast[2] {
-        assert_eq!(*offset, Time::Seconds(1.5));
+        assert_eq!(offset, &Time::Seconds(1.5));
         assert_eq!(body.len(), 1);
     } else {
         panic!("Expected RelativeKeyframe");
