@@ -6,6 +6,19 @@
 
 ---
 
+## Phase 6.10 — CLI Error Messages
+
+Current error output is insufficient for locating problems. Parse errors show only the message string; build diagnostics use a verbose ` • ` separator and rarely show file paths or line numbers. Goal: rustc-quality error reporting.
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 6.10.1 | **Parse error location** | `ModuleError::ParseErrors` currently prints only `errors[0].message`. Include `line:column`, error context stack ("in actor declaration"), and source file path in the Display output. | `module.rs`, `parser/mod.rs` | 2–3 hrs | — |
+| 6.10.2 | **Build diagnostic formatting** | `format_diagnostic` uses a ` • ` separator between location, severity, phase, code, message, subject, and path. Restructure to rustc-style: `file.rs:line:col [severity:code] message` on the first line, followed by `subject:` and `path:` on indented continuation lines if present. | `diagnostics.rs` | 2–3 hrs | — |
+| 6.10.3 | **File path propagation** | Build diagnostics (`Diagnostic.location.path`) are rarely set because `BuildTarget::from_ast` receives no file path. Thread the source file path through the build pipeline so every diagnostic knows where it originated. | `timeline/build/`, `composition.rs` | 2–3 hrs | — |
+| 6.10.4 | **Source snippets** | For diagnostics that have a byte span (`location.span`), extract the relevant source line and print it with a `^` underline pointing to the exact token. This requires keeping the original source text alongside the AST during build. | `diagnostics.rs`, `timeline/build/` | 1–2 days | — |
+
+---
+
 ## Phase 7 — Audio
 
 | # | Item | What | Files | Effort | Blocker |
@@ -49,10 +62,11 @@ Small interaction refinements discovered during dead-code cleanup. Each is low-e
 
 ## Order
 
-1. **Phase 7** (audio — no blockers)
-2. **Phase 8** (PiP — after syntax and renderer are stable)
-3. **Phase 9** (GUI polish — small, can be done anytime)
-4. **Phase 10** (start after syntax stabilizes)
+1. **Phase 6.10** (CLI error messages — small, improves daily DX immediately)
+2. **Phase 7** (audio — no blockers)
+3. **Phase 8** (PiP — after syntax and renderer are stable)
+4. **Phase 9** (GUI polish — small, can be done anytime)
+5. **Phase 10** (start after syntax stabilizes)
 
 ---
 
