@@ -311,8 +311,8 @@ pub struct VectorShapeStyle {
     pub fill_opacity: f32,
 }
 
+#[cfg(test)]
 mod primitives;
-pub use primitives::*;
 
 /// Map an actor type string to its corresponding `ShapeType`, if any.
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {

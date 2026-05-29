@@ -28,11 +28,16 @@ pub enum Effect {
 /// State mutations are performed directly in `handle_command`; only effects
 /// that reach outside the state (UI notifications, editor scrolling, etc.)
 /// are returned and applied afterward.
+///
+/// Currently the command system returns `Vec<Effect>` directly; this type
+/// is kept for a future refactor where command handlers return a richer result.
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct CommandResult {
     pub effects: Vec<Effect>,
 }
 
+#[allow(dead_code)]
 impl CommandResult {
     pub fn new(effects: Vec<Effect>) -> Self {
         Self { effects }

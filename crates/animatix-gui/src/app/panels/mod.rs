@@ -9,9 +9,8 @@ pub mod inspector_panel;
 pub mod timeline;
 pub mod preview_panel;
 
-pub use crate::app::commands::{CommandQueue, PropertyEdit, PropertyValue};
+pub use crate::app::commands::{PropertyEdit, PropertyValue};
 use animatix::primitives;
-use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {

@@ -1,6 +1,6 @@
 use animatix::ast::{BinaryOp, Expr, Stmt, Time};
 use animatix::ir::{
-    IrLowerError, ModifierExpr, compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir,
+    ModifierExpr, compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir,
 };
 use animatix::module::ModuleGraph;
 use animatix::timeline::{
@@ -9,7 +9,7 @@ use animatix::timeline::{
 use animatix::vm::{VmCompileError, compile_modifier_bytecode};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+
 
 const REACTIVE_FIXTURE: &str = r#"// Reactive: always, time-driven behavior, if/else.
 

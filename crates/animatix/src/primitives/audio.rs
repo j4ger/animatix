@@ -1,9 +1,10 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
-use crate::timeline::{Environment, SceneDimensions, Value};
-use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::SceneDimensions;
 
+/// The singleton primitive descriptor for `Audio` actors.
 pub struct AudioPrimitive;
+/// Singleton instance of the audio primitive descriptor.
 pub const AUDIO: AudioPrimitive = AudioPrimitive;
 
 impl Primitive for AudioPrimitive {

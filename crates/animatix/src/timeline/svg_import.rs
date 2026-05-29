@@ -58,7 +58,11 @@ impl std::error::Error for SvgImportError {}
 // ---------------------------------------------------------------------------
 
 /// A single color stop in a gradient.
+///
+/// `opacity` is parsed but not used because the importer approximates
+/// gradients as a single solid color (see [`GradientDef::approximate_solid_color`]).
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct GradientStop {
     offset: f64,
     r: u8,
@@ -68,7 +72,11 @@ struct GradientStop {
 }
 
 /// A parsed SVG gradient definition (linear or radial).
+///
+/// Geometric fields (`x1`, `y1`, …) are parsed for completeness but not used
+/// because the importer flattens gradients to a single averaged color.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 enum GradientDef {
     Linear {
         x1: f64,

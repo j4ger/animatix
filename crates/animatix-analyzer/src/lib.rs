@@ -33,7 +33,7 @@ pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::{parse_source, ParseError};
-use chumsky::Parser;
+// chumsky::Parser trait is not needed directly; parser functions are called via module API.
 use std::path::{Path, PathBuf};
 use tree_sitter::{Parser as TsParser, Tree};
 
