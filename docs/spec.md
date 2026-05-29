@@ -93,6 +93,31 @@ btn: Button, text: "Submit" [2s]
 ```
 > **Runtime note:** Re-declaration follows the same timing subset as other modifiers: positional duration shorthand + named `ease`. Unsupported modifier keys are reported explicitly.
 
+**Pre-Keyframe Actor Declarations (Hidden by Default):**
+Actors declared **before the first keyframe** are hidden by default (`opacity: 0`). They remain invisible until an entrance action (e.g. `fade-in`) or an explicit `opacity` assignment makes them visible.
+
+```animatix
+// These actors are hidden until fade-in runs
+hello: Text, text: "Hello", font_size: 72, color: text.primary, anchor: scene.center
+backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
+
+#0.5s
+fade-in hello [800ms, ease: ease-out]
+
+#1s
+fade-in backdrop [600ms]
+```
+
+Actors declared **inside a keyframe** (including `#0s`) are visible by default (`opacity: 1`). To hide an in-keyframe actor, set `opacity: 0` explicitly.
+
+```animatix
+#0s
+actor: Rect, size: (100, 100), opacity: 0   // explicitly hidden
+
+#1s
+fade-in actor [500ms]
+```
+
 **Implicit Objects:**
 ```animatix
 #0s
@@ -1031,8 +1056,8 @@ Scenes are declared using `# SceneName` at the top level:
 
 ```animatix
 # Intro
-#0s
 title: Text, text: "Welcome"
+
 #1s
 fade-in title [500ms]
 ```
@@ -1043,15 +1068,14 @@ The `play` statement defines the successor scene and transition:
 
 ```animatix
 # Intro
-#0s
 title: Text, text: "Welcome"
+
 #1s
 fade-in title [500ms]
 
 play Diagram [fade, 300ms]
 
 # Diagram
-#0s
 graph: Rect, size: (400, 400)
 ```
 
@@ -1064,7 +1088,6 @@ A scene may contain its own `config` block after the scene declaration:
 ```animatix
 # Intro
 config { colorscheme: "editorial-dark" }
-#0s
 title: Text, text: "Welcome"
 ```
 
@@ -1079,11 +1102,9 @@ pub let accent = theme.accent
 config { resolution: (1280, 720) }
 
 # Intro
-#0s
 title: Text, text: "Welcome", color: accent
 
 # Diagram
-#0s
 graph: Rect, size: (400, 400)
 ```
 
