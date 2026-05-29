@@ -1,0 +1,10 @@
+// 00 — Hello World
+// The smallest valid Animatix scene: one actor, one action.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+hello: Text, text: "Hello, Animatix", font_size: 72, color: text.primary, anchor: scene.center
+
+#0.5s
+fade-in hello [800ms, ease: ease-out]

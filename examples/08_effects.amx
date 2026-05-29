@@ -1,0 +1,39 @@
+// 08 — Effect Actions
+// shake, pulse, bounce — emphasis and attention animations.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+shake_box: Rect, size: (140, 140), color: accent.danger, at: (320, 360)
+pulse_orb: Ellipse, size: (120, 120), color: accent.primary, at: (640, 360)
+bounce_ball: Ellipse, size: (100, 100), color: accent.success, at: (960, 360)
+
+#0.5s
+stagger [100ms] {
+  fade-in shake_box [400ms]
+  fade-in pulse_orb [400ms]
+  fade-in bounce_ball [400ms]
+}
+
+#2s
+shake shake_box [600ms, intensity: 3]
+
+#3s
+pulse pulse_orb [500ms, intensity: 2]
+
+#4s
+bounce bounce_ball [600ms, intensity: 2.5]
+
+// A second pass with combined effects
+#6s
+shake shake_box [400ms, intensity: 2]
+pulse pulse_orb [400ms, intensity: 1.5]
+
+#7s
+bounce bounce_ball [500ms, intensity: 2]
+
+// Color emphasis after effects
+#8s
+shake_box.color = accent.warning [800ms, ease: ease-in-out]
+pulse_orb.color = accent.danger [800ms, ease: ease-in-out]
+bounce_ball.color = accent.primary [800ms, ease: ease-in-out]

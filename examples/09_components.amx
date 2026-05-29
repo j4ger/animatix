@@ -1,0 +1,57 @@
+// 09 — Components
+// pub component, slots, custom actions, and dotted assignment.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Define a reusable card component with a slot
+pub component MetricCard(title: "Metric", value: "0") {
+  frame: Rect, size: (240, 140), color: surface.secondary
+  header: Col, gap: 8, anchor: scene.top, offset: (0, 16) {
+    @slot
+  }
+  value_text: Text, text: value, font_size: 48, color: text.primary, anchor: scene.center
+  action pulse {
+    self.scale = 1.05 [150ms]
+    self.scale = 1.0 [150ms]
+  }
+}
+
+#0s
+row: Row, anchor: scene.center, gap: 32, align: "center" {
+  card1: MetricCard, title: "Users", value: "12.4K" {
+    @header {
+      label: Text, text: "Users", font_size: 16, color: accent.primary
+    }
+  }
+  card2: MetricCard, title: "Revenue", value: "$89K" {
+    @header {
+      label: Text, text: "Revenue", font_size: 16, color: accent.success
+    }
+  }
+  card3: MetricCard, title: "Latency", value: "24ms" {
+    @header {
+      label: Text, text: "Latency", font_size: 16, color: accent.warning
+    }
+  }
+}
+
+#0.5s
+stagger [100ms] {
+  fade-in card1 [400ms]
+  fade-in card2 [400ms]
+  fade-in card3 [400ms]
+}
+
+// Update values via dotted assignment
+#2s
+card1.value_text.text = "14.2K" [800ms]
+card1.value_text.color = accent.success [800ms]
+
+#3s
+pulse card2 [300ms]
+card2.value_text.text = "$102K" [800ms]
+
+#4s
+pulse card3 [300ms]
+card3.value_text.text = "18ms" [800ms]
+card3.value_text.color = accent.success [800ms]

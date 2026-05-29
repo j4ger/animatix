@@ -21,7 +21,6 @@ pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix::primitives::actor_kind_registry;
 
     /// Every ActorKindMeta entry must have a valid icon glyph.

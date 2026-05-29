@@ -1,0 +1,40 @@
+// 13 — Advanced Paths
+// Path commands, bezier curves, and polygon animation.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+// A heart drawn with bezier curves
+heart: Path, commands: {
+  move_to(0, 20),
+  curve_to(-40, -20, -60, 20, 0, 60),
+  curve_to(60, 20, 40, -20, 0, 20),
+  close()
+}, color: accent.danger, at: (320, 360), scale: 2.0
+
+// A wave drawn with quadratic curves
+wave: Path, commands: {
+  move_to(-100, 0),
+  quad_to(-50, -40, 0, 0),
+  quad_to(50, 40, 100, 0),
+  quad_to(150, -40, 200, 0)
+}, color: accent.primary, at: (640, 360), stroke_width: 3
+
+// A morphing polygon
+poly: Polygon, points: {(0, -60), (52, -18), (32, 48), (-32, 48), (-52, -18)}, color: accent.success, at: (960, 360)
+
+#0.5s
+stagger [150ms] {
+  draw-in heart [800ms, ease: ease-out]
+  draw-in wave [800ms, ease: ease-out]
+  fade-in poly [600ms]
+}
+
+// Animate the polygon points
+#2.5s
+poly: Polygon, points: {(0, -80), (70, -20), (44, 60), (-44, 60), (-70, -20)}, color: accent.warning, at: (960, 360) [1.5s, path_arc: 0.2]
+
+#4.5s
+heart.color = accent.primary [1s, ease: ease-in-out]
+wave.color = accent.warning [1s, ease: ease-in-out]
+poly.color = accent.danger [1s, ease: ease-in-out]

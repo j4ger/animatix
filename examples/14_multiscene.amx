@@ -1,0 +1,47 @@
+// 14 — Multi-Scene Composition
+// Scene declarations, play transitions, and per-scene configuration.
+
+config { resolution: (1280, 720) }
+
+# Intro
+config { colorscheme: "editorial-dark" }
+#0s
+title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.center
+sub: Text, text: "Multi-Scene Composition", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 60)
+
+#0.5s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 200ms]
+
+#2s
+fade-out title [400ms]
+fade-out sub [400ms]
+
+play Diagram [fade, 300ms]
+
+# Diagram
+config { colorscheme: "editorial-dark" }
+#0s
+graph: Graph, x_domain: (-5, 5), y_domain: (-5, 5), size: (500, 500), anchor: scene.center {
+  curve: PlotCurve, kind: "cartesian", func: (x) => x^3 - 3 * x, color: accent.primary, width: 3
+}
+
+label: Text, text: "y = x^3 - 3x", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
+
+#0.5s
+fade-in graph [800ms]
+fade-in label [400ms, delay: 300ms]
+
+#3s
+fade-out graph [400ms]
+fade-out label [400ms]
+
+play Outro [fade, 300ms]
+
+# Outro
+config { colorscheme: "editorial-dark" }
+#0s
+thanks: Text, text: "Thanks for watching", font_size: 64, color: text.primary, anchor: scene.center
+
+#0.5s
+fade-in thanks [600ms, ease: ease-out]

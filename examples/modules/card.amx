@@ -1,7 +1,0 @@
-pub component Card(title: "Untitled") {
-  frame: Rect, size: (260, 140), color: surface.primary, stroke: stroke.default, stroke_width: 2
-  bar: Rect, size: (200, 8), color: accent.primary, at: (0, -48)
-  heading: Text, text: title, font_size: 30, color: text.primary, at: (0, -10)
-  caption: Text, text: "nested labels stay isolated", font_size: 14, color: text.secondary, at: (0, 24)
-  badge: Ellipse, size: (20, 20), color: accent.warning, at: (-96, 36)
-}

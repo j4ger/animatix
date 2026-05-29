@@ -1,0 +1,8 @@
+// Palette module — exported colors for the modules demo.
+
+pub let bg = (0.04, 0.06, 0.09, 1.0)
+pub let text = (0.95, 0.95, 0.97, 1.0)
+pub let primary = (0.38, 0.78, 1.0, 1.0)
+pub let secondary = (0.35, 0.85, 0.55, 1.0)
+pub let tertiary = (1.0, 0.75, 0.3, 1.0)
+pub let quaternary = (1.0, 0.45, 0.45, 1.0)

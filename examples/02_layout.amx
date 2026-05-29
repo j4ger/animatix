@@ -1,0 +1,52 @@
+// 02 — Layout Containers
+// Row, Col, Grid, Stack, and Group with animated properties.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+row: Row, anchor: scene.top, offset: (0, 80), gap: 16, align: "center" {
+  r1: Rect, size: (60, 60), color: accent.primary
+  r2: Rect, size: (60, 60), color: accent.success
+  r3: Rect, size: (60, 60), color: accent.warning
+}
+
+col: Col, anchor: scene.left, offset: (120, 0), gap: 16, align: "center" {
+  c1: Ellipse, size: (50, 50), color: accent.danger
+  c2: Ellipse, size: (50, 50), color: accent.primary
+  c3: Ellipse, size: (50, 50), color: accent.success
+}
+
+grid: Grid, cols: 3, gap: 12, padding: 20, anchor: scene.bottom, offset: (0, -100) {
+  g1: Rect, size: (40, 40), color: accent.warning
+  g2: Rect, size: (40, 40), color: accent.danger
+  g3: Rect, size: (40, 40), color: accent.primary
+  g4: Rect, size: (40, 40), color: accent.success
+  g5: Rect, size: (40, 40), color: accent.warning
+  g6: Rect, size: (40, 40), color: accent.danger
+}
+
+stack: Stack, anchor: scene.right, offset: (-160, 0) {
+  back: Rect, size: (140, 140), color: surface.secondary
+  mid: Ellipse, size: (100, 100), color: accent.primary
+  front: Rect, size: (60, 60), color: text.primary
+}
+
+#0.5s
+stagger [100ms] {
+  fade-in row [400ms]
+  fade-in col [400ms]
+  fade-in grid [400ms]
+  fade-in stack [400ms]
+}
+
+#2s
+row.gap = 40 [1s, ease: ease-in-out]
+
+#3s
+col.gap = 40 [1s, ease: ease-in-out]
+
+#4s
+grid.gap = 24 [1s, ease: ease-in-out]
+
+#5s
+mid.size = (120, 120) [1s, ease: bounce]

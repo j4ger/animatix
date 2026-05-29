@@ -1,0 +1,49 @@
+// 12 — Reorder & Swap
+// Animated container reordering with swap and reorder actions.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
+
+#0s
+title: Text, text: "Container Reordering", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+sub: Text, text: "swap and reorder actions with easing", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 120)
+
+#0s
+bars: Row, anchor: scene.center, gap: 12, align: "bottom" {
+  bar1: Rect, size: (80, 100), color: accent.primary
+  bar2: Rect, size: (80, 180), color: accent.success
+  bar3: Rect, size: (80, 140), color: accent.warning
+  bar4: Rect, size: (80, 220), color: accent.danger
+  bar5: Rect, size: (80, 60), color: accent.primary
+}
+
+#0.5s
+fade-in title [600ms]
+fade-in sub [400ms, delay: 200ms]
+
+#1.5s
+fade-in bars [500ms]
+
+// Swap adjacent pairs
+#3s
+swap bar1, bar2 [600ms, ease: ease-in-out]
+
+#4s
+swap bar3, bar4 [600ms, ease: ease-in-out]
+
+// Reverse the entire row
+#5.5s
+reorder bars [order: (bar5, bar4, bar3, bar2, bar1), 800ms, ease: ease-in-out]
+
+// Back to original
+#7s
+reorder bars [order: (bar1, bar2, bar3, bar4, bar5), 800ms, ease: ease-in-out]
+
+// Final color shift
+#8.5s
+stagger [80ms] {
+  bar1.color = accent.success [400ms]
+  bar2.color = accent.warning [400ms]
+  bar3.color = accent.danger [400ms]
+  bar4.color = accent.primary [400ms]
+  bar5.color = accent.success [400ms]
+}

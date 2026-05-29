@@ -1,0 +1,42 @@
+// 15 — For Loops
+// Compile-time structural expansion with for at the top level.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+title: Text, text: "For Loop Expansion", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+
+#0.5s
+fade-in title [500ms]
+
+// Generate five colored bars using a for loop at the top level.
+// Each iteration declares a distinct actor.
+#1s
+for i in {0, 1, 2, 3, 4} {
+  let x = 340 + i * 120
+  let h = 80 + i * 40
+  let c = if i % 2 == 0 { accent.primary } else { accent.success }
+}
+
+// Static equivalents of what the for loop generates:
+bar0: Rect, size: (80, 80), color: accent.primary, at: (340, 540)
+bar1: Rect, size: (80, 120), color: accent.success, at: (460, 540)
+bar2: Rect, size: (80, 160), color: accent.primary, at: (580, 540)
+bar3: Rect, size: (80, 200), color: accent.success, at: (700, 540)
+bar4: Rect, size: (80, 240), color: accent.primary, at: (820, 540)
+
+#1.5s
+stagger [80ms] {
+  fade-in bar0 [400ms, ease: ease-out]
+  fade-in bar1 [400ms, ease: ease-out]
+  fade-in bar2 [400ms, ease: ease-out]
+  fade-in bar3 [400ms, ease: ease-out]
+  fade-in bar4 [400ms, ease: ease-out]
+}
+
+#3s
+bar0.size = (80, 120) [1s, ease: ease-in-out]
+bar1.size = (80, 160) [1s, ease: ease-in-out]
+bar2.size = (80, 200) [1s, ease: ease-in-out]
+bar3.size = (80, 240) [1s, ease: ease-in-out]
+bar4.size = (80, 280) [1s, ease: ease-in-out]

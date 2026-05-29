@@ -1,0 +1,35 @@
+// 10 — Modules & Namespaces
+// import ... as, pub let exports, dotted access, re-exports.
+
+import "./lib/palette.amx" as theme
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+backdrop: Rect, size: (1280, 720), color: theme.bg, anchor: scene.center
+
+header: Text, text: "Module System", font_size: 64, color: theme.text, anchor: scene.top, offset: (0, 100)
+sub: Text, text: "import ... as  +  pub let  +  dotted access", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 170)
+
+#0.5s
+fade-in header [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 200ms]
+
+#1.5s
+row: Row, anchor: scene.center, gap: 24, align: "center" {
+  a: Rect, size: (140, 100), color: theme.primary
+  b: Rect, size: (140, 100), color: theme.secondary
+  c: Rect, size: (140, 100), color: theme.tertiary
+  d: Rect, size: (140, 100), color: theme.quaternary
+}
+
+#1.5s
+fade-in row [600ms, ease: ease-out]
+
+#3s
+stagger [80ms] {
+  a.color = accent.danger [400ms]
+  b.color = accent.warning [400ms]
+  c.color = accent.success [400ms]
+  d.color = accent.primary [400ms]
+}

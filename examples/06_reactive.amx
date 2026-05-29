@@ -1,0 +1,36 @@
+// 06 — Reactive Blocks
+// always: stateless frame-by-frame evaluation with t, scene anchors, and conditionals.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+orbit: Ellipse, size: (20, 20), color: accent.primary
+planet: Ellipse, size: (48, 48), color: accent.success
+moon: Ellipse, size: (16, 16), color: accent.warning
+wave: Rect, size: (120, 120), color: accent.danger
+
+always {
+  // Orbital motion around scene center
+  let cx = scene.center.x
+  let cy = scene.center.y
+  orbit.at = (cx + 200 * cos(t), cy + 120 * sin(t))
+
+  // Planet follows orbit at half speed
+  planet.at = (cx + 200 * cos(t * 0.5 + 1.0), cy + 120 * sin(t * 0.5 + 1.0))
+
+  // Moon orbits the planet
+  let px = planet.at.x
+  let py = planet.at.y
+  moon.at = (px + 60 * cos(t * 2), py + 40 * sin(t * 2))
+
+  // Pulsing square synced to time
+  let pulse = if (t % 1.0) < 0.5 { 1.0 } else { 1.4 }
+  wave.size = (120 * pulse, 120 * pulse)
+  wave.at = (cx - 300, cy)
+}
+
+#0s
+backdrop: Rect, size: (1280, 720), color: scene.background, anchor: scene.center
+
+#1s
+fade-in backdrop [1s]

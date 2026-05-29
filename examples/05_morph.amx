@@ -1,0 +1,34 @@
+// 05 — Shape Morphing
+// Re-declaration triggers automatic interpolation between shapes.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+circle: Ellipse, size: (160, 160), color: accent.primary, at: (320, 360)
+rect: Rect, size: (160, 160), color: accent.success, at: (640, 360)
+poly: Polygon, points: {(0, -80), (80, 0), (0, 80), (-80, 0)}, color: accent.warning, at: (960, 360)
+
+#0.5s
+stagger [100ms] {
+  fade-in circle [400ms]
+  fade-in rect [400ms]
+  fade-in poly [400ms]
+}
+
+// Circle → rounded square via re-declaration
+#2s
+circle: Rect, size: (160, 160), color: accent.danger, at: (320, 360) [1s, strategy: auto]
+
+// Rectangle → ellipse
+#3s
+rect: Ellipse, size: (180, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+
+// Diamond → star with path arc
+#4s
+poly: Polygon, points: {(0, -90), (22, -30), (85, -30), (35, 10), (53, 70), (0, 40), (-53, 70), (-35, 10), (-85, -30), (-22, -30)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
+
+// All fade to a common color
+#6s
+circle.color = accent.warning [800ms]
+rect.color = accent.warning [800ms]
+poly.color = accent.warning [800ms]

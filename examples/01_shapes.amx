@@ -1,0 +1,28 @@
+// 01 — Shape Primitives
+// Every built-in shape type in a single balanced gallery.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+gallery: Grid, cols: 4, gap: 40, padding: 80, anchor: scene.center {
+  circle: Ellipse, size: (100, 100), color: accent.primary
+  square: Rect, size: (100, 100), color: accent.success
+  diamond: Polygon, points: {(0, -50), (50, 0), (0, 50), (-50, 0)}, color: accent.warning
+  line: Line, from: (-50, 0), to: (50, 0), stroke: accent.danger, stroke_width: 4
+  star: Polygon, points: {(0, -60), (14, -20), (57, -20), (23, 8), (35, 50), (0, 25), (-35, 50), (-23, 8), (-57, -20), (-14, -20)}, color: accent.primary
+  path: Path, commands: {move_to(-40, 20), line_to(0, -40), line_to(40, 20), close()}, color: accent.success
+  math: Math, math: "sum_(i=1)^n i^2", font_size: 28, color: accent.warning
+  code: Code, code: "fn main() {}", font_size: 18, color: accent.danger
+}
+
+#0.5s
+stagger [80ms] {
+  fade-in circle [400ms, ease: ease-out]
+  fade-in square [400ms, ease: ease-out]
+  fade-in diamond [400ms, ease: ease-out]
+  fade-in line [400ms, ease: ease-out]
+  fade-in star [400ms, ease: ease-out]
+  fade-in path [400ms, ease: ease-out]
+  fade-in math [400ms, ease: ease-out]
+  fade-in code [400ms, ease: ease-out]
+}
