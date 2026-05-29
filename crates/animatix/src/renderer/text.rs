@@ -1,7 +1,7 @@
 pub use super::types::TextPath;
 use super::error::RenderError;
 use kurbo::{Affine, BezPath, Point, Shape};
-use mitex::convert_math;
+
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
 use typst::syntax::{FileId, Source, VirtualPath};
@@ -271,17 +271,15 @@ impl World for TypstWorld {
     }
 }
 
-/// Compile LaTeX math into a Typst frame.
-pub fn compile_math(latex: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
+/// Compile Typst math markup into a frame.
+pub fn compile_math(math: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
-    let typst_markup = convert_math(latex, None)
-        .map_err(|e| RenderError::TextCompilation(format!("failed to convert LaTeX math to Typst markup: {}", e)))?;
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
         color.to_hex(),
         text_font,
-        typst_markup
+        math
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
@@ -521,7 +519,7 @@ fn walk_frame_for_shapes(
 pub enum TextKind {
     /// Plain text.
     Text,
-    /// LaTeX math.
+    /// Typst math.
     Math,
     /// Code text.
     Code,
