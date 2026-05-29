@@ -7,13 +7,6 @@ use std::path::{Path, PathBuf};
 use animatix_analyzer::Analyzer;
 use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
-use crate::text_diff::TextEdit;
-
-mod highlight {
-    pub use crate::highlighting::highlight_source;
-}
-#[allow(unused_imports)]
-use highlight::highlight_source;
 
 mod completion;
 mod diagnostics;
@@ -38,11 +31,7 @@ pub struct EditorBuffer {
     pub pending_scroll_to_line: Option<usize>,
     /// Line to highlight as "current" (0-indexed, for timeline sync).
     pub highlighted_line: Option<usize>,
-    /// Lines that contain keyframe declarations (for decoration).
-    /// **Deprecated**: kept for API compatibility; cells handle this visually.
-    pub keyframe_lines: Vec<usize>,
     /// Absolute time in seconds for each keyframe line (line → time).
-    /// **Deprecated**: kept for API compatibility.
     pub keyframe_times_s: std::collections::HashMap<usize, f64>,
     /// Current cursor line (0-indexed), updated each frame.
     pub cursor_line: Option<usize>,
@@ -67,7 +56,6 @@ impl EditorBuffer {
             cells_dirty: false,
             pending_scroll_to_line: None,
             highlighted_line: None,
-            keyframe_lines: Vec::new(),
             keyframe_times_s: std::collections::HashMap::new(),
             cursor_line: None,
             pending_scrub_to_time: None,
@@ -85,7 +73,6 @@ impl EditorBuffer {
         self.cells_dirty = false;
         self.pending_scroll_to_line = None;
         self.highlighted_line = None;
-        self.keyframe_lines = Vec::new();
         self.keyframe_times_s.clear();
         self.cursor_line = None;
         self.pending_scrub_to_time = None;
@@ -112,51 +99,6 @@ impl EditorBuffer {
         self.cursor_line = None;
         self.keyframe_times_s.clear();
         self.pending_scrub_to_time = None;
-    }
-
-    /// Apply a sequence of non-overlapping text edits in-place.
-    pub fn apply_edits(&mut self, edits: &[TextEdit]) {
-        if edits.is_empty() {
-            return;
-        }
-
-        let cell_state = self.cell_state.clone();
-        let highlighted_line = self.highlighted_line;
-        let pending_scroll_to_line = self.pending_scroll_to_line;
-        let cursor_line = self.cursor_line;
-
-        let mut text = self.text.clone();
-        for edit in edits.iter().rev() {
-            text.replace_range(edit.start_byte..edit.end_byte, &edit.replacement);
-        }
-
-        self.text = text;
-        self.cells = parse_cells(&self.text);
-        self.cell_state = cell_state;
-        self.cells_dirty = false;
-        self.cached_highlight = None;
-        self.analyzer.update(&self.text);
-        self.pending_scroll_to_line = pending_scroll_to_line;
-        self.highlighted_line = highlighted_line;
-        self.cursor_line = cursor_line;
-        self.keyframe_times_s.clear();
-        self.pending_scrub_to_time = None;
-
-        if let Some(focused) = self.cell_state.focused_cell
-            && focused >= self.cells.len()
-        {
-            self.cell_state.focused_cell = None;
-        }
-        if let Some(pending) = self.cell_state.pending_cursor_cell
-            && pending >= self.cells.len()
-        {
-            self.cell_state.pending_cursor_cell = None;
-            self.cell_state.pending_cursor_char = None;
-        }
-    }
-
-    pub fn set_keyframe_times_s(&mut self, times: std::collections::HashMap<usize, f64>) {
-        self.keyframe_times_s = times;
     }
 
     pub fn scroll_to_line(&mut self, line: usize) {
@@ -192,7 +134,16 @@ impl EditorBuffer {
         };
 
         let body_start_line = cell_start_line + header_lines;
-        let line_in_body = line.saturating_sub(body_start_line);
+
+        // If the diagnostic points to a header line, focus the cell and scroll
+        // to it, but do not place a cursor in the body (headers are not editable).
+        if line < body_start_line {
+            self.cell_state.focused_cell = Some(idx);
+            self.cell_state.scroll_to_cell = Some(idx);
+            return;
+        }
+
+        let line_in_body = line - body_start_line;
         let col_0based = column;
 
         let body = cell.body();
@@ -229,10 +180,6 @@ impl EditorBuffer {
         self.cell_state.highlighted_cell = line.and_then(|l| self.cell_index_for_source_line(l));
         // Timeline sync takes precedence over manual cell focus
         self.cell_state.focused_cell = None;
-    }
-
-    pub fn set_keyframe_lines(&mut self, lines: Vec<usize>) {
-        self.keyframe_lines = lines;
     }
 
     /// Get the analyzer for diagnostics, hover, etc.

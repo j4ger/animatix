@@ -26,17 +26,6 @@
 
 ---
 
-## Phase 9 — GUI Polish
-
-Small interaction refinements discovered during dead-code cleanup. Each is low-effort and improves perceived quality.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 9.1 | **Precise diagnostic navigation** | `DiagnosticTarget` already captures `column` from parse errors but the GUI only jumps to the line. Wire the column into the source editor cursor position so clicking a diagnostic lands on the exact token. | `app/components/mod.rs`, `editor.rs` | 2–3 hrs | — |
-| 9.2 | **Context menu hover highlighting** | `MenuItemResponse` already computes `rect` for each rendered item but never uses it. Add a subtle hover background to menu items. | `app/components/context_menu.rs` | 2–3 hrs | — |
-
----
-
 ## Phase 10 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |

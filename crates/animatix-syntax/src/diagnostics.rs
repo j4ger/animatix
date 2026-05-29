@@ -169,6 +169,11 @@ pub struct DiagnosticLocation {
     /// 1-based line number where the error occurs.
     pub line: Option<usize>,
     /// 1-based column number where the error occurs.
+    ///
+    /// This is a **character (grapheme) offset**, not a byte offset.
+    /// Converting from byte offsets (e.g. from parser spans) must account
+    /// for multi-byte UTF-8 characters. Use [`Span::from_range`] which
+    /// performs this conversion correctly.
     pub column: Option<usize>,
     /// Byte-offset range into the source text.
     pub span: Option<Range<usize>>,

@@ -440,7 +440,7 @@ impl GuiShell {
                         components::diagnostics_list(ui, &diagnostics)
                     {
                         self.ui_store.pending_commands.push_back(
-                            Command::ScrollToLine(target.line)
+                            Command::ScrollToLine(target.line, target.column)
                         );
                     }
                 });

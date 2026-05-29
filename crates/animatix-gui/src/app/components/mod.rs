@@ -672,6 +672,8 @@ impl<'a> TimelineStrip<'a> {
 pub struct DiagnosticTarget {
     /// 0-indexed source line.
     pub line: usize,
+    /// 0-indexed source column.
+    pub column: usize,
 }
 
 /// Renders a scrollable card of diagnostic messages.
@@ -853,7 +855,8 @@ fn diagnostic_row(
 
     if response.clicked() {
         let line = diagnostic.location.line.map(|l| l.saturating_sub(1))?;
-        Some(DiagnosticTarget { line })
+        let column = diagnostic.location.column.map(|c| c.saturating_sub(1)).unwrap_or(0);
+        Some(DiagnosticTarget { line, column })
     } else {
         None
     }

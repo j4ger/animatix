@@ -834,8 +834,9 @@ pub fn handle_redo(
 pub fn handle_scroll_to_line(
     document_store: &mut DocumentStore,
     line: usize,
+    column: usize,
 ) -> Vec<Effect> {
-    document_store.editor.focus_diagnostic(line, 0);
+    document_store.editor.focus_diagnostic(line, column);
     vec![]
 }
 
@@ -1396,7 +1397,7 @@ impl GuiShell {
             Command::Redo => {
                 handle_redo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }
-            Command::ScrollToLine(line) => handle_scroll_to_line(&mut self.document_store, line),
+            Command::ScrollToLine(line, column) => handle_scroll_to_line(&mut self.document_store, line, column),
         }
     }
 }
@@ -1680,7 +1681,7 @@ mod tests {
     #[test]
     fn scroll_to_line_focuses_diagnostic() {
         let mut document_store = make_document_store();
-        let effects = handle_scroll_to_line(&mut document_store, 5);
+        let effects = handle_scroll_to_line(&mut document_store, 5, 0);
         assert!(effects.is_empty());
         // focus_diagnostic requires cell_index coverage; with from_error()
         // the test document has no parsed cells so pending_scroll_to_line

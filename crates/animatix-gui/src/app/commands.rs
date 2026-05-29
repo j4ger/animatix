@@ -70,7 +70,7 @@ pub enum Command {
     #[allow(dead_code)]
     ToggleDiagnosticsPanel,
     OpenExportDialog,
-    ScrollToLine(usize),
+    ScrollToLine(usize, usize),
 
     // ── Playback ──────────────────────────────────────────────────────
     TogglePlayback,
