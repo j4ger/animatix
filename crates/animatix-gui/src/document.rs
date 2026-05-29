@@ -144,7 +144,12 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&raw_statements);
 
-        let report = BuildTarget::from_ast(&expanded_statements, &namespaces, Some(&self.file_path));
+        let report = BuildTarget::from_ast_with_quality(
+            &expanded_statements,
+            &namespaces,
+            Some(&self.file_path),
+            animatix::timeline::BuildQuality::Draft,
+        );
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
         self.scene_dimensions = document_scene_dimensions(&expanded_statements);
@@ -155,19 +160,38 @@ impl DocumentSession {
         let mut all_diagnostics = type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
+        // Phase 6.4: Preserve plot path cache across rebuilds.
+        let old_plot_cache = self
+            .timeline
+            .as_ref()
+            .map(|t| t.plot_path_cache.clone())
+            .or_else(|| {
+                self.composition.as_ref().and_then(|c| {
+                    c.scenes
+                        .values()
+                        .next()
+                        .map(|s| s.timeline.plot_path_cache.clone())
+                })
+            })
+            .unwrap_or_default();
+
         match report.output {
-            BuildTarget::SingleScene(timeline) => {
+            BuildTarget::SingleScene(mut timeline) => {
+                timeline.plot_path_cache = old_plot_cache;
                 self.timeline = Some(timeline);
                 self.composition = None;
                 self.active_scene = None;
             }
-            BuildTarget::MultiScene(composition) => {
+            BuildTarget::MultiScene(mut composition) => {
                 if self
                     .active_scene
                     .as_ref()
                     .is_none_or(|scene| !composition.scenes.contains_key(scene))
                 {
                     self.active_scene = composition.declaration_order.first().cloned();
+                }
+                for scene in composition.scenes.values_mut() {
+                    scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
                 }
                 self.timeline = None;
                 self.composition = Some(composition);

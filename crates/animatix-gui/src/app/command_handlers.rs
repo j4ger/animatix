@@ -332,8 +332,16 @@ pub fn handle_rebuild(
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
     document_store.invalidate_cache();
+    preview_store.rebuild_in_progress = true;
+    preview_store.preview.status = "Building timeline…".to_string();
+    preview_store.preview_dirty = true;
+
+    // Phase 6.5: Background rebuild is deferred because Timeline contains
+    // RefCell fields and is not Send. Once those are replaced with thread-safe
+    // alternatives, the actual rebuild can be spawned on a worker thread.
     match document_store.document.rebuild() {
         Ok(()) => {
+            preview_store.rebuild_in_progress = false;
             let status = if document_store.document.diagnostics.is_empty() {
                 format!(
                     "Built timeline • {:.2}s total duration",
@@ -356,6 +364,7 @@ pub fn handle_rebuild(
             vec![]
         }
         Err(error) => {
+            preview_store.rebuild_in_progress = false;
             let status = if has_source_load_failure(&document_store.document.diagnostics) {
                 format!(
                     "Rebuild blocked • parse/load error • {}",
@@ -1475,7 +1484,7 @@ mod tests {
     fn scrub_to_updates_current_time_and_stops_playback() {
         let mut document_store = make_document_store();
         let mut preview_store = make_preview_store(5.0);
-        let mut ui_store = make_ui_store();
+        let ui_store = make_ui_store();
         let target = preview_store.preview.playback.duration_s * 0.5;
         let clamped = target.max(0.0).min(preview_store.preview.playback.duration_s.max(0.1));
         preview_store.preview.playback.is_playing = true;
@@ -1491,7 +1500,7 @@ mod tests {
     fn scrub_to_clamps_negative_time() {
         let mut document_store = make_document_store();
         let mut preview_store = make_preview_store(5.0);
-        let mut ui_store = make_ui_store();
+        let ui_store = make_ui_store();
         handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, -5.0);
         assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
     }
@@ -1500,7 +1509,7 @@ mod tests {
     fn scrub_to_clamps_overshoot_time() {
         let mut document_store = make_document_store();
         let mut preview_store = make_preview_store(5.0);
-        let mut ui_store = make_ui_store();
+        let ui_store = make_ui_store();
         handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, 999.0);
         let max = preview_store.preview.playback.duration_s.max(0.1);
         assert_eq!(preview_store.preview.playback.current_time_s, max);
