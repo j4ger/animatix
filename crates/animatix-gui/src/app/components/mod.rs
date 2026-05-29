@@ -18,7 +18,6 @@
 //! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
 
 pub mod context_menu;
-pub mod easing_picker;
 pub mod toast;
 
 
@@ -389,7 +388,7 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 ///     ui.add(egui::DragValue::new(&mut val));
 /// });
 /// ```
-#[allow(dead_code)]
+#[allow(dead_code)] // Used by dev-screenshots feature
 pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     field_sized(ui, None, add_contents)
 }

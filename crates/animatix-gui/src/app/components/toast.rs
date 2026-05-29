@@ -4,6 +4,7 @@ use std::time::Instant;
 
 /// Toast severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ToastLevel {
     Info,
     Success,
@@ -38,7 +39,7 @@ impl Toast {
         Self::new(message, ToastLevel::Success)
     }
 
-    #[allow(dead_code)] // Available for future use
+    #[allow(dead_code)] // Public API: available for future use
     pub fn warning(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Warning)
     }

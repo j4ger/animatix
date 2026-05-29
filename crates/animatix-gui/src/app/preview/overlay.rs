@@ -14,9 +14,6 @@ pub struct PreviewOverlay {
     pub show_guides: bool,
     /// Show actor name labels near selected actors.
     pub show_actor_labels: bool,
-    /// Show safe-area overlay (title-safe and action-safe regions).
-    #[allow(dead_code)]
-    pub show_safe_area: bool,
     /// Show snap guides during drag.
     pub show_snap_guides: bool,
     /// Show hover highlight around hovered actors.
@@ -32,7 +29,6 @@ impl Default for PreviewOverlay {
             show_grid: true,
             show_guides: true,
             show_actor_labels: false,
-            show_safe_area: false,
             show_snap_guides: true,
             show_hover_highlight: true,
             grid_size: 20.0,

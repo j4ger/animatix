@@ -1,78 +1,20 @@
 //!
-//! All UI code should call `actor_icon()` rather than maintaining its own mapping.
-//! The `ActorKindMeta.icon_id` field already contains the concrete Phosphor glyph string
+//! Returns the Phosphor icon glyph for any actor kind.
+//! The `ActorKindMeta.icon_id` field already contains the concrete glyph string
 //! (defined in the core crate's `icon_glyphs` module to avoid a GUI dependency).
 
-use animatix::timeline::{ActorCategory, ActorKindId, ActorKindMeta, ShapeType};
+use animatix::timeline::ActorKindId;
 
 // Re-export the language-level metadata so callers don't need a second import.
-pub use animatix::primitives::{actor_kind_meta, actor_kind_registry};
+pub use animatix::primitives::actor_kind_meta;
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 
-/// Concrete icon string + human label for use in egui widgets.
-#[allow(dead_code)]
-pub struct ActorIcon {
-    pub icon: &'static str,
-    pub label: &'static str,
-}
-
 // ── Primary API ─────────────────────────────────────────────────────────
-
-/// Get the Phosphor icon and label for any actor kind.
-#[allow(dead_code)]
-pub fn actor_icon(kind: ActorKindId) -> ActorIcon {
-    let meta = actor_kind_meta(kind);
-    ActorIcon {
-        icon: meta.icon_id,
-        label: meta.display_name,
-    }
-}
 
 /// Shorthand that returns only the icon string.
 pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
     actor_kind_meta(kind).icon_id
-}
-
-/// Get the category label for an actor kind.
-#[allow(dead_code)] // Public API: available for future use
-pub fn actor_category(kind: ActorKindId) -> ActorCategory {
-    actor_kind_meta(kind).category
-}
-
-/// Get the type name string for an actor kind (e.g. "Rect", "Text").
-#[allow(dead_code)] // Public API: available for future use
-pub fn actor_type_name(kind: ActorKindId) -> &'static str {
-    actor_kind_meta(kind).type_name
-}
-
-// ── Legacy bridge: ShapeType ────────────────────────────────────────────
-
-/// Get the icon for a `ShapeType` (rendering-level property track).
-/// Prefer `actor_icon()` for new code.
-#[allow(dead_code)] // Public API: available for future use
-pub fn shape_type_icon(shape: ShapeType) -> &'static str {
-    match shape {
-        ShapeType::Rect => egui_phosphor::regular::SQUARE,
-        ShapeType::Ellipse => egui_phosphor::regular::CIRCLE,
-        ShapeType::Line => egui_phosphor::regular::MINUS,
-        ShapeType::Polygon => egui_phosphor::regular::POLYGON,
-        ShapeType::Path => egui_phosphor::regular::PEN,
-        ShapeType::Graph => egui_phosphor::regular::CHART_BAR,
-        ShapeType::Plot => egui_phosphor::regular::CHART_LINE_UP,
-        ShapeType::Arrow => egui_phosphor::regular::ARROW_RIGHT,
-    }
-}
-
-// ── Palette helpers ─────────────────────────────────────────────────────
-
-/// All creatable actor types for the toolbar palette.
-///
-/// Derived directly from `actor_kind_registry()` — no hardcoded indices.
-/// `meta.advanced == true` items appear in a submenu.
-#[allow(dead_code)]
-pub fn actor_palette() -> &'static [ActorKindMeta] {
-    actor_kind_registry()
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -80,6 +22,7 @@ pub fn actor_palette() -> &'static [ActorKindMeta] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use animatix::primitives::actor_kind_registry;
 
     /// Every ActorKindMeta entry must have a valid icon glyph.
     /// A valid glyph is anything other than the QUESTION fallback.
@@ -94,33 +37,12 @@ mod tests {
         }
     }
 
-    /// The palette must contain at least one basic and one advanced item.
+    /// The registry must contain at least one basic and one advanced item.
     #[test]
-    fn actor_palette_has_basic_and_advanced() {
+    fn actor_registry_has_basic_and_advanced() {
         let basic_count = actor_kind_registry().iter().filter(|m| !m.advanced).count();
         let advanced_count = actor_kind_registry().iter().filter(|m| m.advanced).count();
-        assert!(basic_count > 0, "Palette has no basic items");
-        assert!(advanced_count > 0, "Palette has no advanced items");
-    }
-
-    /// ShapeType bridge: all variants must have a non-QUESTION icon.
-    #[test]
-    fn all_shape_types_have_icons() {
-        use animatix::timeline::ShapeType;
-        for variant in [
-            ShapeType::Rect,
-            ShapeType::Ellipse,
-            ShapeType::Line,
-            ShapeType::Polygon,
-            ShapeType::Path,
-            ShapeType::Graph,
-            ShapeType::Plot,
-        ] {
-            let icon = shape_type_icon(variant);
-            assert_ne!(
-                icon, egui_phosphor::regular::QUESTION,
-                "ShapeType::{:?} maps to QUESTION fallback", variant
-            );
-        }
+        assert!(basic_count > 0, "Registry has no basic items");
+        assert!(advanced_count > 0, "Registry has no advanced items");
     }
 }

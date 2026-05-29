@@ -221,19 +221,6 @@ impl PreviewPaneState {
     }
 }
 
-/// Transient UI state for panels (not preview/playback state).
-///
-/// Currently unused but kept as a placeholder for panel-specific UI state
-/// (e.g. which sub-panel is expanded, scroll positions, etc.).
-#[derive(Default)]
-#[allow(dead_code)]
-pub(crate) struct PanelState {
-    /// When set, the scene list panel should open the transition editor for this scene.
-    #[allow(dead_code)]
-    pub open_transition_editor: Option<String>,
-}
-
-
 struct GuiShell {
     document_store: DocumentStore,
     workspace_store: WorkspaceStore,
