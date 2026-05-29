@@ -7,7 +7,6 @@ use std::time::Instant;
 pub enum ToastLevel {
     Info,
     Success,
-    #[allow(dead_code)] // Available for future use
     Warning,
     Error,
 }

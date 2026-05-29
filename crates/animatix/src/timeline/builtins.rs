@@ -84,7 +84,6 @@ fn hsl_to_rgb(h: f64, s: f64, l: f64) -> [f64; 3] {
     ]
 }
 
-#[allow(unused_macros)]
 macro_rules! register_num1 {
     ($env:expr, $name:literal, $f:expr) => {
         $env.set(
@@ -97,7 +96,6 @@ macro_rules! register_num1 {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! register_num2 {
     ($env:expr, $name:literal, $f:expr) => {
         $env.set(
@@ -112,7 +110,6 @@ macro_rules! register_num2 {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! register_num3 {
     ($env:expr, $name:literal, $f:expr) => {
         $env.set(

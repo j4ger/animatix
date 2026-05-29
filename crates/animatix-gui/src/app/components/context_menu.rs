@@ -11,7 +11,6 @@
 //!         MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Copy"),
 //!         MenuEntry::item_with_icon(egui_phosphor::regular::SCISSORS, "Cut"),
 //!         MenuEntry::Separator,
-//!         MenuEntry::item("Delete"),
 //!     ];
 //!     if let Some(idx) = render_menu(ui, &entries) {
 //!         match idx { ... }
@@ -21,7 +20,7 @@
 //!
 //! ## As a floating menu (e.g. preview canvas):
 //! ```ignore
-//! let entries = vec![MenuEntry::item("Actor 1"), MenuEntry::item("Actor 2")];
+//! let entries = vec![MenuEntry::item_with_icon(egui_phosphor::regular::EYE, "Actor 1")];
 //! let (clicked, menu_rect) = render_floating_menu(ctx, id, pos, &entries);
 //! ```
 
@@ -60,18 +59,6 @@ pub enum MenuEntry {
 }
 
 impl MenuEntry {
-    /// Create a simple menu item.
-    #[allow(dead_code)] // Public API: available for future use
-    pub fn item(label: impl Into<String>) -> Self {
-        Self::Item {
-            icon: None,
-            label: label.into(),
-            shortcut: None,
-            checked: false,
-            enabled: true,
-        }
-    }
-
     /// Create a menu item with an icon.
     pub fn item_with_icon(icon: &'static str, label: impl Into<String>) -> Self {
         Self::Item {
@@ -80,30 +67,6 @@ impl MenuEntry {
             shortcut: None,
             checked: false,
             enabled: true,
-        }
-    }
-
-    /// Create a checked (toggled on) menu item.
-    #[allow(dead_code)] // Public API: available for future use
-    pub fn item_checked(label: impl Into<String>, checked: bool) -> Self {
-        Self::Item {
-            icon: None,
-            label: label.into(),
-            shortcut: None,
-            checked,
-            enabled: true,
-        }
-    }
-
-    /// Create a disabled menu item.
-    #[allow(dead_code)] // Public API: available for future use
-    pub fn item_disabled(label: impl Into<String>) -> Self {
-        Self::Item {
-            icon: None,
-            label: label.into(),
-            shortcut: None,
-            checked: false,
-            enabled: false,
         }
     }
 
@@ -121,8 +84,6 @@ impl MenuEntry {
 /// Response from rendering a single menu item.
 pub struct MenuItemResponse {
     pub clicked: bool,
-    #[allow(dead_code)] // Reserved for future use (e.g., hover highlight bounds)
-    pub rect: Rect,
 }
 
 // ─── Layout analysis ────────────────────────────────────────────────────────
@@ -381,7 +342,6 @@ fn render_menu_item(
 
     MenuItemResponse {
         clicked: enabled && response.clicked(),
-        rect,
     }
 }
 

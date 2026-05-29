@@ -7,7 +7,6 @@ use crate::app::design_tokens::*;
 /// [`animatix::easing::EASING_REGISTRY`] with a 40×20px mini curve preview.
 ///
 /// Returns the response from the ComboBox so callers can check `.changed()`.
-#[allow(dead_code)] // Reusable widget — callers not yet wired
 pub fn easing_picker(ui: &mut egui::Ui, id: egui::Id, easing: &mut Easing) -> egui::Response {
     let mut response = None;
 

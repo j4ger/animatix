@@ -312,7 +312,6 @@ pub struct VectorShapeStyle {
 }
 
 mod primitives;
-#[allow(unused_imports)]
 pub use primitives::*;
 
 /// Map an actor type string to its corresponding `ShapeType`, if any.

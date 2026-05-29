@@ -59,7 +59,6 @@ impl std::error::Error for SvgImportError {}
 
 /// A single color stop in a gradient.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 struct GradientStop {
     offset: f64,
     r: u8,
@@ -70,9 +69,7 @@ struct GradientStop {
 
 /// A parsed SVG gradient definition (linear or radial).
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 enum GradientDef {
-    #[allow(dead_code)]
     Linear {
         x1: f64,
         y1: f64,
@@ -80,7 +77,6 @@ enum GradientDef {
         y2: f64,
         stops: Vec<GradientStop>,
     },
-    #[allow(dead_code)]
     Radial {
         cx: f64,
         cy: f64,

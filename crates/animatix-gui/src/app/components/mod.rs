@@ -17,7 +17,6 @@
 //! | [`TimelineStrip`] | Mini timeline scrubber with keyframe markers |
 //! | [`diagnostics_list`] | Scrollable card of diagnostic messages |
 
-pub mod agent_suggestions;
 pub mod context_menu;
 pub mod easing_picker;
 pub mod toast;
@@ -34,10 +33,6 @@ use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
 pub struct RowResponse {
     pub row_clicked: bool,
     pub chevron_clicked: bool,
-    #[allow(dead_code)]
-    pub row_double_clicked: bool,
-    #[allow(dead_code)]
-    pub row_secondary_clicked: bool,
     pub drag_started: bool,
     pub hovered: bool,
     pub row_rect: Rect,
@@ -225,8 +220,6 @@ impl<'a> Row<'a> {
         RowResponse {
             row_clicked: row_response.clicked() && !chevron_response.clicked(),
             chevron_clicked: chevron_response.clicked(),
-            row_double_clicked: row_response.double_clicked(),
-            row_secondary_clicked: row_response.secondary_clicked(),
             drag_started: row_response.drag_started(),
             hovered: row_response.hovered(),
             row_rect,
@@ -396,7 +389,6 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 ///     ui.add(egui::DragValue::new(&mut val));
 /// });
 /// ```
-#[allow(dead_code)] // Public component: available for future use
 pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     field_sized(ui, None, add_contents)
 }
@@ -557,67 +549,6 @@ pub fn icon_button_colored(
     response
 }
 
-/// A compact badge button showing an icon + count (e.g. "✕ 3").
-///
-/// Width expands automatically to fit the label.  Returns the [`Response`].
-///
-/// ```ignore
-/// if badge_button(ui, egui_phosphor::regular::X, 3, RED, TEXT_PRIMARY, "Errors").clicked() {
-///     // …
-/// }
-/// ```
-#[allow(dead_code)]
-pub fn badge_button(
-    ui: &mut egui::Ui,
-    icon: &str,
-    count: usize,
-    color: Color32,
-    hover_color: Color32,
-    tooltip: &str,
-) -> Response {
-    let label = format!("{} {}", icon, count);
-    let galley = ui.painter().layout(
-        label.clone(),
-        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-        color,
-        f32::INFINITY,
-    );
-
-    let padding = Vec2::new(SPACE_M * 2.0, SPACE_S);
-    let size = Vec2::new(
-        galley.size().x + padding.x,
-        ROW_L.max(galley.size().y + padding.y),
-    );
-
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-
-    // Background
-    let bg = if response.is_pointer_button_down_on() {
-        BG_ACTIVE
-    } else if response.hovered() {
-        BG_HOVER
-    } else {
-        BG_WIDGET
-    };
-    ui.painter().rect_filled(rect, RADIUS_M, bg);
-    ui.painter().rect_stroke(rect, RADIUS_M, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
-
-    // Text
-    let text_color = if response.hovered() { hover_color } else { color };
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-        text_color,
-    );
-
-    if !tooltip.is_empty() {
-        return response.on_hover_text(tooltip);
-    }
-    response
-}
-
 /// Returns the play/pause icon character based on playback state.
 pub fn play_pause_icon(is_playing: bool) -> &'static str {
     if is_playing {
@@ -740,9 +671,6 @@ impl<'a> TimelineStrip<'a> {
 pub struct DiagnosticTarget {
     /// 0-indexed source line.
     pub line: usize,
-    /// 0-indexed source column (reserved for future precise navigation).
-    #[allow(dead_code)]
-    pub column: usize,
 }
 
 /// Renders a scrollable card of diagnostic messages.
@@ -924,8 +852,7 @@ fn diagnostic_row(
 
     if response.clicked() {
         let line = diagnostic.location.line.map(|l| l.saturating_sub(1))?;
-        let column = diagnostic.location.column.map(|c| c.saturating_sub(1)).unwrap_or(0);
-        Some(DiagnosticTarget { line, column })
+        Some(DiagnosticTarget { line })
     } else {
         None
     }
@@ -1018,7 +945,6 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
 /// hover gets a subtle hover background. All buttons show tooltips.
 ///
 /// Returns the click [`Response`].
-#[allow(dead_code)]
 pub fn toolbar_toggle_button(
     ui: &mut egui::Ui,
     icon: &'static str,
@@ -1114,7 +1040,6 @@ pub fn toolbar_toggle_button(
 ///
 /// Unlike [`toolbar_toggle_button`], this never shows an active accent state.
 /// It uses a subtle background when the action is available and a hover highlight.
-#[allow(dead_code)]
 pub fn toolbar_action_button(
     ui: &mut egui::Ui,
     icon: &'static str,
@@ -1196,7 +1121,6 @@ pub fn toolbar_action_button(
 }
 
 /// A small vertical separator for toolbar button groups.
-#[allow(dead_code)]
 pub fn toolbar_separator(ui: &mut egui::Ui) {
     let height = ROW_M - 4.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());
