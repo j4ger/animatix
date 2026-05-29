@@ -50,9 +50,9 @@ Small interaction refinements discovered during dead-code cleanup. Each is low-e
 ## Order
 
 1. **Phase 7** (audio — no blockers)
-3. **Phase 8** (PiP — after syntax and renderer are stable)
-4. **Phase 9** (GUI polish — small, can be done anytime)
-5. **Phase 10** (start after syntax stabilizes)
+2. **Phase 8** (PiP — after syntax and renderer are stable)
+3. **Phase 9** (GUI polish — small, can be done anytime)
+4. **Phase 10** (start after syntax stabilizes)
 
 ---
 
@@ -65,3 +65,4 @@ Small interaction refinements discovered during dead-code cleanup. Each is low-e
 | **AI / NL Integration** | Requires external AI service (OpenAI, Claude, local LLM). No runtime dependency on AI should be mandatory. Includes: NL command bar, agent suggestion UI, agent_suggestions component. | Post-10 or separate product |
 | **Row double-click / right-click** | No defined user story. Fields were wired to egui events but no caller consumed them. Re-add when a feature needs them. | When needed |
 | **Badge button component** | Fully implemented but no caller. Re-add when the UI needs count badges (e.g. "Errors: 3"). | When needed |
+| **Pre-compile plot closures** | Compile `func` AST bodies to closures/bytecode once per build instead of tree-walking thousands of times per curve. Would give 10–50× sampling speedup but requires a stable closure compilation API. | Post-10 or when plot count becomes a bottleneck again |
