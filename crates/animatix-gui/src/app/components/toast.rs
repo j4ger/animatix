@@ -150,16 +150,21 @@ impl ToastQueue {
                 icon_color,
             );
 
-            // Message
+            // Message (wrapped to toast width so it doesn't overflow)
             let text_x = icon_x + 16.0;
             let text_color = TEXT_PRIMARY.linear_multiply(alpha);
-            ui.painter().text(
-                Pos2::new(text_x, rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                &toast.message,
+            let text_max_w = (toast_w - (text_x - rect.min.x) - 16.0).max(40.0);
+            let galley = ui.painter().layout(
+                toast.message.clone(),
                 egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
                 text_color,
+                text_max_w,
             );
+            let text_pos = Pos2::new(
+                text_x,
+                rect.center().y - galley.size().y / 2.0,
+            );
+            ui.painter().galley(text_pos, galley, text_color);
         }
 
         // Request repaint while toasts are visible for fade animation
