@@ -144,11 +144,12 @@ pub(crate) fn timeline_panel_ui(
         .show(ui, |ui| {
             // Compute layout metrics from the *inner* Ui so they exactly match
             // the ScrollArea content rect (no mismatch with outer captures).
-            let available = ui.available_width();
+            let scroll_rect = ui.available_rect_before_wrap();
+            let left_edge = scroll_rect.left();
+            let available = scroll_rect.width();
             let label_col_w = LABEL_COL_WIDTH.min(available * 0.3);
-            let bar_origin_x = ui.cursor().min.x + label_col_w;
+            let bar_origin_x = left_edge + label_col_w;
             let bar_width = (available - label_col_w).max(80.0);
-            let scroll_rect = ui.max_rect();
 
             let time_to_x = |t: f64| -> f32 {
                 let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
@@ -170,7 +171,7 @@ pub(crate) fn timeline_panel_ui(
                 }
             };
 
-            let mut content_y = ui.cursor().min.y;
+            let mut content_y = scroll_rect.top();
 
             // ── Compute y positions for all sections ──
             let strip_top = content_y;
@@ -329,7 +330,7 @@ pub(crate) fn timeline_panel_ui(
 
                 let label_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), st_top), Pos2::new(bar_origin_x, st_bot));
                 painter.rect_filled(label_rect, 0.0, BG_BASE);
-                painter.text(Pos2::new(bar_origin_x - SPACE_S, (st_top + st_bot) / 2.0), Align2::RIGHT_CENTER,
+                painter.text(Pos2::new(scroll_rect.left() + SPACE_S, (st_top + st_bot) / 2.0), Align2::LEFT_CENTER,
                     format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_MUTED);
 
@@ -366,13 +367,13 @@ pub(crate) fn timeline_panel_ui(
 
                 painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(bar_origin_x, at_bot)), 0.0, BG_BASE);
 
-                // Chevron toggle button
+                // Chevron toggle button (left side of label column)
                 let chevron_icon = if is_collapsed {
                     egui_phosphor::regular::CARET_RIGHT
                 } else {
                     egui_phosphor::regular::CARET_DOWN
                 };
-                let chevron_x = bar_origin_x - SPACE_S - 14.0;
+                let chevron_x = scroll_rect.left() + SPACE_S;
                 let chevron_rect = Rect::from_min_size(
                     Pos2::new(chevron_x, at_top + 2.0),
                     Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
@@ -401,9 +402,10 @@ pub(crate) fn timeline_panel_ui(
                     }
                 }
 
-                // Track label (shifted left to make room for chevron)
-                let label: &str = if actor_label.len() > 14 { &actor_label[..13] } else { actor_label.as_str() };
-                painter.text(Pos2::new(chevron_x - 2.0, track_rect.center().y), Align2::RIGHT_CENTER, label,
+                // Track label (left-aligned, after chevron)
+                let label_x = chevron_x + 16.0 + SPACE_S;
+                let label: &str = if actor_label.len() > 12 { &actor_label[..11] } else { actor_label.as_str() };
+                painter.text(Pos2::new(label_x, track_rect.center().y), Align2::LEFT_CENTER, label,
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_SECONDARY);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, at_top), Pos2::new(scroll_rect.right(), at_bot));
@@ -514,7 +516,7 @@ pub(crate) fn timeline_panel_ui(
             // ── Range slider for work/export region ──
             {
                 painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), rs_top), Pos2::new(bar_origin_x, rs_bot)), 0.0, BG_BASE);
-                painter.text(Pos2::new(bar_origin_x - SPACE_S, (rs_top + rs_bot) / 2.0), Align2::RIGHT_CENTER, "Region",
+                painter.text(Pos2::new(scroll_rect.left() + SPACE_S, (rs_top + rs_bot) / 2.0), Align2::LEFT_CENTER, "Region",
                     FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), TEXT_MUTED);
 
                 let range_bar = Rect::from_min_max(Pos2::new(bar_origin_x, rs_top), Pos2::new(scroll_rect.right(), rs_bot));
