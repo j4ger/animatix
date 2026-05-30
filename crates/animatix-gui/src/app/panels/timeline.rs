@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 
 use crate::app::commands::CommandQueue;
-use crate::app::panels::panel_frame;
 use crate::app::panels::timeline_panel;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
@@ -23,23 +22,23 @@ pub(crate) struct TimelineContext<'a> {
 }
 
 pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
-    panel_frame().show(ui, |ui| {
-        // For compositions, use the active scene's timeline
-        let timeline = ctx.timeline.or_else(|| {
-            let comp = ctx.composition?;
-            let scene_name = ctx.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        });
-        timeline_panel::timeline_panel_ui(
-            ui,
-            ctx.preview,
-            timeline,
-            ctx.composition,
-            ctx.active_scene,
-            ctx.commands,
-            ctx.collapsed_actors,
-            ctx.actor_labels,
-            ctx.actor_keyframes,
-        );
+    // No outer panel frame — the timeline manages its own padding so tracks
+    // sit flush against the tile edge.
+    // For compositions, use the active scene's timeline
+    let timeline = ctx.timeline.or_else(|| {
+        let comp = ctx.composition?;
+        let scene_name = ctx.active_scene?;
+        comp.scenes.get(scene_name).map(|s| &s.timeline)
     });
+    timeline_panel::timeline_panel_ui(
+        ui,
+        ctx.preview,
+        timeline,
+        ctx.composition,
+        ctx.active_scene,
+        ctx.commands,
+        ctx.collapsed_actors,
+        ctx.actor_labels,
+        ctx.actor_keyframes,
+    );
 }

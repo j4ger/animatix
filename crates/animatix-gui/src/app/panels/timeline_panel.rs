@@ -78,20 +78,8 @@ pub(crate) fn timeline_panel_ui(
     let mut multi_selected: Vec<(String, u64)> = ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
     let shift_held = ui.input(|i| i.modifiers.shift);
 
-    // ── Track labels sidebar width ──
-    let available = ui.available_width();
-    let label_col_w = LABEL_COL_WIDTH.min(available * 0.3);
-    let bar_origin_x = ui.cursor().min.x + label_col_w;
-    let bar_width = (available - label_col_w).max(80.0);
-
     // ── Cached hot-path data ──
     // actor_labels and actor_keyframes are precomputed by behavior.rs.
-
-    // ── Helper: pixel X for a given time ──
-    let time_to_x = |t: f64| -> f32 {
-        let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
-        bar_origin_x + frac * bar_width
-    };
 
     // ── Helper: draw loop region (function, not closure, to avoid borrow conflicts) ──
     fn draw_loop_region(
@@ -148,31 +136,40 @@ pub(crate) fn timeline_panel_ui(
         }
     }
 
-    // ── Interaction helper for bar areas ──
-    let bar_interaction = |ui: &egui::Ui,
-                            bar_rect: Rect,
-                            id_salt: &str,
-                            cmds: &mut CommandQueue| {
-        let bar_id = ui.id().with(id_salt);
-        let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
-        if response.clicked() || response.dragged() {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                let new_time = frac * duration_s;
-                cmds.push_back(Command::ScrubTo(new_time));
-            }
-        }
-    };
-
-    // Capture the full rect available for the timeline (before ScrollArea claims it).
-    let scroll_rect = ui.available_rect_before_wrap();
-
     // ── All content lives inside the ScrollArea ──
     // ScrollArea handles: scroll offset persistence, wheel/mouse scrolling,
     // clipping, and content culling.
     egui::ScrollArea::vertical()
         .id_salt("timeline_scroll")
         .show(ui, |ui| {
+            // Compute layout metrics from the *inner* Ui so they exactly match
+            // the ScrollArea content rect (no mismatch with outer captures).
+            let available = ui.available_width();
+            let label_col_w = LABEL_COL_WIDTH.min(available * 0.3);
+            let bar_origin_x = ui.cursor().min.x + label_col_w;
+            let bar_width = (available - label_col_w).max(80.0);
+            let scroll_rect = ui.max_rect();
+
+            let time_to_x = |t: f64| -> f32 {
+                let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
+                bar_origin_x + frac * bar_width
+            };
+
+            let bar_interaction = |ui: &egui::Ui,
+                                    bar_rect: Rect,
+                                    id_salt: &str,
+                                    cmds: &mut CommandQueue| {
+                let bar_id = ui.id().with(id_salt);
+                let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
+                if response.clicked() || response.dragged() {
+                    if let Some(pos) = response.interact_pointer_pos() {
+                        let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                        let new_time = frac * duration_s;
+                        cmds.push_back(Command::ScrubTo(new_time));
+                    }
+                }
+            };
+
             let mut content_y = ui.cursor().min.y;
 
             // ── Compute y positions for all sections ──
@@ -562,8 +559,8 @@ pub(crate) fn timeline_panel_ui(
                 else { d.remove::<(String, u64, f64)>(kf_drag_data_id); }
                 d.insert_temp(kf_multi_select_id, multi_selected.clone());
             });
-        });
 
-    // Draw clip rect border outside the ScrollArea
-    ui.painter().rect_stroke(scroll_rect, 0.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+            // Draw clip rect border
+            ui.painter().rect_stroke(scroll_rect, 0.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+        });
 }
