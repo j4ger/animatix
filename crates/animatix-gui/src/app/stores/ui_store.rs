@@ -64,6 +64,7 @@ pub struct ViewStore {
     pub debug_bounds: bool,
     pub action_palette_open: bool,
     pub shortcuts_open: bool,
+    pub inspector_visible: bool,
 }
 
 impl ViewStore {
@@ -77,6 +78,7 @@ impl ViewStore {
             debug_bounds: false,
             action_palette_open: false,
             shortcuts_open: false,
+            inspector_visible: false,
         }
     }
 }

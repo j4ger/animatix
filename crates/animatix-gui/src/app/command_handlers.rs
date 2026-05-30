@@ -18,7 +18,6 @@ use crate::app::file_tree::build_file_tree;
 use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::app::utils::has_source_load_failure;
-use crate::app::WorkspaceTab;
 use crate::app::GuiShell;
 use crate::document::{DocumentSession, timeline_keyframe_times_s};
 use animatix::diagnostics::diagnostics_phase_summary;
@@ -214,13 +213,9 @@ pub fn handle_toggle_expand_dir(
 // =========================================================================
 
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
-    if !ui_store
-        .view
-        .tree
-        .make_active(|_, tile| matches!(tile, egui_tiles::Tile::Pane(tab) if *tab == WorkspaceTab::Inspector))
-    {
-        tracing::warn!("Failed to activate Inspector tab");
-    }
+    let new_visible = !ui_store.view.inspector_visible;
+    ui_store.view.inspector_visible = new_visible;
+    ui_store.view.tree = crate::app::persistence::build_tree(new_visible);
     vec![]
 }
 

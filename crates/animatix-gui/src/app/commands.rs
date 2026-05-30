@@ -65,9 +65,7 @@ pub enum Command {
     ToggleExpandDir(PathBuf),
 
     // ── UI / Panels ───────────────────────────────────────────────────
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     ShowInspector,
-    #[allow(dead_code)]
     ToggleDiagnosticsPanel,
     OpenExportDialog,
     ScrollToLine(usize, usize),

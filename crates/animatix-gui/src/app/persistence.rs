@@ -1,56 +1,69 @@
 use super::*;
 use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 
-/// Default workspace layout — canvas-centric.
+/// Build a workspace tree.
 ///
+/// Layout:
 /// ```text
-/// ┌──────────────────┬──────────────────────────┐
-/// │                  │        Preview (65%)     │
-/// │                  │    (aspect-ratio sized)  │
-/// │    Editor        ├──────────────────────────┤
-/// │   (30%)          │ Sidebar │ Timeline │ Ins  │
-/// │                  │  (30%)   │  (40%)  │ 30%  │
-/// │                  │       (35%)              │
-/// └──────────────────┴──────────────────────────┘
-///          (70%)
+/// Without inspector (default):
+/// ┌─────────────────────────┬──────────────┐
+/// │ Sidebar | Editor (tabs) │   Preview    │
+/// │                         │              │
+/// ├─────────────────────────┴──────────────┤
+/// │          Timeline (full width)         │
+/// └────────────────────────────────────────┘
+///
+/// With inspector:
+/// ┌─────────────────────────┬──────────────┬──────────┐
+/// │ Sidebar | Editor (tabs) │   Preview    │ Inspector│
+/// │                         │              │          │
+/// ├─────────────────────────┴──────────────┴──────────┤
+/// │          Timeline (full width)                    │
+/// └───────────────────────────────────────────────────┘
 /// ```
 ///
-/// Canvas dominates (~45 % of total area). Editor is a narrow column on the
-/// left. The bottom strip below the preview holds sidebar + timeline + inspector.
-pub(super) fn default_tree() -> Tree<WorkspaceTab> {
+/// Sidebar and Editor live as tabs in a single pane on the left.
+/// Timeline always spans the full width at the bottom.
+/// Inspector is hidden by default and toggled via a toolbar button.
+pub(super) fn build_tree(inspector_visible: bool) -> Tree<WorkspaceTab> {
     let mut tiles = Tiles::default();
 
     let sidebar = tiles.insert_pane(WorkspaceTab::Sidebar);
-    let editor = tiles.insert_pane(WorkspaceTab::Editor);
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
     let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
-    let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
 
-    // Bottom-right strip: sidebar + timeline + inspector side by side.
-    let mut bottom_row = Linear::new(
-        LinearDir::Horizontal,
-        vec![sidebar, timeline, inspector],
-    );
-    bottom_row.shares[sidebar] = 0.30;
-    bottom_row.shares[timeline] = 0.40;
-    bottom_row.shares[inspector] = 0.30;
-    let bottom_row = tiles.insert_container(bottom_row);
+    // Top row: sidebar | preview (| inspector if visible).
+    let (top_children, inspector_id) = if inspector_visible {
+        let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
+        (vec![sidebar, preview, inspector], Some(inspector))
+    } else {
+        (vec![sidebar, preview], None)
+    };
 
-    // Right column: preview on top, sidebar/timeline/inspector strip below.
-    let right_col = tiles.insert_container(Linear::new_binary(
-        LinearDir::Vertical,
-        [preview, bottom_row],
-        0.65, // preview gets 65 %; bottom row gets 35 %
-    ));
+    let mut top_row = Linear::new(LinearDir::Horizontal, top_children);
+    if let Some(inspector_id) = inspector_id {
+        top_row.shares[sidebar] = 0.22;
+        top_row.shares[preview] = 0.53;
+        top_row.shares[inspector_id] = 0.25;
+    } else {
+        top_row.shares[sidebar] = 0.30;
+        top_row.shares[preview] = 0.70;
+    }
+    let top_row = tiles.insert_container(top_row);
 
-    // Root: editor on the left, right column on the right.
+    // Root: top row above, full-width timeline below.
     let root = tiles.insert_container(Linear::new_binary(
-        LinearDir::Horizontal,
-        [editor, right_col],
-        0.30, // editor gets 30 %, right column 70 %
+        LinearDir::Vertical,
+        [top_row, timeline],
+        0.65, // top row gets 65 %; timeline gets 35 %
     ));
 
     Tree::new("workspace", root, tiles)
+}
+
+/// Default workspace layout — inspector hidden.
+pub(super) fn default_tree() -> Tree<WorkspaceTab> {
+    build_tree(false)
 }
 
 pub(super) fn persistence_path() -> PathBuf {

@@ -87,12 +87,6 @@ pub(crate) fn timeline_panel_ui(
     // ── Cached hot-path data ──
     // actor_labels and actor_keyframes are precomputed by behavior.rs.
 
-    // Allocate the full timeline panel rect (outer frame)
-    let (scroll_rect, _scroll_response) = ui.allocate_exact_size(
-        Vec2::new(available, ui.available_height().max(60.0)),
-        Sense::hover(),
-    );
-
     // ── Helper: pixel X for a given time ──
     let time_to_x = |t: f64| -> f32 {
         let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
@@ -169,6 +163,9 @@ pub(crate) fn timeline_panel_ui(
             }
         }
     };
+
+    // Capture the full rect available for the timeline (before ScrollArea claims it).
+    let scroll_rect = ui.available_rect_before_wrap();
 
     // ── All content lives inside the ScrollArea ──
     // ScrollArea handles: scroll offset persistence, wheel/mouse scrolling,

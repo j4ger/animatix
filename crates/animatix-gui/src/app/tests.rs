@@ -10,7 +10,7 @@ use super::{
     use std::path::PathBuf;
 
     #[test]
-    fn default_workspace_has_five_panes() {
+    fn default_workspace_has_three_panes() {
         let tree = default_tree();
         let tabs: Vec<_> = tree
             .tiles
@@ -20,9 +20,29 @@ use super::{
                 _ => None,
             })
             .collect();
-        assert_eq!(tabs.len(), 5);
+        // Inspector hidden; Editor merged into Sidebar pane via tabs.
+        assert_eq!(tabs.len(), 3);
         assert!(tabs.contains(&WorkspaceTab::Sidebar));
-        assert!(tabs.contains(&WorkspaceTab::Editor));
+        assert!(!tabs.contains(&WorkspaceTab::Editor));
+        assert!(tabs.contains(&WorkspaceTab::Preview));
+        assert!(!tabs.contains(&WorkspaceTab::Inspector));
+        assert!(tabs.contains(&WorkspaceTab::Timeline));
+    }
+
+    #[test]
+    fn workspace_with_inspector_has_four_panes() {
+        let tree = super::persistence::build_tree(true);
+        let tabs: Vec<_> = tree
+            .tiles
+            .iter()
+            .filter_map(|(_, tile)| match tile {
+                egui_tiles::Tile::Pane(tab) => Some(*tab),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(tabs.len(), 4);
+        assert!(tabs.contains(&WorkspaceTab::Sidebar));
+        assert!(!tabs.contains(&WorkspaceTab::Editor));
         assert!(tabs.contains(&WorkspaceTab::Preview));
         assert!(tabs.contains(&WorkspaceTab::Inspector));
         assert!(tabs.contains(&WorkspaceTab::Timeline));

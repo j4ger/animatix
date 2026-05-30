@@ -13,6 +13,8 @@ use crate::app::design_tokens::*;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
+use crate::editor::EditorBuffer;
+use animatix::diagnostics::Diagnostic;
 use animatix::timeline::{Timeline, SceneDimensions, TrackAccessor};
 
 /// Id used to persist the explorer filter string in egui's data store.
@@ -32,6 +34,11 @@ pub(crate) struct SidebarContext<'a> {
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub sidebar_tab: &'a mut SidebarTab,
+    // Editor content (used when Editor tab is selected)
+    pub editor: &'a mut EditorBuffer,
+    pub diagnostics: &'a [Diagnostic],
+    pub source_dirty: &'a mut String,
+    pub is_playing: bool,
 }
 
 /// Uniform panel frame: 8 px padding, transparent fill.
@@ -54,7 +61,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         if prev_tab != active_tab {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
             // Clear explorer filter when switching away from the Explorer tab
-            if active_tab == SidebarTab::Layers {
+            if active_tab != SidebarTab::Explorer {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
             }
         }
@@ -71,6 +78,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 match active_tab {
                     SidebarTab::Explorer => explorer_content_ui(ctx, ui),
                     SidebarTab::Layers => layers_content_ui(ctx, ui),
+                    SidebarTab::Editor => editor_content_ui(ctx, ui),
                 }
             },
         );
@@ -83,9 +91,25 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let tabs = [
         (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
+        (SidebarTab::Editor, egui_phosphor::regular::PENCIL_SIMPLE, "Editor"),
     ];
     if let Some(new_tab) = components::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
+    }
+}
+
+fn editor_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    ctx.editor.set_diagnostics(ctx.diagnostics);
+    let response = ctx.editor.show(ui);
+    if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
+        *ctx.source_dirty = ctx.editor.text().to_string();
+        ctx.commands.push_back(Command::EditorChanged);
+    }
+    if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
+        ctx.commands.push_back(Command::ScrubTo(time_s));
+        if !ctx.is_playing {
+            ctx.commands.push_back(Command::TogglePlayback);
+        }
     }
 }
 

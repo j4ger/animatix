@@ -40,6 +40,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     ) -> UiResponse {
         match pane {
             WorkspaceTab::Sidebar => {
+                let diagnostics = self.document_store.combined_diagnostics();
+                let is_playing = self.preview_store.preview.playback.is_playing;
                 let mut ctx = sidebar::SidebarContext {
                     active_scene: self.document_store.document.active_scene.as_deref(),
                     is_composition: self.document_store.document.is_composition(),
@@ -54,10 +56,17 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
+                    editor: &mut self.document_store.editor,
+                    diagnostics: &diagnostics,
+                    source_dirty: &mut self.document_store.document.source_text,
+                    is_playing,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
             }
             WorkspaceTab::Editor => {
+                // Editor is now rendered inside the Sidebar pane via the
+                // Editor tab. This branch remains for backward compatibility
+                // with old persisted layouts that still have an Editor pane.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
                     editor: &mut self.document_store.editor,
@@ -105,16 +114,22 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 inspector_panel::inspector_ui(&mut ctx, ui);
             }
             WorkspaceTab::Timeline => {
+                // Resolve the effective timeline (same fallback logic as timeline_ui).
+                let resolved_timeline = self.document_store.document.timeline.as_ref()
+                    .or_else(|| {
+                        let comp = self.document_store.document.composition.as_ref()?;
+                        let scene_name = self.document_store.document.active_scene.as_deref()?;
+                        comp.scenes.get(scene_name).map(|s| &s.timeline)
+                    });
                 // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
                 if !self.document_store.cache_valid {
-                    let tl = self.document_store.document.timeline.as_ref();
                     stores::document_store::rebuild_cache(
                         &mut self.document_store.cached_actor_labels,
                         &mut self.document_store.cached_actor_keyframes,
                         &mut self.document_store.cached_hit_regions,
                         &mut self.document_store.cached_actor_bounds,
                         &mut self.document_store.cache_valid,
-                        tl,
+                        resolved_timeline,
                     );
                 }
                 let mut ctx = timeline::TimelineContext {

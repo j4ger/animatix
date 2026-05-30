@@ -140,6 +140,21 @@ impl GuiShell {
                                 self.ui_store.view.settings_open = true;
                             }
 
+                            // Inspector toggle
+                            let inspector_active = self.ui_store.view.inspector_visible;
+                            if components::toolbar_toggle_button(
+                                ui,
+                                egui_phosphor::regular::SLIDERS,
+                                None,
+                                "Toggle Inspector",
+                                inspector_active,
+                                false,
+                            )
+                            .clicked()
+                            {
+                                commands.push_back(Command::ShowInspector);
+                            }
+
                             // Play / Pause
                             let is_playing = self.preview_store.preview.playback.is_playing;
                             if components::play_pause_button(ui, is_playing).clicked() {

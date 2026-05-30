@@ -1012,12 +1012,9 @@ pub(super) fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 
     } else {
         dimensions.width as f32 / dimensions.height as f32
     };
-    let width_limited_height = available.x / aspect;
-    if width_limited_height <= available.y {
-        Vec2::new(available.x, width_limited_height)
-    } else {
-        Vec2::new(available.y * aspect, available.y)
-    }
+    // Prioritize using all available height; compute width from aspect ratio.
+    // This maximizes the preview surface area while preserving aspect ratio.
+    Vec2::new(available.y * aspect, available.y)
 }
 
 #[cfg(test)]

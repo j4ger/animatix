@@ -7,7 +7,7 @@ use egui::{Pos2, RichText, Vec2};
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
 use crate::app::components;
 use crate::app::design_tokens::*;
-use crate::app::panels::{nice_tick_interval, RULER_SIZE, panel_frame};
+use crate::app::panels::{nice_tick_interval, RULER_SIZE};
 use crate::app::preview::{self, selection, ActorProps, DragState, fit_preview};
 use crate::app::PreviewPaneState;
 use animatix::timeline::{PositionBinding, SceneDimensions, Timeline, TrackAccessor};
@@ -1223,7 +1223,11 @@ fn preview_scene_to_screen(
 // ─── Main preview_ui function ──────────────────────────────────────────────
 
 pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
-    panel_frame().show(ui, |ui| {
+    // Preview uses zero-margin frame to maximize canvas area.
+    egui::Frame::new()
+        .fill(egui::Color32::TRANSPARENT)
+        .inner_margin(egui::Margin::ZERO)
+        .show(ui, |ui| {
         ui.vertical(|ui| {
             let available = ui.available_size_before_wrap();
             let preview_available = Vec2::new(

@@ -16,6 +16,7 @@ use animatix::primitives;
 pub(crate) enum SidebarTab {
     Explorer,
     Layers,
+    Editor,
 }
 
 /// Returns the canonical default actor type: the first non-advanced Shape actor.
