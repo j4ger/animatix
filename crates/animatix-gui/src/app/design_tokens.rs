@@ -141,7 +141,6 @@ pub const RADIUS_XL: f32 = 8.0;
 
 // ── Toolbar ──
 pub const TOOLBAR_HEIGHT: f32 = 28.0;
-pub const PREVIEW_TOOLBAR_HEIGHT: f32 = 28.0;
 
 // ── Timeline ──
 pub const TIMELINE_LABEL_COL_WIDTH: f32 = 120.0;

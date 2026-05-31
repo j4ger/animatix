@@ -131,7 +131,70 @@ impl GuiShell {
                         }
                     }
 
-                    // Right-aligned: play + settings + command palette
+                    // ── Center: scene label + viewport toggles + zoom ──
+                    ui.add_space(SPACE_XL);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+
+                        // Scene label
+                        let scene_label = if let Some(scene) = self.document_store.document.active_scene.as_deref() {
+                            scene.to_string()
+                        } else if let Some(comp) = self.document_store.document.composition.as_ref() {
+                            let (scene, _, _) = comp.evaluate(self.preview_store.preview.playback.current_time_s);
+                            scene
+                        } else {
+                            "Scene".to_string()
+                        };
+                        ui.label(RichText::new(scene_label).size(FONT_SIZE_S).color(TEXT_PRIMARY));
+
+                        ui.separator();
+
+                        // Grid toggle
+                        let grid = self.preview_store.preview.overlay.show_grid;
+                        if ui.selectable_label(grid, "Grid")
+                            .on_hover_text("Toggle grid (G)").clicked()
+                        { self.preview_store.preview.overlay.show_grid = !grid; }
+
+                        // Guides toggle
+                        let guides = self.preview_store.preview.overlay.show_guides;
+                        if ui.selectable_label(guides, "Guides")
+                            .on_hover_text("Toggle guides").clicked()
+                        { self.preview_store.preview.overlay.show_guides = !guides; }
+
+                        // Labels toggle
+                        let labels = self.preview_store.preview.overlay.show_actor_labels;
+                        if ui.selectable_label(labels, "Labels")
+                            .on_hover_text("Toggle actor labels").clicked()
+                        { self.preview_store.preview.overlay.show_actor_labels = !labels; }
+
+                        ui.separator();
+
+                        // Zoom controls
+                        if ui.button(RichText::new("Fit").size(FONT_SIZE_S).color(TEXT_SECONDARY))
+                            .on_hover_text("Fit to viewport")
+                            .clicked()
+                        {
+                            self.preview_store.preview.fit_zoom_requested = true;
+                        }
+                        let zoom = self.preview_store.preview.viewport.preview_zoom;
+                        if ui.selectable_label(zoom == 1.0, "100%")
+                            .on_hover_text("Zoom to 100%").clicked()
+                        {
+                            self.preview_store.preview.viewport.preview_zoom = 1.0;
+                            self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                self.preview_store.preview.dimensions.height as f32 / 2.0,
+                            );
+                        }
+                        if ui.selectable_label(zoom == 1.5, "150%")
+                            .on_hover_text("Zoom to 150%").clicked()
+                        { self.preview_store.preview.viewport.preview_zoom = 1.5; }
+                        if ui.selectable_label(zoom == 2.0, "200%")
+                            .on_hover_text("Zoom to 200%").clicked()
+                        { self.preview_store.preview.viewport.preview_zoom = 2.0; }
+                    });
+
+                    // Right-aligned: play + time + inspector + settings + command palette
                     ui.with_layout(
                         egui::Layout::right_to_left(Align::Center),
                         |ui| {

@@ -187,6 +187,8 @@ pub(crate) struct PreviewPaneState {
     pub timeline_zoom: f32,
     /// Timeline horizontal scroll offset in seconds (when zoomed).
     pub timeline_scroll_offset: f64,
+    /// When true, the preview panel will recompute zoom to fit on next frame.
+    pub fit_zoom_requested: bool,
 }
 
 
@@ -224,6 +226,7 @@ impl PreviewPaneState {
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
             timeline_zoom: 1.0,
             timeline_scroll_offset: 0.0,
+            fit_zoom_requested: false,
         }
     }
 }
