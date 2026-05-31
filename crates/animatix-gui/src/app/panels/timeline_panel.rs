@@ -215,9 +215,50 @@ pub(crate) fn timeline_panel_ui(
             let bar_origin_x = left_edge + label_col_w;
             let bar_width = (available - label_col_w).max(80.0);
 
+            let zoom = preview.timeline_zoom.max(0.1);
+            let scroll_s = preview.timeline_scroll_offset.clamp(0.0, duration_s * (1.0 - 1.0 / zoom as f64));
+            let visible_s = duration_s / zoom as f64;
+
+            // Mouse-wheel zoom on the timeline bar area
+            {
+                let bar_rect = Rect::from_min_max(
+                    Pos2::new(bar_origin_x, scroll_rect.top()),
+                    Pos2::new(scroll_rect.right(), scroll_rect.bottom()),
+                );
+                let bar_resp = ui.interact(bar_rect, ui.id().with("timeline_bar_wheel"), Sense::hover());
+                if bar_resp.hovered() {
+                    let wheel = ui.input(|i| i.smooth_scroll_delta);
+                    if wheel.x != 0.0 || wheel.y != 0.0 {
+                        let zoom_delta = if wheel.y != 0.0 { -wheel.y * 0.002 } else { -wheel.x * 0.002 };
+                        let old_zoom = preview.timeline_zoom;
+                        let new_zoom = (old_zoom * (1.0 + zoom_delta)).clamp(0.25, 8.0);
+                        if (new_zoom - old_zoom).abs() > 0.001 {
+                            // Keep the time under the cursor stable when zooming
+                            if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                                let cursor_time = if cursor.x >= bar_origin_x && cursor.x <= bar_origin_x + bar_width {
+                                    let frac = ((cursor.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                                    scroll_s + frac * visible_s
+                                } else {
+                                    scroll_s + visible_s / 2.0
+                                };
+                                let new_visible = duration_s / new_zoom as f64;
+                                preview.timeline_scroll_offset = (cursor_time - (cursor.x - bar_origin_x) as f64 / bar_width as f64 * new_visible)
+                                    .clamp(0.0, duration_s - new_visible);
+                            }
+                            preview.timeline_zoom = new_zoom;
+                        }
+                    }
+                }
+            }
+
             let time_to_x = |t: f64| -> f32 {
-                let frac = (t / duration_s).clamp(0.0, 1.0) as f32;
+                let frac = ((t - scroll_s) / visible_s).clamp(0.0, 1.0) as f32;
                 bar_origin_x + frac * bar_width
+            };
+
+            let x_to_time = |x: f32| -> f64 {
+                let frac = ((x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                scroll_s + frac * visible_s
             };
 
             let bar_interaction = |ui: &egui::Ui,
@@ -228,8 +269,7 @@ pub(crate) fn timeline_panel_ui(
                 let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
                 if response.clicked() || response.dragged() {
                     if let Some(pos) = response.interact_pointer_pos() {
-                        let frac = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
-                        let new_time = frac * duration_s;
+                        let new_time = x_to_time(pos.x);
                         cmds.push_back(Command::ScrubTo(new_time));
                     }
                 }
@@ -336,6 +376,24 @@ pub(crate) fn timeline_panel_ui(
                                 preview.playback.loop_start_s = Some(0.0);
                                 preview.playback.loop_end_s = Some(preview.playback.duration_s);
                             }
+                        }
+
+                        toolbar_separator(ui);
+
+                        // Zoom controls
+                        let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
+                        if ui.button(egui::RichText::new(zoom_text).monospace().size(FONT_SIZE_S).color(TEXT_SECONDARY))
+                            .on_hover_text("Reset zoom")
+                            .clicked()
+                        {
+                            preview.timeline_zoom = 1.0;
+                            preview.timeline_scroll_offset = 0.0;
+                        }
+                        if toolbar_action_button(ui, egui_phosphor::regular::MINUS, None, "Zoom out", false).clicked() {
+                            preview.timeline_zoom = (preview.timeline_zoom * 0.8).max(0.25);
+                        }
+                        if toolbar_action_button(ui, egui_phosphor::regular::PLUS, None, "Zoom in", false).clicked() {
+                            preview.timeline_zoom = (preview.timeline_zoom * 1.25).min(8.0);
                         }
 
                         // Time display (right-aligned)
@@ -612,7 +670,7 @@ pub(crate) fn timeline_panel_ui(
                             }
                             if is_drag {
                                 if let Some(pos) = dresp.interact_pointer_pos() {
-                                    let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                                    let nt = x_to_time(pos.x);
                                     let snapped = (nt * 10.0).round() / 10.0;
                                     new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                     let gx = time_to_x(snapped);
@@ -646,12 +704,12 @@ pub(crate) fn timeline_panel_ui(
                 let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
                 if resp.clicked() {
                     if let Some(pos) = resp.interact_pointer_pos() {
-                        let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                        let click_s = x_to_time(pos.x);
                         commands.push_back(Command::ScrubTo(click_s));
                     }
                 } else if resp.dragged() {
                     if let Some(pos) = resp.interact_pointer_pos() {
-                        let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                        let nt = x_to_time(pos.x);
                         commands.push_back(Command::ScrubTo(nt));
                     }
                 }
@@ -690,7 +748,7 @@ pub(crate) fn timeline_panel_ui(
                     let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
                     if sr.dragged() {
                         if let Some(pos) = sr.interact_pointer_pos() {
-                            preview.playback.loop_start_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).min(we - 0.05));
+                            preview.playback.loop_start_s = Some(x_to_time(pos.x).min(we - 0.05));
                         }
                     }
                     painter.rect_filled(sh, RADIUS_S, ACCENT_BLUE);
@@ -699,7 +757,7 @@ pub(crate) fn timeline_panel_ui(
                     let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
                     if er.dragged() {
                         if let Some(pos) = er.interact_pointer_pos() {
-                            preview.playback.loop_end_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).max(ws + 0.05));
+                            preview.playback.loop_end_s = Some(x_to_time(pos.x).max(ws + 0.05));
                         }
                     }
                     painter.rect_filled(eh, RADIUS_S, ACCENT_BLUE);
