@@ -17,7 +17,7 @@
 //! │ Region │ [◀────────────▶]                          │
 //! └────────┴──────────────────────────────────────────-┘
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::components::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
@@ -61,17 +61,18 @@ pub(crate) fn timeline_panel_ui(
     _active_scene: Option<&str>,
     commands: &mut CommandQueue,
     collapsed_actors: &mut HashSet<String>,
-    actor_labels: &Vec<String>,
-    actor_keyframes: &Vec<(String, Vec<(u64, &'static str)>)>,
+    actor_labels: &[String],
+    actor_keyframes: &[(String, Vec<(u64, &'static str)>)]
 ) {
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
 
     // ── Keyframe drag state ──
+    // (actor_label, property_name, keyframe_ms, target_time_s)
     let kf_drag_id = panel_id.with("kf_drag");
     let kf_drag_data_id = kf_drag_id.with("data");
-    let kf_drag: Option<(String, u64, f64)> = ui.data(|d| d.get_temp(kf_drag_data_id));
-    let mut new_kf_drag: Option<(String, u64, f64)> = kf_drag.clone();
+    let kf_drag: Option<(String, &'static str, u64, f64)> = ui.data(|d| d.get_temp(kf_drag_data_id));
+    let mut new_kf_drag: Option<(String, &'static str, u64, f64)> = kf_drag.clone();
 
     // ── Keyframe multi-select state ──
     let kf_multi_select_id = panel_id.with("kf_multi");
@@ -80,6 +81,11 @@ pub(crate) fn timeline_panel_ui(
 
     // ── Cached hot-path data ──
     // actor_labels and actor_keyframes are precomputed by behavior.rs.
+    // Build a lookup map so per-actor keyframe access is O(1) instead of O(n).
+    let kf_map: HashMap<&str, &[(u64, &'static str)]> = actor_keyframes
+        .iter()
+        .map(|(label, props)| (label.as_str(), props.as_slice()))
+        .collect();
 
     // ── Helper: draw loop region (function, not closure, to avoid borrow conflicts) ──
     fn draw_loop_region(
@@ -404,8 +410,12 @@ pub(crate) fn timeline_panel_ui(
 
                 // Track label (left-aligned, after chevron)
                 let label_x = chevron_x + 16.0 + SPACE_S;
-                let label: &str = if actor_label.len() > 12 { &actor_label[..11] } else { actor_label.as_str() };
-                painter.text(Pos2::new(label_x, track_rect.center().y), Align2::LEFT_CENTER, label,
+                let label: String = if actor_label.chars().count() > 12 {
+                    actor_label.chars().take(11).collect::<String>() + "…"
+                } else {
+                    actor_label.clone()
+                };
+                painter.text(Pos2::new(label_x, track_rect.center().y), Align2::LEFT_CENTER, &label,
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_SECONDARY);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, at_top), Pos2::new(scroll_rect.right(), at_bot));
@@ -429,10 +439,9 @@ pub(crate) fn timeline_panel_ui(
                     }
 
                     // Keyframe diamonds (using cached data)
-                    let kf_props: &[(u64, &'static str)] = actor_keyframes
-                        .iter()
-                        .find(|(l, _)| l == actor_label)
-                        .map(|(_, props)| props.as_slice())
+                    let kf_props: &[(u64, &'static str)] = kf_map
+                        .get(actor_label.as_str())
+                        .copied()
                         .unwrap_or(&[]);
                     for &(kf_ms, prop) in kf_props {
                                 let kf_s = kf_ms as f64 / 1000.0;
@@ -440,7 +449,7 @@ pub(crate) fn timeline_panel_ui(
                                 if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
                                 let is_act = (kf_s - preview.playback.current_time_s).abs() < 0.01;
                                 let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
-                                let is_drag = kf_drag.as_ref().is_some_and(|(l, t, _)| l == actor_label && *t == kf_ms);
+                                let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
                                 let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
                                 let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
                                 let cy = bar_area.center().y;
@@ -451,6 +460,48 @@ pub(crate) fn timeline_panel_ui(
                                     if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
 
                                 let dresp = if dresp.hovered() && !is_drag { dresp.on_hover_text(format!("{prop} @ {:.2}s", kf_s)) } else { dresp };
+
+                                // Right-click context menu
+                                dresp.context_menu(|ui| {
+                                    ui.set_min_width(140.0);
+                                    ui.strong(format!("{} @ {:.2}s", prop, kf_s));
+                                    ui.separator();
+                                    // Easing submenu
+                                    ui.menu_button("Easing", |ui| {
+                                        for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
+                                            if ui.selectable_label(false, display_name).clicked() {
+                                                let variant = match id_str {
+                                                    "linear" => animatix::easing::Easing::Linear,
+                                                    "easein" => animatix::easing::Easing::EaseIn,
+                                                    "easeout" => animatix::easing::Easing::EaseOut,
+                                                    "easeinout" => animatix::easing::Easing::EaseInOut,
+                                                    "bounce" => animatix::easing::Easing::Bounce,
+                                                    "elastic" => animatix::easing::Easing::Elastic,
+                                                    "back" => animatix::easing::Easing::Back,
+                                                    "expo" => animatix::easing::Easing::Expo,
+                                                    _ => animatix::easing::Easing::Linear,
+                                                };
+                                                commands.push_back(Command::SetKeyframeEasing {
+                                                    actor: actor_label.clone(),
+                                                    property: prop.to_string(),
+                                                    time_s: kf_s,
+                                                    easing: variant,
+                                                });
+                                                ui.close();
+                                            }
+                                        }
+                                    });
+                                    ui.separator();
+                                    if ui.button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH)).clicked() {
+                                        commands.push_back(Command::DeleteKeyframe {
+                                            actor: actor_label.clone(),
+                                            property: prop.to_string(),
+                                            time_s: kf_s,
+                                        });
+                                        ui.close();
+                                    }
+                                });
+
                                 if dresp.clicked() {
                                     if shift_held {
                                         if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
@@ -459,7 +510,7 @@ pub(crate) fn timeline_panel_ui(
                                         commands.push_back(Command::ScrubTo(kf_s)); }
                                 }
                                 if dresp.drag_started() {
-                                    new_kf_drag = Some((actor_label.clone(), kf_ms, kf_s));
+                                    new_kf_drag = Some((actor_label.clone(), prop, kf_ms, kf_s));
                                     if !shift_held && !multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms) {
                                         multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms)); }
                                 }
@@ -467,7 +518,7 @@ pub(crate) fn timeline_panel_ui(
                                     if let Some(pos) = dresp.interact_pointer_pos() {
                                         let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
                                         let snapped = (nt * 10.0).round() / 10.0;
-                                        new_kf_drag = Some((actor_label.clone(), kf_ms, snapped));
+                                        new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                         let gx = time_to_x(snapped);
                                         painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(1.0, AMBER.linear_multiply(0.5)));
                                         let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
@@ -477,7 +528,16 @@ pub(crate) fn timeline_panel_ui(
                                     }
                                 }
                                 if dresp.drag_stopped() && is_drag {
-                                    if let Some((_, _, n)) = new_kf_drag { if (n - kf_s).abs() > 0.01 { commands.push_back(Command::ScrubTo(n)); } }
+                                    if let Some((ref actor, prop_name, _, n)) = new_kf_drag {
+                                        if (n - kf_s).abs() > 0.01 {
+                                            commands.push_back(Command::MoveKeyframe {
+                                                actor: actor.clone(),
+                                                property: prop_name.to_string(),
+                                                old_time_s: kf_s,
+                                                new_time_s: n,
+                                            });
+                                        }
+                                    }
                                     new_kf_drag = None;
                                 }
                             }
@@ -489,10 +549,9 @@ pub(crate) fn timeline_panel_ui(
                         if let Some(pos) = resp.interact_pointer_pos() {
                             let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
                             let thr = (bar_width / duration_s as f32) * 6.0;
-                            let kf_times: Vec<u64> = actor_keyframes
-                                .iter()
-                                .find(|(l, _)| l == actor_label)
-                                .map(|(_, props)| props.iter().map(|(ms, _)| *ms).collect())
+                            let kf_times: Vec<u64> = kf_map
+                                .get(actor_label.as_str())
+                                .map(|props| props.iter().map(|(ms, _)| *ms).collect())
                                 .unwrap_or_default();
                             let snapped = kf_times.iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
                             if let Some(kf_ms) = snapped {
@@ -520,34 +579,45 @@ pub(crate) fn timeline_panel_ui(
                     FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), TEXT_MUTED);
 
                 let range_bar = Rect::from_min_max(Pos2::new(bar_origin_x, rs_top), Pos2::new(scroll_rect.right(), rs_bot));
-                let ws = preview.playback.loop_start_s.unwrap_or(0.0);
-                let we = preview.playback.loop_end_s.unwrap_or(duration_s);
-                let wx = time_to_x(ws);
-                let wy = time_to_x(we);
+                let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
 
                 painter.rect_filled(range_bar, RADIUS_S, BG_WIDGET);
-                if (wy - wx).abs() > 2.0 {
-                    painter.rect_filled(Rect::from_min_max(Pos2::new(wx, range_bar.top() + 2.0), Pos2::new(wy, range_bar.bottom() - 2.0)), RADIUS_S, ACCENT_BLUE.linear_multiply(0.3));
-                }
 
-                let hs = Vec2::new(12.0, RANGE_HEIGHT);
-                let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
-                let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
-                if sr.dragged() {
-                    if let Some(pos) = sr.interact_pointer_pos() {
-                        preview.playback.loop_start_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).min(we - 0.05));
-                    }
-                }
-                painter.rect_filled(sh, RADIUS_S, ACCENT_BLUE);
+                if loop_active {
+                    // Loop is active — show draggable range handles
+                    let ws = preview.playback.loop_start_s.unwrap_or(0.0);
+                    let we = preview.playback.loop_end_s.unwrap_or(duration_s);
+                    let wx = time_to_x(ws);
+                    let wy = time_to_x(we);
 
-                let eh = Rect::from_center_size(Pos2::new(wy, range_bar.center().y), hs);
-                let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
-                if er.dragged() {
-                    if let Some(pos) = er.interact_pointer_pos() {
-                        preview.playback.loop_end_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).max(ws + 0.05));
+                    if (wy - wx).abs() > 2.0 {
+                        painter.rect_filled(Rect::from_min_max(Pos2::new(wx, range_bar.top() + 2.0), Pos2::new(wy, range_bar.bottom() - 2.0)), RADIUS_S, ACCENT_BLUE.linear_multiply(0.3));
                     }
+
+                    let hs = Vec2::new(12.0, RANGE_HEIGHT);
+                    let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
+                    let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
+                    if sr.dragged() {
+                        if let Some(pos) = sr.interact_pointer_pos() {
+                            preview.playback.loop_start_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).min(we - 0.05));
+                        }
+                    }
+                    painter.rect_filled(sh, RADIUS_S, ACCENT_BLUE);
+
+                    let eh = Rect::from_center_size(Pos2::new(wy, range_bar.center().y), hs);
+                    let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
+                    if er.dragged() {
+                        if let Some(pos) = er.interact_pointer_pos() {
+                            preview.playback.loop_end_s = Some((((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s).max(ws + 0.05));
+                        }
+                    }
+                    painter.rect_filled(eh, RADIUS_S, ACCENT_BLUE);
+                } else {
+                    // Loop is off — show full-duration static indicator
+                    painter.rect_filled(range_bar.shrink2(Vec2::new(0.0, 2.0)), RADIUS_S, BG_WIDGET);
+                    let mid = range_bar.center();
+                    painter.text(mid, Align2::CENTER_CENTER, "Enable loop to set region", FontId::monospace(FONT_SIZE_XS), TEXT_MUTED);
                 }
-                painter.rect_filled(eh, RADIUS_S, ACCENT_BLUE);
             }
 
             // ── Global playhead ──
@@ -558,7 +628,7 @@ pub(crate) fn timeline_panel_ui(
             // ── Save keyframe drag + multi-select state ──
             ui.data_mut(|d| {
                 if let Some(drag) = new_kf_drag.clone() { d.insert_temp(kf_drag_data_id, drag); }
-                else { d.remove::<(String, u64, f64)>(kf_drag_data_id); }
+                else { d.remove::<(String, &'static str, u64, f64)>(kf_drag_data_id); }
                 d.insert_temp(kf_multi_select_id, multi_selected.clone());
             });
 

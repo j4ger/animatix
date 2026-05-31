@@ -16,24 +16,20 @@ pub(crate) struct TimelineContext<'a> {
     pub commands: &'a mut CommandQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
     /// Cached actor labels (recomputed in behavior.rs when stale).
-    pub actor_labels: &'a Vec<String>,
+    pub actor_labels: &'a [String],
     /// Cached per-actor keyframe property lists.
-    pub actor_keyframes: &'a Vec<(String, Vec<(u64, &'static str)>)>,
+    pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)]
 }
 
 pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     // No outer panel frame — the timeline manages its own padding so tracks
     // sit flush against the tile edge.
-    // For compositions, use the active scene's timeline
-    let timeline = ctx.timeline.or_else(|| {
-        let comp = ctx.composition?;
-        let scene_name = ctx.active_scene?;
-        comp.scenes.get(scene_name).map(|s| &s.timeline)
-    });
+    // Note: the timeline is already resolved by behavior.rs before constructing
+    // TimelineContext, so we use it directly here.
     timeline_panel::timeline_panel_ui(
         ui,
         ctx.preview,
-        timeline,
+        ctx.timeline,
         ctx.composition,
         ctx.active_scene,
         ctx.commands,

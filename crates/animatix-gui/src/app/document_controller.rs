@@ -381,6 +381,46 @@ impl DocumentController<'_> {
         }
     }
 
+    /// Move a keyframe from one time to another.
+    /// NOTE: The caller should have called `snapshot()` before this.
+    pub(crate) fn handle_move_keyframe(
+        &mut self,
+        actor: &str,
+        property: &str,
+        old_time_s: f64,
+        new_time_s: f64,
+    ) {
+        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+            self.preview_store.preview.status =
+                "Failed to move keyframe — no AST available".to_string();
+            return;
+        };
+
+        let edit = source_edit::SourceEdit::MoveKeyframeTime {
+            actor: actor.into(),
+            property: property.into(),
+            old_time_s,
+            new_time_s,
+        };
+
+        if source_edit::apply_edit(stmts, edit) {
+            let (new_source, source_index) = {
+                (
+                    animatix::to_source::stmts_to_source(stmts),
+                    animatix::source_index::SourceIndex::build(stmts),
+                )
+            };
+            self.apply_source(new_source, source_index);
+            self.preview_store.preview.status =
+                format!("Moved keyframe '{}.{}' from {:.2}s to {:.2}s", actor, property, old_time_s, new_time_s);
+        } else {
+            self.preview_store.preview.status = format!(
+                "Failed to move keyframe '{}.{}' from {:.2}s — not found",
+                actor, property, old_time_s
+            );
+        }
+    }
+
     // ── Actor hierarchy / scene refactoring ─────────────────────────────
 
     /// Reparent an actor under a new parent (or to top-level).

@@ -23,33 +23,6 @@ pub enum Effect {
     RebuildScheduled,
 }
 
-/// The result of handling a command, containing any collected side effects.
-///
-/// State mutations are performed directly in `handle_command`; only effects
-/// that reach outside the state (UI notifications, editor scrolling, etc.)
-/// are returned and applied afterward.
-///
-/// Currently the command system returns `Vec<Effect>` directly; this type
-/// is kept for a future refactor where command handlers return a richer result.
-#[derive(Debug, Default)]
-#[allow(dead_code)]
-pub struct CommandResult {
-    pub effects: Vec<Effect>,
-}
-
-#[allow(dead_code)]
-impl CommandResult {
-    pub fn new(effects: Vec<Effect>) -> Self {
-        Self { effects }
-    }
-
-    /// Convenience: push a single effect and return self for chaining in builders.
-    pub fn with(mut self, effect: Effect) -> Self {
-        self.effects.push(effect);
-        self
-    }
-}
-
 /// A unified command enum that replaces the 40+ `Option<T>` fields in `UiActions`.
 /// Every user intent is expressed as a `Command` and pushed into a `VecDeque<Command>`
 /// for ordered, frame-batched processing.
@@ -108,8 +81,7 @@ pub enum Command {
     // ── Keyframe ──────────────────────────────────────────────────────
     SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
     DeleteKeyframe { actor: String, property: String, time_s: f64 },
-    /// Move a keyframe to a new time. Phase 4b: emitted by timeline drag.
-    #[allow(dead_code)] // Handler wired; dispatch not yet plumbed
+    /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
 
     // ── Editor sync modes ─────────────────────────────────────────────

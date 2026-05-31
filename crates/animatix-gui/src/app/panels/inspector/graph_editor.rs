@@ -113,25 +113,25 @@ pub fn render_fcurve(
     for i in 0..points.len().saturating_sub(1) {
         let (t0, v0) = points[i];
         let (t1, v1) = points[i + 1];
-        let p0 = map_point(t0, v0);
-        let p1 = map_point(t1, v1);
 
         // Get easing for this segment
         let easing = property_keyframe_easing(track, field, (t1 * 1000.0) as u64)
             .unwrap_or(Easing::Linear);
 
-        // Draw curve based on easing
-        match easing {
-            Easing::Linear => {
-                painter.line_segment([p0, p1], Stroke::new(2.0, ACCENT_BLUE));
-            }
-            _ => {
-                // Quadratic approximation for non-linear easing
-                let mid = Pos2::new((p0.x + p1.x) / 2.0, (p0.y + p1.y) / 2.0);
-                // Draw as two line segments for simplicity
-                painter.line_segment([p0, mid], Stroke::new(2.0, ACCENT_BLUE));
-                painter.line_segment([mid, p1], Stroke::new(2.0, ACCENT_BLUE));
-            }
+        // Sample the easing curve with enough points for smooth rendering
+        let segments = 20;
+        let mut curve_points: Vec<Pos2> = Vec::with_capacity(segments + 1);
+        for s in 0..=segments {
+            let progress = s as f32 / segments as f32;
+            let eased = animatix::easing::apply_easing(progress, easing);
+            let time_s = t0 + (t1 - t0) * eased as f64;
+            let val = v0 + (v1 - v0) * eased;
+            curve_points.push(map_point(time_s, val));
+        }
+
+        // Draw the sampled curve as connected line segments
+        for w in curve_points.windows(2) {
+            painter.line_segment([w[0], w[1]], Stroke::new(2.0, ACCENT_BLUE));
         }
     }
 

@@ -1166,12 +1166,26 @@ pub fn handle_inspector_input_drag_ended(ui_store: &mut UiStore) -> Vec<Effect> 
 // =========================================================================
 
 pub fn handle_move_keyframe(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
     actor: String,
     property: String,
     old_time_s: f64,
     new_time_s: f64,
 ) -> Vec<Effect> {
-    tracing::info!("MoveKeyframe: {actor}.{property} {old_time_s}s → {new_time_s}s");
+    document_store.snapshot(Command::MoveKeyframe {
+        actor: actor.clone(),
+        property: property.clone(),
+        old_time_s,
+        new_time_s,
+    });
+    let mut ctrl = DocumentController {
+        document_store,
+        preview_store,
+        ui_store,
+    };
+    ctrl.handle_move_keyframe(&actor, &property, old_time_s, new_time_s);
     vec![]
 }
 
@@ -1347,7 +1361,15 @@ impl GuiShell {
                 property,
                 old_time_s,
                 new_time_s,
-            } => handle_move_keyframe(actor, property, old_time_s, new_time_s),
+            } => handle_move_keyframe(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                actor,
+                property,
+                old_time_s,
+                new_time_s,
+            ),
             Command::InspectorInputDragStarted => {
                 handle_inspector_input_drag_started(&mut self.ui_store)
             }
