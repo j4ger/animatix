@@ -612,7 +612,7 @@ pub(crate) fn timeline_panel_ui(
 
             // ── Global playhead ──
             if playhead_x >= bar_origin_x && playhead_x <= bar_origin_x + bar_width + 2.0 {
-                painter.line_segment([Pos2::new(playhead_x, scroll_rect.top()), Pos2::new(playhead_x, content_bottom)], Stroke::new(1.5, AMBER));
+                painter.line_segment([Pos2::new(playhead_x, ruler_top), Pos2::new(playhead_x, content_bottom)], Stroke::new(1.5, AMBER));
             }
 
             // ── Save keyframe drag + multi-select state ──
