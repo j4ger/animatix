@@ -26,6 +26,27 @@
 
 ---
 
+## Phase 9 — GUI Cleanup & Polish
+
+> Code-quality overhaul of the GUI crate. No user-visible features; purely structural.
+> See [`design/gui-redesign-2026.md`](design/gui-redesign-2026.md) for the design spec.
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 9.1 | **Merge timeline indirection** | `panels/timeline.rs` is a 25-line shim that only forwards to `timeline_panel.rs`. Delete the shim and move the entry point into `timeline_panel.rs`. | `panels/timeline.rs`, `panels/timeline_panel.rs` | 1 hr | — |
+| 9.2 | **Delete inspector_panel.rs shim** | `panels/inspector_panel.rs` is a 54-line wrapper around `inspector/mod.rs`. Fold `panel_frame()` and context setup into `inspector/mod.rs` and delete the shim. | `panels/inspector_panel.rs`, `panels/inspector/mod.rs`, `panels/behavior.rs` | 1 hr | — |
+| 9.3 | **Remove dead commands** | Eight commands (PrevScene, NextScene, AddScene, DeleteScene, RenameScene, ReorderScenes, ToggleKeyframeMode, RequestRepaint) are defined and dispatched but never emitted from the GUI. Remove them or wire them up. | `commands.rs`, `command_handlers.rs` | 2 hr | — |
+| 9.4 | **Split command_handlers.rs** | The 1700-line monolithic dispatcher is a single point of fragility. Extract into `handlers/` subfolder: `file.rs`, `playback.rs`, `actor.rs`, `keyframe.rs`, `scene.rs`, `ui.rs`, `property.rs`. | `command_handlers.rs` → `handlers/*.rs` | 1 day | 9.3 |
+| 9.5 | **Split components/mod.rs** | 15 unrelated components in one file. Split into `row.rs`, `button.rs`, `layout.rs`, `diagnostics.rs`, `timeline.rs`. | `components/mod.rs` | 1 day | — |
+| 9.6 | **Extract preview drag handler** | `preview_panel.rs` is 1666 lines; ~700 are drag-handling match arms (Move, Scale, Rotate, Reorder, EditVertices, MovePivot). Extract to `preview/drag_handler.rs`. | `panels/preview_panel.rs`, `preview/drag_handler.rs` | 2 days | — |
+| 9.7 | **Standardize UI function naming** | Mixed conventions: `toolbar_ui`, `settings_dialog_ui`, `preview_ui`, `timeline_panel_ui`. Standardize on `<noun>_panel_ui` for panels and `<noun>_ui` for dialogs/overlays. | `shell/*.rs`, `panels/*.rs` | 2 hr | — |
+| 9.8 | **Remove duplicate panel_frame()** | `sidebar.rs` defines its own `panel_frame()` instead of using `panels/mod.rs::panel_frame()`. Deduplicate. | `panels/sidebar.rs`, `panels/mod.rs` | 30 min | — |
+| 9.9 | **Unify time display format** | Toolbar shows `{:.2}s / {:.2}s`; timeline shows `MM:SS.mm`. Pick one format and use it everywhere. | `shell/toolbar.rs`, `panels/timeline_panel.rs` | 30 min | — |
+| 9.10 | **Audit remaining magic numbers** | 94 raw `Stroke::new(1.0, ...)` calls and scattered hardcoded sizes. Move remaining literals into `design_tokens.rs`. | Entire `app/` tree | 1 day | — |
+| 9.11 | **Consolidate GuiShell impl blocks** | `impl GuiShell` is split across 8 files (`shell/*.rs`, `actions/mod.rs`, `mod.rs`, `command_handlers.rs`). Move core lifecycle into `mod.rs`, keep shell UIs in `shell/`, and keep the thin dispatcher in `command_handlers.rs`. | `app/mod.rs`, `shell/*.rs` | 1 day | — |
+
+---
+
 ## Phase 10 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |
@@ -40,7 +61,7 @@
 
 1. **Phase 7** (audio — no blockers)
 2. **Phase 8** (PiP — after syntax and renderer are stable)
-3. **Phase 9** (GUI polish — small, can be done anytime)
+3. **Phase 9** (GUI cleanup — small, can be done anytime; ideally before Phase 10)
 4. **Phase 10** (start after syntax stabilizes)
 
 ---
