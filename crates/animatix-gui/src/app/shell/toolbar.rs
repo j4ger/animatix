@@ -154,6 +154,12 @@ impl GuiShell {
                             .on_hover_text("Toggle actor labels").clicked()
                         { self.preview_store.preview.overlay.show_actor_labels = !labels; }
 
+                        // Bounds toggle (helps analyze container placement)
+                        let bounds = self.ui_store.view.debug_bounds;
+                        if ui.selectable_label(bounds, "Bounds")
+                            .on_hover_text("Toggle debug bounding boxes").clicked()
+                        { self.ui_store.view.debug_bounds = !bounds; }
+
                         ui.separator();
 
                         // Zoom cycle button: Fit → 100% → 150% → 200% → Fit

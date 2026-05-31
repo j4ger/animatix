@@ -207,16 +207,6 @@ impl GuiShell {
                         self.ui_store.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
                     },
                 );
-                ui.add_space(SPACE_S);
-
-                let mut debug = self.ui_store.view.debug_bounds;
-                ui.checkbox(
-                    &mut debug,
-                    RichText::new("Draw debug bounding boxes")
-                        .size(FONT_SIZE_S)
-                        .color(TEXT_SECONDARY),
-                );
-                self.ui_store.view.debug_bounds = debug;
             });
 
         if window_response.is_none() {
