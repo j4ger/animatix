@@ -66,6 +66,7 @@ pub struct ViewStore {
     pub shortcuts_open: bool,
     pub inspector_visible: bool,
     pub welcome_open: bool,
+    pub workspace_switcher_open: bool,
 }
 
 impl ViewStore {
@@ -81,6 +82,7 @@ impl ViewStore {
             shortcuts_open: false,
             inspector_visible: false,
             welcome_open: false,
+            workspace_switcher_open: false,
         }
     }
 }
@@ -106,6 +108,8 @@ pub struct UiStore {
     pub rotation_snap_degrees: f32,
     pub pending_commands: CommandQueue,
     pub toasts: ToastQueue,
+    /// Path buffer for the workspace switcher dialog.
+    pub workspace_switcher_path: String,
 }
 
 impl UiStore {
@@ -130,6 +134,7 @@ impl UiStore {
             rotation_snap_degrees: 15.0,
             pending_commands: CommandQueue::default(),
             toasts: ToastQueue::default(),
+            workspace_switcher_path: String::new(),
         }
     }
 }

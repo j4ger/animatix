@@ -472,6 +472,11 @@ impl GuiShell {
             self.settings_dialog_ui(ui);
         }
 
+        // Workspace switcher dialog overlay
+        if self.ui_store.view.workspace_switcher_open {
+            self.workspace_switcher_ui(ui);
+        }
+
         // Export dialog overlay
         if self.export_store.export_dialog_open {
             self.export_dialog_ui(ui);
@@ -708,6 +713,108 @@ impl GuiShell {
         let count = self.ui_store.selection.selected_actors.len();
         self.ui_store.clipboard.clipboard_actors = self.ui_store.selection.selected_actors.iter().cloned().collect();
         self.preview_store.preview.status = format!("Copied {} actor(s)", count);
+    }
+
+    /// Workspace switcher dialog — small centered window for typing a directory path.
+    fn workspace_switcher_ui(&mut self, ui: &mut egui::Ui) {
+        let screen_rect = ui.ctx().viewport_rect();
+        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+
+        // Close on Escape or backdrop click
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.ui_store.view.workspace_switcher_open = false;
+        }
+        let backdrop = ui.interact(screen_rect, ui.id().with("ws_backdrop"), egui::Sense::click());
+        if backdrop.clicked() {
+            self.ui_store.view.workspace_switcher_open = false;
+        }
+
+        let mut commands = CommandQueue::default();
+        egui::Window::new("Switch Workspace")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .default_size([400.0, 140.0])
+            .min_size([360.0, 120.0])
+            .resizable(false)
+            .collapsible(false)
+            .title_bar(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(BG_BASE)
+                    .stroke(Stroke::new(1.0, BORDER))
+                    .corner_radius(RADIUS_XL)
+                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
+            )
+            .show(ui.ctx(), |ui| {
+                ui.set_min_width(320.0);
+
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new("Switch Workspace")
+                            .size(FONT_SIZE_XL)
+                            .color(TEXT_PRIMARY),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(egui_phosphor::regular::X).clicked() {
+                            self.ui_store.view.workspace_switcher_open = false;
+                        }
+                    });
+                });
+                ui.add_space(SPACE_M);
+                ui.separator();
+                ui.add_space(SPACE_M);
+
+                ui.label(
+                    egui::RichText::new("Directory path")
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_SECONDARY),
+                );
+                ui.add_space(SPACE_S);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.ui_store.workspace_switcher_path)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("/path/to/workspace"),
+                );
+                ui.add_space(SPACE_M);
+
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let confirm = ui
+                            .add_sized(
+                                [80.0, 28.0],
+                                egui::Button::new(
+                                    egui::RichText::new("Switch")
+                                        .size(FONT_SIZE_S)
+                                        .color(TEXT_PRIMARY),
+                                )
+                                .fill(ACCENT_BLUE),
+                            );
+                        if confirm.clicked() {
+                            let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
+                            commands.push_back(Command::SwitchWorkspace(path));
+                            self.ui_store.view.workspace_switcher_open = false;
+                        }
+
+                        let cancel = ui
+                            .add_sized(
+                                [80.0, 28.0],
+                                egui::Button::new(
+                                    egui::RichText::new("Cancel")
+                                        .size(FONT_SIZE_S)
+                                        .color(TEXT_SECONDARY),
+                                )
+                                .fill(BG_WIDGET),
+                            );
+                        if cancel.clicked() {
+                            self.ui_store.view.workspace_switcher_open = false;
+                        }
+                    });
+                });
+            });
+
+        for cmd in commands {
+            let effects = self.handle_command(cmd);
+            self.apply_effects(effects);
+        }
     }
 }
 

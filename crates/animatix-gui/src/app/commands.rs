@@ -36,6 +36,7 @@ pub enum Command {
 
     // ── Workspace / Explorer ──────────────────────────────────────────
     ToggleExpandDir(PathBuf),
+    SwitchWorkspace(PathBuf),
 
     // ── UI / Panels ───────────────────────────────────────────────────
     ShowInspector,

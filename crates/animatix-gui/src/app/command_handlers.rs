@@ -194,6 +194,28 @@ pub fn handle_open_file(
 // Handler: ToggleExpandDir
 // =========================================================================
 
+pub fn handle_switch_workspace(
+    workspace_store: &mut WorkspaceStore,
+    document_store: &DocumentStore,
+    path: PathBuf,
+) -> Vec<Effect> {
+    if path.exists() && path.is_dir() {
+        workspace_store.workspace_root = path.clone();
+        workspace_store.expanded_dirs = std::collections::HashSet::from([path.clone()]);
+        workspace_store.file_tree = build_file_tree(
+            &workspace_store.workspace_root,
+            &document_store.document.file_path,
+            &workspace_store.expanded_dirs,
+        );
+        vec![Effect::Status(format!("Switched workspace to {}", path.display()))]
+    } else {
+        vec![Effect::Toast(Toast::error(format!(
+            "Not a valid directory: {}",
+            path.display()
+        )))]
+    }
+}
+
 pub fn handle_toggle_expand_dir(
     workspace_store: &mut WorkspaceStore,
     document_store: &DocumentStore,
@@ -1211,6 +1233,11 @@ impl GuiShell {
             Command::ToggleExpandDir(path) => {
                 handle_toggle_expand_dir(&mut self.workspace_store, &self.document_store, path)
             }
+            Command::SwitchWorkspace(path) => handle_switch_workspace(
+                &mut self.workspace_store,
+                &self.document_store,
+                path,
+            ),
             Command::ShowInspector => handle_show_inspector(&mut self.ui_store),
             Command::OpenExportDialog => {
                 handle_open_export_dialog(&mut self.export_store, &self.document_store)

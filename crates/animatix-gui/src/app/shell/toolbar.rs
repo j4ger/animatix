@@ -92,6 +92,16 @@ impl GuiShell {
                             commands.push_back(Command::Rebuild);
                             ui.close();
                         }
+                        ui.separator();
+                        if ui.button(format!("{} Switch workspace…", egui_phosphor::regular::FOLDER_NOTCH))
+                            .on_hover_text("Change workspace directory")
+                            .clicked()
+                        {
+                            self.ui_store.workspace_switcher_path =
+                                self.workspace_store.workspace_root.to_string_lossy().to_string();
+                            self.ui_store.view.workspace_switcher_open = true;
+                            ui.close();
+                        }
                     });
 
                     // Breadcrumb for multi-scene compositions
