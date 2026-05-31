@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::Effect;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 use crate::document::timeline_keyframe_times_s;
 

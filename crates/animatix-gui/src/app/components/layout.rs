@@ -1,4 +1,4 @@
-use egui::{CornerRadius, Margin, Rect, Response, RichText, Vec2};
+use egui::{CornerRadius, Margin, Rect, Response, Vec2};
 
 use crate::app::design_tokens::*;
 

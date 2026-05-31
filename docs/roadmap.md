@@ -26,6 +26,19 @@
 
 ---
 
+## Phase 9b — Core Architecture Refactors (deferred from cleanup)
+
+> Structural improvements discovered during Phase 9. These are large, risky changes
+> that need dedicated testing time. Do not mix with feature work.
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 9b.1 | **Split `Command` enum by concern** | The `Command` enum mixes domain commands (`OpenFile`, `ScrubTo`), view-state toggles (`ShowInspector`), and drag bookkeeping (`DragEnded`). Split into `Command` + `ViewAction` + `DragEvent` so the dispatcher can handle each category appropriately. | `commands.rs`, `shell/mod.rs`, all call sites | 1–2 days | — |
+| 9b.2 | **Split `DocumentStore` into focused stores** | `DocumentStore` bundles source/AST, compiled timeline, and undo/redo history. Split into `SourceStore`, `TimelineStore`, and `HistoryStore` so handlers take only the stores they need. | `stores/document_store.rs`, all handlers | 2–3 days | — |
+| 9b.3 | **Atomic source edit validation** | `handle_keyframe_edit` applies the edit to the timeline *before* validating the source round-trip. A failed round-trip leaves timeline and source text out of sync. Restructure to validate first, then apply atomically. | `actions/mod.rs` | 2–3 days | — |
+
+---
+
 ## Phase 10 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |

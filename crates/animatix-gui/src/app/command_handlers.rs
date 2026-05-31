@@ -3,15 +3,7 @@
 //! The `GuiShell::handle_command` dispatcher lives in `shell/mod.rs`.
 //! All handler logic has been extracted into the `handlers/` sub-modules.
 
-use crate::app::commands::Effect;
-use crate::app::handlers::*;
-use crate::app::persistence::default_tree;
-use crate::app::preview::DragState;
-use crate::app::PreviewPaneState;
-use crate::document::DocumentSession;
-use crate::editor::EditorBuffer;
-use animatix::timeline::SceneDimensions;
-use std::collections::HashSet;
+
 
 // =========================================================================
 // ── Tests ─────────────────────────────────────────────────────────────
@@ -23,7 +15,9 @@ mod tests {
     use crate::app::commands::Effect;
     use crate::app::handlers::*;
     use crate::app::persistence::default_tree;
+    use crate::app::preview::DragState;
     use crate::app::PreviewPaneState;
+    use crate::document::DocumentSession;
     use crate::editor::EditorBuffer;
     use animatix::timeline::SceneDimensions;
     use std::collections::HashSet;

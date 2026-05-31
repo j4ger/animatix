@@ -1,7 +1,6 @@
 use std::path::PathBuf;
-use std::time::Instant;
 
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
