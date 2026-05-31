@@ -165,17 +165,7 @@ fn render_compact_track_row(
                 ui.separator();
                 let current_easing = *easing;
                 for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
-                    let variant = match id_str {
-                        "linear" => Easing::Linear,
-                        "easein" => Easing::EaseIn,
-                        "easeout" => Easing::EaseOut,
-                        "easeinout" => Easing::EaseInOut,
-                        "bounce" => Easing::Bounce,
-                        "elastic" => Easing::Elastic,
-                        "back" => Easing::Back,
-                        "expo" => Easing::Expo,
-                        _ => Easing::Linear,
-                    };
+                    let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(Command::SetKeyframeEasing {

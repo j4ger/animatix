@@ -470,17 +470,7 @@ pub(crate) fn timeline_panel_ui(
                                     ui.menu_button("Easing", |ui| {
                                         for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
                                             if ui.selectable_label(false, display_name).clicked() {
-                                                let variant = match id_str {
-                                                    "linear" => animatix::easing::Easing::Linear,
-                                                    "easein" => animatix::easing::Easing::EaseIn,
-                                                    "easeout" => animatix::easing::Easing::EaseOut,
-                                                    "easeinout" => animatix::easing::Easing::EaseInOut,
-                                                    "bounce" => animatix::easing::Easing::Bounce,
-                                                    "elastic" => animatix::easing::Easing::Elastic,
-                                                    "back" => animatix::easing::Easing::Back,
-                                                    "expo" => animatix::easing::Easing::Expo,
-                                                    _ => animatix::easing::Easing::Linear,
-                                                };
+                                                let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
                                                 commands.push_back(Command::SetKeyframeEasing {
                                                     actor: actor_label.clone(),
                                                     property: prop.to_string(),

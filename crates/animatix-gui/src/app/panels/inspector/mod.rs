@@ -209,9 +209,11 @@ pub(super) fn inspector_ui(
                                 }
                             }
                             PropertyViewMode::Intensity => {
-                                render_property_stream(ui, &groups, &track.label, commands, keyframe_mode, current_time_s);
+                                render_property_stream(ui, &groups, &track.label, commands, keyframe_mode, current_time_s, &mut view_mode);
                             }
                         }
+                        // Persist any view-mode change made by the stream click handler
+                        *property_view_mode = view_mode;
                     }
                 });
 
@@ -382,6 +384,7 @@ fn render_property_stream(
     _commands: &mut CommandQueue,
     _keyframe_mode: bool,
     _current_time_s: f64,
+    property_view_mode: &mut PropertyViewMode,
 ) {
     // Flatten all entries and sort by keyframe count descending
     let mut all_entries: Vec<(&PropertyGroup, &PropertyEntry)> = Vec::new();
@@ -438,6 +441,19 @@ fn render_property_stream(
             TEXT_SECONDARY,
         );
 
+        // Current value (middle area)
+        let value_text = format_property_value(&entry.kind);
+        let value_x = name_x + 100.0;
+        if !value_text.is_empty() {
+            ui.painter().text(
+                egui::pos2(value_x, baseline_y),
+                egui::Align2::LEFT_CENTER,
+                &value_text,
+                egui::FontId::monospace(FONT_SIZE_XS),
+                TEXT_MUTED,
+            );
+        }
+
         // Keyframe count badge (right)
         if entry.keyframe_count > 0 {
             let count_text = format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
@@ -452,8 +468,7 @@ fn render_property_stream(
 
         // Click to jump to the property in semantic view
         if row_response.clicked() {
-            // Switch back to semantic view and this property will be visible
-            ui.data_mut(|d| d.insert_temp(ui.id().with("property_view_mode"), PropertyViewMode::Semantic));
+            *property_view_mode = PropertyViewMode::Semantic;
         }
     }
     ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
@@ -522,6 +537,7 @@ fn render_actor_header(
                             .text_color(TEXT_PRIMARY)
                             .desired_width(120.0),
                     );
+                    response.request_focus();
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
                         if edit_buffer != track.label && !edit_buffer.is_empty() {
@@ -585,7 +601,7 @@ fn render_actor_header(
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(
-                            RichText::new(format!("{:?}", shape))
+                            RichText::new(shape.to_string())
                                 .size(FONT_SIZE_S)
                                 .color(TEXT_MUTED),
                         )
@@ -710,6 +726,32 @@ fn render_container_children(
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
             }));
+        }
+    }
+}
+
+/// Format a property value for display in the intensity stream view.
+fn format_property_value(kind: &PropertyKind) -> String {
+    match kind {
+        PropertyKind::Vec2 { x, y } => format!("({:.1}, {:.1})", x, y),
+        PropertyKind::Float(v) => format!("{:.2}", v),
+        PropertyKind::U32(v) => format!("{}", v),
+        PropertyKind::Color(rgba) => {
+            let r = (rgba[0] * 255.0).round() as u8;
+            let g = (rgba[1] * 255.0).round() as u8;
+            let b = (rgba[2] * 255.0).round() as u8;
+            if rgba[3] >= 0.999 {
+                format!("#{:02x}{:02x}{:02x}", r, g, b)
+            } else {
+                format!("#{:02x}{:02x}{:02x}{:02x}", r, g, b, (rgba[3] * 255.0) as u8)
+            }
+        }
+        PropertyKind::Text(s) => {
+            if s.len() > 16 {
+                format!("{}…", &s[..15])
+            } else {
+                s.clone()
+            }
         }
     }
 }

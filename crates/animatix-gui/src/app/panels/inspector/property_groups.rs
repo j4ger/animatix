@@ -265,22 +265,25 @@ pub(crate) fn render_property_group(
     }
 
     if expanded {
+        // Cache flat widget style once for all rows in this group
+        let flat_style = {
+            let mut s = (**ui.style()).clone();
+            s.visuals.extreme_bg_color = Color32::TRANSPARENT;
+            s.visuals.widgets.inactive.bg_fill = BG_WIDGET;
+            s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+            s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
+            s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
+            s.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
+            s.visuals.widgets.active.bg_stroke = Stroke::NONE;
+            s.visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
+            s.visuals.widgets.open.bg_stroke = Stroke::NONE;
+            s
+        };
         ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_XS);
         for entry in &group.properties {
-            render_property_row(ui, actor_label, entry, commands, keyframe_mode, current_time_s);
+            render_property_row(ui, actor_label, entry, commands, keyframe_mode, current_time_s, &flat_style);
         }
         ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
-    }
-    // Subtle divider + spacing between groups
-    let divider_rect = ui.available_rect_before_wrap();
-    if divider_rect.width() > 0.0 {
-        ui.painter().line_segment(
-            [
-                egui::pos2(divider_rect.min.x + SPACE_S, divider_rect.min.y + 4.0),
-                egui::pos2(divider_rect.max.x - SPACE_S, divider_rect.min.y + 4.0),
-            ],
-            egui::Stroke::new(1.0, BORDER),
-        );
     }
     ui.add_space(SPACE_L);
 }
@@ -292,6 +295,7 @@ pub(crate) fn render_property_row(
     commands: &mut CommandQueue,
     keyframe_mode: bool,
     current_time_s: f64,
+    flat_style: &egui::Style,
 ) {
     let row_height = INSPECTOR_ROW_HEIGHT;
     let available = ui.available_width();
@@ -314,7 +318,6 @@ pub(crate) fn render_property_row(
     let kf_btn_right = row_rect.max.x - SPACE_S;
     let kf_btn_left = kf_btn_right - INSPECTOR_KF_BTN_WIDTH;
     let input_col_right = kf_btn_left - SPACE_S;
-    let _input_area_width = (input_col_right - input_col_left).max(40.0);
 
     // ── Keyframe dot (centered in KF column) ──
     let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
@@ -360,20 +363,7 @@ pub(crate) fn render_property_row(
         ui.painter().rect_filled(input_rect, RADIUS_S, BG_WIDGET);
     }
 
-    // Flat widget styling: remove extraneous widget chrome but keep visible input area
-    let flat_style = {
-        let mut s = (**ui.style()).clone();
-        s.visuals.extreme_bg_color = Color32::TRANSPARENT;
-        s.visuals.widgets.inactive.bg_fill = BG_WIDGET;   // visible background to show it's editable
-        s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-        s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT; // hover handled externally
-        s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
-        s.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
-        s.visuals.widgets.active.bg_stroke = Stroke::NONE;
-        s.visuals.widgets.open.bg_fill = Color32::TRANSPARENT;
-        s.visuals.widgets.open.bg_stroke = Stroke::NONE;
-        s
-    };
+    // Flat widget styling passed from the group renderer (cached once per group).
 
     // ── Keyframe toggle button (far right) ──
     let kf_btn_rect = egui::Rect::from_min_size(
@@ -382,11 +372,14 @@ pub(crate) fn render_property_row(
     );
     let kf_btn_resp = ui.interact(kf_btn_rect, ui.id().with(("kf_btn", entry.name)), egui::Sense::click());
 
-    // Draw diamond icon
+    // Draw diamond icon — dimmed when keyframe_mode is off and no keyframe exists
     let kf_color = if entry.has_keyframe_at_current_time {
         AMBER
     } else if entry.has_keyframes {
         if kf_btn_resp.hovered() { AMBER } else { TEXT_MUTED }
+    } else if !keyframe_mode {
+        // Show faint outline when keyframe mode is off
+        if kf_btn_resp.hovered() { TEXT_DISABLED } else { Color32::TRANSPARENT }
     } else if kf_btn_resp.hovered() { TEXT_SECONDARY } else { Color32::TRANSPARENT };
     if kf_color != Color32::TRANSPARENT {
         let center = kf_btn_rect.center();
@@ -404,7 +397,6 @@ pub(crate) fn render_property_row(
             ui.painter().add(egui::Shape::convex_polygon(points, Color32::TRANSPARENT, Stroke::new(1.0, kf_color)));
         }
     }
-
     // Click keyframe button to create a keyframe (when not already present)
     if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
         if let Some(value) = entry_to_gui_value(entry) {
@@ -433,17 +425,7 @@ pub(crate) fn render_property_row(
             }
             ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
                 for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
-                    let variant = match id_str {
-                        "linear" => animatix::easing::Easing::Linear,
-                        "easein" => animatix::easing::Easing::EaseIn,
-                        "easeout" => animatix::easing::Easing::EaseOut,
-                        "easeinout" => animatix::easing::Easing::EaseInOut,
-                        "bounce" => animatix::easing::Easing::Bounce,
-                        "elastic" => animatix::easing::Easing::Elastic,
-                        "back" => animatix::easing::Easing::Back,
-                        "expo" => animatix::easing::Easing::Expo,
-                        _ => animatix::easing::Easing::Linear,
-                    };
+                    let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
                     if ui.selectable_label(false, display_name).clicked() {
                         commands.push_back(Command::SetKeyframeEasing {
                             actor: actor_label.to_string(),
@@ -791,7 +773,6 @@ fn unit_suffix(name: &str) -> &'static str {
 fn vec2_labels(name: &str) -> (&'static str, &'static str) {
     match name {
         "size" | "layout_size" => ("W: ", "H: "),
-        "line_from" | "line_to" => ("X: ", "Y: "),
         _ => ("X: ", "Y: "),
     }
 }
