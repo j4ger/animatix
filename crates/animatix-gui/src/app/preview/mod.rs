@@ -56,7 +56,7 @@ impl PreviewTransform {
 
         // Scene pixels per screen pixel = inverse
         let base_scale = 1.0 / px_per_scene;
-        let z = self.zoom.max(0.01) as f64;
+        let z = self.zoom.max(PREVIEW_MIN_ZOOM) as f64;
         let scale = base_scale / z;
         (scale, scale)
     }
@@ -72,7 +72,7 @@ impl PreviewTransform {
         let px_per_scene_y = desired.y.max(1.0) as f64 / scene_h;
         let px_per_scene = px_per_scene_x.min(px_per_scene_y);
 
-        let z = self.zoom.max(0.01) as f64;
+        let z = self.zoom.max(PREVIEW_MIN_ZOOM) as f64;
         let display_w = (scene_w * px_per_scene * z).min(desired.x as f64);
         let display_h = (scene_h * px_per_scene * z).min(desired.y as f64);
 
@@ -238,10 +238,13 @@ pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
     [props.position[0] + rotated[0], props.position[1] + rotated[1]]
 }
 
-pub(super) const ROTATION_OFFSET: f32 = 20.0;
-pub(super) const ROTATION_RADIUS: f32 = 4.0;
-const HANDLE_SIZE: f32 = 6.0;
-pub(super) const HANDLE_HIT_RADIUS: f32 = 10.0;
+use crate::app::design_tokens::{
+    PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_HIT_RADIUS,
+    PREVIEW_ROTATION_OFFSET, PREVIEW_ROTATION_RADIUS,
+    PREVIEW_DASH_LEN, PREVIEW_GAP_LEN, PREVIEW_CROSS_SIZE,
+    PREVIEW_VERTEX_HIT_BUFFER, PREVIEW_ROTATION_HIT_BUFFER,
+};
+
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
@@ -325,7 +328,7 @@ pub(super) fn world_handle_positions(props: &ActorProps) -> [kurbo::Point; 8] {
 
 /// Compute the rotation handle centre in world space.
 pub(super) fn rotation_handle_world(props: &ActorProps) -> kurbo::Point {
-    let offset_local = [0.0_f32, -(props.size[1] / 2.0 + ROTATION_OFFSET)];
+    let offset_local = [0.0_f32, -(props.size[1] / 2.0 + PREVIEW_ROTATION_OFFSET)];
     local_to_world(offset_local, props.position, props.rotation)
 }
 
@@ -455,8 +458,6 @@ pub(super) fn draw_selection_overlay(
 
         // Dashed overlay during drag
         if is_dragging {
-            let dash_len = 6.0;
-            let gap_len = 4.0;
             let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
             for i in 0..4 {
                 let start = screen_corners[i];
@@ -465,7 +466,7 @@ pub(super) fn draw_selection_overlay(
                 let mut pos = 0.0;
                 while pos < total {
                     let t0 = pos / total;
-                    let t1 = ((pos + dash_len).min(total)) / total;
+                    let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
                     let p0 = Pos2::new(
                         start.x + (end.x - start.x) * t0,
                         start.y + (end.y - start.y) * t0,
@@ -475,7 +476,7 @@ pub(super) fn draw_selection_overlay(
                         start.y + (end.y - start.y) * t1,
                     );
                     painter.line_segment([p0, p1], dash_stroke);
-                    pos += dash_len + gap_len;
+                    pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
                 }
             }
         }
@@ -487,14 +488,14 @@ pub(super) fn draw_selection_overlay(
         });
 
         // Corner handles (indices 0-3): filled circles with slight larger presence
-        let corner_radius = HANDLE_SIZE * 0.6 * pixels_per_point;
+        let corner_radius = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
         for &pos in handle_screen[..4].iter() {
             painter.circle_filled(pos, corner_radius, TEXT_PRIMARY);
             painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, SELECTION_COLOR));
         }
 
         // Edge handles (indices 4-7): smaller filled squares, more subtle
-        let edge_handle_px = HANDLE_SIZE * 0.7 * pixels_per_point;
+        let edge_handle_px = PREVIEW_HANDLE_SIZE * 0.7 * pixels_per_point;
         for &pos in handle_screen[4..].iter() {
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
@@ -504,7 +505,7 @@ pub(super) fn draw_selection_overlay(
 
         // Rotation ring arcs at corners (only when not dragging)
         if !is_dragging {
-            let arc_radius = HANDLE_SIZE * 1.5 * pixels_per_point;
+            let arc_radius = PREVIEW_HANDLE_SIZE * 1.5 * pixels_per_point;
             let arc_stroke = Stroke::new(STROKE_WIDTH, SELECTION_COLOR.gamma_multiply(0.5));
             // Arc orientations (screen coordinates, y-down): 0°=right, 90°=down
             // TL (index 0): from 180° (left) up to 270° (up)    — outside of top-left
@@ -523,7 +524,7 @@ pub(super) fn draw_selection_overlay(
             }
         }
 
-        // Rotation handle: on the line from centre to above top-edge, offset by ROTATION_OFFSET
+        // Rotation handle: on the line from centre to above top-edge, offset by PREVIEW_ROTATION_OFFSET
         let rot_world = rotation_handle_world(p);
         let rot_screen = scene_to_screen(rot_world, preview_rect, scene_dimensions, desired, zoom, pan);
 
@@ -536,7 +537,7 @@ pub(super) fn draw_selection_overlay(
             [top_center_screen, rot_screen],
             Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
-        let rot_radius = ROTATION_RADIUS * pixels_per_point;
+        let rot_radius = PREVIEW_ROTATION_RADIUS * pixels_per_point;
         painter.circle_filled(rot_screen, rot_radius, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_screen,
@@ -555,7 +556,7 @@ pub(super) fn draw_selection_overlay(
                 zoom,
                 pan,
             );
-            let cross_size = 6.0 * pixels_per_point;
+            let cross_size = PREVIEW_CROSS_SIZE * pixels_per_point;
             let cross_color = AMBER;
             painter.line_segment(
                 [Pos2::new(pivot_screen.x - cross_size, pivot_screen.y), Pos2::new(pivot_screen.x + cross_size, pivot_screen.y)],
@@ -574,8 +575,6 @@ pub(super) fn draw_selection_overlay(
         painter.rect_stroke(sel_rect, 0.0, stroke, egui::StrokeKind::Outside);
 
         if is_dragging {
-            let dash_len = 6.0;
-            let gap_len = 4.0;
             let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
             let corners = [
                 sel_rect.left_top(),
@@ -590,7 +589,7 @@ pub(super) fn draw_selection_overlay(
                 let mut pos = 0.0;
                 while pos < total {
                     let t0 = pos / total;
-                    let t1 = ((pos + dash_len).min(total)) / total;
+                    let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
                     let p0 = Pos2::new(
                         start.x + (end.x - start.x) * t0,
                         start.y + (end.y - start.y) * t0,
@@ -600,7 +599,7 @@ pub(super) fn draw_selection_overlay(
                         start.y + (end.y - start.y) * t1,
                     );
                     painter.line_segment([p0, p1], dash_stroke);
-                    pos += dash_len + gap_len;
+                    pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
                 }
             }
         }
@@ -609,7 +608,7 @@ pub(super) fn draw_selection_overlay(
         let handle_positions = scale_handle_positions(sel_rect);
         for pos in &handle_positions {
             let handle_rect =
-                egui::Rect::from_center_size(*pos, Vec2::new(HANDLE_SIZE, HANDLE_SIZE));
+                egui::Rect::from_center_size(*pos, Vec2::new(PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_SIZE));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
             painter.rect_stroke(
                 handle_rect,
@@ -621,12 +620,12 @@ pub(super) fn draw_selection_overlay(
 
         // Rotation handle
         let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
-        let rot_center = Pos2::new(top_center.x, top_center.y - ROTATION_OFFSET);
+        let rot_center = Pos2::new(top_center.x, top_center.y - PREVIEW_ROTATION_OFFSET);
         painter.line_segment([top_center, rot_center], Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
-        painter.circle_filled(rot_center, ROTATION_RADIUS, TEXT_PRIMARY);
+        painter.circle_filled(rot_center, PREVIEW_ROTATION_RADIUS, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_center,
-            ROTATION_RADIUS,
+            PREVIEW_ROTATION_RADIUS,
             Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
     }
@@ -664,8 +663,6 @@ pub(super) fn draw_multi_selection_overlay(
 
     // Dashed overlay during drag
     if is_dragging {
-        let dash_len = 6.0;
-        let gap_len = 4.0;
         let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
         let corners = [
             union_rect.left_top(),
@@ -680,7 +677,7 @@ pub(super) fn draw_multi_selection_overlay(
             let mut pos = 0.0;
             while pos < total {
                 let t0 = pos / total;
-                let t1 = ((pos + dash_len).min(total)) / total;
+                let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
                 let p0 = Pos2::new(
                     start.x + (end.x - start.x) * t0,
                     start.y + (end.y - start.y) * t0,
@@ -690,14 +687,14 @@ pub(super) fn draw_multi_selection_overlay(
                     start.y + (end.y - start.y) * t1,
                 );
                 painter.line_segment([p0, p1], dash_stroke);
-                pos += dash_len + gap_len;
+                pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
             }
         }
     }
 
     // Handles on the union bounding box
     let handle_positions = scale_handle_positions(union_rect);
-    let handle_px = HANDLE_SIZE * pixels_per_point;
+    let handle_px = PREVIEW_HANDLE_SIZE * pixels_per_point;
     for pos in &handle_positions {
         let handle_rect = egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
         painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
@@ -739,8 +736,6 @@ pub(super) fn draw_ghost_overlay(
         scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
     });
 
-    let dash_len = 6.0;
-    let gap_len = 4.0;
     let dash_stroke = Stroke::new(STROKE_WIDTH, color);
 
     for i in 0..4 {
@@ -750,7 +745,7 @@ pub(super) fn draw_ghost_overlay(
         let mut pos = 0.0;
         while pos < total {
             let t0 = pos / total;
-            let t1 = ((pos + dash_len).min(total)) / total;
+            let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
             let p0 = Pos2::new(
                 start.x + (end.x - start.x) * t0,
                 start.y + (end.y - start.y) * t0,
@@ -760,7 +755,7 @@ pub(super) fn draw_ghost_overlay(
                 start.y + (end.y - start.y) * t1,
             );
             painter.line_segment([p0, p1], dash_stroke);
-            pos += dash_len + gap_len;
+            pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
         }
     }
 }
@@ -940,7 +935,7 @@ pub(super) fn hit_test_rotation_handle(
     rot_screen: Pos2,
     hit_radius: f32,
 ) -> bool {
-    screen_point.distance(rot_screen) <= hit_radius + 4.0
+    screen_point.distance(rot_screen) <= hit_radius + PREVIEW_ROTATION_HIT_BUFFER
 }
 
 /// Check if the screen point is near the pivot crosshair.
@@ -968,7 +963,7 @@ pub(super) fn hit_test_vertex(
     for (i, &pt) in points.iter().enumerate() {
         let world = local_to_world(pt, props.position, props.rotation);
         let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
-        if screen_point.distance(screen) <= hit_radius + 2.0 {
+        if screen_point.distance(screen) <= hit_radius + PREVIEW_VERTEX_HIT_BUFFER {
             return Some(i);
         }
     }

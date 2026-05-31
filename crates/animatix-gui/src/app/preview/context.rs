@@ -211,7 +211,7 @@ impl PreviewContext<'_> {
     pub(crate) fn render_preview_cursor_feedback(&self, ui: &egui::Ui, preview_rect: egui::Rect) {
         let is_dragging = !matches!(self.drag_state, DragState::None);
         let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-        let hit_radius = preview::HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
+        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
 
         if !is_dragging && !self.selection.context_menu_open {
             if let Some(mouse) = raw_pointer_pos {
@@ -284,8 +284,8 @@ impl PreviewContext<'_> {
                 let display_rect = tx.display_rect();
 
                 if (zoom - 1.0).abs() > 0.001 || pan != Vec2::new(scene_w / 2.0, scene_h / 2.0) {
-                    let half_inv_zx = 0.5 / zoom.max(0.01);
-                    let half_inv_zy = 0.5 / zoom.max(0.01);
+                    let half_inv_zx = 0.5 / zoom.max(PREVIEW_MIN_ZOOM);
+                    let half_inv_zy = 0.5 / zoom.max(PREVIEW_MIN_ZOOM);
                     let uv_cx = (pan.x / scene_w).clamp(0.0, 1.0);
                     let uv_cy = (pan.y / scene_h).clamp(0.0, 1.0);
                     let uv_rect = egui::Rect::from_min_max(

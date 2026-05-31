@@ -23,7 +23,7 @@ pub(crate) fn handle_preview_drag(
 
         let drag_started = response.drag_started()
             || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
-        let hit_radius = preview::HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
+        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
 
         if drag_started {
             if let (Some(actor), Some(mouse)) = (ctx.selected_actors.iter().next().cloned(), raw_pointer_pos) {
@@ -477,11 +477,10 @@ pub(crate) fn handle_preview_drag(
                         _ => [1.0, 1.0],
                     };
 
-                    let min_size = 10.0;
                     let mut new_w = start_size[0];
                     let mut new_h = start_size[1];
-                    if sign[0] != 0.0 { new_w = (start_size[0] + sign[0] * dx_local).max(min_size); }
-                    if sign[1] != 0.0 { new_h = (start_size[1] + sign[1] * dy_local).max(min_size); }
+                    if sign[0] != 0.0 { new_w = (start_size[0] + sign[0] * dx_local).max(PREVIEW_MIN_ACTOR_SIZE); }
+                    if sign[1] != 0.0 { new_h = (start_size[1] + sign[1] * dy_local).max(PREVIEW_MIN_ACTOR_SIZE); }
 
                     let force_uniform = resize_mode == preview::ResizeMode::Scale;
                     let uniform = shift || uniform_ratio || force_uniform;
@@ -491,8 +490,8 @@ pub(crate) fn handle_preview_drag(
                         let s = if constrain_axis && !force_uniform {
                             if sign[0] == 0.0 { scale_h } else { scale_w }
                         } else { scale_w.max(scale_h) };
-                        new_w = (start_size[0] * s).max(min_size);
-                        new_h = (start_size[1] * s).max(min_size);
+                        new_w = (start_size[0] * s).max(PREVIEW_MIN_ACTOR_SIZE);
+                        new_h = (start_size[1] * s).max(PREVIEW_MIN_ACTOR_SIZE);
                     }
 
                     let cos_rot = start_rotation.cos();
@@ -507,7 +506,7 @@ pub(crate) fn handle_preview_drag(
                     if resize_mode == preview::ResizeMode::Scale {
                         let ratio = new_w / start_size[0].max(1.0);
                         ctx.commands.push_back(Command::PropertyEdit(PropertyEdit {
-                            actor: actor.clone(), property: "scale".into(), value: PropertyValue::Float((start_scale * ratio).max(0.01)), create_keyframe: ctx.keyframe_mode,
+                            actor: actor.clone(), property: "scale".into(), value: PropertyValue::Float((start_scale * ratio).max(PREVIEW_MIN_SCALE)), create_keyframe: ctx.keyframe_mode,
                         }));
                     } else {
                         ctx.commands.push_back(Command::PropertyEdit(PropertyEdit {

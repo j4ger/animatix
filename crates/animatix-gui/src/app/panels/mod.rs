@@ -1,3 +1,8 @@
+//! Docking panel implementations — layout, frames, and egui response glue.
+//!
+//! Ownership boundary: `panels/` owns frame layout and the top-level egui
+//! response loop. `preview/` owns screen/scene coordinate transforms and
+//! canvas interaction. `shell/` owns modal dialogs and floating overlays.
 
 pub mod behavior;
 pub mod inspector;

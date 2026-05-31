@@ -138,6 +138,32 @@ pub const STROKE_WIDTH: f32 = 1.0;
 pub const STROKE_WIDTH_THICK: f32 = 1.5;
 pub const STROKE_WIDTH_THIN: f32 = 0.5;
 
+// ── Preview Canvas ──
+/// Rotation handle distance from actor top edge (px).
+pub const PREVIEW_ROTATION_OFFSET: f32 = 20.0;
+/// Rotation handle visual radius (px).
+pub const PREVIEW_ROTATION_RADIUS: f32 = 4.0;
+/// Default scale handle size (px).
+pub const PREVIEW_HANDLE_SIZE: f32 = 6.0;
+/// Hit-test radius for scale/rotation handles (px).
+pub const PREVIEW_HANDLE_HIT_RADIUS: f32 = 10.0;
+/// Minimum allowed actor size during drag (px).
+pub const PREVIEW_MIN_ACTOR_SIZE: f32 = 10.0;
+/// Minimum allowed transform scale during drag.
+pub const PREVIEW_MIN_SCALE: f32 = 0.01;
+/// Minimum allowed zoom level.
+pub const PREVIEW_MIN_ZOOM: f32 = 0.01;
+/// Dashed line segment length for selection overlays (px).
+pub const PREVIEW_DASH_LEN: f32 = 6.0;
+/// Dashed line gap length for selection overlays (px).
+pub const PREVIEW_GAP_LEN: f32 = 4.0;
+/// Pivot crosshair arm length (px).
+pub const PREVIEW_CROSS_SIZE: f32 = 6.0;
+/// Extra hit-test buffer for polygon vertices (px).
+pub const PREVIEW_VERTEX_HIT_BUFFER: f32 = 2.0;
+/// Extra hit-test buffer for rotation handle (px).
+pub const PREVIEW_ROTATION_HIT_BUFFER: f32 = 4.0;
+
 // ── Corner Radii ──
 pub const RADIUS_S: f32 = 2.0;
 pub const RADIUS_M: f32 = 4.0;
