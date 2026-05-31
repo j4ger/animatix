@@ -52,11 +52,7 @@ const KEYFRAME_HEADER_BG: Color32 = Color32::from_rgb(24, 27, 33);
 const CODE_BG: Color32 = Color32::from_rgb(22, 25, 32);
 const CODE_BG_HIGHLIGHT: Color32 = Color32::from_rgb(36, 40, 50);
 
-// Unified ghost-button palette
-const GHOST_BG_IDLE: Color32 = Color32::from_rgb(38, 42, 50);
-const GHOST_BG_HOVER: Color32 = Color32::from_rgb(60, 66, 78);
-const GHOST_ICON_IDLE: Color32 = Color32::from_rgb(140, 150, 170);
-const GHOST_ICON_HOVER: Color32 = Color32::from_rgb(210, 215, 230);
+// (ghost-button palette removed — using clean header_btn instead)
 
 // ── Public API ───────────────────────────────────────────────────────────
 
@@ -115,58 +111,56 @@ pub fn render_cell_editor(
     }
 }
 
-// ── Unified ghost icon button ────────────────────────────────────────────
+// ── Header icon button ───────────────────────────────────────────────────
 
-/// A small, consistently-styled icon button with smooth hover / press transitions.
+/// Clean 20×20 icon button for cell headers.
 ///
-/// * Idle:    dark rounded-square bg + muted icon
-/// * Hover:   lighter bg + bright icon  (100 ms fade)
-/// * Pressed: amber-filled bg + dark icon (instant, snaps back on release)
-fn ghost_icon_btn(
+/// No idle background; a subtle hover bg fades in and the icon brightens.
+fn header_btn(
     ui: &mut egui::Ui,
     icon: &'static str,
     tooltip: &'static str,
-    alpha: f32,
 ) -> bool {
-    let size = Vec2::splat(22.0);
+    let size = Vec2::splat(20.0);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
-    let pressed = response.is_pointer_button_down_on();
     let t = ui.ctx().animate_value_with_time(
         response.id,
-        if response.hovered() || pressed { 1.0 } else { 0.0 },
-        0.10,
+        if response.hovered() || response.is_pointer_button_down_on() {
+            1.0
+        } else {
+            0.0
+        },
+        0.08,
     );
 
-    let bg = if pressed {
-        dt::AMBER
+    let bg = if response.is_pointer_button_down_on() {
+        dt::BG_ACTIVE
     } else {
-        crate::app::design_tokens::lerp_color(GHOST_BG_IDLE, GHOST_BG_HOVER, t)
+        dt::lerp_color(Color32::TRANSPARENT, dt::BG_HOVER, t)
     };
 
-    let icon_color = if pressed {
-        Color32::from_rgb(24, 27, 33)
+    let icon_color = if response.is_pointer_button_down_on() {
+        dt::TEXT_PRIMARY
     } else {
-        crate::app::design_tokens::lerp_color(GHOST_ICON_IDLE, GHOST_ICON_HOVER, t)
+        dt::lerp_color(dt::TEXT_MUTED, dt::TEXT_PRIMARY, t)
     };
 
-    let bg = crate::app::design_tokens::multiply_alpha(bg, alpha);
-    let icon_color = crate::app::design_tokens::multiply_alpha(icon_color, alpha);
-
-    ui.painter()
-        .rect_filled(rect, 5.0, bg);
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, 4.0, bg);
+    }
 
     ui.painter().text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::new(13.0, egui::FontFamily::Proportional),
+        egui::FontId::new(12.0, egui::FontFamily::Proportional),
         icon_color,
     );
 
     let clicked = response.clicked();
-    if !tooltip.is_empty() && alpha > 0.01 {
-        response.on_hover_text(tooltip);
+    if !tooltip.is_empty() {
+        return response.on_hover_text(tooltip).clicked();
     }
     clicked
 }
@@ -228,85 +222,64 @@ fn render_code_cell(
                 .inner_margin(Margin::symmetric(10, 8))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
-                        // Header row with hover-reveal reorder buttons
-                        let header_response = ui.horizontal(|ui| {
+                        // Header row
+                        let _header_response = ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+
                             let toggle = if expanded {
                                 egui_phosphor::regular::CARET_DOWN
                             } else {
                                 egui_phosphor::regular::CARET_RIGHT
                             };
-                            if ghost_icon_btn(
+                            if header_btn(
                                 ui,
                                 toggle,
                                 if expanded { "Collapse" } else { "Expand" },
-                                1.0,
                             ) {
                                 cell.set_expanded(!expanded);
                             }
 
-                            // Hover-reveal up/down buttons
-                            let header_hover_t = ui.ctx().animate_value_with_time(
-                                ui.id().with(("code_header_hover", index)),
-                                if ui.rect_contains_pointer(ui.max_rect()) {
-                                    1.0
-                                } else {
-                                    0.0
-                                },
-                                0.12,
-                            );
-                            if ghost_icon_btn(
-                                ui,
-                                egui_phosphor::regular::ARROW_UP,
-                                "Move up",
-                                header_hover_t,
-                            ) {
-                                state.pending_move_up = Some(index);
-                            }
-                            if ghost_icon_btn(
-                                ui,
-                                egui_phosphor::regular::ARROW_DOWN,
-                                "Move down",
-                                header_hover_t,
-                            ) {
-                                state.pending_move_down = Some(index);
-                            }
-
-                            // Code type icon
+                            // Code type icon + label
                             ui.label(
                                 RichText::new(egui_phosphor::regular::CODE)
-                                    .size(13.0)
+                                    .size(12.0)
+                                    .color(dt::TEXT_MUTED),
+                            );
+                            ui.label(
+                                RichText::new(format!("Code {index}"))
+                                    .size(11.0)
                                     .color(dt::TEXT_MUTED),
                             );
 
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new(format!("Code {index}"))
-                                        .size(11.0)
-                                        .color(dt::TEXT_MUTED),
-                                )
-                                .selectable(false),
-                            );
-
-                            // Delete button (right-aligned)
+                            // Right-aligned actions
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ghost_icon_btn(
+                                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                                    if header_btn(
                                         ui,
                                         egui_phosphor::regular::TRASH,
                                         "Delete code block",
-                                        1.0,
                                     ) {
                                         state.pending_delete_cell = Some(index);
+                                    }
+                                    if header_btn(
+                                        ui,
+                                        egui_phosphor::regular::ARROW_DOWN,
+                                        "Move down",
+                                    ) {
+                                        state.pending_move_down = Some(index);
+                                    }
+                                    if header_btn(
+                                        ui,
+                                        egui_phosphor::regular::ARROW_UP,
+                                        "Move up",
+                                    ) {
+                                        state.pending_move_up = Some(index);
                                     }
                                 },
                             );
                         });
-                        // Access the header response to keep the hover state
-                        // animation id warm even when the pointer leaves.
-                        // Keep response alive for hover animation state
-                        let _ = header_response.response;
 
                         if expanded {
                             ui.add_space(4.0);
@@ -406,20 +379,18 @@ fn render_keyframe_cell(
                             .inner_margin(Margin::symmetric(10, 5))
                             .show(ui, |ui| {
                                 ui.set_min_height(26.0);
-                                let header_response = ui.horizontal(|ui| {
+                                let _header_response = ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
-                                    // Expand / collapse chevron
                                     let toggle = if expanded {
                                         egui_phosphor::regular::CARET_DOWN
                                     } else {
                                         egui_phosphor::regular::CARET_RIGHT
                                     };
-                                    if ghost_icon_btn(
+                                    if header_btn(
                                         ui,
                                         toggle,
                                         if expanded { "Collapse" } else { "Expand" },
-                                        1.0,
                                     ) {
                                         if expanded {
                                             state.collapsed_cells.insert(index);
@@ -428,49 +399,12 @@ fn render_keyframe_cell(
                                         }
                                     }
 
-                                    // Hover-reveal up/down buttons
-                                    let header_hover_t = ui.ctx().animate_value_with_time(
-                                        ui.id().with(("kf_header_hover", index)),
-                                        if ui.rect_contains_pointer(ui.max_rect()) {
-                                            1.0
-                                        } else {
-                                            0.0
-                                        },
-                                        0.12,
-                                    );
-                                    if ghost_icon_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_UP,
-                                        "Move up",
-                                        header_hover_t,
-                                    ) {
-                                        state.pending_move_up = Some(index);
-                                    }
-                                    if ghost_icon_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_DOWN,
-                                        "Move down",
-                                        header_hover_t,
-                                    ) {
-                                        state.pending_move_down = Some(index);
-                                    }
-
                                     // Keyframe type icon
                                     ui.label(
                                         RichText::new(egui_phosphor::regular::FILM_STRIP)
-                                            .size(13.0)
+                                            .size(12.0)
                                             .color(dt::TEXT_MUTED),
                                     );
-
-                                    // Play
-                                    if ghost_icon_btn(
-                                        ui,
-                                        egui_phosphor::regular::PLAY,
-                                        "Play from this keyframe",
-                                        1.0,
-                                    ) {
-                                        on_scrub_to_time(time_s);
-                                    }
 
                                     // Editable timestamp
                                     render_timestamp_editor(
@@ -481,23 +415,44 @@ fn render_keyframe_cell(
                                         index,
                                     );
 
-                                    // Delete button (right-aligned)
+                                    // Play
+                                    if header_btn(
+                                        ui,
+                                        egui_phosphor::regular::PLAY,
+                                        "Play from this keyframe",
+                                    ) {
+                                        on_scrub_to_time(time_s);
+                                    }
+
+                                    // Right-aligned actions
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if ghost_icon_btn(
+                                            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                                            if header_btn(
                                                 ui,
                                                 egui_phosphor::regular::TRASH,
                                                 "Delete keyframe",
-                                                1.0,
                                             ) {
                                                 state.pending_delete_cell = Some(index);
+                                            }
+                                            if header_btn(
+                                                ui,
+                                                egui_phosphor::regular::ARROW_DOWN,
+                                                "Move down",
+                                            ) {
+                                                state.pending_move_down = Some(index);
+                                            }
+                                            if header_btn(
+                                                ui,
+                                                egui_phosphor::regular::ARROW_UP,
+                                                "Move up",
+                                            ) {
+                                                state.pending_move_up = Some(index);
                                             }
                                         },
                                     );
                                 });
-                                // Keep response alive for hover animation state
-                                let _ = header_response.response;
                             });
 
                         // ── Body editor ─────────────────────────────
