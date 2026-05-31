@@ -231,9 +231,8 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 .expanded(is_expanded)
                 .show(ui, row_id);
 
-            // Right-click context menu
-            let ctx_resp = ui.interact(response.row_rect, row_id.with("ctx"), egui::Sense::click());
-            ctx_resp.context_menu(|ui| {
+            // Right-click context menu (use row response so we don't steal left-clicks)
+            response.response.context_menu(|ui| {
                 let entries = if !is_dir {
                     vec![MenuEntry::item_with_icon(
                         egui_phosphor::regular::FOLDER_OPEN,
@@ -480,9 +479,8 @@ fn render_actor_tree(
         ui.data_mut(|d| d.remove::<String>(drag_data_id));
     }
 
-    // Right-click context menu for layer rows
-    let ctx_resp = ui.interact(response.row_rect, row_id.with("ctx"), egui::Sense::click());
-    ctx_resp.context_menu(|ui| {
+    // Right-click context menu for layer rows (use row response so we don't steal left-clicks)
+    response.response.context_menu(|ui| {
         let entries = vec![
             MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate"),
             MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete"),

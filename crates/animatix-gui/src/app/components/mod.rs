@@ -35,6 +35,9 @@ pub struct RowResponse {
     pub drag_started: bool,
     pub hovered: bool,
     pub row_rect: Rect,
+    /// The underlying egui response for the whole row.
+    /// Use this to attach context menus without creating a second interactable.
+    pub response: Response,
 }
 
 /// A full-width interactive row used in sidebars, property lists, and keyframe groups.
@@ -222,6 +225,7 @@ impl<'a> Row<'a> {
             drag_started: row_response.drag_started(),
             hovered: row_response.hovered(),
             row_rect,
+            response: row_response,
         }
     }
 }
