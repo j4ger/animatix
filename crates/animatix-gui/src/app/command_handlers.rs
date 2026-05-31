@@ -201,8 +201,8 @@ mod tests {
         let mut ui_store = make_ui_store();
         let effects = ui::handle_undo(&mut document_store, &mut preview_store, &mut ui_store);
         assert!(effects.is_empty());
-        assert!(document_store.undo_stack.is_empty());
-        assert!(document_store.redo_stack.is_empty());
+        assert!(document_store.history.undo_stack.is_empty());
+        assert!(document_store.history.redo_stack.is_empty());
     }
 
     #[test]
@@ -212,8 +212,8 @@ mod tests {
         let mut ui_store = make_ui_store();
         let effects = ui::handle_redo(&mut document_store, &mut preview_store, &mut ui_store);
         assert!(effects.is_empty());
-        assert!(document_store.undo_stack.is_empty());
-        assert!(document_store.redo_stack.is_empty());
+        assert!(document_store.history.undo_stack.is_empty());
+        assert!(document_store.history.redo_stack.is_empty());
     }
 
     // ── InspectorInputDragStarted / Ended ────────────────────────────

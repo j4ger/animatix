@@ -51,14 +51,14 @@ pub fn handle_undo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    if let Some(entry) = document_store.undo_stack.pop() {
-        document_store.redo_stack.push(UndoEntry {
+    if let Some(entry) = document_store.history.undo_stack.pop() {
+        document_store.history.redo_stack.push(UndoEntry {
             command: entry.command,
-            source_before: document_store.document.source_text.clone(),
+            source_before: document_store.source.document.source_text.clone(),
         });
-        document_store.document.source_text = entry.source_before.clone();
-        document_store.editor.replace_text(entry.source_before);
-        document_store.document.is_dirty = true;
+        document_store.source.document.source_text = entry.source_before.clone();
+        document_store.source.editor.replace_text(entry.source_before);
+        document_store.source.document.is_dirty = true;
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms));
         preview_store.preview.status = "Undo".to_string();
@@ -72,14 +72,14 @@ pub fn handle_redo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    if let Some(entry) = document_store.redo_stack.pop() {
-        document_store.undo_stack.push(UndoEntry {
+    if let Some(entry) = document_store.history.redo_stack.pop() {
+        document_store.history.undo_stack.push(UndoEntry {
             command: entry.command,
-            source_before: document_store.document.source_text.clone(),
+            source_before: document_store.source.document.source_text.clone(),
         });
-        document_store.document.source_text = entry.source_before.clone();
-        document_store.editor.replace_text(entry.source_before);
-        document_store.document.is_dirty = true;
+        document_store.source.document.source_text = entry.source_before.clone();
+        document_store.source.editor.replace_text(entry.source_before);
+        document_store.source.document.is_dirty = true;
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms));
         preview_store.preview.status = "Redo".to_string();
@@ -93,7 +93,7 @@ pub fn handle_scroll_to_line(
     line: usize,
     column: usize,
 ) -> Vec<Effect> {
-    document_store.editor.focus_diagnostic(line, column);
+    document_store.source.editor.focus_diagnostic(line, column);
     vec![]
 }
 
@@ -107,12 +107,14 @@ fn suggest_export_filename(
         crate::app::shell::export_dialog::ExportFormat::Gif => "gif",
     };
     let stem = document_store
+        .source
         .document
         .file_path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("animatix");
     let workspace = document_store
+        .source
         .document
         .file_path
         .parent()

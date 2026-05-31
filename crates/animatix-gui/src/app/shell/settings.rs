@@ -183,7 +183,7 @@ impl GuiShell {
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
-                            egui::DragValue::new(&mut self.document_store.undo_limit)
+                            egui::DragValue::new(&mut self.document_store.history.undo_limit)
                                 .speed(10.0)
                                 .range(10..=1000)
                                 .suffix(" entries"),

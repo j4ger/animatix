@@ -190,7 +190,7 @@ impl GuiShell {
 
     /// Apply an action to the selected actor by inserting source text.
     fn apply_action(&mut self, verb: &str, actor: &str) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status = "No AST available".to_string();
             return;
         };
@@ -201,6 +201,7 @@ impl GuiShell {
         // Find the keyframe block that contains this time
         let target_line = self
             .document_store
+            .source
             .document
             .timeline_index
             .line_for_time(time_ms);
@@ -213,15 +214,15 @@ impl GuiShell {
             if line < stmts.len() {
                 // This is a simplified insertion — in practice we'd use SourceEdit
                 // For now, append to source text as a pragmatic workaround
-                let current = self.document_store.document.source_text.clone();
+                let current = self.document_store.source.document.source_text.clone();
                 let lines: Vec<&str> = current.lines().collect();
                 let insert_line = line.min(lines.len().saturating_sub(1));
                 let mut new_lines = lines.clone();
                 new_lines.insert(insert_line + 1, action_text.trim());
                 let new_source = new_lines.join("\n");
-                self.document_store.document.source_text = new_source.clone();
-                self.document_store.editor.replace_text(new_source);
-                self.document_store.document.is_dirty = true;
+                self.document_store.source.document.source_text = new_source.clone();
+                self.document_store.source.editor.replace_text(new_source);
+                self.document_store.source.document.is_dirty = true;
                 self.preview_store.pending_rebuild_at = Some(
                     std::time::Instant::now()
                         + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
@@ -233,14 +234,14 @@ impl GuiShell {
             }
         } else {
             // No keyframe found — append at end
-            let mut new_source = self.document_store.document.source_text.clone();
+            let mut new_source = self.document_store.source.document.source_text.clone();
             if !new_source.ends_with('\n') {
                 new_source.push('\n');
             }
             new_source.push_str(&action_text);
-            self.document_store.document.source_text = new_source.clone();
-            self.document_store.editor.replace_text(new_source);
-            self.document_store.document.is_dirty = true;
+            self.document_store.source.document.source_text = new_source.clone();
+            self.document_store.source.editor.replace_text(new_source);
+            self.document_store.source.document.is_dirty = true;
             self.preview_store.pending_rebuild_at = Some(
                 std::time::Instant::now()
                     + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),

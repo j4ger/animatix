@@ -35,18 +35,19 @@ impl GuiShell {
                     // Filename with dirty indicator
                     let filename = self
                         .document_store
+                        .source
                         .document
                         .file_path
                         .file_name()
                         .and_then(|name| name.to_str())
                         .unwrap_or("Untitled");
 
-                    let filename_text = if self.document_store.document.is_dirty {
+                    let filename_text = if self.document_store.source.document.is_dirty {
                         format!("{}*", filename)
                     } else {
                         filename.to_string()
                     };
-                    let filename_color = if self.document_store.document.is_dirty {
+                    let filename_color = if self.document_store.source.document.is_dirty {
                         AMBER
                     } else {
                         text_primary
@@ -105,10 +106,10 @@ impl GuiShell {
                     });
 
                     // Breadcrumb for multi-scene compositions
-                    if self.document_store.document.is_composition() {
-                        let scene_names = self.document_store.document.scene_names();
+                    if self.document_store.source.document.is_composition() {
+                        let scene_names = self.document_store.source.document.scene_names();
                         if scene_names.len() >= 2 {
-                            let active_scene = self.document_store.document.active_scene.as_deref();
+                            let active_scene = self.document_store.source.document.active_scene.as_deref();
                             // Left-align the breadcrumb with some spacing from the filename
                             ui.add_space(SPACE_XL);
                             ui.horizontal(|ui| {

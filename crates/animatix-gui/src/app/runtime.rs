@@ -126,7 +126,7 @@ impl AnimatixApp {
         }
 
         // Scene jump hotkeys (1/2/3) — jump to Nth scene in composition
-        let scene_names = self.shell.document_store.document.scene_names();
+        let scene_names = self.shell.document_store.source.document.scene_names();
         if ctx.input(|i| i.key_pressed(egui::Key::Num1)) && !scene_names.is_empty() {
             self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[0].clone())));
         }
@@ -141,6 +141,7 @@ impl AnimatixApp {
             let keyframes = self
                 .shell
                 .document_store
+                .source
                 .document
                 .active_timeline()
                 .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
@@ -157,6 +158,7 @@ impl AnimatixApp {
             let keyframes = self
                 .shell
                 .document_store
+                .source
                 .document
                 .active_timeline()
                 .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
@@ -191,7 +193,7 @@ impl AnimatixApp {
             let keyframe_mode = self.shell.ui_store.keyframe_mode;
             let selected: Vec<String> = self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
             let mut edits = Vec::new();
-            if let Some(ref timeline) = self.shell.document_store.document.timeline {
+            if let Some(ref timeline) = self.shell.document_store.source.document.timeline {
                 for actor in &selected {
                     if let Some(track) = timeline.get_track(actor) {
                         let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
@@ -275,7 +277,7 @@ impl AnimatixApp {
     }
 
     fn sync_preview_surface(&mut self, frame: &mut eframe::Frame) -> Result<(), String> {
-        let dimensions = self.shell.document_store.document.scene_dimensions;
+        let dimensions = self.shell.document_store.source.document.scene_dimensions;
         let render_state = frame
             .wgpu_render_state()
             .ok_or_else(|| "wgpu render state not available".to_string())?;
@@ -290,7 +292,7 @@ impl AnimatixApp {
                 compute_hit_regions: true,
             };
 
-            let render_result = if let Some(composition) = self.shell.document_store.document.composition.as_ref()
+            let render_result = if let Some(composition) = self.shell.document_store.source.document.composition.as_ref()
             {
                 self.preview_surface.render_composition(
                     device,
@@ -299,7 +301,7 @@ impl AnimatixApp {
                     self.shell.preview_store.preview.playback.current_time_s,
                     debug,
                 )
-            } else if let Some(timeline) = self.shell.document_store.document.timeline.as_ref() {
+            } else if let Some(timeline) = self.shell.document_store.source.document.timeline.as_ref() {
                 self.preview_surface.render(
                     device,
                     queue,
@@ -345,19 +347,20 @@ impl AnimatixApp {
             // ui_store because Behavior borrows document_store mutably and cannot
             // alias &cached_hit_regions simultaneously.
             let fresh_hit_regions = self.preview_surface.take_hit_regions();
-            self.shell.document_store.cached_actor_bounds = fresh_hit_regions
+            self.shell.document_store.source.cached_actor_bounds = fresh_hit_regions
                 .iter()
                 .map(|(label, bounds)| (label.clone(), *bounds))
                 .collect();
-            self.shell.document_store.cached_hit_regions = fresh_hit_regions;
+            self.shell.document_store.source.cached_hit_regions = fresh_hit_regions;
             self.shell.ui_store.selection.hit_regions = self.shell
                 .document_store
+                .source
                 .cached_hit_regions
                 .clone();
             self.shell
                 .clear_any_error(live_preview_status(
                     &self.shell.preview_store.preview,
-                    self.shell.document_store.document.active_scene.as_deref(),
+                    self.shell.document_store.source.document.active_scene.as_deref(),
                 ));
         } else if self.preview_texture_id.is_none()
             && self.preview_surface.dimensions().width > 0
@@ -376,7 +379,7 @@ impl AnimatixApp {
             self.shell
                 .clear_any_error(live_preview_status(
                     &self.shell.preview_store.preview,
-                    self.shell.document_store.document.active_scene.as_deref(),
+                    self.shell.document_store.source.document.active_scene.as_deref(),
                 ));
         }
 

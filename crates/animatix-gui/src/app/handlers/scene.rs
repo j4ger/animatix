@@ -6,9 +6,9 @@ pub fn handle_select_scene(
     preview_store: &mut PreviewStore,
     scene: String,
 ) -> Vec<Effect> {
-    if let Some(composition) = document_store.document.composition.as_ref() {
+    if let Some(composition) = document_store.source.document.composition.as_ref() {
         if composition.scenes.contains_key(&scene) {
-            document_store.document.active_scene = Some(scene.clone());
+            document_store.source.document.active_scene = Some(scene.clone());
             if let Some(start) = composition.scene_start_times.get(&scene) {
                 let mut target_time = *start;
                 for edge in composition.edges.values() {

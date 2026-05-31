@@ -247,17 +247,17 @@ impl GuiShell {
                 ReloadStatus::ShouldReload { path: _ } => {
                     // LiveDocument: editor is the source of truth. If the editor
                     // has unsaved changes, do NOT silently overwrite them.
-                    if self.document_store.document.is_dirty {
+                    if self.document_store.source.document.is_dirty {
                         self.preview_store.preview.status = "External file changed • reload blocked (unsaved edits)".to_string();
                         return;
                     }
-                    if let Err(err) = self.document_store.document.reload_from_disk() {
+                    if let Err(err) = self.document_store.source.document.reload_from_disk() {
                         self.preview_store.preview.error = Some(err.to_string());
                         self.preview_store.preview.status = "Hot reload failed".to_string();
                     } else {
-                        self.document_store.invalidate_cache();
-                        self.document_store.editor
-                            .set_document(&self.document_store.document.file_path, self.document_store.document.source_text.clone());
+                        self.document_store.source.invalidate_cache();
+                        self.document_store.source.editor
+                            .set_document(&self.document_store.source.document.file_path, self.document_store.source.document.source_text.clone());
                         self.workspace_store.last_reload_time = Some(app_time);
                         self.preview_store.preview.status = "File reloaded".to_string();
                         self.preview_store.preview.error = None;
@@ -351,10 +351,10 @@ impl GuiShell {
             self.preview_store.preview_dirty = true;
 
             if self.ui_store.editor_sync_enabled {
-                if let Some(line) = self.document_store.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
-                    if self.document_store.editor.highlighted_line != Some(line) {
-                        self.document_store.editor.scroll_to_line(line);
-                        self.document_store.editor.set_highlighted_line(Some(line));
+                if let Some(line) = self.document_store.source.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
+                    if self.document_store.source.editor.highlighted_line != Some(line) {
+                        self.document_store.source.editor.scroll_to_line(line);
+                        self.document_store.source.editor.set_highlighted_line(Some(line));
                     }
                 }
             }
@@ -462,9 +462,10 @@ impl GuiShell {
         // Update cursor time from editor position (bi-directional sync)
         self.ui_store.cursor_time_s = self
             .document_store
+            .source
             .editor
             .cursor_line
-            .and_then(|line| self.document_store.document.timeline_index.time_s_for_line(line));
+            .and_then(|line| self.document_store.source.document.timeline_index.time_s_for_line(line));
 
         self.handle_actions(commands);
 
@@ -625,10 +626,10 @@ impl GuiShell {
                     self.preview_store.preview_dirty = true;
                 }
                 Effect::EditorScroll(line) => {
-                    self.document_store.editor.scroll_to_line(line);
+                    self.document_store.source.editor.scroll_to_line(line);
                 }
                 Effect::EditorHighlight(line) => {
-                    self.document_store.editor.set_highlighted_line(Some(line));
+                    self.document_store.source.editor.set_highlighted_line(Some(line));
                 }
                 Effect::RebuildScheduled => {
                     // The status has already been set; the pending rebuild
@@ -640,7 +641,7 @@ impl GuiShell {
 
     /// Force-clear any active error state (parse or render).
     fn clear_any_error(&mut self, status: String) {
-        self.document_store.render_diagnostics.clear();
+        self.document_store.history.render_diagnostics.clear();
         self.preview_store.preview.error = None;
         self.preview_store.preview.status = status;
     }
@@ -670,9 +671,9 @@ impl GuiShell {
     }
 
     fn sync_active_scene_from_time(&mut self) {
-        if let Some(composition) = self.document_store.document.composition.as_ref() {
+        if let Some(composition) = self.document_store.source.document.composition.as_ref() {
             let (scene, _, _) = composition.evaluate(self.preview_store.preview.playback.current_time_s);
-            self.document_store.document.active_scene = (!scene.is_empty()).then_some(scene);
+            self.document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
         }
     }
 
@@ -682,7 +683,7 @@ impl GuiShell {
     }
 
     fn set_render_error(&mut self, error: String) {
-        self.document_store.render_diagnostics = vec![Diagnostic::error(
+        self.document_store.history.render_diagnostics = vec![Diagnostic::error(
             DiagnosticCode::RenderFailure,
             DiagnosticPhase::Render,
             error.clone(),
@@ -695,10 +696,11 @@ impl GuiShell {
     fn clear_render_error(&mut self, status: String) {
         let active_render_error = self
             .document_store
+            .history
             .render_diagnostics
             .first()
             .map(|diagnostic| diagnostic.message.clone());
-        self.document_store.render_diagnostics.clear();
+        self.document_store.history.render_diagnostics.clear();
 
         if let Some(render_error) = active_render_error
             && self.preview_store.preview.error.as_deref() == Some(render_error.as_str())

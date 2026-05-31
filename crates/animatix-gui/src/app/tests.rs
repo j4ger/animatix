@@ -222,7 +222,7 @@ use super::{
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert!(shell.document_store.history.render_diagnostics.is_empty());
         assert!(shell.preview_store.preview.error.is_none());
         assert_eq!(shell.preview_store.preview.status, "Live preview restored");
     }
@@ -237,7 +237,7 @@ use super::{
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert!(shell.document_store.history.render_diagnostics.is_empty());
         assert_eq!(shell.preview_store.preview.error.as_deref(), Some("missing file"));
         assert_eq!(shell.preview_store.preview.status, "Open failed • missing.amx");
     }
@@ -301,7 +301,7 @@ use super::{
 
         shell.clear_render_error("Live preview restored".to_string());
 
-        assert!(shell.document_store.render_diagnostics.is_empty());
+        assert!(shell.document_store.history.render_diagnostics.is_empty());
         assert_eq!(shell.preview_store.preview.error.as_deref(), Some("duplicate export"));
         assert_eq!(shell.preview_store.preview.status, "Rebuild blocked • parse/load error");
     }

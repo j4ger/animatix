@@ -43,22 +43,22 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 let diagnostics = self.document_store.combined_diagnostics();
                 let is_playing = self.preview_store.preview.playback.is_playing;
                 let mut ctx = sidebar::SidebarContext {
-                    active_scene: self.document_store.document.active_scene.as_deref(),
-                    is_composition: self.document_store.document.is_composition(),
-                    composition: self.document_store.document.composition.as_ref(),
-                    current_file: &self.document_store.document.file_path,
+                    active_scene: self.document_store.source.document.active_scene.as_deref(),
+                    is_composition: self.document_store.source.document.is_composition(),
+                    composition: self.document_store.source.document.composition.as_ref(),
+                    current_file: &self.document_store.source.document.file_path,
                     expanded_dirs: &mut self.workspace_store.expanded_dirs,
                     file_tree: &self.workspace_store.file_tree,
                     preview: &mut self.preview_store.preview,
                     commands: self.commands,
-                    scene_dimensions: self.document_store.document.scene_dimensions,
-                    timeline: self.document_store.document.timeline.as_ref(),
+                    scene_dimensions: self.document_store.source.document.scene_dimensions,
+                    timeline: self.document_store.source.document.timeline.as_ref(),
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
-                    editor: &mut self.document_store.editor,
+                    editor: &mut self.document_store.source.editor,
                     diagnostics: &diagnostics,
-                    source_dirty: &mut self.document_store.document.source_text,
+                    source_dirty: &mut self.document_store.source.document.source_text,
                     is_playing,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
@@ -69,9 +69,9 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 // with old persisted layouts that still have an Editor pane.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
-                    editor: &mut self.document_store.editor,
+                    editor: &mut self.document_store.source.editor,
                     diagnostics: &diagnostics,
-                    source_dirty: &mut self.document_store.document.source_text,
+                    source_dirty: &mut self.document_store.source.document.source_text,
                     commands: self.commands,
                     is_playing: self.preview_store.preview.playback.is_playing,
                 };
@@ -79,7 +79,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             }
             WorkspaceTab::Preview => {
                 let mut ctx = preview_panel::PreviewContext {
-                    scene_dimensions: self.document_store.document.scene_dimensions,
+                    scene_dimensions: self.document_store.source.document.scene_dimensions,
                     preview: &mut self.preview_store.preview,
                     preview_texture_id: self.preview_texture_id,
                     commands: self.commands,
@@ -87,12 +87,12 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selection: self.selection,
                     selected_actors: self.selected_actors,
                     hit_regions: self.hit_regions,
-                    timeline: self.document_store.document.timeline.as_ref(),
+                    timeline: self.document_store.source.document.timeline.as_ref(),
                     pivot_offsets: self.pivot_offsets,
                     tool_mode: self.tool_mode,
                     rotation_snap_degrees: self.rotation_snap_degrees,
-                    composition: self.document_store.document.composition.as_ref(),
-                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    composition: self.document_store.source.document.composition.as_ref(),
+                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     keyframe_mode: self.keyframe_mode,
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
@@ -100,13 +100,13 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Inspector => {
                 let mut ctx = inspector::InspectorContext {
                     preview: &mut self.preview_store.preview,
-                    timeline: self.document_store.document.timeline.as_ref(),
-                    composition: self.document_store.document.composition.as_ref(),
-                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    timeline: self.document_store.source.document.timeline.as_ref(),
+                    composition: self.document_store.source.document.composition.as_ref(),
+                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     selected_actors: self.selected_actors,
                     commands: self.commands,
                     keyframe_mode: self.keyframe_mode,
-                    scene_dimensions: self.document_store.document.scene_dimensions,
+                    scene_dimensions: self.document_store.source.document.scene_dimensions,
                     pivot_offsets: self.pivot_offsets,
                     property_view_mode: self.property_view_mode,
                     keyframe_view_mode: self.keyframe_view_mode,
@@ -115,33 +115,33 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             }
             WorkspaceTab::Timeline => {
                 // Resolve the effective timeline (same fallback logic as timeline_ui).
-                let resolved_timeline = self.document_store.document.timeline.as_ref()
+                let resolved_timeline = self.document_store.source.document.timeline.as_ref()
                     .or_else(|| {
-                        let comp = self.document_store.document.composition.as_ref()?;
-                        let scene_name = self.document_store.document.active_scene.as_deref()?;
+                        let comp = self.document_store.source.document.composition.as_ref()?;
+                        let scene_name = self.document_store.source.document.active_scene.as_deref()?;
                         comp.scenes.get(scene_name).map(|s| &s.timeline)
                     });
                 // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
-                if !self.document_store.cache_valid {
+                if !self.document_store.source.cache_valid {
                     stores::document_store::rebuild_cache(
-                        &mut self.document_store.cached_actor_labels,
-                        &mut self.document_store.cached_actor_keyframes,
-                        &mut self.document_store.cached_hit_regions,
-                        &mut self.document_store.cached_actor_bounds,
-                        &mut self.document_store.cache_valid,
+                        &mut self.document_store.source.cached_actor_labels,
+                        &mut self.document_store.source.cached_actor_keyframes,
+                        &mut self.document_store.source.cached_hit_regions,
+                        &mut self.document_store.source.cached_actor_bounds,
+                        &mut self.document_store.source.cache_valid,
                         resolved_timeline,
                     );
                 }
                 let mut ctx = timeline_panel::TimelineContext {
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
-                    composition: self.document_store.document.composition.as_ref(),
-                    active_scene: self.document_store.document.active_scene.as_deref(),
+                    composition: self.document_store.source.document.composition.as_ref(),
+                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     commands: self.commands,
                     collapsed_actors: self.collapsed_actors,
                     selected_actors: self.selected_actors,
-                    actor_labels: &self.document_store.cached_actor_labels,
-                    actor_keyframes: &self.document_store.cached_actor_keyframes,
+                    actor_labels: &self.document_store.source.cached_actor_labels,
+                    actor_keyframes: &self.document_store.source.cached_actor_keyframes,
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
             }

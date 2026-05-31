@@ -38,7 +38,7 @@ pub fn handle_rename_actor(
         preview_store.preview.status = "Rename failed — label cannot be empty".to_string();
         return vec![];
     }
-    if let Some(ref timeline) = document_store.document.timeline {
+    if let Some(ref timeline) = document_store.source.document.timeline {
         if timeline.has_actor(&new_label) {
             preview_store.preview.status =
                 format!("Rename failed — '{}' already exists", new_label);
@@ -54,17 +54,17 @@ pub fn handle_rename_actor(
     let old_label_for_edit = old_label.clone();
     let new_label_for_edit = new_label.clone();
 
-    if let Some(ref mut stmts) = document_store.document.raw_statements {
+    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let edit = crate::source_edit::SourceEdit::RenameActor {
             old_label: old_label_for_edit,
             new_label: new_label_for_edit,
         };
         crate::source_edit::apply_edit(stmts, edit);
         let new_source = animatix::to_source::stmts_to_source(stmts);
-        document_store.document.source_text = new_source.clone();
-        document_store.editor.replace_text(new_source);
-        document_store.document.is_dirty = true;
-        document_store.document.source_index =
+        document_store.source.document.source_text = new_source.clone();
+        document_store.source.editor.replace_text(new_source);
+        document_store.source.document.is_dirty = true;
+        document_store.source.document.source_index =
             Some(animatix::source_index::SourceIndex::build(stmts));
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));

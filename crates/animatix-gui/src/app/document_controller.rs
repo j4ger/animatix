@@ -34,10 +34,10 @@ impl DocumentController<'_> {
         new_source: String,
         source_index: animatix::source_index::SourceIndex,
     ) {
-        self.document_store.document.source_text = new_source.clone();
-        self.document_store.editor.replace_text(new_source);
-        self.document_store.document.is_dirty = true;
-        self.document_store.document.source_index = Some(source_index);
+        self.document_store.source.document.source_text = new_source.clone();
+        self.document_store.source.editor.replace_text(new_source);
+        self.document_store.source.document.is_dirty = true;
+        self.document_store.source.document.source_index = Some(source_index);
         self.preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
     }
@@ -50,7 +50,7 @@ impl DocumentController<'_> {
         let props = crate::app::actions::default_props_for_actor(
             ty,
             position,
-            self.document_store.document.scene_dimensions,
+            self.document_store.source.document.scene_dimensions,
         );
 
         // If a container is selected, offer to insert inside it
@@ -63,6 +63,7 @@ impl DocumentController<'_> {
                 .cloned()
                 .filter(|sel| {
                     self.document_store
+                        .source
                         .document
                         .timeline
                         .as_ref()
@@ -80,7 +81,7 @@ impl DocumentController<'_> {
                         })
                 });
 
-        if let Some(ref mut stmts) = self.document_store.document.raw_statements {
+        if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
             let edit = crate::source_edit::SourceEdit::InsertActor {
                 ty: ty.into(),
                 label: label.into(),
@@ -121,7 +122,7 @@ impl DocumentController<'_> {
     pub(crate) fn handle_duplicate_actor(&mut self, original_label: &str) {
         let new_label = self.unique_label(original_label);
 
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status = "Failed to duplicate — no AST available".to_string();
             return;
         };
@@ -172,7 +173,7 @@ impl DocumentController<'_> {
 
         // Start move drag for the new actor at the original position
         let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
-        if let Some(timeline) = self.document_store.document.timeline.as_ref() {
+        if let Some(timeline) = self.document_store.source.document.timeline.as_ref() {
             if let Some(track) = timeline.get_track(original_label) {
                 let position = track
                     .position
@@ -191,7 +192,7 @@ impl DocumentController<'_> {
     /// Delete all selected actors from the source AST.
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_delete_selected_actors(&mut self) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status = "Failed to delete — no AST available".to_string();
             return;
         };
@@ -242,7 +243,7 @@ impl DocumentController<'_> {
         from_scene: &str,
         transition: animatix::ast::Transition,
     ) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to set transition — no AST available".to_string();
             return;
@@ -274,7 +275,7 @@ impl DocumentController<'_> {
     /// Update the play target for a scene.
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_set_play_target(&mut self, from_scene: &str, target: Option<String>) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to set play target — no AST available".to_string();
             return;
@@ -317,7 +318,7 @@ impl DocumentController<'_> {
         time_s: f64,
         easing: animatix::easing::Easing,
     ) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to set keyframe easing — no AST available".to_string();
             return;
@@ -351,7 +352,7 @@ impl DocumentController<'_> {
     /// Handle a keyframe deletion request.
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to delete keyframe — no AST available".to_string();
             return;
@@ -390,7 +391,7 @@ impl DocumentController<'_> {
         old_time_s: f64,
         new_time_s: f64,
     ) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to move keyframe — no AST available".to_string();
             return;
@@ -426,7 +427,7 @@ impl DocumentController<'_> {
     /// Reparent an actor under a new parent (or to top-level).
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to reparent — no AST available".to_string();
             return;
@@ -464,7 +465,7 @@ impl DocumentController<'_> {
         actor_labels: Vec<String>,
         new_scene_name: String,
     ) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to extract scene — no AST available".to_string();
             return;
@@ -500,7 +501,7 @@ impl DocumentController<'_> {
         actor_labels: Vec<String>,
         target_scene: String,
     ) {
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to move actors — no AST available".to_string();
             return;
@@ -552,7 +553,7 @@ impl DocumentController<'_> {
             .map(|orig| (orig.clone(), self.paste_unique_label(orig)))
             .collect();
 
-        let Some(ref mut stmts) = self.document_store.document.raw_statements else {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to paste — no AST available".to_string();
             return;
@@ -649,6 +650,7 @@ impl DocumentController<'_> {
     fn has_actor_label(&self, label: &str) -> bool {
         if self
             .document_store
+            .source
             .document
             .timeline
             .as_ref()
@@ -664,7 +666,7 @@ impl DocumentController<'_> {
         {
             return true;
         }
-        if let Some(ref stmts) = self.document_store.document.raw_statements {
+        if let Some(ref stmts) = self.document_store.source.document.raw_statements {
             if source_edit::find_actor_decl(stmts, label).is_some() {
                 return true;
             }
@@ -677,6 +679,7 @@ impl DocumentController<'_> {
         let base = ty.to_lowercase();
         let existing: std::collections::HashSet<String> = self
             .document_store
+            .source
             .document
             .timeline
             .as_ref()

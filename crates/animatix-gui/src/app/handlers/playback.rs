@@ -18,6 +18,7 @@ pub fn handle_scrub_to(
     let mut effects: Vec<Effect> = vec![];
     if ui_store.editor_sync_enabled {
         if let Some(line) = document_store
+            .source
             .document
             .find_keyframe_line_at(preview_store.preview.playback.current_time_s)
         {
@@ -49,12 +50,13 @@ pub fn handle_editor_changed(
     ui_store: &UiStore,
 ) -> Vec<Effect> {
     document_store
+        .source
         .document
-        .set_source_text(document_store.editor.text().to_string());
+        .set_source_text(document_store.source.editor.text().to_string());
     preview_store.pending_rebuild_at =
         Some(Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
     preview_store.preview.error = None;
-    document_store.document.diagnostics.clear();
+    document_store.source.document.diagnostics.clear();
     vec![
         Effect::Status("Editing source • rebuild scheduled".to_string()),
         Effect::RebuildScheduled,
@@ -67,13 +69,13 @@ pub fn handle_prev_keyframe(
     ui_store: &UiStore,
 ) -> Vec<Effect> {
     let keyframes = timeline_keyframe_times_s(
-        if document_store.document.composition.is_some() {
+        if document_store.source.document.composition.is_some() {
             None
         } else {
-            document_store.document.active_timeline()
+            document_store.source.document.active_timeline()
         },
-        document_store.document.composition.as_ref(),
-        document_store.document.active_scene.as_deref(),
+        document_store.source.document.composition.as_ref(),
+        document_store.source.document.active_scene.as_deref(),
     );
     preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
     preview_store.preview_dirty = true;
@@ -97,13 +99,13 @@ pub fn handle_next_keyframe(
     ui_store: &UiStore,
 ) -> Vec<Effect> {
     let keyframes = timeline_keyframe_times_s(
-        if document_store.document.composition.is_some() {
+        if document_store.source.document.composition.is_some() {
             None
         } else {
-            document_store.document.active_timeline()
+            document_store.source.document.active_timeline()
         },
-        document_store.document.composition.as_ref(),
-        document_store.document.active_scene.as_deref(),
+        document_store.source.document.composition.as_ref(),
+        document_store.source.document.active_scene.as_deref(),
     );
     preview_store.preview.playback.go_to_next_keyframe(&keyframes);
     preview_store.preview_dirty = true;
@@ -125,10 +127,10 @@ fn sync_active_scene_from_time(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,
 ) {
-    if let Some(composition) = document_store.document.composition.as_ref() {
+    if let Some(composition) = document_store.source.document.composition.as_ref() {
         let (scene, _, _) =
             composition.evaluate(preview_store.preview.playback.current_time_s);
-        document_store.document.active_scene = (!scene.is_empty()).then_some(scene);
+        document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
     }
 }
 
@@ -139,7 +141,7 @@ fn editor_sync_effects(
 ) -> Vec<Effect> {
     let mut effects = vec![];
     if ui_store.editor_sync_enabled {
-        if let Some(line) = document_store.document.find_keyframe_line_at(time_s) {
+        if let Some(line) = document_store.source.document.find_keyframe_line_at(time_s) {
             effects.push(Effect::EditorScroll(line));
             effects.push(Effect::EditorHighlight(line));
         }

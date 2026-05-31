@@ -12,7 +12,7 @@ impl GuiShell {
         }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if let Some(ref mut timeline) = self.document_store.document.timeline {
+        if let Some(ref mut timeline) = self.document_store.source.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
@@ -20,9 +20,9 @@ impl GuiShell {
             }
         }
 
-        let prev_time_s = self.document_store.document.prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
+        let prev_time_s = self.document_store.source.document.prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
         let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
-        let source_result = if let Some(ref mut stmts) = self.document_store.document.raw_statements {
+        let source_result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
             let validation_expr = expr.clone();
             let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
@@ -42,11 +42,11 @@ impl GuiShell {
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.document.source_text = new_source.clone();
-            self.document_store.editor.replace_text(new_source);
-            self.document_store.document.is_dirty = true;
-            self.document_store.document.source_index = Some(source_index);
-            self.document_store.document.rescan_keyframe_lines();
+            self.document_store.source.document.source_text = new_source.clone();
+            self.document_store.source.editor.replace_text(new_source);
+            self.document_store.source.document.is_dirty = true;
+            self.document_store.source.document.source_index = Some(source_index);
+            self.document_store.source.document.rescan_keyframe_lines();
             true
         } else { false };
 
@@ -69,7 +69,7 @@ impl GuiShell {
         if !is_drag || !self.ui_store.interaction.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.ui_store.interaction.drag_snapshot_taken = true; } }
         if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
 
-        if let Some(ref mut timeline) = self.document_store.document.timeline {
+        if let Some(ref mut timeline) = self.document_store.source.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
@@ -77,7 +77,7 @@ impl GuiShell {
             timeline.invalidate_frame_cache();
         }
 
-        let source_result = if let Some(ref mut stmts) = self.document_store.document.raw_statements {
+        let source_result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
             let expr = animatix::ast::Expr::from(edit.value.clone());
             let validation_expr = expr.clone();
             let set_edit = crate::source_edit::SourceEdit::SetProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr.clone() };
@@ -97,10 +97,10 @@ impl GuiShell {
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.document.source_text = new_source.clone();
-            self.document_store.editor.replace_text(new_source);
-            self.document_store.document.is_dirty = true;
-            self.document_store.document.source_index = Some(source_index);
+            self.document_store.source.document.source_text = new_source.clone();
+            self.document_store.source.editor.replace_text(new_source);
+            self.document_store.source.document.is_dirty = true;
+            self.document_store.source.document.source_index = Some(source_index);
             true
         } else { false };
 
@@ -115,23 +115,23 @@ impl GuiShell {
 
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
         use crate::app::panels::PropertyValue as PV;
-        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document_store.document.timeline.as_mut(), edit.value.clone()) {
+        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document_store.source.document.timeline.as_mut(), edit.value.clone()) {
             if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                 metadata.child_order = order.clone();
                 // layout_children is computed on demand via Timeline::layout_children_for
                 timeline.invalidate_frame_cache();
             }
-            if let Some(ref mut stmts) = self.document_store.document.raw_statements {
+            if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 let applied = crate::source_edit::apply_edit(stmts, crate::source_edit::SourceEdit::ReorderContainerChildren { container: edit.actor.clone(), new_order: order });
                 if applied { Some((animatix::to_source::stmts_to_source(stmts), animatix::source_index::SourceIndex::build(stmts))) } else { None }
             } else { None }
         } else { None };
 
         let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.document.source_text = new_source.clone();
-            self.document_store.editor.replace_text(new_source);
-            self.document_store.document.is_dirty = true;
-            self.document_store.document.source_index = Some(source_index);
+            self.document_store.source.document.source_text = new_source.clone();
+            self.document_store.source.editor.replace_text(new_source);
+            self.document_store.source.document.is_dirty = true;
+            self.document_store.source.document.source_index = Some(source_index);
             true
         } else { false };
 

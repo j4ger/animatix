@@ -346,8 +346,8 @@ impl GuiShell {
 
     fn render_export_settings(&mut self, ui: &mut egui::Ui) {
         let format = self.export_store.export_state.format;
-        let scene_dims = self.document_store.document.scene_dimensions;
-        let timeline_duration = self.document_store.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
+        let scene_dims = self.document_store.source.document.scene_dimensions;
+        let timeline_duration = self.document_store.source.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
         let max_time = self.preview_store.preview.playback.duration_s as f32;
         let current_time = self.preview_store.preview.playback.current_time_s as f32;
 
@@ -667,6 +667,7 @@ impl GuiShell {
         };
         let stem = self
             .document_store
+            .source
             .document
             .file_path
             .file_stem()
@@ -674,6 +675,7 @@ impl GuiShell {
             .unwrap_or("animatix");
         let workspace = self
             .document_store
+            .source
             .document
             .file_path
             .parent()
@@ -687,7 +689,7 @@ impl GuiShell {
     }
 
     fn start_export(&mut self) {
-        let timeline = match self.document_store.document.timeline.clone() {
+        let timeline = match self.document_store.source.document.timeline.clone() {
             Some(t) => t,
             None => {
                 self.export_store.export_status = ExportStatus::Failed("No timeline to export".into());
