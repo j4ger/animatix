@@ -213,8 +213,11 @@ pub(crate) fn timeline_panel_ui(
             let bar_width = (available - label_col_w).max(80.0);
 
             let zoom = preview.timeline_zoom.max(0.1);
-            let scroll_s = preview.timeline_scroll_offset.clamp(0.0, duration_s * (1.0 - 1.0 / zoom as f64));
             let visible_s = duration_s / zoom as f64;
+            // When zoomed out (zoom < 1.0) the full timeline fits on screen,
+            // so there is nothing to scroll — clamp to 0.
+            let max_scroll = if zoom <= 1.0 { 0.0 } else { duration_s - visible_s };
+            let scroll_s = preview.timeline_scroll_offset.clamp(0.0, max_scroll);
 
             // Mouse-wheel zoom on the timeline bar area
             {
@@ -239,8 +242,9 @@ pub(crate) fn timeline_panel_ui(
                                     scroll_s + visible_s / 2.0
                                 };
                                 let new_visible = duration_s / new_zoom as f64;
+                                let max_scroll = if new_zoom <= 1.0 { 0.0 } else { duration_s - new_visible };
                                 preview.timeline_scroll_offset = (cursor_time - (cursor.x - bar_origin_x) as f64 / bar_width as f64 * new_visible)
-                                    .clamp(0.0, duration_s - new_visible);
+                                    .clamp(0.0, max_scroll);
                             }
                             preview.timeline_zoom = new_zoom;
                         }
