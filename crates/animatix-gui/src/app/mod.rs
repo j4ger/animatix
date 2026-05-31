@@ -432,10 +432,20 @@ impl GuiShell {
         }
 
         // Central workspace — edge-to-edge tiles, no outer margin
+        // When welcome screen is open, show it instead of the workspace.
         egui::CentralPanel::default()
             .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
             .show_inside(ui, |ui| {
-                self.workspace_ui(ui, preview_texture_id, &mut commands);
+                if self.ui_store.view.welcome_open {
+                    let mut welcome_cmds = CommandQueue::default();
+                    self.welcome_screen_ui(ui, &mut welcome_cmds);
+                    for cmd in welcome_cmds {
+                        let effects = self.handle_command(cmd);
+                        self.apply_effects(effects);
+                    }
+                } else {
+                    self.workspace_ui(ui, preview_texture_id, &mut commands);
+                }
             });
 
         // Update cursor time from editor position (bi-directional sync)
@@ -467,16 +477,6 @@ impl GuiShell {
             self.shortcut_cheat_sheet_ui(ui);
         }
 
-        // Welcome screen overlay
-        if self.ui_store.view.welcome_open {
-            let mut welcome_cmds = CommandQueue::default();
-            self.welcome_screen_ui(ui, &mut welcome_cmds);
-            for cmd in welcome_cmds {
-                let effects = self.handle_command(cmd);
-                self.apply_effects(effects);
-            }
-        }
-
         // Toast notifications
         let now = Instant::now();
         self.ui_store.toasts.show(ui, now);
@@ -484,11 +484,11 @@ impl GuiShell {
 
     /// Welcome / onboarding screen shown when no document is loaded.
     fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut CommandQueue) {
-        let screen = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen, 0.0, BG_BASE);
+        let avail = ui.available_rect_before_wrap();
+        ui.painter().rect_filled(avail, 0.0, BG_BASE);
 
         ui.vertical_centered(|ui| {
-            ui.add_space(screen.height() * 0.25);
+            ui.add_space(avail.height() * 0.22);
 
             ui.label(
                 egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
@@ -512,19 +512,17 @@ impl GuiShell {
             ui.add_space(SPACE_XL * 2.0);
 
             let btn_w = 240.0;
-            let btn_h = 36.0;
 
             // Create new button
-            let new_rect = ui.allocate_space(egui::vec2(btn_w, btn_h)).1;
-            let new_resp = ui.interact(new_rect, ui.id().with("welcome_new"), egui::Sense::click());
-            let new_bg = if new_resp.hovered() { ACCENT_BLUE } else { ACCENT_BLUE.linear_multiply(0.8) };
-            ui.painter().rect_filled(new_rect, RADIUS_M, new_bg);
-            ui.painter().text(
-                new_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                format!("{} Create new scene", egui_phosphor::regular::PLUS),
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-                TEXT_PRIMARY,
+            let new_resp = ui.add_sized(
+                egui::vec2(btn_w, 36.0),
+                egui::Button::new(
+                    egui::RichText::new(format!("{}  Create new scene", egui_phosphor::regular::PLUS))
+                        .size(FONT_SIZE_M)
+                        .color(TEXT_PRIMARY),
+                )
+                .fill(ACCENT_BLUE)
+                .rounding(RADIUS_M),
             );
             if new_resp.clicked() {
                 let path = default_file_path();
@@ -535,16 +533,16 @@ impl GuiShell {
             ui.add_space(SPACE_M);
 
             // Hint: open via sidebar
-            let hint_rect = ui.allocate_space(egui::vec2(btn_w, btn_h)).1;
-            let hint_bg = BG_WIDGET;
-            ui.painter().rect_filled(hint_rect, RADIUS_M, hint_bg);
-            ui.painter().rect_stroke(hint_rect, RADIUS_M, Stroke::new(1.0, BORDER_HOVER), egui::StrokeKind::Inside);
-            ui.painter().text(
-                hint_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                format!("{} Open via sidebar", egui_phosphor::regular::FOLDER_OPEN),
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
-                TEXT_PRIMARY,
+            ui.add_sized(
+                egui::vec2(btn_w, 36.0),
+                egui::Button::new(
+                    egui::RichText::new(format!("{}  Open via sidebar", egui_phosphor::regular::FOLDER_OPEN))
+                        .size(FONT_SIZE_M)
+                        .color(TEXT_PRIMARY),
+                )
+                .fill(BG_WIDGET)
+                .stroke(Stroke::new(1.0, BORDER_HOVER))
+                .rounding(RADIUS_M),
             );
 
             ui.add_space(SPACE_XL);
