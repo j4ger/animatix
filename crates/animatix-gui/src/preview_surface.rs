@@ -101,7 +101,8 @@ impl PreviewSurface {
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::TEXTURE_BINDING,
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::STORAGE_BINDING,
             view_formats: &[],
         });
         let render_view_b = render_texture_b.create_view(&wgpu::TextureViewDescriptor::default());
