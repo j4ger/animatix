@@ -6,7 +6,7 @@ use crate::app::design_tokens::*;
 use crate::app::panels::{sidebar, editor, inspector, timeline_panel, preview_panel};
 use crate::app::stores;
 use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
-use crate::app::commands::CommandQueue;
+use crate::app::commands::ActionQueue;
 use crate::app::preview;
 use crate::app::preview::selection;
 use std::collections::{HashMap, HashSet};
@@ -15,7 +15,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) document_store: &'a mut DocumentStore,
     pub(crate) workspace_store: &'a mut WorkspaceStore,
     pub(crate) preview_store: &'a mut PreviewStore,
-    pub(crate) commands: &'a mut CommandQueue,
+    pub(crate) commands: &'a mut ActionQueue,
     pub(crate) preview_texture_id: Option<egui::TextureId>,
     pub(crate) collapsed_actors: &'a mut HashSet<String>,
     pub(crate) selected_actors: &'a mut HashSet<String>,

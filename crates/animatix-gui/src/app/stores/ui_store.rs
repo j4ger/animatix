@@ -3,7 +3,7 @@ use crate::app::panels::SidebarTab;
 use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
 use crate::app::preview::{DragState, ToolMode};
 use crate::app::preview::selection::SelectionState;
-use crate::app::commands::CommandQueue;
+use crate::app::commands::ActionQueue;
 use egui_tiles::Tree;
 use std::collections::{HashMap, HashSet};
 
@@ -106,7 +106,7 @@ pub struct UiStore {
     pub nudge_step_px: f32,
     pub nudge_step_shift_px: f32,
     pub rotation_snap_degrees: f32,
-    pub pending_commands: CommandQueue,
+    pub pending_actions: ActionQueue,
     pub toasts: ToastQueue,
     /// Path buffer for the workspace switcher dialog.
     pub workspace_switcher_path: String,
@@ -132,7 +132,7 @@ impl UiStore {
             nudge_step_px: 1.0,
             nudge_step_shift_px: 10.0,
             rotation_snap_degrees: 15.0,
-            pending_commands: CommandQueue::default(),
+            pending_actions: ActionQueue::default(),
             toasts: ToastQueue::default(),
             workspace_switcher_path: String::new(),
         }

@@ -23,9 +23,13 @@ pub enum Effect {
     RebuildScheduled,
 }
 
-/// A unified command enum that replaces the 40+ `Option<T>` fields in `UiActions`.
-/// Every user intent is expressed as a `Command` and pushed into a `VecDeque<Command>`
-/// for ordered, frame-batched processing.
+// =========================================================================
+// ── Domain commands ─────────────────────────────────────────────────────
+// =========================================================================
+
+/// Domain commands that mutate the document, timeline, or file system.
+///
+/// These are the commands that can be snapshotted for undo/redo.
 #[derive(Debug, Clone)]
 pub enum Command {
     // ── Document / File ───────────────────────────────────────────────
@@ -37,13 +41,6 @@ pub enum Command {
     // ── Workspace / Explorer ──────────────────────────────────────────
     ToggleExpandDir(PathBuf),
     SwitchWorkspace(PathBuf),
-
-    // ── UI / Panels ───────────────────────────────────────────────────
-    ShowInspector,
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    ToggleDiagnosticsPanel,
-    OpenExportDialog,
-    ScrollToLine(usize, usize),
 
     // ── Playback ──────────────────────────────────────────────────────
     TogglePlayback,
@@ -78,18 +75,63 @@ pub enum Command {
     ToggleEditorSync,
     EditorChanged,
 
-    // ── Drag / Interaction lifecycle ──────────────────────────────────
-    DragEnded,
-    InspectorInputDragStarted,
-    InspectorInputDragEnded,
-
     // ── Clipboard ─────────────────────────────────────────────────────
     PasteActors,
 
     // ── Undo / Redo ───────────────────────────────────────────────────
     Undo,
     Redo,
+
+    // ── Navigation ────────────────────────────────────────────────────
+    ScrollToLine(usize, usize),
 }
+
+// =========================================================================
+// ── View actions ────────────────────────────────────────────────────────
+// =========================================================================
+
+/// View actions that change UI visibility or panel state without affecting
+/// the document. These are not undoable.
+#[derive(Debug, Clone)]
+pub enum ViewAction {
+    ShowInspector,
+    ToggleDiagnosticsPanel,
+    OpenExportDialog,
+}
+
+// =========================================================================
+// ── Drag events ─────────────────────────────────────────────────────────
+// =========================================================================
+
+/// Drag lifecycle events that bookend inspector or canvas drag interactions.
+/// These are used for snapshot guards and cursor state, not for document
+/// mutations directly.
+#[derive(Debug, Clone)]
+pub enum DragEvent {
+    DragEnded,
+    InspectorInputDragStarted,
+    InspectorInputDragEnded,
+}
+
+// =========================================================================
+// ── Unified action wrapper ──────────────────────────────────────────────
+// =========================================================================
+
+/// The unified action type consumed by the shell dispatcher each frame.
+///
+/// `Command` variants are domain-level mutations that can be undone.
+/// `ViewAction` variants affect UI visibility only.
+/// `DragEvent` variants are interaction bookkeeping.
+#[derive(Debug, Clone)]
+pub enum ShellAction {
+    Command(Command),
+    View(ViewAction),
+    Drag(DragEvent),
+}
+
+// =========================================================================
+// ── Property edit types ─────────────────────────────────────────────────
+// =========================================================================
 
 /// Describes a property edit made in the inspector panel.
 #[derive(Debug, Clone)]
@@ -164,6 +206,10 @@ impl From<PropertyValue> for animatix::ast::Expr {
     }
 }
 
+// =========================================================================
+// ── Undo / redo ─────────────────────────────────────────────────────────
+// =========================================================================
+
 /// An entry on the undo stack. Stores the command *and* the source text
 /// before the command was applied, so that undo can restore the exact state.
 /// This is a pragmatic stepping stone toward fully semantic undo.
@@ -173,5 +219,5 @@ pub struct UndoEntry {
     pub source_before: String,
 }
 
-/// Per-frame command queue consumed by the shell.
-pub type CommandQueue = VecDeque<Command>;
+/// Per-frame action queue consumed by the shell.
+pub type ActionQueue = VecDeque<ShellAction>;

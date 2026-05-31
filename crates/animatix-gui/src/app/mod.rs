@@ -36,7 +36,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{Command, CommandQueue, Effect};
+use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
 use crate::app::utils::*;
 use crate::app::stores::*;
 
@@ -386,15 +386,15 @@ impl GuiShell {
             style.interaction.selectable_labels = false;
         });
 
-        let mut commands: CommandQueue = CommandQueue::default();
-        commands.append(&mut self.ui_store.pending_commands);
+        let mut commands: ActionQueue = ActionQueue::default();
+        commands.append(&mut self.ui_store.pending_actions);
 
         // Global keyboard shortcuts (non-tool-mode shortcuts only;
         // tool mode switching is handled in runtime.rs with proper
         // wants_keyboard checks to avoid conflicts with text input).
         ui.input(|i| {
             if i.key_pressed(egui::Key::Y) && !i.modifiers.command {
-                commands.push_back(Command::ToggleEditorSync);
+                commands.push_back(ShellAction::Command(Command::ToggleEditorSync));
             }
             if !i.modifiers.command {
                 if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
@@ -412,7 +412,7 @@ impl GuiShell {
             // Paste actors (Ctrl+V)
             if i.modifiers.command && i.key_pressed(egui::Key::V)
                 && !self.ui_store.clipboard.clipboard_actors.is_empty() {
-                    commands.push_back(Command::PasteActors);
+                    commands.push_back(ShellAction::Command(Command::PasteActors));
                 }
         });
 
@@ -435,8 +435,8 @@ impl GuiShell {
                     if let Some(target) =
                         components::diagnostics::diagnostics_list(ui, &diagnostics)
                     {
-                        self.ui_store.pending_commands.push_back(
-                            Command::ScrollToLine(target.line, target.column)
+                        self.ui_store.pending_actions.push_back(
+                            ShellAction::Command(Command::ScrollToLine(target.line, target.column))
                         );
                     }
                 });
@@ -448,10 +448,10 @@ impl GuiShell {
             .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
             .show_inside(ui, |ui| {
                 if self.ui_store.view.welcome_open {
-                    let mut welcome_cmds = CommandQueue::default();
+                    let mut welcome_cmds = ActionQueue::default();
                     self.welcome_screen_ui(ui, &mut welcome_cmds);
                     for cmd in welcome_cmds {
-                        let effects = self.handle_command(cmd);
+                        let effects = self.handle_action(cmd);
                         self.apply_effects(effects);
                     }
                 } else {
@@ -466,7 +466,7 @@ impl GuiShell {
             .cursor_line
             .and_then(|line| self.document_store.document.timeline_index.time_s_for_line(line));
 
-        self.handle_commands(commands);
+        self.handle_actions(commands);
 
         // Settings modal overlay (rendered on top of everything)
         if self.ui_store.view.settings_open {
@@ -499,7 +499,7 @@ impl GuiShell {
     }
 
     /// Welcome / onboarding screen shown when no document is loaded.
-    fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut CommandQueue) {
+    fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let avail = ui.available_rect_before_wrap();
         ui.painter().rect_filled(avail, 0.0, BG_BASE);
 
@@ -543,7 +543,7 @@ impl GuiShell {
             if new_resp.clicked() {
                 let path = default_file_path();
                 let _ = std::fs::write(&path, "#0s\n");
-                commands.push_back(Command::OpenFile(path));
+                commands.push_back(ShellAction::Command(Command::OpenFile(path)));
             }
 
             ui.add_space(SPACE_M);
@@ -575,7 +575,7 @@ impl GuiShell {
         &mut self,
         ui: &mut egui::Ui,
         preview_texture_id: Option<egui::TextureId>,
-        commands: &mut CommandQueue,
+        commands: &mut ActionQueue,
     ) {
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
@@ -600,9 +600,9 @@ impl GuiShell {
         tree.ui(&mut behavior, ui);
     }
 
-    fn handle_commands(&mut self, commands: CommandQueue) {
-        for command in commands {
-            let effects = self.handle_command(command);
+    fn handle_actions(&mut self, actions: ActionQueue) {
+        for action in actions {
+            let effects = self.handle_action(action);
             self.apply_effects(effects);
         }
     }
@@ -730,7 +730,7 @@ impl GuiShell {
             self.ui_store.view.workspace_switcher_open = false;
         }
 
-        let mut commands = CommandQueue::default();
+        let mut commands = ActionQueue::default();
         egui::Window::new("Switch Workspace")
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .default_size([400.0, 140.0])
@@ -791,7 +791,7 @@ impl GuiShell {
                             );
                         if confirm.clicked() {
                             let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                            commands.push_back(Command::SwitchWorkspace(path));
+                            commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
                             self.ui_store.view.workspace_switcher_open = false;
                         }
 
@@ -813,7 +813,7 @@ impl GuiShell {
             });
 
         for cmd in commands {
-            let effects = self.handle_command(cmd);
+            let effects = self.handle_action(cmd);
             self.apply_effects(effects);
         }
     }

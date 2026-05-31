@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::commands::Command;
+use crate::app::commands::{Command, ShellAction};
 use crate::app::persistence::load_app_state;
 use crate::document::timeline_keyframe_times_s;
 use crate::app::design_tokens::*;
@@ -79,30 +79,30 @@ impl AnimatixApp {
 
         // Undo/Redo (works even when editor is focused, for property edits)
         if ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_commands.push_back(Command::Undo);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Undo));
         }
         if ctx.input(|i| {
             i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && i.modifiers.shift
         }) {
-            self.shell.ui_store.pending_commands.push_back(Command::Redo);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Redo));
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Y) && i.modifiers.ctrl) {
-            self.shell.ui_store.pending_commands.push_back(Command::Redo);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Redo));
         }
 
         // Save (Ctrl+S)
         if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_commands.push_back(Command::Save);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Save));
         }
 
         // Reload (Ctrl+R)
         if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_commands.push_back(Command::Reload);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Reload));
         }
 
         // Rebuild (Ctrl+Shift+R)
         if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && i.modifiers.shift) {
-            self.shell.ui_store.pending_commands.push_back(Command::Rebuild);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Rebuild));
         }
 
         // Screenshot (Ctrl+Shift+S or F12)
@@ -128,13 +128,13 @@ impl AnimatixApp {
         // Scene jump hotkeys (1/2/3) — jump to Nth scene in composition
         let scene_names = self.shell.document_store.document.scene_names();
         if ctx.input(|i| i.key_pressed(egui::Key::Num1)) && !scene_names.is_empty() {
-            self.shell.ui_store.pending_commands.push_back(Command::SelectScene(scene_names[0].clone()));
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[0].clone())));
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Num2)) && scene_names.len() >= 2 {
-            self.shell.ui_store.pending_commands.push_back(Command::SelectScene(scene_names[1].clone()));
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[1].clone())));
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Num3)) && scene_names.len() >= 3 {
-            self.shell.ui_store.pending_commands.push_back(Command::SelectScene(scene_names[2].clone()));
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[2].clone())));
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Comma)) {
@@ -230,13 +230,13 @@ impl AnimatixApp {
 
         // Delete key: remove selected actor(s)
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
-            self.shell.ui_store.pending_commands.push_back(Command::DeleteSelectedActors);
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::DeleteSelectedActors));
         }
 
         // Duplicate selected actor(s) (Ctrl+D)
         if ctx.input(|i| i.key_pressed(egui::Key::D) && i.modifiers.ctrl) && has_selection {
             for label in self.shell.ui_store.selection.selected_actors.iter().cloned().collect::<Vec<_>>() {
-                self.shell.ui_store.pending_commands.push_back(Command::DuplicateActor(label));
+                self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::DuplicateActor(label)));
             }
         }
 

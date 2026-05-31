@@ -7,7 +7,7 @@ use animatix::timeline::{
 use egui::Vec2;
 
 use crate::app::design_tokens::*;
-use crate::app::commands::{Command, CommandQueue};
+use crate::app::commands::{ActionQueue, Command, ShellAction};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ pub(super) fn render_dope_sheet(
     track: &AnimationTrack,
     current_time_ms: u64,
     actor_label: &str,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
 ) {
     let groups = collect_track_groups(track);
 
@@ -90,7 +90,7 @@ fn render_compact_track_row(
     current_time_ms: u64,
     timeline: &Timeline,
     actor_label: &str,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
 ) {
     let row_height = ROW_S;
     let available = ui.available_width();
@@ -168,12 +168,12 @@ fn render_compact_track_row(
                     let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
-                        commands.push_back(Command::SetKeyframeEasing {
+                        commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
                             actor: actor_label.to_string(),
                             property: track.name.to_string(),
                             time_s: *time_ms as f64 / 1000.0,
                             easing: variant,
-                        });
+                        }));
                         ui.close();
                     }
                 }
@@ -210,7 +210,7 @@ fn render_compact_track_row(
         if strip_response.clicked() || strip_response.dragged() {
             if let Some(pos) = strip_response.interact_pointer_pos() {
                 let fraction = ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-                commands.push_back(Command::ScrubTo(fraction * duration_s));
+                commands.push_back(ShellAction::Command(Command::ScrubTo(fraction * duration_s)));
             }
         }
     }

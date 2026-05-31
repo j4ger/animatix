@@ -5,7 +5,7 @@ use egui::{Color32, RichText, ScrollArea, Vec2};
 use crate::app::components::{layout, timeline};
 use crate::app::icons::actor_icon_str;
 use crate::app::design_tokens::*;
-use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
+use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::panels::panel_frame;
 use crate::app::PreviewPaneState;
 
@@ -34,7 +34,7 @@ pub(crate) struct InspectorContext<'a> {
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
     pub selected_actors: &'a mut HashSet<String>,
-    pub commands: &'a mut CommandQueue,
+    pub commands: &'a mut ActionQueue,
     pub keyframe_mode: bool,
     pub scene_dimensions: animatix::timeline::SceneDimensions,
     pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
@@ -95,7 +95,7 @@ pub(super) fn inspector_ui(
     timeline: Option<&Timeline>,
     selected_actors: &mut HashSet<String>,
     current_time_s: f64,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     keyframe_mode: bool,
     scene_dimensions: animatix::timeline::SceneDimensions,
     pivot_offsets: &mut std::collections::HashMap<String, [f32; 2]>,
@@ -156,11 +156,11 @@ pub(super) fn inspector_ui(
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
                 ];
-                commands.push_back(Command::CreateActor {
+                commands.push_back(ShellAction::Command(Command::CreateActor {
                     ty: super::default_actor_type().into(),
                     label,
                     position: pos,
-                });
+                }));
             }
         });
         return;
@@ -339,7 +339,7 @@ pub(super) fn inspector_ui(
                         height: ROW_XS,
                     };
                     if let Some(scrub_t) = strip.show(ui) {
-                        commands.push_back(Command::ScrubTo(scrub_t));
+                        commands.push_back(ShellAction::Command(Command::ScrubTo(scrub_t)));
                     }
                 });
 
@@ -450,7 +450,7 @@ fn render_property_stream(
     ui: &mut egui::Ui,
     groups: &[PropertyGroup],
     _actor_label: &str,
-    _commands: &mut CommandQueue,
+    _commands: &mut ActionQueue,
     _keyframe_mode: bool,
     _current_time_s: f64,
     property_view_mode: &mut PropertyViewMode,
@@ -566,7 +566,7 @@ fn render_actor_header(
     ui: &mut egui::Ui,
     track: &AnimationTrack,
     current_time_s: f64,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
 ) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
@@ -610,10 +610,10 @@ fn render_actor_header(
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
                         if edit_buffer != track.label && !edit_buffer.is_empty() {
-                            commands.push_back(Command::RenameActor {
+                            commands.push_back(ShellAction::Command(Command::RenameActor {
                                 old_label: track.label.clone(),
                                 new_label: edit_buffer.clone(),
-                            });
+                            }));
                         }
                     }
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -690,7 +690,7 @@ fn render_container_children(
     ui: &mut egui::Ui,
     container: &str,
     order: &[String],
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     keyframe_mode: bool,
 ) {
     ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, SPACE_S);
@@ -781,22 +781,22 @@ fn render_container_children(
         if up_resp.clicked() && i > 0 {
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
-            commands.push_back(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            }));
+            })));
         }
         if down_resp.clicked() && i + 1 < order.len() {
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
-            commands.push_back(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            }));
+            })));
         }
     }
 }

@@ -4,13 +4,21 @@ pub mod shortcut_cheat_sheet;
 pub mod toolbar;
 pub mod settings;
 
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::{Command, DragEvent, Effect, ShellAction, ViewAction};
 use crate::app::handlers::*;
 use crate::app::GuiShell;
 
 impl GuiShell {
-    /// Handle a single command, returning any collected side effects.
-    pub(crate) fn handle_command(&mut self, command: Command) -> Vec<Effect> {
+    /// Handle a single action, returning any collected side effects.
+    pub(crate) fn handle_action(&mut self, action: ShellAction) -> Vec<Effect> {
+        match action {
+            ShellAction::Command(cmd) => self.handle_command(cmd),
+            ShellAction::View(view) => self.handle_view_action(view),
+            ShellAction::Drag(drag) => self.handle_drag_event(drag),
+        }
+    }
+
+    fn handle_command(&mut self, command: Command) -> Vec<Effect> {
         match command {
             Command::OpenFile(path) => file::handle_open_file(
                 &mut self.document_store,
@@ -27,13 +35,6 @@ impl GuiShell {
                 &self.document_store,
                 path,
             ),
-            Command::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
-            Command::OpenExportDialog => {
-                ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
-            }
-            Command::ToggleDiagnosticsPanel => {
-                ui::handle_toggle_diagnostics_panel(&mut self.ui_store)
-            }
             Command::Save => file::handle_save(&mut self.document_store, &mut self.preview_store),
             Command::Reload => file::handle_reload(
                 &mut self.document_store,
@@ -160,9 +161,6 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
-            Command::InspectorInputDragStarted => {
-                ui::handle_inspector_input_drag_started(&mut self.ui_store)
-            }
             Command::ReparentActor { actor, new_parent } => actor::handle_reparent_actor(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -194,10 +192,6 @@ impl GuiShell {
                 self.handle_property_edit(edit);
                 vec![]
             }
-            Command::DragEnded => ui::handle_drag_ended(&mut self.ui_store),
-            Command::InspectorInputDragEnded => {
-                ui::handle_inspector_input_drag_ended(&mut self.ui_store)
-            }
             Command::Undo => {
                 ui::handle_undo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }
@@ -205,6 +199,30 @@ impl GuiShell {
                 ui::handle_redo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }
             Command::ScrollToLine(line, column) => ui::handle_scroll_to_line(&mut self.document_store, line, column),
+        }
+    }
+
+    fn handle_view_action(&mut self, view: ViewAction) -> Vec<Effect> {
+        match view {
+            ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
+            ViewAction::OpenExportDialog => {
+                ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
+            }
+            ViewAction::ToggleDiagnosticsPanel => {
+                ui::handle_toggle_diagnostics_panel(&mut self.ui_store)
+            }
+        }
+    }
+
+    fn handle_drag_event(&mut self, drag: DragEvent) -> Vec<Effect> {
+        match drag {
+            DragEvent::DragEnded => ui::handle_drag_ended(&mut self.ui_store),
+            DragEvent::InspectorInputDragStarted => {
+                ui::handle_inspector_input_drag_started(&mut self.ui_store)
+            }
+            DragEvent::InspectorInputDragEnded => {
+                ui::handle_inspector_input_drag_ended(&mut self.ui_store)
+            }
         }
     }
 }

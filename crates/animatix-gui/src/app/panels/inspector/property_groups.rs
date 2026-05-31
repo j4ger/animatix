@@ -8,7 +8,7 @@ use egui::{Color32, Stroke, Vec2};
 
 use crate::app::components::row;
 use crate::app::design_tokens::*;
-use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
+use crate::app::commands::{ActionQueue, Command, DragEvent, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -235,7 +235,7 @@ pub(crate) fn render_property_group(
     ui: &mut egui::Ui,
     group: &PropertyGroup,
     actor_label: &str,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     keyframe_mode: bool,
     current_time_s: f64,
 ) {
@@ -292,7 +292,7 @@ pub(crate) fn render_property_row(
     ui: &mut egui::Ui,
     actor_label: &str,
     entry: &PropertyEntry,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     keyframe_mode: bool,
     current_time_s: f64,
     flat_style: &egui::Style,
@@ -400,12 +400,12 @@ pub(crate) fn render_property_row(
     // Click keyframe button to create a keyframe (when not already present)
     if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
         if let Some(value) = entry_to_gui_value(entry) {
-            commands.push_back(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                 actor: actor_label.to_string(),
                 property: entry.name.to_string(),
                 value,
                 create_keyframe: true,
-            }));
+            })));
         }
     }
 
@@ -416,23 +416,23 @@ pub(crate) fn render_property_row(
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
             if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
-                commands.push_back(Command::DeleteKeyframe {
+                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
                     time_s: current_time_s,
-                });
+                }));
                 ui.close();
             }
             ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
                 for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
                     let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
                     if ui.selectable_label(false, display_name).clicked() {
-                        commands.push_back(Command::SetKeyframeEasing {
+                        commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
                             actor: actor_label.to_string(),
                             property: entry.name.to_string(),
                             time_s: current_time_s,
                             easing: variant,
-                        });
+                        }));
                         ui.close();
                     }
                 }
@@ -470,18 +470,18 @@ pub(crate) fn render_property_row(
                                     .prefix(b_label),
                             );
                             if rx.drag_started() || ry.drag_started() {
-                                commands.push_back(Command::InspectorInputDragStarted);
+                                commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragStarted));
                             }
                             if rx.drag_stopped() || ry.drag_stopped() {
-                                commands.push_back(Command::InspectorInputDragEnded);
+                                commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                             }
                             if rx.changed() || ry.changed() {
-                                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Vec2([nx, ny]),
                                     create_keyframe: keyframe_mode,
-                                }));
+                                })));
 
                                 }
                             },
@@ -523,18 +523,18 @@ pub(crate) fn render_property_row(
                                     .selectable(false),
                                 );
                                 if slider.drag_started() {
-                                    commands.push_back(Command::InspectorInputDragStarted);
+                                    commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragStarted));
                                 }
                                 if slider.drag_stopped() {
-                                    commands.push_back(Command::InspectorInputDragEnded);
+                                    commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                                 }
                                 if slider.changed() {
-                                    commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(nv),
                                         create_keyframe: keyframe_mode,
-                                    }));
+                                    })));
                                 }
                             },
                         );
@@ -556,19 +556,19 @@ pub(crate) fn render_property_row(
                                         .max_decimals(if is_angle { 1 } else { 2 }),
                                 );
                                 if response.drag_started() {
-                                    commands.push_back(Command::InspectorInputDragStarted);
+                                    commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragStarted));
                                 }
                                 if response.drag_stopped() {
-                                    commands.push_back(Command::InspectorInputDragEnded);
+                                    commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                                 }
                                 if response.changed() {
                                     let out_val = if is_angle { nv.to_radians() } else { nv };
-                                    commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(out_val),
                                         create_keyframe: keyframe_mode,
-                                    }));
+                                    })));
                                 }
                             },
                         );
@@ -592,18 +592,18 @@ pub(crate) fn render_property_row(
                                     .max_decimals(0),
                             );
                             if response.drag_started() {
-                                commands.push_back(Command::InspectorInputDragStarted);
+                                commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragStarted));
                             }
                             if response.drag_stopped() {
-                                commands.push_back(Command::InspectorInputDragEnded);
+                                commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                             }
                             if response.changed() {
-                                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Float(nv as f32),
                                     create_keyframe: keyframe_mode,
-                                }));
+                                })));
                             }
                         },
                     );
@@ -643,7 +643,7 @@ pub(crate) fn render_property_row(
                             );
                             if btn.changed() {
                                 let [r, g, b, a] = color.to_array();
-                                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Color([
@@ -653,7 +653,7 @@ pub(crate) fn render_property_row(
                                         a as f32 / 255.0,
                                     ]),
                                     create_keyframe: keyframe_mode,
-                                }));
+                                })));
                             }
                         },
                     );
@@ -683,12 +683,12 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for v in variants {
                                             if ui.selectable_label(v == text, v).clicked() {
-                                                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),
                                                     value: GuiPropertyValue::Text(v.to_string()),
                                                     create_keyframe: keyframe_mode,
-                                                }));
+                                                })));
                                             }
                                         }
                                     });
@@ -703,12 +703,12 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for family in families {
                                             if ui.selectable_label(family == *text, &family).clicked() {
-                                                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),
                                                     value: GuiPropertyValue::Text(family),
                                                     create_keyframe: keyframe_mode,
-                                                }));
+                                                })));
                                             }
                                         }
                                     });
@@ -718,12 +718,12 @@ pub(crate) fn render_property_row(
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {
-                                    commands.push_back(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Text(buf),
                                         create_keyframe: keyframe_mode,
-                                    }));
+                                    })));
                                 }
                             } else {
                                 ui.add(

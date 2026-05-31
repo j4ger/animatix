@@ -2,7 +2,7 @@
 
 use egui::Vec2;
 
-use crate::app::commands::Command;
+use crate::app::commands::{Command, ShellAction};
 use crate::app::design_tokens::*;
 use crate::app::panels::{nice_tick_interval, RULER_SIZE};
 pub(crate) use crate::app::preview::context::PreviewContext;
@@ -307,7 +307,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
             if let Some(new_time) = ctx.preview.time_lens.update_and_show(
                 ui, ctx.preview.playback.current_time_s, ctx.preview.playback.duration_s, &all_kf,
             ) {
-                ctx.commands.push_back(Command::ScrubTo(new_time));
+                ctx.commands.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
             }
 
             let is_dragging = !matches!(ctx.drag_state, DragState::None);

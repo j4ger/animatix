@@ -2,7 +2,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::components::button;
 use crate::app::design_tokens::*;
-use crate::app::commands::{Command, CommandQueue};
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::GuiShell;
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
@@ -11,7 +11,7 @@ impl GuiShell {
     pub(crate) fn toolbar_ui(
         &mut self,
         ui: &mut egui::Ui,
-        commands: &mut CommandQueue,
+        commands: &mut ActionQueue,
     ) {
         let toolbar_bg = BG_BASE;
         let border_color = BG_WIDGET;
@@ -67,14 +67,14 @@ impl GuiShell {
                             .on_hover_text("Save (Ctrl+S)")
                             .clicked()
                         {
-                            commands.push_back(Command::Save);
+                            commands.push_back(ShellAction::Command(Command::Save));
                             ui.close();
                         }
                         if ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT))
                             .on_hover_text("Export image, video or GIF")
                             .clicked()
                         {
-                            commands.push_back(Command::OpenExportDialog);
+                            commands.push_back(ShellAction::View(ViewAction::OpenExportDialog));
                             ui.close();
                         }
                         ui.separator();
@@ -82,14 +82,14 @@ impl GuiShell {
                             .on_hover_text("Reload from disk (Ctrl+R)")
                             .clicked()
                         {
-                            commands.push_back(Command::Reload);
+                            commands.push_back(ShellAction::Command(Command::Reload));
                             ui.close();
                         }
                         if ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES))
                             .on_hover_text("Rebuild timeline (Ctrl+Shift+R)")
                             .clicked()
                         {
-                            commands.push_back(Command::Rebuild);
+                            commands.push_back(ShellAction::Command(Command::Rebuild));
                             ui.close();
                         }
                         ui.separator();
@@ -134,7 +134,7 @@ impl GuiShell {
                                         .on_hover_text(format!("Switch to scene '{}'", name))
                                         .clicked()
                                     {
-                                        commands.push_back(Command::SelectScene(name.clone()));
+                                        commands.push_back(ShellAction::Command(Command::SelectScene(name.clone())));
                                     }
                                 }
                             });
@@ -240,7 +240,7 @@ impl GuiShell {
                             )
                             .clicked()
                             {
-                                commands.push_back(Command::ShowInspector);
+                                commands.push_back(ShellAction::View(ViewAction::ShowInspector));
                             }
                         },
                     );

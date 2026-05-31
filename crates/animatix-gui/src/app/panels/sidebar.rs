@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use egui::{RichText, Vec2};
 
-use crate::app::commands::{Command, CommandQueue};
+use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::{button, layout, row};
 use crate::app::components::context_menu::{render_menu, MenuEntry};
 use crate::app::design_tokens::*;
@@ -29,7 +29,7 @@ pub(crate) struct SidebarContext<'a> {
     pub expanded_dirs: &'a mut HashSet<PathBuf>,
     pub file_tree: &'a [FileTreeEntry],
     pub preview: &'a mut PreviewPaneState,
-    pub commands: &'a mut CommandQueue,
+    pub commands: &'a mut ActionQueue,
     pub scene_dimensions: SceneDimensions,
     pub timeline: Option<&'a Timeline>,
     pub selected_actors: &'a mut HashSet<String>,
@@ -97,12 +97,12 @@ fn editor_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     let response = ctx.editor.show(ui);
     if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
         *ctx.source_dirty = ctx.editor.text().to_string();
-        ctx.commands.push_back(Command::EditorChanged);
+        ctx.commands.push_back(ShellAction::Command(Command::EditorChanged));
     }
     if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
-        ctx.commands.push_back(Command::ScrubTo(time_s));
+        ctx.commands.push_back(ShellAction::Command(Command::ScrubTo(time_s)));
         if !ctx.is_playing {
-            ctx.commands.push_back(Command::TogglePlayback);
+            ctx.commands.push_back(ShellAction::Command(Command::TogglePlayback));
         }
     }
 }
@@ -244,22 +244,22 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 };
                 if render_menu(ui, &entries).is_some() {
                     if is_dir {
-                        ctx.commands.push_back(Command::ToggleExpandDir(path.clone()));
+                        ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
                     } else {
-                        ctx.commands.push_back(Command::OpenFile(path.clone()));
+                        ctx.commands.push_back(ShellAction::Command(Command::OpenFile(path.clone())));
                     }
                     ui.close();
                 }
             });
 
             if response.chevron_clicked {
-                ctx.commands.push_back(Command::ToggleExpandDir(path.clone()));
+                ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
             }
             if response.row_clicked {
                 if is_dir {
-                    ctx.commands.push_back(Command::ToggleExpandDir(path));
+                    ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path)));
                 } else {
-                    ctx.commands.push_back(Command::OpenFile(path));
+                    ctx.commands.push_back(ShellAction::Command(Command::OpenFile(path)));
                 }
             }
         }
@@ -331,7 +331,7 @@ fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
-                ctx.commands.push_back(Command::CreateActor { ty: super::default_actor_type().into(), label, position: pos });
+                ctx.commands.push_back(ShellAction::Command(Command::CreateActor { ty: super::default_actor_type().into(), label, position: pos }));
             }
         });
         return;
@@ -364,7 +364,7 @@ fn render_actor_tree(
     label: &str,
     selected_actors: &mut HashSet<String>,
     collapsed_actors: &mut HashSet<String>,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     time_ms: u64,
     depth: usize,
 ) {
@@ -421,12 +421,12 @@ fn render_actor_tree(
             );
             if eye_btn.clicked() {
                 let new_opacity = if is_visible { 0.0 } else { 1.0 };
-                commands.push_back(Command::PropertyEdit(PropertyEdit {
+                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                     actor: label.to_string(),
                     property: "opacity".into(),
                     value: PropertyValue::Float(new_opacity),
                     create_keyframe: false,
-                }));
+                })));
             }
         })
         .show(ui, row_id);
@@ -459,13 +459,13 @@ fn render_actor_tree(
             let pointer_pos = ui.input(|i| i.pointer.latest_pos());
             let over_this_row = pointer_pos.is_some_and(|p| response.row_rect.contains(p));
             if over_this_row && is_drop_target {
-                commands.push_back(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) });
+                commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) }));
             } else if !over_this_row && depth == 0 {
                 let over_any_root = pointer_pos.is_some_and(|p| {
                     response.row_rect.expand(100.0).contains(p)
                 });
                 if over_any_root {
-                    commands.push_back(Command::ReparentActor { actor: dragged.clone(), new_parent: None });
+                    commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: None }));
                 }
             }
         }
@@ -480,11 +480,11 @@ fn render_actor_tree(
         ];
         if let Some(idx) = render_menu(ui, &entries) {
             match idx {
-                0 => commands.push_back(Command::DuplicateActor(label.to_string())),
+                0 => commands.push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
                 1 => {
                     selected_actors.clear();
                     selected_actors.insert(label.to_string());
-                    commands.push_back(Command::DeleteSelectedActors);
+                    commands.push_back(ShellAction::Command(Command::DeleteSelectedActors));
                 }
                 _ => {}
             }

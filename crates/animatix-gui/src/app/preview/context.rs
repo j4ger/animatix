@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use egui::{Pos2, Vec2};
 
-use crate::app::commands::{Command, CommandQueue};
+use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::design_tokens::*;
 use crate::app::preview::{self, selection, ActorProps, DragState};
 use crate::app::PreviewPaneState;
@@ -17,7 +17,7 @@ pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
     pub preview: &'a mut PreviewPaneState,
     pub preview_texture_id: Option<egui::TextureId>,
-    pub commands: &'a mut CommandQueue,
+    pub commands: &'a mut ActionQueue,
     pub drag_state: &'a mut DragState,
     pub selection: &'a mut selection::SelectionState,
     pub selected_actors: &'a mut HashSet<String>,
@@ -197,7 +197,7 @@ impl PreviewContext<'_> {
                         if !active_has_actor {
                             for (scene_name, scene) in &comp.scenes {
                                 if scene.timeline.has_actor(&actor) {
-                                    self.commands.push_back(Command::SelectScene(scene_name.clone()));
+                                    self.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
                                     break;
                                 }
                             }

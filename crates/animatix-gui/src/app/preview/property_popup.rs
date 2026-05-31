@@ -1,4 +1,4 @@
-use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
+use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue};
 use crate::app::components::button;
 use crate::app::preview::ActorProps;
 use crate::app::design_tokens::*;
@@ -26,7 +26,7 @@ pub fn show_property_popup(
     actor: &str,
     props: &ActorProps,
     screen_pos: Pos2,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     is_dragging: bool,
     timeline: Option<&Timeline>,
     current_time_s: f64,
@@ -114,12 +114,12 @@ pub fn show_property_popup(
         let rot_delta = property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
         if let Some(delta) = rot_delta {
             let new_rot_deg = (rot_deg + delta * 0.5).rem_euclid(360.0);
-            commands.push_back(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                 actor: actor.to_string(),
                 property: "rotation".into(),
                 value: PropertyValue::Float(new_rot_deg.to_radians()),
                 create_keyframe: false,
-            }));
+            })));
         }
         // Opacity not in ActorProps — show placeholder
         property_essential(ui, "Opac", "100%", col_w);
@@ -244,7 +244,7 @@ fn popup_property_row(
     property: &str,
     label: &str,
     value: &str,
-    _commands: &mut CommandQueue,
+    _commands: &mut ActionQueue,
     has_keyframe: bool,
     current_time_s: f64,
 ) {

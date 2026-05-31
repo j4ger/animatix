@@ -19,7 +19,7 @@
 
 use std::collections::HashSet;
 
-use crate::app::commands::{Command, CommandQueue};
+use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::button::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
 use crate::app::design_tokens::*;
 use crate::app::PreviewPaneState;
@@ -32,7 +32,7 @@ pub(crate) struct TimelineContext<'a> {
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a Composition>,
     pub active_scene: Option<&'a str>,
-    pub commands: &'a mut CommandQueue,
+    pub commands: &'a mut ActionQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
     /// Cached actor labels (recomputed in behavior.rs when stale).
@@ -148,7 +148,7 @@ fn render_timeline_content(
     timeline: Option<&Timeline>,
     composition: Option<&Composition>,
     _active_scene: Option<&str>,
-    commands: &mut CommandQueue,
+    commands: &mut ActionQueue,
     collapsed_actors: &mut HashSet<String>,
     selected_actors: &mut HashSet<String>,
     _actor_labels: &[String],
@@ -295,13 +295,13 @@ fn render_timeline_content(
             let bar_interaction = |ui: &egui::Ui,
                                     bar_rect: Rect,
                                     id_salt: &str,
-                                    cmds: &mut CommandQueue| {
+                                    cmds: &mut ActionQueue| {
                 let bar_id = ui.id().with(id_salt);
                 let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
                 if response.clicked() || response.dragged() {
                     if let Some(pos) = response.interact_pointer_pos() {
                         let new_time = x_to_time(pos.x);
-                        cmds.push_back(Command::ScrubTo(new_time));
+                        cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
                     }
                 }
             };
@@ -365,27 +365,27 @@ fn render_timeline_content(
 
                         // Go to start
                         if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start (Home)", false).clicked() {
-                            commands.push_back(Command::ScrubTo(0.0));
+                            commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
                         }
 
                         // Previous keyframe
                         if toolbar_action_button(ui, egui_phosphor::regular::CARET_LEFT, None, "Previous keyframe", false).clicked() {
-                            commands.push_back(Command::PrevKeyframe);
+                            commands.push_back(ShellAction::Command(Command::PrevKeyframe));
                         }
 
                         // Play / Pause
                         if play_pause_button(ui, preview.playback.is_playing).clicked() {
-                            commands.push_back(Command::TogglePlayback);
+                            commands.push_back(ShellAction::Command(Command::TogglePlayback));
                         }
 
                         // Next keyframe
                         if toolbar_action_button(ui, egui_phosphor::regular::CARET_RIGHT, None, "Next keyframe", false).clicked() {
-                            commands.push_back(Command::NextKeyframe);
+                            commands.push_back(ShellAction::Command(Command::NextKeyframe));
                         }
 
                         // Go to end
                         if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end (End)", false).clicked() {
-                            commands.push_back(Command::ScrubTo(preview.playback.duration_s));
+                            commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
                         }
 
                         toolbar_separator(ui);
@@ -661,23 +661,23 @@ fn render_timeline_content(
                                     for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
                                         if ui.selectable_label(false, display_name).clicked() {
                                             let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
-                                            commands.push_back(Command::SetKeyframeEasing {
+                                            commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
                                                 actor: actor_label.clone(),
                                                 property: prop.to_string(),
                                                 time_s: kf_s,
                                                 easing: variant,
-                                            });
+                                            }));
                                             ui.close();
                                         }
                                     }
                                 });
                                 ui.separator();
                                 if ui.button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH)).clicked() {
-                                    commands.push_back(Command::DeleteKeyframe {
+                                    commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
                                         actor: actor_label.clone(),
                                         property: prop.to_string(),
                                         time_s: kf_s,
-                                    });
+                                    }));
                                     ui.close();
                                 }
                             });
@@ -689,7 +689,7 @@ fn render_timeline_content(
                                 } else {
                                     multi_selected.clear();
                                     multi_selected.push((actor_label.clone(), kf_ms));
-                                    commands.push_back(Command::ScrubTo(kf_s));
+                                    commands.push_back(ShellAction::Command(Command::ScrubTo(kf_s)));
                                 }
                             }
                             if dresp.drag_started() {
@@ -715,12 +715,12 @@ fn render_timeline_content(
                             if dresp.drag_stopped() && is_drag {
                                 if let Some((ref actor, prop_name, _, n)) = new_kf_drag {
                                     if (n - kf_s).abs() > 0.01 {
-                                        commands.push_back(Command::MoveKeyframe {
+                                        commands.push_back(ShellAction::Command(Command::MoveKeyframe {
                                             actor: actor.clone(),
                                             property: prop_name.to_string(),
                                             old_time_s: kf_s,
                                             new_time_s: n,
-                                        });
+                                        }));
                                     }
                                 }
                                 new_kf_drag = None;
@@ -736,12 +736,12 @@ fn render_timeline_content(
                 if resp.clicked() {
                     if let Some(pos) = resp.interact_pointer_pos() {
                         let click_s = x_to_time(pos.x);
-                        commands.push_back(Command::ScrubTo(click_s));
+                        commands.push_back(ShellAction::Command(Command::ScrubTo(click_s)));
                     }
                 } else if resp.dragged() {
                     if let Some(pos) = resp.interact_pointer_pos() {
                         let nt = x_to_time(pos.x);
-                        commands.push_back(Command::ScrubTo(nt));
+                        commands.push_back(ShellAction::Command(Command::ScrubTo(nt)));
                     }
                 }
 

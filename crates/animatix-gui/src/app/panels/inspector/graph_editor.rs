@@ -3,7 +3,7 @@
 //! Simplified first pass: single float properties (position.x, rotation).
 //! View toggle in Inspector keyframe area: List | Curve | Strip.
 
-use crate::app::commands::CommandQueue;
+use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::*;
 use animatix::easing::Easing;
 use animatix::timeline::{AnimationTrack, property_keyframe_times, read_property_value, property_keyframe_easing, lookup_property};
@@ -16,7 +16,7 @@ pub fn render_fcurve(
     property_name: &str,
     duration_s: f64,
     current_time_s: f64,
-    _commands: &mut CommandQueue,
+    _commands: &mut ActionQueue,
 ) {
     let available = ui.available_width();
     let height = 120.0f32;
