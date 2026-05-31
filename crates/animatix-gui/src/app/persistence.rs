@@ -78,3 +78,37 @@ pub(super) fn load_workspace_persistence(path: &Path) -> Option<Tree<WorkspaceTa
     let content = fs::read_to_string(path).ok()?;
     ron::from_str::<Tree<WorkspaceTab>>(&content).ok()
 }
+
+// ── App state persistence (recent file, preferences) ─────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AppState {
+    recent_file: Option<PathBuf>,
+}
+
+pub(super) fn app_state_path() -> PathBuf {
+    if let Some(project_dirs) = ProjectDirs::from("dev", "animatix", "animatix") {
+        return project_dirs.config_dir().join("app_state.ron");
+    }
+    PathBuf::from(".animatix-app-state.ron")
+}
+
+pub(super) fn load_app_state() -> Option<PathBuf> {
+    let path = app_state_path();
+    let content = fs::read_to_string(&path).ok()?;
+    let state: AppState = ron::from_str(&content).ok()?;
+    state.recent_file
+}
+
+pub(super) fn save_app_state(recent_file: &Path) {
+    let path = app_state_path();
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let state = AppState {
+        recent_file: Some(recent_file.to_path_buf()),
+    };
+    if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
+        let _ = fs::write(&path, serialized);
+    }
+}

@@ -15,6 +15,7 @@ use crate::app::commands::{Command, Effect, UndoEntry};
 use crate::app::components::toast::Toast;
 use crate::app::document_controller::DocumentController;
 use crate::app::file_tree::build_file_tree;
+use crate::app::persistence::save_app_state;
 use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::app::utils::has_source_load_failure;
@@ -177,6 +178,8 @@ pub fn handle_open_file(
             ui_store
                 .toasts
                 .push(Toast::info(format!("Opened {}", path.display())));
+            ui_store.view.welcome_open = false;
+            save_app_state(&path);
             vec![]
         }
         Err(error) => {

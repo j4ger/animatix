@@ -26,6 +26,7 @@ use egui::{Color32, Stroke, Vec2};
 use egui_tiles::Tree;
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path};
+use crate::app::design_tokens::*;
 #[cfg(test)]
 use preview::fit_preview;
 use preview::DragState;
@@ -182,6 +183,10 @@ pub(crate) struct PreviewPaneState {
     pub time_lens: crate::app::preview::time_lens::TimeLens,
     /// Overlay toggle state.
     pub overlay: crate::app::preview::overlay::PreviewOverlay,
+    /// Timeline horizontal zoom (1.0 = fit to width).
+    pub timeline_zoom: f32,
+    /// Timeline horizontal scroll offset in seconds (when zoomed).
+    pub timeline_scroll_offset: f64,
 }
 
 
@@ -217,6 +222,8 @@ impl PreviewPaneState {
             dimensions,
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
             overlay: crate::app::preview::overlay::PreviewOverlay::default(),
+            timeline_zoom: 1.0,
+            timeline_scroll_offset: 0.0,
         }
     }
 }
@@ -258,16 +265,23 @@ impl GuiShell {
     }
 
     fn load(initial_path: PathBuf) -> Self {
-        let (document, status, error) = match DocumentSession::load(initial_path.clone()) {
-            Ok(document) => {
-                let error = document.last_rebuild_error.clone();
-                (document, None, error)
+        let (document, status, error, is_welcome) = if initial_path == default_file_path() && !initial_path.exists() {
+            // No recent file — start in welcome mode with an empty session
+            let doc = DocumentSession::from_error(initial_path.clone());
+            (doc, None, None, true)
+        } else {
+            match DocumentSession::load(initial_path.clone()) {
+                Ok(document) => {
+                    let error = document.last_rebuild_error.clone();
+                    (document, None, error, false)
+                }
+                Err(error) => (
+                    DocumentSession::from_error(initial_path.clone()),
+                    Some("Failed to initialize session".to_string()),
+                    Some(error.to_string()),
+                    false,
+                ),
             }
-            Err(error) => (
-                DocumentSession::from_error(initial_path.clone()),
-                Some("Failed to initialize session".to_string()),
-                Some(error.to_string()),
-            ),
         };
 
         let workspace_root = workspace_root_for(&document.file_path);
@@ -291,6 +305,9 @@ impl GuiShell {
 
         let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
 
+        let mut ui_store = UiStore::new(tree);
+        ui_store.view.welcome_open = is_welcome;
+
         Self {
             document_store: DocumentStore::new(document, editor),
             workspace_store: WorkspaceStore::new(
@@ -301,7 +318,7 @@ impl GuiShell {
                 hot_reloader,
             ),
             preview_store: PreviewStore::new(preview),
-            ui_store: UiStore::new(tree),
+            ui_store,
             export_store: ExportStore::new(),
         }
     }
@@ -450,9 +467,94 @@ impl GuiShell {
             self.shortcut_cheat_sheet_ui(ui);
         }
 
+        // Welcome screen overlay
+        if self.ui_store.view.welcome_open {
+            let mut welcome_cmds = CommandQueue::default();
+            self.welcome_screen_ui(ui, &mut welcome_cmds);
+            for cmd in welcome_cmds {
+                let effects = self.handle_command(cmd);
+                self.apply_effects(effects);
+            }
+        }
+
         // Toast notifications
         let now = Instant::now();
         self.ui_store.toasts.show(ui, now);
+    }
+
+    /// Welcome / onboarding screen shown when no document is loaded.
+    fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut CommandQueue) {
+        let screen = ui.ctx().viewport_rect();
+        ui.painter().rect_filled(screen, 0.0, BG_BASE);
+
+        ui.vertical_centered(|ui| {
+            ui.add_space(screen.height() * 0.25);
+
+            ui.label(
+                egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
+                    .size(48.0)
+                    .color(ACCENT_BLUE),
+            );
+            ui.add_space(SPACE_XL);
+
+            ui.label(
+                egui::RichText::new("Welcome to Animatix")
+                    .size(FONT_SIZE_XL * 1.5)
+                    .color(TEXT_PRIMARY)
+                    .strong(),
+            );
+            ui.add_space(SPACE_S);
+            ui.label(
+                egui::RichText::new("Layout-first animation for creative coders")
+                    .size(FONT_SIZE_M)
+                    .color(TEXT_SECONDARY),
+            );
+            ui.add_space(SPACE_XL * 2.0);
+
+            let btn_w = 240.0;
+            let btn_h = 36.0;
+
+            // Create new button
+            let new_rect = ui.allocate_space(egui::vec2(btn_w, btn_h)).1;
+            let new_resp = ui.interact(new_rect, ui.id().with("welcome_new"), egui::Sense::click());
+            let new_bg = if new_resp.hovered() { ACCENT_BLUE } else { ACCENT_BLUE.linear_multiply(0.8) };
+            ui.painter().rect_filled(new_rect, RADIUS_M, new_bg);
+            ui.painter().text(
+                new_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                format!("{} Create new scene", egui_phosphor::regular::PLUS),
+                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TEXT_PRIMARY,
+            );
+            if new_resp.clicked() {
+                let path = default_file_path();
+                let _ = std::fs::write(&path, "#0s\n");
+                commands.push_back(Command::OpenFile(path));
+            }
+
+            ui.add_space(SPACE_M);
+
+            // Hint: open via sidebar
+            let hint_rect = ui.allocate_space(egui::vec2(btn_w, btn_h)).1;
+            let hint_bg = BG_WIDGET;
+            ui.painter().rect_filled(hint_rect, RADIUS_M, hint_bg);
+            ui.painter().rect_stroke(hint_rect, RADIUS_M, Stroke::new(1.0, BORDER_HOVER), egui::StrokeKind::Inside);
+            ui.painter().text(
+                hint_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                format!("{} Open via sidebar", egui_phosphor::regular::FOLDER_OPEN),
+                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TEXT_PRIMARY,
+            );
+
+            ui.add_space(SPACE_XL);
+
+            ui.label(
+                egui::RichText::new("Press ? for keyboard shortcuts")
+                    .size(FONT_SIZE_S)
+                    .color(TEXT_MUTED),
+            );
+        });
     }
 
     fn workspace_ui(

@@ -1,11 +1,14 @@
 use super::*;
 use crate::app::commands::Command;
+use crate::app::persistence::load_app_state;
 use crate::document::timeline_keyframe_times_s;
 use crate::app::design_tokens::*;
 use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {
-    let initial_path = path.unwrap_or_else(default_file_path);
+    let initial_path = path
+        .or_else(load_app_state)
+        .unwrap_or_else(default_file_path);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Animatix")
