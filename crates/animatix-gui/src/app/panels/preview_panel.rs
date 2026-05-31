@@ -1263,19 +1263,6 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
 
                     ui.separator();
 
-                    // Play/pause
-                    if components::play_pause_button(ui, ctx.preview.playback.is_playing).clicked() {
-                        ctx.commands.push_back(Command::TogglePlayback);
-                    }
-
-                    // Time display
-                    ui.label(RichText::new(format!("{:.2}s / {:.2}s",
-                        ctx.preview.playback.current_time_s,
-                        ctx.preview.playback.duration_s))
-                        .monospace().size(FONT_SIZE_XS).color(TEXT_MUTED));
-
-                    ui.separator();
-
                     // Grid toggle
                     let grid = ctx.preview.overlay.show_grid;
                     if ui.selectable_label(grid, "Grid")
@@ -1296,9 +1283,28 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
 
                     ui.separator();
 
-                    // Zoom buttons
+                    // Zoom controls — viewport-local
+                    // "Fit" is an action, not a fixed zoom level, so use a plain button.
+                    if ui.button(
+                        RichText::new("Fit").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    )
+                    .on_hover_text("Fit to viewport")
+                    .clicked()
+                    {
+                        let avail = ui.available_size_before_wrap();
+                        let preview_avail = Vec2::new(
+                            (avail.x - RULER_SIZE).max(200.0),
+                            (avail.y - RULER_SIZE).max(180.0),
+                        );
+                        let desired = fit_preview(ctx.scene_dimensions, preview_avail);
+                        ctx.preview.viewport.preview_zoom = desired.x / ctx.scene_dimensions.width as f32;
+                        ctx.preview.viewport.preview_pan = Vec2::new(
+                            ctx.scene_dimensions.width as f32 / 2.0,
+                            ctx.scene_dimensions.height as f32 / 2.0,
+                        );
+                    }
                     if ui.selectable_label(ctx.preview.viewport.preview_zoom == 1.0, "100%")
-                        .on_hover_text("Fit to 100%").clicked()
+                        .on_hover_text("Zoom to 100%").clicked()
                     {
                         ctx.preview.viewport.preview_zoom = 1.0;
                         ctx.preview.viewport.preview_pan = Vec2::new(

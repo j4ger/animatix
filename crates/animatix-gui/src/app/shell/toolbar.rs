@@ -175,6 +175,18 @@ impl GuiShell {
                                 commands.push_back(Command::ShowInspector);
                             }
 
+                            // Time display
+                            ui.label(
+                                RichText::new(format!(
+                                    "{:.2}s / {:.2}s",
+                                    self.preview_store.preview.playback.current_time_s,
+                                    self.preview_store.preview.playback.duration_s,
+                                ))
+                                .monospace()
+                                .size(FONT_SIZE_XS)
+                                .color(TEXT_MUTED),
+                            );
+
                             // Play / Pause
                             let is_playing = self.preview_store.preview.playback.is_playing;
                             if components::play_pause_button(ui, is_playing).clicked() {
