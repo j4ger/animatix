@@ -454,7 +454,7 @@ pub(crate) fn timeline_panel_ui(
                                 let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
                                 let cy = bar_area.center().y;
                                 let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
-                                let dresp = ui.interact(dr, ui.id().with(("kf_diamond", actor_label.clone(), kf_ms)), Sense::click_and_drag());
+                                let dresp = ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
                                 painter.add(egui::Shape::convex_polygon(
                                     vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
                                     if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
@@ -534,7 +534,7 @@ pub(crate) fn timeline_panel_ui(
 
                     draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
-                    let resp = ui.interact(bar_area, ui.id().with(format!("actor_track_{}", actor_label)), Sense::click_and_drag());
+                    let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
                     if resp.clicked() {
                         if let Some(pos) = resp.interact_pointer_pos() {
                             let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
