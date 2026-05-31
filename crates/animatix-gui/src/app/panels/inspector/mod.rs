@@ -93,6 +93,7 @@ pub(super) fn inspector_ui(
                         .size(FONT_SIZE_L)
                         .color(ACCENT_BLUE),
                 )
+                .on_hover_text("Add a new actor to the scene")
                 .clicked()
             {
                 let label = "rect1".to_string();
@@ -168,8 +169,13 @@ pub(super) fn inspector_ui(
                                 .max_rect(btn_rect)
                                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
                         );
+                        let tooltip = match view_mode {
+                            PropertyViewMode::Semantic => "Switch to stream view",
+                            PropertyViewMode::Intensity => "Switch to semantic view",
+                        };
                         if btn_ui
                             .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .on_hover_text(tooltip)
                             .clicked()
                         {
                             view_mode = match view_mode {
@@ -235,7 +241,10 @@ pub(super) fn inspector_ui(
                         components::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                             ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                         });
-                        if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED)).clicked() {
+                        if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED))
+                            .on_hover_text("Reset pivot to center")
+                            .clicked()
+                        {
                             *pivot = [0.0, 0.0];
                         }
                     });
@@ -311,8 +320,13 @@ pub(super) fn inspector_ui(
                                 .max_rect(btn_rect)
                                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
                         );
+                        let kf_tooltip = match kf_view {
+                            KeyframeViewMode::List => "Switch to curve view",
+                            KeyframeViewMode::Curve => "Switch to list view",
+                        };
                         if btn_ui
                             .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .on_hover_text(kf_tooltip)
                             .clicked()
                         {
                             kf_view = match kf_view {
@@ -671,7 +685,8 @@ fn render_container_children(
 
         // Down button
         let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click());
+        let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click())
+            .on_hover_text("Move down");
         let down_color = if i + 1 >= order.len() {
             TEXT_DISABLED
         } else if down_resp.hovered() {
@@ -690,7 +705,8 @@ fn render_container_children(
 
         // Up button
         let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click());
+        let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click())
+            .on_hover_text("Move up");
         let up_color = if i == 0 {
             TEXT_DISABLED
         } else if up_resp.hovered() {

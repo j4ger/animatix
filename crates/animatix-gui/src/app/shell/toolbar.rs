@@ -63,21 +63,33 @@ impl GuiShell {
                     );
 
                     // Filename dropdown
-                    ui.menu_button("▾", |ui| {
-                        if ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK)).clicked() {
+                    ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
+                        if ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK))
+                            .on_hover_text("Save (Ctrl+S)")
+                            .clicked()
+                        {
                             commands.push_back(Command::Save);
                             ui.close();
                         }
-                        if ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT)).clicked() {
+                        if ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT))
+                            .on_hover_text("Export image, video or GIF")
+                            .clicked()
+                        {
                             commands.push_back(Command::OpenExportDialog);
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE)).clicked() {
+                        if ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE))
+                            .on_hover_text("Reload from disk (Ctrl+R)")
+                            .clicked()
+                        {
                             commands.push_back(Command::Reload);
                             ui.close();
                         }
-                        if ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES)).clicked() {
+                        if ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES))
+                            .on_hover_text("Rebuild timeline (Ctrl+Shift+R)")
+                            .clicked()
+                        {
                             commands.push_back(Command::Rebuild);
                             ui.close();
                         }
@@ -95,7 +107,7 @@ impl GuiShell {
                                 for (i, name) in scene_names.iter().enumerate() {
                                     if i > 0 {
                                         ui.label(
-                                            RichText::new("→")
+                                            RichText::new(egui_phosphor::regular::ARROW_RIGHT)
                                                 .size(FONT_SIZE_S)
                                                 .color(TEXT_MUTED),
                                         );
@@ -109,7 +121,10 @@ impl GuiShell {
                                     let btn = egui::Button::new(label)
                                         .frame(false)
                                         .sense(egui::Sense::click());
-                                    if ui.add(btn).clicked() {
+                                    if ui.add(btn)
+                                        .on_hover_text(format!("Switch to scene '{}'", name))
+                                        .clicked()
+                                    {
                                         commands.push_back(Command::SelectScene(name.clone()));
                                     }
                                 }

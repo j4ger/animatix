@@ -105,7 +105,10 @@ impl GuiShell {
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(egui_phosphor::regular::X).clicked() {
+                if ui.button(egui_phosphor::regular::X)
+                    .on_hover_text("Close (Esc)")
+                    .clicked()
+                {
                     self.ui_store.view.shortcuts_open = false;
                 }
             });

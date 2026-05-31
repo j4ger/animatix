@@ -60,7 +60,8 @@ impl GuiShell {
                             .color(TEXT_PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let close_resp = ui.button(egui_phosphor::regular::X);
+                        let close_resp = ui.button(egui_phosphor::regular::X)
+                            .on_hover_text("Close (Esc)");
                         if close_resp.clicked() {
                             self.ui_store.view.settings_open = false;
                         }
