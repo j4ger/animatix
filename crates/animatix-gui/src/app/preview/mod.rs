@@ -4,6 +4,7 @@ pub mod grid;
 pub mod property_popup;
 pub mod overlay;
 pub mod selection;
+pub mod snap;
 pub mod time_lens;
 
 use std::collections::HashSet;
