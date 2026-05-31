@@ -10,8 +10,6 @@ backdrop: Rect, size: (1280, 720), color: theme.bg, anchor: scene.center
 header: Text, text: "Module System", font_size: 64, color: theme.text, anchor: scene.top, offset: (0, 100)
 sub: Text, text: "import ... as  +  pub let  +  dotted access", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 170)
 
-#0s
-
 #0.5s
 fade-in header [600ms, ease: ease-out]
 fade-in sub [400ms, delay: 200ms]

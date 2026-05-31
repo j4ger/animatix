@@ -9,8 +9,6 @@ c: Rect, size: (80, 80), color: accent.warning, at: (680, 360)
 d: Rect, size: (80, 80), color: accent.danger, at: (920, 360)
 e: Rect, size: (80, 80), color: text.primary, at: (1160, 360)
 
-#0s
-
 #0.5s
 fade-in a [400ms]
 

@@ -7,8 +7,6 @@ circle: Ellipse, size: (160, 160), color: accent.primary, at: (320, 360)
 rect: Rect, size: (160, 160), color: accent.success, at: (640, 360)
 poly: Polygon, points: {(0, -80), (80, 0), (0, 80), (-80, 0)}, color: accent.warning, at: (960, 360)
 
-#0s
-
 #0.5s
 stagger [100ms] {
   fade-in circle [400ms]

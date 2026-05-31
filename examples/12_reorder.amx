@@ -14,8 +14,6 @@ bars: Row, anchor: scene.center, gap: 12, align: "bottom" {
   bar5: Rect, size: (80, 60), color: accent.primary
 }
 
-#0s
-
 #0.5s
 fade-in title [600ms]
 fade-in sub [400ms, delay: 200ms]

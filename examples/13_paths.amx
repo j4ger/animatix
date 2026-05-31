@@ -22,8 +22,6 @@ wave: Path, commands: {
 // A morphing polygon
 poly: Polygon, points: {(0, -60), (52, -18), (32, 48), (-32, 48), (-52, -18)}, color: accent.success, at: (960, 360)
 
-#0s
-
 #0.5s
 stagger [150ms] {
   draw-in heart [800ms, ease: ease-out]

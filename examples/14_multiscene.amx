@@ -8,8 +8,6 @@ config { colorscheme: "editorial-dark" }
 title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.center
 sub: Text, text: "Multi-Scene Composition", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 60)
 
-#0s
-
 #0.5s
 fade-in title [600ms, ease: ease-out]
 fade-in sub [400ms, delay: 200ms]
@@ -28,8 +26,6 @@ graph: Graph, x_domain: (-5, 5), y_domain: (-5, 5), size: (500, 500), anchor: sc
 
 label: Text, text: "y = x^3 - 3x", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
 
-#0s
-
 #0.5s
 fade-in graph [800ms]
 fade-in label [400ms, delay: 300ms]
@@ -43,8 +39,6 @@ play Outro [fade, 300ms]
 # Outro
 config { colorscheme: "editorial-dark" }
 thanks: Text, text: "Thanks for watching", font_size: 64, color: text.primary, anchor: scene.center
-
-#0s
 
 #0.5s
 fade-in thanks [600ms, ease: ease-out]

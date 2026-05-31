@@ -14,8 +14,6 @@ gallery: Grid, cols: 4, gap: 40, padding: 80, anchor: scene.center {
   code: Code, code: "fn main() {}", font_size: 18, color: accent.danger
 }
 
-#0s
-
 #0.5s
 stagger [80ms] {
   fade-in circle [400ms, ease: ease-out]

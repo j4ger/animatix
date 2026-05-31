@@ -5,7 +5,5 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 hello: Text, text: "Hello, Animatix", font_size: 72, color: text.primary, anchor: scene.center
 
-#0s
-
 #0.5s
 fade-in hello [800ms, ease: ease-out]

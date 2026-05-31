@@ -7,8 +7,6 @@ shake_box: Rect, size: (140, 140), color: accent.danger, at: (320, 360)
 pulse_orb: Ellipse, size: (120, 120), color: accent.primary, at: (640, 360)
 bounce_ball: Ellipse, size: (100, 100), color: accent.success, at: (960, 360)
 
-#0s
-
 #0.5s
 stagger [100ms] {
   fade-in shake_box [400ms]

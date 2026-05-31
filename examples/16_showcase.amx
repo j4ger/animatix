@@ -26,8 +26,6 @@ prims: Row, anchor: scene.bottom, offset: (0, -140), gap: 60, align: "center" {
   eq: Math, math: "E = mc^2", font_size: 40, color: accent.primary
 }
 
-#0s
-
 #0.2s
 fade-in backdrop [600ms]
 

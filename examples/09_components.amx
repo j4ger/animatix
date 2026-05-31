@@ -34,8 +34,6 @@ row: Row, anchor: scene.center, gap: 32, align: "center" {
   }
 }
 
-#0s
-
 #0.5s
 stagger [100ms] {
   fade-in card1 [400ms]

@@ -20,8 +20,6 @@ g4: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 280), at: (720, 520
   circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 1, resolution: 100, color: accent.warning, width: 2
 }
 
-#0s
-
 #0.5s
 stagger [150ms] {
   fade-in g1 [400ms]
