@@ -39,6 +39,7 @@ pub enum Command {
 
     // ── UI / Panels ───────────────────────────────────────────────────
     ShowInspector,
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     ToggleDiagnosticsPanel,
     OpenExportDialog,
     ScrollToLine(usize, usize),
