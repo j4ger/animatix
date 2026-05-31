@@ -141,6 +141,7 @@ pub fn handle_open_file(
                 &workspace_store.expanded_dirs,
             );
             document_store.document = document;
+            document_store.invalidate_cache();
             document_store
                 .editor
                 .set_document(

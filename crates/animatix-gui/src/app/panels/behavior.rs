@@ -134,11 +134,12 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 }
                 let mut ctx = timeline::TimelineContext {
                     preview: &mut self.preview_store.preview,
-                    timeline: self.document_store.document.timeline.as_ref(),
+                    timeline: resolved_timeline,
                     composition: self.document_store.document.composition.as_ref(),
                     active_scene: self.document_store.document.active_scene.as_deref(),
                     commands: self.commands,
                     collapsed_actors: self.collapsed_actors,
+                    selected_actors: self.selected_actors,
                     actor_labels: &self.document_store.cached_actor_labels,
                     actor_keyframes: &self.document_store.cached_actor_keyframes,
                 };

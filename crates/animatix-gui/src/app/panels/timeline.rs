@@ -15,10 +15,11 @@ pub(crate) struct TimelineContext<'a> {
     pub active_scene: Option<&'a str>,
     pub commands: &'a mut CommandQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
+    pub selected_actors: &'a mut HashSet<String>,
     /// Cached actor labels (recomputed in behavior.rs when stale).
     pub actor_labels: &'a [String],
     /// Cached per-actor keyframe property lists.
-    pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)]
+    pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
 }
 
 pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
@@ -34,6 +35,7 @@ pub(crate) fn timeline_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         ctx.active_scene,
         ctx.commands,
         ctx.collapsed_actors,
+        ctx.selected_actors,
         ctx.actor_labels,
         ctx.actor_keyframes,
     );

@@ -458,7 +458,7 @@ fn render_actor_tree(
         }
     }
 
-    if response.row_clicked {
+    if response.row_clicked || response.drag_started {
         let modifiers = ui.ctx().input(|i| i.modifiers);
         let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
         if multi {

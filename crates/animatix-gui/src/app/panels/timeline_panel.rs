@@ -17,7 +17,7 @@
 //! │ Region │ [◀────────────▶]                          │
 //! └────────┴──────────────────────────────────────────-┘
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::components::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
@@ -52,6 +52,68 @@ fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
     }
 }
 
+/// Build a flat list of (actor_label, depth) in tree order (depth-first).
+fn build_actor_tree(timeline: &Timeline, collapsed: &HashSet<String>) -> Vec<(String, usize)> {
+    let mut result = Vec::new();
+    for root in timeline.root_actor_labels() {
+        add_actor_and_children(timeline, root, 0, collapsed, &mut result);
+    }
+    result
+}
+
+fn add_actor_and_children(
+    timeline: &Timeline,
+    label: &str,
+    depth: usize,
+    collapsed: &HashSet<String>,
+    result: &mut Vec<(String, usize)>,
+) {
+    result.push((label.to_string(), depth));
+    if !collapsed.contains(label) {
+        if let Some(track) = timeline.get_track(label) {
+            for child in &track.children {
+                add_actor_and_children(timeline, child, depth + 1, collapsed, result);
+            }
+        }
+    }
+}
+
+/// Collect keyframe times for all properties of an actor.
+fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u64, &'static str)> {
+    let mut result = Vec::new();
+    use animatix::timeline::PropertyTrack;
+    fn push<T>(result: &mut Vec<(u64, &'static str)>, opt: &Option<PropertyTrack<T>>, name: &'static str) {
+        if let Some(pt) = opt {
+            result.extend(pt.keyframes.keys().copied().map(|ms| (ms, name)));
+        }
+    }
+    push(&mut result, &track.position, "position");
+    push(&mut result, &track.motion_offset, "motion_offset");
+    push(&mut result, &track.rotation, "rotation");
+    push(&mut result, &track.scale, "scale");
+    push(&mut result, &track.size, "size");
+    push(&mut result, &track.color, "color");
+    push(&mut result, &track.opacity, "opacity");
+    push(&mut result, &track.stroke_width, "stroke_width");
+    push(&mut result, &track.stroke_color, "stroke_color");
+    push(&mut result, &track.stroke_progress, "stroke_progress");
+    push(&mut result, &track.fill_opacity, "fill_opacity");
+    push(&mut result, &track.text_content, "text_content");
+    push(&mut result, &track.font_family, "font_family");
+    push(&mut result, &track.font_size, "font_size");
+    push(&mut result, &track.shape_type, "shape_type");
+    push(&mut result, &track.line_from, "line_from");
+    push(&mut result, &track.line_to, "line_to");
+    push(&mut result, &track.arc_angles, "arc_angles");
+    push(&mut result, &track.points, "points");
+    push(&mut result, &track.commands, "commands");
+    push(&mut result, &track.layout_size, "layout_size");
+    push(&mut result, &track.vector_paths, "vector_paths");
+    result.sort_by_key(|(ms, _)| *ms);
+    result.dedup_by(|a, b| a.0 == b.0);
+    result
+}
+
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(
     ui: &mut egui::Ui,
@@ -61,8 +123,9 @@ pub(crate) fn timeline_panel_ui(
     _active_scene: Option<&str>,
     commands: &mut CommandQueue,
     collapsed_actors: &mut HashSet<String>,
-    actor_labels: &[String],
-    actor_keyframes: &[(String, Vec<(u64, &'static str)>)]
+    selected_actors: &mut HashSet<String>,
+    _actor_labels: &[String],
+    _actor_keyframes: &[(String, Vec<(u64, &'static str)>)],
 ) {
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
@@ -79,13 +142,8 @@ pub(crate) fn timeline_panel_ui(
     let mut multi_selected: Vec<(String, u64)> = ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
     let shift_held = ui.input(|i| i.modifiers.shift);
 
-    // ── Cached hot-path data ──
-    // actor_labels and actor_keyframes are precomputed by behavior.rs.
-    // Build a lookup map so per-actor keyframe access is O(1) instead of O(n).
-    let kf_map: HashMap<&str, &[(u64, &'static str)]> = actor_keyframes
-        .iter()
-        .map(|(label, props)| (label.as_str(), props.as_slice()))
-        .collect();
+    // actor_labels and actor_keyframes are precomputed by behavior.rs but we
+    // compute the actor tree directly from the timeline for correctness.
 
     // ── Helper: draw loop region (function, not closure, to avoid borrow conflicts) ──
     fn draw_loop_region(
@@ -194,7 +252,9 @@ pub(crate) fn timeline_panel_ui(
                 content_y = scene_track_bot;
             }
 
-            let actor_track_count = actor_labels.len();
+            // Build actor tree from timeline (all actors, not just roots)
+            let actor_tree: Vec<(String, usize)> = timeline.map(|tl| build_actor_tree(tl, collapsed_actors)).unwrap_or_default();
+            let actor_track_count = actor_tree.len();
             let actor_first_top = content_y;
             let actor_last_bot = actor_first_top + actor_track_count as f32 * TRACK_ROW_HEIGHT;
             content_y = actor_last_bot;
@@ -363,202 +423,243 @@ pub(crate) fn timeline_panel_ui(
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
             }
 
-            // ── Actor tracks ──
-            for (track_idx, actor_label) in actor_labels.iter().enumerate() {
+            // ── Actor tracks (tree structure, all actors) ──
+            for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
                 let is_collapsed = collapsed_actors.contains(actor_label);
+                let has_children = timeline.and_then(|tl| tl.get_track(actor_label)).map_or(false, |t| !t.children.is_empty());
+                let is_selected = selected_actors.contains(actor_label);
                 let at_top = actor_first_top + track_idx as f32 * TRACK_ROW_HEIGHT;
                 let at_bot = at_top + TRACK_ROW_HEIGHT;
                 let track_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(scroll_rect.right(), at_bot));
-                if track_idx % 2 == 0 { painter.rect_filled(track_rect, 0.0, row_alt()); }
 
+                // Alternating row background
+                if track_idx % 2 == 0 {
+                    painter.rect_filled(track_rect, 0.0, row_alt());
+                }
+
+                // Selection highlight
+                if is_selected {
+                    painter.rect_filled(track_rect, 0.0, accent_selection());
+                    let accent = Rect::from_min_size(track_rect.min, Vec2::new(2.0, track_rect.height()));
+                    painter.rect_filled(accent, 0.0, ACCENT_BLUE);
+                }
+
+                // Label column background
                 painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(bar_origin_x, at_bot)), 0.0, BG_BASE);
 
-                // Chevron toggle button (left side of label column)
-                let chevron_icon = if is_collapsed {
-                    egui_phosphor::regular::CARET_RIGHT
-                } else {
-                    egui_phosphor::regular::CARET_DOWN
-                };
-                let chevron_x = scroll_rect.left() + SPACE_S;
-                let chevron_rect = Rect::from_min_size(
-                    Pos2::new(chevron_x, at_top + 2.0),
-                    Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
-                );
-                let chevron_resp = ui.interact(
-                    chevron_rect,
-                    ui.id().with(("actor_chevron", actor_label)),
-                    Sense::click(),
-                );
-                painter.text(
-                    chevron_rect.center(),
-                    Align2::CENTER_CENTER,
-                    chevron_icon,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                    if chevron_resp.hovered() {
-                        TEXT_PRIMARY
+                // Indent based on depth
+                let indent = *depth as f32 * 14.0;
+
+                // Chevron toggle button (only if actor has children)
+                let chevron_x = scroll_rect.left() + SPACE_S + indent;
+                if has_children {
+                    let chevron_icon = if is_collapsed {
+                        egui_phosphor::regular::CARET_RIGHT
                     } else {
-                        TEXT_MUTED
-                    },
-                );
-                if chevron_resp.clicked() {
-                    if is_collapsed {
-                        collapsed_actors.remove(actor_label);
-                    } else {
-                        collapsed_actors.insert(actor_label.clone());
+                        egui_phosphor::regular::CARET_DOWN
+                    };
+                    let chevron_rect = Rect::from_min_size(
+                        Pos2::new(chevron_x, at_top + 2.0),
+                        Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
+                    );
+                    let chevron_resp = ui.interact(
+                        chevron_rect,
+                        ui.id().with(("actor_chevron", actor_label)),
+                        Sense::click(),
+                    );
+                    painter.text(
+                        chevron_rect.center(),
+                        Align2::CENTER_CENTER,
+                        chevron_icon,
+                        FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                        if chevron_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+                    );
+                    if chevron_resp.clicked() {
+                        if is_collapsed {
+                            collapsed_actors.remove(actor_label);
+                        } else {
+                            collapsed_actors.insert(actor_label.clone());
+                        }
                     }
                 }
 
-                // Track label (left-aligned, after chevron)
-                let label_x = chevron_x + 16.0 + SPACE_S;
-                let label: String = if actor_label.chars().count() > 12 {
-                    actor_label.chars().take(11).collect::<String>() + "…"
+                // Track label
+                let label_x = chevron_x + if has_children { 16.0 } else { 4.0 } + SPACE_S;
+                let label_text = if actor_label.chars().count() > 16 {
+                    actor_label.chars().take(15).collect::<String>() + "…"
                 } else {
                     actor_label.clone()
                 };
-                painter.text(Pos2::new(label_x, track_rect.center().y), Align2::LEFT_CENTER, &label,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_SECONDARY);
+                painter.text(
+                    Pos2::new(label_x, track_rect.center().y),
+                    Align2::LEFT_CENTER,
+                    &label_text,
+                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    if is_selected { TEXT_PRIMARY } else { TEXT_SECONDARY },
+                );
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, at_top), Pos2::new(scroll_rect.right(), at_bot));
 
-                // Skip detail content when collapsed
-                if !is_collapsed {
-                    // Action blocks
-                    if let Some(tl) = timeline {
-                        for event in &tl.action_events {
-                            if !event.targets.contains(actor_label) { continue; }
-                            let left = time_to_x(event.start_time_ms as f64 / 1000.0);
-                            let right = time_to_x((event.start_time_ms + event.duration_ms) as f64 / 1000.0);
-                            if right > bar_area.left() && left < bar_area.right() {
-                                let br = Rect::from_min_max(Pos2::new(left.max(bar_area.left()), bar_area.top() + 2.0), Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 2.0));
-                                let color = action_category_color(event.category);
-                                painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.6));
-                                painter.rect_stroke(br, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
-                                if br.width() > 30.0 { painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY); }
-                            }
+                // Click on label to select actor
+                let label_area = Rect::from_min_max(
+                    Pos2::new(scroll_rect.left(), at_top),
+                    Pos2::new(bar_origin_x, at_bot),
+                );
+                let label_resp = ui.interact(label_area, ui.id().with(("actor_label", track_idx)), Sense::click());
+                if label_resp.clicked() {
+                    let modifiers = ui.ctx().input(|i| i.modifiers);
+                    let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
+                    if multi {
+                        if selected_actors.contains(actor_label) {
+                            selected_actors.remove(actor_label);
+                        } else {
+                            selected_actors.insert(actor_label.clone());
                         }
+                    } else {
+                        selected_actors.clear();
+                        selected_actors.insert(actor_label.clone());
                     }
-
-                    // Keyframe diamonds (using cached data)
-                    let kf_props: &[(u64, &'static str)] = kf_map
-                        .get(actor_label.as_str())
-                        .copied()
-                        .unwrap_or(&[]);
-                    for &(kf_ms, prop) in kf_props {
-                                let kf_s = kf_ms as f64 / 1000.0;
-                                let kf_x = time_to_x(kf_s);
-                                if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
-                                let is_act = (kf_s - preview.playback.current_time_s).abs() < 0.01;
-                                let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
-                                let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
-                                let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
-                                let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
-                                let cy = bar_area.center().y;
-                                let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
-                                let dresp = ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
-                                painter.add(egui::Shape::convex_polygon(
-                                    vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
-                                    if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
-
-                                let dresp = if dresp.hovered() && !is_drag { dresp.on_hover_text(format!("{prop} @ {:.2}s", kf_s)) } else { dresp };
-
-                                // Right-click context menu
-                                dresp.context_menu(|ui| {
-                                    ui.set_min_width(140.0);
-                                    ui.strong(format!("{} @ {:.2}s", prop, kf_s));
-                                    ui.separator();
-                                    // Easing submenu
-                                    ui.menu_button("Easing", |ui| {
-                                        for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
-                                            if ui.selectable_label(false, display_name).clicked() {
-                                                let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
-                                                commands.push_back(Command::SetKeyframeEasing {
-                                                    actor: actor_label.clone(),
-                                                    property: prop.to_string(),
-                                                    time_s: kf_s,
-                                                    easing: variant,
-                                                });
-                                                ui.close();
-                                            }
-                                        }
-                                    });
-                                    ui.separator();
-                                    if ui.button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH)).clicked() {
-                                        commands.push_back(Command::DeleteKeyframe {
-                                            actor: actor_label.clone(),
-                                            property: prop.to_string(),
-                                            time_s: kf_s,
-                                        });
-                                        ui.close();
-                                    }
-                                });
-
-                                if dresp.clicked() {
-                                    if shift_held {
-                                        if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
-                                        else { multi_selected.push((actor_label.clone(), kf_ms)); }
-                                    } else { multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms));
-                                        commands.push_back(Command::ScrubTo(kf_s)); }
-                                }
-                                if dresp.drag_started() {
-                                    new_kf_drag = Some((actor_label.clone(), prop, kf_ms, kf_s));
-                                    if !shift_held && !multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms) {
-                                        multi_selected.clear(); multi_selected.push((actor_label.clone(), kf_ms)); }
-                                }
-                                if is_drag {
-                                    if let Some(pos) = dresp.interact_pointer_pos() {
-                                        let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
-                                        let snapped = (nt * 10.0).round() / 10.0;
-                                        new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
-                                        let gx = time_to_x(snapped);
-                                        painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(1.0, AMBER.linear_multiply(0.5)));
-                                        let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
-                                        let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0) - Vec2::new(0.0, 0.0), g.size() + Vec2::new(8.0, 4.0));
-                                        painter.rect_filled(tr, RADIUS_S, BG_SURFACE);
-                                        painter.galley(tr.min + Vec2::new(4.0, 2.0), g, TEXT_PRIMARY);
-                                    }
-                                }
-                                if dresp.drag_stopped() && is_drag {
-                                    if let Some((ref actor, prop_name, _, n)) = new_kf_drag {
-                                        if (n - kf_s).abs() > 0.01 {
-                                            commands.push_back(Command::MoveKeyframe {
-                                                actor: actor.clone(),
-                                                property: prop_name.to_string(),
-                                                old_time_s: kf_s,
-                                                new_time_s: n,
-                                            });
-                                        }
-                                    }
-                                    new_kf_drag = None;
-                                }
-                            }
-
-                    draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
-
-                    let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
-                    if resp.clicked() {
-                        if let Some(pos) = resp.interact_pointer_pos() {
-                            let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
-                            let thr = (bar_width / duration_s as f32) * 6.0;
-                            let kf_times: Vec<u64> = kf_map
-                                .get(actor_label.as_str())
-                                .map(|props| props.iter().map(|(ms, _)| *ms).collect())
-                                .unwrap_or_default();
-                            let snapped = kf_times.iter().find(|&&kf_ms| ((kf_ms as f64 / 1000.0) - click_s).abs() < thr as f64).copied();
-                            if let Some(kf_ms) = snapped {
-                                let js = kf_ms as f64 / 1000.0;
-                                commands.push_back(Command::ScrubTo(js));
-                            } else { commands.push_back(Command::ScrubTo(click_s)); }
-                        }
-                    } else if resp.dragged() {
-                        if let Some(pos) = resp.interact_pointer_pos() {
-                            let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
-                            commands.push_back(Command::ScrubTo(nt));
-                        }
-                    }
-
-                    painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(1.0, text_faint()));
                 }
 
+                // Action blocks
+                if let Some(tl) = timeline {
+                    for event in &tl.action_events {
+                        if !event.targets.contains(actor_label) { continue; }
+                        let left = time_to_x(event.start_time_ms as f64 / 1000.0);
+                        let right = time_to_x((event.start_time_ms + event.duration_ms) as f64 / 1000.0);
+                        if right > bar_area.left() && left < bar_area.right() {
+                            let br = Rect::from_min_max(
+                                Pos2::new(left.max(bar_area.left()), bar_area.top() + 3.0),
+                                Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 3.0),
+                            );
+                            let color = action_category_color(event.category);
+                            painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.5));
+                            painter.rect_stroke(br, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
+                            if br.width() > 40.0 {
+                                painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
+                            }
+                        }
+                    }
+                }
+
+                // Keyframe diamonds (computed from timeline)
+                if let Some(tl) = timeline {
+                    if let Some(track) = tl.get_track(actor_label) {
+                        let kf_props = collect_actor_keyframes(track);
+                        for (kf_ms, prop) in kf_props {
+                            let kf_s = kf_ms as f64 / 1000.0;
+                            let kf_x = time_to_x(kf_s);
+                            if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
+                            let is_act = (kf_s - preview.playback.current_time_s).abs() < 0.01;
+                            let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
+                            let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
+                            let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
+                            let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
+                            let cy = bar_area.center().y;
+                            let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
+                            let dresp = ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
+                            painter.add(egui::Shape::convex_polygon(
+                                vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
+                                if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
+
+                            let dresp = if dresp.hovered() && !is_drag { dresp.on_hover_text(format!("{prop} @ {:.2}s", kf_s)) } else { dresp };
+
+                            dresp.context_menu(|ui| {
+                                ui.set_min_width(140.0);
+                                ui.strong(format!("{} @ {:.2}s", prop, kf_s));
+                                ui.separator();
+                                ui.menu_button("Easing", |ui| {
+                                    for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
+                                        if ui.selectable_label(false, display_name).clicked() {
+                                            let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
+                                            commands.push_back(Command::SetKeyframeEasing {
+                                                actor: actor_label.clone(),
+                                                property: prop.to_string(),
+                                                time_s: kf_s,
+                                                easing: variant,
+                                            });
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                                ui.separator();
+                                if ui.button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH)).clicked() {
+                                    commands.push_back(Command::DeleteKeyframe {
+                                        actor: actor_label.clone(),
+                                        property: prop.to_string(),
+                                        time_s: kf_s,
+                                    });
+                                    ui.close();
+                                }
+                            });
+
+                            if dresp.clicked() {
+                                if shift_held {
+                                    if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
+                                    else { multi_selected.push((actor_label.clone(), kf_ms)); }
+                                } else {
+                                    multi_selected.clear();
+                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                    commands.push_back(Command::ScrubTo(kf_s));
+                                }
+                            }
+                            if dresp.drag_started() {
+                                new_kf_drag = Some((actor_label.clone(), prop, kf_ms, kf_s));
+                                if !shift_held && !multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms) {
+                                    multi_selected.clear();
+                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                }
+                            }
+                            if is_drag {
+                                if let Some(pos) = dresp.interact_pointer_pos() {
+                                    let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                                    let snapped = (nt * 10.0).round() / 10.0;
+                                    new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
+                                    let gx = time_to_x(snapped);
+                                    painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(1.0, AMBER.linear_multiply(0.5)));
+                                    let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
+                                    let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0), g.size() + Vec2::new(8.0, 4.0));
+                                    painter.rect_filled(tr, RADIUS_S, BG_SURFACE);
+                                    painter.galley(tr.min + Vec2::new(4.0, 2.0), g, TEXT_PRIMARY);
+                                }
+                            }
+                            if dresp.drag_stopped() && is_drag {
+                                if let Some((ref actor, prop_name, _, n)) = new_kf_drag {
+                                    if (n - kf_s).abs() > 0.01 {
+                                        commands.push_back(Command::MoveKeyframe {
+                                            actor: actor.clone(),
+                                            property: prop_name.to_string(),
+                                            old_time_s: kf_s,
+                                            new_time_s: n,
+                                        });
+                                    }
+                                }
+                                new_kf_drag = None;
+                            }
+                        }
+                    }
+                }
+
+                draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
+
+                // Track bar interaction (scrubbing)
+                let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
+                if resp.clicked() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        let click_s = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                        commands.push_back(Command::ScrubTo(click_s));
+                    }
+                } else if resp.dragged() {
+                    if let Some(pos) = resp.interact_pointer_pos() {
+                        let nt = ((pos.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64 * duration_s;
+                        commands.push_back(Command::ScrubTo(nt));
+                    }
+                }
+
+                // Per-track playhead
+                painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(1.0, text_faint()));
+
+                // Track separator
                 painter.line_segment([Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)], Stroke::new(1.0, BORDER));
             }
 
