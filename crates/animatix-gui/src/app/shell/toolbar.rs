@@ -5,6 +5,9 @@ use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::GuiShell;
 
+/// Height of the main application toolbar.
+const TOOLBAR_HEIGHT: f32 = 28.0;
+
 impl GuiShell {
     pub(crate) fn toolbar_ui(
         &mut self,
@@ -14,14 +17,13 @@ impl GuiShell {
         let toolbar_bg = BG_BASE;
         let border_color = BG_WIDGET;
         let text_primary = TEXT_PRIMARY;
-        let _text_muted = TEXT_MUTED;
 
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)
             .inner_margin(egui::Margin::symmetric(12, 4))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.set_height(28.0);
+                ui.set_height(TOOLBAR_HEIGHT);
 
                 ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(SPACE_L, 0.0);
@@ -62,16 +64,20 @@ impl GuiShell {
 
                     // Filename dropdown
                     ui.menu_button("▾", |ui| {
-                        if ui.button("Save").clicked() {
+                        if ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK)).clicked() {
                             commands.push_back(Command::Save);
                             ui.close();
                         }
-                        if ui.button("Export…").clicked() {
+                        if ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT)).clicked() {
                             commands.push_back(Command::OpenExportDialog);
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button("Rebuild").clicked() {
+                        if ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE)).clicked() {
+                            commands.push_back(Command::Reload);
+                            ui.close();
+                        }
+                        if ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES)).clicked() {
                             commands.push_back(Command::Rebuild);
                             ui.close();
                         }
@@ -117,17 +123,17 @@ impl GuiShell {
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
-                            // Command palette button
+                            // Command palette / shortcut reference button
                             let shortcut =
                                 if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl+K" };
                             if components::icon_button(
                                 ui,
                                 egui_phosphor::regular::COMMAND,
-                                &format!("Command palette ({shortcut})"),
+                                &format!("Keyboard shortcuts ({shortcut} / ?)"),
                             )
                             .clicked()
                             {
-                                // TODO: open command palette
+                                self.ui_store.view.shortcuts_open = true;
                             }
 
                             if components::icon_button(

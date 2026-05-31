@@ -361,37 +361,18 @@ impl GuiShell {
         let mut commands: CommandQueue = CommandQueue::default();
         commands.append(&mut self.ui_store.pending_commands);
 
-        // Global keyboard shortcuts for timeline toggles
+        // Global keyboard shortcuts (non-tool-mode shortcuts only;
+        // tool mode switching is handled in runtime.rs with proper
+        // wants_keyboard checks to avoid conflicts with text input).
         ui.input(|i| {
             if i.key_pressed(egui::Key::Y) && !i.modifiers.command {
                 commands.push_back(Command::ToggleEditorSync);
             }
-            // Tool mode switching (V, M, G, S, R, E)
             if !i.modifiers.command {
-                if i.key_pressed(egui::Key::V) {
-                    self.ui_store.view.tool_mode = preview::ToolMode::Select;
-                    self.preview_store.preview.status = "Tool: Select".to_string();
-                }
-                if i.key_pressed(egui::Key::G) || i.key_pressed(egui::Key::M) {
-                    self.ui_store.view.tool_mode = preview::ToolMode::Move;
-                    self.preview_store.preview.status = "Tool: Move".to_string();
-                }
-                if i.key_pressed(egui::Key::S) {
-                    self.ui_store.view.tool_mode = preview::ToolMode::Scale;
-                    self.preview_store.preview.status = "Tool: Scale".to_string();
-                }
-                if i.key_pressed(egui::Key::R) {
-                    self.ui_store.view.tool_mode = preview::ToolMode::Rotate;
-                    self.preview_store.preview.status = "Tool: Rotate".to_string();
-                }
-                if i.key_pressed(egui::Key::E) {
-                    self.ui_store.view.tool_mode = preview::ToolMode::Vertex;
-                    self.preview_store.preview.status = "Tool: Vertex Edit".to_string();
-                }
                 if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
                     self.ui_store.view.action_palette_open = true;
                 }
-                if i.key_pressed(egui::Key::Slash) && !i.modifiers.command {
+                if i.key_pressed(egui::Key::Slash) {
                     self.ui_store.view.shortcuts_open = true;
                 }
             }
