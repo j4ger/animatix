@@ -142,7 +142,7 @@ impl<'a> Row<'a> {
         // Chevron
         let chevron_rect = Rect::from_min_size(
             egui::pos2(cursor_x, row_rect.min.y),
-            Vec2::new(14.0, self.height),
+            Vec2::new(ICON_SLOT_WIDTH, self.height),
         );
         let chevron_response =
             ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
@@ -166,14 +166,14 @@ impl<'a> Row<'a> {
                 color,
             );
         }
-        cursor_x += 14.0;
+        cursor_x += ICON_SLOT_WIDTH;
 
         // Icon
         if let Some(icon_str) = self.icon {
             cursor_x += SPACE_S;
             let icon_rect = Rect::from_min_size(
                 egui::pos2(cursor_x, row_rect.min.y),
-                Vec2::new(14.0, self.height),
+                Vec2::new(ICON_SLOT_WIDTH, self.height),
             );
             let default_color = if self.is_selected { TEXT_PRIMARY } else { TEXT_MUTED };
             ui.painter().text(
@@ -183,7 +183,7 @@ impl<'a> Row<'a> {
                 egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
                 self.label_color.unwrap_or(default_color),
             );
-            cursor_x += 14.0 + SPACE_S;
+            cursor_x += ICON_SLOT_WIDTH + SPACE_S;
         } else {
             cursor_x += SPACE_S * 2.0;
         }
@@ -487,7 +487,7 @@ pub fn labeled_row(
 /// ```
 pub fn icon_button(
     ui: &mut egui::Ui,
-    icon: &str,
+    icon: &'static str,
     tooltip: &str,
 ) -> Response {
     let size = Vec2::new(ROW_L, ROW_L);
@@ -521,7 +521,7 @@ pub fn icon_button(
 /// default muted → primary hover transition.
 pub fn icon_button_colored(
     ui: &mut egui::Ui,
-    icon: &str,
+    icon: &'static str,
     tooltip: &str,
     color: Color32,
     hover_color: Color32,
@@ -615,7 +615,7 @@ pub struct TimelineStrip<'a> {
 }
 
 impl<'a> TimelineStrip<'a> {
-    pub fn show(self, ui: &mut egui::Ui, _id: Id) -> Option<f64> {
+    pub fn show(self, ui: &mut egui::Ui) -> Option<f64> {
         let desired = Vec2::new(ui.available_width(), self.height);
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
@@ -889,8 +889,8 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     tabs: &[(T, &'static str, &'static str)],
 ) -> Option<T> {
     let available = ui.available_width();
-    let tab_h = 26.0;
-    let gap = 2.0;
+    let tab_h = PILL_TAB_HEIGHT;
+    let gap = PILL_TAB_GAP;
     let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
 
     let bar_rect = ui
@@ -912,7 +912,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
             let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
             ui.painter().rect_filled(pill, RADIUS_M, BG_SURFACE);
         } else if response.hovered() {
-            let hover_bg = BG_WIDGET;
+            let hover_bg = BG_HOVER;
             let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
             ui.painter().rect_filled(pill, RADIUS_M, hover_bg);
         }
@@ -921,7 +921,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
-        let show_label = galley.size().x + 12.0 <= tab_w; // 12px padding
+        let show_label = galley.size().x + SPACE_XL <= tab_w;
         let display_text = if show_label { full_text } else { icon.to_string() };
         ui.painter().text(
             tab_rect.center(),
@@ -970,7 +970,7 @@ pub fn toolbar_toggle_button(
         label_galley = Some(galley);
     }
     let height = ROW_M;
-    let size = Vec2::new(width.max(28.0), height);
+    let size = Vec2::new(width.max(ROW_L), height);
 
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
@@ -1063,7 +1063,7 @@ pub fn toolbar_action_button(
         label_galley = Some(galley);
     }
     let height = ROW_M;
-    let size = Vec2::new(width.max(28.0), height);
+    let size = Vec2::new(width.max(ROW_L), height);
 
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 

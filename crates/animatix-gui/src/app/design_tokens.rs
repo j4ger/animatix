@@ -139,6 +139,22 @@ pub const RADIUS_M: f32 = 4.0;
 pub const RADIUS_L: f32 = 6.0;
 pub const RADIUS_XL: f32 = 8.0;
 
+// ── Component Dimensions ──
+/// Height of pill-style tab buttons.
+pub const PILL_TAB_HEIGHT: f32 = 26.0;
+/// Gap between pill-style tabs.
+pub const PILL_TAB_GAP: f32 = 2.0;
+/// Width of toast notifications.
+pub const TOAST_WIDTH: f32 = 280.0;
+/// Height of toast notifications.
+pub const TOAST_HEIGHT: f32 = 40.0;
+/// Spacing between stacked toasts.
+pub const TOAST_SPACING: f32 = 8.0;
+/// Margin from viewport edge to toasts.
+pub const TOAST_MARGIN: f32 = 16.0;
+/// Width of chevron/icon slots in tree rows.
+pub const ICON_SLOT_WIDTH: f32 = 14.0;
+
 // ── Typography ──
 pub const FONT_SIZE_XS: f32 = 10.0;
 pub const FONT_SIZE_S: f32 = 12.0;

@@ -274,7 +274,7 @@ pub(super) fn inspector_ui(
                         keyframes: &all_kf,
                         height: ROW_XS,
                     };
-                    if let Some(scrub_t) = strip.show(ui, ui.id().with("mini_timeline")) {
+                    if let Some(scrub_t) = strip.show(ui) {
                         commands.push_back(Command::ScrubTo(scrub_t));
                     }
                 });

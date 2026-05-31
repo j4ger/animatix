@@ -78,7 +78,7 @@ impl Toast {
     pub fn color(&self) -> Color32 {
         match self.level {
             ToastLevel::Info => ACCENT_BLUE,
-            ToastLevel::Success => Color32::from_rgb(76, 175, 80),
+            ToastLevel::Success => GREEN,
             ToastLevel::Warning => AMBER,
             ToastLevel::Error => RED,
         }
@@ -105,10 +105,10 @@ impl ToastQueue {
         }
 
         let viewport = ui.max_rect();
-        let toast_w = 280.0;
-        let toast_h = 40.0;
-        let spacing = 8.0;
-        let margin = 16.0;
+        let toast_w = TOAST_WIDTH;
+        let toast_h = TOAST_HEIGHT;
+        let spacing = TOAST_SPACING;
+        let margin = TOAST_MARGIN;
 
         // Stack from bottom-right
         let start_x = viewport.max.x - margin - toast_w;
