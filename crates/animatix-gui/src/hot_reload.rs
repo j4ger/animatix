@@ -56,7 +56,7 @@ impl HotReloader {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Watch error: {:?}", e);
+                    tracing::warn!("File watcher error: {:?}", e);
                 }
             }
         }

@@ -24,7 +24,7 @@ pub fn run_gui(path: Option<PathBuf>) {
             Ok(Box::new(app))
         }),
     ) {
-        eprintln!("Failed to run Animatix GUI: {e}");
+        tracing::error!("Failed to run Animatix GUI: {e}");
         std::process::exit(1);
     }
 }

@@ -682,7 +682,7 @@ pub fn handle_add_scene(
     ui_store: &UiStore,
 ) -> Vec<Effect> {
     let existing: std::collections::HashSet<String> =
-        document_store.document.scene_names().into_iter().collect();
+        document_store.document.scene_names().iter().cloned().collect();
     if let Some(ref mut stmts) = document_store.document.raw_statements {
         let mut i = 1;
         let new_name = loop {

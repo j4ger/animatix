@@ -51,9 +51,9 @@ pub enum Command {
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     PrevScene,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     NextScene,
     #[allow(dead_code)] // Handled but not yet dispatched from GUI
     AddScene,
@@ -86,7 +86,7 @@ pub enum Command {
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Handled but not yet dispatched from GUI
     ToggleKeyframeMode,
     EditorChanged,
 

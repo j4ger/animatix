@@ -4,7 +4,6 @@ use std::time::Instant;
 
 /// Toast severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum ToastLevel {
     Info,
     Success,

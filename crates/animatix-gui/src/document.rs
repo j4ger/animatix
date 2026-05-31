@@ -216,8 +216,9 @@ impl DocumentSession {
         let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();
-        let raw_statements = program.statements.clone();
+        // expand_components borrows &self, so call it before moving fields out.
         let expanded_statements = program.expand_components();
+        let raw_statements = program.statements;
         let namespaces = program.namespaces;
         Ok((raw_statements, expanded_statements, namespaces, type_diagnostics))
     }
@@ -284,11 +285,11 @@ impl DocumentSession {
         active_scene.map(|scene| &scene.timeline)
     }
 
-    pub fn scene_names(&self) -> Vec<String> {
+    pub fn scene_names(&self) -> &[String] {
         self.composition
             .as_ref()
-            .map(|composition| composition.declaration_order.clone())
-            .unwrap_or_default()
+            .map(|composition| composition.declaration_order.as_slice())
+            .unwrap_or(&[])
     }
 
     pub fn import_aliases(&self) -> Vec<String> {
