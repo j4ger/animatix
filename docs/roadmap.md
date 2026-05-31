@@ -26,19 +26,6 @@
 
 ---
 
-## Phase 9 — GUI Cleanup & Polish
-
-> Code-quality overhaul of the GUI crate. No user-visible features; purely structural.
-> See [`design/gui-redesign-2026.md`](design/gui-redesign-2026.md) for the design spec.
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 9.6 | **Extract preview drag handler** | `preview_panel.rs` is 1666 lines; ~700 are drag-handling match arms. Extract to `preview/drag_handler.rs`. **Blocked:** `PreviewContext` lives in `panels/` and `preview/` is a sibling module; moving the struct creates a circular dependency. Requires redesigning context ownership or making `PreviewContext` a shared type. | `panels/preview_panel.rs`, `preview/drag_handler.rs` | 2 days | — |
-| 9.10 | **Audit remaining magic numbers** | `STROKE_WIDTH` constant added and 94 `Stroke::new(1.0, ...)` calls replaced. Remaining: scattered hardcoded sizes, padding values, and hit radii not yet using design tokens. | Entire `app/` tree | 1 day | — |
-| 9.11 | **Consolidate GuiShell impl blocks** | Command dispatcher moved from `command_handlers.rs` to `shell/mod.rs`. Remaining: UI-specific `impl GuiShell` blocks in `shell/*.rs`, `actions/mod.rs`, and `app/mod.rs` could be further consolidated. | `app/mod.rs`, `shell/*.rs` | 1 day | — |
-
----
-
 ## Phase 10 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |
@@ -53,8 +40,7 @@
 
 1. **Phase 7** (audio — no blockers)
 2. **Phase 8** (PiP — after syntax and renderer are stable)
-3. **Phase 9** (GUI cleanup — small, can be done anytime; ideally before Phase 10)
-4. **Phase 10** (start after syntax stabilizes)
+3. **Phase 10** (start after syntax stabilizes)
 
 ---
 
