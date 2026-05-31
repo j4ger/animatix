@@ -133,6 +133,11 @@ pub const ROW_S: f32 = 20.0;
 pub const ROW_M: f32 = 24.0;
 pub const ROW_L: f32 = 28.0;
 
+// ── Stroke Widths ──
+pub const STROKE_WIDTH: f32 = 1.0;
+pub const STROKE_WIDTH_THICK: f32 = 1.5;
+pub const STROKE_WIDTH_THIN: f32 = 0.5;
+
 // ── Corner Radii ──
 pub const RADIUS_S: f32 = 2.0;
 pub const RADIUS_M: f32 = 4.0;

@@ -455,7 +455,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_stroke = Stroke::new(1.0, text_faint());
+            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
             for i in 0..4 {
                 let start = screen_corners[i];
                 let end = screen_corners[(i + 1) % 4];
@@ -497,13 +497,13 @@ pub(super) fn draw_selection_overlay(
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
-            painter.rect_stroke(handle_rect, 1.0, Stroke::new(1.0, SELECTION_COLOR), egui::StrokeKind::Outside);
+            painter.rect_stroke(handle_rect, 1.0, Stroke::new(STROKE_WIDTH, SELECTION_COLOR), egui::StrokeKind::Outside);
         }
 
         // Rotation ring arcs at corners (only when not dragging)
         if !is_dragging {
             let arc_radius = HANDLE_SIZE * 1.5 * pixels_per_point;
-            let arc_stroke = Stroke::new(1.0, SELECTION_COLOR.gamma_multiply(0.5));
+            let arc_stroke = Stroke::new(STROKE_WIDTH, SELECTION_COLOR.gamma_multiply(0.5));
             // Arc orientations (screen coordinates, y-down): 0°=right, 90°=down
             // TL (index 0): from 180° (left) up to 270° (up)    — outside of top-left
             // TR (index 1): from 270° (up)   to 0° (right)       — outside of top-right
@@ -532,14 +532,14 @@ pub(super) fn draw_selection_overlay(
             scene_to_screen(top_center_world, preview_rect, scene_dimensions, desired, zoom, pan);
         painter.line_segment(
             [top_center_screen, rot_screen],
-            Stroke::new(1.0, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
         let rot_radius = ROTATION_RADIUS * pixels_per_point;
         painter.circle_filled(rot_screen, rot_radius, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_screen,
             rot_radius,
-            Stroke::new(1.0, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
 
         // Pivot marker (crosshair) — always drawn so it can be dragged
@@ -563,7 +563,7 @@ pub(super) fn draw_selection_overlay(
                 [Pos2::new(pivot_screen.x, pivot_screen.y - cross_size), Pos2::new(pivot_screen.x, pivot_screen.y + cross_size)],
                 Stroke::new(1.5, cross_color),
             );
-            painter.circle_stroke(pivot_screen, cross_size + 2.0 * pixels_per_point, Stroke::new(1.0, cross_color));
+            painter.circle_stroke(pivot_screen, cross_size + 2.0 * pixels_per_point, Stroke::new(STROKE_WIDTH, cross_color));
         }
     } else if let Some(fallback) = fallback_rect {
         // ── Axis‑aligned fallback ────────────────────────────────────────
@@ -574,7 +574,7 @@ pub(super) fn draw_selection_overlay(
         if is_dragging {
             let dash_len = 6.0;
             let gap_len = 4.0;
-            let dash_stroke = Stroke::new(1.0, text_faint());
+            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
             let corners = [
                 sel_rect.left_top(),
                 sel_rect.right_top(),
@@ -612,7 +612,7 @@ pub(super) fn draw_selection_overlay(
             painter.rect_stroke(
                 handle_rect,
                 1.0,
-                Stroke::new(1.0, SELECTION_COLOR),
+                Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
                 egui::StrokeKind::Outside,
             );
         }
@@ -620,12 +620,12 @@ pub(super) fn draw_selection_overlay(
         // Rotation handle
         let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
         let rot_center = Pos2::new(top_center.x, top_center.y - ROTATION_OFFSET);
-        painter.line_segment([top_center, rot_center], Stroke::new(1.0, SELECTION_COLOR));
+        painter.line_segment([top_center, rot_center], Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
         painter.circle_filled(rot_center, ROTATION_RADIUS, TEXT_PRIMARY);
         painter.circle_stroke(
             rot_center,
             ROTATION_RADIUS,
-            Stroke::new(1.0, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
     }
 }
@@ -664,7 +664,7 @@ pub(super) fn draw_multi_selection_overlay(
     if is_dragging {
         let dash_len = 6.0;
         let gap_len = 4.0;
-        let dash_stroke = Stroke::new(1.0, text_faint());
+        let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
         let corners = [
             union_rect.left_top(),
             union_rect.right_top(),
@@ -702,7 +702,7 @@ pub(super) fn draw_multi_selection_overlay(
         painter.rect_stroke(
             handle_rect,
             1.0,
-            Stroke::new(1.0, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
             egui::StrokeKind::Outside,
         );
     }
@@ -739,7 +739,7 @@ pub(super) fn draw_ghost_overlay(
 
     let dash_len = 6.0;
     let gap_len = 4.0;
-    let dash_stroke = Stroke::new(1.0, color);
+    let dash_stroke = Stroke::new(STROKE_WIDTH, color);
 
     for i in 0..4 {
         let start = screen_corners[i];
@@ -853,7 +853,7 @@ pub(super) fn draw_reorder_overlay(
         &badge_text,
         badge_bg(),
         TEXT_PRIMARY,
-        Some(Stroke::new(1.0, accent)),
+        Some(Stroke::new(STROKE_WIDTH, accent)),
     );
 
     // Draw subtle shift arrows on affected siblings
@@ -895,7 +895,7 @@ pub(super) fn draw_reorder_overlay(
     painter.rect_stroke(
         tooltip_rect,
         4.0,
-        Stroke::new(1.0, accent),
+        Stroke::new(STROKE_WIDTH, accent),
         egui::StrokeKind::Outside,
     );
     painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, TEXT_PRIMARY);
@@ -1000,7 +1000,7 @@ pub(super) fn draw_vertex_handles(
             VERTEX_RADIUS * pixels_per_point
         };
         painter.circle_filled(screen, radius, fill);
-        painter.circle_stroke(screen, radius, Stroke::new(1.0, stroke_color));
+        painter.circle_stroke(screen, radius, Stroke::new(STROKE_WIDTH, stroke_color));
     }
 }
 

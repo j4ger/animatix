@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use egui::{RichText, Vec2};
 
 use crate::app::commands::{Command, CommandQueue};
-use crate::app::components;
+use crate::app::components::{button, layout, row};
 use crate::app::components::context_menu::{render_menu, MenuEntry};
 use crate::app::design_tokens::*;
 use crate::app::icons::actor_icon_str;
@@ -42,15 +42,8 @@ pub(crate) struct SidebarContext<'a> {
     pub is_playing: bool,
 }
 
-/// Uniform panel frame: 8 px padding, transparent fill.
-fn panel_frame() -> egui::Frame {
-    egui::Frame::new()
-        .fill(egui::Color32::TRANSPARENT)
-        .inner_margin(egui::Margin::same(8))
-}
-
 pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
-    panel_frame().show(ui, |ui| {
+    super::panel_frame().show(ui, |ui| {
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
 
@@ -94,7 +87,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
         (SidebarTab::Editor, egui_phosphor::regular::PENCIL_SIMPLE, "Editor"),
     ];
-    if let Some(new_tab) = components::pill_tab_bar(ui, *active_tab, &tabs) {
+    if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
     }
 }
@@ -222,7 +215,7 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             let row_id = ui.id().with(entry.path.display().to_string());
             let path = entry.path.clone();
             let is_dir = entry.is_dir;
-            let response = components::Row::new(&entry.name)
+            let response = row::Row::new(&entry.name)
                 .indent(entry.depth as f32 * ICON_SLOT_WIDTH)
                 .selected(is_selected)
                 .icon(icon)
@@ -281,7 +274,7 @@ fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         comp.scenes.get(scene_name).map(|s| &s.timeline)
     });
     let Some(timeline) = timeline else {
-        components::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
+        layout::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
         return;
     };
 
@@ -410,7 +403,7 @@ fn render_actor_tree(
     };
     let eye_color = if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED };
 
-    let response = components::Row::new(display_label)
+    let response = row::Row::new(display_label)
         .indent(depth as f32 * ICON_SLOT_WIDTH)
         .selected(is_selected)
         .icon(icon)
@@ -419,7 +412,7 @@ fn render_actor_tree(
         .expanded(is_expanded)
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
-            let eye_btn = components::icon_button_colored(
+            let eye_btn = button::icon_button_colored(
                 ui,
                 eye_icon,
                 if is_visible { "Hide layer" } else { "Show layer" },

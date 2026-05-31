@@ -1,6 +1,6 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
-use crate::app::components;
+use crate::app::components::button;
 use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::GuiShell;
@@ -208,7 +208,7 @@ impl GuiShell {
                             // Command palette / shortcut reference button
                             let shortcut =
                                 if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl+K" };
-                            if components::icon_button(
+                            if button::icon_button(
                                 ui,
                                 egui_phosphor::regular::COMMAND,
                                 &format!("Keyboard shortcuts ({shortcut} / ?)"),
@@ -218,7 +218,7 @@ impl GuiShell {
                                 self.ui_store.view.shortcuts_open = true;
                             }
 
-                            if components::icon_button(
+                            if button::icon_button(
                                 ui,
                                 egui_phosphor::regular::GEAR,
                                 "Settings",
@@ -230,7 +230,7 @@ impl GuiShell {
 
                             // Inspector toggle
                             let inspector_active = self.ui_store.view.inspector_visible;
-                            if components::toolbar_toggle_button(
+                            if button::toolbar_toggle_button(
                                 ui,
                                 egui_phosphor::regular::SLIDERS,
                                 None,
@@ -254,7 +254,7 @@ impl GuiShell {
                 egui::pos2(toolbar_rect.left(), toolbar_rect.bottom() - 1.0),
                 egui::pos2(toolbar_rect.right(), toolbar_rect.bottom() - 1.0),
             ],
-            Stroke::new(1.0, border_color),
+            Stroke::new(STROKE_WIDTH, border_color),
         );
     }
 }

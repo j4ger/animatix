@@ -86,7 +86,7 @@ impl GuiShell {
         ui.painter().rect_stroke(
             palette_rect,
             RADIUS_XL as u8,
-            Stroke::new(1.0, BORDER),
+            Stroke::new(STROKE_WIDTH, BORDER),
             egui::StrokeKind::Outside,
         );
 
@@ -159,7 +159,7 @@ impl GuiShell {
                     ui.painter().rect_stroke(
                         btn_rect,
                         RADIUS_M as u8,
-                        Stroke::new(1.0, *color),
+                        Stroke::new(STROKE_WIDTH, *color),
                         egui::StrokeKind::Outside,
                     );
                     ui.painter().text(

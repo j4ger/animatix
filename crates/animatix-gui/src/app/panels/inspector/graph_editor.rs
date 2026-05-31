@@ -25,7 +25,7 @@ pub fn render_fcurve(
 
     // Background
     painter.rect_filled(rect, RADIUS_M, BG_BASE);
-    painter.rect_stroke(rect, RADIUS_M, Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
+    painter.rect_stroke(rect, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Outside);
 
     // Collect keyframes for this property
     let field = match lookup_property(property_name) {
@@ -97,7 +97,7 @@ pub fn render_fcurve(
         let y = egui::lerp(plot_rect.top()..=plot_rect.bottom(), t);
         painter.line_segment(
             [Pos2::new(plot_rect.left(), y), Pos2::new(plot_rect.right(), y)],
-            Stroke::new(1.0, grid_line()),
+            Stroke::new(STROKE_WIDTH, grid_line()),
         );
         let val_label = format!("{:.1}", max_val - t * val_range);
         painter.text(
@@ -144,7 +144,7 @@ pub fn render_fcurve(
         painter.circle_filled(p, size, color);
 
         if is_current {
-            painter.circle_stroke(p, size + 2.0, Stroke::new(1.0, AMBER));
+            painter.circle_stroke(p, size + 2.0, Stroke::new(STROKE_WIDTH, AMBER));
         }
     }
 

@@ -114,7 +114,7 @@ impl TimeLens {
         // Outer ring background
         painter.circle_filled(center, LENS_RADIUS, BG_PANEL);
         painter.circle_stroke(center, LENS_RADIUS, Stroke::new(1.5, BORDER));
-        painter.circle_stroke(center, LENS_INNER_RADIUS, Stroke::new(1.0, BORDER));
+        painter.circle_stroke(center, LENS_INNER_RADIUS, Stroke::new(STROKE_WIDTH, BORDER));
 
         // Time range on ring: center_time ± visible_range/2
         let range_start = (center_time - self.visible_range_s / 2.0).max(0.0);
@@ -134,7 +134,7 @@ impl TimeLens {
                 center.x + angle.cos() * (LENS_RADIUS - 2.0),
                 center.y + angle.sin() * (LENS_RADIUS - 2.0),
             );
-            painter.line_segment([inner, outer], Stroke::new(1.0, grid_line()));
+            painter.line_segment([inner, outer], Stroke::new(STROKE_WIDTH, grid_line()));
             tick_time += tick_step;
         }
 

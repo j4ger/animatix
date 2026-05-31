@@ -129,7 +129,7 @@ impl ToastQueue {
             ui.painter().rect_stroke(
                 rect,
                 RADIUS_M as u8,
-                egui::Stroke::new(1.0, BORDER.linear_multiply(alpha)),
+                egui::Stroke::new(STROKE_WIDTH, BORDER.linear_multiply(alpha)),
                 egui::StrokeKind::Outside,
             );
 

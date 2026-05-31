@@ -223,7 +223,7 @@ pub fn render_floating_menu(
 fn menu_frame() -> egui::Frame {
     egui::Frame::new()
         .fill(BG_SURFACE)
-        .stroke(Stroke::new(1.0, BORDER))
+        .stroke(Stroke::new(STROKE_WIDTH, BORDER))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_S as i8))
         .shadow(egui::Shadow {
@@ -369,6 +369,6 @@ fn render_menu_separator(ui: &mut Ui, content_width: f32) {
             egui::pos2(rect.min.x + SPACE_M, y),
             egui::pos2(rect.max.x - SPACE_M, y),
         ],
-        Stroke::new(1.0, BORDER),
+        Stroke::new(STROKE_WIDTH, BORDER),
     );
 }

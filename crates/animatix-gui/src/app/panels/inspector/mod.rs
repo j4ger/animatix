@@ -1,11 +1,13 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, RichText, ScrollArea, Vec2};
 
-use crate::app::components;
+use crate::app::components::{layout, timeline};
 use crate::app::icons::actor_icon_str;
 use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
+use crate::app::panels::panel_frame;
+use crate::app::PreviewPaneState;
 
 pub(crate) mod property_groups;
 pub(crate) mod keyframe_table;
@@ -26,7 +28,60 @@ pub(crate) enum KeyframeViewMode {
     Curve,
 }
 
-// ─── Main Entry Point ─────────────────────────────────────────────────────
+pub(crate) struct InspectorContext<'a> {
+    pub preview: &'a mut PreviewPaneState,
+    pub timeline: Option<&'a Timeline>,
+    pub composition: Option<&'a animatix::composition::Composition>,
+    pub active_scene: Option<&'a str>,
+    pub selected_actors: &'a mut HashSet<String>,
+    pub commands: &'a mut CommandQueue,
+    pub keyframe_mode: bool,
+    pub scene_dimensions: animatix::timeline::SceneDimensions,
+    pub pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
+    pub property_view_mode: &'a mut PropertyViewMode,
+    pub keyframe_view_mode: &'a mut KeyframeViewMode,
+}
+
+/// Renders the unified actor inspector panel (with frame).
+pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
+    panel_frame().show(ui, |ui| {
+        let current_time_s = ctx.preview.playback.current_time_s;
+        let timeline = ctx.timeline.or_else(|| {
+            let comp = ctx.composition?;
+            let active_scene = ctx.active_scene?;
+            let active_has_actor = ctx.selected_actors.iter().next().is_some_and(|sel| {
+                comp.scenes.get(active_scene).is_some_and(|s| s.timeline.has_actor(sel))
+            });
+            if !active_has_actor {
+                let (_, _, transition) = comp.evaluate(current_time_s);
+                if transition.is_some() {
+                    for (name, scene) in &comp.scenes {
+                        if name != active_scene
+                            && ctx.selected_actors.iter().any(|sel| scene.timeline.has_actor(sel))
+                        {
+                            return Some(&scene.timeline);
+                        }
+                    }
+                }
+            }
+            comp.scenes.get(active_scene).map(|s| &s.timeline)
+        });
+        inspector_ui(
+            ui,
+            timeline,
+            ctx.selected_actors,
+            current_time_s,
+            ctx.commands,
+            ctx.keyframe_mode,
+            ctx.scene_dimensions,
+            ctx.pivot_offsets,
+            ctx.property_view_mode,
+            ctx.keyframe_view_mode,
+        );
+    });
+}
+
+// ─── Internal Entry Point ─────────────────────────────────────────────────
 
 /// Renders the unified actor inspector panel.
 ///
@@ -56,7 +111,7 @@ pub(super) fn inspector_ui(
     }
 
     let Some(timeline) = timeline else {
-        components::empty_state(
+        layout::empty_state(
             ui,
             egui_phosphor::regular::FILM_STRIP,
             "No timeline loaded",
@@ -72,7 +127,7 @@ pub(super) fn inspector_ui(
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(components::EMPTY_STATE_ICON_SIZE)
+                        .size(layout::EMPTY_STATE_ICON_SIZE)
                         .color(TEXT_MUTED),
                 )
                 .selectable(false),
@@ -113,7 +168,7 @@ pub(super) fn inspector_ui(
 
     if let Some(sel) = selected_actors.iter().next() {
         let Some(track) = timeline.get_track(sel) else {
-            components::empty_state(
+            layout::empty_state(
                 ui,
                 egui_phosphor::regular::WARNING,
                 "Actor not found",
@@ -141,10 +196,10 @@ pub(super) fn inspector_ui(
                 ui.add_space(SPACE_M);
 
                 // ── Active Properties ──
-                components::card(ui, |ui| {
+                layout::card(ui, |ui| {
                     let mut view_mode = *property_view_mode;
 
-                    components::section_header(
+                    layout::section_header(
                         ui,
                         egui_phosphor::regular::WRENCH,
                         "Properties",
@@ -227,18 +282,18 @@ pub(super) fn inspector_ui(
 
                 // ── Pivot ──
                 if multi_count == 1 {
-                    components::card(ui, |ui| {
-                        components::section_header(
+                    layout::card(ui, |ui| {
+                        layout::section_header(
                             ui,
                             egui_phosphor::regular::CROSSHAIR,
                             "Pivot",
                             None,
                         );
                         let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
-                        components::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                             ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
                         });
-                        components::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                             ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                         });
                         if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED))
@@ -253,8 +308,8 @@ pub(super) fn inspector_ui(
 
                 // ── Container Children ──
                 if timeline.container_metadata().contains_key(sel) {
-                    components::card(ui, |ui| {
-                        components::section_header(
+                    layout::card(ui, |ui| {
+                        layout::section_header(
                             ui,
                             egui_phosphor::regular::ROWS,
                             "Children",
@@ -268,8 +323,8 @@ pub(super) fn inspector_ui(
                 }
 
                 // ── Mini Timeline ──
-                components::card(ui, |ui| {
-                    components::section_header(
+                layout::card(ui, |ui| {
+                    layout::section_header(
                         ui,
                         egui_phosphor::regular::CLOCK,
                         "Timeline",
@@ -277,7 +332,7 @@ pub(super) fn inspector_ui(
                     );
                     let duration_s = timeline.duration_seconds().max(0.1);
                     let all_kf = collect_all_keyframe_times(track);
-                    let strip = components::TimelineStrip {
+                    let strip = timeline::TimelineStrip {
                         duration_s,
                         current_time_s,
                         keyframes: &all_kf,
@@ -292,10 +347,10 @@ pub(super) fn inspector_ui(
 
                 // ── Keyframes ──
                 let kf_count = count_keyframes(track);
-                components::card(ui, |ui| {
+                layout::card(ui, |ui| {
                     let mut kf_view = *keyframe_view_mode;
 
-                    components::section_header(
+                    layout::section_header(
                         ui,
                         egui_phosphor::regular::KEY,
                         "Keyframes",
@@ -380,7 +435,7 @@ pub(super) fn inspector_ui(
                 });
             });
     } else {
-        components::empty_state(
+        layout::empty_state(
             ui,
             egui_phosphor::regular::MAGNIFYING_GLASS,
             "Select an actor to inspect",
@@ -498,7 +553,7 @@ fn render_property_stream(
                     egui::pos2(divider_rect.min.x + SPACE_S, divider_rect.min.y + 4.0),
                     egui::pos2(divider_rect.max.x - SPACE_S, divider_rect.min.y + 4.0),
                 ],
-                egui::Stroke::new(1.0, BORDER),
+                egui::Stroke::new(STROKE_WIDTH, BORDER),
             );
         }
         ui.add_space(SPACE_S);

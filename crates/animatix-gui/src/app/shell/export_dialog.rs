@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::app::design_tokens::*;
-use crate::app::components;
+use crate::app::components::layout;
 use crate::app::GuiShell;
 
 
@@ -109,7 +109,7 @@ impl GuiShell {
         ui.painter().rect_stroke(
             dialog_rect,
             RADIUS_XL,
-            Stroke::new(1.0, BORDER),
+            Stroke::new(STROKE_WIDTH, BORDER),
             egui::StrokeKind::Inside,
         );
 
@@ -165,7 +165,7 @@ impl GuiShell {
                     egui::pos2(content_rect.left(), cursor_y),
                     egui::pos2(content_rect.right(), cursor_y),
                 ],
-                Stroke::new(1.0, BORDER),
+                Stroke::new(STROKE_WIDTH, BORDER),
             );
             cursor_y += SPACE_L;
 
@@ -180,7 +180,7 @@ impl GuiShell {
                 Vec2::new(content_rect.width(), ROW_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
-                if let Some(new_fmt) = components::pill_tab_bar(ui, self.export_store.export_state.format, &tabs) {
+                if let Some(new_fmt) = layout::pill_tab_bar(ui, self.export_store.export_state.format, &tabs) {
                     self.export_store.export_state.format = new_fmt;
                     if self.export_store.export_state.output_path.is_empty() {
                         self.update_default_export_filename();
@@ -327,7 +327,7 @@ impl GuiShell {
         let btn_resp = ui.interact(btn_rect, ui.id().with("export_cancel"), egui::Sense::click());
         let btn_bg = if btn_resp.hovered() { BG_HOVER } else { BG_WIDGET };
         ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
-        ui.painter().rect_stroke(btn_rect, RADIUS_M, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(btn_rect, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Inside);
         ui.painter().text(
             btn_rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -365,7 +365,7 @@ impl GuiShell {
             // ── Resolution row ──
             Self::settings_row(ui, "Resolution", |ui| {
                 let mut w_f32 = *width as f32;
-                components::field_sized(ui, Some(78.0), |ui| {
+                layout::field_sized(ui, Some(78.0), |ui| {
                     ui.add(
                         egui::DragValue::new(&mut w_f32)
                             .speed(10.0)
@@ -378,7 +378,7 @@ impl GuiShell {
                 ui.add_space(SPACE_S);
 
                 let mut h_f32 = *height as f32;
-                components::field_sized(ui, Some(78.0), |ui| {
+                layout::field_sized(ui, Some(78.0), |ui| {
                     ui.add(
                         egui::DragValue::new(&mut h_f32)
                             .speed(10.0)
@@ -413,7 +413,7 @@ impl GuiShell {
                 ExportFormat::Image => {
                     Self::settings_row(ui, "Time", |ui| {
                         let mut t = *time_s;
-                        components::field_sized(ui, Some(100.0), |ui| {
+                        layout::field_sized(ui, Some(100.0), |ui| {
                             ui.add(
                                 egui::DragValue::new(&mut t)
                                     .speed(0.1)
@@ -442,7 +442,7 @@ impl GuiShell {
                     // FPS
                     Self::settings_row(ui, "FPS", |ui| {
                         let mut fps_f32 = *fps as f32;
-                        components::field_sized(ui, Some(70.0), |ui| {
+                        layout::field_sized(ui, Some(70.0), |ui| {
                             ui.add(
                                 egui::DragValue::new(&mut fps_f32)
                                     .speed(1.0)
@@ -463,7 +463,7 @@ impl GuiShell {
                             ui.label(RichText::new("Hold:").size(FONT_SIZE_S).color(TEXT_SECONDARY));
 
                             let mut hold = *hold_s;
-                            components::field_sized(ui, Some(80.0), |ui| {
+                            layout::field_sized(ui, Some(80.0), |ui| {
                                 ui.add(
                                     egui::DragValue::new(&mut hold)
                                         .speed(0.1)
@@ -476,7 +476,7 @@ impl GuiShell {
                             ui.add_space(SPACE_S);
 
                             let mut dur = *duration_s;
-                            components::field_sized(ui, Some(80.0), |ui| {
+                            layout::field_sized(ui, Some(80.0), |ui| {
                                 ui.add(
                                     egui::DragValue::new(&mut dur)
                                         .speed(0.5)
@@ -519,7 +519,7 @@ impl GuiShell {
             // ── Output path ──
             Self::settings_row(ui, "Output", |ui| {
                 let path_width = ui.available_width();
-                components::field_sized(ui, Some(path_width), |ui| {
+                layout::field_sized(ui, Some(path_width), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(output_path)
                             .hint_text("output filename…"),

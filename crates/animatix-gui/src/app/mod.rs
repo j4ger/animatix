@@ -2,6 +2,7 @@
 mod actions;
 pub(crate) mod command_handlers;
 pub(crate) mod commands;
+pub(crate) mod handlers;
 pub(crate) mod components;
 mod document_controller;
 mod file_tree;
@@ -368,7 +369,7 @@ impl GuiShell {
             // Clear any stale error before rebuild so a successful rebuild
             // doesn't leave an outdated error banner visible.
             self.preview_store.preview.error = None;
-            let effects = crate::app::command_handlers::handle_rebuild(
+            let effects = crate::app::handlers::file::handle_rebuild(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
@@ -432,7 +433,7 @@ impl GuiShell {
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if let Some(target) =
-                        components::diagnostics_list(ui, &diagnostics)
+                        components::diagnostics::diagnostics_list(ui, &diagnostics)
                     {
                         self.ui_store.pending_commands.push_back(
                             Command::ScrollToLine(target.line, target.column)
@@ -556,7 +557,7 @@ impl GuiShell {
                         .color(TEXT_PRIMARY),
                 )
                 .fill(BG_WIDGET)
-                .stroke(Stroke::new(1.0, BORDER_HOVER))
+                .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
                 .rounding(RADIUS_M),
             );
 
@@ -740,7 +741,7 @@ impl GuiShell {
             .frame(
                 egui::Frame::new()
                     .fill(BG_BASE)
-                    .stroke(Stroke::new(1.0, BORDER))
+                    .stroke(Stroke::new(STROKE_WIDTH, BORDER))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )

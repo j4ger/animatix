@@ -504,37 +504,37 @@ fn install_theme(ctx: &egui::Context) {
     // Widget states
     style.visuals.widgets.noninteractive.bg_fill = BG_SURFACE;
     style.visuals.widgets.noninteractive.weak_bg_fill = BG_SURFACE;
-    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER);
-    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, TEXT_SECONDARY);
+    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(STROKE_WIDTH, BORDER);
+    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_SECONDARY);
     style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(4);
 
     style.visuals.widgets.inactive.bg_fill = BG_WIDGET;
     style.visuals.widgets.inactive.weak_bg_fill = BG_WIDGET;
-    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, BORDER);
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(STROKE_WIDTH, BORDER);
+    style.visuals.widgets.inactive.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
     style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(4);
 
     style.visuals.widgets.hovered.bg_fill = WIDGET_HOVER;
     style.visuals.widgets.hovered.weak_bg_fill = WIDGET_HOVER;
-    style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, ACCENT_BLUE);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.hovered.bg_stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
+    style.visuals.widgets.hovered.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
     style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
 
     style.visuals.widgets.active.bg_fill = BG_ACTIVE;
     style.visuals.widgets.active.weak_bg_fill = BG_ACTIVE;
-    style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT_BLUE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.active.bg_stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
+    style.visuals.widgets.active.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
     style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
 
     // Selection
     style.visuals.selection.bg_fill = accent_selection();
-    style.visuals.selection.stroke = Stroke::new(1.0, ACCENT_BLUE);
+    style.visuals.selection.stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
 
     // Text colors
     style.visuals.override_text_color = Some(TEXT_PRIMARY);
 
     // Strikethrough / separator
-    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BG_WIDGET);
+    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(STROKE_WIDTH, BG_WIDGET);
 
     ctx.set_global_style(style);
 }

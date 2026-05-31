@@ -1021,7 +1021,7 @@ impl PreviewContext<'_> {
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
                     ui.painter().rect_filled(bg_rect, 3.0, crate::app::design_tokens::snap_guide_label_bg());
-                    ui.painter().rect_stroke(bg_rect, 3.0, egui::Stroke::new(1.0, crate::app::design_tokens::snap_guide_line()), egui::StrokeKind::Outside);
+                    ui.painter().rect_stroke(bg_rect, 3.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::snap_guide_line()), egui::StrokeKind::Outside);
                     ui.painter().galley(hud_pos + padding, galley, GREEN);
                 }
             }
@@ -1053,7 +1053,7 @@ impl PreviewContext<'_> {
 
         let threshold = 8.0;
         let guide_color = crate::app::design_tokens::accent_subtle();
-        let guide_stroke = egui::Stroke::new(1.0, guide_color);
+        let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
 
         for (label, bounds) in self.hit_regions {
             if label == primary || self.selected_actors.contains(label) { continue; }
@@ -1125,10 +1125,10 @@ impl PreviewContext<'_> {
                             let start_screen = preview::scene_to_screen(kurbo::Point::new(start_scene.x, start_scene.y), preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan);
                             let current_screen = preview::scene_to_screen(kurbo::Point::new(props.position[0] as f64, props.position[1] as f64), preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan);
                             let y = (start_screen.y + current_screen.y) / 2.0;
-                            ui.painter().line_segment([Pos2::new(start_screen.x.min(current_screen.x), y), Pos2::new(start_screen.x.max(current_screen.x), y)], egui::Stroke::new(1.0, measurement_color));
+                            ui.painter().line_segment([Pos2::new(start_screen.x.min(current_screen.x), y), Pos2::new(start_screen.x.max(current_screen.x), y)], egui::Stroke::new(STROKE_WIDTH, measurement_color));
                             ui.painter().text(Pos2::new((start_screen.x + current_screen.x) / 2.0, y - 8.0), egui::Align2::CENTER_BOTTOM, format!("Δx: {:+.0}", props.position[0] - start_scene.x as f32), font.clone(), text_color);
                             let x = (start_screen.x + current_screen.x) / 2.0;
-                            ui.painter().line_segment([Pos2::new(x, start_screen.y.min(current_screen.y)), Pos2::new(x, start_screen.y.max(current_screen.y))], egui::Stroke::new(1.0, measurement_color));
+                            ui.painter().line_segment([Pos2::new(x, start_screen.y.min(current_screen.y)), Pos2::new(x, start_screen.y.max(current_screen.y))], egui::Stroke::new(STROKE_WIDTH, measurement_color));
                             ui.painter().text(Pos2::new(x + 4.0, (start_screen.y + current_screen.y) / 2.0), egui::Align2::LEFT_CENTER, format!("Δy: {:+.0}", props.position[1] - start_scene.y as f32), font.clone(), text_color);
                         }
                     }
@@ -1190,7 +1190,7 @@ impl PreviewContext<'_> {
         if let (Some(start), Some(current)) = (self.selection.marquee_start, self.selection.marquee_current) {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
             ui.painter().rect_filled(marquee_rect, 0.0, crate::app::design_tokens::accent_faint());
-            ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(1.0, crate::app::design_tokens::accent_subtle()), egui::StrokeKind::Outside);
+            ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::accent_subtle()), egui::StrokeKind::Outside);
         }
     }
 }
@@ -1219,9 +1219,9 @@ fn preview_scene_to_screen(
     tx.scene_to_screen(scene)
 }
 
-// ─── Main preview_ui function ──────────────────────────────────────────────
+// ─── Main preview_panel_ui function ─────────────────────────────────────────
 
-pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
     // Preview uses zero-margin frame to maximize canvas area.
     egui::Frame::new()
         .fill(egui::Color32::TRANSPARENT)
@@ -1257,7 +1257,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                 desired,
             );
             let response = ui.allocate_rect(preview_rect, egui::Sense::click_and_drag());
-            ui.painter().rect_stroke(preview_rect, RADIUS_L, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
+            ui.painter().rect_stroke(preview_rect, RADIUS_L, egui::Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Outside);
             ui.painter().rect_filled(preview_rect, RADIUS_L, BG_BASE);
 
             // ── Rulers ──
@@ -1278,7 +1278,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                 egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
                 Vec2::new(RULER_SIZE, RULER_SIZE),
             );
-            let ruler_stroke = egui::Stroke::new(1.0, BORDER);
+            let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, BORDER);
 
             ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
             ui.painter().rect_stroke(corner_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
@@ -1314,7 +1314,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                     ui.painter().line_segment(
                         [egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y),
                          egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y - tick_h)],
-                        egui::Stroke::new(1.0, if is_major { ruler_label_color } else { ruler_tick_color }),
+                        egui::Stroke::new(STROKE_WIDTH, if is_major { ruler_label_color } else { ruler_tick_color }),
                     );
                     if is_major {
                         ui.painter().text(
@@ -1347,7 +1347,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                     ui.painter().line_segment(
                         [egui::pos2(v_ruler_rect.max.x, v_ruler_rect.min.y + rel_y),
                          egui::pos2(v_ruler_rect.max.x - tick_w, v_ruler_rect.min.y + rel_y)],
-                        egui::Stroke::new(1.0, if is_major { ruler_label_color } else { ruler_tick_color }),
+                        egui::Stroke::new(STROKE_WIDTH, if is_major { ruler_label_color } else { ruler_tick_color }),
                     );
                     if is_major {
                         ui.painter().text(
@@ -1387,12 +1387,12 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                     if is_vertical {
                         let ghost_screen = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene.x, 0.0));
                         if ghost_screen.x >= preview_rect.min.x && ghost_screen.x <= preview_rect.max.x {
-                            ui.painter().line_segment([egui::pos2(ghost_screen.x, preview_rect.min.y), egui::pos2(ghost_screen.x, preview_rect.max.y)], egui::Stroke::new(1.0, guide_color));
+                            ui.painter().line_segment([egui::pos2(ghost_screen.x, preview_rect.min.y), egui::pos2(ghost_screen.x, preview_rect.max.y)], egui::Stroke::new(STROKE_WIDTH, guide_color));
                         }
                     } else {
                         let ghost_screen = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, scene.y));
                         if ghost_screen.y >= preview_rect.min.y && ghost_screen.y <= preview_rect.max.y {
-                            ui.painter().line_segment([egui::pos2(preview_rect.min.x, ghost_screen.y), egui::pos2(preview_rect.max.x, ghost_screen.y)], egui::Stroke::new(1.0, guide_color));
+                            ui.painter().line_segment([egui::pos2(preview_rect.min.x, ghost_screen.y), egui::pos2(preview_rect.max.x, ghost_screen.y)], egui::Stroke::new(STROKE_WIDTH, guide_color));
                         }
                     }
                 }
@@ -1418,13 +1418,13 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                 for &guide_y in &ctx.preview.guides.horizontal_guides {
                     let screen_pt = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, guide_y as f64));
                     if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                        ui.painter().line_segment([egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)], egui::Stroke::new(1.0, guide_color));
+                        ui.painter().line_segment([egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)], egui::Stroke::new(STROKE_WIDTH, guide_color));
                     }
                 }
                 for &guide_x in &ctx.preview.guides.vertical_guides {
                     let screen_pt = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(guide_x as f64, 0.0));
                     if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                        ui.painter().line_segment([egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)], egui::Stroke::new(1.0, guide_color));
+                        ui.painter().line_segment([egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)], egui::Stroke::new(STROKE_WIDTH, guide_color));
                     }
                 }
             }
@@ -1529,7 +1529,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                 );
                 let bounds_screen = egui::Rect::from_min_max(bounds_rect, bounds_br).intersect(preview_rect);
                 if bounds_screen.is_positive() {
-                    ui.painter().rect_stroke(bounds_screen, 0.0, egui::Stroke::new(1.0, BORDER_HOVER), egui::StrokeKind::Inside);
+                    ui.painter().rect_stroke(bounds_screen, 0.0, egui::Stroke::new(STROKE_WIDTH, BORDER_HOVER), egui::StrokeKind::Inside);
                 }
             }
 
@@ -1557,13 +1557,13 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                 for &sy in &ctx.preview.snap.snap_lines_h {
                     let screen_pt = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, sy as f64));
                     if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                        ui.painter().line_segment([egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)], egui::Stroke::new(1.0, color));
+                        ui.painter().line_segment([egui::pos2(preview_rect.min.x, screen_pt.y), egui::pos2(preview_rect.max.x, screen_pt.y)], egui::Stroke::new(STROKE_WIDTH, color));
                     }
                 }
                 for &sx in &ctx.preview.snap.snap_lines_v {
                     let screen_pt = ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(sx as f64, 0.0));
                     if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                        ui.painter().line_segment([egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)], egui::Stroke::new(1.0, color));
+                        ui.painter().line_segment([egui::pos2(screen_pt.x, preview_rect.min.y), egui::pos2(screen_pt.x, preview_rect.max.y)], egui::Stroke::new(STROKE_WIDTH, color));
                     }
                 }
             }

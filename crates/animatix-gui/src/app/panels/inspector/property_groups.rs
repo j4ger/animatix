@@ -6,7 +6,7 @@ use animatix::timeline::{
 };
 use egui::{Color32, Stroke, Vec2};
 
-use crate::app::components;
+use crate::app::components::row;
 use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue as GuiPropertyValue};
 
@@ -242,7 +242,7 @@ pub(crate) fn render_property_group(
     let group_id = ui.id().with(("prop_group", group.name));
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
 
-    let header = components::Row::new(group.name)
+    let header = row::Row::new(group.name)
         .height(ROW_M)
         .icon(Some(group.icon))
         .has_children(true)
@@ -394,7 +394,7 @@ pub(crate) fn render_property_row(
         if entry.has_keyframe_at_current_time {
             ui.painter().add(egui::Shape::convex_polygon(points, kf_color, Stroke::NONE));
         } else {
-            ui.painter().add(egui::Shape::convex_polygon(points, Color32::TRANSPARENT, Stroke::new(1.0, kf_color)));
+            ui.painter().add(egui::Shape::convex_polygon(points, Color32::TRANSPARENT, Stroke::new(STROKE_WIDTH, kf_color)));
         }
     }
     // Click keyframe button to create a keyframe (when not already present)

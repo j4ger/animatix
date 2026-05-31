@@ -1,6 +1,6 @@
 use egui::{RichText, Stroke};
 
-use crate::app::components;
+use crate::app::components::layout;
 use crate::app::design_tokens::*;
 
 use crate::app::GuiShell;
@@ -45,7 +45,7 @@ impl GuiShell {
             .frame(
                 egui::Frame::new()
                     .fill(BG_BASE)
-                    .stroke(Stroke::new(1.0, BORDER))
+                    .stroke(Stroke::new(STROKE_WIDTH, BORDER))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -72,10 +72,10 @@ impl GuiShell {
                 ui.add_space(SPACE_M);
 
                 // ── Preview ──
-                components::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
+                layout::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Grid size").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -91,10 +91,10 @@ impl GuiShell {
                 ui.add_space(SPACE_M);
 
                 // ── Input ──
-                components::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
+                layout::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Nudge step").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -109,7 +109,7 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Nudge step (Shift)").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -124,7 +124,7 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Rotation snap").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -140,10 +140,10 @@ impl GuiShell {
                 ui.add_space(SPACE_M);
 
                 // ── Playback ──
-                components::section_header(ui, egui_phosphor::regular::PLAY, "Playback", None);
+                layout::section_header(ui, egui_phosphor::regular::PLAY, "Playback", None);
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Scrub step").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -159,10 +159,10 @@ impl GuiShell {
                 ui.add_space(SPACE_M);
 
                 // ── Editor ──
-                components::section_header(ui, egui_phosphor::regular::PENCIL, "Editor", None);
+                layout::section_header(ui, egui_phosphor::regular::PENCIL, "Editor", None);
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Rebuild debounce").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -177,7 +177,7 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Undo limit").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
@@ -192,7 +192,7 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                components::labeled_row(
+                layout::labeled_row(
                     ui,
                     RichText::new("Keyframe merge window").size(FONT_SIZE_S).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,

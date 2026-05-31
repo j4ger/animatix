@@ -53,18 +53,6 @@ pub enum Command {
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    PrevScene,
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    NextScene,
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    AddScene,
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    DeleteScene(String),
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    RenameScene { old_name: String, new_name: String },
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
 
@@ -88,8 +76,6 @@ pub enum Command {
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,
-    #[allow(dead_code)] // Handled but not yet dispatched from GUI
-    ToggleKeyframeMode,
     EditorChanged,
 
     // ── Drag / Interaction lifecycle ──────────────────────────────────
@@ -103,10 +89,6 @@ pub enum Command {
     // ── Undo / Redo ───────────────────────────────────────────────────
     Undo,
     Redo,
-
-    // ── Render ────────────────────────────────────────────────────────
-    #[allow(dead_code)] // WIP: will be used when repaint-on-demand is implemented
-    RequestRepaint,
 }
 
 /// Describes a property edit made in the inspector panel.

@@ -49,7 +49,7 @@ pub(super) fn render_dope_sheet(
     let groups = collect_track_groups(track);
 
     if groups.is_empty() {
-        crate::app::components::empty_state(
+        crate::app::components::layout::empty_state(
             ui,
             egui_phosphor::regular::FILM_STRIP,
             "No keyframes",
@@ -197,7 +197,7 @@ fn render_compact_track_row(
         if playhead_x >= strip_rect.left() && playhead_x <= strip_rect.right() {
             ui.painter().line_segment(
                 [egui::pos2(playhead_x, strip_rect.top()), egui::pos2(playhead_x, strip_rect.bottom())],
-                egui::Stroke::new(1.0, AMBER),
+                egui::Stroke::new(STROKE_WIDTH, AMBER),
             );
         }
 

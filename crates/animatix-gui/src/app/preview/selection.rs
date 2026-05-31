@@ -237,7 +237,7 @@ pub(crate) fn draw_hover_highlight(
                 start.x + (end.x - start.x) * t1,
                 start.y + (end.y - start.y) * t1,
             );
-            painter.line_segment([p0, p1], Stroke::new(1.0, hover_color));
+            painter.line_segment([p0, p1], Stroke::new(STROKE_WIDTH, hover_color));
             pos += dash_len + gap_len;
         }
     }
@@ -261,7 +261,7 @@ pub(crate) fn draw_hover_highlight(
     painter.rect_stroke(
         tooltip_rect,
         RADIUS_M,
-        Stroke::new(1.0, BORDER),
+        Stroke::new(STROKE_WIDTH, BORDER),
         egui::StrokeKind::Outside,
     );
     painter.galley(

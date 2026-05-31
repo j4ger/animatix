@@ -1,6 +1,6 @@
 //! Grid overlay rendering for the preview canvas.
 
-use crate::app::design_tokens::grid_line;
+use crate::app::design_tokens::{grid_line, STROKE_WIDTH};
 use animatix::timeline::SceneDimensions;
 use egui::{Pos2, Stroke};
 
@@ -29,7 +29,7 @@ pub fn draw_grid(
         if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
             painter.line_segment(
                 [Pos2::new(screen_pt.x, preview_rect.min.y), Pos2::new(screen_pt.x, preview_rect.max.y)],
-                Stroke::new(1.0, grid_color),
+                Stroke::new(STROKE_WIDTH, grid_color),
             );
         }
         x += grid_size;
@@ -40,7 +40,7 @@ pub fn draw_grid(
         if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
             painter.line_segment(
                 [Pos2::new(preview_rect.min.x, screen_pt.y), Pos2::new(preview_rect.max.x, screen_pt.y)],
-                Stroke::new(1.0, grid_color),
+                Stroke::new(STROKE_WIDTH, grid_color),
             );
         }
         y += grid_size;

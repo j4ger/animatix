@@ -5,8 +5,6 @@ pub mod timeline_panel;
 
 pub mod sidebar;
 pub mod editor;
-pub mod inspector_panel;
-pub mod timeline;
 pub mod preview_panel;
 
 pub use crate::app::commands::{PropertyEdit, PropertyValue};
@@ -54,7 +52,7 @@ pub(super) fn nice_tick_interval(visible_range: f32, target_ticks: f32) -> f32 {
 pub(super) const RULER_SIZE: f32 = 20.0;
 
 /// Uniform panel frame: 8 px padding, transparent fill.
-pub(super) fn panel_frame() -> egui::Frame {
+pub(crate) fn panel_frame() -> egui::Frame {
     egui::Frame::new()
         .fill(egui::Color32::TRANSPARENT)
         .inner_margin(egui::Margin::same(8))

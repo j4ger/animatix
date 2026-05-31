@@ -20,12 +20,43 @@
 use std::collections::HashSet;
 
 use crate::app::commands::{Command, CommandQueue};
-use crate::app::components::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
+use crate::app::components::button::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
 use crate::app::design_tokens::*;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+
+pub(crate) struct TimelineContext<'a> {
+    pub preview: &'a mut PreviewPaneState,
+    pub timeline: Option<&'a Timeline>,
+    pub composition: Option<&'a Composition>,
+    pub active_scene: Option<&'a str>,
+    pub commands: &'a mut CommandQueue,
+    pub collapsed_actors: &'a mut HashSet<String>,
+    pub selected_actors: &'a mut HashSet<String>,
+    /// Cached actor labels (recomputed in behavior.rs when stale).
+    pub actor_labels: &'a [String],
+    /// Cached per-actor keyframe property lists.
+    pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
+}
+
+/// Render the entire timeline panel.
+pub(crate) fn timeline_panel_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
+    render_timeline_content(
+        ui,
+        ctx.preview,
+        ctx.timeline,
+        ctx.composition,
+        ctx.active_scene,
+        ctx.commands,
+        ctx.collapsed_actors,
+        ctx.selected_actors,
+        ctx.actor_labels,
+        ctx.actor_keyframes,
+    );
+}
+
 
 /// Width of the track label column on the left.
 use crate::app::design_tokens::{
@@ -111,8 +142,7 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
     result
 }
 
-/// Render the entire timeline panel.
-pub(crate) fn timeline_panel_ui(
+fn render_timeline_content(
     ui: &mut egui::Ui,
     preview: &mut PreviewPaneState,
     timeline: Option<&Timeline>,
@@ -399,9 +429,9 @@ pub(crate) fn timeline_panel_ui(
 
                         // Time display (right-aligned)
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let time_text = format!("{:02}:{:02.2} / {:02}:{:02.2}",
-                                preview.playback.current_time_s as i32 / 60, preview.playback.current_time_s % 60.0,
-                                preview.playback.duration_s as i32 / 60, preview.playback.duration_s % 60.0);
+                            let time_text = format!("{:.2}s / {:.2}s",
+                                preview.playback.current_time_s,
+                                preview.playback.duration_s);
                             ui.add(egui::Label::new(
                                 egui::RichText::new(time_text)
                                     .font(FontId::monospace(FONT_SIZE_S))
@@ -415,7 +445,7 @@ pub(crate) fn timeline_panel_ui(
                 let painter = ui.painter();
                 painter.line_segment(
                     [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
-                    Stroke::new(1.0, BORDER));
+                    Stroke::new(STROKE_WIDTH, BORDER));
             }
 
             // ── Get painter (immutable borrow) and draw everything ──
@@ -436,7 +466,7 @@ pub(crate) fn timeline_panel_ui(
                 while t <= duration_s {
                     let x = time_to_x(t);
                     if x >= bar_origin_x && x <= bar_origin_x + bar_width {
-                        painter.line_segment([Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)], Stroke::new(1.0, BORDER));
+                        painter.line_segment([Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)], Stroke::new(STROKE_WIDTH, BORDER));
                         painter.text(Pos2::new(x, ruler_top + RULER_HEIGHT * 0.35), Align2::CENTER_CENTER,
                             if tick_step >= 1.0 { format!("{:.0}s", t) } else { format!("{:.1}s", t) },
                             FontId::monospace(FONT_SIZE_XS), TEXT_MUTED);
@@ -470,7 +500,7 @@ pub(crate) fn timeline_panel_ui(
                     let tgt_left = time_to_x(tgt_start);
                     if tgt_left <= src_right { continue; }
                     let cy = bar_area.center().y;
-                    painter.line_segment([Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)], Stroke::new(1.0, TEXT_MUTED));
+                    painter.line_segment([Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)], Stroke::new(STROKE_WIDTH, TEXT_MUTED));
                     painter.add(egui::Shape::convex_polygon(
                         vec![Pos2::new(tgt_left, cy), Pos2::new(tgt_left - 4.0, cy - 2.5), Pos2::new(tgt_left - 4.0, cy + 2.5)],
                         TEXT_MUTED, Stroke::NONE));
@@ -479,7 +509,7 @@ pub(crate) fn timeline_panel_ui(
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
                 bar_interaction(ui, bar_area, "scene_track", commands);
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
-                painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(1.0, BORDER));
+                painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(STROKE_WIDTH, BORDER));
             }
 
             // ── Actor tracks (tree structure, all actors) ──
@@ -593,7 +623,7 @@ pub(crate) fn timeline_panel_ui(
                             );
                             let color = action_category_color(event.category);
                             painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.5));
-                            painter.rect_stroke(br, RADIUS_S, Stroke::new(1.0, color), egui::StrokeKind::Outside);
+                            painter.rect_stroke(br, RADIUS_S, Stroke::new(STROKE_WIDTH, color), egui::StrokeKind::Outside);
                             if br.width() > 40.0 {
                                 painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                             }
@@ -675,7 +705,7 @@ pub(crate) fn timeline_panel_ui(
                                     let snapped = (nt * 10.0).round() / 10.0;
                                     new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                     let gx = time_to_x(snapped);
-                                    painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(1.0, AMBER.linear_multiply(0.5)));
+                                    painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(STROKE_WIDTH, AMBER.linear_multiply(0.5)));
                                     let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                                     let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0), g.size() + Vec2::new(8.0, 4.0));
                                     painter.rect_filled(tr, RADIUS_S, BG_SURFACE);
@@ -716,10 +746,10 @@ pub(crate) fn timeline_panel_ui(
                 }
 
                 // Per-track playhead
-                painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(1.0, text_faint()));
+                painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(STROKE_WIDTH, text_faint()));
 
                 // Track separator
-                painter.line_segment([Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)], Stroke::new(1.0, BORDER));
+                painter.line_segment([Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)], Stroke::new(STROKE_WIDTH, BORDER));
             }
 
             // ── Range slider for work/export region ──
@@ -783,6 +813,6 @@ pub(crate) fn timeline_panel_ui(
             });
 
             // Draw clip rect border
-            ui.painter().rect_stroke(scroll_rect, 0.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+            ui.painter().rect_stroke(scroll_rect, 0.0, Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Inside);
         });
 }

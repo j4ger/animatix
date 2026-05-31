@@ -1,5 +1,5 @@
 use crate::app::commands::{Command, CommandQueue, PropertyEdit, PropertyValue};
-use crate::app::components;
+use crate::app::components::button;
 use crate::app::preview::ActorProps;
 use crate::app::design_tokens::*;
 use animatix::timeline::Timeline;
@@ -57,7 +57,7 @@ pub fn show_property_popup(
     ui.painter().rect_stroke(
         popup_rect,
         RADIUS_L as u8,
-        Stroke::new(1.0, BORDER),
+        Stroke::new(STROKE_WIDTH, BORDER),
         egui::StrokeKind::Outside,
     );
 
@@ -71,7 +71,7 @@ pub fn show_property_popup(
         ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(SPACE_XS, 0.0);
-            if components::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
+            if button::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
                 // Close is implicit — deselect actor
                 // (handled by Esc or clicking elsewhere)
             }
@@ -270,7 +270,7 @@ fn popup_property_row(
             Pos2::new(center.x - diamond_size / 2.0, center.y),
         ],
         fill_color,
-        Stroke::new(1.0, diamond_color),
+        Stroke::new(STROKE_WIDTH, diamond_color),
     ));
 
     // Label

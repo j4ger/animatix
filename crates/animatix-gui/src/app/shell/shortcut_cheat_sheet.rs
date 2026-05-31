@@ -88,7 +88,7 @@ impl GuiShell {
         ui.painter().rect_stroke(
             panel_rect,
             RADIUS_XL as u8,
-            Stroke::new(1.0, BORDER),
+            Stroke::new(STROKE_WIDTH, BORDER),
             egui::StrokeKind::Outside,
         );
 

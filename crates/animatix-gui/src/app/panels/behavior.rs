@@ -3,7 +3,7 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
 use crate::app::design_tokens::*;
-use crate::app::panels::{sidebar, editor, inspector_panel, timeline, preview_panel};
+use crate::app::panels::{sidebar, editor, inspector, timeline_panel, preview_panel};
 use crate::app::stores;
 use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
 use crate::app::commands::CommandQueue;
@@ -95,10 +95,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     active_scene: self.document_store.document.active_scene.as_deref(),
                     keyframe_mode: self.keyframe_mode,
                 };
-                preview_panel::preview_ui(&mut ctx, ui);
+                preview_panel::preview_panel_ui(&mut ctx, ui);
             }
             WorkspaceTab::Inspector => {
-                let mut ctx = inspector_panel::InspectorContext {
+                let mut ctx = inspector::InspectorContext {
                     preview: &mut self.preview_store.preview,
                     timeline: self.document_store.document.timeline.as_ref(),
                     composition: self.document_store.document.composition.as_ref(),
@@ -111,7 +111,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     property_view_mode: self.property_view_mode,
                     keyframe_view_mode: self.keyframe_view_mode,
                 };
-                inspector_panel::inspector_ui(&mut ctx, ui);
+                inspector::inspector_panel_ui(&mut ctx, ui);
             }
             WorkspaceTab::Timeline => {
                 // Resolve the effective timeline (same fallback logic as timeline_ui).
@@ -132,7 +132,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                         resolved_timeline,
                     );
                 }
-                let mut ctx = timeline::TimelineContext {
+                let mut ctx = timeline_panel::TimelineContext {
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
                     composition: self.document_store.document.composition.as_ref(),
@@ -143,7 +143,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     actor_labels: &self.document_store.cached_actor_labels,
                     actor_keyframes: &self.document_store.cached_actor_keyframes,
                 };
-                timeline::timeline_ui(&mut ctx, ui);
+                timeline_panel::timeline_panel_ui(&mut ctx, ui);
             }
         }
         UiResponse::None
@@ -202,14 +202,14 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         state: &egui_tiles::TabState,
     ) -> Stroke {
         if state.active {
-            Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
+            Stroke::new(STROKE_WIDTH, visuals.widgets.noninteractive.bg_stroke.color)
         } else {
             Stroke::NONE
         }
     }
 
     fn tab_bar_hline_stroke(&self, visuals: &Visuals) -> Stroke {
-        Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
+        Stroke::new(STROKE_WIDTH, visuals.widgets.noninteractive.bg_stroke.color)
     }
 
     fn tab_text_color(
@@ -233,19 +233,19 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     ) -> Stroke {
         match resize_state {
             egui_tiles::ResizeState::Idle => {
-                Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color)
+                Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color)
             }
             egui_tiles::ResizeState::Hovering => {
-                Stroke::new(1.0, ACCENT_BLUE)
+                Stroke::new(STROKE_WIDTH, ACCENT_BLUE)
             }
             egui_tiles::ResizeState::Dragging => {
-                Stroke::new(1.0, ACCENT_BLUE)
+                Stroke::new(STROKE_WIDTH, ACCENT_BLUE)
             }
         }
     }
 
     fn drag_preview_stroke(&self, _visuals: &Visuals) -> Stroke {
-        Stroke::new(1.0, ACCENT_BLUE)
+        Stroke::new(STROKE_WIDTH, ACCENT_BLUE)
     }
 
     fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
@@ -263,7 +263,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         painter.rect_stroke(
             rect,
             RADIUS_M,
-            Stroke::new(1.0, style.visuals.widgets.noninteractive.bg_stroke.color),
+            Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color),
             egui::StrokeKind::Inside,
         );
     }
