@@ -9,6 +9,7 @@ use egui::{RichText, Vec2};
 
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::components;
+use crate::app::components::context_menu::{render_menu, MenuEntry};
 use crate::app::design_tokens::*;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
@@ -230,6 +231,35 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 .expanded(is_expanded)
                 .show(ui, row_id);
 
+            // Right-click context menu
+            let ctx_resp = ui.interact(response.row_rect, row_id.with("ctx"), egui::Sense::click());
+            ctx_resp.context_menu(|ui| {
+                let entries = if !is_dir {
+                    vec![MenuEntry::item_with_icon(
+                        egui_phosphor::regular::FOLDER_OPEN,
+                        "Open",
+                    )]
+                } else if is_expanded {
+                    vec![MenuEntry::item_with_icon(
+                        egui_phosphor::regular::CARET_UP,
+                        "Collapse",
+                    )]
+                } else {
+                    vec![MenuEntry::item_with_icon(
+                        egui_phosphor::regular::CARET_DOWN,
+                        "Expand",
+                    )]
+                };
+                if render_menu(ui, &entries).is_some() {
+                    if is_dir {
+                        ctx.commands.push_back(Command::ToggleExpandDir(path.clone()));
+                    } else {
+                        ctx.commands.push_back(Command::OpenFile(path.clone()));
+                    }
+                    ui.close();
+                }
+            });
+
             if response.chevron_clicked {
                 ctx.commands.push_back(Command::ToggleExpandDir(path.clone()));
             }
@@ -449,6 +479,27 @@ fn render_actor_tree(
         }
         ui.data_mut(|d| d.remove::<String>(drag_data_id));
     }
+
+    // Right-click context menu for layer rows
+    let ctx_resp = ui.interact(response.row_rect, row_id.with("ctx"), egui::Sense::click());
+    ctx_resp.context_menu(|ui| {
+        let entries = vec![
+            MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate"),
+            MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete"),
+        ];
+        if let Some(idx) = render_menu(ui, &entries) {
+            match idx {
+                0 => commands.push_back(Command::DuplicateActor(label.to_string())),
+                1 => {
+                    selected_actors.clear();
+                    selected_actors.insert(label.to_string());
+                    commands.push_back(Command::DeleteSelectedActors);
+                }
+                _ => {}
+            }
+            ui.close();
+        }
+    });
 
     if response.chevron_clicked {
         if collapsed_actors.contains(&label_owned) {
