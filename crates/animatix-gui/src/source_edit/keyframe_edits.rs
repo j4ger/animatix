@@ -563,7 +563,7 @@ btn.color = red"#);
     #[test]
     fn insert_keyframe_wraps_declarations_in_zero_keyframe() {
         // No keyframes at all — inserting a relative keyframe must wrap the
-        // top-level declarations in #0s so they don't get shifted.
+        // top-level declarations in a single #0s so they don't get shifted.
         let mut stmts = parse(r#"btn: Rect, size: (100, 200)
 circle: Ellipse, radius: 50"#);
 
@@ -576,29 +576,22 @@ circle: Ellipse, radius: 50"#);
         };
         assert!(apply_edit(&mut stmts, edit));
 
-        // Should now be: #0s, #0s, #+500ms (parser wraps each top-level decl in #0s)
-        assert_eq!(stmts.len(), 3);
+        // All leading declarations are wrapped in one #0s, then the new relative keyframe
+        assert_eq!(stmts.len(), 2);
 
-        // First two statements are #0s wrapping each declaration (parser behavior)
         if let Stmt::Keyframe { time, body, .. } = &stmts[0] {
             assert_eq!(*time, Time::Seconds(0.0));
-            assert_eq!(body.len(), 1);
+            assert_eq!(body.len(), 2);
         } else {
             panic!("Expected Keyframe at index 0, got {:?}", stmts[0]);
         }
-        if let Stmt::Keyframe { time, body, .. } = &stmts[1] {
-            assert_eq!(*time, Time::Seconds(0.0));
-            assert_eq!(body.len(), 1);
-        } else {
-            panic!("Expected Keyframe at index 1, got {:?}", stmts[1]);
-        }
 
-        // Third statement is the new relative keyframe
-        if let Stmt::RelativeKeyframe { offset, body, .. } = &stmts[2] {
+        // Second statement is the new relative keyframe
+        if let Stmt::RelativeKeyframe { offset, body, .. } = &stmts[1] {
             assert_eq!(*offset, Time::Milliseconds(500));
             assert_eq!(body.len(), 1);
         } else {
-            panic!("Expected RelativeKeyframe at index 2");
+            panic!("Expected RelativeKeyframe at index 1");
         }
     }
 

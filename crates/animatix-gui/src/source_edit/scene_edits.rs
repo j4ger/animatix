@@ -380,8 +380,8 @@ mod tests {
         ));
         let scene_names: Vec<_> = stmts.iter().filter_map(|s| match s { Stmt::Scene { name, .. } => Some(name.as_str()), _ => None }).collect();
         assert_eq!(scene_names, vec!["Outro", "Intro", "Middle"]);
-        // The import is wrapped in a Keyframe by the parser, so the prelude starts with Keyframe
-        assert!(matches!(stmts.first(), Some(Stmt::Keyframe { .. })));
+        // The import is kept as a standalone Stmt::Import at the top
+        assert!(matches!(stmts.first(), Some(Stmt::Import { .. })));
     }
 
     #[test]
