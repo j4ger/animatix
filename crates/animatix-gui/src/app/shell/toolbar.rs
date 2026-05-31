@@ -131,23 +131,10 @@ impl GuiShell {
                         }
                     }
 
-                    // ── Center: scene label + viewport toggles + zoom ──
+                    // ── Center: viewport toggles + zoom cycle ──
                     ui.add_space(SPACE_XL);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-
-                        // Scene label
-                        let scene_label = if let Some(scene) = self.document_store.document.active_scene.as_deref() {
-                            scene.to_string()
-                        } else if let Some(comp) = self.document_store.document.composition.as_ref() {
-                            let (scene, _, _) = comp.evaluate(self.preview_store.preview.playback.current_time_s);
-                            scene
-                        } else {
-                            "Scene".to_string()
-                        };
-                        ui.label(RichText::new(scene_label).size(FONT_SIZE_S).color(TEXT_PRIMARY));
-
-                        ui.separator();
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
@@ -169,32 +156,34 @@ impl GuiShell {
 
                         ui.separator();
 
-                        // Zoom controls
-                        if ui.button(RichText::new("Fit").size(FONT_SIZE_S).color(TEXT_SECONDARY))
-                            .on_hover_text("Fit to viewport")
+                        // Zoom cycle button: Fit → 100% → 150% → 200% → Fit
+                        let zoom = self.preview_store.preview.viewport.preview_zoom;
+                        let (zoom_label, next_zoom) = if (zoom - 1.0).abs() < 0.05 {
+                            ("100%", 1.5f32)
+                        } else if (zoom - 1.5).abs() < 0.05 {
+                            ("150%", 2.0f32)
+                        } else if (zoom - 2.0).abs() < 0.05 {
+                            ("200%", 0.0f32) // 0.0 signals Fit
+                        } else {
+                            ("Fit", 1.0f32)
+                        };
+                        if ui.button(RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY))
+                            .on_hover_text("Cycle zoom")
                             .clicked()
                         {
-                            self.preview_store.preview.fit_zoom_requested = true;
+                            if next_zoom == 0.0 {
+                                self.preview_store.preview.fit_zoom_requested = true;
+                            } else {
+                                self.preview_store.preview.viewport.preview_zoom = next_zoom;
+                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                );
+                            }
                         }
-                        let zoom = self.preview_store.preview.viewport.preview_zoom;
-                        if ui.selectable_label(zoom == 1.0, "100%")
-                            .on_hover_text("Zoom to 100%").clicked()
-                        {
-                            self.preview_store.preview.viewport.preview_zoom = 1.0;
-                            self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                self.preview_store.preview.dimensions.height as f32 / 2.0,
-                            );
-                        }
-                        if ui.selectable_label(zoom == 1.5, "150%")
-                            .on_hover_text("Zoom to 150%").clicked()
-                        { self.preview_store.preview.viewport.preview_zoom = 1.5; }
-                        if ui.selectable_label(zoom == 2.0, "200%")
-                            .on_hover_text("Zoom to 200%").clicked()
-                        { self.preview_store.preview.viewport.preview_zoom = 2.0; }
                     });
 
-                    // Right-aligned: play + time + inspector + settings + command palette
+                    // Right-aligned: inspector + settings + command palette
                     ui.with_layout(
                         egui::Layout::right_to_left(Align::Center),
                         |ui| {
@@ -236,24 +225,6 @@ impl GuiShell {
                             .clicked()
                             {
                                 commands.push_back(Command::ShowInspector);
-                            }
-
-                            // Time display
-                            ui.label(
-                                RichText::new(format!(
-                                    "{:.2}s / {:.2}s",
-                                    self.preview_store.preview.playback.current_time_s,
-                                    self.preview_store.preview.playback.duration_s,
-                                ))
-                                .monospace()
-                                .size(FONT_SIZE_XS)
-                                .color(TEXT_MUTED),
-                            );
-
-                            // Play / Pause
-                            let is_playing = self.preview_store.preview.playback.is_playing;
-                            if components::play_pause_button(ui, is_playing).clicked() {
-                                commands.push_back(Command::TogglePlayback);
                             }
                         },
                     );
