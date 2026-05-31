@@ -173,7 +173,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
-        22.0
+        TIMELINE_RULER_HEIGHT
     }
 
     fn tab_bar_color(&self, visuals: &Visuals) -> Color32 {

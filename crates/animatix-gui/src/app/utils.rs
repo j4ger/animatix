@@ -21,13 +21,13 @@ pub(super) fn draw_badge(
         egui::FontId::proportional(FONT_SIZE_S),
         text_color,
     );
-    let size = galley.size() + Vec2::new(8.0, 4.0);
+    let size = galley.size() + Vec2::new(PAD_L * 2.0, PAD_S * 2.0);
     let rect = egui::Rect::from_min_size(pos, size);
-    painter.rect_filled(rect, 3.0, bg);
+    painter.rect_filled(rect, RADIUS_S, bg);
     if let Some(s) = stroke {
-        painter.rect_stroke(rect, 3.0, s, egui::StrokeKind::Outside);
+        painter.rect_stroke(rect, RADIUS_S, s, egui::StrokeKind::Outside);
     }
-    painter.galley(rect.min + Vec2::new(4.0, 2.0), galley, text_color);
+    painter.galley(rect.min + Vec2::new(PAD_L, PAD_S), galley, text_color);
     rect
 }
 

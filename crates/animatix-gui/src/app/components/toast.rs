@@ -134,12 +134,12 @@ impl ToastQueue {
             );
 
             // Left accent bar
-            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(3.0, toast_h));
+            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(PAD_S, toast_h));
             let accent_color = toast.color().linear_multiply(alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
-            let icon_x = rect.min.x + 16.0;
+            let icon_x = rect.min.x + PAD_XXL;
             let icon_color = toast.color().linear_multiply(alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
@@ -150,9 +150,9 @@ impl ToastQueue {
             );
 
             // Message (wrapped to toast width so it doesn't overflow)
-            let text_x = icon_x + 16.0;
+            let text_x = icon_x + PAD_XXL;
             let text_color = TEXT_PRIMARY.linear_multiply(alpha);
-            let text_max_w = (toast_w - (text_x - rect.min.x) - 16.0).max(40.0);
+            let text_max_w = (toast_w - (text_x - rect.min.x) - PAD_XXL).max(40.0);
             let galley = ui.painter().layout(
                 toast.message.clone(),
                 egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),

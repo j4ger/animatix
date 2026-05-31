@@ -426,7 +426,7 @@ fn render_property_stream(
         let baseline_y = row_rect.center().y;
 
         // Intensity bar (left side)
-        let bar_max_w = 60.0f32;
+        let bar_max_w = 60.0;
         let bar_w = if entry.keyframe_count > 0 {
             (entry.keyframe_count as f32 / max_kf as f32 * bar_max_w).max(4.0)
         } else {
@@ -667,7 +667,7 @@ fn render_container_children(
             TEXT_MUTED,
             None,
         );
-        cursor_x += 20.0;
+        cursor_x += ROW_S + SPACE_S;
 
         // Label
         ui.painter().text(

@@ -30,11 +30,8 @@ use crate::app::design_tokens::*;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const MENU_MIN_WIDTH: f32 = 140.0;
 const MENU_ITEM_HEIGHT: f32 = ROW_M; // 24.0
-const MENU_ICON_WIDTH: f32 = 16.0;
 const MENU_ICON_GAP: f32 = SPACE_S;  // 4.0
-const MENU_CHECK_WIDTH: f32 = 14.0;
 const MENU_SHORTCUT_GAP: f32 = SPACE_L; // 8.0
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
@@ -230,10 +227,10 @@ fn menu_frame() -> egui::Frame {
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_S as i8))
         .shadow(egui::Shadow {
-            offset: [0, 4],
-            blur: 12,
+            offset: [0, MENU_SHADOW_OFFSET_Y],
+            blur: MENU_SHADOW_BLUR as u8,
             spread: 0,
-            color: Color32::from_rgba_premultiplied(0, 0, 0, 80),
+            color: shadow_direct(),
         })
 }
 

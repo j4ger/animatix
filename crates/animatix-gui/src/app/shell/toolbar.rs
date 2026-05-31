@@ -5,8 +5,7 @@ use crate::app::design_tokens::*;
 use crate::app::commands::{Command, CommandQueue};
 use crate::app::GuiShell;
 
-/// Height of the main application toolbar.
-const TOOLBAR_HEIGHT: f32 = 28.0;
+// TOOLBAR_HEIGHT imported via design_tokens::*
 
 impl GuiShell {
     pub(crate) fn toolbar_ui(

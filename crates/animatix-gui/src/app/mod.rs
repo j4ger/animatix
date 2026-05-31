@@ -488,11 +488,11 @@ impl GuiShell {
         ui.painter().rect_filled(avail, 0.0, BG_BASE);
 
         ui.vertical_centered(|ui| {
-            ui.add_space(avail.height() * 0.22);
+            ui.add_space(avail.height() * WELCOME_TOP_OFFSET_FRAC);
 
             ui.label(
                 egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
-                    .size(48.0)
+                    .size(WELCOME_ICON_SIZE)
                     .color(ACCENT_BLUE),
             );
             ui.add_space(SPACE_XL);
@@ -511,11 +511,11 @@ impl GuiShell {
             );
             ui.add_space(SPACE_XL * 2.0);
 
-            let btn_w = 240.0;
+            let btn_w = WELCOME_BTN_WIDTH;
 
             // Create new button
             let new_resp = ui.add_sized(
-                egui::vec2(btn_w, 36.0),
+                egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
                 egui::Button::new(
                     egui::RichText::new(format!("{}  Create new scene", egui_phosphor::regular::PLUS))
                         .size(FONT_SIZE_M)
@@ -534,7 +534,7 @@ impl GuiShell {
 
             // Hint: open via sidebar
             ui.add_sized(
-                egui::vec2(btn_w, 36.0),
+                egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
                 egui::Button::new(
                     egui::RichText::new(format!("{}  Open via sidebar", egui_phosphor::regular::FOLDER_OPEN))
                         .size(FONT_SIZE_M)

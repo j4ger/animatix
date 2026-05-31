@@ -490,10 +490,10 @@ fn install_theme(ctx: &egui::Context) {
     let mut style = (*ctx.global_style()).clone();
 
     // Tighter spacing
-    style.spacing.item_spacing = Vec2::new(4.0, 4.0);
-    style.spacing.button_padding = Vec2::new(8.0, 4.0);
-    style.spacing.window_margin = egui::Margin::same(8);
-    style.spacing.indent = 14.0;
+    style.spacing.item_spacing = Vec2::new(PAD_S, PAD_S);
+    style.spacing.button_padding = Vec2::new(PAD_L, PAD_S);
+    style.spacing.window_margin = egui::Margin::same(PAD_L as i8);
+    style.spacing.indent = ICON_SLOT_WIDTH;
 
     // Background hierarchy (darkest to lightest)
     style.visuals.panel_fill = BG_PANEL;

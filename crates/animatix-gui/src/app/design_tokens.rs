@@ -139,6 +139,39 @@ pub const RADIUS_M: f32 = 4.0;
 pub const RADIUS_L: f32 = 6.0;
 pub const RADIUS_XL: f32 = 8.0;
 
+// ── Toolbar ──
+pub const TOOLBAR_HEIGHT: f32 = 28.0;
+pub const PREVIEW_TOOLBAR_HEIGHT: f32 = 28.0;
+
+// ── Timeline ──
+pub const TIMELINE_LABEL_COL_WIDTH: f32 = 120.0;
+pub const TIMELINE_TRACK_ROW_HEIGHT: f32 = 24.0;
+pub const TIMELINE_RULER_HEIGHT: f32 = 22.0;
+pub const TIMELINE_RANGE_HEIGHT: f32 = 20.0;
+pub const TIMELINE_KF_HALF: f32 = 4.0;
+pub const TIMELINE_PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
+
+// ── Context Menu ──
+pub const MENU_MIN_WIDTH: f32 = 140.0;
+pub const MENU_ICON_WIDTH: f32 = 16.0;
+pub const MENU_CHECK_WIDTH: f32 = 14.0;
+pub const MENU_SHADOW_OFFSET_Y: i8 = 4;
+pub const MENU_SHADOW_BLUR: i8 = 12;
+
+// ── Welcome Screen ──
+pub const WELCOME_ICON_SIZE: f32 = 48.0;
+pub const WELCOME_BTN_WIDTH: f32 = 240.0;
+pub const WELCOME_BTN_HEIGHT: f32 = 36.0;
+pub const WELCOME_TOP_OFFSET_FRAC: f32 = 0.22;
+
+// ── Common Padding / Offset ──
+pub const PAD_XS: f32 = 2.0;
+pub const PAD_S: f32 = 4.0;
+pub const PAD_M: f32 = 6.0;
+pub const PAD_L: f32 = 8.0;
+pub const PAD_XL: f32 = 12.0;
+pub const PAD_XXL: f32 = 16.0;
+
 // ── Component Dimensions ──
 /// Height of pill-style tab buttons.
 pub const PILL_TAB_HEIGHT: f32 = 26.0;

@@ -28,17 +28,14 @@ use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
 /// Width of the track label column on the left.
-const LABEL_COL_WIDTH: f32 = 120.0;
-/// Height of each track row.
-const TRACK_ROW_HEIGHT: f32 = 24.0;
-/// Height of the ruler bar.
-const RULER_HEIGHT: f32 = 22.0;
-/// Height of the range slider at the bottom.
-const RANGE_HEIGHT: f32 = 20.0;
-/// Diamond keyframe marker half-size.
-const KF_DIAMOND_HALF: f32 = 4.0;
-/// Height of the playback strip at the top of the timeline.
-const PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
+use crate::app::design_tokens::{
+    TIMELINE_LABEL_COL_WIDTH as LABEL_COL_WIDTH,
+    TIMELINE_TRACK_ROW_HEIGHT as TRACK_ROW_HEIGHT,
+    TIMELINE_RULER_HEIGHT as RULER_HEIGHT,
+    TIMELINE_RANGE_HEIGHT as RANGE_HEIGHT,
+    TIMELINE_KF_HALF as KF_DIAMOND_HALF,
+    TIMELINE_PLAYBACK_STRIP_HEIGHT as PLAYBACK_STRIP_HEIGHT,
+};
 
 fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
     use animatix::timeline::ActionCategory;

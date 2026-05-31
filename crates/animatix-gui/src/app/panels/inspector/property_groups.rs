@@ -456,14 +456,14 @@ pub(crate) fn render_property_row(
                             ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                             let half_w = ui.available_width() / 2.0 - 2.0;
                             let rx = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - 4.0),
+                                Vec2::new(half_w.max(30.0), row_height - PAD_L),
                                 egui::DragValue::new(&mut nx)
                                     .speed(0.5)
                                     .max_decimals(1)
                                     .prefix(a_label),
                             );
                             let ry = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - 4.0),
+                                Vec2::new(half_w.max(30.0), row_height - PAD_L),
                                 egui::DragValue::new(&mut ny)
                                     .speed(0.5)
                                     .max_decimals(1)
@@ -508,7 +508,7 @@ pub(crate) fn render_property_row(
                                 ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
                                 let slider_w = ui.available_width() * 0.55;
                                 let slider = ui.add_sized(
-                                    Vec2::new(slider_w.max(40.0), row_height - 4.0),
+                                    Vec2::new(slider_w.max(40.0), row_height - PAD_L),
                                     egui::Slider::new(&mut nv, 0.0..=1.0)
                                         .show_value(false)
                                         .trailing_fill(true),
@@ -549,7 +549,7 @@ pub(crate) fn render_property_row(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
                                 let response = ui.add_sized(
-                                    Vec2::new(ui.available_width(), row_height - 4.0),
+                                    Vec2::new(ui.available_width(), row_height - PAD_L),
                                     egui::DragValue::new(&mut nv)
                                         .speed(if is_angle { 0.5 } else { 0.1 })
                                         .suffix(if is_angle { "°" } else { unit })
@@ -586,7 +586,7 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             let response = ui.add_sized(
-                                Vec2::new(ui.available_width(), row_height - 4.0),
+                                Vec2::new(ui.available_width(), row_height - PAD_L),
                                 egui::DragValue::new(&mut nv)
                                     .speed(0.1)
                                     .max_decimals(0),

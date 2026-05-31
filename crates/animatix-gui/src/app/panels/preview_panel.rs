@@ -1230,7 +1230,7 @@ pub(crate) fn preview_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
         .show(ui, |ui| {
         ui.vertical(|ui| {
             // ── Preview toolbar strip (above canvas, never overlaps scene) ──
-            const PREVIEW_TOOLBAR_H: f32 = 28.0;
+            const PREVIEW_TOOLBAR_H: f32 = PREVIEW_TOOLBAR_HEIGHT;
             let toolbar_avail = ui.available_rect_before_wrap();
             let toolbar_rect = egui::Rect::from_min_size(
                 toolbar_avail.min,

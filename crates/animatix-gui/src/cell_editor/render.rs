@@ -121,7 +121,7 @@ fn header_btn(
     icon: &'static str,
     tooltip: &'static str,
 ) -> bool {
-    let size = Vec2::splat(20.0);
+    let size = Vec2::splat(dt::ROW_S);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
     let t = ui.ctx().animate_value_with_time(

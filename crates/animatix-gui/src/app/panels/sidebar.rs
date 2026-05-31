@@ -223,7 +223,7 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             let path = entry.path.clone();
             let is_dir = entry.is_dir;
             let response = components::Row::new(&entry.name)
-                .indent(entry.depth as f32 * 14.0)
+                .indent(entry.depth as f32 * ICON_SLOT_WIDTH)
                 .selected(is_selected)
                 .icon(icon)
                 .label_color(label_color.unwrap_or(TEXT_SECONDARY))
@@ -412,7 +412,7 @@ fn render_actor_tree(
     let eye_color = if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED };
 
     let response = components::Row::new(display_label)
-        .indent(depth as f32 * 14.0)
+        .indent(depth as f32 * ICON_SLOT_WIDTH)
         .selected(is_selected)
         .icon(icon)
         .label_color(label_color.unwrap_or(if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED }))
