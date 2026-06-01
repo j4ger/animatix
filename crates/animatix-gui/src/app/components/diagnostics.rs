@@ -14,9 +14,12 @@ pub struct DiagnosticTarget {
 }
 
 /// Renders a scrollable card of diagnostic messages.
+///
+/// `visible` is set to `false` when the user clicks the close button.
 pub fn diagnostics_list(
     ui: &mut egui::Ui,
     diagnostics: &[Diagnostic],
+    visible: &mut bool,
 ) -> Option<DiagnosticTarget> {
     if diagnostics.is_empty() {
         return None;
@@ -73,6 +76,22 @@ pub fn diagnostics_list(
                     .selectable(false),
                 );
             }
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new(egui_phosphor::regular::X)
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_MUTED),
+                        )
+                        .frame(false),
+                    )
+                    .clicked()
+                {
+                    *visible = false;
+                }
+            });
         });
 
         ui.add_space(SPACE_S);

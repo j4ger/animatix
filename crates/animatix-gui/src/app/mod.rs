@@ -433,7 +433,11 @@ impl GuiShell {
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if let Some(target) =
-                        components::diagnostics::diagnostics_list(ui, &diagnostics)
+                        components::diagnostics::diagnostics_list(
+                            ui,
+                            &diagnostics,
+                            &mut self.ui_store.view.diagnostics_panel_visible,
+                        )
                     {
                         self.ui_store.pending_actions.push_back(
                             ShellAction::Command(Command::ScrollToLine(target.line, target.column))

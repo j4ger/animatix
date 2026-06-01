@@ -229,6 +229,22 @@ impl GuiShell {
                                 self.ui_store.view.settings_open = true;
                             }
 
+                            // Diagnostics toggle
+                            let has_diagnostics = !self.document_store.combined_diagnostics().is_empty();
+                            let diag_active = self.ui_store.view.diagnostics_panel_visible;
+                            if button::toolbar_toggle_button(
+                                ui,
+                                egui_phosphor::regular::WARNING_OCTAGON,
+                                None,
+                                "Toggle diagnostics panel",
+                                diag_active,
+                                has_diagnostics,
+                            )
+                            .clicked()
+                            {
+                                self.ui_store.view.diagnostics_panel_visible = !diag_active;
+                            }
+
                             // Inspector toggle
                             let inspector_active = self.ui_store.view.inspector_visible;
                             if button::toolbar_toggle_button(

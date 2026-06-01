@@ -32,6 +32,7 @@
 	    libxcb
 	    libxkbcommon
 	    vulkan-loader
+            vulkan-validation-layers
 	    wayland
 
             rust-bin.stable.latest.default
@@ -39,8 +40,10 @@
             cocogitto
           ];
 
+          VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
+
           shellHook = ''
-		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}:/usr/lib:/usr/lib64";
+		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
           '';
         };
       }
