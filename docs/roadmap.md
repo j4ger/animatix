@@ -14,7 +14,23 @@
 
 ---
 
-## Phase 8 — PiP / Multi-Viewport
+## Phase 8 — Filter System
+
+> Post-processing primitive for blur, color correction, and compositing effects.
+> Full design: [`design/filter-system.md`](design/filter-system.md)
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 8.1 | **Language surface** | Add `Filter` to `ActorKindId`, `PROPERTY_REGISTRY`, primitive registry, and docs. Properties: `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia`. | `timeline/`, `primitives/`, `docs/` | 1 day | — |
+| 8.2 | **Offscreen infrastructure** | `FilterTargetPool` for acquiring/releasing WGPU textures. Integrate into `PreviewSurface` and resize path. | `preview_surface.rs`, `renderer/` | 2 days | — |
+| 8.3 | **Filter shaders** | Separable Gaussian blur (H/V passes) + color matrix shader (brightness/contrast/saturate/hue/sepia). Compile at init, manage pipeline state. | `renderer/shaders/`, `preview_surface.rs` | 2 days | 8.2 |
+| 8.4 | **Scene evaluation integration** | In `scene_eval.rs`, detect `Filter` actors, render children offscreen, run filter chain, draw result as image. Handle empty/identity/no-op cases. | `timeline/scene_eval.rs` | 2 days | 8.3 |
+| 8.5 | **CLI export support** | Wire `FilterTargetPool` into video/GIF/image export renderers. Share pool or create per-export instance. | `renderer/encode/` | 1 day | 8.4 |
+| 8.6 | **Deprecate property-based effects** | Emit diagnostics for `shadow_blur`, `glow_radius`, `backdrop_blur`, etc. Hide from inspector. Document migration path. | `timeline/property_registry.rs`, `app/panels/inspector.rs`, `docs/` | 1 day | 8.1 |
+
+---
+
+## Phase 9 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
 
@@ -26,18 +42,18 @@
 
 ---
 
-## Phase 9b — Core Architecture Refactors (deferred from cleanup)
+## Phase 10b — Core Architecture Refactors (deferred from cleanup)
 
-> Structural improvements discovered during Phase 9. These are large, risky changes
+> Structural improvements discovered during Phase 10. These are large, risky changes
 > that need dedicated testing time. Do not mix with feature work.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 9b.3 | **Atomic source-edit validation + drag batching** | All inspector edits (`handle_keyframe_edit`, `handle_property_edit`, `apply_child_order_edit`) must validate AST mutation and expression round-trip *before* touching the timeline. During drags, timeline mutates immediately but source is flushed once on drag end. Create `try_apply_source_edit` helper; move `PropertyValue → Expr` validation to `TryFrom`. | `actions/mod.rs`, `commands.rs`, `source_edit/` | 3 days | — |
+| 10b.3 | **Atomic source-edit validation + drag batching** | All inspector edits (`handle_keyframe_edit`, `handle_property_edit`, `apply_child_order_edit`) must validate AST mutation and expression round-trip *before* touching the timeline. During drags, timeline mutates immediately but source is flushed once on drag end. Create `try_apply_source_edit` helper; move `PropertyValue → Expr` validation to `TryFrom`. | `actions/mod.rs`, `commands.rs`, `source_edit/` | 3 days | — |
 
 ---
 
-## Phase 10 — Editor Infrastructure
+## Phase 11 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
@@ -50,8 +66,9 @@
 ## Order
 
 1. **Phase 7** (audio — no blockers)
-2. **Phase 8** (PiP — after syntax and renderer are stable)
-3. **Phase 10** (start after syntax stabilizes)
+2. **Phase 8** (filter system — no blockers, self-contained)
+3. **Phase 9** (PiP — after syntax and renderer are stable)
+4. **Phase 11** (start after syntax stabilizes)
 
 ---
 
