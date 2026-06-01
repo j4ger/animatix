@@ -196,6 +196,35 @@ vello.encode(&mut encoder) → render_pass.draw(encoder)
 - **PPM/PNG**: CPU-side RGBA buffer for single frames
 - **Video/GIF**: Parallel frame rendering + FFmpeg muxing
 
+### Post-Processing (Filter)
+
+The `Filter` primitive is a **container** that renders its children to an offscreen texture, applies CPU filters, and composites the result back as an image.
+
+**Pipeline (per Filter actor):**
+```
+Evaluate children → vello::Scene (sub-scene)
+  ↓
+GpuFilterBackend::render_scene_to_image()
+  → GPU render to temporary texture
+  → texture → CPU RGBA buffer (readback)
+  ↓
+apply_cpu_filters() (image crate)
+  → Gaussian blur (imageops::blur)
+  → 4×4 color matrix (brightness, contrast, saturate, hue-rotate, sepia)
+  ↓
+peniko::ImageData → drawn into parent scene at local transform
+```
+
+**Key design decisions:**
+- **Unified backend** — `GpuFilterBackend` lives in the core crate and is used by both `PreviewSurface` (GUI) and `OffscreenRenderer` (CLI export). This guarantees pixel-identical output.
+- **Renderer-agnostic timeline** — `scene_eval.rs` checks `Timeline::filter_backend` (a `RefCell<Option<Box<dyn FilterBackend>>>`). If no backend is installed, `Filter` falls back to rendering children directly (no filtering).
+- **Identity fast-path** — If all filter properties are at identity (`blur == 0`, `brightness == 1.0`, etc.), the sub-scene is appended directly without any offscreen pass.
+- **Nested filters** — Each nesting level triggers its own offscreen pass. Expensive but explicit.
+
+**Filter properties** (all `f32`, animatable): `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia`.
+
+**Future:** CPU filtering may be replaced with WGSL compute shaders (blur H → blur V → color matrix) when filter-heavy scenes become common. See `design/filter-system.md` §GPU Shader Filter Pass.
+
 ---
 
 ## 7. Expression Evaluation

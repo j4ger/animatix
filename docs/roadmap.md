@@ -14,6 +14,20 @@
 
 ---
 
+## Phase 8.5 — Unified Insertion Palette
+
+> Self-contained GUI refactor: replace the fragmented action palette, completion snippets, and inspector actor creation with one unified, semantic, keyboard-first insertion system.
+> Full design: [`design/insertion-mechanism.md`](design/insertion-mechanism.md)
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 8.5.1 | **Foundation: `InsertAction` + shared helpers** | Extract keyframe helpers from `keyframe_edits.rs` to `ast_utils.rs`. Add `InsertAction` variant to `SourceEdit`. Implement `insert_action` with exact-time semantics, style inheritance, and all six timeline rules. Unit tests for Examples A–D. | `source_edit/` | 1 day | — |
+| 8.5.2 | **Bridge: `InsertionRequest` + `InsertionContext`** | Create `app/insertion.rs` with the bridge layer. Extend `insert_actor` to support keyframe-body insertion. Extract `unique_label` to `app/utils/labels.rs`. Wire `handle_insertion` in `DocumentController`. Add `all_snippets()` to analyzer. | `app/insertion.rs`, `app/utils/labels.rs`, `app/document_controller.rs`, `source_edit/actor_edits.rs` | 1 day | 8.5.1 |
+| 8.5.3 | **UI: `InsertionPalette`** | Build fuzzy-search palette with 3 submodules (`mod.rs`, `items.rs`, `render.rs`). Auto-populate from `PRIMITIVES`, `get_action_signatures()`, and `all_snippets()`. Context-aware default mode. Bind `/` and `Ctrl+Shift+P`. | `app/shell/insertion_palette/`, `app/commands.rs`, `app/command_handlers.rs`, `editor.rs` | 1–2 days | 8.5.2 |
+| 8.5.4 | **Polish: visual feedback + cleanup** | Amber flash on rewritten timestamp labels. Delete `action_palette.rs`. Update `ui_store`. Full test suite + clippy. | `cell_editor/render.rs`, `app/shell/action_palette.rs`, `app/stores/ui_store.rs` | 1 day | 8.5.3 |
+
+---
+
 ## Phase 8 — Filter System
 
 > Post-processing primitive for blur, color correction, and compositing effects.
@@ -68,8 +82,9 @@
 
 1. **Phase 7** (audio — no blockers)
 2. **Phase 8** (filter system — no blockers, self-contained)
-3. **Phase 9** (PiP — after syntax and renderer are stable)
-4. **Phase 11** (start after syntax stabilizes)
+3. **Phase 8.5** (unified insertion palette — self-contained, can run in parallel with 7 or 8)
+4. **Phase 9** (PiP — after syntax and renderer are stable)
+5. **Phase 11** (start after syntax stabilizes)
 
 ---
 

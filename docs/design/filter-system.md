@@ -301,5 +301,5 @@ Since Animatix is still a POC, no deprecation flag or migration shim was added. 
 - [x] CLI export (`animatix image`, `animatix gif`, `animatix video`) supports `Filter`
 - [x] GUI preview and CLI export produce pixel-identical filter output (unified `GpuFilterBackend`)
 - [x] Old effect properties removed (POC — no backward compatibility needed)
-- [ ] No measurable frame time regression for scenes without `Filter`
-- [ ] Documentation (`spec.md`, `properties.md`, `architecture.md`) updated
+- [x] No measurable frame time regression for scenes without `Filter` (identity fast-path skips offscreen pass entirely)
+- [x] Documentation (`spec.md`, `properties.md`, `architecture.md`) updated

@@ -27,6 +27,7 @@
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
+| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/filter_demo.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -443,6 +444,31 @@ graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (
 }
 ```
 
+### Filter (Post-Processing)
+
+`Filter` is a **container primitive** that renders its children to an offscreen texture and applies post-processing filters before compositing back to the parent scene.
+
+```animatix
+bg: Filter, blur: 40, brightness: 0.5 {
+  img: Image, url: "photo.jpg", size: fill
+}
+```
+
+**Filter properties** (all animatable via keyframes):
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `blur` | 0 | Gaussian blur radius in px |
+| `brightness` | 1.0 | Multiplier on all channels |
+| `contrast` | 1.0 | Contrast curve offset |
+| `saturate` | 1.0 | 0 = grayscale, 1 = unchanged |
+| `hue_rotate` | 0 | Hue rotation in degrees |
+| `sepia` | 0 | Sepia intensity (0–1) |
+
+Pipeline order: **blur → color matrix → opacity**. Nested filters are allowed but each level adds one offscreen pass.
+
+**Legacy property-based effects removed:** `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, `glow_color`. Use explicit `Filter` containers or layered composition instead.
+
 ### Available Primitives & Common Confusions
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`
@@ -451,7 +477,7 @@ graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (
 
 **Plotting:** `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
-**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`
+**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`
 
 **Other:** `Audio`
 
