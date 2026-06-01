@@ -30,7 +30,7 @@ use persistence::{default_tree, load_workspace_persistence, persistence_path};
 use crate::app::design_tokens::*;
 #[cfg(test)]
 use preview::fit_preview;
-use preview::DragState;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -382,7 +382,7 @@ impl GuiShell {
         // Labels should never be selectable in a GUI application.
         // We modify the *context* style so it applies to all Ui instances,
         // including windows and panels that create fresh Ui from the context.
-        ui.ctx().style_mut(|style| {
+        ui.ctx().global_style_mut(|style| {
             style.interaction.selectable_labels = false;
         });
 
@@ -539,7 +539,7 @@ impl GuiShell {
                         .color(TEXT_PRIMARY),
                 )
                 .fill(ACCENT_BLUE)
-                .rounding(RADIUS_M),
+                .corner_radius(RADIUS_M),
             );
             if new_resp.clicked() {
                 let path = default_file_path();
@@ -559,7 +559,7 @@ impl GuiShell {
                 )
                 .fill(BG_WIDGET)
                 .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
-                .rounding(RADIUS_M),
+                .corner_radius(RADIUS_M),
             );
 
             ui.add_space(SPACE_XL);

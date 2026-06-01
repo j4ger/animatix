@@ -161,17 +161,6 @@ mod tests {
         assert!(effects.is_empty());
     }
 
-    // ── ToggleDiagnosticsPanel ───────────────────────────────────────
-
-    #[test]
-    fn toggle_diagnostics_toggles_visibility_flag() {
-        let mut ui_store = make_ui_store();
-        ui_store.view.diagnostics_panel_visible = false;
-        let effects = ui::handle_toggle_diagnostics_panel(&mut ui_store);
-        assert!(ui_store.view.diagnostics_panel_visible);
-        assert!(effects.is_empty());
-    }
-
     // ── DragEnded ────────────────────────────────────────────────────
 
     #[test]

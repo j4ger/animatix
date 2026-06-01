@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use crate::app::commands::{Effect, UndoEntry};
 use crate::app::components::toast::Toast;
-use crate::app::preview::DragState;
 use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
@@ -21,11 +20,6 @@ pub fn handle_open_export_dialog(
         let path = suggest_export_filename(export_store, document_store);
         export_store.export_state.output_path = path.to_string_lossy().to_string();
     }
-    vec![]
-}
-
-pub fn handle_toggle_diagnostics_panel(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.view.diagnostics_panel_visible = !ui_store.view.diagnostics_panel_visible;
     vec![]
 }
 

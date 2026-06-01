@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Pure snap strategies for preview canvas drag interactions.
 //!
 //! Each strategy is a standalone function that takes the current candidate

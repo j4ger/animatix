@@ -208,9 +208,6 @@ impl GuiShell {
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
             }
-            ViewAction::ToggleDiagnosticsPanel => {
-                ui::handle_toggle_diagnostics_panel(&mut self.ui_store)
-            }
         }
     }
 

@@ -40,7 +40,7 @@
           ];
 
           shellHook = ''
-		export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}:/usr/lib:/usr/lib64";
+		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}:/usr/lib:/usr/lib64";
           '';
         };
       }

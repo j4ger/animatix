@@ -95,7 +95,6 @@ pub enum Command {
 #[derive(Debug, Clone)]
 pub enum ViewAction {
     ShowInspector,
-    ToggleDiagnosticsPanel,
     OpenExportDialog,
 }
 
