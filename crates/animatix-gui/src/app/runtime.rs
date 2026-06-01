@@ -6,13 +6,6 @@ use crate::app::design_tokens::*;
 use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
-        )
-        .init();
-
     let initial_path = path
         .or_else(load_app_state)
         .unwrap_or_else(default_file_path);
