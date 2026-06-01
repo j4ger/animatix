@@ -64,6 +64,8 @@ pub const FOLDER: &str = "\u{E24A}";
 pub const ARTICLE: &str = "\u{E0A8}";
 /// Phosphor icon glyph for a happy mask.
 pub const MASK_HAPPY: &str = "\u{E9F4}";
+/// Phosphor icon glyph for filter / effects.
+pub const FILTERS: &str = "\u{EB42}";
 /// Phosphor icon glyph for a speaker with high volume.
 pub const SPEAKER_HIGH: &str = "\u{E44A}";
 /// Phosphor icon glyph for a question mark.

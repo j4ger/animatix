@@ -212,6 +212,20 @@ pub enum ActorField {
     /// Radius of the backdrop blur.
     BackdropBlur,
 
+    // ── Filter tier ──
+    /// Gaussian blur radius.
+    FilterBlur,
+    /// Brightness multiplier.
+    FilterBrightness,
+    /// Contrast multiplier.
+    FilterContrast,
+    /// Saturation multiplier.
+    FilterSaturate,
+    /// Hue rotation in degrees.
+    FilterHueRotate,
+    /// Sepia intensity.
+    FilterSepia,
+
     // ── Transform tier ──
     /// 2D affine transform matrix.
     Transform,
@@ -263,6 +277,14 @@ impl ActorField {
             ActorField::GlowRadius => PropertyValue::F32(0.0),
             ActorField::GlowColor => PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0]),
             ActorField::BackdropBlur => PropertyValue::F32(0.0),
+
+            // ── Filter tier ──
+            ActorField::FilterBlur => PropertyValue::F32(0.0),
+            ActorField::FilterBrightness => PropertyValue::F32(1.0),
+            ActorField::FilterContrast => PropertyValue::F32(1.0),
+            ActorField::FilterSaturate => PropertyValue::F32(1.0),
+            ActorField::FilterHueRotate => PropertyValue::F32(0.0),
+            ActorField::FilterSepia => PropertyValue::F32(0.0),
 
             ActorField::Transform => PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
 
@@ -375,7 +397,7 @@ impl Applicable {
                 matches!(kind, Shape(_) | Text | Math | Code)
             }
             Applicable::SizedActors => {
-                matches!(kind, Shape(_) | Image | Graph | PlotCurve | VectorField | Heatmap | ContourSet | NumberPlane | Row | Col | Grid | Stack)
+                matches!(kind, Shape(_) | Image | Graph | PlotCurve | VectorField | Heatmap | ContourSet | NumberPlane | Row | Col | Grid | Stack | Filter)
             }
             Applicable::ShapeKinds(kinds) => {
                 matches!(kind, Shape(sk) if kinds.contains(&sk))
@@ -450,10 +472,13 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("at",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("backdrop_blur", ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::BackdropBlur,        None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("background_color", ValueType::Color,    F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::Never, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 1.0])),
+    schema!("blur",            ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBlur,          None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("brightness",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBrightness,    None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("code",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Code]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("color",         ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::AllDrawables, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("cols",          ValueType::U32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Grid]), |_| super::property_engine::PropertyValue::U32(2)),
     schema!("commands",      ValueType::CommandList, F::ASSIGNABLE_A,              ActorField::Commands,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Path]), |_| super::property_engine::PropertyValue::CommandList(String::new())),
+    schema!("contrast",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterContrast,      None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("density",       ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::VectorField]), |_| super::property_engine::PropertyValue::F32(16.0)),
     schema!("fill_opacity",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FillOpacity,         None,                             Applicable::AllShapesExceptLine, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Math, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
@@ -465,6 +490,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("glow_radius",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::GlowRadius,          None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("grid",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("head_size",     ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::HeadSize,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Arrow]), |_| super::property_engine::PropertyValue::F32(10.0)),
+    schema!("hue_rotate",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterHueRotate,     None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("levels",        ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
@@ -479,7 +505,9 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("radius_y",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Size,                Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Ellipse]), |_| super::property_engine::PropertyValue::F32(50.0)),
     schema!("resolution",    ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::F32(48.0)),
     schema!("rotation",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Rotation,            None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("saturate",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterSaturate,      None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("scale",         ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Scale,               None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("sepia",         ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterSepia,         None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("shadow_blur",   ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::ShadowBlur,          None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("shadow_color",  ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::ShadowColor,         None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.0])),
     schema!("shadow_offset", ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::ShadowOffset,        None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),

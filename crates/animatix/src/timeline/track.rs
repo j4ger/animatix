@@ -99,6 +99,8 @@ pub enum ActorKindId {
     Group,
     /// Mask / clip container.
     Mask,
+    /// Filter / post-processing container.
+    Filter,
     /// Audio track actor.
     Audio,
 }
@@ -578,6 +580,20 @@ pub struct AnimationTrack {
     /// Backdrop blur strength.
     pub backdrop_blur: Option<PropertyTrack<f32>>,
 
+    // ── Filter tier ──
+    /// Gaussian blur radius.
+    pub filter_blur: Option<PropertyTrack<f32>>,
+    /// Brightness multiplier.
+    pub filter_brightness: Option<PropertyTrack<f32>>,
+    /// Contrast multiplier.
+    pub filter_contrast: Option<PropertyTrack<f32>>,
+    /// Saturation multiplier.
+    pub filter_saturate: Option<PropertyTrack<f32>>,
+    /// Hue rotation in degrees.
+    pub filter_hue_rotate: Option<PropertyTrack<f32>>,
+    /// Sepia intensity.
+    pub filter_sepia: Option<PropertyTrack<f32>>,
+
     // ── Shape payload (flat compat fields) ──
     /// Specific shape geometry type.
     pub shape_type: Option<PropertyTrack<ShapeType>>,
@@ -655,6 +671,14 @@ impl AnimationTrack {
             glow_radius: None,
             glow_color: None,
             backdrop_blur: None,
+
+            // Filter flat fields
+            filter_blur: None,
+            filter_brightness: None,
+            filter_contrast: None,
+            filter_saturate: None,
+            filter_hue_rotate: None,
+            filter_sepia: None,
 
             // Shape flat fields
             shape_type: None,
@@ -744,6 +768,9 @@ impl AnimationTrack {
             self.shadow_offset.last_time(), self.shadow_blur.last_time(),
             self.shadow_color.last_time(), self.glow_radius.last_time(),
             self.glow_color.last_time(), self.backdrop_blur.last_time(),
+            self.filter_blur.last_time(), self.filter_brightness.last_time(),
+            self.filter_contrast.last_time(), self.filter_saturate.last_time(),
+            self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
             self.head_size.last_time(),
         ];
         times.into_iter().flatten().max()
@@ -786,6 +813,12 @@ impl AnimationTrack {
             || self.glow_radius.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.glow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.backdrop_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_brightness.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_contrast.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_saturate.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_hue_rotate.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            || self.filter_sepia.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.head_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
     }
 }
@@ -1001,6 +1034,12 @@ impl AnimationTrack {
             GlowRadius => TrackFieldRef::F32(&self.glow_radius),
             GlowColor => TrackFieldRef::Vec4(&self.glow_color),
             BackdropBlur => TrackFieldRef::F32(&self.backdrop_blur),
+            FilterBlur => TrackFieldRef::F32(&self.filter_blur),
+            FilterBrightness => TrackFieldRef::F32(&self.filter_brightness),
+            FilterContrast => TrackFieldRef::F32(&self.filter_contrast),
+            FilterSaturate => TrackFieldRef::F32(&self.filter_saturate),
+            FilterHueRotate => TrackFieldRef::F32(&self.filter_hue_rotate),
+            FilterSepia => TrackFieldRef::F32(&self.filter_sepia),
             ShapeType => TrackFieldRef::ShapeType(&self.shape_type),
             LineFrom => TrackFieldRef::Vec2(&self.line_from),
             LineTo => TrackFieldRef::Vec2(&self.line_to),
@@ -1040,6 +1079,12 @@ impl AnimationTrack {
             GlowRadius => TrackFieldMut::F32(&mut self.glow_radius),
             GlowColor => TrackFieldMut::Vec4(&mut self.glow_color),
             BackdropBlur => TrackFieldMut::F32(&mut self.backdrop_blur),
+            FilterBlur => TrackFieldMut::F32(&mut self.filter_blur),
+            FilterBrightness => TrackFieldMut::F32(&mut self.filter_brightness),
+            FilterContrast => TrackFieldMut::F32(&mut self.filter_contrast),
+            FilterSaturate => TrackFieldMut::F32(&mut self.filter_saturate),
+            FilterHueRotate => TrackFieldMut::F32(&mut self.filter_hue_rotate),
+            FilterSepia => TrackFieldMut::F32(&mut self.filter_sepia),
             ShapeType => TrackFieldMut::ShapeType(&mut self.shape_type),
             LineFrom => TrackFieldMut::Vec2(&mut self.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.line_to),
@@ -1080,6 +1125,12 @@ impl AnimationTrack {
             "glow_radius" => ActorField::GlowRadius,
             "glow_color" => ActorField::GlowColor,
             "backdrop_blur" => ActorField::BackdropBlur,
+            "filter_blur" => ActorField::FilterBlur,
+            "filter_brightness" => ActorField::FilterBrightness,
+            "filter_contrast" => ActorField::FilterContrast,
+            "filter_saturate" => ActorField::FilterSaturate,
+            "filter_hue_rotate" => ActorField::FilterHueRotate,
+            "filter_sepia" => ActorField::FilterSepia,
             "shape_type" => ActorField::ShapeType,
             "line_from" => ActorField::LineFrom,
             "line_to" => ActorField::LineTo,
@@ -1136,6 +1187,12 @@ impl AnimationTrack {
             "glow_radius" => ActorField::GlowRadius,
             "glow_color" => ActorField::GlowColor,
             "backdrop_blur" => ActorField::BackdropBlur,
+            "filter_blur" => ActorField::FilterBlur,
+            "filter_brightness" => ActorField::FilterBrightness,
+            "filter_contrast" => ActorField::FilterContrast,
+            "filter_saturate" => ActorField::FilterSaturate,
+            "filter_hue_rotate" => ActorField::FilterHueRotate,
+            "filter_sepia" => ActorField::FilterSepia,
             "shape_type" => ActorField::ShapeType,
             "line_from" => ActorField::LineFrom,
             "line_to" => ActorField::LineTo,

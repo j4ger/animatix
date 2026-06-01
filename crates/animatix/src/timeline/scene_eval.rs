@@ -508,6 +508,21 @@ impl Timeline {
         // For off-screen actors we still return transform/opacity so children
         // (which may extend back into view) are correctly evaluated.
         if is_visible {
+            // ── Filter container — children are rendered via sub-scene ──
+            if track.kind == ActorKindId::Filter {
+                // Skip normal content/effects; filter rendering is handled
+                // in render_node_children after children are captured.
+                let default_bounds = kurbo::Rect::new(
+                    (-half_size[0]) as f64,
+                    (-half_size[1]) as f64,
+                    half_size[0] as f64,
+                    half_size[1] as f64,
+                );
+                let world_bounds = transform_rect_bbox(&local_transform, default_bounds);
+                hit_regions.push((node_label.to_string(), world_bounds));
+                return (local_transform, opacity);
+            }
+
             // ── Runtime text recompilation ──
             let text_paths = self.evaluate_text_node(
                 track,
@@ -827,7 +842,94 @@ impl Timeline {
             std::collections::BTreeMap::new()
         };
 
-        if track.kind == ActorKindId::Mask {
+        if track.kind == ActorKindId::Filter {
+            let children = track.children.clone();
+            if children.is_empty() {
+                return;
+            }
+
+            // Check if a filter backend is available
+            let has_backend = self.filter_backend.borrow().is_some();
+            if !has_backend {
+                // Fallback: render children directly (no filtering)
+                for child in &children {
+                    self.evaluate_node(
+                        child,
+                        time_ms,
+                        global_transform,
+                        global_opacity,
+                        scene_dimensions,
+                        debug_options,
+                        scene,
+                        overrides,
+                        &child_layout_positions,
+                        hit_regions,
+                        frame_env,
+                    );
+                }
+                return;
+            }
+
+            // Build sub-scene with children rendered at their world positions
+            let mut sub_scene = vello::Scene::new();
+            for child in &children {
+                self.evaluate_node(
+                    child,
+                    time_ms,
+                    global_transform,
+                    global_opacity,
+                    scene_dimensions,
+                    debug_options,
+                    &mut sub_scene,
+                    overrides,
+                    &child_layout_positions,
+                    hit_regions,
+                    frame_env,
+                );
+            }
+
+            // Sample filter properties
+            let blur = track.filter_blur.get(time_ms, 0.0);
+            let brightness = track.filter_brightness.get(time_ms, 1.0);
+            let contrast = track.filter_contrast.get(time_ms, 1.0);
+            let saturate = track.filter_saturate.get(time_ms, 1.0);
+            let hue_rotate = track.filter_hue_rotate.get(time_ms, 0.0);
+            let sepia = track.filter_sepia.get(time_ms, 0.0);
+
+            // If all filters are identity and no blur, just append sub-scene directly
+            let needs_filter = blur > 0.5
+                || (brightness - 1.0).abs() > 0.001
+                || (contrast - 1.0).abs() > 0.001
+                || (saturate - 1.0).abs() > 0.001
+                || hue_rotate.abs() > 0.5
+                || sepia > 0.001;
+
+            if !needs_filter {
+                scene.encoding_mut().append(sub_scene.encoding(), &None);
+                return;
+            }
+
+            // Render sub-scene to image via backend, apply CPU filters, draw result
+            let mut backend = self.filter_backend.borrow_mut();
+            if let Some(backend) = backend.as_mut() {
+                match backend.render_scene_to_image(&sub_scene, scene_dimensions) {
+                    Ok(image) => {
+                        let filtered = crate::timeline::filter::apply_cpu_filters(
+                            image, blur, brightness, contrast, saturate, hue_rotate, sepia,
+                        );
+                        let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
+                            .with_extend(vello::peniko::Extend::Pad)
+                            .with_quality(vello::peniko::ImageQuality::Medium)
+                            .with_alpha(global_opacity);
+                        scene.draw_image(&brush, kurbo::Affine::IDENTITY);
+                    }
+                    Err(_) => {
+                        // Fallback: append sub-scene directly
+                        scene.encoding_mut().append(sub_scene.encoding(), &None);
+                    }
+                }
+            }
+        } else if track.kind == ActorKindId::Mask {
             let children = track.children.clone();
             if !children.is_empty() {
                 // Render first child normally (defines the mask shape visually)

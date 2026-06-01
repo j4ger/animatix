@@ -636,6 +636,14 @@ pub(crate) fn inject_property_into_env(
     inject_color_env(env, &mut key, prefix_len, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
     inject_scalar_env(env, &mut key, prefix_len, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
 
+    // Filter
+    inject_scalar_env(env, &mut key, prefix_len, "blur",           &track.filter_blur, time_ms, 0.0);
+    inject_scalar_env(env, &mut key, prefix_len, "brightness",     &track.filter_brightness, time_ms, 1.0);
+    inject_scalar_env(env, &mut key, prefix_len, "contrast",       &track.filter_contrast, time_ms, 1.0);
+    inject_scalar_env(env, &mut key, prefix_len, "saturate",       &track.filter_saturate, time_ms, 1.0);
+    inject_scalar_env(env, &mut key, prefix_len, "hue_rotate",     &track.filter_hue_rotate, time_ms, 0.0);
+    inject_scalar_env(env, &mut key, prefix_len, "sepia",          &track.filter_sepia, time_ms, 0.0);
+
     // Animation-state flags: inject `_animating_{property}` booleans so `always`
     // blocks can detect when a keyframe track exists for a property.
     inject_scalar_animating(env, &mut key, prefix_len, "at",         &track.position);
@@ -658,6 +666,12 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_animating(env, &mut key, prefix_len, "glow_radius",   &track.glow_radius);
     inject_scalar_animating(env, &mut key, prefix_len, "glow_color",    &track.glow_color);
     inject_scalar_animating(env, &mut key, prefix_len, "backdrop_blur", &track.backdrop_blur);
+    inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur);
+    inject_scalar_animating(env, &mut key, prefix_len, "brightness",    &track.filter_brightness);
+    inject_scalar_animating(env, &mut key, prefix_len, "contrast",      &track.filter_contrast);
+    inject_scalar_animating(env, &mut key, prefix_len, "saturate",      &track.filter_saturate);
+    inject_scalar_animating(env, &mut key, prefix_len, "hue_rotate",    &track.filter_hue_rotate);
+    inject_scalar_animating(env, &mut key, prefix_len, "sepia",         &track.filter_sepia);
     inject_scalar_animating(env, &mut key, prefix_len, "transform",     &track.transform);
 }
 

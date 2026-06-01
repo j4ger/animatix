@@ -35,8 +35,24 @@ impl RendererCore {
         height: u32,
         scene: &Scene,
     ) -> Result<(), RenderError> {
+        self.render_vello_scene_with_background(
+            device, queue, texture_view, width, height, scene, Color::BLACK,
+        )
+    }
+
+    /// Render a Vello `scene` into the provided `texture_view` with a custom background color.
+    pub fn render_vello_scene_with_background(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        texture_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        scene: &Scene,
+        base_color: Color,
+    ) -> Result<(), RenderError> {
         let render_params = RenderParams {
-            base_color: Color::BLACK,
+            base_color,
             width,
             height,
             antialiasing_method: AaConfig::Area,

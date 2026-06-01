@@ -43,6 +43,8 @@ pub mod colorscheme;
 mod declarations_text;
 /// Evaluation environment for expressions.
 pub mod env;
+/// Filter backend and CPU image processing.
+pub mod filter;
 /// Image loading utilities.
 pub mod image;
 pub mod kurbo_shapes;
@@ -464,6 +466,8 @@ pub struct Timeline {
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache: std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
+    /// Optional filter backend for rendering Filter actor subtrees to images.
+    pub filter_backend: std::cell::RefCell<Option<Box<dyn crate::timeline::filter::FilterBackend>>>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -510,6 +514,7 @@ impl Clone for Timeline {
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
             plot_path_cache: self.plot_path_cache.clone(),
+            filter_backend: std::cell::RefCell::new(None),
         }
     }
 }
@@ -555,6 +560,7 @@ impl Timeline {
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
+            filter_backend: std::cell::RefCell::new(None),
         }
     }
 
@@ -833,6 +839,16 @@ impl Timeline {
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
         self.tracks.get(actor).map(|t| t.has_keyframe_at(property, time_ms)).unwrap_or(false)
+    }
+
+    /// Set the filter backend for rendering Filter actor subtrees.
+    pub fn set_filter_backend(&self, backend: Box<dyn crate::timeline::filter::FilterBackend>) {
+        *self.filter_backend.borrow_mut() = Some(backend);
+    }
+
+    /// Clear the filter backend.
+    pub fn clear_filter_backend(&self) {
+        *self.filter_backend.borrow_mut() = None;
     }
 
     /// List all keyframe times (in ms) for the given actor and property.
