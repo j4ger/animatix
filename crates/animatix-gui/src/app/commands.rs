@@ -154,18 +154,19 @@ pub enum PropertyValue {
     PointList(Vec<[f32; 2]>),
 }
 
-impl From<PropertyValue> for animatix::ast::Expr {
-    fn from(pv: PropertyValue) -> Self {
-        match pv {
+impl TryFrom<PropertyValue> for animatix::ast::Expr {
+    type Error = String;
+    fn try_from(pv: PropertyValue) -> Result<Self, Self::Error> {
+        let expr = match &pv {
             PropertyValue::Vec2([x, y]) => {
                 animatix::ast::Expr::Tuple(vec![
-                    animatix::ast::Expr::Num(x as f64),
-                    animatix::ast::Expr::Num(y as f64),
+                    animatix::ast::Expr::Num(*x as f64),
+                    animatix::ast::Expr::Num(*y as f64),
                 ])
             }
-            PropertyValue::Float(v) => animatix::ast::Expr::Num(v as f64),
+            PropertyValue::Float(v) => animatix::ast::Expr::Num(*v as f64),
             PropertyValue::Color([r, g, b, a]) => {
-                if (a - 1.0).abs() < 0.001
+                if (*a - 1.0).abs() < 0.001
                     && r.fract() == 0.0
                     && g.fract() == 0.0
                     && b.fract() == 0.0
@@ -173,36 +174,38 @@ impl From<PropertyValue> for animatix::ast::Expr {
                     animatix::ast::Expr::Call(
                         "rgb".into(),
                         vec![
-                            animatix::ast::Expr::Num((r * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((g * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((b * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((*r * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((*g * 255.0) as i64 as f64),
+                            animatix::ast::Expr::Num((*b * 255.0) as i64 as f64),
                         ],
                     )
                 } else {
                     animatix::ast::Expr::Call(
                         "rgba".into(),
                         vec![
-                            animatix::ast::Expr::Num(r as f64),
-                            animatix::ast::Expr::Num(g as f64),
-                            animatix::ast::Expr::Num(b as f64),
-                            animatix::ast::Expr::Num(a as f64),
+                            animatix::ast::Expr::Num(*r as f64),
+                            animatix::ast::Expr::Num(*g as f64),
+                            animatix::ast::Expr::Num(*b as f64),
+                            animatix::ast::Expr::Num(*a as f64),
                         ],
                     )
                 }
             }
-            PropertyValue::Text(s) => animatix::ast::Expr::Str(s),
+            PropertyValue::Text(s) => animatix::ast::Expr::Str(s.clone()),
             PropertyValue::StringList(items) => {
-                animatix::ast::Expr::Tuple(items.into_iter().map(animatix::ast::Expr::Ident).collect())
+                animatix::ast::Expr::Tuple(items.iter().cloned().map(animatix::ast::Expr::Ident).collect())
             }
             PropertyValue::PointList(points) => {
-                animatix::ast::Expr::Tuple(points.into_iter().map(|[x, y]| {
+                animatix::ast::Expr::Tuple(points.iter().map(|&[x, y]| {
                     animatix::ast::Expr::Tuple(vec![
                         animatix::ast::Expr::Num(x as f64),
                         animatix::ast::Expr::Num(y as f64),
                     ])
                 }).collect())
             }
-        }
+        };
+        crate::validation::validate_roundtrip(&expr, &pv)?;
+        Ok(expr)
     }
 }
 

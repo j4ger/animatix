@@ -1,74 +1,177 @@
 use super::*;
 use super::panels;
 use animatix::timeline::TrackAccessor;
-use crate::validation::validate_roundtrip;
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
-        let is_drag = !matches!(self.ui_store.interaction.drag_state, DragState::None) || self.ui_store.interaction.inspector_input_drag_active;
-        if !is_drag || !self.ui_store.interaction.drag_snapshot_taken {
-            self.snapshot(Command::PropertyEdit(edit.clone()));
-            if is_drag { self.ui_store.interaction.drag_snapshot_taken = true; }
-        }
-        if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
+        let is_drag = self.is_dragging();
+        self.maybe_snapshot(&edit, is_drag);
 
-        if let Some(ref mut timeline) = self.document_store.source.document.timeline {
-            if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
-                apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
-                timeline.invalidate_frame_cache();
-            }
+        if edit.property == "child_order" {
+            self.apply_child_order_edit(edit, is_drag);
+            return;
         }
 
-        let prev_time_s = self.document_store.source.document.prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
-        let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
-        let source_result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-            let expr = animatix::ast::Expr::from(edit.value.clone());
-            let validation_expr = expr.clone();
-            let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
-                crate::source_edit::SourceEdit::MergeKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: prev_time_s }
-            } else {
-                crate::source_edit::SourceEdit::InsertKeyframe { actor: edit.actor.clone(), property: edit.property.clone(), value: expr, time_s: self.preview_store.preview.playback.current_time_s, prev_time_s }
-            };
+        // During drag: mutate timeline only, defer source write.
+        if is_drag {
+            self.apply_timeline_edit(&edit);
+            self.defer_drag_edit(edit);
+            self.preview_store.preview_dirty = true;
+            return;
+        }
 
-            if crate::source_edit::apply_edit(stmts, source_edit) {
-                let new_source = animatix::to_source::stmts_to_source(stmts);
-                if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
-                    tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
-                    self.preview_store.preview.status = format!("⚠ Edited {}.{} @ {:.2}s — round-trip validation failed: {}", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s, err);
-                }
-                Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
-            } else { None }
-        } else { None };
-
-        let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.source.document.source_text = new_source.clone();
-            self.document_store.source.editor.replace_text(new_source);
-            self.document_store.source.document.is_dirty = true;
-            self.document_store.source.document.source_index = Some(source_index);
-            self.document_store.source.document.rescan_keyframe_lines();
-            true
-        } else { false };
-
-        self.preview_store.preview_dirty = true;
-        if source_written {
-            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        // Non-drag: validate source first, then apply atomically.
+        if let Err(err) = self.apply_keyframe_source_edit(&edit) {
+            tracing::error!("source edit failed for {}.{}: {}", edit.actor, edit.property, err);
+            self.preview_store.preview.status = format!(
+                "⚠ Edited {}.{} @ {:.2}s — {}",
+                edit.actor,
+                edit.property,
+                self.preview_store.preview.playback.current_time_s,
+                err
+            );
+        } else {
+            let prev_time_s = self
+                .document_store
+                .source
+                .document
+                .prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
+            let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
             self.preview_store.preview.status = if delta_s < self.ui_store.keyframe_merge_window_s {
                 format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
-                format!("Keyframe {}.{} @ {:.2}s", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s)
+                format!(
+                    "Keyframe {}.{} @ {:.2}s",
+                    edit.actor,
+                    edit.property,
+                    self.preview_store.preview.playback.current_time_s
+                )
             };
-        } else {
-            self.preview_store.preview.status = format!("Keyframe {}.{} @ {:.2}s — visual only", edit.actor, edit.property, self.preview_store.preview.playback.current_time_s);
         }
+        self.preview_store.preview_dirty = true;
     }
 
     pub(crate) fn handle_property_edit(&mut self, edit: panels::PropertyEdit) {
-        if edit.create_keyframe { self.handle_keyframe_edit(edit); return; }
-        let is_drag = !matches!(self.ui_store.interaction.drag_state, DragState::None) || self.ui_store.interaction.inspector_input_drag_active;
-        if !is_drag || !self.ui_store.interaction.drag_snapshot_taken { self.snapshot(Command::PropertyEdit(edit.clone())); if is_drag { self.ui_store.interaction.drag_snapshot_taken = true; } }
-        if edit.property == "child_order" { self.apply_child_order_edit(edit); return; }
+        if edit.create_keyframe {
+            self.handle_keyframe_edit(edit);
+            return;
+        }
 
+        let is_drag = self.is_dragging();
+        self.maybe_snapshot(&edit, is_drag);
+
+        if edit.property == "child_order" {
+            self.apply_child_order_edit(edit, is_drag);
+            return;
+        }
+
+        // During drag: mutate timeline only, defer source write.
+        if is_drag {
+            self.apply_timeline_edit(&edit);
+            self.defer_drag_edit(edit);
+            self.preview_store.preview_dirty = true;
+            return;
+        }
+
+        // Non-drag: validate source first, then apply atomically.
+        if let Err(err) = self.apply_property_source_edit(&edit) {
+            tracing::error!("source edit failed for {}.{}: {}", edit.actor, edit.property, err);
+            self.preview_store.preview.status =
+                format!("⚠ Edited {}.{} — {}", edit.actor, edit.property, err);
+        } else {
+            self.preview_store.preview.status =
+                format!("Edited {}.{} — source updated", edit.actor, edit.property);
+        }
+        self.preview_store.preview_dirty = true;
+    }
+
+    fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit, is_drag: bool) {
+        use crate::app::panels::PropertyValue as PV;
+
+        // During drag: mutate timeline only, defer source write.
+        if is_drag {
+            if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
+                if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
+                    if let PV::StringList(order) = &edit.value {
+                        metadata.child_order = order.clone();
+                        timeline.invalidate_frame_cache();
+                    }
+                }
+            }
+            self.defer_drag_edit(edit);
+            self.preview_store.preview_dirty = true;
+            return;
+        }
+
+        if let Err(err) = self.apply_child_order_source_edit(&edit) {
+            self.preview_store.preview.status =
+                format!("⚠ Edited {}.child_order — {}", edit.actor, err);
+        } else {
+            self.preview_store.preview.status =
+                format!("Edited {}.child_order — source updated", edit.actor);
+        }
+        self.preview_store.preview_dirty = true;
+    }
+
+    /// Flush all pending drag edits to source.
+    pub(crate) fn flush_pending_drag_edits(&mut self) {
+        let pending: Vec<panels::PropertyEdit> = self
+            .ui_store
+            .interaction
+            .pending_drag_source_edits
+            .drain()
+            .map(|(_, v)| v)
+            .collect();
+        if pending.is_empty() {
+            return;
+        }
+
+        for edit in pending {
+            if edit.property == "child_order" {
+                if let Err(err) = self.apply_child_order_source_edit(&edit) {
+                    tracing::error!("flush child_order failed: {}", err);
+                }
+                continue;
+            }
+
+            let result = if edit.create_keyframe {
+                self.apply_keyframe_source_edit(&edit)
+            } else {
+                self.apply_property_source_edit(&edit)
+            };
+
+            if let Err(err) = result {
+                tracing::error!("flush edit failed for {}.{}: {}", edit.actor, edit.property, err);
+            }
+        }
+
+        self.preview_store.preview_dirty = true;
+    }
+
+    // ── Private helpers ────────────────────────────────────────────
+
+    fn is_dragging(&self) -> bool {
+        !matches!(self.ui_store.interaction.drag_state, DragState::None)
+            || self.ui_store.interaction.inspector_input_drag_active
+    }
+
+    fn maybe_snapshot(&mut self, edit: &panels::PropertyEdit, is_drag: bool) {
+        if !is_drag || !self.ui_store.interaction.drag_snapshot_taken {
+            self.snapshot(Command::PropertyEdit(edit.clone()));
+            if is_drag {
+                self.ui_store.interaction.drag_snapshot_taken = true;
+            }
+        }
+    }
+
+    fn defer_drag_edit(&mut self, edit: panels::PropertyEdit) {
+        self.ui_store
+            .interaction
+            .pending_drag_source_edits
+            .insert((edit.actor.clone(), edit.property.clone()), edit);
+    }
+
+    fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
         if let Some(ref mut timeline) = self.document_store.source.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
@@ -76,73 +179,167 @@ impl GuiShell {
             }
             timeline.invalidate_frame_cache();
         }
+    }
 
-        let source_result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-            let expr = animatix::ast::Expr::from(edit.value.clone());
-            let validation_expr = expr.clone();
-            let set_edit = crate::source_edit::SourceEdit::SetProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr.clone() };
-            let applied = if crate::source_edit::apply_edit(stmts, set_edit) { true } else {
-                let insert_edit = crate::source_edit::SourceEdit::InsertProperty { actor: edit.actor.clone(), property: edit.property.clone(), value: expr };
-                crate::source_edit::apply_edit(stmts, insert_edit)
+    fn apply_keyframe_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), String> {
+        let expr = animatix::ast::Expr::try_from(edit.value.clone())?;
+        let prev_time_s = self
+            .document_store
+            .source
+            .document
+            .prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
+        let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
+
+        let (new_source, source_index) =
+            if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
+                    crate::source_edit::SourceEdit::MergeKeyframe {
+                        actor: edit.actor.clone(),
+                        property: edit.property.clone(),
+                        value: expr.clone(),
+                        time_s: prev_time_s,
+                    }
+                } else {
+                    crate::source_edit::SourceEdit::InsertKeyframe {
+                        actor: edit.actor.clone(),
+                        property: edit.property.clone(),
+                        value: expr.clone(),
+                        time_s: self.preview_store.preview.playback.current_time_s,
+                        prev_time_s,
+                    }
+                };
+                try_source_edit(stmts, source_edit, &expr, &edit.value)?
+            } else {
+                return Err("No AST available".to_string());
             };
 
-            if applied {
-                let new_source = animatix::to_source::stmts_to_source(stmts);
-                if let Err(err) = validate_roundtrip(&validation_expr, &edit.value) {
-                    tracing::error!("round-trip validation failed for {}.{}: {}", edit.actor, edit.property, err);
-                    self.preview_store.preview.status = format!("⚠ Edited {}.{} — round-trip validation failed: {}", edit.actor, edit.property, err);
-                }
-                Some((new_source, animatix::source_index::SourceIndex::build(stmts)))
-            } else { None }
-        } else { None };
-
-        let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.source.document.source_text = new_source.clone();
-            self.document_store.source.editor.replace_text(new_source);
-            self.document_store.source.document.is_dirty = true;
-            self.document_store.source.document.source_index = Some(source_index);
-            true
-        } else { false };
-
-        self.preview_store.preview_dirty = true;
-        if source_written {
-            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-            self.preview_store.preview.status = format!("Edited {}.{} — source updated", edit.actor, edit.property);
-        } else {
-            self.preview_store.preview.status = format!("Edited {}.{} — visual only (no source span)", edit.actor, edit.property);
-        }
+        self.apply_timeline_edit(edit);
+        self.commit_source(new_source, source_index);
+        Ok(())
     }
 
-    fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit) {
-        use crate::app::panels::PropertyValue as PV;
-        let source_result = if let (Some(ref mut timeline), PV::StringList(order)) = (self.document_store.source.document.timeline.as_mut(), edit.value.clone()) {
-            if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
-                metadata.child_order = order.clone();
-                // layout_children is computed on demand via Timeline::layout_children_for
-                timeline.invalidate_frame_cache();
-            }
+    fn apply_property_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), String> {
+        let expr = animatix::ast::Expr::try_from(edit.value.clone())?;
+
+        let (new_source, source_index) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-                let applied = crate::source_edit::apply_edit(stmts, crate::source_edit::SourceEdit::ReorderContainerChildren { container: edit.actor.clone(), new_order: order });
-                if applied { Some((animatix::to_source::stmts_to_source(stmts), animatix::source_index::SourceIndex::build(stmts))) } else { None }
-            } else { None }
-        } else { None };
+                let set_edit = crate::source_edit::SourceEdit::SetProperty {
+                    actor: edit.actor.clone(),
+                    property: edit.property.clone(),
+                    value: expr.clone(),
+                };
+                let applied = if crate::source_edit::apply_edit(stmts, set_edit) {
+                    true
+                } else {
+                    let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
+                        actor: edit.actor.clone(),
+                        property: edit.property.clone(),
+                        value: expr,
+                    };
+                    crate::source_edit::apply_edit(stmts, insert_edit)
+                };
 
-        let source_written = if let Some((new_source, source_index)) = source_result {
-            self.document_store.source.document.source_text = new_source.clone();
-            self.document_store.source.editor.replace_text(new_source);
-            self.document_store.source.document.is_dirty = true;
-            self.document_store.source.document.source_index = Some(source_index);
-            true
-        } else { false };
+                if applied {
+                    let new_source = animatix::to_source::stmts_to_source(stmts);
+                    let source_index = animatix::source_index::SourceIndex::build(stmts);
+                    Ok((new_source, source_index))
+                } else {
+                    Err("Source edit could not be applied".to_string())
+                }
+            } else {
+                Err("No AST available".to_string())
+            }?;
 
-        self.preview_store.preview_dirty = true;
-        if source_written {
-            self.preview_store.pending_rebuild_at = Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
-            self.preview_store.preview.status = format!("Edited {}.child_order — source updated", edit.actor);
-        } else {
-            self.preview_store.preview.status = format!("Edited {}.child_order — visual only (no source span)", edit.actor);
-        }
+        self.apply_timeline_edit(edit);
+        self.commit_source(new_source, source_index);
+        Ok(())
     }
+
+    fn apply_child_order_source_edit(
+        &mut self,
+        edit: &panels::PropertyEdit,
+    ) -> Result<(), String> {
+        use crate::app::panels::PropertyValue as PV;
+
+        let (new_source, source_index) =
+            if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                if let PV::StringList(order) = edit.value.clone() {
+                    let edit_op = crate::source_edit::SourceEdit::ReorderContainerChildren {
+                        container: edit.actor.clone(),
+                        new_order: order,
+                    };
+                    let mut trial = stmts.clone();
+                    if crate::source_edit::apply_edit(&mut trial, edit_op) {
+                        let new_source = animatix::to_source::stmts_to_source(&trial);
+                        let source_index = animatix::source_index::SourceIndex::build(&trial);
+                        *stmts = trial;
+                        Ok((new_source, source_index))
+                    } else {
+                        Err("Source edit could not be applied".to_string())
+                    }
+                } else {
+                    Err("Invalid value type for child_order".to_string())
+                }
+            } else {
+                Err("No AST available".to_string())
+            }?;
+
+        if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
+            if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
+                if let PV::StringList(order) = &edit.value {
+                    metadata.child_order = order.clone();
+                    timeline.invalidate_frame_cache();
+                }
+            }
+        }
+        self.commit_source(new_source, source_index);
+        Ok(())
+    }
+
+    fn commit_source(
+        &mut self,
+        new_source: String,
+        source_index: animatix::source_index::SourceIndex,
+    ) {
+        self.document_store.source.document.source_text = new_source.clone();
+        self.document_store.source.editor.replace_text(new_source);
+        self.document_store.source.document.is_dirty = true;
+        self.document_store.source.document.source_index = Some(source_index);
+        self.document_store.source.document.rescan_keyframe_lines();
+        self.preview_store.pending_rebuild_at = Some(
+            Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+        );
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Atomic source-edit helper
+// ─────────────────────────────────────────────────────────────
+
+/// Try to apply a source edit atomically.
+///
+/// 1. Validates the expression round-trips correctly.
+/// 2. Clones `stmts`, applies the edit to the clone.
+/// 3. Only on success moves the clone back and returns the new source text
+///    and source index.
+fn try_source_edit(
+    stmts: &mut Vec<animatix::ast::Stmt>,
+    edit: crate::source_edit::SourceEdit,
+    expr: &animatix::ast::Expr,
+    expected: &panels::PropertyValue,
+) -> Result<(String, animatix::source_index::SourceIndex), String> {
+    crate::validation::validate_roundtrip(expr, expected)?;
+
+    let mut trial = stmts.clone();
+    if !crate::source_edit::apply_edit(&mut trial, edit) {
+        return Err("Source edit could not be applied".to_string());
+    }
+
+    let new_source = animatix::to_source::stmts_to_source(&trial);
+    let source_index = animatix::source_index::SourceIndex::build(&trial);
+
+    *stmts = trial;
+    Ok((new_source, source_index))
 }
 
 // ─────────────────────────────────────────────────────────────

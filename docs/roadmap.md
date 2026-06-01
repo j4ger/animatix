@@ -33,7 +33,7 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 9b.3 | **Atomic source edit validation** | `handle_keyframe_edit` applies the edit to the timeline *before* validating the source round-trip. A failed round-trip leaves timeline and source text out of sync. Restructure to validate first, then apply atomically. | `actions/mod.rs` | 2–3 days | — |
+| 9b.3 | **Atomic source-edit validation + drag batching** | All inspector edits (`handle_keyframe_edit`, `handle_property_edit`, `apply_child_order_edit`) must validate AST mutation and expression round-trip *before* touching the timeline. During drags, timeline mutates immediately but source is flushed once on drag end. Create `try_apply_source_edit` helper; move `PropertyValue → Expr` validation to `TryFrom`. | `actions/mod.rs`, `commands.rs`, `source_edit/` | 3 days | — |
 
 ---
 

@@ -29,6 +29,9 @@ pub struct InteractionStore {
     pub drag_state: DragState,
     pub drag_snapshot_taken: bool,
     pub inspector_input_drag_active: bool,
+    /// Pending source edits accumulated during a drag interaction.
+    /// Flushed to source once the drag ends.
+    pub pending_drag_source_edits: HashMap<(String, String), crate::app::commands::PropertyEdit>,
 }
 
 impl InteractionStore {
@@ -37,6 +40,7 @@ impl InteractionStore {
             drag_state: DragState::None,
             drag_snapshot_taken: false,
             inspector_input_drag_active: false,
+            pending_drag_source_edits: HashMap::new(),
         }
     }
 }

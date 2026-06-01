@@ -215,7 +215,7 @@ impl GuiShell {
     }
 
     fn handle_drag_event(&mut self, drag: DragEvent) -> Vec<Effect> {
-        match drag {
+        let effects = match drag {
             DragEvent::DragEnded => ui::handle_drag_ended(&mut self.ui_store),
             DragEvent::InspectorInputDragStarted => {
                 ui::handle_inspector_input_drag_started(&mut self.ui_store)
@@ -223,6 +223,13 @@ impl GuiShell {
             DragEvent::InspectorInputDragEnded => {
                 ui::handle_inspector_input_drag_ended(&mut self.ui_store)
             }
+        };
+
+        // Flush any deferred source edits once the drag interaction ends.
+        if matches!(drag, DragEvent::DragEnded | DragEvent::InspectorInputDragEnded) {
+            self.flush_pending_drag_edits();
         }
+
+        effects
     }
 }
