@@ -34,6 +34,7 @@
 	    vulkan-loader
             vulkan-validation-layers
 	    wayland
+            mesa
 
             rust-bin.stable.latest.default
 
@@ -41,6 +42,10 @@
           ];
 
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
+          VK_ICD_FILENAMES = let
+            icdDir = "${pkgs.mesa}/share/vulkan/icd.d";
+          in
+            builtins.concatStringsSep ":" (map (name: "${icdDir}/${name}") (builtins.attrNames (builtins.readDir icdDir)));
 
           shellHook = ''
 		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
