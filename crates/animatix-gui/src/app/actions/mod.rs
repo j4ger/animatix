@@ -151,8 +151,7 @@ impl GuiShell {
     // ── Private helpers ────────────────────────────────────────────
 
     fn is_dragging(&self) -> bool {
-        !matches!(self.ui_store.interaction.drag_state, DragState::None)
-            || self.ui_store.interaction.inspector_input_drag_active
+        self.ui_store.interaction.is_dragging()
     }
 
     fn maybe_snapshot(&mut self, edit: &panels::PropertyEdit, is_drag: bool) {

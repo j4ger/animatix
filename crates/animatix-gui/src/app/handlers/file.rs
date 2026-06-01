@@ -69,8 +69,7 @@ pub fn handle_open_file(
                 );
             document_store.history.undo_stack.clear();
             document_store.history.redo_stack.clear();
-            ui_store.interaction.drag_snapshot_taken = false;
-            ui_store.interaction.inspector_input_drag_active = false;
+            ui_store.interaction.reset_drag_state();
             if let Some(ref mut reloader) = workspace_store.hot_reloader {
                 if let Err(e) =
                     reloader.update_watched_file(&document_store.source.document.file_path)

@@ -43,6 +43,20 @@ impl InteractionStore {
             pending_drag_source_edits: HashMap::new(),
         }
     }
+
+    /// Returns true if any drag interaction is active (canvas or inspector).
+    /// This is the canonical check — callers should prefer this over inspecting
+    /// individual flags.
+    pub fn is_dragging(&self) -> bool {
+        !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active
+    }
+
+    /// Reset all drag-related state. Called when any drag interaction ends.
+    pub fn reset_drag_state(&mut self) {
+        self.drag_state = DragState::None;
+        self.inspector_input_drag_active = false;
+        self.drag_snapshot_taken = false;
+    }
 }
 
 /// Clipboard buffer for copy/paste.

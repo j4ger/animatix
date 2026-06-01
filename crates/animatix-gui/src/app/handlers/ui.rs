@@ -30,8 +30,7 @@ pub fn handle_toggle_diagnostics_panel(ui_store: &mut UiStore) -> Vec<Effect> {
 }
 
 pub fn handle_drag_ended(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.interaction.drag_state = DragState::None;
-    ui_store.interaction.drag_snapshot_taken = false;
+    ui_store.interaction.reset_drag_state();
     vec![]
 }
 
@@ -41,8 +40,7 @@ pub fn handle_inspector_input_drag_started(ui_store: &mut UiStore) -> Vec<Effect
 }
 
 pub fn handle_inspector_input_drag_ended(ui_store: &mut UiStore) -> Vec<Effect> {
-    ui_store.interaction.inspector_input_drag_active = false;
-    ui_store.interaction.drag_snapshot_taken = false;
+    ui_store.interaction.reset_drag_state();
     vec![]
 }
 

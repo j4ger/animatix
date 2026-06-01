@@ -178,6 +178,7 @@ mod tests {
     fn drag_ended_resets_drag_state() {
         let mut ui_store = make_ui_store();
         ui_store.interaction.drag_snapshot_taken = true;
+        ui_store.interaction.inspector_input_drag_active = true;
 
         let effects = ui::handle_drag_ended(&mut ui_store);
 
@@ -189,6 +190,7 @@ mod tests {
             "expected DragState::None after DragEnded"
         );
         assert!(!ui_store.interaction.drag_snapshot_taken);
+        assert!(!ui_store.interaction.inspector_input_drag_active);
         assert!(effects.is_empty());
     }
 
@@ -235,6 +237,10 @@ mod tests {
         let effects = ui::handle_inspector_input_drag_ended(&mut ui_store);
         assert!(!ui_store.interaction.inspector_input_drag_active);
         assert!(!ui_store.interaction.drag_snapshot_taken);
+        assert!(
+            matches!(ui_store.interaction.drag_state, DragState::None),
+            "expected DragState::None after InspectorInputDragEnded"
+        );
         assert!(effects.is_empty());
     }
 

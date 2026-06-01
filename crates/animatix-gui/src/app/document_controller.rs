@@ -42,6 +42,16 @@ impl DocumentController<'_> {
             Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
     }
 
+    /// Helper: mutable access to `raw_statements`, or set a status warning and return `None`.
+    #[allow(dead_code)]
+    fn statements_mut(&mut self, operation: &str) -> Option<&mut Vec<animatix::ast::Stmt>> {
+        self.document_store.source.document.raw_statements.as_mut().or_else(|| {
+            self.preview_store.preview.status =
+                format!("Failed to {operation} — no AST available");
+            None
+        })
+    }
+
     // ── Actor management ────────────────────────────────────────────────
 
     /// Create a new actor from a type/label/position.
