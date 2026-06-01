@@ -628,14 +628,6 @@ pub(crate) fn inject_property_into_env(
     inject_vec2_env(env, &mut key, prefix_len, "from", &track.line_from, time_ms, [-50.0, 0.0]);
     inject_vec2_env(env, &mut key, prefix_len, "to",   &track.line_to, time_ms, [50.0, 0.0]);
 
-    // Effects
-    inject_vec2_env(env, &mut key, prefix_len, "shadow_offset",   &track.shadow_offset, time_ms, [0.0, 0.0]);
-    inject_scalar_env(env, &mut key, prefix_len, "shadow_blur",    &track.shadow_blur, time_ms, 0.0);
-    inject_color_env(env, &mut key, prefix_len, "shadow_color",    &track.shadow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
-    inject_scalar_env(env, &mut key, prefix_len, "glow_radius",    &track.glow_radius, time_ms, 0.0);
-    inject_color_env(env, &mut key, prefix_len, "glow_color",      &track.glow_color, time_ms, [0.0, 0.0, 0.0, 0.0]);
-    inject_scalar_env(env, &mut key, prefix_len, "backdrop_blur",  &track.backdrop_blur, time_ms, 0.0);
-
     // Filter
     inject_scalar_env(env, &mut key, prefix_len, "blur",           &track.filter_blur, time_ms, 0.0);
     inject_scalar_env(env, &mut key, prefix_len, "brightness",     &track.filter_brightness, time_ms, 1.0);
@@ -660,12 +652,6 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity);
     inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from);
     inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to);
-    inject_scalar_animating(env, &mut key, prefix_len, "shadow_offset", &track.shadow_offset);
-    inject_scalar_animating(env, &mut key, prefix_len, "shadow_blur",   &track.shadow_blur);
-    inject_scalar_animating(env, &mut key, prefix_len, "shadow_color",  &track.shadow_color);
-    inject_scalar_animating(env, &mut key, prefix_len, "glow_radius",   &track.glow_radius);
-    inject_scalar_animating(env, &mut key, prefix_len, "glow_color",    &track.glow_color);
-    inject_scalar_animating(env, &mut key, prefix_len, "backdrop_blur", &track.backdrop_blur);
     inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur);
     inject_scalar_animating(env, &mut key, prefix_len, "brightness",    &track.filter_brightness);
     inject_scalar_animating(env, &mut key, prefix_len, "contrast",      &track.filter_contrast);

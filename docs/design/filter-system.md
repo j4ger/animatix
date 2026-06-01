@@ -6,7 +6,7 @@
 
 ## Problem
 
-Animatix currently lacks image post-processing. The closest features are crude approximations attached as per-actor properties (`shadow_blur`, `glow_radius`, `backdrop_blur`). These:
+Animatix lacked image post-processing. The closest features were crude approximations attached as per-actor properties (`shadow_blur`, `glow_radius`, `backdrop_blur`). These:
 - Are visually weak (backdrop blur is concentric white rectangles, not a real Gaussian)
 - Clutter the property registry with single-purpose fields
 - Cannot be composed (you can't blur + darken an image)
@@ -175,46 +175,26 @@ This is two offscreen passes. Users opt in via explicit nesting.
 
 ## Migration: Property-Based Effects → Filter
 
-### Current State (to be deprecated)
+### Removed Properties
 
-| Property | Current Implementation | Current Quality |
-|----------|------------------------|-----------------|
-| `shadow_offset` | Translates children, re-renders in shadow color | Passable |
-| `shadow_blur` | Same as above but with fixed alpha falloff | Passable |
-| `shadow_color` | Tint for shadow pass | Passable |
-| `glow_radius` | Stroke with expanded width in glow color | Acceptable |
-| `glow_color` | Tint for glow stroke | Acceptable |
-| `backdrop_blur` | Concentric white rectangles with alpha decay | **Very poor** |
+| Property | Old Implementation | Quality | Replacement |
+|----------|-------------------|---------|-------------|
+| `shadow_offset` | Translates children, re-renders in shadow color | Passable | Layered `Filter` composition |
+| `shadow_blur` | Same as above but with fixed alpha falloff | Passable | Layered `Filter` composition |
+| `shadow_color` | Tint for shadow pass | Passable | Layered `Filter` composition |
+| `glow_radius` | Stroke with expanded width in glow color | Acceptable | Duplicate + `Filter, blur` |
+| `glow_color` | Tint for glow stroke | Acceptable | Duplicate + `Filter, blur` |
+| `backdrop_blur` | Concentric white rectangles with alpha decay | **Very poor** | `Filter, blur` |
 
-### Migration Plan
-
-**Step 1: Implement `Filter`** (this document)
-
-**Step 2: Deprecate property-based effects**
-
-Emit deprecation diagnostics when the following properties are used:
-- `shadow_offset`, `shadow_blur`, `shadow_color`
-- `glow_radius`, `glow_color`
-- `backdrop_blur`
-
-Diagnostic text:
-```
-'{property}' is deprecated. Use the 'Filter' primitive instead:
-  old: actor.shadow_blur = 10
-  new: wrap: Filter, blur: 10 { actor: Image, ... }
-```
-
-**Step 3: Remove after deprecation window**
-
-Remove from `PROPERTY_REGISTRY`, `AnimationTrack`, and `scene_eval.rs`. Target: 2 releases after deprecation.
+These properties have been removed entirely (POC — no backward compatibility required). Use `Filter` instead.
 
 ### Equivalent Migrations
 
 | Old (property) | New (Filter) | Notes |
 |----------------|--------------|-------|
-| `shadow_offset: (4, 4), shadow_blur: 8, shadow_color: black` | Parent `Group` with a blurred `Rect` child behind content | Shadows require layered composition |
-| `glow_radius: 10, glow_color: gold` | Duplicate content actor, apply `blur: 10`, place behind, color-tint | Glow is blurred duplicate |
-| `backdrop_blur: 20` | `Filter, blur: 20` applied to a container over a background | Real blur, not rectangles |
+| Drop shadow | Parent `Group` with a blurred `Rect` child behind content | Shadows require layered composition |
+| Glow | Duplicate content actor, apply `blur: 10`, place behind, color-tint | Glow is blurred duplicate |
+| Backdrop blur | `Filter, blur: 20` applied to a container over a background | Real blur, not rectangles |
 
 ### Why not migrate shadows/glows into Filter automatically?
 
@@ -284,13 +264,18 @@ card: Stack, anchor: scene.center {
    - Identity filter properties → append sub-scene directly (optimization)
    - Nested filters → recursive evaluation (each level gets its own backend call)
 
-### Phase E: Deprecation + Migration (pending)
+### Phase E: Remove Stale Properties ✅
 
-1. Add deprecation diagnostic for old effect properties
-2. Write migration examples in docs
-3. Mark properties as deprecated in `PROPERTY_REGISTRY` (new flag `DEPRECATED`)
-4. Update GUI inspector to hide deprecated properties
-5. Update `spec.md` and `properties.md`
+1. Removed `shadow_offset`, `shadow_blur`, `shadow_color`, `glow_radius`, `glow_color`, `backdrop_blur` from:
+   - `ActorField` enum
+   - `AnimationTrack` fields and initializers
+   - `PROPERTY_REGISTRY` schemas
+   - `field_ref` / `field_mut` / `has_keyframe_at` / `list_keyframes`
+   - `inject_*_env` and `inject_*_animating` in property engine
+   - `render_node_effects` in scene evaluation
+2. Updated `properties.md` and `filter-system.md` docs
+
+Since Animatix is still a POC, no deprecation flag or migration shim was added. Users should use `Filter` instead.
 
 ---
 
@@ -315,6 +300,6 @@ card: Stack, anchor: scene.center {
 - [x] The original use case (blurred background image + sharp foreground) works with a single `.amx` file and no external pre-processing
 - [x] CLI export (`animatix image`, `animatix gif`, `animatix video`) supports `Filter`
 - [x] GUI preview and CLI export produce pixel-identical filter output (unified `GpuFilterBackend`)
-- [ ] Old effect properties (`shadow_blur`, `glow_radius`, `backdrop_blur`) emit deprecation diagnostics
+- [x] Old effect properties removed (POC — no backward compatibility needed)
 - [ ] No measurable frame time regression for scenes without `Filter`
 - [ ] Documentation (`spec.md`, `properties.md`, `architecture.md`) updated

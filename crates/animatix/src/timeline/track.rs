@@ -566,20 +566,6 @@ pub struct AnimationTrack {
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 
-    // ── Effects tier ──
-    /// Shadow offset vector.
-    pub shadow_offset: Option<PropertyTrack<[f32; 2]>>,
-    /// Shadow blur radius.
-    pub shadow_blur: Option<PropertyTrack<f32>>,
-    /// Shadow color in RGBA.
-    pub shadow_color: Option<PropertyTrack<[f32; 4]>>,
-    /// Glow / blur radius.
-    pub glow_radius: Option<PropertyTrack<f32>>,
-    /// Glow color in RGBA.
-    pub glow_color: Option<PropertyTrack<[f32; 4]>>,
-    /// Backdrop blur strength.
-    pub backdrop_blur: Option<PropertyTrack<f32>>,
-
     // ── Filter tier ──
     /// Gaussian blur radius.
     pub filter_blur: Option<PropertyTrack<f32>>,
@@ -663,14 +649,6 @@ impl AnimationTrack {
             stroke_progress: None,
             fill_opacity: None,
             morph_options: None,
-
-            // Effects flat fields
-            shadow_offset: None,
-            shadow_blur: None,
-            shadow_color: None,
-            glow_radius: None,
-            glow_color: None,
-            backdrop_blur: None,
 
             // Filter flat fields
             filter_blur: None,
@@ -765,9 +743,6 @@ impl AnimationTrack {
             self.vector_paths.last_time(), self.image.last_time(),
             self.points.last_time(), self.commands.last_time(),
             self.font_family.last_time(), self.font_size.last_time(),
-            self.shadow_offset.last_time(), self.shadow_blur.last_time(),
-            self.shadow_color.last_time(), self.glow_radius.last_time(),
-            self.glow_color.last_time(), self.backdrop_blur.last_time(),
             self.filter_blur.last_time(), self.filter_brightness.last_time(),
             self.filter_contrast.last_time(), self.filter_saturate.last_time(),
             self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
@@ -807,12 +782,6 @@ impl AnimationTrack {
             || self.font_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.text_paths.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.image.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.shadow_offset.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.shadow_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.shadow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.glow_radius.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.glow_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.backdrop_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.filter_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.filter_brightness.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
             || self.filter_contrast.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
@@ -1028,12 +997,6 @@ impl AnimationTrack {
             StrokeColor => TrackFieldRef::Vec4(&self.stroke_color),
             StrokeProgress => TrackFieldRef::F32(&self.stroke_progress),
             FillOpacity => TrackFieldRef::F32(&self.fill_opacity),
-            ShadowOffset => TrackFieldRef::Vec2(&self.shadow_offset),
-            ShadowBlur => TrackFieldRef::F32(&self.shadow_blur),
-            ShadowColor => TrackFieldRef::Vec4(&self.shadow_color),
-            GlowRadius => TrackFieldRef::F32(&self.glow_radius),
-            GlowColor => TrackFieldRef::Vec4(&self.glow_color),
-            BackdropBlur => TrackFieldRef::F32(&self.backdrop_blur),
             FilterBlur => TrackFieldRef::F32(&self.filter_blur),
             FilterBrightness => TrackFieldRef::F32(&self.filter_brightness),
             FilterContrast => TrackFieldRef::F32(&self.filter_contrast),
@@ -1073,12 +1036,6 @@ impl AnimationTrack {
             StrokeColor => TrackFieldMut::Vec4(&mut self.stroke_color),
             StrokeProgress => TrackFieldMut::F32(&mut self.stroke_progress),
             FillOpacity => TrackFieldMut::F32(&mut self.fill_opacity),
-            ShadowOffset => TrackFieldMut::Vec2(&mut self.shadow_offset),
-            ShadowBlur => TrackFieldMut::F32(&mut self.shadow_blur),
-            ShadowColor => TrackFieldMut::Vec4(&mut self.shadow_color),
-            GlowRadius => TrackFieldMut::F32(&mut self.glow_radius),
-            GlowColor => TrackFieldMut::Vec4(&mut self.glow_color),
-            BackdropBlur => TrackFieldMut::F32(&mut self.backdrop_blur),
             FilterBlur => TrackFieldMut::F32(&mut self.filter_blur),
             FilterBrightness => TrackFieldMut::F32(&mut self.filter_brightness),
             FilterContrast => TrackFieldMut::F32(&mut self.filter_contrast),
@@ -1119,12 +1076,6 @@ impl AnimationTrack {
             "stroke_color" => ActorField::StrokeColor,
             "stroke_progress" => ActorField::StrokeProgress,
             "fill_opacity" => ActorField::FillOpacity,
-            "shadow_offset" => ActorField::ShadowOffset,
-            "shadow_blur" => ActorField::ShadowBlur,
-            "shadow_color" => ActorField::ShadowColor,
-            "glow_radius" => ActorField::GlowRadius,
-            "glow_color" => ActorField::GlowColor,
-            "backdrop_blur" => ActorField::BackdropBlur,
             "filter_blur" => ActorField::FilterBlur,
             "filter_brightness" => ActorField::FilterBrightness,
             "filter_contrast" => ActorField::FilterContrast,
@@ -1181,12 +1132,6 @@ impl AnimationTrack {
             "stroke_color" => ActorField::StrokeColor,
             "stroke_progress" => ActorField::StrokeProgress,
             "fill_opacity" => ActorField::FillOpacity,
-            "shadow_offset" => ActorField::ShadowOffset,
-            "shadow_blur" => ActorField::ShadowBlur,
-            "shadow_color" => ActorField::ShadowColor,
-            "glow_radius" => ActorField::GlowRadius,
-            "glow_color" => ActorField::GlowColor,
-            "backdrop_blur" => ActorField::BackdropBlur,
             "filter_blur" => ActorField::FilterBlur,
             "filter_brightness" => ActorField::FilterBrightness,
             "filter_contrast" => ActorField::FilterContrast,

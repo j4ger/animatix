@@ -115,7 +115,7 @@ impl OffscreenRenderer {
         // mutating the caller's instance. The clone is dropped before we render
         // the main scene.
         let scene = {
-            let mut eval_timeline = timeline.clone();
+            let eval_timeline = timeline.clone();
             let filter_backend = GpuFilterBackend::new(
                 self.device.clone(),
                 self.queue.clone(),

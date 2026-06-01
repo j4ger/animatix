@@ -43,16 +43,18 @@
 | `stroke_width` | F32 | ✓ | ✓ | All shapes |
 | `stroke_progress` | F32 | ✓ | ✓ | All shapes |
 
-## Effects
+## Filter
+
+Only applicable to `Filter` actors. See [`design/filter-system.md`](design/filter-system.md).
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `shadow_offset` | Vec2 | ✓ | ✓ | Everything |
-| `shadow_blur` | F32 | ✓ | ✓ | Everything |
-| `shadow_color` | Color | ✓ | ✓ | Everything |
-| `glow_radius` | F32 | ✓ | ✓ | Everything |
-| `glow_color` | Color | ✓ | ✓ | Everything |
-| `backdrop_blur` | F32 | ✓ | ✓ | Everything |
+| `blur` | F32 | ✓ | ✓ | Filter |
+| `brightness` | F32 | ✓ | ✓ | Filter |
+| `contrast` | F32 | ✓ | ✓ | Filter |
+| `saturate` | F32 | ✓ | ✓ | Filter |
+| `hue_rotate` | F32 | ✓ | ✓ | Filter |
+| `sepia` | F32 | ✓ | ✓ | Filter |
 
 ## Shape-Specific
 

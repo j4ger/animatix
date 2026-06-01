@@ -27,7 +27,7 @@ pub struct GpuFilterBackend {
     output_view: Option<wgpu::TextureView>,
     output_buffer: Option<wgpu::Buffer>,
     bytes_per_row: u32,
-    dimensions: SceneDimensions,
+    _dimensions: SceneDimensions,
 }
 
 impl GpuFilterBackend {
@@ -74,7 +74,7 @@ impl GpuFilterBackend {
             output_view: Some(view),
             output_buffer: Some(buffer),
             bytes_per_row,
-            dimensions,
+            _dimensions: dimensions,
         })
     }
 }
