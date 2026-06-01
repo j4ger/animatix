@@ -30,6 +30,7 @@ thiserror = "2.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
+rfd = "0.15"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tree-sitter-highlight = "0.26"

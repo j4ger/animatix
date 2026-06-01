@@ -416,10 +416,13 @@ impl GuiShell {
                 }
         });
 
-        // Compact toolbar — 28px, only persistent chrome
-        egui::Panel::top("toolbar")
-            .resizable(false)
-            .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
+        // Compact toolbar — hidden during onboarding so no grid/zoom controls clutter
+        // the welcome screen.
+        if !self.ui_store.view.welcome_open {
+            egui::Panel::top("toolbar")
+                .resizable(false)
+                .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
+        }
 
         let diagnostics = self.document_store.combined_diagnostics();
 
@@ -511,68 +514,126 @@ impl GuiShell {
         ui.vertical_centered(|ui| {
             ui.add_space(avail.height() * WELCOME_TOP_OFFSET_FRAC);
 
-            ui.label(
-                egui::RichText::new(egui_phosphor::regular::FILM_STRIP)
-                    .size(WELCOME_ICON_SIZE)
-                    .color(ACCENT_BLUE),
-            );
-            ui.add_space(SPACE_XL);
+            // ── Centered card ──
+            egui::Frame::new()
+                .fill(BG_SURFACE)
+                .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                .corner_radius(RADIUS_L)
+                .inner_margin(egui::Margin::symmetric(40, 36))
+                .show(ui, |ui| {
+                    ui.set_max_width(280.0);
 
-            ui.label(
-                egui::RichText::new("Welcome to Animatix")
-                    .size(FONT_SIZE_XL * 1.5)
-                    .color(TEXT_PRIMARY)
-                    .strong(),
-            );
-            ui.add_space(SPACE_S);
-            ui.label(
-                egui::RichText::new("Layout-first animation for creative coders")
-                    .size(FONT_SIZE_M)
-                    .color(TEXT_SECONDARY),
-            );
-            ui.add_space(SPACE_XL * 2.0);
+                    ui.vertical_centered(|ui| {
+                        // Icon with circular background
+                        let icon_size = 56.0;
+                        let (icon_rect, _) = ui.allocate_exact_size(
+                            egui::vec2(icon_size, icon_size),
+                            egui::Sense::hover(),
+                        );
+                        ui.painter().circle_filled(
+                            icon_rect.center(),
+                            icon_size * 0.5,
+                            BG_WIDGET,
+                        );
+                        ui.painter().text(
+                            icon_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            egui_phosphor::regular::FILM_STRIP,
+                            egui::FontId::proportional(28.0),
+                            ACCENT_BLUE,
+                        );
+                        ui.add_space(SPACE_XL * 1.5);
 
-            let btn_w = WELCOME_BTN_WIDTH;
+                        // Title
+                        ui.label(
+                            egui::RichText::new("Welcome to Animatix")
+                                .size(FONT_SIZE_XL * 1.5)
+                                .color(TEXT_PRIMARY)
+                                .strong(),
+                        );
+                        ui.add_space(SPACE_S);
 
-            // Create new button
-            let new_resp = ui.add_sized(
-                egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
-                egui::Button::new(
-                    egui::RichText::new(format!("{}  Create new scene", egui_phosphor::regular::PLUS))
-                        .size(FONT_SIZE_M)
-                        .color(TEXT_PRIMARY),
-                )
-                .fill(ACCENT_BLUE)
-                .corner_radius(RADIUS_M),
-            );
-            if new_resp.clicked() {
-                let path = default_file_path();
-                let _ = std::fs::write(&path, "#0s\n");
-                commands.push_back(ShellAction::Command(Command::OpenFile(path)));
-            }
+                        // Subtitle
+                        ui.label(
+                            egui::RichText::new("Layout-first animation for creative coders")
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_SECONDARY),
+                        );
+                        ui.add_space(SPACE_XL * 2.5);
 
-            ui.add_space(SPACE_M);
+                        let btn_w = ui.available_width();
 
-            // Hint: open via sidebar
-            ui.add_sized(
-                egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
-                egui::Button::new(
-                    egui::RichText::new(format!("{}  Open via sidebar", egui_phosphor::regular::FOLDER_OPEN))
-                        .size(FONT_SIZE_M)
-                        .color(TEXT_PRIMARY),
-                )
-                .fill(BG_WIDGET)
-                .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
-                .corner_radius(RADIUS_M),
-            );
+                        // Primary: Create new scene
+                        let new_resp = ui.add_sized(
+                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{}  Create new scene",
+                                    egui_phosphor::regular::PLUS
+                                ))
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_PRIMARY),
+                            )
+                            .fill(ACCENT_BLUE)
+                            .corner_radius(RADIUS_M),
+                        );
+                        if new_resp.clicked() {
+                            let path = default_file_path();
+                            let _ = std::fs::write(&path, "#0s\n");
+                            commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                        }
 
-            ui.add_space(SPACE_XL);
+                        ui.add_space(SPACE_M);
 
-            ui.label(
-                egui::RichText::new("Press ? for keyboard shortcuts")
-                    .size(FONT_SIZE_S)
-                    .color(TEXT_MUTED),
-            );
+                        // Secondary: open existing file
+                        let open_resp = ui.add_sized(
+                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{}  Open existing file",
+                                    egui_phosphor::regular::FOLDER_OPEN
+                                ))
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_PRIMARY),
+                            )
+                            .fill(BG_WIDGET)
+                            .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
+                            .corner_radius(RADIUS_M),
+                        );
+                        if open_resp.clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Animatix", &["amx"])
+                                .pick_file()
+                            {
+                                commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                            }
+                        }
+
+                        ui.add_space(SPACE_M);
+
+                        // Tertiary: open workspace
+                        let ws_resp = ui.add_sized(
+                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{}  Open workspace",
+                                    egui_phosphor::regular::FOLDER_NOTCH
+                                ))
+                                .size(FONT_SIZE_M)
+                                .color(TEXT_PRIMARY),
+                            )
+                            .fill(BG_WIDGET)
+                            .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
+                            .corner_radius(RADIUS_M),
+                        );
+                        if ws_resp.clicked() {
+                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                                self.ui_store.view.welcome_open = false;
+                            }
+                        }
+                    });
+                });
         });
     }
 

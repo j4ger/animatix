@@ -98,9 +98,9 @@ impl GuiShell {
                             .on_hover_text("Change workspace directory")
                             .clicked()
                         {
-                            self.ui_store.workspace_switcher_path =
-                                self.workspace_store.workspace_root.to_string_lossy().to_string();
-                            self.ui_store.view.workspace_switcher_open = true;
+                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                            }
                             ui.close();
                         }
                     });
