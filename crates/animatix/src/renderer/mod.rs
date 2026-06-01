@@ -13,6 +13,9 @@ pub mod core;
 #[cfg(feature = "render")]
 /// Offscreen renderer for CPU-readable frame output.
 pub mod offscreen;
+#[cfg(feature = "render")]
+/// Shared GPU filter backend for preview and export.
+pub mod filter_backend;
 #[cfg(feature = "text")]
 /// Text rendering support.
 pub mod text;

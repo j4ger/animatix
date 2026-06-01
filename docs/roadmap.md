@@ -21,12 +21,13 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 8.1 | **Language surface** | Add `Filter` to `ActorKindId`, `PROPERTY_REGISTRY`, primitive registry, and docs. Properties: `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia`. | `timeline/`, `primitives/`, `docs/` | 1 day | — |
-| 8.2 | **Offscreen infrastructure** | `FilterTargetPool` for acquiring/releasing WGPU textures. Integrate into `PreviewSurface` and resize path. | `preview_surface.rs`, `renderer/` | 2 days | — |
-| 8.3 | **Filter shaders** | Separable Gaussian blur (H/V passes) + color matrix shader (brightness/contrast/saturate/hue/sepia). Compile at init, manage pipeline state. | `renderer/shaders/`, `preview_surface.rs` | 2 days | 8.2 |
-| 8.4 | **Scene evaluation integration** | In `scene_eval.rs`, detect `Filter` actors, render children offscreen, run filter chain, draw result as image. Handle empty/identity/no-op cases. | `timeline/scene_eval.rs` | 2 days | 8.3 |
-| 8.5 | **CLI export support** | Wire `FilterTargetPool` into video/GIF/image export renderers. Share pool or create per-export instance. | `renderer/encode/` | 1 day | 8.4 |
-| 8.6 | **Deprecate property-based effects** | Emit diagnostics for `shadow_blur`, `glow_radius`, `backdrop_blur`, etc. Hide from inspector. Document migration path. | `timeline/property_registry.rs`, `app/panels/inspector.rs`, `docs/` | 1 day | 8.1 |
+| 8.1 | **Language surface** ✅ | Add `Filter` to `ActorKindId`, `PROPERTY_REGISTRY`, primitive registry, and docs. Properties: `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia`. | `timeline/`, `primitives/`, `docs/` | 1 day | — |
+| 8.2 | **Shared GPU filter backend** ✅ | Extract `GpuFilterBackend` into `renderer/filter_backend.rs`. Used by both `PreviewSurface` and `OffscreenRenderer` with dedicated renderer core + temporary targets. | `renderer/filter_backend.rs`, `renderer/offscreen.rs`, `preview_surface.rs` | 1 day | — |
+| 8.3 | **Scene evaluation integration** ✅ | In `scene_eval.rs`, detect `Filter` actors, evaluate children into sub-scene, render via `FilterBackend`, apply CPU filters, draw result as image. | `timeline/scene_eval.rs`, `timeline/filter.rs` | 2 days | — |
+| 8.4 | **Unified preview + export rendering** ✅ | GUI `PreviewSurface` and CLI `OffscreenRenderer` both attach a `GpuFilterBackend` before evaluation so Filter output is identical in preview and export. | `preview_surface.rs`, `renderer/offscreen.rs` | 1 day | 8.2 |
+| 8.5 | **Deprecate property-based effects** | Emit diagnostics for `shadow_blur`, `glow_radius`, `backdrop_blur`, etc. Hide from inspector. Document migration path. | `timeline/property_registry.rs`, `app/panels/inspector.rs`, `docs/` | 1 day | — |
+| 8.6 | **GPU shader filter pass** | Replace CPU blur + color matrix with WGSL compute shaders (blur H → blur V → color matrix) for 10–50× speedup on large scenes. | `renderer/shaders/`, `renderer/filter_backend.rs` | 1 week | When filter count becomes a bottleneck |
+| 8.7 | **Documentation update** | Update `spec.md`, `properties.md`, `architecture.md` with Filter primitive, filter properties, and migration examples. | `docs/` | 1 day | 8.5 |
 
 ---
 

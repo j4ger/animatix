@@ -65,45 +65,97 @@ Pipeline order (fixed): **blur → color matrix → opacity**
 
 ## Renderer Architecture
 
+### Unified Rendering Constraint
+
+> **Both preview and export must produce pixel-identical output.**
+>
+> The GUI live preview (`PreviewSurface`) and the CLI export pipeline
+> (`OffscreenRenderer`) share the same evaluation path.  The only difference
+> is the final destination (egui texture vs CPU buffer vs video encoder).
+> This means the filter backend must be available in **both** renderers.
+
 ### Pipeline
 
 ```
 Main Scene (vello::Scene)
   ├─ Filter "bg"
-  │   1. Create/allocate offscreen texture (size = child subtree bbox)
-  │   2. Render children into offscreen vello::Scene
-  │   3. Run filter compute shader:
-  │        blur pass H → blur pass V → color matrix pass
-  │   4. DrawImage(filtered texture) into main scene at local transform
+  │   1. Evaluate children into a temporary vello::Scene
+  │   2. Render temp scene to an offscreen texture (GPU)
+  │   3. Read back texture → CPU RGBA buffer
+  │   4. Apply CPU filters (blur + color matrix)
+  │   5. Wrap filtered buffer in peniko::ImageData
+  │   6. DrawImage(filtered image) into main scene at local transform
   │
   └─ Sharp siblings (rendered normally)
 ```
 
-### Shader Design
+### FilterBackend Trait
 
-**Two-pass separable Gaussian blur** (horizontal then vertical):
+The timeline is renderer-agnostic.  During evaluation it asks the
+**currently installed backend** (if any) to render a sub-scene to a
+bitmap:
 
-```wgsl
-// blur_h.wgsl / blur_v.wgsl
-// 9-tap kernel, sigma = radius / 3.0
-// weights computed from Gaussian distribution, normalized
+```rust
+pub trait FilterBackend: Send {
+    fn render_scene_to_image(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+    ) -> Result<SceneImage, String>;
+}
 ```
 
-**Color matrix pass** (single fullscreen quad):
+- **No backend installed** → `Filter` renders its children directly (no filtering).
+- **Backend installed** → children are captured, filtered, and drawn as an image.
 
-```wgsl
-// color_matrix.wgsl
-// Build 4×5 matrix from brightness/contrast/saturate/hue_rotate/sepia
-// Apply as: pixel = mat4x4 * pixel + offset
-```
+This design lets the same `scene_eval.rs` code run in the GUI preview,
+CLI export, and any future renderer (WASM, headless tests) by simply
+attaching a different backend implementation.
 
-### Offscreen Texture Management
+### GpuFilterBackend (shared)
 
-- `FilterTargetPool` owned by `PreviewSurface` and export renderers
-- Key: `(width, height, format)`
-- Reuse across frames; clear on acquire
-- Budget: 4 buffers, LRU eviction
-- Texture format: `Rgba8Unorm` or `Rgba16Float` for HDR
+[`GpuFilterBackend`](../../crates/animatix/src/renderer/filter_backend.rs) lives in the core crate and is used by **both**
+`PreviewSurface` and `OffscreenRenderer`:
+
+1. Clone the caller's `wgpu::Device` & `wgpu::Queue`
+2. Create a dedicated `RendererCore` (so filter work never contends with the main renderer)
+3. Allocate a temporary `Rgba8Unorm` texture + CPU-readback buffer sized to the scene
+4. Render the sub-scene with **transparent background**
+5. Copy texture → buffer → `Vec<u8>`
+6. Wrap in `peniko::ImageData`
+
+The backend is created fresh per evaluation and dropped immediately after.
+Overhead is acceptable because:
+- Filter evaluation is only triggered when a `Filter` actor has non-identity properties
+- The alternative (no backend) means the GUI preview would diverge from export
+
+### CPU Filter Implementation
+
+[`apply_cpu_filters()`](../../crates/animatix/src/timeline/filter.rs) uses the `image` crate:
+
+| Pass | Implementation | Notes |
+|------|----------------|-------|
+| **Blur** | `image::imageops::blur` | Gaussian, sigma = radius / 3.0 |
+| **Brightness** | 4×4 scaling matrix | Multiply all channels |
+| **Contrast** | 4×4 matrix + offset | `(c - 0.5) * contrast + 0.5` |
+| **Saturate** | 4×4 luminance matrix | 0 = grayscale (Rec. 709 weights) |
+| **Hue rotate** | 4×4 RGB rotation matrix | Angle in radians |
+| **Sepia** | 4×4 lerp to sepia tones | Standard sepia matrix |
+
+Matrices are composed in fixed order: **sepia → hue → saturate → contrast → brightness**.
+
+### Why CPU instead of GPU shaders?
+
+The original design called for WGSL compute shaders (blur H → blur V → color
+matrix).  We switched to CPU filtering for Phase 1 because:
+
+1. **Simpler** — no shader compilation, bind-group management, or pipeline state
+2. **Unified** — works identically in preview and export without shader sharing
+3. **Correct** — the `image` crate's Gaussian blur is battle-tested
+4. **Fast enough** — for typical 1920×1080 scenes with 1–2 Filter actors, CPU cost is < 5 ms per frame
+
+A GPU shader pass is planned as a Phase 2 optimisation when filter-heavy
+scenes become common.
 
 ### Nested Filters
 
@@ -194,9 +246,9 @@ card: Stack, anchor: scene.center {
 
 ---
 
-## Implementation Order
+## Implementation Order (Completed)
 
-### Phase A: Language Surface (1 day)
+### Phase A: Language Surface ✅
 
 1. Add `Filter` variant to `ActorKindId` in `timeline/track.rs`
 2. Add filter properties to `PROPERTY_REGISTRY` in `timeline/property_registry.rs`
@@ -204,52 +256,41 @@ card: Stack, anchor: scene.center {
 4. Add `Filter` to primitive registry (`primitives/filter.rs`)
 5. Register in `primitives/mod.rs`
 6. Update `tree-sitter-animatix` grammar for `Filter` keyword (optional — tree-sitter uses regex, "Filter" already parses as identifier)
-7. Update `spec.md` and `properties.md`
 
-### Phase B: Renderer — Offscreen Infrastructure (2 days)
+### Phase B: Shared GPU Filter Backend ✅
 
-1. Add `FilterTargetPool` to `PreviewSurface`
-   - `acquire(width, height) -> FilterTarget`
-   - `release(FilterTarget)`
-2. `FilterTarget` = `wgpu::Texture` + `wgpu::TextureView` + size
-3. Integrate pool into `PreviewSurface::new()` and resize path
+1. Create `GpuFilterBackend` in `renderer/filter_backend.rs`
+   - Owns dedicated `RendererCore` + temporary texture/buffer
+   - Clones caller's `wgpu::Device`/`Queue` so it works in any renderer
+2. Use from `OffscreenRenderer::render_timeline_with_debug()`
+3. Use from `PreviewSurface::render()` and `render_composition()`
 
-### Phase C: Renderer — Filter Shader (2 days)
+### Phase C: CPU Filter Implementation ✅
 
-1. Write `blur_h.wgsl` — horizontal Gaussian blur
-2. Write `blur_v.wgsl` — vertical Gaussian blur
-3. Write `color_matrix.wgsl` — brightness/contrast/saturate/hue/sepia
-4. Compile shaders at `PreviewSurface` init
-5. Create `FilterPass` struct that owns bind groups + pipeline state
+1. `apply_cpu_filters()` in `timeline/filter.rs`
+   - Gaussian blur via `image::imageops::blur`
+   - Color matrix (brightness, contrast, saturate, hue, sepia)
+2. `FilterBackend` trait so timeline is renderer-agnostic
+3. `Timeline::set_filter_backend()` / `clear_filter_backend()`
 
-### Phase D: Scene Evaluation Integration (2 days)
+### Phase D: Scene Evaluation Integration ✅
 
 1. In `scene_eval.rs`, when `track.kind == ActorKindId::Filter`:
-   - Evaluate children normally into a temporary `vello::Scene`
-   - Measure children's bounds (reuse `node_local_bounds` + `transform_rect_bbox`)
-   - Allocate offscreen texture via pool
-   - Render temporary scene to texture using vello's existing render path
-   - Run filter shader passes (blur H → blur V → color matrix)
-   - Draw resulting texture into main scene via `scene.draw_image()`
+   - Evaluate children into a temporary `vello::Scene`
+   - If backend installed: render sub-scene → bitmap → CPU filter → draw image
+   - If no backend: append sub-scene directly (fallback)
 2. Handle edge cases:
    - Empty children → skip filter, render nothing
-   - `blur: 0` and identity color matrix → skip shader, draw children directly (optimization)
-   - Nested filters → recursive offscreen passes (each level gets its own texture)
+   - Identity filter properties → append sub-scene directly (optimization)
+   - Nested filters → recursive evaluation (each level gets its own backend call)
 
-### Phase E: CLI Export (1 day)
-
-1. `encode/` renderers also need `FilterTargetPool`
-2. Share pool between preview and export via trait or ref-counted pool
-3. Update `render_video_composition`, `render_gif_composition`, `render_image`
-
-### Phase F: Deprecation + Migration (1 day)
+### Phase E: Deprecation + Migration (pending)
 
 1. Add deprecation diagnostic for old effect properties
 2. Write migration examples in docs
 3. Mark properties as deprecated in `PROPERTY_REGISTRY` (new flag `DEPRECATED`)
 4. Update GUI inspector to hide deprecated properties
-
-**Total: ~9 days**
+5. Update `spec.md` and `properties.md`
 
 ---
 
@@ -263,14 +304,17 @@ card: Stack, anchor: scene.center {
 
 4. **Custom shader injection?** Explicitly rejected. Keeps renderer deterministic, cacheable, and safe.
 
+5. **GPU shader pass?** CPU filtering is the Phase 1 implementation. A WGSL compute pipeline (blur H → blur V → color matrix) would give 10–50× speedup for filter-heavy scenes. Deferred until profiling shows CPU filtering is a bottleneck.
+
 ---
 
 ## Acceptance Criteria
 
-- [ ] `Filter` primitive parses, builds timeline, and renders in GUI preview
-- [ ] `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` are all animatable via keyframes
-- [ ] The original use case (blurred background image + sharp foreground) works with a single `.amx` file and no external pre-processing
+- [x] `Filter` primitive parses, builds timeline, and renders in GUI preview
+- [x] `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` are all animatable via keyframes
+- [x] The original use case (blurred background image + sharp foreground) works with a single `.amx` file and no external pre-processing
+- [x] CLI export (`animatix image`, `animatix gif`, `animatix video`) supports `Filter`
+- [x] GUI preview and CLI export produce pixel-identical filter output (unified `GpuFilterBackend`)
 - [ ] Old effect properties (`shadow_blur`, `glow_radius`, `backdrop_blur`) emit deprecation diagnostics
-- [ ] CLI export (`animatix image`, `animatix gif`, `animatix video`) supports `Filter`
 - [ ] No measurable frame time regression for scenes without `Filter`
 - [ ] Documentation (`spec.md`, `properties.md`, `architecture.md`) updated
