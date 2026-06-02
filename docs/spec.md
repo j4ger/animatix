@@ -467,32 +467,6 @@ bg: Filter, blur: 40, brightness: 0.5 {
 
 Pipeline order: **blur → color matrix → opacity**. Nested filters are allowed but each level adds one offscreen pass.
 
-**Legacy property-based effects removed:** `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, `glow_color`. Use explicit `Filter` containers or layered composition instead.
-
-**Migration examples:**
-
-```animatix
-// Drop shadow — old: shadow_blur + shadow_offset + shadow_color
-shadow: Filter, blur: 10 {
-  card: Rect, size: (200, 100), color: black
-}
-shadow.position = (4, 4)
-
-// Backdrop blur — old: backdrop_blur
-panel: Stack, size: fill {
-  blurred_bg: Filter, blur: 20 {
-    bg: Image, url: "bg.jpg", size: fill
-  }
-  content: Text, text: "Hello", color: text.primary
-}
-
-// Glow — old: glow_radius + glow_color
-glow: Filter, blur: 20 {
-  circle: Ellipse, size: (100, 100), color: red
-}
-glow.opacity = 0.5
-```
-
 ### Available Primitives & Common Confusions
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`

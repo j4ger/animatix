@@ -18,7 +18,7 @@
 
 > Post-processing primitive for blur, color correction, and compositing effects.
 > See [`architecture.md`](architecture.md) §6 for full design, migration guide, and GPU shader plan.
-> Phase 8.1–8.5 and 8.7 are **complete**. Stale property-based effects (`shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, `glow_color`) were fully removed from the codebase without deprecation shims.
+> Phase 8.1–8.5 and 8.7 are **complete**.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|

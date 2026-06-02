@@ -252,36 +252,6 @@ peniko::ImageData → drawn into parent scene at local transform
 | `timeline/track.rs` | `AnimationTrack` holds `filter_blur`, `filter_brightness`, etc. property tracks |
 | `timeline/property_registry.rs` | Registers filter properties in `PROPERTY_REGISTRY` |
 
-#### Migration from Legacy Properties
-
-The per-actor properties `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, and `glow_color` were removed in Phase 8.5. Use explicit `Filter` containers instead:
-
-**Drop shadow:**
-```animatix
-shadow: Filter, blur: 10 {
-  card: Rect, size: (200, 100), color: black
-}
-shadow.position = (4, 4)
-```
-
-**Backdrop blur:**
-```animatix
-panel: Stack, size: fill {
-  blurred_bg: Filter, blur: 20 {
-    bg: Image, url: "bg.jpg", size: fill
-  }
-  content: Text, text: "Hello", color: text.primary
-}
-```
-
-**Glow:**
-```animatix
-glow: Filter, blur: 20 {
-  circle: Ellipse, size: (100, 100), color: red
-}
-glow.opacity = 0.5
-```
-
 #### Performance Notes
 
 | Scenario | Current (CPU) | Target (GPU) | Notes |
