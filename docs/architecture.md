@@ -198,9 +198,29 @@ vello.encode(&mut encoder) → render_pass.draw(encoder)
 
 ### Post-Processing (Filter)
 
-The `Filter` primitive is a **container** that renders its children to an offscreen texture, applies CPU filters, and composites the result back as an image.
+`Filter` is a **container primitive** that renders its children to an offscreen texture, applies post-processing filters, and composites the result back into the parent scene.
 
-**Pipeline (per Filter actor):**
+```animatix
+bg: Filter, blur: 40, brightness: 0.5 {
+  img: Image, url: "photo.jpg", size: fill
+}
+```
+
+**Filter properties** (all `f32`, animatable):
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `blur` | 0 | Gaussian blur radius in px |
+| `brightness` | 1.0 | Multiplier on all channels |
+| `contrast` | 1.0 | Contrast curve offset |
+| `saturate` | 1.0 | 0 = grayscale, 1 = unchanged |
+| `hue_rotate` | 0 | Hue rotation in degrees |
+| `sepia` | 0 | Sepia intensity (0–1) |
+
+Pipeline order: **blur → color matrix → opacity**. Nested filters are allowed but each level adds one offscreen pass.
+
+#### Current CPU-Based Pipeline
+
 ```
 Evaluate children → vello::Scene (sub-scene)
   ↓
@@ -221,9 +241,187 @@ peniko::ImageData → drawn into parent scene at local transform
 - **Identity fast-path** — If all filter properties are at identity (`blur == 0`, `brightness == 1.0`, etc.), the sub-scene is appended directly without any offscreen pass.
 - **Nested filters** — Each nesting level triggers its own offscreen pass. Expensive but explicit.
 
-**Filter properties** (all `f32`, animatable): `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia`.
+#### File Layout
 
-**Future:** CPU filtering may be replaced with WGSL compute shaders (blur H → blur V → color matrix) when filter-heavy scenes become common. See `design/filter-system.md` §GPU Shader Filter Pass.
+| File | Role |
+|------|------|
+| `primitives/filter.rs` | `FilterPrimitive` definition (container, icon, dispatch) |
+| `timeline/filter.rs` | `FilterBackend` trait + `apply_cpu_filters()` |
+| `renderer/filter_backend.rs` | `GpuFilterBackend` — GPU render + CPU readback |
+| `timeline/scene_eval.rs` | `render_node_children()` detects `ActorKindId::Filter`, builds sub-scene, samples properties, dispatches backend |
+| `timeline/track.rs` | `AnimationTrack` holds `filter_blur`, `filter_brightness`, etc. property tracks |
+| `timeline/property_registry.rs` | Registers filter properties in `PROPERTY_REGISTRY` |
+
+#### Migration from Legacy Properties
+
+The per-actor properties `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, and `glow_color` were removed in Phase 8.5. Use explicit `Filter` containers instead:
+
+**Drop shadow:**
+```animatix
+shadow: Filter, blur: 10 {
+  card: Rect, size: (200, 100), color: black
+}
+shadow.position = (4, 4)
+```
+
+**Backdrop blur:**
+```animatix
+panel: Stack, size: fill {
+  blurred_bg: Filter, blur: 20 {
+    bg: Image, url: "bg.jpg", size: fill
+  }
+  content: Text, text: "Hello", color: text.primary
+}
+```
+
+**Glow:**
+```animatix
+glow: Filter, blur: 20 {
+  circle: Ellipse, size: (100, 100), color: red
+}
+glow.opacity = 0.5
+```
+
+#### Performance Notes
+
+| Scenario | Current (CPU) | Target (GPU) | Notes |
+|----------|---------------|--------------|-------|
+| 1 Filter, 1080p, blur=20 | ~15 ms | ~0.5 ms | Readback dominates |
+| 3 nested Filters, 1080p | ~45 ms | ~1.5 ms | Three readbacks |
+| No filters (identity) | 0 ms | 0 ms | Fast-path skips all work |
+| Export 300 frames, 1 filter | ~4.5 s | ~150 ms | Parallel rendering benefits |
+
+Memory: Each `GpuFilterBackend` owns one temporary texture pair. A 4K RGBA8 texture is ~33 MB. Two ping-pong textures = ~66 MB per backend instance. The backend is created per evaluation call (for `OffscreenRenderer`) or shared (for `PreviewSurface`), so peak memory is bounded.
+
+#### GPU Shader Filter Pass (Phase 8.6)
+
+The CPU pipeline does a full GPU→CPU readback per filter actor, then runs `image` crate operations on the host. For scenes with multiple filters or large resolutions, this is a bottleneck:
+
+- **Readback latency** — `copy_texture_to_buffer` + `map_async` stalls the GPU queue.
+- **CPU blur cost** — `imageops::blur` is O(σ²·wh) and single-threaded per call.
+- **Color matrix cost** — A full pixel loop in Rust is ~1–5 ms for 1080p.
+
+**Target:** **10–50× speedup** by keeping the entire filter chain on the GPU.
+
+##### Target Pipeline
+
+```
+Evaluate children → vello::Scene (sub-scene)
+  ↓
+GpuFilterBackend::render_scene_to_texture()
+  → GPU render to temporary texture A (no readback)
+  ↓
+WGSL compute shader chain (ping-pong between A ↔ B)
+  → blur horizontal pass  (texture A → texture B)
+  → blur vertical pass    (texture B → texture A)
+  → color matrix pass     (texture A → texture B)
+  ↓
+Draw final texture directly into parent vello::Scene as image
+```
+
+**Critical change:** No CPU readback until the final export encoder needs it.
+
+##### Shader Design
+
+**Blur (Separable Gaussian)** — two 1D compute passes:
+
+```wgsl
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var src_sampler: sampler;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(3) var<uniform> params: BlurParams; // radius, direction
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    // Sample line of pixels along blur direction, weight by Gaussian kernel
+    // Write to dst
+}
+```
+
+- Kernel size = `ceil(radius * 3) * 2 + 1` (3σ coverage).
+- For `radius == 0`, skip the pass entirely.
+- Use `textureSampleLevel` with bilinear weights to reduce taps.
+
+**Color Matrix** — single full-screen compute pass:
+
+```wgsl
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> mat: ColorMatrix;
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let texel = textureLoad(src, gid.xy, 0);
+    let rgba = mat * vec4<f32>(texel.rgb, 1.0);
+    textureStore(dst, gid.xy, vec4<f32>(rgba.rgb, texel.a));
+}
+```
+
+The 4×4 matrix is pre-multiplied on the CPU from individual transforms (same math as `apply_color_matrix` in `timeline/filter.rs`).
+
+##### Implementation Plan
+
+Split into two phases to manage risk:
+
+| Phase | Scope | Readback? | Effort |
+|-------|-------|-----------|--------|
+| **8.6a** | GPU compute filters, still readback to `peniko::ImageData` | Yes (once per filter) | 2–3 days |
+| **8.6b** | Zero-readback composite via custom fullscreen pass | No | +2–3 days |
+
+**8.6a** alone removes the CPU blur/color matrix cost and is a massive win. **8.6b** removes the final readback.
+
+**Pipeline Builder API** (extends `GpuFilterBackend`):
+
+```rust
+pub struct GpuFilterBackend {
+    // ... existing fields ...
+    blur_pipeline: Option<wgpu::ComputePipeline>,
+    color_matrix_pipeline: Option<wgpu::ComputePipeline>,
+    blur_bind_group_layout: wgpu::BindGroupLayout,
+    color_matrix_bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    temp_texture_a: Option<wgpu::Texture>,
+    temp_view_a: Option<wgpu::TextureView>,
+    temp_texture_b: Option<wgpu::Texture>,
+    temp_view_b: Option<wgpu::TextureView>,
+}
+```
+
+**Trait extension:**
+
+```rust
+pub trait FilterBackend: Send {
+    fn render_scene_to_image(&mut self, scene: &vello::Scene, dimensions: SceneDimensions)
+        -> Result<SceneImage, String>;
+
+    /// NEW (8.6a): Render to image, but filters run on GPU.
+    fn render_scene_to_image_gpu_filtered(
+        &mut self, scene: &vello::Scene, dimensions: SceneDimensions,
+        blur: f32, brightness: f32, contrast: f32,
+        saturate: f32, hue_rotate: f32, sepia: f32,
+    ) -> Result<SceneImage, String>;
+}
+```
+
+**Scene eval changes:** In `scene_eval.rs`, when `needs_filter` is true and the backend supports GPU filtering, call `render_scene_to_image_gpu_filtered` instead of the current two-step `render_scene_to_image` + `apply_cpu_filters`.
+
+**The Vello texture problem:** Vello's `Scene::draw_image` requires `peniko::ImageData` (CPU-owned). For 8.6a we still do one readback. For 8.6b, the recommended approach is a custom fullscreen render pass in `RendererCore` that samples the filtered texture directly, bypassing vello's scene encoding for the composite step.
+
+##### Risks & Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| WGSL math differs from Rust color matrix | Visual regression | Unit-test matrix equivalence; allow ±1 tolerance |
+| Large blur radius causes timeout | Crash / TDR | Cap `kernel_radius` at 128; fallback to CPU for extreme radii |
+| Storage texture not supported on old adapter | Pipeline creation fail | Detect at init, fallback to CPU path |
+| Ping-pong texture memory pressure | OOM on 4K scenes | Allocate at first use, not at init; reuse across frames |
+| Vello API changes break texture binding | Compile fail | Pin Vello rev; monitor upstream |
+
+##### Open Questions
+
+1. **Vello texture binding** — Vello's `Scene` does not natively support binding external GPU textures as image brushes. The GPU path may need a custom composite step outside of `vello::Scene` encoding, or upstream changes to Vello/peniko.
+2. **HDR / wide-gamut** — Current pipeline is `Rgba8Unorm`. Should the filter intermediate use `Rgba16Float` for higher precision color matrix math?
+3. **Dynamic resolution** — Filter textures are allocated at scene resolution. Should they be cropped to the filter actor's bounding box for large scenes with small filters?
 
 ---
 

@@ -31,7 +31,7 @@
 ## Phase 8 — Filter System
 
 > Post-processing primitive for blur, color correction, and compositing effects.
-> Full design: [`design/filter-system.md`](design/filter-system.md)
+> See [`architecture.md`](architecture.md) §6 for full design, migration guide, and GPU shader plan.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
@@ -40,8 +40,8 @@
 | 8.3 | **Scene evaluation integration** ✅ | In `scene_eval.rs`, detect `Filter` actors, evaluate children into sub-scene, render via `FilterBackend`, apply CPU filters, draw result as image. | `timeline/scene_eval.rs`, `timeline/filter.rs` | 2 days | — |
 | 8.4 | **Unified preview + export rendering** ✅ | GUI `PreviewSurface` and CLI `OffscreenRenderer` both attach a `GpuFilterBackend` before evaluation so Filter output is identical in preview and export. | `preview_surface.rs`, `renderer/offscreen.rs` | 1 day | 8.2 |
 | 8.5 | **Remove stale property-based effects** ✅ | Removed `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, `glow_color` from registry, tracks, property engine, and scene eval. No deprecation shim (POC). | `timeline/property_registry.rs`, `timeline/track.rs`, `timeline/property_engine.rs`, `timeline/scene_eval.rs`, `docs/` | 1 day | — |
-| 8.6 | **GPU shader filter pass** | Replace CPU blur + color matrix with WGSL compute shaders (blur H → blur V → color matrix) for 10–50× speedup on large scenes. | `renderer/shaders/`, `renderer/filter_backend.rs` | 1 week | When filter count becomes a bottleneck |
-| 8.7 | **Documentation update** | Update `spec.md`, `properties.md`, `architecture.md` with Filter primitive, filter properties, and migration examples. | `docs/` | 1 day | 8.5 |
+| 8.6 | **GPU shader filter pass** | Replace CPU blur + color matrix with WGSL compute shaders (blur H → blur V → color matrix) for 10–50× speedup on large scenes. Split into 8.6a (GPU filters + readback, 2–3 days) and 8.6b (zero-readback composite, +2–3 days). Full plan in [`architecture.md`](architecture.md) §6. | `renderer/shaders/`, `renderer/filter_backend.rs` | 1 week | When filter count becomes a bottleneck |
+| 8.7 | **Documentation update** ✅ | Merged filter design into `architecture.md` §6. Updated `spec.md` and `properties.md` with filter surface, properties, and migration examples. | `docs/` | 1 day | 8.5 |
 
 ---
 

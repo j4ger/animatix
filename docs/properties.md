@@ -45,7 +45,7 @@
 
 ## Filter
 
-Only applicable to `Filter` actors. See [`design/filter-system.md`](design/filter-system.md).
+Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6 "Post-Processing (Filter)".
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
