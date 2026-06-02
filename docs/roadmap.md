@@ -10,7 +10,7 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 7.1 | **Audio multi-segment muxing** | Concatenate multiple audio files via ffmpeg into final output. Support per-scene audio tracks. | `export/ffmpeg.rs` | 3 days | — |
+| 1 | **Audio multi-segment muxing** | Concatenate multiple audio files via ffmpeg into final output. Support per-scene audio tracks. | `export/ffmpeg.rs` | 3 days | — |
 
 ---
 
@@ -20,9 +20,9 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 9.1 | **Design `Scene` primitive** | Actor type whose content is another scene's timeline. Position, size, opacity are animatable properties (keyframes). `scene` property names the scene to render. | `primitives/`, `timeline/track.rs` | 3 days | Stable syntax |
-| 9.2 | **Scene reference rendering** | Renderer evaluates referenced scene timeline at current time, clips to actor bounds, transforms to actor position, applies actor opacity. | `timeline/scene_eval.rs`, `renderer/` | 1 week | 9.1 |
-| 9.3 | **Inspector + timeline support** | Scene actors show up in timeline tracks, inspector panel, and gizmo selection like any other actor. | `app/panels/` | 3 days | 9.2 |
+| 1 | **Design `Scene` primitive** | Actor type whose content is another scene's timeline. Position, size, opacity are animatable properties (keyframes). `scene` property names the scene to render. | `primitives/`, `timeline/track.rs` | 3 days | Stable syntax |
+| 2 | **Scene reference rendering** | Renderer evaluates referenced scene timeline at current time, clips to actor bounds, transforms to actor position, applies actor opacity. | `timeline/scene_eval.rs`, `renderer/` | 1 week | 1 |
+| 3 | **Inspector + timeline support** | Scene actors show up in timeline tracks, inspector panel, and gizmo selection like any other actor. | `app/panels/` | 3 days | 2 |
 
 ---
 
@@ -33,11 +33,11 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 10b.1 | **Registry-driven inspector property dispatch** | `apply_property_edit_to_track` is a 300-line match statement that manually maps property names to track mutations. It duplicates knowledge already in `PROPERTY_REGISTRY`. Replace with a generic `PropertySchema → track mutation` lookup so adding a property only requires updating the registry. | `app/actions/mod.rs`, `property_registry.rs` | 3 days | — |
-| 10b.2 | **SourceEdit returns structured errors** | `SourceEdit::apply_edit` returns `bool` with no context. Callers can't distinguish "actor not found" from "invalid keyframe time" or "parse error". Change to `Result<(), SourceEditError>` and thread specific diagnostics back to the status bar. | `source_edit/apply.rs`, `app/actions/mod.rs` | 2 days | — |
-| 10b.3 | **Trait-dispatch scene evaluation** | `scene_eval.rs` is 1000+ lines with deeply nested manual `ActorKindId` matches in `evaluate_node` and `render_node_children`. The primitive system already has a `Primitive` trait; extend it with `evaluate(ctx) → RenderCommands` so new primitives don't touch scene_eval. | `timeline/scene_eval.rs`, `primitives/mod.rs` | 1 week | — |
-| 10b.4 | **Remove animatix backward-compat re-exports** | `animatix/src/lib.rs` re-exports `animatix_syntax::*` for convenience. This lets GUI code import `animatix::ast` instead of `animatix_syntax::ast`, defeating the purpose of the crate split. Remove re-exports and migrate all downstream imports. | `animatix/src/lib.rs`, `animatix-gui/src/**/*.rs` | 1 day | — |
-| 10b.5 | **Vello external texture binding** | Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`. For a zero-readback filter composite, we need either upstream Vello changes to bind external `wgpu::TextureView`s, or a custom fullscreen render pass in `RendererCore`. | `renderer/core.rs`, `renderer/filter_backend.rs` | 3 days | — |
+| 1 | **Registry-driven inspector property dispatch** | `apply_property_edit_to_track` is a 300-line match statement that manually maps property names to track mutations. It duplicates knowledge already in `PROPERTY_REGISTRY`. Replace with a generic `PropertySchema → track mutation` lookup so adding a property only requires updating the registry. | `app/actions/mod.rs`, `property_registry.rs` | 3 days | — |
+| 2 | **SourceEdit returns structured errors** | `SourceEdit::apply_edit` returns `bool` with no context. Callers can't distinguish "actor not found" from "invalid keyframe time" or "parse error". Change to `Result<(), SourceEditError>` and thread specific diagnostics back to the status bar. | `source_edit/apply.rs`, `app/actions/mod.rs` | 2 days | — |
+| 3 | **Trait-dispatch scene evaluation** | `scene_eval.rs` is 1000+ lines with deeply nested manual `ActorKindId` matches in `evaluate_node` and `render_node_children`. The primitive system already has a `Primitive` trait; extend it with `evaluate(ctx) → RenderCommands` so new primitives don't touch scene_eval. | `timeline/scene_eval.rs`, `primitives/mod.rs` | 1 week | — |
+| 4 | **Remove animatix backward-compat re-exports** | `animatix/src/lib.rs` re-exports `animatix_syntax::*` for convenience. This lets GUI code import `animatix::ast` instead of `animatix_syntax::ast`, defeating the purpose of the crate split. Remove re-exports and migrate all downstream imports. | `animatix/src/lib.rs`, `animatix-gui/src/**/*.rs` | 1 day | — |
+| 5 | **Vello external texture binding** | Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`. For a zero-readback filter composite, we need either upstream Vello changes to bind external `wgpu::TextureView`s, or a custom fullscreen render pass in `RendererCore`. | `renderer/core.rs`, `renderer/filter_backend.rs` | 3 days | — |
 
 ---
 
@@ -45,10 +45,10 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 11.1 | **Green tree (rowan)** | Immutable syntax tree with cheap clones. Enables lossless source manipulation, reliable formatting, and incremental parsing. | New crate `animatix-green` | 2–3 months | Stable syntax |
-| 11.2 | **Trivia-inspired AST** | Whitespace and comment preservation in AST. Enables formatter and non-destructive edits. | `animatix-green/` | 2–3 months | 11.1 |
-| 11.3 | **Web canvas / WASM** | Alternative renderer backend for browser export. Uses same timeline but renders to HTML canvas or WebGPU. | New crate `animatix-web` | Very high | Alternative renderer |
-| 11.4 | **Snippet AST parsing** | Parse snippet text into `Vec<Stmt>` and insert via `SourceEdit` instead of raw text surgery. Requires lossless parsing (green tree) to preserve formatting. | `app/insertion.rs`, `animatix-green/` | 2 days | 11.2 |
+| 1 | **Green tree (rowan)** | Immutable syntax tree with cheap clones. Enables lossless source manipulation, reliable formatting, and incremental parsing. | New crate `animatix-green` | 2–3 months | Stable syntax |
+| 2 | **Trivia-inspired AST** | Whitespace and comment preservation in AST. Enables formatter and non-destructive edits. | `animatix-green/` | 2–3 months | 1 |
+| 3 | **Web canvas / WASM** | Alternative renderer backend for browser export. Uses same timeline but renders to HTML canvas or WebGPU. | New crate `animatix-web` | Very high | Alternative renderer |
+| 4 | **Snippet AST parsing** | Parse snippet text into `Vec<Stmt>` and insert via `SourceEdit` instead of raw text surgery. Requires lossless parsing (green tree) to preserve formatting. | `app/insertion.rs`, `animatix-green/` | 2 days | 2 |
 
 ---
 
