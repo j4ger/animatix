@@ -33,12 +33,7 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 10b.1 | **Fix integration test failures** | Triage and fix 37 failing tests in `parser_tests` and `module_tests`. `cargo test --lib` passes but integration tests fail — likely stale test expectations or changed parser behavior. | `tests/` | 1–2 days | — |
-| 10b.2 | **Timeline should not own renderer resources** | `Timeline::evaluate()` clones the timeline to attach a `GpuFilterBackend`. The backend should be passed as a parameter instead. A compiled timeline should be a pure data structure with no knowledge of WGPU. | `timeline/mod.rs`, `renderer/offscreen.rs`, `timeline/scene_eval.rs` | 2 days | — |
-| 10b.3 | **Atomic source-edit validation + drag batching** | All inspector edits (`handle_keyframe_edit`, `handle_property_edit`, `apply_child_order_edit`) must validate AST mutation and expression round-trip *before* touching the timeline. During drags, timeline mutates immediately but source is flushed once on drag end. Create `try_apply_source_edit` helper; move `PropertyValue → Expr` validation to `TryFrom`. | `actions/mod.rs`, `commands.rs`, `source_edit/` | 3 days | — |
-| 10b.4 | **Crate split: `animatix-syntax`** | Extract parser, AST, `to_source`, diagnostics, easing, and module system into a new `animatix-syntax` crate. `animatix-analyzer` should depend only on syntax, not the full runtime engine. Eliminates WGPU/Vello from LSP compile graph. See [`architecture.md`](architecture.md) §17 for full plan. | New crate `animatix-syntax/` | 1 week | — |
 | 10b.5 | **Vello external texture binding** | Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`. For a zero-readback filter composite, we need either upstream Vello changes to bind external `wgpu::TextureView`s, or a custom fullscreen render pass in `RendererCore`. | `renderer/core.rs`, `renderer/filter_backend.rs` | 3 days | — |
-| 10b.6 | **Editor cell-type API** | `EditorBuffer` does not expose whether the focused cell is a keyframe or code cell. Needed for context-aware palette default modes (Actions vs Primitives). | `editor.rs`, `app/insertion.rs` | 1 day | — |
 
 ---
 

@@ -608,22 +608,33 @@ For the full historical design, see git history of `docs/multi-scene-composition
 
 ## 16. File Structure
 
-### Current (pre-split)
+### Current (post-split)
 
 ```
 crates/
-├── animatix/              # Core library — parser, AST, timeline, renderer
+├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast.rs         # AST types
 │       ├── parser.rs      # Chumsky parser
-│       ├── composition.rs # Multi-scene composition engine
 │       ├── diagnostics.rs # Diagnostic types
-│       ├── module.rs      # Module system
+│       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping
 │       ├── to_source.rs   # AST re-serialization
-│       └── timeline/      # Timeline compilation, actions, morphing, plotting
+│       ├── transition_registry.rs
+│       ├── icon_glyphs.rs
+│       └── module/        # Module system (discovery, expand, rewrite)
 │
-├── animatix-analyzer/     # Shared language intelligence
+├── animatix/              # Runtime engine — timeline, renderer, primitives
+│   └── src/
+│       ├── lib.rs         # Re-exports syntax modules
+│       ├── composition.rs # Multi-scene composition engine
+│       ├── timeline/      # Timeline compilation, actions, morphing, plotting
+│       ├── renderer/      # Vello/WGPU rendering pipeline
+│       ├── primitives/    # Actor primitive system
+│       ├── ir.rs          # Re-export: timeline modifier runtime IR
+│       └── vm.rs          # Re-export: timeline modifier runtime VM
+│
+├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
 └── tree-sitter-animatix/  # Tree-sitter grammar
@@ -661,11 +672,11 @@ crates/
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 
-## 17. Crate Split Plan
+## 17. Crate Split (Completed 2026-06-02)
 
-The `animatix` crate currently bundles parser, AST, timeline, renderer, and module system together. `animatix-analyzer` depends on the full crate just to access `ast`, `parser`, and `to_source`.
+`animatix-syntax` was extracted from the core `animatix` crate. `animatix-analyzer` now depends only on `animatix-syntax`, eliminating WGPU/Vello from the LSP compile graph.
 
-### Modules to Move to `animatix-syntax`
+### Modules in `animatix-syntax`
 
 `ast`, `parser`, `module/`, `diagnostics`, `easing`, `source_index`, `to_source`, `transition_registry`, `icon_glyphs`
 
@@ -681,14 +692,6 @@ The `animatix` crate currently bundles parser, AST, timeline, renderer, and modu
 | `animatix` | `chumsky` + 20+ deps | `animatix-syntax` + runtime deps |
 | `animatix-analyzer` | `animatix`, `chumsky` | `animatix-syntax` only |
 | `animatix-gui` | `animatix` | `animatix` + `animatix-syntax` |
-
-### Migration Steps
-
-1. **Scaffold** `crates/animatix-syntax/` — copy syntax modules, get `cargo check` clean
-2. **Update `animatix`** — add `animatix-syntax` dep, replace local mods with re-exports
-3. **Update `animatix-analyzer`** — swap `animatix` dep for `animatix-syntax`, update imports
-4. **Update `animatix-gui`** — add `animatix-syntax` dep, update direct imports
-5. **Verify** — `cargo test --workspace` passes, analyzer no longer pulls in `wgpu`/`vello`
 
 ---
 
