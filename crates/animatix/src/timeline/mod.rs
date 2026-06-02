@@ -75,7 +75,12 @@ pub use property_registry::{
 };
 mod primitive;
 pub(crate) mod property_lookup;
-mod runtime;
+/// Frame evaluation environment construction and modifier execution.
+///
+/// Provides [`Timeline::build_frame_env`] which assembles the per-frame
+/// variable environment (`t`, `scene_width`, track properties, overrides)
+/// that drives both rendering and modifier evaluation.
+mod frame_env;
 mod index;
 mod scene_eval;
 mod sequence;
@@ -410,7 +415,7 @@ pub struct Timeline {
     pub(crate) root_nodes: Vec<String>,
     pub(crate) env: Environment,
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
-    /// colorscheme). Avoids copying ~90 entries on every frame_eval_env.
+    /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
     pub(crate) modifiers: Vec<Stmt>,
     pub(crate) modifier_programs: Vec<ModifierIrProgram>,

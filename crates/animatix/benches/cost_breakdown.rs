@@ -32,7 +32,7 @@ fn bench_cost_breakdown(c: &mut Criterion) {
     // Just frame env setup (no rendering)
     c.bench_function("frame_env_only", |b| {
         b.iter(|| {
-            let env = timeline.frame(500, dims, &std::collections::HashMap::new());
+            let env = timeline.build_frame_env(500, dims, &std::collections::HashMap::new());
             black_box(env);
         })
     });

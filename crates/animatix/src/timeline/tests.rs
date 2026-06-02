@@ -182,7 +182,7 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
 
     let mut first_overrides = std::collections::HashMap::new();
     let mut first_env =
-        timeline.frame_eval_env(500, SceneDimensions::default(), &first_overrides);
+        timeline.build_frame_env_internal(500, SceneDimensions::default(), &first_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
         500,
@@ -193,7 +193,7 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
 
     let mut second_overrides = std::collections::HashMap::new();
     let mut second_env =
-        timeline.frame_eval_env(1500, SceneDimensions::default(), &second_overrides);
+        timeline.build_frame_env_internal(1500, SceneDimensions::default(), &second_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
         1500,
@@ -204,7 +204,7 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
 
     let mut repeat_overrides = std::collections::HashMap::new();
     let mut repeat_env =
-        timeline.frame_eval_env(500, SceneDimensions::default(), &repeat_overrides);
+        timeline.build_frame_env_internal(500, SceneDimensions::default(), &repeat_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
         500,
@@ -646,7 +646,7 @@ fn test_drive_block_scopes_assignments() {
     // Since the scene is opaque, verify via the modifier state indirectly:
     // the track's position at frame time should reflect the override.
     let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.frame_eval_env(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
+    let mut env = timeline.build_frame_env_internal(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,
@@ -924,7 +924,7 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
 
     // Evaluate at t=0s — with freq=2.0, cos(2*0)=1, sin(2*0)=0
     let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.frame_eval_env(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
+    let mut env = timeline.build_frame_env_internal(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,
@@ -1030,7 +1030,7 @@ fn test_reactive_binding_desugars_to_modifier() {
 
     // Evaluate at t=0s — orbiter should be at (740, 360)
     let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.frame_eval_env(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
+    let mut env = timeline.build_frame_env_internal(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,

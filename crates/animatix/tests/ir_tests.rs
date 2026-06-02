@@ -242,7 +242,7 @@ modifiers: vec![],
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
 
     let mut stmt_overrides = std::collections::HashMap::new();
-    let mut stmt_env = timeline.frame(500, SceneDimensions::default(), &stmt_overrides);
+    let mut stmt_env = timeline.build_frame_env(500, SceneDimensions::default(), &stmt_overrides);
     timeline.apply_modifier_stmt_for_test(
         &modifier,
         500,
@@ -252,7 +252,7 @@ modifiers: vec![],
     );
 
     let mut ir_overrides = std::collections::HashMap::new();
-    let mut ir_env = timeline.frame(500, SceneDimensions::default(), &ir_overrides);
+    let mut ir_env = timeline.build_frame_env(500, SceneDimensions::default(), &ir_overrides);
     timeline
         .apply_modifier_ir_program(
             &ir,
@@ -338,7 +338,7 @@ fn modifier_bytecode_executes_let_and_if() {
     let mut timeline = Timeline::new();
     load_standard_library(timeline.env_mut());
     let mut overrides = HashMap::new();
-    let mut env = timeline.frame(500, SceneDimensions::default(), &overrides);
+    let mut env = timeline.build_frame_env(500, SceneDimensions::default(), &overrides);
     timeline
         .apply_modifier_bytecode_program(
             &bytecode,
@@ -384,7 +384,7 @@ fn vm_parity_reactive_runtime_matches_ir() {
 
     for time_ms in [500_u64, 1500_u64] {
         let mut ir_overrides = HashMap::new();
-        let mut ir_env = timeline.frame(time_ms, SceneDimensions::default(), &ir_overrides);
+        let mut ir_env = timeline.build_frame_env(time_ms, SceneDimensions::default(), &ir_overrides);
         timeline
             .apply_modifier_ir_program(
                 &ir,
@@ -396,7 +396,7 @@ fn vm_parity_reactive_runtime_matches_ir() {
             .expect("IR execution should succeed");
 
         let mut vm_overrides = HashMap::new();
-        let mut vm_env = timeline.frame(time_ms, SceneDimensions::default(), &vm_overrides);
+        let mut vm_env = timeline.build_frame_env(time_ms, SceneDimensions::default(), &vm_overrides);
         timeline
             .apply_modifier_bytecode_program(
                 &bytecode,
@@ -514,7 +514,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
     let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     let mut ir_overrides = HashMap::new();
-    let mut ir_env = timeline.frame(1000, SceneDimensions::default(), &ir_overrides);
+    let mut ir_env = timeline.build_frame_env(1000, SceneDimensions::default(), &ir_overrides);
     timeline
         .apply_modifier_ir_program(
             &ir,
@@ -526,7 +526,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
         .expect("IR execution should succeed");
 
     let mut vm_overrides = HashMap::new();
-    let mut vm_env = timeline.frame(1000, SceneDimensions::default(), &vm_overrides);
+    let mut vm_env = timeline.build_frame_env(1000, SceneDimensions::default(), &vm_overrides);
     timeline
         .apply_modifier_bytecode_program(
             &bytecode,

@@ -437,7 +437,7 @@ impl Timeline {
             let mut local_env = if let Some(env) = frame_env {
                 env.clone()
             } else {
-                self.frame_eval_env(time_ms, scene_dimensions, overrides)
+                self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
             };
             vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &mut local_env);
         }
@@ -907,7 +907,7 @@ impl Timeline {
         // For static scenes, this eliminates ~95% of evaluation overhead.
         let needs_frame_env = self.needs_frame_env();
         let mut frame_env = if needs_frame_env {
-            Some(self.frame_eval_env(time_ms, scene_dimensions, &overrides))
+            Some(self.build_frame_env_internal(time_ms, scene_dimensions, &overrides))
         } else {
             None
         };

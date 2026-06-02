@@ -456,7 +456,7 @@ impl ModifierVm {
                         .entry(target.clone())
                         .or_default()
                         .insert(property.clone(), value.clone());
-                    crate::timeline::runtime::apply_override_incremental(
+                    crate::timeline::frame_env::apply_override_incremental(
                         frame_env, target, property, value,
                     );
                     self.ip += 1;

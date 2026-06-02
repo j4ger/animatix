@@ -1,3 +1,10 @@
+//! Frame evaluation environment construction and modifier execution.
+//!
+//! [`Timeline::build_frame_env`] assembles the per-frame variable environment
+//! (`t`, `scene_width`, track properties, overrides) that drives both rendering
+//! and modifier evaluation. Modifier statements / IR / bytecode are executed
+//! against this environment to produce property overrides.
+
 use super::modifier_runtime::{ir, vm};
 use super::{
     Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
@@ -52,7 +59,8 @@ impl Timeline {
         env
     }
 
-    pub(super) fn frame_eval_env(
+    /// Internal implementation of [`Timeline::build_frame_env`].
+    pub(super) fn build_frame_env_internal(
         &self,
         time_ms: u64,
         scene_dimensions: SceneDimensions,
@@ -91,14 +99,22 @@ impl Timeline {
         env
     }
 
-    /// Evaluate the timeline at a specific frame time, returning the frame environment.
-    pub fn frame(
+    /// Build the evaluation environment for a single frame.
+    ///
+    /// The returned [`Environment`] contains:
+    /// - `t` — elapsed time in seconds.
+    /// - `scene_width`, `scene_height` — pixel dimensions.
+    /// - `scene.background_color` — resolved background color.
+    /// - `scene.{top_left,top,…}` — anchor point vectors.
+    /// - All actor properties sampled from tracks at `time_ms`.
+    /// - Any per-frame overrides applied by modifiers.
+    pub fn build_frame_env(
         &self,
         time_ms: u64,
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
-        self.frame_eval_env(time_ms, scene_dimensions, overrides)
+        self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
     }
 
     pub(super) fn inject_runtime_lookup_values(

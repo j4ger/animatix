@@ -180,7 +180,7 @@ impl Value {
 pub struct Environment {
     pub(crate) overrides: HashMap<String, Value>,
     /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
-    /// to base. This avoids copying ~90 stdlib entries on every frame_eval_env.
+    /// to base. This avoids copying ~90 stdlib entries on every [`Timeline::build_frame_env`].
     pub(crate) base: Option<Arc<HashMap<String, Value>>>,
     /// P6.2: Single-variable binding overlay for plot sampling.
     /// Avoids cloning the entire overrides HashMap for every sample point.

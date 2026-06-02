@@ -45,7 +45,7 @@ fn execute_modifier_stmt(
                 .entry(label.clone())
                 .or_default()
                 .insert(property.clone(), val.clone());
-            crate::timeline::runtime::apply_override_incremental(
+            crate::timeline::frame_env::apply_override_incremental(
                 frame_env, &label, property, val,
             );
             Ok(())

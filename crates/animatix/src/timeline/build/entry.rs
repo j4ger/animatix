@@ -206,7 +206,7 @@ impl Timeline {
         }
 
         // P2.22: Freeze the base environment into an Arc for cheap sharing.
-        // After build, env is stable; frame_eval_env will reference this Arc
+        // After build, env is stable; build_frame_env will reference this Arc
         // instead of copying all entries.
         timeline.env_base = std::sync::Arc::new(
             std::mem::take(&mut timeline.env.overrides)
