@@ -15,6 +15,26 @@ pub trait FilterBackend: Send {
         scene: &vello::Scene,
         dimensions: SceneDimensions,
     ) -> Result<SceneImage, String>;
+
+    /// GPU-accelerated version: render the scene and apply filters on the GPU,
+    /// then readback once.  The default implementation delegates to
+    /// [`render_scene_to_image`] followed by [`apply_cpu_filters`].
+    fn render_scene_to_image_gpu_filtered(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        blur: f32,
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+    ) -> Result<SceneImage, String> {
+        let image = self.render_scene_to_image(scene, dimensions)?;
+        Ok(apply_cpu_filters(
+            image, blur, brightness, contrast, saturate, hue_rotate, sepia,
+        ))
+    }
 }
 
 /// Apply CPU-based filter operations to a [`SceneImage`].
@@ -74,18 +94,17 @@ pub fn apply_cpu_filters(
     }
 }
 
-/// Apply a combined color matrix for brightness, contrast, saturation,
-/// hue rotation, and sepia.
-fn apply_color_matrix(
-    img: &mut image::RgbaImage,
+/// Compose a 4×4 color matrix from individual transforms.
+///
+/// Order of composition: **sepia → hue → saturate → contrast → brightness**.
+/// Returns the matrix in row-major form.
+pub fn compose_color_matrix(
     brightness: f32,
     contrast: f32,
     saturate: f32,
     hue_rotate: f32,
     sepia: f32,
-) {
-    // Build the 4×4 color matrix as a composition of individual transforms.
-    // Order: sepia → hue → saturate → contrast → brightness
+) -> [[f32; 4]; 4] {
     let mut m = identity_matrix();
 
     if sepia > 0.001 {
@@ -103,6 +122,21 @@ fn apply_color_matrix(
     if (brightness - 1.0).abs() > 0.001 {
         m = multiply_matrix(&brightness_matrix(brightness), &m);
     }
+
+    m
+}
+
+/// Apply a combined color matrix for brightness, contrast, saturation,
+/// hue rotation, and sepia.
+fn apply_color_matrix(
+    img: &mut image::RgbaImage,
+    brightness: f32,
+    contrast: f32,
+    saturate: f32,
+    hue_rotate: f32,
+    sepia: f32,
+) {
+    let m = compose_color_matrix(brightness, contrast, saturate, hue_rotate, sepia);
 
     for pixel in img.pixels_mut() {
         let r = pixel[0] as f32 / 255.0;

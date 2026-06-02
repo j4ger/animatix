@@ -22,7 +22,8 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 8.6 | **GPU shader filter pass** | Replace CPU blur + color matrix with WGSL compute shaders (blur H → blur V → color matrix) for 10–50× speedup on large scenes. Split into 8.6a (GPU filters + readback, 2–3 days) and 8.6b (zero-readback composite, +2–3 days). Full plan in [`architecture.md`](architecture.md) §6. | `renderer/shaders/`, `renderer/filter_backend.rs` | 1 week | When filter count becomes a bottleneck |
+| 8.6a | **GPU compute filter pass** ✅ | WGSL compute shaders for separable Gaussian blur (H+V) and 4×4 color matrix. Replaces CPU `imageops::blur` + per-pixel Rust color matrix. One GPU→CPU readback per filter actor remains. 3 smoke tests (identity, blur, color matrix). | `renderer/filter_backend.rs` | 2–3 days | — |
+| 8.6b | **Zero-readback filter composite** | Remove the final readback by compositing filter output directly via a custom fullscreen render pass instead of drawing through Vello's `ImageBrush` (which requires CPU-owned `peniko::ImageData`). Moved to Phase 10b.5. | `renderer/core.rs`, `renderer/filter_backend.rs` | +2–3 days | Vello texture binding API |
 
 ---
 
@@ -68,10 +69,9 @@
 ## Order
 
 1. **Phase 7** (audio — no blockers)
-2. **Phase 8.6** (GPU shader filter pass — self-contained, blocked on filter count becoming a bottleneck)
-3. **Phase 9** (PiP — after syntax and renderer are stable)
-4. **Phase 10b** (architecture refactors — run in dedicated sprints, do not mix with feature work)
-5. **Phase 11** (start after syntax stabilizes)
+2. **Phase 9** (PiP — after syntax and renderer are stable)
+3. **Phase 10b** (architecture refactors — run in dedicated sprints, do not mix with feature work)
+4. **Phase 11** (start after syntax stabilizes)
 
 ---
 

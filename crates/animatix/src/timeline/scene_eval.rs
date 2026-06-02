@@ -755,14 +755,14 @@ impl Timeline {
                 return;
             }
 
-            // Render sub-scene to image via backend, apply CPU filters, draw result
+            // Render sub-scene to image via backend, apply GPU filters, draw result
             let mut backend = self.filter_backend.borrow_mut();
             if let Some(backend) = backend.as_mut() {
-                match backend.render_scene_to_image(&sub_scene, scene_dimensions) {
-                    Ok(image) => {
-                        let filtered = crate::timeline::filter::apply_cpu_filters(
-                            image, blur, brightness, contrast, saturate, hue_rotate, sepia,
-                        );
+                match backend.render_scene_to_image_gpu_filtered(
+                    &sub_scene, scene_dimensions,
+                    blur, brightness, contrast, saturate, hue_rotate, sepia,
+                ) {
+                    Ok(filtered) => {
                         let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
                             .with_extend(vello::peniko::Extend::Pad)
                             .with_quality(vello::peniko::ImageQuality::Medium)

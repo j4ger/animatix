@@ -329,53 +329,20 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 The 4×4 matrix is pre-multiplied on the CPU from individual transforms (same math as `apply_color_matrix` in `timeline/filter.rs`).
 
-##### Implementation Plan
+##### Implementation Status
 
-Split into two phases to manage risk:
-
-| Phase | Scope | Readback? | Effort |
+| Phase | Scope | Readback? | Status |
 |-------|-------|-----------|--------|
-| **8.6a** | GPU compute filters, still readback to `peniko::ImageData` | Yes (once per filter) | 2–3 days |
-| **8.6b** | Zero-readback composite via custom fullscreen pass | No | +2–3 days |
+| **8.6a** | GPU compute filters, still readback to `peniko::ImageData` | Yes (once per filter) | ✅ Implemented |
+| **8.6b** | Zero-readback composite via custom fullscreen pass | No | Deferred to Phase 10b.5 |
 
-**8.6a** alone removes the CPU blur/color matrix cost and is a massive win. **8.6b** removes the final readback.
+**8.6a** removes the CPU blur/color matrix cost. The WGSL shaders (`filter_blur.wgsl`, `filter_color_matrix.wgsl`) are embedded in `renderer/filter_backend.rs` as inline compute pipelines. `GpuFilterBackend::render_scene_to_image_gpu_filtered()` runs the full GPU pipeline (render → blur H → blur V → color matrix → readback) and is called from `scene_eval.rs` for every `Filter` actor.
 
-**Pipeline Builder API** (extends `GpuFilterBackend`):
+**8.6b** is blocked on Vello's `Scene::draw_image` requiring CPU-owned `peniko::ImageData`. To eliminate the final readback, we need a custom fullscreen composite render pass that samples the GPU texture directly. This is tracked as Phase 10b.5.
 
-```rust
-pub struct GpuFilterBackend {
-    // ... existing fields ...
-    blur_pipeline: Option<wgpu::ComputePipeline>,
-    color_matrix_pipeline: Option<wgpu::ComputePipeline>,
-    blur_bind_group_layout: wgpu::BindGroupLayout,
-    color_matrix_bind_group_layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-    temp_texture_a: Option<wgpu::Texture>,
-    temp_view_a: Option<wgpu::TextureView>,
-    temp_texture_b: Option<wgpu::Texture>,
-    temp_view_b: Option<wgpu::TextureView>,
-}
-```
+**Implementation details:** See `renderer/filter_backend.rs` for the actual `GpuFilterBackend` struct and compute pipeline setup. The trait method `FilterBackend::render_scene_to_image_gpu_filtered()` has a default implementation that falls back to CPU filtering; `GpuFilterBackend` overrides it with the GPU path. `scene_eval.rs` calls the GPU method unconditionally when a `Filter` actor needs processing — non-GPU backends automatically fall back to the CPU path.
 
-**Trait extension:**
-
-```rust
-pub trait FilterBackend: Send {
-    fn render_scene_to_image(&mut self, scene: &vello::Scene, dimensions: SceneDimensions)
-        -> Result<SceneImage, String>;
-
-    /// NEW (8.6a): Render to image, but filters run on GPU.
-    fn render_scene_to_image_gpu_filtered(
-        &mut self, scene: &vello::Scene, dimensions: SceneDimensions,
-        blur: f32, brightness: f32, contrast: f32,
-        saturate: f32, hue_rotate: f32, sepia: f32,
-    ) -> Result<SceneImage, String>;
-}
-```
-
-**Scene eval changes:** In `scene_eval.rs`, when `needs_filter` is true and the backend supports GPU filtering, call `render_scene_to_image_gpu_filtered` instead of the current two-step `render_scene_to_image` + `apply_cpu_filters`.
-
-**The Vello texture problem:** Vello's `Scene::draw_image` requires `peniko::ImageData` (CPU-owned). For 8.6a we still do one readback. For 8.6b, the recommended approach is a custom fullscreen render pass in `RendererCore` that samples the filtered texture directly, bypassing vello's scene encoding for the composite step.
+**The Vello texture problem:** Vello's `Scene::draw_image` requires `peniko::ImageData` (CPU-owned). For 8.6a we still do one readback per filter. For 8.6b, the recommended approach is a custom fullscreen render pass in `RendererCore` that samples the filtered texture directly, bypassing vello's scene encoding for the composite step. This is tracked as Phase 10b.5.
 
 ##### Risks & Mitigations
 
