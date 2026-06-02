@@ -1,4 +1,6 @@
 
+pub mod labels;
+
 use egui::{Color32, Vec2};
 
 use crate::app::design_tokens::*;

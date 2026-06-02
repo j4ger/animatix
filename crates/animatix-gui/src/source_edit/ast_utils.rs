@@ -3,7 +3,8 @@
 //! These were extracted from the app module; they operate purely on the AST
 //! and belong in the source_edit crate alongside other AST-manipulation helpers.
 
-use animatix::ast::Stmt;
+use animatix::ast::{Stmt, Time};
+use super::apply::time_to_seconds;
 
 // ---------------------------------------------------------------------------
 // Keyframe discovery
@@ -58,6 +59,184 @@ pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
         }
         _ => false,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Keyframe insertion helpers (shared by keyframe_edits and action_edits)
+// ---------------------------------------------------------------------------
+
+/// Style of the keyframe immediately preceding a given time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyframeStyle {
+    Absolute,
+    Relative,
+}
+
+/// Determine the style (absolute vs relative) of the keyframe immediately
+/// preceding `time_s`. New keyframes inherit this style so that relative
+/// chains stay relative, absolute breakpoints stay absolute.
+pub fn keyframe_style_before(stmts: &[Stmt], time_s: f64) -> KeyframeStyle {
+    let mut current_time = 0.0f64;
+    let mut style = KeyframeStyle::Absolute;
+
+    for stmt in stmts {
+        match stmt {
+            Stmt::Keyframe { time, .. } => {
+                current_time = time_to_seconds(time);
+                if current_time <= time_s {
+                    style = KeyframeStyle::Absolute;
+                }
+            }
+            Stmt::RelativeKeyframe { offset, .. } => {
+                current_time += time_to_seconds(offset);
+                if current_time <= time_s {
+                    style = KeyframeStyle::Relative;
+                }
+            }
+            _ => {}
+        }
+        if current_time > time_s {
+            break;
+        }
+    }
+    style
+}
+
+/// Find the index after which a new keyframe at `time_s` should be inserted.
+pub fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
+    let mut last_kf_idx = 0usize;
+    let mut current_time = 0.0f64;
+
+    for (i, stmt) in stmts.iter().enumerate() {
+        match stmt {
+            Stmt::Keyframe { time, .. } => {
+                current_time = time_to_seconds(time);
+                if current_time <= time_s {
+                    last_kf_idx = i + 1;
+                }
+            }
+            Stmt::RelativeKeyframe { offset, .. } => {
+                current_time += time_to_seconds(offset);
+                if current_time <= time_s {
+                    last_kf_idx = i + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    last_kf_idx
+}
+
+/// Find the absolute time of the keyframe immediately before `time_s`.
+pub fn find_prev_keyframe_time(stmts: &[Stmt], time_s: f64) -> f64 {
+    let mut current_time = 0.0f64;
+    let mut prev_time = 0.0f64;
+
+    for stmt in stmts {
+        match stmt {
+            Stmt::Keyframe { time, .. } => {
+                current_time = time_to_seconds(time);
+            }
+            Stmt::RelativeKeyframe { offset, .. } => {
+                current_time += time_to_seconds(offset);
+            }
+            _ => continue,
+        }
+        if current_time > time_s {
+            break;
+        }
+        prev_time = current_time;
+    }
+
+    prev_time
+}
+
+/// Wrap leading top-level declarations in a `#0s` keyframe so they don't get
+/// shifted to a later time by a new relative keyframe.
+///
+/// Returns the (possibly adjusted) insertion index.
+pub fn wrap_leading_decls_in_zero_keyframe(
+    stmts: &mut Vec<Stmt>,
+    insert_idx: usize,
+    prev_time_s: f64,
+) -> usize {
+    if insert_idx != 0 || prev_time_s >= 0.001 || stmts.is_empty() {
+        return insert_idx;
+    }
+    let first_is_keyframe = matches!(
+        stmts[0],
+        Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }
+    );
+    if first_is_keyframe {
+        return insert_idx;
+    }
+    let decl_end = stmts
+        .iter()
+        .position(|s| matches!(s, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }))
+        .unwrap_or(stmts.len());
+    if decl_end == 0 {
+        return insert_idx;
+    }
+    let decls: Vec<Stmt> = stmts.drain(0..decl_end).collect();
+    let zero_kf = Stmt::Keyframe {
+        time: Time::Seconds(0.0),
+        body: decls,
+        span: None,
+    };
+    stmts.insert(0, zero_kf);
+    insert_idx + 1
+}
+
+/// Subtract `delta_s` from the next relative keyframe's offset so that
+/// subsequent keyframes keep their original absolute times.
+pub fn adjust_following_relative_keyframe(
+    stmts: &mut [Stmt],
+    insert_idx: usize,
+    delta_s: f64,
+) {
+    if insert_idx >= stmts.len() || delta_s < 0.001 {
+        return;
+    }
+    if let Stmt::RelativeKeyframe { offset: ref mut next_offset, .. } = stmts[insert_idx] {
+        let next_delta_s = time_to_seconds(next_offset);
+        let new_next_delta_s = next_delta_s - delta_s;
+        if new_next_delta_s >= 0.001 {
+            *next_offset = if new_next_delta_s < 1.0 {
+                Time::Milliseconds((new_next_delta_s * 1000.0).round() as u64)
+            } else {
+                Time::Seconds(new_next_delta_s)
+            };
+        }
+    }
+}
+
+/// Append a statement to the keyframe at `time_s` (within ε tolerance).
+/// Returns `true` if a matching keyframe was found.
+pub fn append_to_keyframe_at_time(stmts: &mut [Stmt], time_s: f64, stmt: Stmt) -> bool {
+    const EPSILON_S: f64 = 0.05;
+    let mut current_time = 0.0f64;
+
+    for kf in stmts.iter_mut() {
+        match kf {
+            Stmt::Keyframe { time, body, .. } => {
+                current_time = time_to_seconds(time);
+                if (current_time - time_s).abs() < EPSILON_S {
+                    body.push(stmt);
+                    return true;
+                }
+            }
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                current_time += time_to_seconds(offset);
+                if (current_time - time_s).abs() < EPSILON_S {
+                    body.push(stmt);
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Shift absolute keyframe times by `offset_s` seconds. Relative keyframes

@@ -21,10 +21,10 @@
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 8.5.1 | **Foundation: `InsertAction` + shared helpers** | Extract keyframe helpers from `keyframe_edits.rs` to `ast_utils.rs`. Add `InsertAction` variant to `SourceEdit`. Implement `insert_action` with exact-time semantics, style inheritance, and all six timeline rules. Unit tests for Examples A–D. | `source_edit/` | 1 day | — |
-| 8.5.2 | **Bridge: `InsertionRequest` + `InsertionContext`** | Create `app/insertion.rs` with the bridge layer. Extend `insert_actor` to support keyframe-body insertion. Extract `unique_label` to `app/utils/labels.rs`. Wire `handle_insertion` in `DocumentController`. Add `all_snippets()` to analyzer. | `app/insertion.rs`, `app/utils/labels.rs`, `app/document_controller.rs`, `source_edit/actor_edits.rs` | 1 day | 8.5.1 |
-| 8.5.3 | **UI: `InsertionPalette`** | Build fuzzy-search palette with 3 submodules (`mod.rs`, `items.rs`, `render.rs`). Auto-populate from `PRIMITIVES`, `get_action_signatures()`, and `all_snippets()`. Context-aware default mode. Bind `/` and `Ctrl+Shift+P`. | `app/shell/insertion_palette/`, `app/commands.rs`, `app/command_handlers.rs`, `editor.rs` | 1–2 days | 8.5.2 |
-| 8.5.4 | **Polish: visual feedback + cleanup** | Amber flash on rewritten timestamp labels. Delete `action_palette.rs`. Update `ui_store`. Full test suite + clippy. | `cell_editor/render.rs`, `app/shell/action_palette.rs`, `app/stores/ui_store.rs` | 1 day | 8.5.3 |
+| 8.5.1 | **Foundation: `InsertAction` + shared helpers** ✅ | Extracted keyframe helpers from `keyframe_edits.rs` to `ast_utils.rs`. Added `InsertAction` variant to `SourceEdit`. Implemented `insert_action` with exact-time semantics, style inheritance, and all six timeline rules. Unit tests for Examples A–D. | `source_edit/` | 1 day | — |
+| 8.5.2 | **Bridge: `InsertionRequest` + `InsertionContext`** ✅ | Created `app/insertion.rs` with the bridge layer. Extracted `unique_label` to `app/utils/labels.rs`. Added `all_snippets()` to analyzer. | `app/insertion.rs`, `app/utils/labels.rs`, `app/document_controller.rs` | 1 day | 8.5.1 |
+| 8.5.3 | **UI: `InsertionPalette`** ✅ | Built fuzzy-search palette (`app/shell/insertion_palette.rs`). Auto-populates from `PRIMITIVES`, `get_action_signatures()`, and `all_snippets()`. Mode tabs (All/Primitives/Actions/Snippets). Keyboard navigation (↑↓, Tab, Enter, Esc). | `app/shell/insertion_palette.rs` | 1–2 days | 8.5.2 |
+| 8.5.4 | **Polish: visual feedback + cleanup** ✅ | Deleted `action_palette.rs`. Removed `action_palette_open` from `ui_store`. Bound `/` (Universal) and `A` (Actions) keys. Full test suite + clippy green. Amber flash deferred. | `app/shell/action_palette.rs`, `app/stores/ui_store.rs`, `app/mod.rs` | 1 day | 8.5.3 |
 
 ---
 

@@ -4,7 +4,7 @@
 //! edits applied directly to the AST. After mutation, the entire AST is
 //! re-serialized via [`animatix::to_source::stmts_to_source`].
 
-use animatix::ast::{ComponentDef, Expr, Property, Stmt, Time, Transition};
+use animatix::ast::{ComponentDef, Expr, Modifier, Property, Stmt, Time, Transition};
 
 // ---------------------------------------------------------------------------
 // Property name mapping
@@ -146,6 +146,14 @@ pub enum SourceEdit {
         old_time_s: f64,
         new_time_s: f64,
     },
+    /// Insert an action statement at the exact keyframe for `time_s`.
+    InsertAction {
+        verb: String,
+        targets: Vec<String>,
+        args: Vec<Expr>,
+        modifiers: Vec<Modifier>,
+        time_s: f64,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -220,6 +228,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
         } => super::scene_edits::move_to_scene(stmts, actor_labels, &target_scene),
         SourceEdit::MoveKeyframeTime { actor, property, old_time_s, new_time_s } => {
             super::keyframe_edits::move_keyframe_time(stmts, &actor, &property, old_time_s, new_time_s)
+        }
+        SourceEdit::InsertAction { verb, targets, args, modifiers, time_s } => {
+            super::action_edits::insert_action(stmts, &verb, &targets, &args, &modifiers, time_s)
         }
     }
 }

@@ -284,6 +284,11 @@ fn snippet_completions() -> Vec<CompletionItem> {
     ]
 }
 
+/// Expose all snippet completions for external consumers (e.g. insertion palette).
+pub fn all_snippets() -> Vec<CompletionItem> {
+    snippet_completions()
+}
+
 /// Keyword completions with documentation.
 fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
     symbols.keywords.iter().map(|kw| {

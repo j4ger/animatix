@@ -686,21 +686,9 @@ impl DocumentController<'_> {
 
     /// Generate a unique label for a new actor of the given type.
     fn unique_label(&self, ty: &str) -> String {
-        let base = ty.to_lowercase();
-        let existing: std::collections::HashSet<String> = self
-            .document_store
-            .source
-            .document
-            .timeline
-            .as_ref()
-            .map(|t| t.tracks().keys().cloned().collect())
-            .unwrap_or_default();
-        for i in 1.. {
-            let candidate = format!("{}{}", base, i);
-            if !existing.contains(&candidate) {
-                return candidate;
-            }
-        }
-        format!("{}{}", base, existing.len() + 1)
+        crate::app::utils::labels::unique_label(
+            self.document_store.source.document.timeline.as_ref(),
+            ty,
+        )
     }
 }

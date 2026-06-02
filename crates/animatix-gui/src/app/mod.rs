@@ -15,6 +15,7 @@ pub(crate) mod shell;
 pub(crate) mod stores;
 pub mod design_tokens;
 mod utils;
+pub(crate) mod insertion;
 
 use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};
@@ -37,6 +38,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
+use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
 use crate::app::utils::*;
 use crate::app::stores::*;
 
@@ -238,6 +240,7 @@ struct GuiShell {
     preview_store: PreviewStore,
     ui_store: UiStore,
     export_store: ExportStore,
+    insertion_palette: InsertionPalette,
 }
 
 impl GuiShell {
@@ -324,6 +327,7 @@ impl GuiShell {
             preview_store: PreviewStore::new(preview),
             ui_store,
             export_store: ExportStore::new(),
+            insertion_palette: InsertionPalette::default(),
         }
     }
 
@@ -398,10 +402,10 @@ impl GuiShell {
             }
             if !i.modifiers.command {
                 if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
-                    self.ui_store.view.action_palette_open = true;
+                    self.insertion_palette.open(PaletteMode::Actions);
                 }
                 if i.key_pressed(egui::Key::Slash) {
-                    self.ui_store.view.shortcuts_open = true;
+                    self.insertion_palette.open(PaletteMode::Universal);
                 }
             }
             // Copy selected actors (Ctrl+C)
@@ -491,10 +495,8 @@ impl GuiShell {
             self.export_dialog_ui(ui);
         }
 
-        // Action palette overlay
-        if self.ui_store.view.action_palette_open {
-            self.action_palette_ui(ui);
-        }
+        // Insertion palette overlay
+        self.insertion_palette_ui(ui);
 
         // Shortcut cheat sheet overlay
         if self.ui_store.view.shortcuts_open {

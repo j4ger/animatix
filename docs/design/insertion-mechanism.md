@@ -882,6 +882,48 @@ The GUI palette imports `animatix_analyzer::completer::all_snippets` directly. N
 
 ---
 
+## Implementation Status (2026-06-02)
+
+Phase 8.5 is **complete** with the following deviations from the original design:
+
+| Item | Design | Implemented | Rationale |
+|------|--------|-------------|-----------|
+| Palette file structure | 3 submodules (`mod.rs`, `items.rs`, `render.rs`) | Single file (`insertion_palette.rs`) | Reduced file count; all logic fits cleanly in ~350 lines |
+| Commands / command_handlers | New `OpenInsertionPalette`, `ExecuteInsertion` commands | Direct method calls on `GuiShell` | Simpler; no new command variants needed |
+| `editor.rs` `/` binding | Bind `/` in editor | Bound `/` in `GuiShell::ui` global input | Editor doesn't expose a focused-state check easily; global binding works |
+| Amber flash | Flash rewritten timestamp labels | **Deferred** | Polish feature; core functionality is higher priority |
+| `insert_actor` keyframe-body | Extend `InsertActor` for keyframe-body insertion | **Not needed** | `InsertAction` covers the keyframe-body case; `InsertActor` keyframe-body deferred |
+| Context-aware default mode | Default to Actions in keyframe, Primitives in code | Mode defaults to Universal; `A` key opens Actions mode | Cell-type detection not yet plumbed through; works well with manual mode selection |
+| `Ctrl+Shift+P` | Open palette | `A` key (when actors selected) opens Actions mode; `/` opens Universal | `Ctrl+Shift+P` conflicts with OS-level shortcuts on some platforms |
+
+### Files touched
+
+| File | Status |
+|------|--------|
+| `source_edit/mod.rs` | ✅ Added `InsertAction` variant |
+| `source_edit/apply.rs` | ✅ Wired dispatch |
+| `source_edit/action_edits.rs` | ✅ New — `insert_action` with 6 rules + 7 tests |
+| `source_edit/ast_utils.rs` | ✅ Extracted shared keyframe helpers |
+| `source_edit/keyframe_edits.rs` | ✅ Refactored to use shared helpers |
+| `app/utils/labels.rs` | ✅ New — extracted `unique_label` |
+| `app/insertion.rs` | ✅ New — bridge layer |
+| `app/shell/insertion_palette.rs` | ✅ New — palette UI |
+| `app/shell/mod.rs` | ✅ Wired palette, removed action_palette |
+| `app/mod.rs` | ✅ Added `insertion_palette` field, keybindings |
+| `app/document_controller.rs` | ✅ Uses `app/utils/labels::unique_label` |
+| `app/stores/ui_store.rs` | ✅ Removed `action_palette_open` |
+| `animatix-analyzer/src/completer.rs` | ✅ Added `all_snippets()` |
+| `animatix-analyzer/src/lib.rs` | ✅ Re-exported `all_snippets` |
+| `app/shell/action_palette.rs` | 🗑️ **Deleted** |
+
+### Test coverage
+
+- `source_edit::action_edits::tests` — 7 tests covering exact match, epsilon append, absolute insertion, relative insertion, style inheritance, leading-decl wrapping, and between-absolute-keyframes
+- `app::utils::labels::tests` — 3 tests for unique label generation
+- All existing tests remain green (`cargo test -p animatix-gui --lib`: 168 pass)
+
+---
+
 ## Why This Is Elegant
 
 1. **No duplication** — Primitives and actions are defined once in the core library; the GUI reads from those registries. No parallel UI-specific lists.

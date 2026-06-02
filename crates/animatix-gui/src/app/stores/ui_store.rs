@@ -80,7 +80,6 @@ pub struct ViewStore {
     pub settings_open: bool,
     pub tool_mode: ToolMode,
     pub debug_bounds: bool,
-    pub action_palette_open: bool,
     pub shortcuts_open: bool,
     pub inspector_visible: bool,
     pub welcome_open: bool,
@@ -96,7 +95,6 @@ impl ViewStore {
             settings_open: false,
             tool_mode: ToolMode::Select,
             debug_bounds: false,
-            action_palette_open: false,
             shortcuts_open: false,
             inspector_visible: false,
             welcome_open: false,
@@ -213,7 +211,6 @@ mod tests {
         assert!(store.view.collapsed_actors.is_empty());
         assert!(!store.view.diagnostics_panel_visible);
         assert!(!store.view.settings_open);
-        assert!(!store.view.action_palette_open);
         assert!(!store.view.shortcuts_open);
         assert!(!store.view.debug_bounds);
         assert_eq!(store.view.tool_mode, ToolMode::Select);

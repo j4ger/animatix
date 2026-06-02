@@ -26,7 +26,7 @@ mod document_symbol;
 pub use symbol_table::{
     SymbolTable, ImportInfo, LabelInfo, LabelKind, ComponentInfo, ParamInfo, SceneInfo,
 };
-pub use completer::{CompletionItem, CompletionKind, completions_at};
+pub use completer::{all_snippets, CompletionItem, CompletionKind, completions_at};
 pub use diagnostics::{Diagnostic, DiagnosticSeverity, collect_diagnostics};
 pub use workspace::Workspace;
 pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};

@@ -15,8 +15,14 @@ mod actor_edits;
 mod ast_utils;
 mod keyframe_edits;
 mod scene_edits;
+mod action_edits;
 
 // Re-export public API
 pub use apply::{apply_edit, canonical_to_source, find_actor_decl, source_to_canonical, SourceEdit};
 pub(crate) use actor_edits::rename_all_references;
-pub use ast_utils::{find_keyframes_for_actor, keyframe_references_actor, shift_keyframe_times};
+pub use ast_utils::{
+    find_keyframes_for_actor, keyframe_references_actor, shift_keyframe_times,
+    KeyframeStyle, keyframe_style_before, find_keyframe_insertion_point,
+    find_prev_keyframe_time, wrap_leading_decls_in_zero_keyframe,
+    adjust_following_relative_keyframe, append_to_keyframe_at_time,
+};

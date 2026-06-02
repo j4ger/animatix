@@ -4,6 +4,10 @@ use animatix::ast::{ComponentDef, Expr, Stmt, Time};
 
 use super::apply::time_to_seconds;
 use super::apply::canonical_to_source;
+use super::ast_utils::{
+    adjust_following_relative_keyframe, find_keyframe_insertion_point,
+    wrap_leading_decls_in_zero_keyframe,
+};
 
 // ---------------------------------------------------------------------------
 // MergeKeyframe
@@ -284,79 +288,18 @@ pub(super) fn insert_keyframe(
     };
 
     // Insert after the keyframe that contains prev_time_s, or at the end.
-    let mut insert_idx = find_keyframe_insertion_point(stmts, prev_time_s);
+    let insert_idx = find_keyframe_insertion_point(stmts, prev_time_s);
 
-    // If there are no keyframes before the insertion point and prev_time_s is ~0,
-    // wrap any leading top-level declarations in a #0s keyframe so they don't
-    // get shifted to a later time by the new relative keyframe.
-    if insert_idx == 0 && prev_time_s < 0.001 && !stmts.is_empty() {
-        let first_is_keyframe = matches!(
-            stmts[0],
-            Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }
-        );
-        if !first_is_keyframe {
-            let decl_end = stmts
-                .iter()
-                .position(|s| matches!(s, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }))
-                .unwrap_or(stmts.len());
-            if decl_end > 0 {
-                let decls: Vec<Stmt> = stmts.drain(0..decl_end).collect();
-                let zero_kf = Stmt::Keyframe {
-                    time: Time::Seconds(0.0),
-                    body: decls,
-                    span: None,
-                };
-                stmts.insert(0, zero_kf);
-                insert_idx = 1;
-            }
-        }
-    }
+    // Wrap leading declarations in #0s if needed
+    let insert_idx = wrap_leading_decls_in_zero_keyframe(stmts, insert_idx, prev_time_s);
 
-    // If the next statement is a RelativeKeyframe, subtract delta_s from its
-    // offset so that subsequent keyframes keep their original absolute times.
-    if insert_idx < stmts.len() {
-        if let Stmt::RelativeKeyframe { offset: ref mut next_offset, .. } = stmts[insert_idx] {
-            let next_delta_s = time_to_seconds(next_offset);
-            let new_next_delta_s = next_delta_s - delta_s;
-            if new_next_delta_s >= 0.001 {
-                *next_offset = if new_next_delta_s < 1.0 {
-                    Time::Milliseconds((new_next_delta_s * 1000.0).round() as u64)
-                } else {
-                    Time::Seconds(new_next_delta_s)
-                };
-            }
-        }
-    }
+    // Adjust next relative keyframe to preserve its absolute time
+    adjust_following_relative_keyframe(stmts, insert_idx, delta_s);
 
     stmts.insert(insert_idx, keyframe);
     true
 }
 
-/// Find the index after which a new keyframe at `time_s` should be inserted.
-fn find_keyframe_insertion_point(stmts: &[Stmt], time_s: f64) -> usize {
-    let mut last_kf_idx = 0usize;
-    let mut current_time = 0.0f64;
-
-    for (i, stmt) in stmts.iter().enumerate() {
-        match stmt {
-            Stmt::Keyframe { time, .. } => {
-                current_time = time_to_seconds(time);
-                if current_time <= time_s {
-                    last_kf_idx = i + 1;
-                }
-            }
-            Stmt::RelativeKeyframe { offset, .. } => {
-                current_time += time_to_seconds(offset);
-                if current_time <= time_s {
-                    last_kf_idx = i + 1;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    last_kf_idx
-}
 
 // ---------------------------------------------------------------------------
 // MoveKeyframeTime
