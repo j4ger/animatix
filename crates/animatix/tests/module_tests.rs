@@ -434,20 +434,27 @@ sequence {
           track_names
       );
       let track = timeline.tracks().get("badge1").unwrap();
-      // bounce at 0-200ms (scale), fade-in at 200-500ms (opacity)
+      // bounce: each inlined assignment gets the invocation [200ms] modifier,
+      // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
       let scale = track.scale.as_ref().expect("scale should exist");
-      // At 100ms, first scale assignment is halfway: 1.0 → 1.5 = 1.25
+      // At 100ms, first scale assignment is halfway through 200ms: 1.0 → 1.5 = 1.25
       assert!(
           (scale.evaluate(100) - 1.25).abs() < 0.01,
           "Scale should be 1.25 at 100ms, got {}",
           scale.evaluate(100)
       );
-      // At 250ms, fade-in should be active (opacity animating)
+      // At 250ms, second scale assignment is 50ms into 200ms: 1.5 → 1.0 = 1.375
+      assert!(
+          (scale.evaluate(250) - 1.375).abs() < 0.01,
+          "Scale should be 1.375 at 250ms, got {}",
+          scale.evaluate(250)
+      );
+      // At 500ms, fade-in is 100ms into 300ms: opacity ~0.33
       let opacity = track.opacity.as_ref().expect("opacity should exist");
       assert!(
-          opacity.evaluate(250) > 0.3 && opacity.evaluate(250) < 0.7,
-          "Opacity should be fading in at 250ms, got {}",
-          opacity.evaluate(250)
+          opacity.evaluate(500) > 0.2 && opacity.evaluate(500) < 0.5,
+          "Opacity should be fading in at 500ms, got {}",
+          opacity.evaluate(500)
       );
   }
 

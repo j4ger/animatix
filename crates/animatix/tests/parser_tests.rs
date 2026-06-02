@@ -4,15 +4,17 @@ use animatix_syntax::ast::{
 };
 use animatix_syntax::parser::parse_source;
 
-// Helper function to extract a single statement from the implicit 0s keyframe wrapper
+// Helper function to extract a single statement.
+// Actions, sequences, and staggers at the top level are wrapped in an implicit
+// `#0s` keyframe; actor declarations, assignments, let decls, imports, etc.
+// remain top-level.
 fn parse_single_stmt(src: &str) -> Stmt {
     let (ast, errors) = parse_source(src);
     assert!(errors.is_empty(), "Parse errors: {:?}", errors);
     let ast = ast.expect("parsed AST");
-    if let Stmt::Keyframe { body, .. } = &ast[0] {
-        body[0].clone()
-    } else {
-        panic!("Expected implicit Keyframe wrapper");
+    match &ast[0] {
+        Stmt::Keyframe { body, .. } => body[0].clone(),
+        other => other.clone(),
     }
 }
 
