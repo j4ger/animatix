@@ -207,7 +207,9 @@ impl GuiShell {
                         prev_time_s,
                     }
                 };
-                try_source_edit(stmts, source_edit, &expr, &edit.value)?
+                try_apply_source_edit(stmts, |trial| {
+                    crate::source_edit::apply_edit(trial, source_edit)
+                })?
             } else {
                 return Err("No AST available".to_string());
             };
@@ -222,32 +224,28 @@ impl GuiShell {
 
         let (new_source, source_index) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-                let set_edit = crate::source_edit::SourceEdit::SetProperty {
-                    actor: edit.actor.clone(),
-                    property: edit.property.clone(),
-                    value: expr.clone(),
-                };
-                let applied = if crate::source_edit::apply_edit(stmts, set_edit) {
-                    true
-                } else {
-                    let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
-                        actor: edit.actor.clone(),
-                        property: edit.property.clone(),
-                        value: expr,
+                let actor = edit.actor.clone();
+                let property = edit.property.clone();
+                try_apply_source_edit(stmts, |trial| {
+                    let set_edit = crate::source_edit::SourceEdit::SetProperty {
+                        actor: actor.clone(),
+                        property: property.clone(),
+                        value: expr.clone(),
                     };
-                    crate::source_edit::apply_edit(stmts, insert_edit)
-                };
-
-                if applied {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    let source_index = animatix::source_index::SourceIndex::build(stmts);
-                    Ok((new_source, source_index))
-                } else {
-                    Err("Source edit could not be applied".to_string())
-                }
+                    if crate::source_edit::apply_edit(trial, set_edit) {
+                        true
+                    } else {
+                        let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
+                            actor: actor.clone(),
+                            property: property.clone(),
+                            value: expr.clone(),
+                        };
+                        crate::source_edit::apply_edit(trial, insert_edit)
+                    }
+                })?
             } else {
-                Err("No AST available".to_string())
-            }?;
+                return Err("No AST available".to_string());
+            };
 
         self.apply_timeline_edit(edit);
         self.commit_source(new_source, source_index);
@@ -267,21 +265,15 @@ impl GuiShell {
                         container: edit.actor.clone(),
                         new_order: order,
                     };
-                    let mut trial = stmts.clone();
-                    if crate::source_edit::apply_edit(&mut trial, edit_op) {
-                        let new_source = animatix::to_source::stmts_to_source(&trial);
-                        let source_index = animatix::source_index::SourceIndex::build(&trial);
-                        *stmts = trial;
-                        Ok((new_source, source_index))
-                    } else {
-                        Err("Source edit could not be applied".to_string())
-                    }
+                    try_apply_source_edit(stmts, |trial| {
+                        crate::source_edit::apply_edit(trial, edit_op)
+                    })?
                 } else {
-                    Err("Invalid value type for child_order".to_string())
+                    return Err("Invalid value type for child_order".to_string());
                 }
             } else {
-                Err("No AST available".to_string())
-            }?;
+                return Err("No AST available".to_string());
+            };
 
         if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
             if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
@@ -315,22 +307,25 @@ impl GuiShell {
 // Atomic source-edit helper
 // ─────────────────────────────────────────────────────────────
 
-/// Try to apply a source edit atomically.
+/// Apply a source edit atomically using a trial clone.
 ///
-/// 1. Validates the expression round-trips correctly.
-/// 2. Clones `stmts`, applies the edit to the clone.
-/// 3. Only on success moves the clone back and returns the new source text
-///    and source index.
-fn try_source_edit(
+/// 1. Clones `stmts`.
+/// 2. Calls `apply_fn` with the cloned statements.
+/// 3. If `apply_fn` returns `true`, serializes the trial AST back to source,
+///    builds a new source index, and commits the clone back to `stmts`.
+/// 4. If `apply_fn` returns `false`, leaves `stmts` untouched.
+///
+/// Callers should validate the edit (e.g. `PropertyValue → Expr` round-trip)
+/// *before* invoking this helper.
+fn try_apply_source_edit<F>(
     stmts: &mut Vec<animatix::ast::Stmt>,
-    edit: crate::source_edit::SourceEdit,
-    expr: &animatix::ast::Expr,
-    expected: &panels::PropertyValue,
-) -> Result<(String, animatix::source_index::SourceIndex), String> {
-    crate::validation::validate_roundtrip(expr, expected)?;
-
+    apply_fn: F,
+) -> Result<(String, animatix::source_index::SourceIndex), String>
+where
+    F: FnOnce(&mut Vec<animatix::ast::Stmt>) -> bool,
+{
     let mut trial = stmts.clone();
-    if !crate::source_edit::apply_edit(&mut trial, edit) {
+    if !apply_fn(&mut trial) {
         return Err("Source edit could not be applied".to_string());
     }
 
