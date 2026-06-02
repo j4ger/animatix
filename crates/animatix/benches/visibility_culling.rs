@@ -50,10 +50,12 @@ fn bench_visibility(c: &mut Criterion) {
     let all_visible = build_visible_scene(100);
     c.bench_function("visible_100_actors", |b| {
         b.iter(|| {
+            let mut fb = None;
             black_box(all_visible.evaluate_with_debug(
                 black_box(0.5),
                 dims,
                 animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                &mut fb,
             ));
         })
     });
@@ -62,10 +64,12 @@ fn bench_visibility(c: &mut Criterion) {
     let mixed = build_mixed_visibility_scene(50, 50);
     c.bench_function("mixed_50visible_50offscreen", |b| {
         b.iter(|| {
+            let mut fb = None;
             black_box(mixed.evaluate_with_debug(
                 black_box(0.5),
                 dims,
                 animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                &mut fb,
             ));
         })
     });
@@ -74,10 +78,12 @@ fn bench_visibility(c: &mut Criterion) {
     let all_offscreen = build_mixed_visibility_scene(0, 100);
     c.bench_function("offscreen_100_actors", |b| {
         b.iter(|| {
+            let mut fb = None;
             black_box(all_offscreen.evaluate_with_debug(
                 black_box(0.5),
                 dims,
                 animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                &mut fb,
             ));
         })
     });

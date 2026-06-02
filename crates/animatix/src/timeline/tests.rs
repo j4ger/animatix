@@ -56,7 +56,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
     let dims = SceneDimensions { width: 1920, height: 1080 };
 
     // First evaluation — should populate static subtree cache
-    let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default());
+    let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
 
     let cache = timeline.static_subtree_cache.borrow();
     assert!(!cache.is_empty(), "static subtree cache should be populated after first evaluate");
@@ -64,7 +64,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
     drop(cache);
 
     // Second evaluation at different time — should use cached encoding
-    let _scene2 = timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default());
+    let _scene2 = timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default(), &mut None);
 
     // Cache should still have entries
     let cache2 = timeline.static_subtree_cache.borrow();

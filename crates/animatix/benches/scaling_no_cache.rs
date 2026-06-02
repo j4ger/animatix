@@ -26,10 +26,12 @@ fn bench_scaling_no_cache(c: &mut Criterion) {
         c.bench_function(&format!("evaluate_{count}_actors_no_cache"), |b| {
             b.iter(|| {
                 // Use debug options to defeat frame cache
+                let mut fb = None;
                 black_box(timeline.evaluate_with_debug(
                     black_box(0.5),
                     dims,
                     animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                    &mut fb,
                 ));
             })
         });

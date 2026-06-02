@@ -163,6 +163,7 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        let mut fb = None;
         let scene = self.timeline.evaluate_with_debug(
             current_time,
             SceneDimensions {
@@ -170,6 +171,7 @@ impl State {
                 height: self.config.height,
             },
             self.debug_options,
+            &mut fb,
         );
 
         self.ensure_render_texture();

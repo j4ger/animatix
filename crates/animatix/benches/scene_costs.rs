@@ -53,10 +53,12 @@ fn bench_scene_costs(c: &mut Criterion) {
     c.bench_function("many_actors_evaluate_no_cache", |b| {
         b.iter(|| {
             // Evaluate with non-default debug options to skip cache
+            let mut fb = None;
             black_box(many_actors.evaluate_with_debug(
                 black_box(0.5),
                 dims,
                 animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                &mut fb,
             ));
         })
     });

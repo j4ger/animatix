@@ -301,11 +301,12 @@ impl Timeline {
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) {
         let (global_transform, global_opacity) =
-            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env);
+            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env, filter_backend);
 
-        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env);
+        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env, filter_backend);
     }
 
     /// Evaluate a single actor node and render it to the scene.
@@ -323,6 +324,7 @@ impl Timeline {
         layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) -> (kurbo::Affine, f32) {
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
@@ -346,6 +348,7 @@ impl Timeline {
                     layout_positions,
                     hit_regions,
                     frame_env,
+                    filter_backend,
                 );
             }
             return (parent_transform, parent_opacity);
@@ -677,6 +680,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) {
         let Some(track) = self.tracks.get(node_label) else {
             return;
@@ -695,7 +699,7 @@ impl Timeline {
             }
 
             // Check if a filter backend is available
-            let has_backend = self.filter_backend.borrow().is_some();
+            let has_backend = filter_backend.is_some();
             if !has_backend {
                 // Fallback: render children directly (no filtering)
                 for child in &children {
@@ -711,6 +715,7 @@ impl Timeline {
                         &child_layout_positions,
                         hit_regions,
                         frame_env,
+                        filter_backend,
                     );
                 }
                 return;
@@ -731,6 +736,7 @@ impl Timeline {
                     &child_layout_positions,
                     hit_regions,
                     frame_env,
+                    filter_backend,
                 );
             }
 
@@ -756,8 +762,7 @@ impl Timeline {
             }
 
             // Render sub-scene to image via backend, apply GPU filters, draw result
-            let mut backend = self.filter_backend.borrow_mut();
-            if let Some(backend) = backend.as_mut() {
+            if let Some(backend) = filter_backend.as_mut() {
                 match backend.render_scene_to_image_gpu_filtered(
                     &sub_scene, scene_dimensions,
                     blur, brightness, contrast, saturate, hue_rotate, sepia,
@@ -792,6 +797,7 @@ impl Timeline {
                     &child_layout_positions,
                     hit_regions,
                     frame_env,
+                    filter_backend,
                 );
 
                 // Get the first child's vector paths to use as clip shapes
@@ -825,6 +831,7 @@ impl Timeline {
                         &child_layout_positions,
                         hit_regions,
                         frame_env,
+                        filter_backend,
                     );
                     for _ in 0..clip_count {
                         scene.pop_layer();
@@ -845,6 +852,7 @@ impl Timeline {
                     &child_layout_positions,
                     hit_regions,
                     frame_env,
+                    filter_backend,
                 );
             }
         }
@@ -852,7 +860,8 @@ impl Timeline {
 
     /// Evaluate the timeline at the given time and return a rendered `vello::Scene`.
     pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
-        self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default())
+        let mut fb = None;
+        self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default(), &mut fb)
     }
 
     /// Evaluate the timeline with optional debug overlays.
@@ -861,6 +870,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
 
@@ -984,6 +994,7 @@ impl Timeline {
                         &std::collections::BTreeMap::new(),
                         &mut hit_regions,
                         frame_env.as_ref(),
+                        filter_backend,
                     );
                     // Append to main scene and cache for next time
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
@@ -1002,6 +1013,7 @@ impl Timeline {
                     &std::collections::BTreeMap::new(), // empty for roots
                     &mut hit_regions,
                     frame_env.as_ref(),
+                    filter_backend,
                 );
             }
         }
@@ -1180,7 +1192,7 @@ mod tests {
             assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
         }
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true });
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true }, &mut None);
 
         // hit_regions should be populated after evaluate
         let regions = timeline.hit_regions.borrow();
@@ -1194,7 +1206,7 @@ mod tests {
         let timeline = make_minimal_timeline();
         let dimensions = SceneDimensions { width: 800, height: 600 };
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true });
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true }, &mut None);
 
         let regions = timeline.hit_regions.borrow();
         let (label, bounds) = regions.iter().find(|(l, _)| l == "test_box")
@@ -1213,7 +1225,7 @@ mod tests {
         let debug_opts = DebugRenderOptions { draw_bounds: true, compute_hit_regions: false };
 
         // Evaluate with debug options (should not cache)
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts);
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts, &mut None);
 
         // Cache should not be populated because debug_options != default
         let cache = timeline.frame_cache.borrow();

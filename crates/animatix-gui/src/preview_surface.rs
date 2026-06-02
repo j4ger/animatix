@@ -164,18 +164,14 @@ impl PreviewSurface {
     ) -> Result<(), String> {
         // Evaluate with filter backend so Filter actors render correctly
         // in the GUI preview (unified with export path).
-        let scene = {
-            let eval_timeline = timeline.clone();
-            let filter_backend = GpuFilterBackend::new(
-                device.clone(),
-                queue.clone(),
-                self.dimensions,
-            )?;
-            eval_timeline.set_filter_backend(Box::new(filter_backend));
-            let scene = eval_timeline.evaluate_with_debug(time_s, self.dimensions, debug_options);
-            self.hit_regions = eval_timeline.hit_regions();
-            scene
-        };
+        let mut filter_backend = GpuFilterBackend::new(
+            device.clone(),
+            queue.clone(),
+            self.dimensions,
+        )?;
+        let mut fb: Option<&mut dyn animatix::timeline::filter::FilterBackend> = Some(&mut filter_backend);
+        let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options, &mut fb);
+        self.hit_regions = timeline.hit_regions();
 
         let render_view = self
             .render_view
@@ -309,22 +305,20 @@ impl PreviewSurface {
 
                 // Render from scene to render_texture, then drop scene_a
                 {
-                    let eval_from = from.timeline.clone();
-                    let fb = GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?;
-                    eval_from.set_filter_backend(Box::new(fb));
-                    let scene_a = eval_from.evaluate_with_debug(local_time_s, self.dimensions, debug_options);
-                    let mut from_hit_regions = eval_from.hit_regions();
+                    let mut fb_from = GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?;
+                    let mut fb_from_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> = Some(&mut fb_from);
+                    let scene_a = from.timeline.evaluate_with_debug(local_time_s, self.dimensions, debug_options, &mut fb_from_opt);
+                    let mut from_hit_regions = from.timeline.hit_regions();
                     self.renderer.render_vello_scene(
                         device, queue, render_view,
                         self.dimensions.width, self.dimensions.height, &scene_a,
                     ).map_err(|e| e.to_string())?;
 
                     // Render to scene to render_texture_b
-                    let eval_to = to.timeline.clone();
-                    let fb = GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?;
-                    eval_to.set_filter_backend(Box::new(fb));
-                    let scene_b = eval_to.evaluate_with_debug(to_local, self.dimensions, debug_options);
-                    let to_hit_regions = eval_to.hit_regions();
+                    let mut fb_to = GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?;
+                    let mut fb_to_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> = Some(&mut fb_to);
+                    let scene_b = to.timeline.evaluate_with_debug(to_local, self.dimensions, debug_options, &mut fb_to_opt);
+                    let to_hit_regions = to.timeline.hit_regions();
                     self.renderer.render_vello_scene(
                         device, queue, render_view_b,
                         self.dimensions.width, self.dimensions.height, &scene_b,

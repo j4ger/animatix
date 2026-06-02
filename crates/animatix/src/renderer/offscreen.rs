@@ -111,21 +111,13 @@ impl OffscreenRenderer {
         self.ensure_targets(dimensions);
 
         // Evaluate timeline with filter backend support.
-        // We clone the timeline so the filter backend can be attached without
-        // mutating the caller's instance. The clone is dropped before we render
-        // the main scene.
-        let scene = {
-            let eval_timeline = timeline.clone();
-            let filter_backend = GpuFilterBackend::new(
-                self.device.clone(),
-                self.queue.clone(),
-                dimensions,
-            )?;
-            eval_timeline.set_filter_backend(Box::new(filter_backend));
-            let scene = eval_timeline.evaluate_with_debug(time_s, dimensions, debug_options);
-            // eval_timeline dropped here -> filter_backend dropped
-            scene
-        };
+        let mut filter_backend = GpuFilterBackend::new(
+            self.device.clone(),
+            self.queue.clone(),
+            dimensions,
+        )?;
+        let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(&mut filter_backend);
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
 
         let output_view = self.output_view.as_ref()
             .ok_or_else(|| "Missing offscreen output view".to_string())?;
@@ -159,7 +151,8 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
+        let mut fb = None;
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
         let view_a = self.view_a.as_ref()
             .ok_or_else(|| "Missing offscreen view_a".to_string())?;
 
@@ -185,7 +178,8 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options);
+        let mut fb = None;
+        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
         let view_b = self.view_b.as_ref()
             .ok_or_else(|| "Missing offscreen view_b".to_string())?;
 
@@ -225,7 +219,8 @@ impl OffscreenRenderer {
         // Render from scene to texture_a, then drop scene_a before creating scene_b
         // to avoid holding both large vello::Scene objects simultaneously.
         {
-            let scene_a = from_timeline.evaluate_with_debug(from_time, dimensions, debug_options);
+            let mut fb = None;
+            let scene_a = from_timeline.evaluate_with_debug(from_time, dimensions, debug_options, &mut fb);
             let view_a = self.view_a.as_ref()
                 .ok_or_else(|| "Missing offscreen view_a".to_string())?;
             self.core
@@ -235,7 +230,8 @@ impl OffscreenRenderer {
 
         // Render to scene to texture_b
         {
-            let scene_b = to_timeline.evaluate_with_debug(to_time, dimensions, debug_options);
+            let mut fb = None;
+            let scene_b = to_timeline.evaluate_with_debug(to_time, dimensions, debug_options, &mut fb);
             let view_b = self.view_b.as_ref()
                 .ok_or_else(|| "Missing offscreen view_b".to_string())?;
             self.core

@@ -29,10 +29,12 @@ fn bench_static(c: &mut Criterion) {
             // Vary time to defeat frame cache — each iteration uses a different time
             let time_s = ((counter % 1000) as f64) / 1000.0;
             counter += 1;
+            let mut fb = None;
             black_box(timeline_50.evaluate_with_debug(
                 black_box(time_s),
                 dims,
                 animatix::timeline::DebugRenderOptions::default(),
+                &mut fb,
             ));
         })
     });
@@ -43,10 +45,12 @@ fn bench_static(c: &mut Criterion) {
         b.iter(|| {
             let time_s = ((counter % 1000) as f64) / 1000.0;
             counter += 1;
+            let mut fb = None;
             black_box(timeline_100.evaluate_with_debug(
                 black_box(time_s),
                 dims,
                 animatix::timeline::DebugRenderOptions::default(),
+                &mut fb,
             ));
         })
     });
@@ -57,10 +61,12 @@ fn bench_static(c: &mut Criterion) {
         b.iter(|| {
             let time_s = ((counter % 1000) as f64) / 1000.0;
             counter += 1;
+            let mut fb = None;
             black_box(timeline_200.evaluate_with_debug(
                 black_box(time_s),
                 dims,
                 animatix::timeline::DebugRenderOptions::default(),
+                &mut fb,
             ));
         })
     });
