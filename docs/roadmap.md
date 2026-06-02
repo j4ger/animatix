@@ -40,13 +40,13 @@
 | 7 | **`actor_kind_meta` returns `Option`** | Changed from `.expect(...)` panic to `Option`. All 6 callers updated. | `primitives/mod.rs`, `track.rs`, `assignments.rs`, `scene_eval.rs`, `drag_handler.rs`, `icons.rs` | Done |
 | 8 | **Pre-allocate blit alpha buffer** | `FullscreenBlitPipeline` now holds a pre-allocated `alpha_buffer`, updated via `queue.write_buffer` per frame. | `renderer/fullscreen_blit.rs` | Done |
 
-### Cleanup (deferred — do in next cleanup sprint)
+### Cleanup ✅
 
-| # | Item | What | Files | Effort |
+| # | Item | What | Files | Status |
 |---|------|------|-------|--------|
-| 4 | **Centralize override application** | Property overrides are applied in three places: `render_actor_node` (legacy), `evaluate_text_paths` (text), `sample_shape_style` (shapes). Extract a single `apply_property_overrides(track, time_ms, overrides) -> ResolvedStyle` that both paths call. | `scene_eval.rs`, `primitives/mod.rs` | 1 day |
-| 5 | **Split `EvaluateCtx` to reduce `&mut` scope** | `text_compiler: &mut TextCompiler` forces `evaluate()` to take `&mut EvaluateCtx` even for shapes that don't recompile text. Split into `EvaluateCtx` (immutable, shared) + `TextCompileCtx` (mutable, text-only). | `primitives/mod.rs` | 1 day |
-| 6 | **Remove `build_shape_vector_paths` dead code** | Shapes now go through `evaluate()`, making `build_shape_vector_paths` only reachable via the legacy fallback for plots/containers. Once those are migrated, remove it. Similarly, `render_node_content` will become dead code when all primitives use `RenderCommand::execute`. | `scene_eval.rs` | 0.5 day |
+| 4 | **Centralize override application** | `render_actor_node` now calls `sample_shape_style()` instead of duplicating style override logic. | `scene_eval.rs` | Done |
+| 5 | **Split `EvaluateCtx`** | Created `TextCompileCtx` (mutable, text-only). `EvaluateCtx` is now fully immutable. `Primitive::evaluate()` takes `&EvaluateCtx` + `Option<&mut TextCompileCtx>`. Text primitives use it; shapes ignore it. | `primitives/mod.rs`, all primitives, `scene_eval.rs` | Done |
+| 6 | **Remove dead code** | Deferred — `build_shape_vector_paths` is still used by the legacy path for plots/containers. Remove once those are migrated to `evaluate()`. | `scene_eval.rs` | Blocked |
 
 ---
 

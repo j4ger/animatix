@@ -93,12 +93,17 @@ impl Primitive for TextPrimitive {
 
     fn evaluate(
         &self,
-        ctx: &mut crate::primitives::EvaluateCtx,
+        ctx: &crate::primitives::EvaluateCtx,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
 
-        let paths = evaluate_text_paths(ctx, TextKind::Text, 48.0)?;
+        let paths = if let Some(text_ctx) = text_ctx {
+            evaluate_text_paths(ctx, text_ctx, TextKind::Text, 48.0)
+        } else {
+            Ok(ctx.track.evaluate_text_paths(ctx.time_ms))
+        }?;
         if paths.is_empty() {
             Ok(None)
         } else {

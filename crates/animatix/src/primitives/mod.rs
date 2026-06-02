@@ -53,7 +53,8 @@ use crate::timeline::{
 /// text primitives can dispatch via `Primitive::evaluate()` instead of the
 /// legacy path.
 pub fn evaluate_text_paths(
-    ctx: &mut EvaluateCtx,
+    ctx: &EvaluateCtx,
+    text_ctx: &mut TextCompileCtx,
     kind: crate::renderer::text::TextKind,
     default_font_size: f32,
 ) -> Result<Vec<crate::renderer::types::TextPath>, crate::renderer::error::RenderError> {
@@ -85,13 +86,13 @@ pub fn evaluate_text_paths(
     }
 
     if !content.is_empty() {
-        ctx.text_compiler.compile(
+        text_ctx.text_compiler.compile(
             &content,
             &font_family,
             font_size,
             color,
             kind,
-            ctx.font_context,
+            text_ctx.font_context,
         )
         .map(|arc| arc.to_vec())
     } else {
@@ -209,6 +210,8 @@ pub struct RenderCtx<'a> {
 }
 
 /// Context passed to `Primitive::evaluate()`.
+///
+/// All fields are immutable. Text-specific mutable state is in [`TextCompileCtx`].
 pub struct EvaluateCtx<'a> {
     /// The animation track for this actor.
     pub track: &'a AnimationTrack,
@@ -222,6 +225,13 @@ pub struct EvaluateCtx<'a> {
     pub scene_dimensions: SceneDimensions,
     /// Property overrides from modifiers.
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
+}
+
+/// Mutable context for text recompilation.
+///
+/// Only text primitives need this. Shape, image, and SVG primitives
+/// can ignore it entirely.
+pub struct TextCompileCtx<'a> {
     /// Text compiler for runtime text recompilation.
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
     /// Font context for text rendering.
@@ -505,7 +515,8 @@ pub trait Primitive: Send + Sync {
     /// primitives will be migrated incrementally.
     fn evaluate(
         &self,
-        _ctx: &mut EvaluateCtx,
+        _ctx: &EvaluateCtx,
+        _text_ctx: Option<&mut TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
         Ok(None)
     }

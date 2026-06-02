@@ -86,7 +86,8 @@ impl Primitive for RectPrimitive {
 
     fn evaluate(
         &self,
-        ctx: &mut crate::primitives::EvaluateCtx,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
         use crate::primitives::{RenderCommand, sample_shape_style};
         use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};

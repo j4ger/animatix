@@ -447,10 +447,6 @@ impl Timeline {
         let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
         let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
         let arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-        let mut color = track.color.get(time_ms, DEFAULT_WHITE);
-        let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
-        let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
-        let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
 
         if let Some(node_overrides) = node_overrides {
             if let Some(Value::Vec2(from)) = node_overrides.get("from") {
@@ -459,25 +455,13 @@ impl Timeline {
             if let Some(Value::Vec2(to)) = node_overrides.get("to") {
                 line_to = [to[0] as f32, to[1] as f32];
             }
-            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
-                color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-            }
-            if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides
-                .get("stroke_color")
-                .or_else(|| node_overrides.get("stroke"))
-            {
-                stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-            }
-            if let Some(Value::Num(width)) = node_overrides
-                .get("stroke_width")
-                .or_else(|| node_overrides.get("width"))
-            {
-                stroke_width = *width as f32;
-            }
-            if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
-                fill_opacity = *opacity as f32;
-            }
         }
+
+        let style = crate::primitives::sample_shape_style(track, time_ms, node_overrides);
+        let color = style.color;
+        let stroke_width = style.stroke_width;
+        let stroke_color = style.stroke_color;
+        let fill_opacity = style.fill_opacity;
 
         // P2.19: Only sample properties and render if actor is visible on screen.
         // For off-screen actors we still return transform/opacity so children
@@ -505,17 +489,19 @@ impl Timeline {
                 let meta = crate::primitives::actor_kind_meta(track.kind);
                 let primitive = meta.and_then(|m| crate::primitives::find_primitive(m.type_name));
                 if let Some(primitive) = primitive {
-                    let mut ctx = crate::primitives::EvaluateCtx {
+                    let ctx = crate::primitives::EvaluateCtx {
                         track,
                         time_ms,
                         local_transform,
                         opacity,
                         scene_dimensions,
                         overrides: node_overrides,
+                    };
+                    let mut text_ctx = crate::primitives::TextCompileCtx {
                         text_compiler: &mut *self.text_compiler.borrow_mut(),
                         font_context: self.font_context.as_ref(),
                     };
-                    primitive.evaluate(&mut ctx).ok().flatten()
+                    primitive.evaluate(&ctx, Some(&mut text_ctx)).ok().flatten()
                 } else {
                     None
                 }
