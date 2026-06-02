@@ -168,8 +168,8 @@ impl Timeline {
         }
 
         // ── Primitive dispatch: let each primitive handle its own special cases ──
-        let type_name = super::actor_kind_meta(track.kind).type_name;
-        let primitive = find_primitive(type_name);
+        let type_name = super::actor_kind_meta(track.kind).map(|m| m.type_name);
+        let primitive = type_name.and_then(find_primitive);
         if let Some(primitive) = primitive {
             let mut ctx = AssignmentCtx {
                 t_start_ms,

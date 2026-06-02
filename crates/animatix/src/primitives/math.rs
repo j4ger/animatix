@@ -92,6 +92,21 @@ impl Primitive for MathPrimitive {
         true
     }
 
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, evaluate_text_paths};
+        use crate::renderer::text::TextKind;
+
+        let paths = evaluate_text_paths(ctx, TextKind::Math, 48.0)?;
+        if paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Text { paths }]))
+        }
+    }
+
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),

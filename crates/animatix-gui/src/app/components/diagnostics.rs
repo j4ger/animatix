@@ -2,7 +2,7 @@ use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 
 use crate::app::components::layout::card;
 use crate::app::design_tokens::*;
-use animatix::diagnostics::{Diagnostic, DiagnosticPhase};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticPhase};
 
 /// Where to place the cursor after clicking a diagnostic.
 #[derive(Clone, Copy, Debug)]

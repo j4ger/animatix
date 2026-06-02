@@ -7,7 +7,7 @@ pub fn handle_set_transition(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
     from_scene: String,
-    transition: animatix::ast::Transition,
+    transition: animatix_syntax::ast::Transition,
 ) -> Vec<Effect> {
     document_store.snapshot(Command::SetTransition {
         from_scene: from_scene.clone(),

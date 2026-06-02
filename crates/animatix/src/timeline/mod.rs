@@ -193,7 +193,7 @@ use timing::{
 pub use track::{
     ActionCategory, ActionEvent, ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
     AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
-    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    TrackAccessor, TrackFieldMut, TrackFieldRef, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
 /// Extend a time_ms vector with keyframe times from a property track, if present.

@@ -13,6 +13,7 @@ dev-screenshots = []
 [dependencies]
 animatix = { path = "../animatix" }
 animatix-analyzer = { path = "../animatix-analyzer" }
+animatix-syntax = { path = "../animatix-syntax" }
 directories = "6.0.0"
 image = { version = "0.25", default-features = false, features = ["png"] }
 eframe = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu"] }

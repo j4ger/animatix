@@ -59,13 +59,13 @@ pub fn handle_rename_actor(
             old_label: old_label_for_edit,
             new_label: new_label_for_edit,
         };
-        crate::source_edit::apply_edit(stmts, edit);
-        let new_source = animatix::to_source::stmts_to_source(stmts);
+        let _ = crate::source_edit::apply_edit(stmts, edit);
+        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
         document_store.source.document.source_text = new_source.clone();
         document_store.source.editor.replace_text(new_source);
         document_store.source.document.is_dirty = true;
         document_store.source.document.source_index =
-            Some(animatix::source_index::SourceIndex::build(stmts));
+            Some(animatix_syntax::source_index::SourceIndex::build(stmts));
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);

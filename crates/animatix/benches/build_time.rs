@@ -26,7 +26,7 @@ fn bench_build_time(c: &mut Criterion) {
 
     c.bench_function("build_reactive_timeline", |b| {
         b.iter(|| {
-            let (stmts, _) = animatix::parser::parser().parse(&source).into_output_errors();
+            let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
             Timeline::build(&stmts.unwrap());
         })
     });

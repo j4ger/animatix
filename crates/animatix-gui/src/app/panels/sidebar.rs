@@ -15,7 +15,7 @@ use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
-use animatix::diagnostics::Diagnostic;
+use animatix_syntax::diagnostics::Diagnostic;
 use animatix::timeline::{Timeline, SceneDimensions, TrackAccessor};
 
 /// Id used to persist the explorer filter string in egui's data store.

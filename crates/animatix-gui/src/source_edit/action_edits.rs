@@ -1,12 +1,13 @@
 //! Edits related to action insertion at exact keyframe times.
 
-use animatix::ast::{Action, Stmt, Time};
+use animatix_syntax::ast::{Action, Stmt, Time};
 
 use super::ast_utils::{
     adjust_following_relative_keyframe, append_to_keyframe_at_time,
     find_keyframe_insertion_point, find_prev_keyframe_time, keyframe_style_before,
     wrap_leading_decls_in_zero_keyframe, KeyframeStyle,
 };
+use super::SourceEditError;
 
 /// Tolerance for matching an existing keyframe (50ms).
 const TIME_EPSILON_S: f64 = 0.05;
@@ -21,10 +22,10 @@ pub(super) fn insert_action(
     stmts: &mut Vec<Stmt>,
     verb: &str,
     targets: &[String],
-    args: &[animatix::ast::Expr],
-    modifiers: &[animatix::ast::Modifier],
+    args: &[animatix_syntax::ast::Expr],
+    modifiers: &[animatix_syntax::ast::Modifier],
     time_s: f64,
-) -> bool {
+) -> Result<(), SourceEditError> {
     let action = Stmt::Action(
         Action {
             verb: verb.into(),
@@ -38,7 +39,7 @@ pub(super) fn insert_action(
 
     // ── 1. Exact match: find keyframe within ε of time_s ──
     if append_to_keyframe_at_time(stmts, time_s, action.clone()) {
-        return true;
+        return Ok(());
     }
 
     // ── 2. No match — create keyframe at time_s ──
@@ -48,7 +49,9 @@ pub(super) fn insert_action(
     // If we're essentially on top of the previous keyframe, append there
     // to avoid micro-fragmentation.
     if delta_s < TIME_EPSILON_S {
-        return append_to_keyframe_at_time(stmts, prev_time_s, action);
+        if append_to_keyframe_at_time(stmts, prev_time_s, action.clone()) {
+            return Ok(());
+        }
     }
 
     // ── 3. Choose keyframe style: inherit from preceding keyframe ──
@@ -90,7 +93,7 @@ pub(super) fn insert_action(
             );
         }
     }
-    true
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -100,8 +103,8 @@ pub(super) fn insert_action(
 #[cfg(test)]
 mod tests {
     use super::super::apply::{apply_edit, SourceEdit};
-    use animatix::ast::{Expr, Modifier, Stmt, Time};
-    use animatix::parser::parser;
+    use animatix_syntax::ast::{Expr, Modifier, Stmt, Time};
+    use animatix_syntax::parser::parser;
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
@@ -134,14 +137,16 @@ box: Rect
 #2s
 box.color = red"#,
         );
-        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 0.5)));
+        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 0.5)).is_ok());
 
         assert_eq!(stmts.len(), 3);
         // stmts[0] = #0s, stmts[1] = #0.5s, stmts[2] = #2s
         if let Stmt::Keyframe { time, body, .. } = &stmts[1] {
             assert_eq!(*time, Time::Seconds(0.5));
             assert_eq!(body.len(), 1);
-            assert!(matches!(&body[0], Stmt::Action(action, _) if action.verb == "fade-in"));
+            assert!(matches!(&body[0],
+                Stmt::Action(action, _) if action.verb == "fade-in"
+            ));
         } else {
             panic!("Expected Keyframe at index 1");
         }
@@ -163,7 +168,7 @@ box: Rect
 #+2s
 box.color = red"#,
         );
-        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 1.5)));
+        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 1.5)).is_ok());
 
         assert_eq!(stmts.len(), 3);
         // New absolute keyframe at #1.5s
@@ -190,7 +195,7 @@ box: Rect
 #+2s
 box.color = red"#,
         );
-        assert!(apply_edit(&mut stmts, make_edit("fade-out", &["box"], 2.5)));
+        assert!(apply_edit(&mut stmts, make_edit("fade-out", &["box"], 2.5)).is_ok());
 
         assert_eq!(stmts.len(), 3);
         // New relative keyframe after #+2s
@@ -215,13 +220,15 @@ box.color = red"#,
         assert!(apply_edit(
             &mut stmts,
             make_edit("fade-out", &["box"], 2.02)
-        ));
+        ).is_ok());
 
         // Should NOT create a new keyframe
         assert_eq!(stmts.len(), 2);
         if let Stmt::Keyframe { body, .. } = &stmts[1] {
             assert_eq!(body.len(), 2);
-            assert!(matches!(&body[1], Stmt::Action(action, _) if action.verb == "fade-out"));
+            assert!(matches!(&body[1],
+                Stmt::Action(action, _) if action.verb == "fade-out"
+            ));
         } else {
             panic!("Expected Keyframe at index 1");
         }
@@ -244,7 +251,7 @@ box.size = (50, 50)"#,
         assert!(apply_edit(
             &mut stmts,
             make_edit("fade-in", &["box"], 1.5)
-        ));
+        ).is_ok());
 
         // The new keyframe should be relative because the one before it was relative
         if let Stmt::RelativeKeyframe { offset, .. } = &stmts[2] {
@@ -270,13 +277,18 @@ box: Rect
 #1s
 box.color = red"#,
         );
-        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 1.0)));
+        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 1.0)).is_ok());
 
         assert_eq!(stmts.len(), 2);
         if let Stmt::Keyframe { body, .. } = &stmts[1] {
             assert_eq!(body.len(), 2);
-            assert!(matches!(&body[0], Stmt::Assignment { .. }));
-            assert!(matches!(&body[1], Stmt::Action(action, _) if action.verb == "fade-in"));
+            assert!(matches!(&body[0],
+                Stmt::Assignment { .. }
+            ));
+            assert!(matches!(
+                &body[1],
+                Stmt::Action(action, _) if action.verb == "fade-in"
+            ));
         } else {
             panic!("Expected Keyframe at index 1");
         }
@@ -286,7 +298,7 @@ box.color = red"#,
     #[test]
     fn insert_action_wraps_leading_decls() {
         let mut stmts = parse("box: Rect\ncircle: Ellipse");
-        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 0.5)));
+        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 0.5)).is_ok());
 
         // Should have 2 statements: #0s with decls, then #+500ms with action
         assert_eq!(stmts.len(), 2);

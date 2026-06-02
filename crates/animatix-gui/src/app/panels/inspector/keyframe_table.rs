@@ -1,4 +1,4 @@
-use animatix::easing::Easing;
+use animatix_syntax::easing::Easing;
 use animatix::timeline::{
     ActorField, AnimationTrack, PropertyValue, ShapeType, Timeline,
     property_has_keyframes, property_keyframe_times, property_keyframe_easing,
@@ -13,7 +13,7 @@ use crate::app::commands::{ActionQueue, Command, ShellAction};
 
 struct PropertyTrackInfo {
     name: &'static str,
-    keyframes: Vec<(u64, String, animatix::easing::Easing)>, // time_ms, formatted_value, easing
+    keyframes: Vec<(u64, String, animatix_syntax::easing::Easing)>, // time_ms, formatted_value, easing
 }
 
 struct TrackGroup {
@@ -164,8 +164,8 @@ fn render_compact_track_row(
                 ui.strong("Easing");
                 ui.separator();
                 let current_easing = *easing;
-                for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
-                    let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(Easing::Linear);
+                for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
+                    let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
@@ -272,7 +272,7 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
         for time_ms in property_keyframe_times(track, schema.field) {
             if let Some(value) = read_property_value(track, schema.field, time_ms) {
                 let easing = property_keyframe_easing(track, schema.field, time_ms)
-                    .unwrap_or(animatix::easing::Easing::Linear);
+                    .unwrap_or(animatix_syntax::easing::Easing::Linear);
                 keyframes.push((time_ms, format_value(&value, schema.name), easing));
             }
         }
@@ -410,7 +410,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use animatix::easing::Easing;
+    use animatix_syntax::easing::Easing;
     use animatix::timeline::track::PropertyTrack;
     use animatix::timeline::ActorKindId;
 

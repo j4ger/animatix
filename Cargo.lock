@@ -150,6 +150,7 @@ version = "0.1.0"
 dependencies = [
  "animatix",
  "animatix-analyzer",
+ "animatix-syntax",
  "chumsky",
  "directories",
  "eframe",

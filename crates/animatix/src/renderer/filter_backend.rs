@@ -162,6 +162,21 @@ pub struct GpuFilterBackend {
     // Uniform buffers
     blur_uniform_buffer: wgpu::Buffer,
     color_matrix_uniform_buffer: wgpu::Buffer,
+    /// GPU texture view of the most recent filtered result (zero-readback path).
+    last_filtered_view: Option<wgpu::TextureView>,
+    /// Which internal texture `last_filtered_view` points to, for readback.
+    last_filtered_source: FilteredSource,
+}
+
+/// Identifies which internal texture holds the filtered result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FilteredSource {
+    /// The render texture (fast path, no filters applied).
+    Render,
+    /// Ping-pong texture A.
+    TexA,
+    /// Ping-pong texture B.
+    TexB,
 }
 
 impl GpuFilterBackend {
@@ -401,6 +416,8 @@ impl GpuFilterBackend {
             color_matrix_bind_group_layout,
             blur_uniform_buffer,
             color_matrix_uniform_buffer,
+            last_filtered_view: None,
+            last_filtered_source: FilteredSource::Render,
         })
     }
 
@@ -593,37 +610,13 @@ impl GpuFilterBackend {
     }
 }
 
-impl FilterBackend for GpuFilterBackend {
-    fn render_scene_to_image(
-        &mut self,
-        scene: &vello::Scene,
-        dimensions: SceneDimensions,
-    ) -> Result<SceneImage, String> {
-        let render_view = self
-            .render_view
-            .as_ref()
-            .ok_or_else(|| "Missing filter render view".to_string())?;
-
-        self.core
-            .render_vello_scene_with_background(
-                &self.device,
-                &self.queue,
-                render_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
-                vello::peniko::Color::TRANSPARENT,
-            )
-            .map_err(|e| e.to_string())?;
-
-        let render_texture = self
-            .render_texture
-            .as_ref()
-            .ok_or_else(|| "Missing filter render texture".to_string())?;
-        self.readback_to_scene_image(render_texture, dimensions)
-    }
-
-    fn render_scene_to_image_gpu_filtered(
+impl GpuFilterBackend {
+    /// Render and filter a scene, keeping the result on the GPU.
+    ///
+    /// Returns the [`wgpu::TextureView`] that holds the final filtered image.
+    /// The view is also stored in `self.last_filtered_view` so callers can
+    /// retrieve it later via [`take_last_filtered_view`](Self::take_last_filtered_view).
+    pub fn render_and_filter_scene_to_view(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
@@ -633,7 +626,7 @@ impl FilterBackend for GpuFilterBackend {
         saturate: f32,
         hue_rotate: f32,
         sepia: f32,
-    ) -> Result<SceneImage, String> {
+    ) -> Result<&wgpu::TextureView, String> {
         let render_view = self
             .render_view
             .as_ref()
@@ -660,12 +653,10 @@ impl FilterBackend for GpuFilterBackend {
             || sepia > 0.001;
 
         if !needs_blur && !needs_color_matrix {
-            // Fast path: no filters needed, just readback the rendered scene
-            let render_texture = self
-                .render_texture
-                .as_ref()
-                .ok_or_else(|| "Missing filter render texture".to_string())?;
-            return self.readback_to_scene_image(render_texture, dimensions);
+            // Fast path: no filters needed, return the render view directly
+            self.last_filtered_view = Some(render_view.clone());
+            self.last_filtered_source = FilteredSource::Render;
+            return Ok(self.last_filtered_view.as_ref().unwrap());
         }
 
         let tex_a_view = self
@@ -682,16 +673,6 @@ impl FilterBackend for GpuFilterBackend {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Animatix GPU Filter Encoder"),
             });
-
-        // Determine the pipeline order and which texture holds the final result.
-        // We always start from the render texture.
-        //
-        // Possible sequences:
-        //   blur + color_matrix: render → A (copy), blur H A→B, blur V B→A, color A→B, final = B
-        //   blur only:           render → A (copy), blur H A→B, blur V B→A, final = A
-        //   color_matrix only:   render → A (copy), color A→B, final = B
-        //
-        // To simplify, we always copy render → A, then run passes.
 
         let render_texture = self
             .render_texture
@@ -763,16 +744,79 @@ impl FilterBackend for GpuFilterBackend {
         // After all swaps, src_view holds the final result
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        // Readback from the final texture
-        let final_texture = if src_view as *const _ == tex_a_view as *const _ {
-            tex_a
+        // Determine which texture view is the final result
+        let (final_view, source) = if src_view as *const _ == tex_a_view as *const _ {
+            (tex_a_view.clone(), FilteredSource::TexA)
         } else {
-            self.tex_b
-                .as_ref()
-                .ok_or_else(|| "Missing ping-pong texture B".to_string())?
+            (tex_b_view.clone(), FilteredSource::TexB)
         };
 
-        self.readback_to_scene_image(final_texture, dimensions)
+        self.last_filtered_view = Some(final_view);
+        self.last_filtered_source = source;
+        Ok(self.last_filtered_view.as_ref().unwrap())
+    }
+
+    /// Take the most recent filtered GPU texture view, if any.
+    ///
+    /// This clears the internal slot so subsequent calls return `None` until
+    /// the next filter render pass completes.
+    pub fn take_last_filtered_view(&mut self) -> Option<wgpu::TextureView> {
+        self.last_filtered_view.take()
+    }
+}
+
+impl FilterBackend for GpuFilterBackend {
+    fn render_scene_to_image(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+    ) -> Result<SceneImage, String> {
+        let render_view = self
+            .render_view
+            .as_ref()
+            .ok_or_else(|| "Missing filter render view".to_string())?;
+
+        self.core
+            .render_vello_scene_with_background(
+                &self.device,
+                &self.queue,
+                render_view,
+                dimensions.width,
+                dimensions.height,
+                scene,
+                vello::peniko::Color::TRANSPARENT,
+            )
+            .map_err(|e| e.to_string())?;
+
+        let render_texture = self
+            .render_texture
+            .as_ref()
+            .ok_or_else(|| "Missing filter render texture".to_string())?;
+        self.readback_to_scene_image(render_texture, dimensions)
+    }
+
+    fn render_scene_to_image_gpu_filtered(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        blur: f32,
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+    ) -> Result<SceneImage, String> {
+        self.render_and_filter_scene_to_view(
+            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia,
+        )?;
+
+        // Readback from the final texture
+        let texture = match self.last_filtered_source {
+            FilteredSource::Render => self.render_texture.as_ref(),
+            FilteredSource::TexA => self.tex_a.as_ref(),
+            FilteredSource::TexB => self.tex_b.as_ref(),
+        }.ok_or_else(|| "No filtered texture available for readback".to_string())?;
+        self.readback_to_scene_image(texture, dimensions)
     }
 }
 

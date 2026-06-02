@@ -3,10 +3,10 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
 use crate::timeline::{
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-    Environment,
+    Environment, Value,
 };
 
 /// The `Line` primitive.
@@ -73,6 +73,41 @@ impl Primitive for LinePrimitive {
             "color" => None,
             _ => None,
         }
+    }
+
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::timeline::shapes::LineState;
+
+        let mut line_from = ctx.track.line_from.get(ctx.time_ms, [-50.0, 0.0]);
+        let mut line_to = ctx.track.line_to.get(ctx.time_ms, [50.0, 0.0]);
+
+        if let Some(overrides) = ctx.overrides {
+            if let Some(Value::Vec2(from)) = overrides.get("from") {
+                line_from = [from[0] as f32, from[1] as f32];
+            }
+            if let Some(Value::Vec2(to)) = overrides.get("to") {
+                line_to = [to[0] as f32, to[1] as f32];
+            }
+        }
+
+        let state = LineState {
+            size: [0.0, 0.0],
+            line_from,
+            line_to,
+        };
+
+        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let paths = self.render(&RenderCtx {
+            state: &VectorShapeState::Line(state),
+            style,
+            time_ms: ctx.time_ms,
+        }).unwrap_or_default();
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
     }
 
     fn apply_property(

@@ -10,7 +10,7 @@ config { colorscheme: "editorial-dark" }
 title: Text, content: "Hello World", font_size: 48, color: text.primary, at: (960, 540)
 subtitle: Text, content: "Subtitle text here", font_size: 24, color: text.secondary, at: (960, 600)
 "#;
-    let (stmts, _) = animatix::parser::parser().parse(source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 
@@ -26,7 +26,7 @@ fn build_many_actors_scene() -> Timeline {
             100 + (i % 10) * 50
         ));
     }
-    let (stmts, _) = animatix::parser::parser().parse(&source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 
@@ -43,7 +43,7 @@ container: Row, at: (100, 100), gap: 20, align: "center" {
   e: Rect, size: (70, 70), color: accent.primary
 }
 "#;
-    let (stmts, _) = animatix::parser::parser().parse(source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 

@@ -5,7 +5,7 @@ use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{
     evaluate_expr, lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-    Environment, SceneDimensions, VectorShapeState, VelloPath,
+    Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
 };
 use crate::timeline::shapes::build_vello_path;
 
@@ -136,6 +136,43 @@ impl Primitive for ArrowPrimitive {
             "color" => None,
             _ => None,
         }
+    }
+
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::timeline::shapes::ArrowState;
+        use crate::timeline::Value;
+
+        let mut line_from = ctx.track.line_from.get(ctx.time_ms, [-50.0, 0.0]);
+        let mut line_to = ctx.track.line_to.get(ctx.time_ms, [50.0, 0.0]);
+        let head_size = ctx.track.head_size.get(ctx.time_ms, 10.0);
+
+        if let Some(overrides) = ctx.overrides {
+            if let Some(Value::Vec2(from)) = overrides.get("from") {
+                line_from = [from[0] as f32, from[1] as f32];
+            }
+            if let Some(Value::Vec2(to)) = overrides.get("to") {
+                line_to = [to[0] as f32, to[1] as f32];
+            }
+        }
+
+        let state = ArrowState {
+            from: line_from,
+            to: line_to,
+            head_size,
+        };
+
+        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let paths = self.render(&RenderCtx {
+            state: &VectorShapeState::Arrow(state),
+            style,
+            time_ms: ctx.time_ms,
+        }).unwrap_or_default();
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
     }
 
     fn apply_property(

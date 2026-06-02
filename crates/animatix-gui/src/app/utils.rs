@@ -4,9 +4,9 @@ pub mod labels;
 use egui::{Color32, Vec2};
 
 use crate::app::design_tokens::*;
-use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 #[cfg(test)]
-use animatix::diagnostics::diagnostics_summary_by_phase;
+use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
 
 /// Draw a badge with background and optional stroke at a specific position.
 /// Returns the rectangle occupied by the badge.
@@ -37,7 +37,7 @@ pub(super) fn draw_badge(
 pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
     if diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error)
+        .any(|diagnostic| diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
     {
         DIAGNOSTIC_RED
     } else {
@@ -48,7 +48,7 @@ pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
 pub(super) fn has_source_load_failure(diagnostics: &[Diagnostic]) -> bool {
     diagnostics.iter().any(|diagnostic| {
         diagnostic.phase == DiagnosticPhase::Parse
-            && diagnostic.severity == animatix::diagnostics::DiagnosticSeverity::Error
+            && diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
             && (diagnostic.code == DiagnosticCode::SourceLoadFailure
                 || diagnostic.code == DiagnosticCode::ParseError)
     })
@@ -80,7 +80,7 @@ pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<S
     // Show the first error or warning message directly, regardless of phase.
     let first_message = diagnostics
         .iter()
-        .find(|d| d.severity == animatix::diagnostics::DiagnosticSeverity::Error)
+        .find(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
         .or_else(|| diagnostics.first());
 
     if let Some(err) = first_message {

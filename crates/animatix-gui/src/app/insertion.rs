@@ -9,7 +9,7 @@
 
 use std::collections::HashSet;
 
-use animatix::ast::Modifier;
+use animatix_syntax::ast::Modifier;
 
 /// What the user wants to insert, produced by the palette.
 #[derive(Debug, Clone)]
@@ -137,7 +137,7 @@ impl InsertionRequest {
                     args: vec![],
                     modifiers: vec![Modifier {
                         name: None,
-                        value: animatix::ast::Expr::Ident("1s".into()),
+                        value: animatix_syntax::ast::Expr::Ident("1s".into()),
                     }],
                     time_s,
                 })

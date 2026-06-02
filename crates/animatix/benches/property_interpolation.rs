@@ -1,5 +1,5 @@
 use animatix::timeline::{Interpolate, PropertyTrack};
-use animatix::easing::Easing;
+use animatix_syntax::easing::Easing;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_property_interpolation(c: &mut Criterion) {

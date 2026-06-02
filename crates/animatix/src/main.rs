@@ -1,6 +1,6 @@
 use animatix::composition::BuildTarget;
-use animatix::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix::module::ModuleGraph;
+use animatix_syntax::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::module::ModuleGraph;
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand, ValueEnum};
@@ -190,7 +190,7 @@ enum Commands {
 /// Loads an Animatix program from disk, expands components, and builds the
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
-fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix::diagnostics::Diagnostic>) {
+fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostics::Diagnostic>) {
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
         Ok(mut program) => {
             let diagnostics = program.typecheck();

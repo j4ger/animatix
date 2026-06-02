@@ -97,6 +97,21 @@ impl Primitive for SvgPrimitive {
         true
     }
 
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+
+        if ctx.track.svg_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths {
+                paths: ctx.track.svg_paths.clone(),
+            }]))
+        }
+    }
+
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),

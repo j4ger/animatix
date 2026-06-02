@@ -447,9 +447,9 @@ impl GuiShell {
 
         if let Some(edit) = request.into_source_edit(&ctx) {
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-                if crate::source_edit::apply_edit(stmts, edit) {
-                    let new_source = animatix::to_source::stmts_to_source(stmts);
-                    let _source_index = animatix::source_index::SourceIndex::build(stmts);
+                if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                    let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+                    let _source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
                     self.document_store.source.document.source_text = new_source.clone();
                     self.document_store.source.editor.replace_text(new_source);
                     self.document_store.source.document.is_dirty = true;

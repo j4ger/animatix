@@ -24,7 +24,7 @@ impl TransitionUniforms {
     fn new(progress: f32, transition_id: &str) -> Self {
         Self {
             progress: progress.clamp(0.0, 1.0),
-            transition_type: crate::transition_registry::shader_case(transition_id),
+            transition_type: animatix_syntax::transition_registry::shader_case(transition_id),
             _padding: [0.0; 2],
         }
     }

@@ -70,9 +70,9 @@ pub(crate) fn handle_preview_drag(
                                     .timeline
                                     .and_then(|t| t.get_track(&actor))
                                     .map(|tr| {
-                                        let mode = if let Some(primitive) = animatix::primitives::find_primitive(
-                                            animatix::timeline::actor_kind_meta(tr.kind).type_name,
-                                        ) {
+                                        let mode = if let Some(primitive) = animatix::timeline::actor_kind_meta(tr.kind)
+                                            .and_then(|m| animatix::primitives::find_primitive(m.type_name))
+                                        {
                                             match primitive.resize_mode() {
                                                 animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
                                                 _ => preview::ResizeMode::Size,
@@ -152,9 +152,9 @@ pub(crate) fn handle_preview_drag(
                                     .timeline
                                     .and_then(|t| t.get_track(&actor))
                                     .map(|tr| {
-                                        let mode = if let Some(primitive) = animatix::primitives::find_primitive(
-                                            animatix::timeline::actor_kind_meta(tr.kind).type_name,
-                                        ) {
+                                        let mode = if let Some(primitive) = animatix::timeline::actor_kind_meta(tr.kind)
+                                            .and_then(|m| animatix::primitives::find_primitive(m.type_name))
+                                        {
                                             match primitive.resize_mode() {
                                                 animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
                                                 _ => preview::ResizeMode::Size,

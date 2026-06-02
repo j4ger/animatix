@@ -184,7 +184,7 @@ pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
 }
 
 /// Lookup metadata for a specific [`ActorKindId`].
-pub fn actor_kind_meta(kind: ActorKindId) -> &'static ActorKindMeta {
+pub fn actor_kind_meta(kind: ActorKindId) -> Option<&'static ActorKindMeta> {
     crate::primitives::actor_kind_meta(kind)
 }
 

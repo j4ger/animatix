@@ -3,7 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{Environment, VectorShapeState};
+use crate::timeline::{Environment, TrackAccessor, VectorShapeState};
 use crate::timeline::shapes::parse_path_commands_expr;
 use crate::timeline::{SceneDimensions, VelloPath};
 
@@ -54,6 +54,38 @@ impl Primitive for PathPrimitive {
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     fn supports_fill(&self) -> bool { true }
+
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::timeline::shapes::PathState;
+
+        let half_size = ctx.track.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);
+
+        let mut state = PathState {
+            size: half_size,
+            custom_path: vector_paths.first().map(|vp| vp.path.clone()),
+        };
+
+        if let Some(overrides) = ctx.overrides {
+            if let Some(crate::timeline::Value::Vec2(s)) = overrides.get("size") {
+                state.size[0] = s[0] as f32;
+                state.size[1] = s[1] as f32;
+            }
+        }
+
+        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let paths = self.render(&RenderCtx {
+            state: &VectorShapeState::Path(state),
+            style,
+            time_ms: ctx.time_ms,
+        }).unwrap_or_default();
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
+    }
 
     fn apply_property(
         &self,

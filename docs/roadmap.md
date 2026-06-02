@@ -26,18 +26,27 @@
 
 ---
 
-## Phase 10b — Core Architecture Refactors
+## Phase 10b Follow-up — Correctness & Cleanup
 
-> Structural improvements discovered during implementation. These are large, risky changes
-> that need dedicated testing time. Do not mix with feature work.
+> Issues discovered during Phase 10b refactors. Fix these before starting new feature work.
 
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1 | **Registry-driven inspector property dispatch** | `apply_property_edit_to_track` is a 300-line match statement that manually maps property names to track mutations. It duplicates knowledge already in `PROPERTY_REGISTRY`. Replace with a generic `PropertySchema → track mutation` lookup so adding a property only requires updating the registry. | `app/actions/mod.rs`, `property_registry.rs` | 3 days | — |
-| 2 | **SourceEdit returns structured errors** | `SourceEdit::apply_edit` returns `bool` with no context. Callers can't distinguish "actor not found" from "invalid keyframe time" or "parse error". Change to `Result<(), SourceEditError>` and thread specific diagnostics back to the status bar. | `source_edit/apply.rs`, `app/actions/mod.rs` | 2 days | — |
-| 3 | **Trait-dispatch scene evaluation** | `scene_eval.rs` is 1000+ lines with deeply nested manual `ActorKindId` matches in `evaluate_node` and `render_node_children`. The primitive system already has a `Primitive` trait; extend it with `evaluate(ctx) → RenderCommands` so new primitives don't touch scene_eval. | `timeline/scene_eval.rs`, `primitives/mod.rs` | 1 week | — |
-| 4 | **Remove animatix backward-compat re-exports** | `animatix/src/lib.rs` re-exports `animatix_syntax::*` for convenience. This lets GUI code import `animatix::ast` instead of `animatix_syntax::ast`, defeating the purpose of the crate split. Remove re-exports and migrate all downstream imports. | `animatix/src/lib.rs`, `animatix-gui/src/**/*.rs` | 1 day | — |
-| 5 | **Vello external texture binding** | Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`. For a zero-readback filter composite, we need either upstream Vello changes to bind external `wgpu::TextureView`s, or a custom fullscreen render pass in `RendererCore`. | `renderer/core.rs`, `renderer/filter_backend.rs` | 3 days | — |
+### Correctness ✅
+
+| # | Item | What | Files | Status |
+|---|------|------|-------|--------|
+| 1 | **Hit regions for trait-dispatch path** | Added `RenderCommand::local_bounds()` method. Hit regions now computed from commands, not stale `vector_paths`. | `scene_eval.rs`, `primitives/mod.rs` | Done |
+| 2 | **Debug overlays for trait-dispatch path** | `draw_bounds` debug rendering now drawn after `evaluate()` command execution. | `scene_eval.rs` | Done |
+| 3 | **FontContext made non-optional** | `EvaluateCtx.font_context` changed from `Option<&FontContext>` to `&FontContext`. Removed `OnceLock` fallback. | `primitives/mod.rs`, `scene_eval.rs` | Done |
+| 7 | **`actor_kind_meta` returns `Option`** | Changed from `.expect(...)` panic to `Option`. All 6 callers updated. | `primitives/mod.rs`, `track.rs`, `assignments.rs`, `scene_eval.rs`, `drag_handler.rs`, `icons.rs` | Done |
+| 8 | **Pre-allocate blit alpha buffer** | `FullscreenBlitPipeline` now holds a pre-allocated `alpha_buffer`, updated via `queue.write_buffer` per frame. | `renderer/fullscreen_blit.rs` | Done |
+
+### Cleanup (deferred — do in next cleanup sprint)
+
+| # | Item | What | Files | Effort |
+|---|------|------|-------|--------|
+| 4 | **Centralize override application** | Property overrides are applied in three places: `render_actor_node` (legacy), `evaluate_text_paths` (text), `sample_shape_style` (shapes). Extract a single `apply_property_overrides(track, time_ms, overrides) -> ResolvedStyle` that both paths call. | `scene_eval.rs`, `primitives/mod.rs` | 1 day |
+| 5 | **Split `EvaluateCtx` to reduce `&mut` scope** | `text_compiler: &mut TextCompiler` forces `evaluate()` to take `&mut EvaluateCtx` even for shapes that don't recompile text. Split into `EvaluateCtx` (immutable, shared) + `TextCompileCtx` (mutable, text-only). | `primitives/mod.rs` | 1 day |
+| 6 | **Remove `build_shape_vector_paths` dead code** | Shapes now go through `evaluate()`, making `build_shape_vector_paths` only reachable via the legacy fallback for plots/containers. Once those are migrated, remove it. Similarly, `render_node_content` will become dead code when all primitives use `RenderCommand::execute`. | `scene_eval.rs` | 0.5 day |
 
 ---
 
@@ -54,9 +63,9 @@
 
 ## Order
 
-1. **Phase 7** (audio — no blockers)
-2. **Phase 9** (PiP — after syntax and renderer are stable)
-3. **Phase 10b** (architecture refactors — run in dedicated sprints, do not mix with feature work)
+1. **Phase 10b follow-up** (correctness bugs — fix before feature work)
+2. **Phase 7** (audio — no blockers)
+3. **Phase 9** (PiP — after syntax and renderer are stable)
 4. **Phase 11** (start after syntax stabilizes)
 
 ---
@@ -76,3 +85,6 @@
 | **Split frame_env.rs into env + modifier execution** | The file mixes frame environment construction (`build_frame_env`) with modifier execution (`apply_modifier_stmt`, IR, bytecode). They have different stability profiles and should be separate modules. | When modifier runtime changes again |
 | **Bench code duplication** | Every bench file has its own `build_test_timeline()` with inline source strings. API changes (e.g. adding `filter_backend` to `evaluate()`) require touching 7+ files. Extract a shared `bench_utils` module. | When the next API change touches benches |
 | **Amber flash on rewritten timestamps** | Visual polish: when `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. Nice-to-have UX feedback. | When needed |
+| **Unify duplicate PropertyValue types** | Two separate `PropertyValue` enums exist: `animatix::timeline::property_engine::PropertyValue` (engine-level) and `animatix_gui::app::commands::PropertyValue` (GUI-level). Different variant names (`F32` vs `Float`, `String` vs `Text`) force conversion logic in `apply_property_edit_to_track`. Unify into one canonical type. | When touching property dispatch again |
+| **Replace `node_local_bounds` with trait-based bounds** | `node_local_bounds` takes `&[VelloPath]` forcing callers to materialize paths just for bounds computation. A `trait HasLocalBounds` on `VelloPath`/`TextPath`/`SceneImage` would be cleaner and allow lazy evaluation. Also simplifies the `command_local_bounds` helper (Phase 10b.1). | When touching scene_eval bounds logic |
+| **Zero-readback filter compositing (end-to-end)** | Infrastructure is complete: `FullscreenBlitPipeline` supports alpha, `GpuFilterBackend` exposes `render_and_filter_scene_to_view()` and `take_last_filtered_view()`. Remaining work: modify `scene_eval.rs` to not draw filtered images into the Vello scene, and update `PreviewSurface`/`OffscreenRenderer` to blit the GPU texture after the base Vello render. `FilteredSource` tracking should be simplified to avoid fragile pointer comparison. | When filter performance matters |

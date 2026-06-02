@@ -658,9 +658,9 @@ fn render_timeline_content(
                                 ui.strong(format!("{} @ {:.2}s", prop, kf_s));
                                 ui.separator();
                                 ui.menu_button("Easing", |ui| {
-                                    for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
+                                    for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
                                         if ui.selectable_label(false, display_name).clicked() {
-                                            let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
+                                            let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(animatix_syntax::easing::Easing::Linear);
                                             commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
                                                 actor: actor_label.clone(),
                                                 property: prop.to_string(),

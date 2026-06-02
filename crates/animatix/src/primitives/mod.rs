@@ -40,10 +40,105 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::renderer::error::RenderError;
+use crate::renderer::types::TextPath;
 use crate::timeline::{
-    ActorCategory, ActorKindId, AnimationTrack, Environment, SceneDimensions, Timeline,
-    VectorShapeState, VectorShapeStyle, VelloPath,
+    ActorCategory, ActorKindId, AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value,
+    VectorShapeState, VectorShapeStyle, VelloPath, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
+
+/// Evaluate text paths for a text primitive at frame time.
+///
+/// This replicates the logic in `scene_eval.rs::evaluate_text_node` so that
+/// text primitives can dispatch via `Primitive::evaluate()` instead of the
+/// legacy path.
+pub fn evaluate_text_paths(
+    ctx: &mut EvaluateCtx,
+    kind: crate::renderer::text::TextKind,
+    default_font_size: f32,
+) -> Result<Vec<crate::renderer::types::TextPath>, crate::renderer::error::RenderError> {
+    use crate::timeline::TrackAccessor;
+
+    let mut content = ctx.track.text_content.get(ctx.time_ms, String::new());
+    let mut font_family = ctx.track.font_family.get(ctx.time_ms, String::new());
+    let mut font_size = ctx.track.font_size.get(ctx.time_ms, default_font_size);
+    let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);
+
+    if let Some(ov) = ctx.overrides {
+        if let Some(Value::Str(s)) = ov.get("text")
+            .or_else(|| ov.get("code"))
+            .or_else(|| ov.get("math"))
+            .or_else(|| ov.get("latex"))
+            .or_else(|| ov.get("content"))
+        {
+            content = s.clone();
+        }
+        if let Some(Value::Str(s)) = ov.get("font_family") {
+            font_family = s.clone();
+        }
+        if let Some(Value::Num(n)) = ov.get("font_size") {
+            font_size = *n as f32;
+        }
+        if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
+            color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        }
+    }
+
+    if !content.is_empty() {
+        ctx.text_compiler.compile(
+            &content,
+            &font_family,
+            font_size,
+            color,
+            kind,
+            ctx.font_context,
+        )
+        .map(|arc| arc.to_vec())
+    } else {
+        Ok(ctx.track.evaluate_text_paths(ctx.time_ms))
+    }
+}
+
+/// Sample shape style (color, stroke_width, stroke_color, fill_opacity) from a track
+/// at the given time, applying property overrides when present.
+pub fn sample_shape_style(
+    track: &AnimationTrack,
+    time_ms: u64,
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+) -> VectorShapeStyle {
+    let mut color = track.color.get(time_ms, DEFAULT_WHITE);
+    let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
+    let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
+    let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
+
+    if let Some(node_overrides) = overrides {
+        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
+            color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        }
+        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides
+            .get("stroke_color")
+            .or_else(|| node_overrides.get("stroke"))
+        {
+            stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        }
+        if let Some(Value::Num(width)) = node_overrides
+            .get("stroke_width")
+            .or_else(|| node_overrides.get("width"))
+        {
+            stroke_width = *width as f32;
+        }
+        if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
+            fill_opacity = *opacity as f32;
+        }
+    }
+
+    VectorShapeStyle {
+        color,
+        stroke_width,
+        stroke_color,
+        fill_opacity,
+    }
+}
 
 // ── Re-export all primitive modules ──────────────────────────────────────
 
@@ -111,6 +206,156 @@ pub struct RenderCtx<'a> {
     pub style: VectorShapeStyle,
     /// Current time in milliseconds.
     pub time_ms: u64,
+}
+
+/// Context passed to `Primitive::evaluate()`.
+pub struct EvaluateCtx<'a> {
+    /// The animation track for this actor.
+    pub track: &'a AnimationTrack,
+    /// Current time in milliseconds.
+    pub time_ms: u64,
+    /// Local transform (parent * position * rotation * scale).
+    pub local_transform: kurbo::Affine,
+    /// Inherited opacity multiplier.
+    pub opacity: f32,
+    /// Scene dimensions.
+    pub scene_dimensions: SceneDimensions,
+    /// Property overrides from modifiers.
+    pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
+    /// Text compiler for runtime text recompilation.
+    pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
+    /// Font context for text rendering.
+    pub font_context: &'a crate::renderer::text::FontContext,
+}
+
+/// A single render command produced by `Primitive::evaluate()`.
+///
+/// These commands are executed by `scene_eval.rs` into a Vello scene.
+/// Separating command generation from execution lets primitives stay
+/// independent of the scene evaluation loop.
+pub enum RenderCommand {
+    /// Draw a set of vector paths, each with its own fill and stroke.
+    Paths {
+        /// The vector paths to draw.
+        paths: Vec<VelloPath>,
+    },
+    /// Draw text glyphs.
+    Text {
+        /// Text glyph paths with per-glyph color and opacity.
+        paths: Vec<TextPath>,
+    },
+    /// Draw an image.
+    Image {
+        /// The image data.
+        image: crate::timeline::image::SceneImage,
+        /// Natural (display) width and height in scene units.
+        natural_size: [f32; 2],
+    },
+}
+
+impl RenderCommand {
+    /// Execute this command into a Vello scene with the given transform and opacity.
+    pub fn execute(
+        &self,
+        scene: &mut vello::Scene,
+        transform: &kurbo::Affine,
+        opacity: f32,
+    ) {
+        match self {
+            RenderCommand::Paths { paths } => {
+                for path in paths {
+                    if let Some(mut fc) = path.fill {
+                        fc = fc.with_alpha(fc.components[3] * opacity);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            fc,
+                            None,
+                            &path.path,
+                        );
+                    }
+                    if let Some((mut sc, sw)) = path.stroke {
+                        sc = sc.with_alpha(sc.components[3] * opacity);
+                        let stroke = vello::kurbo::Stroke::new(sw as f64);
+                        scene.stroke(&stroke, *transform, sc, None, &path.path);
+                    }
+                }
+            }
+            RenderCommand::Text { paths } => {
+                for text_path in paths {
+                    let color = match &text_path.color {
+                        ::typst::visualize::Paint::Solid(color) => {
+                            let rgba = color.to_vec4_u8();
+                            vello::peniko::Color::from_rgba8(
+                                rgba[0],
+                                rgba[1],
+                                rgba[2],
+                                (rgba[3] as f32 * opacity * text_path.opacity) as u8,
+                            )
+                        }
+                        _ => vello::peniko::Color::WHITE,
+                    };
+                    scene.fill(
+                        vello::peniko::Fill::NonZero,
+                        *transform,
+                        color,
+                        None,
+                        &text_path.path,
+                    );
+                }
+            }
+            RenderCommand::Image { image, natural_size } => {
+                let [nw, nh] = *natural_size;
+                let image_transform = *transform
+                    * kurbo::Affine::scale_non_uniform(
+                        (image.natural_size[0] * 2.0 / nw) as f64,
+                        (image.natural_size[1] * 2.0 / nh) as f64,
+                    );
+                let brush = vello::peniko::ImageBrush::new(image.data.clone())
+                    .with_extend(vello::peniko::Extend::Pad)
+                    .with_quality(vello::peniko::ImageQuality::Medium)
+                    .with_alpha(opacity);
+                scene.draw_image(&brush, image_transform);
+            }
+        }
+    }
+
+    /// Compute the local-space bounding box of this command's geometry.
+    ///
+    /// Returns `None` if the command has no drawable content.
+    /// The bounding box is in local coordinates (before transform).
+    pub fn local_bounds(&self, display_size: Option<[f32; 2]>) -> Option<kurbo::Rect> {
+        use kurbo::Shape;
+        let mut bounds: Option<kurbo::Rect> = None;
+        let union = |acc: Option<kurbo::Rect>, rect: kurbo::Rect| -> Option<kurbo::Rect> {
+            Some(match acc {
+                Some(existing) => existing.union(rect),
+                None => rect,
+            })
+        };
+        match self {
+            RenderCommand::Paths { paths } => {
+                for path in paths {
+                    bounds = union(bounds, path.path.bounding_box());
+                }
+            }
+            RenderCommand::Text { paths } => {
+                for text_path in paths {
+                    bounds = union(bounds, text_path.path.bounding_box());
+                }
+            }
+            RenderCommand::Image { .. } => {
+                if let Some([half_w, half_h]) = display_size {
+                    bounds = union(bounds, kurbo::Rect::new(
+                        0.0, 0.0,
+                        (half_w * 2.0) as f64,
+                        (half_h * 2.0) as f64,
+                    ));
+                }
+            }
+        }
+        bounds
+    }
 }
 
 /// Every actor type in Animatix implements this trait.
@@ -246,6 +491,24 @@ pub trait Primitive: Send + Sync {
     ) -> bool {
         false
     }
+
+    // ── Trait-dispatch scene evaluation (Phase 10b.3) ──
+
+    /// Evaluate this primitive at frame time and return render commands.
+    ///
+    /// When this returns `Some(commands)`, `scene_eval.rs` will execute the
+    /// commands directly and skip the legacy manual `ActorKindId` match for
+    /// this actor.  When it returns `None`, the legacy path is used.
+    ///
+    /// This is the migration path away from the 1000+ line `scene_eval.rs`
+    /// match blocks.  New primitives should implement this method; existing
+    /// primitives will be migrated incrementally.
+    fn evaluate(
+        &self,
+        _ctx: &mut EvaluateCtx,
+    ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
+        Ok(None)
+    }
 }
 
 // ── The one static array ────────────────────────────────────────────────
@@ -309,11 +572,10 @@ pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
 }
 
 /// Look up metadata by `ActorKindId`.
-pub fn actor_kind_meta(kind: ActorKindId) -> &'static ActorKindMeta {
+pub fn actor_kind_meta(kind: ActorKindId) -> Option<&'static ActorKindMeta> {
     actor_kind_registry()
         .iter()
         .find(|m| m.kind == kind)
-        .expect("actor_kind_meta: ActorKindId variant not found in PRIMITIVES array — add it to PRIMITIVES and ActorKindId enum")
 }
 
 /// Look up metadata by type name.

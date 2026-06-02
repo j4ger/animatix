@@ -2,9 +2,9 @@
 //!
 //! Replaces the old byte-span surgery model with semantic
 //! edits applied directly to the AST. After mutation, the entire AST is
-//! re-serialized via [`animatix::to_source::stmts_to_source`].
+//! re-serialized via [`animatix_syntax::to_source::stmts_to_source`].
 
-use animatix::ast::{ComponentDef, Expr, Modifier, Property, Stmt, Time, Transition};
+use animatix_syntax::ast::{ComponentDef, Expr, Modifier, Property, Stmt, Time, Transition};
 
 // ---------------------------------------------------------------------------
 // Property name mapping
@@ -114,7 +114,7 @@ pub enum SourceEdit {
         property: String,
         /// Absolute time in seconds.
         time_s: f64,
-        easing: animatix::easing::Easing,
+        easing: animatix_syntax::easing::Easing,
     },
     /// Delete a keyframe at a specific time.
     DeleteKeyframe {
@@ -158,8 +158,9 @@ pub enum SourceEdit {
 
 /// Apply a semantic edit to a statement list.
 ///
-/// Returns `true` if the edit was applied successfully.
-pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
+/// Returns `Ok(())` if the edit was applied successfully, or a structured
+/// [`SourceEditError`] describing why it failed.
+pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::SourceEditError> {
     match edit {
         SourceEdit::SetProperty { actor, property, value } => {
             super::actor_edits::set_property(stmts, &actor, &property, value)
@@ -195,7 +196,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> bool {
             new_label,
         } => {
             super::actor_edits::rename_all_references(stmts, &old_label, &new_label);
-            true
+            Ok(())
         }
         SourceEdit::ReorderScenes { new_order } => super::scene_edits::reorder_scenes(stmts, new_order),
         SourceEdit::SetPlayTarget { scene, target } => {

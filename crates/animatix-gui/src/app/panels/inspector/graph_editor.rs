@@ -5,7 +5,7 @@
 
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::*;
-use animatix::easing::Easing;
+use animatix_syntax::easing::Easing;
 use animatix::timeline::{AnimationTrack, property_keyframe_times, read_property_value, property_keyframe_easing, lookup_property};
 use egui::{FontId, Pos2, Sense, Stroke, Vec2};
 
@@ -123,7 +123,7 @@ pub fn render_fcurve(
         let mut curve_points: Vec<Pos2> = Vec::with_capacity(segments + 1);
         for s in 0..=segments {
             let progress = s as f32 / segments as f32;
-            let eased = animatix::easing::apply_easing(progress, easing);
+            let eased = animatix_syntax::easing::apply_easing(progress, easing);
             let time_s = t0 + (t1 - t0) * eased as f64;
             let val = v0 + (v1 - v0) * eased;
             curve_points.push(map_point(time_s, val));

@@ -2,8 +2,8 @@ use crate::app::commands::Command;
 use crate::app::stores::{HistoryStore, SourceStore};
 use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
-use animatix::diagnostics::Diagnostic;
-use animatix::diagnostics::diagnostics_phase_summary;
+use animatix_syntax::diagnostics::Diagnostic;
+use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 /// Facade that combines `SourceStore` (document + editor + caches) and
 /// `HistoryStore` (undo/redo + render diagnostics).

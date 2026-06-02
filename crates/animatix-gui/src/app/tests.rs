@@ -4,7 +4,7 @@ use super::{
         primary_diagnostic_phase,
     };
     use crate::app::design_tokens::DIAGNOSTIC_RED;
-    use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+    use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Vec2;
     use std::path::PathBuf;

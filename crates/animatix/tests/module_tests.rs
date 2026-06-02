@@ -1,5 +1,5 @@
-use animatix::ast::Expr;
-use animatix::module::{ModuleError, ModuleGraph};
+use animatix_syntax::ast::Expr;
+use animatix_syntax::module::{ModuleError, ModuleGraph};
 use animatix::timeline::Timeline;
 use std::fs;
 use std::path::{Path, PathBuf};

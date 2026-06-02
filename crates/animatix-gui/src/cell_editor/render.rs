@@ -15,10 +15,10 @@ fn cell_analyzer_diagnostics(
         .filter(|d| d.cell_index == cell_index)
         .map(|d| animatix_analyzer::Diagnostic {
             severity: match d.severity {
-                animatix::diagnostics::DiagnosticSeverity::Error => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     animatix_analyzer::DiagnosticSeverity::Error
                 }
-                animatix::diagnostics::DiagnosticSeverity::Warning => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     animatix_analyzer::DiagnosticSeverity::Warning
                 }
             },

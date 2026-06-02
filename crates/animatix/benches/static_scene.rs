@@ -15,7 +15,7 @@ fn build_static_scene(actor_count: usize) -> Timeline {
             100 + (i / 20) * 90
         ));
     }
-    let (stmts, _) = animatix::parser::parser().parse(&source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 

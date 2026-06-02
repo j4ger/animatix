@@ -50,7 +50,7 @@ pub enum Command {
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
-    SetTransition { from_scene: String, transition: animatix::ast::Transition },
+    SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
 
     // ── Actor ─────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ pub enum Command {
     PropertyEdit(PropertyEdit),
 
     // ── Keyframe ──────────────────────────────────────────────────────
-    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix::easing::Easing },
+    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix_syntax::easing::Easing },
     DeleteKeyframe { actor: String, property: String, time_s: f64 },
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
@@ -153,52 +153,52 @@ pub enum PropertyValue {
     PointList(Vec<[f32; 2]>),
 }
 
-impl TryFrom<PropertyValue> for animatix::ast::Expr {
+impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
     type Error = String;
     fn try_from(pv: PropertyValue) -> Result<Self, Self::Error> {
         let expr = match &pv {
             PropertyValue::Vec2([x, y]) => {
-                animatix::ast::Expr::Tuple(vec![
-                    animatix::ast::Expr::Num(*x as f64),
-                    animatix::ast::Expr::Num(*y as f64),
+                animatix_syntax::ast::Expr::Tuple(vec![
+                    animatix_syntax::ast::Expr::Num(*x as f64),
+                    animatix_syntax::ast::Expr::Num(*y as f64),
                 ])
             }
-            PropertyValue::Float(v) => animatix::ast::Expr::Num(*v as f64),
+            PropertyValue::Float(v) => animatix_syntax::ast::Expr::Num(*v as f64),
             PropertyValue::Color([r, g, b, a]) => {
                 if (*a - 1.0).abs() < 0.001
                     && r.fract() == 0.0
                     && g.fract() == 0.0
                     && b.fract() == 0.0
                 {
-                    animatix::ast::Expr::Call(
+                    animatix_syntax::ast::Expr::Call(
                         "rgb".into(),
                         vec![
-                            animatix::ast::Expr::Num((*r * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((*g * 255.0) as i64 as f64),
-                            animatix::ast::Expr::Num((*b * 255.0) as i64 as f64),
+                            animatix_syntax::ast::Expr::Num((*r * 255.0) as i64 as f64),
+                            animatix_syntax::ast::Expr::Num((*g * 255.0) as i64 as f64),
+                            animatix_syntax::ast::Expr::Num((*b * 255.0) as i64 as f64),
                         ],
                     )
                 } else {
-                    animatix::ast::Expr::Call(
+                    animatix_syntax::ast::Expr::Call(
                         "rgba".into(),
                         vec![
-                            animatix::ast::Expr::Num(*r as f64),
-                            animatix::ast::Expr::Num(*g as f64),
-                            animatix::ast::Expr::Num(*b as f64),
-                            animatix::ast::Expr::Num(*a as f64),
+                            animatix_syntax::ast::Expr::Num(*r as f64),
+                            animatix_syntax::ast::Expr::Num(*g as f64),
+                            animatix_syntax::ast::Expr::Num(*b as f64),
+                            animatix_syntax::ast::Expr::Num(*a as f64),
                         ],
                     )
                 }
             }
-            PropertyValue::Text(s) => animatix::ast::Expr::Str(s.clone()),
+            PropertyValue::Text(s) => animatix_syntax::ast::Expr::Str(s.clone()),
             PropertyValue::StringList(items) => {
-                animatix::ast::Expr::Tuple(items.iter().cloned().map(animatix::ast::Expr::Ident).collect())
+                animatix_syntax::ast::Expr::Tuple(items.iter().cloned().map(animatix_syntax::ast::Expr::Ident).collect())
             }
             PropertyValue::PointList(points) => {
-                animatix::ast::Expr::Tuple(points.iter().map(|&[x, y]| {
-                    animatix::ast::Expr::Tuple(vec![
-                        animatix::ast::Expr::Num(x as f64),
-                        animatix::ast::Expr::Num(y as f64),
+                animatix_syntax::ast::Expr::Tuple(points.iter().map(|&[x, y]| {
+                    animatix_syntax::ast::Expr::Tuple(vec![
+                        animatix_syntax::ast::Expr::Num(x as f64),
+                        animatix_syntax::ast::Expr::Num(y as f64),
                     ])
                 }).collect())
             }

@@ -3,7 +3,7 @@
 use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
-use animatix::diagnostics::Diagnostic;
+use animatix_syntax::diagnostics::Diagnostic;
 
 pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,

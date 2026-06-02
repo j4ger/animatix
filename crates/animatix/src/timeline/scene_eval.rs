@@ -498,6 +498,72 @@ impl Timeline {
                 return (local_transform, opacity);
             }
 
+            // ── Phase 10b.3: Trait-dispatch scene evaluation ──
+            // Try the primitive's evaluate() first. If it returns commands,
+            // execute them and skip the legacy manual rendering path.
+            let primitive_dispatch = {
+                let meta = crate::primitives::actor_kind_meta(track.kind);
+                let primitive = meta.and_then(|m| crate::primitives::find_primitive(m.type_name));
+                if let Some(primitive) = primitive {
+                    let mut ctx = crate::primitives::EvaluateCtx {
+                        track,
+                        time_ms,
+                        local_transform,
+                        opacity,
+                        scene_dimensions,
+                        overrides: node_overrides,
+                        text_compiler: &mut *self.text_compiler.borrow_mut(),
+                        font_context: self.font_context.as_ref(),
+                    };
+                    primitive.evaluate(&mut ctx).ok().flatten()
+                } else {
+                    None
+                }
+            };
+            if let Some(commands) = primitive_dispatch {
+                for cmd in &commands {
+                    cmd.execute(scene, &local_transform, opacity);
+                }
+                // Hit region — compute from commands, not stale vector_paths
+                let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
+                let mut local_bounds: Option<kurbo::Rect> = None;
+                for cmd in &commands {
+                    if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                        local_bounds = Some(match local_bounds {
+                            Some(existing) => existing.union(cmd_bounds),
+                            None => cmd_bounds,
+                        });
+                    }
+                }
+                let world_bounds = if let Some(lb) = local_bounds {
+                    transform_rect_bbox(&local_transform, lb)
+                } else {
+                    let default_bounds = kurbo::Rect::new(
+                        (-half_size[0]) as f64,
+                        (-half_size[1]) as f64,
+                        half_size[0] as f64,
+                        half_size[1] as f64,
+                    );
+                    transform_rect_bbox(&local_transform, default_bounds)
+                };
+                hit_regions.push((node_label.to_string(), world_bounds));
+
+                // Debug overlays
+                if debug_options.draw_bounds {
+                    let _ = self.add_node_debug_overlays(
+                        track,
+                        half_size,
+                        &local_transform,
+                        scene,
+                        &vector_paths,
+                        &[],
+                        image_size.is_some(),
+                    );
+                }
+
+                return (local_transform, opacity);
+            }
+
             // ── Runtime text recompilation ──
             let text_paths = self.evaluate_text_node(
                 track,

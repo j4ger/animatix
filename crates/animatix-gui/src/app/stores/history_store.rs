@@ -1,5 +1,5 @@
 use crate::app::commands::{Command, UndoEntry};
-use animatix::diagnostics::Diagnostic;
+use animatix_syntax::diagnostics::Diagnostic;
 
 /// Owns undo/redo history and render diagnostics.
 ///

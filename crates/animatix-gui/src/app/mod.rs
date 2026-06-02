@@ -21,7 +21,7 @@ use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
 use crate::preview_surface::PreviewSurface;
-use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};

@@ -23,7 +23,7 @@ title.opacity = 0.5
 title.position = (960, 600)
 title.opacity = 1.0
 "#;
-    let (stmts, _) = animatix::parser::parser().parse(source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 

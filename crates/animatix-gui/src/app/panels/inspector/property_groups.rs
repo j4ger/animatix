@@ -424,8 +424,8 @@ pub(crate) fn render_property_row(
                 ui.close();
             }
             ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
-                for &(id_str, display_name) in animatix::easing::EASING_REGISTRY {
-                    let variant = animatix::easing::parse_easing_name(id_str).unwrap_or(animatix::easing::Easing::Linear);
+                for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
+                    let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(animatix_syntax::easing::Easing::Linear);
                     if ui.selectable_label(false, display_name).clicked() {
                         commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
                             actor: actor_label.to_string(),

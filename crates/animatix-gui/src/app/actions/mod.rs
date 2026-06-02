@@ -180,8 +180,9 @@ impl GuiShell {
         }
     }
 
-    fn apply_keyframe_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), String> {
-        let expr = animatix::ast::Expr::try_from(edit.value.clone())?;
+    fn apply_keyframe_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), crate::source_edit::SourceEditError> {
+        let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
+            .map_err(crate::source_edit::SourceEditError::Generic)?;
         let prev_time_s = self
             .document_store
             .source
@@ -211,7 +212,7 @@ impl GuiShell {
                     crate::source_edit::apply_edit(trial, source_edit)
                 })?
             } else {
-                return Err("No AST available".to_string());
+                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
             };
 
         self.apply_timeline_edit(edit);
@@ -219,8 +220,9 @@ impl GuiShell {
         Ok(())
     }
 
-    fn apply_property_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), String> {
-        let expr = animatix::ast::Expr::try_from(edit.value.clone())?;
+    fn apply_property_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), crate::source_edit::SourceEditError> {
+        let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
+            .map_err(crate::source_edit::SourceEditError::Generic)?;
 
         let (new_source, source_index) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
@@ -232,8 +234,8 @@ impl GuiShell {
                         property: property.clone(),
                         value: expr.clone(),
                     };
-                    if crate::source_edit::apply_edit(trial, set_edit) {
-                        true
+                    if crate::source_edit::apply_edit(trial, set_edit).is_ok() {
+                        Ok(())
                     } else {
                         let insert_edit = crate::source_edit::SourceEdit::InsertProperty {
                             actor: actor.clone(),
@@ -244,7 +246,7 @@ impl GuiShell {
                     }
                 })?
             } else {
-                return Err("No AST available".to_string());
+                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
             };
 
         self.apply_timeline_edit(edit);
@@ -255,7 +257,7 @@ impl GuiShell {
     fn apply_child_order_source_edit(
         &mut self,
         edit: &panels::PropertyEdit,
-    ) -> Result<(), String> {
+    ) -> Result<(), crate::source_edit::SourceEditError> {
         use crate::app::panels::PropertyValue as PV;
 
         let (new_source, source_index) =
@@ -269,10 +271,10 @@ impl GuiShell {
                         crate::source_edit::apply_edit(trial, edit_op)
                     })?
                 } else {
-                    return Err("Invalid value type for child_order".to_string());
+                    return Err(crate::source_edit::SourceEditError::Generic("Invalid value type for child_order".to_string()));
                 }
             } else {
-                return Err("No AST available".to_string());
+                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
             };
 
         if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
@@ -290,7 +292,7 @@ impl GuiShell {
     fn commit_source(
         &mut self,
         new_source: String,
-        source_index: animatix::source_index::SourceIndex,
+        source_index: animatix_syntax::source_index::SourceIndex,
     ) {
         self.document_store.source.document.source_text = new_source.clone();
         self.document_store.source.editor.replace_text(new_source);
@@ -311,26 +313,26 @@ impl GuiShell {
 ///
 /// 1. Clones `stmts`.
 /// 2. Calls `apply_fn` with the cloned statements.
-/// 3. If `apply_fn` returns `true`, serializes the trial AST back to source,
+/// 3. If `apply_fn` returns `Ok(())`, serializes the trial AST back to source,
 ///    builds a new source index, and commits the clone back to `stmts`.
-/// 4. If `apply_fn` returns `false`, leaves `stmts` untouched.
+/// 4. If `apply_fn` returns `Err`, leaves `stmts` untouched and propagates the error.
 ///
 /// Callers should validate the edit (e.g. `PropertyValue → Expr` round-trip)
 /// *before* invoking this helper.
 fn try_apply_source_edit<F>(
-    stmts: &mut Vec<animatix::ast::Stmt>,
+    stmts: &mut Vec<animatix_syntax::ast::Stmt>,
     apply_fn: F,
-) -> Result<(String, animatix::source_index::SourceIndex), String>
+) -> Result<(String, animatix_syntax::source_index::SourceIndex), crate::source_edit::SourceEditError>
 where
-    F: FnOnce(&mut Vec<animatix::ast::Stmt>) -> bool,
+    F: FnOnce(&mut Vec<animatix_syntax::ast::Stmt>) -> Result<(), crate::source_edit::SourceEditError>,
 {
     let mut trial = stmts.clone();
-    if !apply_fn(&mut trial) {
-        return Err("Source edit could not be applied".to_string());
+    if let Err(e) = apply_fn(&mut trial) {
+        return Err(e);
     }
 
-    let new_source = animatix::to_source::stmts_to_source(&trial);
-    let source_index = animatix::source_index::SourceIndex::build(&trial);
+    let new_source = animatix_syntax::to_source::stmts_to_source(&trial);
+    let source_index = animatix_syntax::source_index::SourceIndex::build(&trial);
 
     *stmts = trial;
     Ok((new_source, source_index))
@@ -353,55 +355,21 @@ fn apply_property_edit_to_track(
     time_ms: u64,
 ) {
     use animatix::timeline::PropertyTrack;
+    use animatix::timeline::TrackFieldMut;
     use crate::app::panels::PropertyValue as PV;
 
-    let linear = animatix::easing::Easing::Linear;
+    let linear = animatix_syntax::easing::Easing::Linear;
 
+    // ── Special / compound properties (not covered by generic registry dispatch) ──
     match property {
-        // ── Vec2 properties ──
-        "position" => {
-            if let PV::Vec2(v) = value {
-                let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
         "size" => {
             if let PV::Vec2(v) = value {
-                // The size track stores half‑extents (w/2, h/2).
                 let half = [v[0] / 2.0, v[1] / 2.0];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(half));
                 pt.default_value = half;
                 pt.add_keyframe(time_ms, half, linear);
             }
-        }
-        "line_from" => {
-            if let PV::Vec2(v) = value {
-                let pt = track.line_from.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "line_to" => {
-            if let PV::Vec2(v) = value {
-                let pt = track.line_to.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "arc_angles" => {
-            if let PV::Vec2(v) = value {
-                let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "motion_offset" => {
-            if let PV::Vec2(v) = value {
-                let pt = track.motion_offset.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
+            return;
         }
         "offset" => {
             if let PV::Vec2(v) = value {
@@ -417,23 +385,19 @@ fn apply_property_edit_to_track(
                     }
                 }
             }
+            return;
         }
         "at" => {
             if let PV::Vec2(v) = value {
-                let binding = track
-                    .position_binding
-                    .as_ref()
-                    .map(|pb| pb.evaluate(time_ms));
-
+                let binding = track.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
                 match binding {
                     Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
                         if let Some(ref mut pb_track) = track.position_binding {
-                            let new_binding =
-                                animatix::timeline::PositionBinding::ScenePercent {
-                                    x: v[0],
-                                    y: v[1],
-                                    offset: [0.0, 0.0],
-                                };
+                            let new_binding = animatix::timeline::PositionBinding::ScenePercent {
+                                x: v[0],
+                                y: v[1],
+                                offset: [0.0, 0.0],
+                            };
                             pb_track.default_value = new_binding;
                             pb_track.add_keyframe(time_ms, new_binding, linear);
                         }
@@ -445,36 +409,7 @@ fn apply_property_edit_to_track(
                     }
                 }
             }
-        }
-
-        // ── Float properties ──
-        "rotation" => {
-            if let PV::Float(v) = value {
-                let pt = track.rotation.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "scale" => {
-            if let PV::Float(v) = value {
-                let pt = track.scale.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "opacity" => {
-            if let PV::Float(v) = value {
-                let pt = track.opacity.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "stroke_width" | "width" => {
-            if let PV::Float(v) = value {
-                let pt = track.stroke_width.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
+            return;
         }
         "radius" => {
             if let PV::Float(v) = value {
@@ -483,6 +418,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = size;
                 pt.add_keyframe(time_ms, size, linear);
             }
+            return;
         }
         "radius_x" => {
             if let PV::Float(v) = value {
@@ -492,6 +428,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = size;
                 pt.add_keyframe(time_ms, size, linear);
             }
+            return;
         }
         "radius_y" => {
             if let PV::Float(v) = value {
@@ -501,6 +438,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = size;
                 pt.add_keyframe(time_ms, size, linear);
             }
+            return;
         }
         "start_angle" => {
             if let PV::Float(v) = value {
@@ -510,6 +448,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = angles;
                 pt.add_keyframe(time_ms, angles, linear);
             }
+            return;
         }
         "sweep_angle" => {
             if let PV::Float(v) = value {
@@ -519,6 +458,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = angles;
                 pt.add_keyframe(time_ms, angles, linear);
             }
+            return;
         }
         "tip_length" => {
             if let PV::Float(v) = value {
@@ -528,6 +468,7 @@ fn apply_property_edit_to_track(
                 pt.default_value = size;
                 pt.add_keyframe(time_ms, size, linear);
             }
+            return;
         }
         "tip_width" => {
             if let PV::Float(v) = value {
@@ -537,95 +478,62 @@ fn apply_property_edit_to_track(
                 pt.default_value = size;
                 pt.add_keyframe(time_ms, size, linear);
             }
+            return;
         }
-        "stroke_progress" => {
-            if let PV::Float(v) = value {
-                let pt = track.stroke_progress.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "fill_opacity" => {
-            if let PV::Float(v) = value {
-                let pt = track.fill_opacity.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-
-        // ── Color properties ──
-        "color" => {
-            if let PV::Color(v) = value {
-                let pt = track.color.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "stroke_color" | "stroke" => {
-            if let PV::Color(v) = value {
-                let pt = track.stroke_color.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-
-        // ── Text / enum properties ──
-        "text_content" | "text" | "latex" | "math" | "code" => {
-            if let PV::Text(v) = value {
-                let pt = track.text_content.get_or_insert_with(|| PropertyTrack::new(v.clone()));
-                pt.default_value = v.clone();
-                pt.add_keyframe(time_ms, v.clone(), linear);
-            }
-        }
-        "font_family" => {
-            if let PV::Text(v) = value {
-                let pt = track.font_family.get_or_insert_with(|| PropertyTrack::new(v.clone()));
-                pt.default_value = v.clone();
-                pt.add_keyframe(time_ms, v.clone(), linear);
-            }
-        }
-        "font_size" => {
-            if let PV::Float(v) = value {
-                let pt = track.font_size.get_or_insert_with(|| PropertyTrack::new(*v));
-                pt.default_value = *v;
-                pt.add_keyframe(time_ms, *v, linear);
-            }
-        }
-        "shape_type" => {
-            if let PV::Text(v) = value {
-                use animatix::timeline::ShapeType;
-                let shape = v.parse::<ShapeType>().ok();
-                if let Some(shape) = shape {
-                    let pt = track.shape_type.get_or_insert_with(|| PropertyTrack::new(shape));
-                    pt.default_value = shape;
-                    pt.add_keyframe(time_ms, shape, linear);
-                }
-            }
-        }
-        "points" => {
-            if let PV::PointList(v) = value {
-                let pt = track.points.get_or_insert_with(|| PropertyTrack::new(v.clone()));
-                pt.default_value = v.clone();
-                pt.add_keyframe(time_ms, v.clone(), linear);
-            }
-        }
-        "placement_mode" => {
-            if let PV::Text(v) = value {
-                use animatix::timeline::PlacementMode;
-                let mode = match v.as_str() {
-                    "manual" => Some(PlacementMode::Manual),
-                    "layout" => Some(PlacementMode::LayoutManaged),
-                    _ => None,
-                };
-                if let Some(mode) = mode {
-                    let pt = track.placement_mode.get_or_insert_with(|| PropertyTrack::new(mode));
-                    pt.default_value = mode;
-                    pt.add_keyframe(time_ms, mode, linear);
-                }
-            }
-        }
-
         _ => {}
+    }
+
+    // ── Registry-driven dispatch for standard properties ──
+    if let Some(schema) = animatix::timeline::property_registry::lookup_property(property) {
+        if let Some(field_mut) = track.field_mut(schema.field) {
+            match (field_mut, value) {
+                (TrackFieldMut::Vec2(f), PV::Vec2(v)) => {
+                    let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
+                    pt.default_value = *v;
+                    pt.add_keyframe(time_ms, *v, linear);
+                }
+                (TrackFieldMut::F32(f), PV::Float(v)) => {
+                    let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
+                    pt.default_value = *v;
+                    pt.add_keyframe(time_ms, *v, linear);
+                }
+                (TrackFieldMut::Vec4(f), PV::Color(v)) => {
+                    let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
+                    pt.default_value = *v;
+                    pt.add_keyframe(time_ms, *v, linear);
+                }
+                (TrackFieldMut::String(f), PV::Text(v)) => {
+                    let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
+                    pt.default_value = v.clone();
+                    pt.add_keyframe(time_ms, v.clone(), linear);
+                }
+                (TrackFieldMut::PointList(f), PV::PointList(v)) => {
+                    let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
+                    pt.default_value = v.clone();
+                    pt.add_keyframe(time_ms, v.clone(), linear);
+                }
+                (TrackFieldMut::ShapeType(f), PV::Text(v)) => {
+                    if let Ok(shape) = v.parse::<animatix::timeline::ShapeType>() {
+                        let pt = f.get_or_insert_with(|| PropertyTrack::new(shape));
+                        pt.default_value = shape;
+                        pt.add_keyframe(time_ms, shape, linear);
+                    }
+                }
+                (TrackFieldMut::PlacementMode(f), PV::Text(v)) => {
+                    let mode = match v.as_str() {
+                        "manual" => Some(animatix::timeline::PlacementMode::Manual),
+                        "layout" => Some(animatix::timeline::PlacementMode::LayoutManaged),
+                        _ => None,
+                    };
+                    if let Some(mode) = mode {
+                        let pt = f.get_or_insert_with(|| PropertyTrack::new(mode));
+                        pt.default_value = mode;
+                        pt.add_keyframe(time_ms, mode, linear);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -638,8 +546,8 @@ pub fn default_props_for_actor(
     ty: &str,
     _position: [f32; 2],
     _scene_dimensions: animatix::timeline::SceneDimensions,
-) -> Vec<animatix::ast::Property> {
-    use animatix::ast::{Expr, Property};
+) -> Vec<animatix_syntax::ast::Property> {
+    use animatix_syntax::ast::{Expr, Property};
     let scene = animatix::timeline::SceneDimensions {
         width: _scene_dimensions.width,
         height: _scene_dimensions.height,

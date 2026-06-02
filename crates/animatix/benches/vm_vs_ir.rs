@@ -19,7 +19,7 @@ always {
   echo.at = orbiter.at
 }
 "#;
-    let (stmts, _) = animatix::parser::parser().parse(source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 
@@ -34,7 +34,7 @@ orbiter: Ellipse, size: (64, 64), color: accent.primary, at: (820, 390)
 pulse: Rect, size: (120, 120), color: (0.88, 0.42, 0.84, 1.0), at: (280, 390)
 echo: Ellipse, size: (40, 40), color: accent.warning, at: pulse.at
 "#;
-    let (stmts, _) = animatix::parser::parser().parse(source).into_output_errors();
+    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
     Timeline::build(&stmts.unwrap())
 }
 

@@ -92,6 +92,22 @@ impl Primitive for ImagePrimitive {
         true
     }
 
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        use crate::timeline::DEFAULT_LAYOUT_HALF_SIZE;
+
+        if let Some(image) = ctx.track.image.get(ctx.time_ms, None) {
+            let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];
+            Ok(Some(vec![RenderCommand::Image { image, natural_size }]))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),

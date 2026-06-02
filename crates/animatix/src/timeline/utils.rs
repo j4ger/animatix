@@ -1393,7 +1393,7 @@ mod tests {
                 c.position = (seeded_rand(1.0) * 100, seeded_rand(2.0) * 100)
             }
         "#;
-        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let ast = animatix_syntax::parser::parser().parse(source).into_result().unwrap();
         let timeline = super::super::Timeline::build(&ast);
         let pos1 = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
 
@@ -1411,7 +1411,7 @@ mod tests {
                 c.position = (seeded_rand(42.0) * 100, seeded_rand(42.0) * 100)
             }
         "#;
-        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let ast = animatix_syntax::parser::parser().parse(source).into_result().unwrap();
         let timeline = super::super::Timeline::build(&ast);
         let pos = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
         assert!(
@@ -1431,7 +1431,7 @@ mod tests {
         let source = r#"
             c: Ellipse, radius: 50, color: red
         "#;
-        let ast = crate::parser::parser().parse(source).into_result().unwrap();
+        let ast = animatix_syntax::parser::parser().parse(source).into_result().unwrap();
         let timeline = super::super::Timeline::build(&ast);
 
         // Evaluate seeded_rand with different seeds directly in the timeline's env

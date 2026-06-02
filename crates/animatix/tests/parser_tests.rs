@@ -177,7 +177,7 @@ fn test_assignments_and_paths() {
                     value: Expr::Ident("2s".to_string()),
                 },
             ],
-            easing: Some(animatix::easing::Easing::EaseOut),
+            easing: Some(animatix_syntax::easing::Easing::EaseOut),
             value_span: Some(ByteSpan { start: 15, end: 26 }),
             span: None,
         }
@@ -191,7 +191,7 @@ fn test_assignments_and_paths() {
             property: "at".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![],
-            easing: Some(animatix::easing::Easing::Linear),
+            easing: Some(animatix_syntax::easing::Easing::Linear),
             value_span: Some(ByteSpan { start: 9, end: 20 }),
             span: None,
         }
@@ -204,7 +204,7 @@ fn test_assignments_and_paths() {
             property: "opacity".to_string(),
             value: Expr::Num(0.5),
             modifiers: vec![],
-            easing: Some(animatix::easing::Easing::Bounce),
+            easing: Some(animatix_syntax::easing::Easing::Bounce),
             value_span: Some(ByteSpan { start: 14, end: 18 }),
             span: None,
         }
@@ -971,7 +971,7 @@ fn test_actor_decl_nested() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix::ast::InlineItem::Labeled {
+                animatix_syntax::ast::InlineItem::Labeled {
                     label: "a".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
@@ -983,7 +983,7 @@ fn test_actor_decl_nested() {
                     modifiers: vec![],
                     children: vec![]
                 },
-                animatix::ast::InlineItem::Labeled {
+                animatix_syntax::ast::InlineItem::Labeled {
                     label: "b".to_string(),
                     ty: "Rect".to_string(),
                     props: vec![Property {
@@ -1013,7 +1013,7 @@ fn test_actor_decl_anonymous() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix::ast::InlineItem::Anonymous {
+                animatix_syntax::ast::InlineItem::Anonymous {
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1024,7 +1024,7 @@ fn test_actor_decl_anonymous() {
                     modifiers: vec![],
                     children: vec![]
                 },
-                animatix::ast::InlineItem::Anonymous {
+                animatix_syntax::ast::InlineItem::Anonymous {
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1057,7 +1057,7 @@ fn test_actor_decl_nested_with_children() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix::ast::InlineItem::Labeled {
+                animatix_syntax::ast::InlineItem::Labeled {
                     label: "a".to_string(),
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
@@ -1067,7 +1067,7 @@ fn test_actor_decl_nested_with_children() {
                     trailing_comment: None,
                     }],
                     modifiers: vec![],
-                    children: vec![animatix::ast::InlineItem::Labeled {
+                    children: vec![animatix_syntax::ast::InlineItem::Labeled {
                         label: "child".to_string(),
                         ty: "Text".to_string(),
                         props: vec![Property {
@@ -1080,7 +1080,7 @@ fn test_actor_decl_nested_with_children() {
                         children: vec![],
                     }],
                 },
-                animatix::ast::InlineItem::Labeled {
+                animatix_syntax::ast::InlineItem::Labeled {
                     label: "b".to_string(),
                     ty: "Rect".to_string(),
                     props: vec![Property {

@@ -7,7 +7,7 @@ use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
 use crate::app::utils::has_source_load_failure;
 use crate::document::DocumentSession;
-use animatix::diagnostics::diagnostics_phase_summary;
+use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 /// Sync preview playback state from document metadata.
 pub(crate) fn sync_preview_from_document(

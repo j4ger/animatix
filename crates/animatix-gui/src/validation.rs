@@ -1,4 +1,4 @@
-use animatix::ast::Expr;
+use animatix_syntax::ast::Expr;
 use animatix::timeline::env::{Environment, Value};
 use animatix::timeline::load_standard_library;
 

@@ -3,7 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath};
+use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, DEFAULT_LAYOUT_HALF_SIZE};
 use crate::timeline::{
     lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
     Environment, Value,
@@ -62,6 +62,40 @@ impl Primitive for EllipsePrimitive {
     fn exposes_tip_size(&self) -> bool { false }
 
     fn supports_fill(&self) -> bool { true }
+
+    fn evaluate(
+        &self,
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::timeline::shapes::EllipseState;
+
+        let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let arc_angles = ctx.track.arc_angles.get(ctx.time_ms, [0.0, 0.0]);
+        let rot = ctx.track.rotation.get(ctx.time_ms, 0.0);
+
+        let mut state = EllipseState {
+            size: half_size,
+            arc_angles,
+            rotation: if rot != 0.0 { rot } else { 0.0 },
+        };
+
+        if let Some(overrides) = ctx.overrides {
+            if let Some(Value::Vec2(s)) = overrides.get("size") {
+                state.size[0] = s[0] as f32;
+                state.size[1] = s[1] as f32;
+            }
+        }
+
+        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let paths = self.render(&RenderCtx {
+            state: &VectorShapeState::Ellipse(state),
+            style,
+            time_ms: ctx.time_ms,
+        }).unwrap_or_default();
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
+    }
 
     fn apply_property(
         &self,

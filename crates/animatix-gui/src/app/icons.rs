@@ -14,7 +14,7 @@ pub use animatix::primitives::actor_kind_meta;
 
 /// Shorthand that returns only the icon string.
 pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
-    actor_kind_meta(kind).icon_id
+    actor_kind_meta(kind).map(|m| m.icon_id).unwrap_or("")
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────

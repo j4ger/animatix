@@ -1,8 +1,8 @@
-use animatix::ast::{BinaryOp, Expr, Stmt, Time};
+use animatix_syntax::ast::{BinaryOp, Expr, Stmt, Time};
 use animatix::ir::{
     ModifierExpr, compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir,
 };
-use animatix::module::ModuleGraph;
+use animatix_syntax::module::ModuleGraph;
 use animatix::timeline::{
     Environment, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
@@ -422,19 +422,19 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 label: "panel.badge".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "radius".to_string(),
                         value: Expr::Num(12.0),
                         value_span: None,
                     trailing_comment: None,
                     },
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "color".to_string(),
                         value: Expr::Ident("RED".to_string()),
                         value_span: None,
                     trailing_comment: None,
                     },
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(300.0)]),
                         value_span: None,
@@ -451,19 +451,19 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 label: "echo".to_string(),
                 ty: "Ellipse".to_string(),
                 props: vec![
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "radius".to_string(),
                         value: Expr::Num(10.0),
                         value_span: None,
                     trailing_comment: None,
                     },
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "color".to_string(),
                         value: Expr::Ident("BLUE".to_string()),
                         value_span: None,
                     trailing_comment: None,
                     },
-                    animatix::ast::Property {
+                    animatix_syntax::ast::Property {
                         name: "at".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(300.0)]),
                         value_span: None,

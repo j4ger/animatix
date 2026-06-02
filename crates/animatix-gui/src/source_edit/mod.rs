@@ -2,7 +2,7 @@
 //!
 //! Replaces the old byte-span surgery model with semantic
 //! edits applied directly to the AST. After mutation, the entire AST is
-//! re-serialized via [`animatix::to_source::stmts_to_source`].
+//! re-serialized via [`animatix_syntax::to_source::stmts_to_source`].
 //!
 //! This module has been split into sub-modules:
 //! - `apply` — core `SourceEdit` enum, `apply_edit` dispatch, shared traversal helpers
@@ -16,9 +16,11 @@ mod ast_utils;
 mod keyframe_edits;
 mod scene_edits;
 mod action_edits;
+mod error;
 
 // Re-export public API
 pub use apply::{apply_edit, canonical_to_source, find_actor_decl, source_to_canonical, SourceEdit};
+pub use error::SourceEditError;
 pub(crate) use actor_edits::rename_all_references;
 pub use ast_utils::{
     find_keyframes_for_actor, keyframe_references_actor, shift_keyframe_times,

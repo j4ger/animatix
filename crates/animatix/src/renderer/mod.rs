@@ -16,6 +16,9 @@ pub mod offscreen;
 #[cfg(feature = "render")]
 /// Shared GPU filter backend for preview and export.
 pub mod filter_backend;
+#[cfg(feature = "render")]
+/// Fullscreen texture blit for zero-readback compositing.
+pub mod fullscreen_blit;
 #[cfg(feature = "text")]
 /// Text rendering support.
 pub mod text;

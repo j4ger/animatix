@@ -1,9 +1,9 @@
 use crate::error::GuiError;
-use animatix::ast::{Expr, Stmt};
-use animatix::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::ast::{Expr, Stmt};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::composition::{BuildTarget, Composition};
-use animatix::module::{ModuleError, ModuleGraph, Namespace};
-use animatix::source_index::SourceIndex;
+use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace};
+use animatix_syntax::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
 use std::collections::HashMap;
 use std::fs;
@@ -439,7 +439,7 @@ fn diagnostics_from_module_error(err: &ModuleError, file_path: &Path) -> Vec<Dia
 #[cfg(test)]
 mod tests {
     use super::*;
-    use animatix::ast::{Property, Time};
+    use animatix_syntax::ast::{Property, Time};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_project_dir(name: &str) -> Result<PathBuf, GuiError> {
@@ -477,9 +477,9 @@ mod tests {
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
-                        value: animatix::ast::Expr::Tuple(vec![
-                            animatix::ast::Expr::Num(100.0),
-                            animatix::ast::Expr::Num(100.0),
+                        value: animatix_syntax::ast::Expr::Tuple(vec![
+                            animatix_syntax::ast::Expr::Num(100.0),
+                            animatix_syntax::ast::Expr::Num(100.0),
                         ]),
                         value_span: None,
                     trailing_comment: None,
@@ -495,7 +495,7 @@ mod tests {
                 body: vec![Stmt::Assignment {
                     target: vec!["box".to_string()],
                     property: "scale".to_string(),
-                    value: animatix::ast::Expr::Num(0.5),
+                    value: animatix_syntax::ast::Expr::Num(0.5),
                     modifiers: vec![],
                     easing: None,
                     value_span: None,
@@ -758,7 +758,7 @@ card: MetricCard
         let diagnostic = &document.diagnostics[0];
         assert_eq!(
             diagnostic.severity,
-            animatix::diagnostics::DiagnosticSeverity::Error
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error
         );
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
         assert_eq!(diagnostic.code, DiagnosticCode::SourceLoadFailure);
@@ -806,7 +806,7 @@ scene: Rect, size: (100, 100)
         let diagnostic = &document.diagnostics[0];
         assert_eq!(
             diagnostic.severity,
-            animatix::diagnostics::DiagnosticSeverity::Error
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error
         );
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
         assert_eq!(diagnostic.code, DiagnosticCode::ParseError);

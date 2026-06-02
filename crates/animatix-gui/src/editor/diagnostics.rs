@@ -7,7 +7,7 @@ use crate::editor::EditorBuffer;
 impl EditorBuffer {
     /// Set diagnostics (e.g. parse errors) on the buffer, mapping them to cell
     /// positions and updating cell-level decoration state.
-    pub fn set_diagnostics(&mut self, diagnostics: &[animatix::diagnostics::Diagnostic]) {
+    pub fn set_diagnostics(&mut self, diagnostics: &[animatix_syntax::diagnostics::Diagnostic]) {
         self.cell_state.diagnostics.clear();
         self.cell_state.error_cells.clear();
         self.cell_state.warning_cells.clear();
@@ -35,10 +35,10 @@ impl EditorBuffer {
 
             // Track cell border color by severity.
             match d.severity {
-                animatix::diagnostics::DiagnosticSeverity::Error => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
                 }
-                animatix::diagnostics::DiagnosticSeverity::Warning => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     self.cell_state.warning_cells.insert(cell_idx);
                 }
             }
@@ -232,24 +232,24 @@ impl EditorBuffer {
 
             let severity = match d.severity {
                 animatix_analyzer::DiagnosticSeverity::Error => {
-                    animatix::diagnostics::DiagnosticSeverity::Error
+                    animatix_syntax::diagnostics::DiagnosticSeverity::Error
                 }
                 animatix_analyzer::DiagnosticSeverity::Warning => {
-                    animatix::diagnostics::DiagnosticSeverity::Warning
+                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
                 }
                 animatix_analyzer::DiagnosticSeverity::Info => {
-                    animatix::diagnostics::DiagnosticSeverity::Warning
+                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
                 }
                 animatix_analyzer::DiagnosticSeverity::Hint => {
-                    animatix::diagnostics::DiagnosticSeverity::Warning
+                    animatix_syntax::diagnostics::DiagnosticSeverity::Warning
                 }
             };
 
             match severity {
-                animatix::diagnostics::DiagnosticSeverity::Error => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
                 }
-                animatix::diagnostics::DiagnosticSeverity::Warning => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     if !self.cell_state.error_cells.contains(&cell_idx) {
                         self.cell_state.warning_cells.insert(cell_idx);
                     }

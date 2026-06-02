@@ -32,7 +32,7 @@ impl DocumentController<'_> {
     fn apply_source(
         &mut self,
         new_source: String,
-        source_index: animatix::source_index::SourceIndex,
+        source_index: animatix_syntax::source_index::SourceIndex,
     ) {
         self.document_store.source.document.source_text = new_source.clone();
         self.document_store.source.editor.replace_text(new_source);
@@ -44,7 +44,7 @@ impl DocumentController<'_> {
 
     /// Helper: mutable access to `raw_statements`, or set a status warning and return `None`.
     #[allow(dead_code)]
-    fn statements_mut(&mut self, operation: &str) -> Option<&mut Vec<animatix::ast::Stmt>> {
+    fn statements_mut(&mut self, operation: &str) -> Option<&mut Vec<animatix_syntax::ast::Stmt>> {
         self.document_store.source.document.raw_statements.as_mut().or_else(|| {
             self.preview_store.preview.status =
                 format!("Failed to {operation} — no AST available");
@@ -100,9 +100,9 @@ impl DocumentController<'_> {
                 time_s: self.preview_store.preview.playback.current_time_s,
             };
 
-            if crate::source_edit::apply_edit(stmts, edit) {
-                let new_source = animatix::to_source::stmts_to_source(stmts);
-                let source_index = animatix::source_index::SourceIndex::build(stmts);
+            if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+                let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
                 self.apply_source(new_source, source_index);
                 self.preview_store.preview.status = format!(
                     "Created {} ({}) at ({:.0}, {:.0})",
@@ -148,7 +148,7 @@ impl DocumentController<'_> {
 
         // Update label in the new statement
         match &mut new_stmt {
-            animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
+            animatix_syntax::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
             _ => {
                 self.preview_store.preview.status =
                     "Failed to duplicate — unsupported actor type".to_string();
@@ -158,7 +158,7 @@ impl DocumentController<'_> {
 
         // Find position to insert (after the original actor)
         if let Some(pos) = stmts.iter().position(|s| {
-            matches!(s, animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label)
+            matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label, .. } if label == original_label)
         }) {
             stmts.insert(pos + 1, new_stmt);
         } else {
@@ -168,8 +168,8 @@ impl DocumentController<'_> {
         // Commit source — scope block drops stmts borrow before accessing self
         let (new_source, source_index) = {
             (
-                animatix::to_source::stmts_to_source(stmts),
-                animatix::source_index::SourceIndex::build(stmts),
+                animatix_syntax::to_source::stmts_to_source(stmts),
+                animatix_syntax::source_index::SourceIndex::build(stmts),
             )
         };
         self.apply_source(new_source, source_index);
@@ -216,7 +216,7 @@ impl DocumentController<'_> {
         let mut deleted = Vec::new();
         for label in &to_delete {
             let pos = stmts.iter().position(|s| {
-                matches!(s, animatix::ast::Stmt::ActorDecl { label: l, .. } if l == label)
+                matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label: l, .. } if l == label)
             });
             if let Some(pos) = pos {
                 stmts.remove(pos);
@@ -232,8 +232,8 @@ impl DocumentController<'_> {
         // Commit source — scope block drops stmts borrow
         let (new_source, source_index) = {
             (
-                animatix::to_source::stmts_to_source(stmts),
-                animatix::source_index::SourceIndex::build(stmts),
+                animatix_syntax::to_source::stmts_to_source(stmts),
+                animatix_syntax::source_index::SourceIndex::build(stmts),
             )
         };
         self.apply_source(new_source, source_index);
@@ -251,7 +251,7 @@ impl DocumentController<'_> {
     pub(crate) fn handle_set_transition(
         &mut self,
         from_scene: &str,
-        transition: animatix::ast::Transition,
+        transition: animatix_syntax::ast::Transition,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
@@ -264,11 +264,11 @@ impl DocumentController<'_> {
             transition: Some(transition.clone()),
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -296,11 +296,11 @@ impl DocumentController<'_> {
             target: target.clone(),
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -326,7 +326,7 @@ impl DocumentController<'_> {
         actor: &str,
         property: &str,
         time_s: f64,
-        easing: animatix::easing::Easing,
+        easing: animatix_syntax::easing::Easing,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
@@ -341,11 +341,11 @@ impl DocumentController<'_> {
             easing,
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -374,11 +374,11 @@ impl DocumentController<'_> {
             time_s,
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -414,11 +414,11 @@ impl DocumentController<'_> {
             new_time_s,
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -448,11 +448,11 @@ impl DocumentController<'_> {
             new_parent: new_parent.clone(),
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -486,11 +486,11 @@ impl DocumentController<'_> {
             new_scene_name: new_scene_name.clone(),
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -522,11 +522,11 @@ impl DocumentController<'_> {
             target_scene: target_scene.clone(),
         };
 
-        if source_edit::apply_edit(stmts, edit) {
+        if source_edit::apply_edit(stmts, edit).is_ok() {
             let (new_source, source_index) = {
                 (
-                    animatix::to_source::stmts_to_source(stmts),
-                    animatix::source_index::SourceIndex::build(stmts),
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
                 )
             };
             self.apply_source(new_source, source_index);
@@ -581,13 +581,13 @@ impl DocumentController<'_> {
 
             // Update label in the new statement
             match &mut new_stmt {
-                animatix::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
+                animatix_syntax::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
                 _ => continue,
             }
 
             // Insert the declaration at the end (or after the original)
             if let Some(pos) = stmts.iter().position(|s| {
-                matches!(s, animatix::ast::Stmt::ActorDecl { label, .. } if label == original_label)
+                matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label, .. } if label == original_label)
             }) {
                 stmts.insert(pos + 1, new_stmt);
             } else {
@@ -624,8 +624,8 @@ impl DocumentController<'_> {
         // Commit source — scope block drops stmts borrow
         let (new_source, source_index) = {
             (
-                animatix::to_source::stmts_to_source(stmts),
-                animatix::source_index::SourceIndex::build(stmts),
+                animatix_syntax::to_source::stmts_to_source(stmts),
+                animatix_syntax::source_index::SourceIndex::build(stmts),
             )
         };
         self.apply_source(new_source, source_index);

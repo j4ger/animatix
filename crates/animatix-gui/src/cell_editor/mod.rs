@@ -17,7 +17,7 @@ pub enum CellType {
 pub struct CellDiagnostic {
     pub line: usize,
     pub message: String,
-    pub severity: animatix::diagnostics::DiagnosticSeverity,
+    pub severity: animatix_syntax::diagnostics::DiagnosticSeverity,
     /// Which cell this diagnostic belongs to.
     pub cell_index: usize,
     /// Cell-body-relative position for token-level underlining.

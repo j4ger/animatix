@@ -11,7 +11,6 @@
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::app::commands::Effect;
     use crate::app::handlers::*;
     use crate::app::persistence::default_tree;

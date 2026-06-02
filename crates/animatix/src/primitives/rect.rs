@@ -4,7 +4,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{
-    kurbo_shapes::KurboShape, SceneDimensions, VectorShapeState, VelloPath,
+    kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, DEFAULT_LAYOUT_HALF_SIZE,
 };
 use crate::timeline::Environment;
 
@@ -84,15 +84,31 @@ impl Primitive for RectPrimitive {
 
     fn supports_fill(&self) -> bool { true }
 
-    fn apply_property(
+    fn evaluate(
         &self,
-        _name: &str,
-        _value: &Expr,
-        _env: &Environment,
-        _diagnostics: &mut Vec<Diagnostic>,
-        _subject: &str,
-        _state: &mut VectorShapeState,
-    ) -> bool {
-        false
+        ctx: &mut crate::primitives::EvaluateCtx,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
+        use crate::timeline::shapes::RectState;
+
+        let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let mut state = RectState { size: half_size };
+
+        if let Some(overrides) = ctx.overrides {
+            if let Some(crate::timeline::Value::Vec2(s)) = overrides.get("size") {
+                state.size[0] = s[0] as f32;
+                state.size[1] = s[1] as f32;
+            }
+        }
+
+        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let paths = self.render(&RenderCtx {
+            state: &VectorShapeState::Rect(state),
+            style,
+            time_ms: ctx.time_ms,
+        }).unwrap_or_default();
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
     }
 }

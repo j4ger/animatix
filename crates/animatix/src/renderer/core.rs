@@ -1,4 +1,5 @@
 use super::error::RenderError;
+use super::fullscreen_blit::FullscreenBlitPipeline;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
@@ -6,6 +7,8 @@ use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene}
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,
+    /// Fullscreen blit pipeline for zero-readback texture compositing.
+    pub blit: Option<FullscreenBlitPipeline>,
 }
 
 impl RendererCore {
@@ -22,7 +25,29 @@ impl RendererCore {
         )
         .map_err(|e| RenderError::VelloInit(format!("{e:?}")))?;
 
-        Ok(Self { renderer })
+        let blit = FullscreenBlitPipeline::new(device);
+
+        Ok(Self { renderer, blit: Some(blit) })
+    }
+
+    /// Blit a `src_view` directly into `dst_view` without CPU readback.
+    ///
+    /// Both views must be RGBA8Unorm.  This is the zero-readback path used
+    /// by `GpuFilterBackend` to composite filtered sub-scenes back into the
+    /// main render target.
+    pub fn blit_texture(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        alpha: f32,
+    ) {
+        if let Some(ref blit) = self.blit {
+            blit.blit(device, queue, src_view, dst_view, width, height, alpha);
+        }
     }
 
     /// Render a Vello `scene` into the provided `texture_view` at the given size.

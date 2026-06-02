@@ -581,7 +581,7 @@ impl Composition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parser;
+    use animatix_syntax::parser::parser;
     use chumsky::Parser;
 
     #[test]

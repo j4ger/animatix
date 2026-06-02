@@ -9,7 +9,7 @@ pub fn handle_set_keyframe_easing(
     actor: String,
     property: String,
     time_s: f64,
-    easing: animatix::easing::Easing,
+    easing: animatix_syntax::easing::Easing,
 ) -> Vec<Effect> {
     document_store.snapshot(Command::SetKeyframeEasing {
         actor: actor.clone(),

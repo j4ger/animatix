@@ -3,7 +3,7 @@
 //! These were extracted from the app module; they operate purely on the AST
 //! and belong in the source_edit crate alongside other AST-manipulation helpers.
 
-use animatix::ast::{Stmt, Time};
+use animatix_syntax::ast::{Stmt, Time};
 use super::apply::time_to_seconds;
 
 // ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
         | Stmt::Sequence { body, .. }
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
-        | Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
+        | Stmt::ComponentDef(animatix_syntax::ast::ComponentDef { body, .. }, _)
         | Stmt::ComponentAction { body, .. } => {
             body.iter().any(|child| keyframe_references_actor(child, actor))
         }
@@ -249,11 +249,11 @@ pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
         match stmt {
             Stmt::Keyframe { time, .. } => {
                 let t = match time {
-                    animatix::ast::Time::Seconds(s) => *s,
-                    animatix::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                    animatix_syntax::ast::Time::Seconds(s) => *s,
+                    animatix_syntax::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
                 };
                 let new_t = t + offset_s;
-                *time = animatix::ast::Time::Seconds(new_t);
+                *time = animatix_syntax::ast::Time::Seconds(new_t);
             }
             Stmt::RelativeKeyframe { .. } => {
                 // Relative keyframes keep their relative offset
@@ -261,7 +261,7 @@ pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
             Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::ComponentDef(animatix::ast::ComponentDef { body, .. }, _)
+            | Stmt::ComponentDef(animatix_syntax::ast::ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
                 shift_keyframe_times(body, offset_s);
             }
