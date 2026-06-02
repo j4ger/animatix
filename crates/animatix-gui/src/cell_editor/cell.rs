@@ -24,6 +24,13 @@ impl Cell {
         matches!(self, Self::Keyframe { .. })
     }
 
+    pub fn cell_type(&self) -> crate::cell_editor::CellType {
+        match self {
+            Self::Keyframe { .. } => crate::cell_editor::CellType::Keyframe,
+            Self::Code { .. } => crate::cell_editor::CellType::Code,
+        }
+    }
+
     pub fn body(&self) -> &str {
         match self {
             Self::Code { body, .. } | Self::Keyframe { body, .. } => body,

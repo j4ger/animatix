@@ -110,6 +110,11 @@ impl EditorBuffer {
         self.cell_state.focused_cell
     }
 
+    /// Type of the currently focused cell, if any.
+    pub fn focused_cell_type(&self) -> Option<crate::cell_editor::CellType> {
+        self.cell_state.focused_cell.and_then(|idx| self.cells.get(idx).map(|c| c.cell_type()))
+    }
+
     /// Override the focused cell index.
     pub fn set_focused_cell(&mut self, cell: Option<usize>) {
         self.cell_state.focused_cell = cell;
