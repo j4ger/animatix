@@ -18,11 +18,11 @@
 
 > Post-processing primitive for blur, color correction, and compositing effects.
 > See [`architecture.md`](architecture.md) §6 for full design, migration guide, and GPU shader plan.
+> Phase 8.1–8.5 and 8.7 are **complete**. Stale property-based effects (`shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, `glow_color`) were fully removed from the codebase without deprecation shims.
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
 | 8.6 | **GPU shader filter pass** | Replace CPU blur + color matrix with WGSL compute shaders (blur H → blur V → color matrix) for 10–50× speedup on large scenes. Split into 8.6a (GPU filters + readback, 2–3 days) and 8.6b (zero-readback composite, +2–3 days). Full plan in [`architecture.md`](architecture.md) §6. | `renderer/shaders/`, `renderer/filter_backend.rs` | 1 week | When filter count becomes a bottleneck |
-| 8.8 | **Deprecation diagnostics for removed properties** | Add a diagnostic when `shadow_blur`, `glow_radius`, `backdrop_blur`, `shadow_offset`, `shadow_color`, or `glow_color` are used, directing users to `Filter` containers. | `timeline/property_registry.rs`, `diagnostics.rs` | 0.5 days | — |
 
 ---
 
@@ -68,7 +68,7 @@
 ## Order
 
 1. **Phase 7** (audio — no blockers)
-2. **Phase 8** (filter system — 8.8 is small; 8.6 is self-contained)
+2. **Phase 8.6** (GPU shader filter pass — self-contained, blocked on filter count becoming a bottleneck)
 3. **Phase 9** (PiP — after syntax and renderer are stable)
 4. **Phase 10b** (architecture refactors — run in dedicated sprints, do not mix with feature work)
 5. **Phase 11** (start after syntax stabilizes)
