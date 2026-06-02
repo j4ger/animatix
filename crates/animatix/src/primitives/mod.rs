@@ -44,7 +44,7 @@ use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
 use crate::timeline::{
     ActorCategory, ActorKindId, AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value,
-    VectorShapeState, VectorShapeStyle, VelloPath, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    VectorShapeState, VectorShapeStyle, VelloPath, DEFAULT_WHITE,
 };
 
 /// Evaluate text paths for a text primitive at frame time.
@@ -225,6 +225,8 @@ pub struct EvaluateCtx<'a> {
     pub scene_dimensions: SceneDimensions,
     /// Property overrides from modifiers.
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
+    /// Pre-sampled vector paths (includes procedural plot sampling).
+    pub vector_paths: &'a [VelloPath],
 }
 
 /// Mutable context for text recompilation.

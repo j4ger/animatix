@@ -26,30 +26,6 @@
 
 ---
 
-## Phase 10b Follow-up — Correctness & Cleanup
-
-> Issues discovered during Phase 10b refactors. Fix these before starting new feature work.
-
-### Correctness ✅
-
-| # | Item | What | Files | Status |
-|---|------|------|-------|--------|
-| 1 | **Hit regions for trait-dispatch path** | Added `RenderCommand::local_bounds()` method. Hit regions now computed from commands, not stale `vector_paths`. | `scene_eval.rs`, `primitives/mod.rs` | Done |
-| 2 | **Debug overlays for trait-dispatch path** | `draw_bounds` debug rendering now drawn after `evaluate()` command execution. | `scene_eval.rs` | Done |
-| 3 | **FontContext made non-optional** | `EvaluateCtx.font_context` changed from `Option<&FontContext>` to `&FontContext`. Removed `OnceLock` fallback. | `primitives/mod.rs`, `scene_eval.rs` | Done |
-| 7 | **`actor_kind_meta` returns `Option`** | Changed from `.expect(...)` panic to `Option`. All 6 callers updated. | `primitives/mod.rs`, `track.rs`, `assignments.rs`, `scene_eval.rs`, `drag_handler.rs`, `icons.rs` | Done |
-| 8 | **Pre-allocate blit alpha buffer** | `FullscreenBlitPipeline` now holds a pre-allocated `alpha_buffer`, updated via `queue.write_buffer` per frame. | `renderer/fullscreen_blit.rs` | Done |
-
-### Cleanup ✅
-
-| # | Item | What | Files | Status |
-|---|------|------|-------|--------|
-| 4 | **Centralize override application** | `render_actor_node` now calls `sample_shape_style()` instead of duplicating style override logic. | `scene_eval.rs` | Done |
-| 5 | **Split `EvaluateCtx`** | Created `TextCompileCtx` (mutable, text-only). `EvaluateCtx` is now fully immutable. `Primitive::evaluate()` takes `&EvaluateCtx` + `Option<&mut TextCompileCtx>`. Text primitives use it; shapes ignore it. | `primitives/mod.rs`, all primitives, `scene_eval.rs` | Done |
-| 6 | **Remove dead code** | Deferred — `build_shape_vector_paths` is still used by the legacy path for plots/containers. Remove once those are migrated to `evaluate()`. | `scene_eval.rs` | Blocked |
-
----
-
 ## Phase 11 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |
@@ -63,10 +39,9 @@
 
 ## Order
 
-1. **Phase 10b follow-up** (correctness bugs — fix before feature work)
-2. **Phase 7** (audio — no blockers)
-3. **Phase 9** (PiP — after syntax and renderer are stable)
-4. **Phase 11** (start after syntax stabilizes)
+1. **Phase 7** (audio — no blockers)
+2. **Phase 9** (PiP — after syntax and renderer are stable)
+3. **Phase 11** (start after syntax stabilizes)
 
 ---
 

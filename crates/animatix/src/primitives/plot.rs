@@ -24,6 +24,19 @@ impl Primitive for GraphPrimitive {
     fn icon_id(&self) -> &'static str { crate::icon_glyphs::CHART_BAR }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Graph }
 
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
+
     fn build(
         &self,
         ctx: &mut BuildCtx,
@@ -62,6 +75,19 @@ impl Primitive for PlotCurvePrimitive {
     fn icon_id(&self) -> &'static str { crate::icon_glyphs::CHART_LINE_UP }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::PlotCurve }
+
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
 
     fn build(
         &self,
@@ -114,6 +140,19 @@ impl Primitive for VectorFieldPrimitive {
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::VectorField }
 
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
+
     fn build(
         &self,
         ctx: &mut BuildCtx,
@@ -163,6 +202,19 @@ impl Primitive for HeatmapPrimitive {
     fn icon_id(&self) -> &'static str { crate::icon_glyphs::GRADIENT }
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::Heatmap }
+
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
 
     fn build(
         &self,
@@ -214,6 +266,19 @@ impl Primitive for ContourSetPrimitive {
     fn is_advanced(&self) -> bool { true }
     fn kind_id(&self) -> ActorKindId { ActorKindId::ContourSet }
 
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
+
     fn build(
         &self,
         ctx: &mut BuildCtx,
@@ -261,6 +326,19 @@ impl Primitive for NumberPlanePrimitive {
     fn category(&self) -> ActorCategory { ActorCategory::Plot }
     fn icon_id(&self) -> &'static str { crate::icon_glyphs::SQUARES_FOUR }
     fn kind_id(&self) -> ActorKindId { ActorKindId::NumberPlane }
+
+    fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        use crate::primitives::RenderCommand;
+        if ctx.vector_paths.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+        }
+    }
 
     fn build(
         &self,

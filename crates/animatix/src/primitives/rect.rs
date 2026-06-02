@@ -4,9 +4,8 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{
-    kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, DEFAULT_LAYOUT_HALF_SIZE,
+    kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
 };
-use crate::timeline::Environment;
 
 /// The `Rect` primitive.
 pub struct RectPrimitive;

@@ -1,10 +1,7 @@
 use super::{
-    ActorKindId, AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value, VectorShapeState,
-    VectorShapeStyle, VelloPath, build_vector_shape_vello_path, resolve_bound_position,
-    vector_shape_uses_custom_path, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    ActorKindId, AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value,
+    VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
-use crate::renderer::error::RenderError;
-use crate::renderer::text::TextKind;
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
 
@@ -119,125 +116,6 @@ impl Timeline {
             opacity: opacity * parent_opacity,
             scale,
             local_transform,
-        }
-    }
-
-    /// Build vector paths for a shape actor.
-    fn build_shape_vector_paths(
-        &self,
-        track: &AnimationTrack,
-        time_ms: u64,
-        half_size: [f32; 2],
-        _line_from: [f32; 2],
-        _line_to: [f32; 2],
-        _arc_angles: [f32; 2],
-        color: [f32; 4],
-        stroke_width: f32,
-        stroke_color: [f32; 4],
-        fill_opacity: f32,
-        shape_type: ShapeType,
-        vector_paths: &mut Vec<VelloPath>,
-    ) {
-        if vector_paths.is_empty() || matches!(shape_type, ShapeType::Graph | ShapeType::Plot) {
-            return;
-        }
-
-        let mut vector_shape_state = VectorShapeState::new(shape_type, half_size);
-        match &mut vector_shape_state {
-            VectorShapeState::Line(line_state) => {
-                line_state.line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
-                line_state.line_to = track.line_to.get(time_ms, [50.0, 0.0]);
-            }
-            VectorShapeState::Ellipse(ellipse) => {
-                ellipse.arc_angles = track.arc_angles.get(time_ms, [0.0, 0.0]);
-                let rot = track.rotation.get(time_ms, 0.0);
-                if rot != 0.0 {
-                    ellipse.rotation = rot;
-                }
-            }
-            VectorShapeState::Polygon(poly) => {
-                poly.points = track.points.get(time_ms, Vec::new());
-                let rot = track.rotation.get(time_ms, 0.0);
-                if rot != 0.0 {
-                    poly.rotation = rot;
-                }
-            }
-            VectorShapeState::Arrow(arrow) => {
-                arrow.from = track.line_from.get(time_ms, [-50.0, 0.0]);
-                arrow.to = track.line_to.get(time_ms, [50.0, 0.0]);
-                arrow.head_size = track.head_size.get(time_ms, 10.0);
-            }
-            _ => {}
-        }
-        if vector_shape_uses_custom_path(shape_type) {
-            if let Some(first_path) = vector_paths.first().map(|vp| vp.path.clone()) {
-                match &mut vector_shape_state {
-                    VectorShapeState::Polygon(poly) => poly.custom_path = Some(first_path),
-                    VectorShapeState::Path(path_state) => path_state.custom_path = Some(first_path),
-                    _ => {}
-                }
-            }
-        }
-        if let Some(path) = build_vector_shape_vello_path(
-            shape_type,
-            &vector_shape_state,
-            VectorShapeStyle {
-                color,
-                stroke_width,
-                stroke_color,
-                fill_opacity,
-            },
-        ) {
-            *vector_paths = vec![path];
-        }
-    }
-
-    fn evaluate_text_node(
-        &self,
-        track: &AnimationTrack,
-        time_ms: u64,
-        node_overrides: Option<&std::collections::HashMap<String, Value>>,
-        _local_transform: &kurbo::Affine,
-        _opacity: f32,
-        _scene: &mut vello::Scene,
-        _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
-    ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
-        let mut content = track.text_content.get(time_ms, String::new());
-        let mut font_family = track.font_family.get(time_ms, String::new());
-        let default_font_size = match track.kind {
-            super::ActorKindId::Code => 24.0,
-            _ => 48.0,
-        };
-        let mut font_size = track.font_size.get(time_ms, default_font_size);
-        let mut color = track.color.get(time_ms, DEFAULT_WHITE);
-
-        if let Some(ov) = node_overrides {
-            if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")).or_else(|| ov.get("math")).or_else(|| ov.get("latex")).or_else(|| ov.get("content")) {
-                content = s.clone();
-            }
-            if let Some(Value::Str(s)) = ov.get("font_family") {
-                font_family = s.clone();
-            }
-            if let Some(Value::Num(n)) = ov.get("font_size") {
-                font_size = *n as f32;
-            }
-            if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
-                color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
-            }
-        }
-
-        if !content.is_empty() {
-            let kind = match track.kind {
-                super::ActorKindId::Text => TextKind::Text,
-                super::ActorKindId::Math => TextKind::Math,
-                super::ActorKindId::Code => TextKind::Code,
-                super::ActorKindId::Typst => TextKind::Typst,
-                _ => TextKind::Text,
-            };
-            let mut compiler = self.text_compiler.borrow_mut();
-            compiler.compile(&content, &font_family, font_size, color, kind, self.font_context.as_ref())
-        } else {
-            Ok(track.evaluate_text_paths(time_ms).into())
         }
     }
 
@@ -427,7 +305,6 @@ impl Timeline {
         );
         let is_visible = viewport.intersect(actor_bounds).area() > 0.0;
 
-        let shape_type = track.shape_type.get(time_ms, ShapeType::Rect);
         let mut vector_paths = track.evaluate_vector_paths(time_ms);
 
         // Re-sample procedural plots at frame time so they can reference `t`.
@@ -444,44 +321,10 @@ impl Timeline {
 
         let node_overrides = overrides.get(node_label);
 
-        let mut line_from = track.line_from.get(time_ms, [-50.0, 0.0]);
-        let mut line_to = track.line_to.get(time_ms, [50.0, 0.0]);
-        let arc_angles = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-
-        if let Some(node_overrides) = node_overrides {
-            if let Some(Value::Vec2(from)) = node_overrides.get("from") {
-                line_from = [from[0] as f32, from[1] as f32];
-            }
-            if let Some(Value::Vec2(to)) = node_overrides.get("to") {
-                line_to = [to[0] as f32, to[1] as f32];
-            }
-        }
-
-        let style = crate::primitives::sample_shape_style(track, time_ms, node_overrides);
-        let color = style.color;
-        let stroke_width = style.stroke_width;
-        let stroke_color = style.stroke_color;
-        let fill_opacity = style.fill_opacity;
-
         // P2.19: Only sample properties and render if actor is visible on screen.
         // For off-screen actors we still return transform/opacity so children
         // (which may extend back into view) are correctly evaluated.
         if is_visible {
-            // ── Filter container — children are rendered via sub-scene ──
-            if track.kind == ActorKindId::Filter {
-                // Skip normal content/effects; filter rendering is handled
-                // in render_node_children after children are captured.
-                let default_bounds = kurbo::Rect::new(
-                    (-half_size[0]) as f64,
-                    (-half_size[1]) as f64,
-                    half_size[0] as f64,
-                    half_size[1] as f64,
-                );
-                let world_bounds = transform_rect_bbox(&local_transform, default_bounds);
-                hit_regions.push((node_label.to_string(), world_bounds));
-                return (local_transform, opacity);
-            }
-
             // ── Phase 10b.3: Trait-dispatch scene evaluation ──
             // Try the primitive's evaluate() first. If it returns commands,
             // execute them and skip the legacy manual rendering path.
@@ -496,6 +339,7 @@ impl Timeline {
                         opacity,
                         scene_dimensions,
                         overrides: node_overrides,
+                        vector_paths: &vector_paths,
                     };
                     let mut text_ctx = crate::primitives::TextCompileCtx {
                         text_compiler: &mut *self.text_compiler.borrow_mut(),
@@ -549,174 +393,9 @@ impl Timeline {
 
                 return (local_transform, opacity);
             }
-
-            // ── Runtime text recompilation ──
-            let text_paths = self.evaluate_text_node(
-                track,
-                time_ms,
-                node_overrides,
-                &local_transform,
-                opacity,
-                scene,
-                &mut Vec::new(),
-            ).unwrap_or_default();
-
-            self.build_shape_vector_paths(
-                track,
-                time_ms,
-                half_size,
-                line_from,
-                line_to,
-                arc_angles,
-                color,
-                stroke_width,
-                stroke_color,
-                fill_opacity,
-                shape_type,
-                &mut vector_paths,
-            );
-
-            let local_opacity = opacity;
-            let image = track.image.get(time_ms, None);
-            let has_image = image.is_some();
-
-            // ── Content rendering ──
-            self.render_node_content(
-                scene,
-                track,
-                &vector_paths,
-                &text_paths,
-                image,
-                local_transform,
-                local_opacity,
-                half_size,
-            );
-
-            // ── Debug overlays ──
-            if debug_options.draw_bounds {
-                let _ = self.add_node_debug_overlays(
-                    track,
-                    half_size,
-                    &local_transform,
-                    scene,
-                    &vector_paths,
-                    &text_paths,
-                    has_image,
-                );
-            }
-
-            // ── Hit region collection ──
-            let lb = node_local_bounds(&vector_paths, &text_paths, &track.svg_paths, has_image.then_some(half_size));
-            let world_bounds = if let Some(local_bounds) = lb {
-                transform_rect_bbox(&local_transform, local_bounds)
-            } else {
-                let default_bounds = kurbo::Rect::new(
-                    (-half_size[0]) as f64,
-                    (-half_size[1]) as f64,
-                    half_size[0] as f64,
-                    half_size[1] as f64,
-                );
-                transform_rect_bbox(&local_transform, default_bounds)
-            };
-            hit_regions.push((node_label.to_string(), world_bounds));
         }
 
         (local_transform, opacity)
-    }
-
-    /// Render vector paths, text, SVG, and image content for a node.
-    fn render_node_content(
-        &self,
-        scene: &mut vello::Scene,
-        track: &AnimationTrack,
-        vector_paths: &[VelloPath],
-        text_paths: &[TextPath],
-        image: Option<crate::timeline::image::SceneImage>,
-        local_transform: kurbo::Affine,
-        local_opacity: f32,
-        half_size: [f32; 2],
-    ) {
-        for vector_path in vector_paths {
-            if let Some(mut fill_color) = vector_path.fill {
-                if local_opacity < 1.0 {
-                    fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
-                }
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    local_transform,
-                    fill_color,
-                    None,
-                    &vector_path.path,
-                );
-            }
-            if let Some((mut stroke_color, stroke_width)) = vector_path.stroke {
-                if local_opacity < 1.0 {
-                    stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
-                }
-                let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                scene.stroke(&stroke, local_transform, stroke_color, None, &vector_path.path);
-            }
-        }
-
-        for text_path in text_paths {
-            let color = match &text_path.color {
-                typst::visualize::Paint::Solid(color) => {
-                    let rgba = color.to_vec4_u8();
-                    vello::peniko::Color::from_rgba8(
-                        rgba[0],
-                        rgba[1],
-                        rgba[2],
-                        (rgba[3] as f32 * local_opacity * text_path.opacity) as u8,
-                    )
-                }
-                _ => vello::peniko::Color::WHITE,
-            };
-            scene.fill(
-                vello::peniko::Fill::NonZero,
-                local_transform,
-                color,
-                None,
-                &text_path.path,
-            );
-        }
-
-        for svg_path in &track.svg_paths {
-            if let Some(mut fill_color) = svg_path.fill {
-                if local_opacity < 1.0 {
-                    fill_color = fill_color.with_alpha(fill_color.components[3] * local_opacity);
-                }
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    local_transform,
-                    fill_color,
-                    None,
-                    &svg_path.path,
-                );
-            }
-            if let Some((mut stroke_color, stroke_width)) = svg_path.stroke {
-                if local_opacity < 1.0 {
-                    stroke_color = stroke_color.with_alpha(stroke_color.components[3] * local_opacity);
-                }
-                let stroke = vello::kurbo::Stroke::new(stroke_width as f64);
-                scene.stroke(&stroke, local_transform, stroke_color, None, &svg_path.path);
-            }
-        }
-
-        if let Some(image) = image {
-            let [natural_width, natural_height] = image.natural_size;
-            let display_width = half_size[0] * 2.0;
-            let display_height = half_size[1] * 2.0;
-            let image_transform = local_transform
-                * kurbo::Affine::scale_non_uniform(
-                    (display_width / natural_width) as f64,
-                    (display_height / natural_height) as f64,
-                );
-            let brush = vello::peniko::ImageBrush::new(image.data.clone())
-                .with_extend(vello::peniko::Extend::Pad)
-                .with_quality(vello::peniko::ImageQuality::Medium)
-                .with_alpha(local_opacity);
-            scene.draw_image(&brush, image_transform);
-        }
     }
 
     /// Recursively render child nodes, with special handling for mask containers.

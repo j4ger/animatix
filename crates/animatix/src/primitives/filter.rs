@@ -34,6 +34,17 @@ impl Primitive for FilterPrimitive {
         Ok(())
     }
 
+    fn evaluate(
+        &self,
+        _ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        // Filter has no visual content of its own; children are rendered
+        // to a sub-scene and post-processed in render_node_children.
+        // Return empty commands so the trait-dispatch path computes hit regions.
+        Ok(Some(vec![]))
+    }
+
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![]
     }

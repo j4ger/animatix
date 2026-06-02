@@ -34,6 +34,14 @@ impl Primitive for AudioPrimitive {
         Ok(())
     }
 
+    fn evaluate(
+        &self,
+        _ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        Ok(Some(vec![]))
+    }
+
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("source", Expr::Str(String::new())),

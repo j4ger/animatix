@@ -32,6 +32,17 @@ impl Primitive for MaskPrimitive {
         Ok(())
     }
 
+    fn evaluate(
+        &self,
+        _ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+        // Mask has no visual content of its own; children are handled
+        // by render_node_children with clipping. Return empty commands
+        // so the trait-dispatch path computes hit regions.
+        Ok(Some(vec![]))
+    }
+
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![]
     }
