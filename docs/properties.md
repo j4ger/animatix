@@ -86,6 +86,9 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `source` | String | — | — | Audio |
 | `volume` | F32 | — | — | Audio |
 
+`source` is the path to the audio asset. `volume` is a multiplier (0.0–1.0) applied at export time.
+Audio actors support timing modifiers (`duration`, delay) for clip placement on the global timeline. See [`spec.md`](spec.md) §9 "Audio".
+
 ## Plotting
 
 | Property | Type | Animated | Assignable | Applies to |

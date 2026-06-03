@@ -467,6 +467,28 @@ bg: Filter, blur: 40, brightness: 0.5 {
 
 Pipeline order: **blur → color matrix → opacity**. Nested filters are allowed but each level adds one offscreen pass.
 
+### Audio
+
+`Audio` is a non-visual actor that embeds an external audio file into the exported video.
+
+```animatix
+music: Audio, source: "background.mp3"
+voice: Audio, source: "voiceover.wav", volume: 0.8, [1s, duration: 5s]
+```
+
+**Audio properties:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `source` | String | — | Path to the audio file (relative or absolute) |
+| `volume` | F32 | 1.0 | Playback volume multiplier (0.0–1.0) |
+
+**Timing modifiers:**
+- `duration: <time>` — trim the audio clip to the specified length. Without this, the full file plays.
+- Delay modifiers (e.g. `[1s]`) shift the audio start time on the global timeline.
+
+During video export, all `Audio` actors from the current scene (or all scenes in a composition) are mixed together. Overlapping clips are blended; each clip respects its individual `volume` and start offset.
+
 ### Available Primitives & Common Confusions
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`

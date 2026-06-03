@@ -6,12 +6,6 @@
 
 ---
 
-## Phase 7 — Audio
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1 | **Audio multi-segment muxing** | Concatenate multiple audio files via ffmpeg into final output. Support per-scene audio tracks. | `export/ffmpeg.rs` | 3 days | — |
-
 ---
 
 ## Phase 9 — PiP / Multi-Viewport
@@ -39,9 +33,8 @@
 
 ## Order
 
-1. **Phase 7** (audio — no blockers)
-2. **Phase 9** (PiP — after syntax and renderer are stable)
-3. **Phase 11** (start after syntax stabilizes)
+1. **Phase 9** (PiP — after syntax and renderer are stable)
+2. **Phase 11** (start after syntax stabilizes)
 
 ---
 

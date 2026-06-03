@@ -259,10 +259,13 @@ impl std::str::FromStr for H264Preset {
 // ---------------------------------------------------------------------------
 
 /// Mux audio segments into the rendered video using ffmpeg CLI.
-/// Creates a temporary file and renames it on success.
 ///
-/// For MVP, only a single audio segment is supported. Multiple segments
-/// are concatenated via ffmpeg's concat filter.
+/// Each segment is positioned on the global timeline via `adelay`, optionally
+/// trimmed to `duration_s` via `atrim`, and its volume scaled.  All segments
+/// are then mixed together with `amix` so overlapping audio (e.g. background
+/// music + voiceover) blends correctly.
+///
+/// Creates a temporary file and renames it on success.
 pub fn mux_audio_segments(
     video_path: &std::path::Path,
     segments: &[crate::timeline::AudioSegment],
@@ -274,70 +277,74 @@ pub fn mux_audio_segments(
 
     let temp_path = output_path.with_extension("tmp_muxed.mp4");
 
-    // For MVP: support a single audio file
-    if segments.len() == 1 {
-        let seg = &segments[0];
-        let status = std::process::Command::new("ffmpeg")
-            .arg("-y")
-            .arg("-i")
-            .arg(video_path)
-            .arg("-i")
-            .arg(&seg.source)
-            .arg("-c:v").arg("copy")
-            .arg("-c:a").arg("aac")
-            .arg("-map").arg("0:v:0")
-            .arg("-map").arg("1:a:0")
-            .arg("-shortest")
-            .arg(&temp_path)
-            .status()
-            .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
+    // Build a filter_complex that positions, trims, and volumes each segment,
+    // then mixes them all together.
+    let mut filter_chains: Vec<String> = Vec::with_capacity(segments.len());
+    let mut mix_labels: Vec<String> = Vec::with_capacity(segments.len());
 
-        if !status.success() {
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(ExportError::VideoEncode(
-                "ffmpeg audio muxing failed".into(),
-            ));
-        }
-    } else {
-        // Multiple audio segments: use concat filter
-        let mut filter_parts: Vec<String> = Vec::new();
-        let mut inputs_args: Vec<std::ffi::OsString> = Vec::new();
-        for (i, seg) in segments.iter().enumerate() {
-            inputs_args.push(std::ffi::OsString::from("-i"));
-            inputs_args.push(std::ffi::OsString::from(&seg.source));
-            filter_parts.push(format!("[{}:a:0]", i + 1));
-        }
-        let filter_desc = format!("{}concat=n={}:v=0:a=1[outa]", filter_parts.join(""), segments.len());
+    for (i, seg) in segments.iter().enumerate() {
+        let input_idx = i + 1; // 0 is the video file
+        let label = format!("[a{i}]");
+        let delay_ms = (seg.start_time_s * 1000.0).round() as i64;
+        let delay_ms = delay_ms.max(0);
 
-        let mut cmd = std::process::Command::new("ffmpeg");
-        cmd.arg("-y");
-        cmd.arg("-i").arg(video_path);
-        for arg in inputs_args {
-            cmd.arg(arg);
-        }
-        cmd.arg("-filter_complex").arg(&filter_desc);
-        cmd.arg("-map").arg("0:v:0");
-        cmd.arg("-map").arg("[outa]");
-        cmd.arg("-c:v").arg("copy");
-        cmd.arg("-shortest");
-        cmd.arg(&temp_path);
+        let mut chain = format!("[{input_idx}:a:0]");
 
-        let status = cmd
-            .status()
-            .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
-
-        if !status.success() {
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(ExportError::VideoEncode(
-                "ffmpeg audio muxing failed".into(),
-            ));
+        // Trim to declared duration if specified.
+        if seg.duration_s > 0.0 {
+            chain.push_str(&format!("atrim=end={:.3},", seg.duration_s));
         }
+
+        // Apply per-segment volume.
+        chain.push_str(&format!("volume={:.3},", seg.volume));
+
+        // Delay to global timeline position.
+        chain.push_str(&format!("adelay={delay_ms}|{delay_ms}"));
+
+        chain.push_str(&label);
+        filter_chains.push(chain);
+        mix_labels.push(label);
+    }
+
+    let mix_filter = format!(
+        "{}amix=inputs={}:duration=longest:normalize=0[outa]",
+        mix_labels.join(""),
+        segments.len()
+    );
+    filter_chains.push(mix_filter);
+    let filter_complex = filter_chains.join(";");
+
+    let mut cmd = std::process::Command::new("ffmpeg");
+    cmd.arg("-y");
+    cmd.arg("-i").arg(video_path);
+    for seg in segments {
+        cmd.arg("-i").arg(&seg.source);
+    }
+    cmd.arg("-filter_complex").arg(&filter_complex);
+    cmd.arg("-map").arg("0:v:0");
+    cmd.arg("-map").arg("[outa]");
+    cmd.arg("-c:v").arg("copy");
+    cmd.arg("-c:a").arg("aac");
+    cmd.arg("-shortest");
+    cmd.arg(&temp_path);
+
+    tracing::debug!("ffmpeg audio mux command: {:?}", cmd);
+
+    let status = cmd
+        .status()
+        .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(ExportError::VideoEncode(
+            "ffmpeg audio muxing failed".into(),
+        ));
     }
 
     // Replace original with muxed version
     std::fs::rename(&temp_path, output_path)
         .map_err(|e| ExportError::VideoEncode(format!("Failed to replace video with muxed version: {e}")))?;
 
-    tracing::info!("Audio muxed into {}", output_path.display());
+    tracing::info!("Audio muxed {} segment(s) into {}", segments.len(), output_path.display());
     Ok(())
 }
