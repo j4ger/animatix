@@ -300,7 +300,7 @@ impl OffscreenRenderer {
         let buffer_slice = output_buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            let _ = tx.send(result);
+            tx.send(result).ok();
         });
         self.device
             .poll(wgpu::PollType::Wait {

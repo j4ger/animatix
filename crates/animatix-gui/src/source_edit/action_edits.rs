@@ -48,10 +48,8 @@ pub(super) fn insert_action(
 
     // If we're essentially on top of the previous keyframe, append there
     // to avoid micro-fragmentation.
-    if delta_s < TIME_EPSILON_S {
-        if append_to_keyframe_at_time(stmts, prev_time_s, action.clone()) {
-            return Ok(());
-        }
+    if delta_s < TIME_EPSILON_S && append_to_keyframe_at_time(stmts, prev_time_s, action.clone()) {
+        return Ok(());
     }
 
     // ── 3. Choose keyframe style: inherit from preceding keyframe ──

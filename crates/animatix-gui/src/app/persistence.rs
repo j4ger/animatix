@@ -103,12 +103,12 @@ pub(super) fn load_app_state() -> Option<PathBuf> {
 pub(super) fn save_app_state(recent_file: &Path) {
     let path = app_state_path();
     if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
+        fs::create_dir_all(parent).ok();
     }
     let state = AppState {
         recent_file: Some(recent_file.to_path_buf()),
     };
     if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
-        let _ = fs::write(&path, serialized);
+        fs::write(&path, serialized).ok();
     }
 }

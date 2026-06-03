@@ -326,9 +326,7 @@ where
     F: FnOnce(&mut Vec<animatix_syntax::ast::Stmt>) -> Result<(), crate::source_edit::SourceEditError>,
 {
     let mut trial = stmts.clone();
-    if let Err(e) = apply_fn(&mut trial) {
-        return Err(e);
-    }
+    apply_fn(&mut trial)?;
 
     let new_source = animatix_syntax::to_source::stmts_to_source(&trial);
     let source_index = animatix_syntax::source_index::SourceIndex::build(&trial);

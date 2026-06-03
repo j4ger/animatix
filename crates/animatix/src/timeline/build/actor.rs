@@ -678,7 +678,7 @@ impl Timeline {
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new("color", Expr::Str("#888888".to_string())),
                     ];
-                    let _ = self.process_text_actor_decl(
+                    self.process_text_actor_decl(
                         "Text",
                         &child_label,
                         &tick_props,
@@ -686,7 +686,7 @@ impl Timeline {
                         time_ms,
                         Some(label),
                         diagnostics,
-                    );
+                    ).ok();
                 }
 
                 // Y-axis tick labels (positioned to the left of the axis line)
@@ -698,7 +698,7 @@ impl Timeline {
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new("color", Expr::Str("#888888".to_string())),
                     ];
-                    let _ = self.process_text_actor_decl(
+                    self.process_text_actor_decl(
                         "Text",
                         &child_label,
                         &tick_props,
@@ -706,7 +706,7 @@ impl Timeline {
                         time_ms,
                         Some(label),
                         diagnostics,
-                    );
+                    ).ok();
                 }
             }
 

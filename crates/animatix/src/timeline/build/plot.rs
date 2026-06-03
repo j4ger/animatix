@@ -902,7 +902,7 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
 
             // Phase 6.4: Check cache for static plot paths before rebuilding.
-            let is_static = func.as_ref().map_or(true, |(_, body)| !body.references_ident("t"));
+            let is_static = func.as_ref().is_none_or(|(_, body)| !body.references_ident("t"));
             let cache_key = if is_static {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};

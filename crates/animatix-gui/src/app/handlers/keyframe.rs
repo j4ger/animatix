@@ -15,7 +15,7 @@ pub fn handle_set_keyframe_easing(
         actor: actor.clone(),
         property: property.clone(),
         time_s,
-        easing: easing.clone(),
+        easing,
     });
     let mut ctrl = DocumentController {
         document_store,

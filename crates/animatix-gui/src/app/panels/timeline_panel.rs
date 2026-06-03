@@ -27,6 +27,7 @@ use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
+#[allow(dead_code)]
 pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
@@ -515,7 +516,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             // ── Actor tracks (tree structure, all actors) ──
             for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
                 let is_collapsed = collapsed_actors.contains(actor_label);
-                let has_children = timeline.and_then(|tl| tl.get_track(actor_label)).map_or(false, |t| !t.children.is_empty());
+                let has_children = timeline.and_then(|tl| tl.get_track(actor_label)).is_some_and(|t| !t.children.is_empty());
                 let is_selected = selected_actors.contains(actor_label);
                 let at_top = actor_first_top + track_idx as f32 * TRACK_ROW_HEIGHT;
                 let at_bot = at_top + TRACK_ROW_HEIGHT;
@@ -641,8 +642,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 commands.push_back(ShellAction::Command(Command::ScrubTo(start_s)));
                             }
                             action_resp.on_hover_text(format!(
-                                "{}: {}\n{:.2}s → {:.2}s\nTargets: {}",
-                                format!("{:?}", event.category),
+                                "{:?}: {}\n{:.2}s → {:.2}s\nTargets: {}",
+                                event.category,
                                 event.verb,
                                 start_s,
                                 end_s,

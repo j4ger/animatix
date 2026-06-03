@@ -11,6 +11,10 @@ use super::modifier_runtime::{ir, vm};
 use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr};
 
 impl Timeline {
+    /// Apply a single modifier statement to the frame environment.
+    ///
+    /// Updates `overrides` and `frame_env` in place according to the
+    /// statement type (assignment, let, conditional, for loop).
     pub fn apply_modifier_stmt(
         &self,
         stmt: &Stmt,

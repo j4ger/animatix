@@ -98,12 +98,6 @@ impl PlaybackController {
         self.is_playing = false;
     }
 
-    /// Advance (or rewind) by a signed delta (clamped to [0, duration]).
-    pub(crate) fn advance_by(&mut self, delta_s: f64) {
-        self.current_time_s = (self.current_time_s + delta_s).clamp(0.0, self.duration_s.max(0.1));
-        self.is_playing = false;
-    }
-
     fn clamp_time(&mut self) {
         let max_duration = self.duration_s.max(0.1);
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
@@ -415,7 +409,7 @@ impl GuiShell {
         // Global keyboard shortcuts (non-tool-mode shortcuts only;
         // tool mode switching is handled in runtime.rs with proper
         // wants_keyboard checks to avoid conflicts with text input).
-        let wants_keyboard = ui.ctx().wants_keyboard_input();
+        let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
         ui.input(|i| {
             if !wants_keyboard && i.key_pressed(egui::Key::Y) && !i.modifiers.command {
                 commands.push_back(ShellAction::Command(Command::ToggleEditorSync));
@@ -601,7 +595,7 @@ impl GuiShell {
                         );
                         if new_resp.clicked() {
                             let path = default_file_path();
-                            let _ = std::fs::write(&path, "#0s\n");
+                            std::fs::write(&path, "#0s\n").ok();
                             commands.push_back(ShellAction::Command(Command::OpenFile(path)));
                         }
 

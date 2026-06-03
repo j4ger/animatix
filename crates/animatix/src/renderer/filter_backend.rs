@@ -466,8 +466,8 @@ impl GpuFilterBackend {
             });
             pass.set_pipeline(&self.blur_pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
-            let dispatch_x = (width + 15) / 16;
-            let dispatch_y = (height + 15) / 16;
+            let dispatch_x = width.div_ceil(16);
+            let dispatch_y = height.div_ceil(16);
             pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
         }
     }
@@ -521,8 +521,8 @@ impl GpuFilterBackend {
             // Dimensions come from src_view which matches scene dimensions
             let width = self._dimensions.width;
             let height = self._dimensions.height;
-            let dispatch_x = (width + 15) / 16;
-            let dispatch_y = (height + 15) / 16;
+            let dispatch_x = width.div_ceil(16);
+            let dispatch_y = height.div_ceil(16);
             pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
         }
     }
@@ -568,7 +568,7 @@ impl GpuFilterBackend {
         let buffer_slice = output_buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            let _ = tx.send(result);
+            tx.send(result).ok();
         });
         self.device
             .poll(wgpu::PollType::Wait {
@@ -686,6 +686,7 @@ impl GpuFilterBackend {
 
         let mut src_view = tex_a_view;
         let mut dst_view = tex_b_view;
+        let mut active = FilteredSource::TexA;
 
         // Blur passes
         if needs_blur {
@@ -719,20 +720,25 @@ impl GpuFilterBackend {
             );
             self.dispatch_color_matrix(&mut encoder, src_view, dst_view, &matrix);
             std::mem::swap(&mut src_view, &mut dst_view);
+            active = match active {
+                FilteredSource::TexA => FilteredSource::TexB,
+                FilteredSource::TexB => FilteredSource::TexA,
+                FilteredSource::Render => unreachable!("render texture is never swapped in ping-pong"),
+            };
         }
 
         // After all swaps, src_view holds the final result
         self.queue.submit(std::iter::once(encoder.finish()));
 
         // Determine which texture view is the final result
-        let (final_view, source) = if src_view as *const _ == tex_a_view as *const _ {
-            (tex_a_view.clone(), FilteredSource::TexA)
-        } else {
-            (tex_b_view.clone(), FilteredSource::TexB)
+        let final_view = match active {
+            FilteredSource::TexA => tex_a_view.clone(),
+            FilteredSource::TexB => tex_b_view.clone(),
+            FilteredSource::Render => unreachable!("render texture is never swapped in ping-pong"),
         };
 
         self.last_filtered_view = Some(final_view);
-        self.last_filtered_source = source;
+        self.last_filtered_source = active;
         Ok(self.last_filtered_view.as_ref().unwrap())
     }
 

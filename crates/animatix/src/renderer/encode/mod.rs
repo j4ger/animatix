@@ -335,7 +335,7 @@ pub fn mux_audio_segments(
         .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
 
     if !status.success() {
-        let _ = std::fs::remove_file(&temp_path);
+        std::fs::remove_file(&temp_path).ok();
         return Err(ExportError::VideoEncode(
             "ffmpeg audio muxing failed".into(),
         ));
@@ -343,7 +343,7 @@ pub fn mux_audio_segments(
 
     // Replace original with muxed version
     if let Err(e) = std::fs::rename(&temp_path, output_path) {
-        let _ = std::fs::remove_file(&temp_path);
+        std::fs::remove_file(&temp_path).ok();
         return Err(ExportError::VideoEncode(format!(
             "Failed to replace video with muxed version: {e}"
         )));

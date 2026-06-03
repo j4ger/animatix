@@ -1,5 +1,5 @@
 use super::{
-    ActorKindId, AnimationTrack, DebugRenderOptions, EvalError, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value,
+    ActorKindId, AnimationTrack, DebugRenderOptions, EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, Value,
     VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 use crate::renderer::types::TextPath;
@@ -343,7 +343,7 @@ impl Timeline {
                         vector_paths: &vector_paths,
                     };
                     let mut text_ctx = crate::primitives::TextCompileCtx {
-                        text_compiler: &mut *self.text_compiler.borrow_mut(),
+                        text_compiler: &mut self.text_compiler.borrow_mut(),
                         font_context: self.font_context.as_ref(),
                     };
                     primitive.evaluate(&ctx, Some(&mut text_ctx)).ok().flatten()
@@ -786,7 +786,7 @@ impl Timeline {
 mod tests {
     use super::*;
     use crate::easing::Easing;
-    use crate::timeline::{AnimationTrack, PropertyTrack};
+    use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType};
 
     /// Helper to create a minimal Timeline with one root track.
     fn make_minimal_timeline() -> Timeline {

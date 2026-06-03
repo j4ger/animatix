@@ -290,7 +290,7 @@ impl ApplicationHandler for App {
                     current_time
                 };
 
-                let _ = state.render(current_time).is_ok();
+                state.render(current_time).ok();
                 window.request_redraw();
             }
             _ => {}
@@ -669,7 +669,7 @@ impl ApplicationHandler for CompositionApp {
                     current_time
                 };
 
-                let _ = state.render(current_time).is_ok();
+                state.render(current_time).ok();
                 window.request_redraw();
             }
             _ => {}

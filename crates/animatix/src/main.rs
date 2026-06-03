@@ -598,7 +598,7 @@ fn main() {
                     } else {
                         let errors: Vec<String> = diagnostics
                             .iter()
-                            .map(|d| diagnostic_to_json(d))
+                            .map(diagnostic_to_json)
                             .collect();
                         println!(
                             r#"{{"passed":false,"errors":[{}]}}"#,
