@@ -409,7 +409,7 @@ impl GuiShell {
         item: PaletteItem,
     ) {
         let ctx = InsertionContext {
-            current_time_s: self.preview_store.preview.playback.current_time_s,
+            current_time_s: self.preview_store.preview.playback.current_time_s(),
             selected_actors: self.ui_store.selection.selected_actors.clone(),
             cursor_cell_time_s: self.ui_store.cursor_time_s,
             selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {

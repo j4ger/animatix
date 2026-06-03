@@ -31,7 +31,7 @@ pub(crate) fn handle_preview_drag(
                 let props = ctx.get_actor_props(&actor);
 
                 if let Some(ref p) = props {
-                    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                     let vertex_points = ctx.timeline
                         .and_then(|t| t.get_track(&actor))
                         .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
@@ -335,7 +335,7 @@ pub(crate) fn handle_preview_drag(
                     let snap_enabled = ctx.preview.snap.snap_enabled && !ui.input(|i| i.modifiers.alt);
                     let threshold = ctx.preview.snap.snap_threshold;
 
-                    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                     for (actor, start_position) in actors {
                         let mut nx = start_position[0] + dx;
                         let mut ny = start_position[1] + dy;
@@ -514,7 +514,7 @@ pub(crate) fn handle_preview_drag(
                         })));
                     }
 
-                    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                     let binding = ctx.timeline.and_then(|t| t.get_track(&actor))
                         .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
                         .unwrap_or(PositionBinding::Absolute);
@@ -552,7 +552,7 @@ pub(crate) fn handle_preview_drag(
                     })));
                 }
                 DragState::Reorder { actor, container, source_index: _, target_index: _, layout_type } => {
-                    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                     if let Some(timeline) = ctx.timeline {
                         let order = timeline.get_child_order(&container, time_ms);
                         let siblings: Vec<String> = order.into_iter().filter(|l| l != &actor).collect();
@@ -603,7 +603,7 @@ pub(crate) fn handle_preview_drag(
         if is_dragging && (response.drag_stopped() || pointer_released || !ui.input(|i| i.pointer.any_down())) {
             let old_drag_state = ctx.drag_state.clone();
             if let Some(tl) = ctx.timeline {
-                let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 match &old_drag_state {
                     DragState::Move { primary, actors, .. } => {
                         if let Some(current_props) = ctx.get_actor_props(primary) {
@@ -647,7 +647,7 @@ pub(crate) fn handle_preview_drag(
 
             if let DragState::Reorder { actor, container, source_index, target_index, .. } = ctx.drag_state.clone() {
                 if source_index != target_index {
-                    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                     if let Some(timeline) = ctx.timeline {
                         let mut new_order = timeline.get_child_order(&container, time_ms);
                         if let Some(pos) = new_order.iter().position(|label| label == &actor) {

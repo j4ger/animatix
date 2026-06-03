@@ -27,7 +27,7 @@ impl GuiShell {
                 "⚠ Edited {}.{} @ {:.2}s — {}",
                 edit.actor,
                 edit.property,
-                self.preview_store.preview.playback.current_time_s,
+                self.preview_store.preview.playback.current_time_s(),
                 err
             );
         } else {
@@ -35,8 +35,8 @@ impl GuiShell {
                 .document_store
                 .source
                 .document
-                .prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
-            let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
+                .prev_keyframe_time(self.preview_store.preview.playback.current_time_s());
+            let delta_s = self.preview_store.preview.playback.current_time_s() - prev_time_s;
             self.preview_store.preview.status = if delta_s < self.ui_store.keyframe_merge_window_s {
                 format!("Merged {}.{} @ {:.2}s", edit.actor, edit.property, prev_time_s)
             } else {
@@ -44,7 +44,7 @@ impl GuiShell {
                     "Keyframe {}.{} @ {:.2}s",
                     edit.actor,
                     edit.property,
-                    self.preview_store.preview.playback.current_time_s
+                    self.preview_store.preview.playback.current_time_s()
                 )
             };
         }
@@ -172,7 +172,7 @@ impl GuiShell {
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
         if let Some(ref mut timeline) = self.document_store.source.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
+                let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
             timeline.invalidate_frame_cache();
@@ -186,8 +186,8 @@ impl GuiShell {
             .document_store
             .source
             .document
-            .prev_keyframe_time(self.preview_store.preview.playback.current_time_s);
-        let delta_s = self.preview_store.preview.playback.current_time_s - prev_time_s;
+            .prev_keyframe_time(self.preview_store.preview.playback.current_time_s());
+        let delta_s = self.preview_store.preview.playback.current_time_s() - prev_time_s;
 
         let (new_source, source_index) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
@@ -203,7 +203,7 @@ impl GuiShell {
                         actor: edit.actor.clone(),
                         property: edit.property.clone(),
                         value: expr.clone(),
-                        time_s: self.preview_store.preview.playback.current_time_s,
+                        time_s: self.preview_store.preview.playback.current_time_s(),
                         prev_time_s,
                     }
                 };

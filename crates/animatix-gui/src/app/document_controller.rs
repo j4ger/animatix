@@ -97,7 +97,7 @@ impl DocumentController<'_> {
                 label: label.into(),
                 props,
                 container: container.clone(),
-                time_s: self.preview_store.preview.playback.current_time_s,
+                time_s: self.preview_store.preview.playback.current_time_s(),
             };
 
             if crate::source_edit::apply_edit(stmts, edit).is_ok() {
@@ -182,7 +182,7 @@ impl DocumentController<'_> {
             format!("Duplicated '{}' → '{}'", original_label, new_label);
 
         // Start move drag for the new actor at the original position
-        let time_ms = (self.preview_store.preview.playback.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
         if let Some(timeline) = self.document_store.source.document.timeline.as_ref() {
             if let Some(track) = timeline.get_track(original_label) {
                 let position = track
@@ -554,7 +554,7 @@ impl DocumentController<'_> {
     ///
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn paste_actors(&mut self) {
-        let current_time_s = self.preview_store.preview.playback.current_time_s;
+        let current_time_s = self.preview_store.preview.playback.current_time_s();
         let clipboard = self.ui_store.clipboard.clipboard_actors.clone();
 
         // Pre-generate all unique labels before mutating the AST.

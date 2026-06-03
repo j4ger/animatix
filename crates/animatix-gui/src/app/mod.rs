@@ -78,7 +78,7 @@ pub(crate) struct FileTreeEntry {
 /// Playback controller: time, duration, play/pause, speed, loop region.
 #[derive(Debug, Clone)]
 pub(crate) struct PlaybackController {
-    pub current_time_s: f64,
+    current_time_s: f64,
     pub duration_s: f64,
     pub is_playing: bool,
     pub playback_speed: f32,
@@ -87,6 +87,23 @@ pub(crate) struct PlaybackController {
 }
 
 impl PlaybackController {
+    /// Read the current playback time in seconds.
+    pub(crate) fn current_time_s(&self) -> f64 {
+        self.current_time_s
+    }
+
+    /// Jump to an absolute time (clamped to [0, duration]).
+    pub(crate) fn scrub_to(&mut self, time_s: f64) {
+        self.current_time_s = time_s.clamp(0.0, self.duration_s.max(0.1));
+        self.is_playing = false;
+    }
+
+    /// Advance (or rewind) by a signed delta (clamped to [0, duration]).
+    pub(crate) fn advance_by(&mut self, delta_s: f64) {
+        self.current_time_s = (self.current_time_s + delta_s).clamp(0.0, self.duration_s.max(0.1));
+        self.is_playing = false;
+    }
+
     fn clamp_time(&mut self) {
         let max_duration = self.duration_s.max(0.1);
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
@@ -357,7 +374,7 @@ impl GuiShell {
             self.preview_store.preview_dirty = true;
 
             if self.ui_store.editor_sync_enabled {
-                if let Some(line) = self.document_store.source.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s) {
+                if let Some(line) = self.document_store.source.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s()) {
                     if self.document_store.source.editor.highlighted_line != Some(line) {
                         self.document_store.source.editor.scroll_to_line(line);
                         self.document_store.source.editor.set_highlighted_line(Some(line));
@@ -741,7 +758,7 @@ impl GuiShell {
 
     fn sync_active_scene_from_time(&mut self) {
         if let Some(composition) = self.document_store.source.document.composition.as_ref() {
-            let (scene, _, _) = composition.evaluate(self.preview_store.preview.playback.current_time_s);
+            let (scene, _, _) = composition.evaluate(self.preview_store.preview.playback.current_time_s());
             self.document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
         }
     }

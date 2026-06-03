@@ -120,8 +120,7 @@ impl AnimatixApp {
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
-            self.shell.preview_store.preview.playback.toggle_playback();
-            self.shell.preview_store.preview_dirty = true;
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::TogglePlayback));
         }
 
         // Scene jump hotkeys (1/2/3) — jump to Nth scene in composition
@@ -162,7 +161,7 @@ impl AnimatixApp {
             let dx = if arrow_left { -nudge_step } else if arrow_right { nudge_step } else { 0.0 };
             let dy = if arrow_up { -nudge_step } else if arrow_down { nudge_step } else { 0.0 };
 
-            let time_ms = (self.shell.preview_store.preview.playback.current_time_s * 1000.0) as u64;
+            let time_ms = (self.shell.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
             let keyframe_mode = self.shell.ui_store.keyframe_mode;
             let selected: Vec<String> = self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
             let mut edits = Vec::new();
@@ -184,23 +183,11 @@ impl AnimatixApp {
                 self.shell.handle_property_edit(edit);
             }
         } else if arrow_left {
-            self.shell.preview_store.preview.playback.current_time_s -= scrub_step_s;
-            self.shell.preview_store.preview.playback.clamp_time();
-            self.shell.preview_store.preview.playback.is_playing = false;
-            self.shell.preview_store.preview_dirty = true;
-            self.shell.preview_store.preview.status = format!(
-                "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
-            );
+            let new_time = self.shell.preview_store.preview.playback.current_time_s() - scrub_step_s;
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
         } else if arrow_right {
-            self.shell.preview_store.preview.playback.current_time_s += scrub_step_s;
-            self.shell.preview_store.preview.playback.clamp_time();
-            self.shell.preview_store.preview.playback.is_playing = false;
-            self.shell.preview_store.preview_dirty = true;
-            self.shell.preview_store.preview.status = format!(
-                "Preview scrubbed \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
-            );
+            let new_time = self.shell.preview_store.preview.playback.current_time_s() + scrub_step_s;
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
         }
 
         // Delete key: remove selected actor(s)
@@ -271,7 +258,7 @@ impl AnimatixApp {
                     device,
                     queue,
                     composition,
-                    self.shell.preview_store.preview.playback.current_time_s,
+                    self.shell.preview_store.preview.playback.current_time_s(),
                     debug,
                 )
             } else if let Some(timeline) = self.shell.document_store.source.document.timeline.as_ref() {
@@ -279,7 +266,7 @@ impl AnimatixApp {
                     device,
                     queue,
                     timeline,
-                    self.shell.preview_store.preview.playback.current_time_s,
+                    self.shell.preview_store.preview.playback.current_time_s(),
                     debug,
                 )
             } else {
@@ -450,12 +437,12 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
     if let Some(scene) = active_scene {
         format!(
             "{} \u{2022} t = {:.2}s / {:.2}s",
-            scene, preview.playback.current_time_s, preview.playback.duration_s
+            scene, preview.playback.current_time_s(), preview.playback.duration_s
         )
     } else {
         format!(
             "Live preview \u{2022} t = {:.2}s / {:.2}s",
-            preview.playback.current_time_s, preview.playback.duration_s
+            preview.playback.current_time_s(), preview.playback.duration_s
         )
     }
 }

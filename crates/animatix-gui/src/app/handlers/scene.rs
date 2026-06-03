@@ -17,7 +17,7 @@ pub fn handle_select_scene(
                         break;
                     }
                 }
-                preview_store.preview.playback.current_time_s = target_time;
+                preview_store.preview.playback.scrub_to(target_time);
                 preview_store.preview.playback.clamp_time();
                 preview_store.preview.playback.is_playing = false;
                 preview_store.preview_dirty = true;

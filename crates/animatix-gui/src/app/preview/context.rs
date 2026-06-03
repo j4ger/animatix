@@ -35,7 +35,7 @@ pub(crate) struct PreviewContext<'a> {
 
 impl PreviewContext<'_> {
     pub(crate) fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
-        let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         self.get_actor_props_at_time(actor, time_ms)
     }
 
@@ -65,7 +65,7 @@ impl PreviewContext<'_> {
             comp.scenes.get(scene_name).map(|s| &s.timeline)
         });
         let Some(timeline) = timeline else { return false; };
-        let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         preview::is_layout_managed(actor, timeline, time_ms)
     }
 
@@ -431,7 +431,7 @@ impl PreviewContext<'_> {
             });
             preview::draw_selection_overlay(ui.painter(), props.as_ref(), fallback, is_dragging, preview_rect, self.scene_dimensions, preview_rect.size(), ui.ctx().pixels_per_point(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan);
 
-            let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
+            let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
             let points = self.timeline.and_then(|t| t.get_track(actor)).and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms))).filter(|pts| !pts.is_empty());
             if let (Some(ref p), Some(pts)) = (props, points) {
                 let active_vertex = match &self.drag_state {
@@ -477,7 +477,7 @@ impl PreviewContext<'_> {
 
             if !is_dragging {
                 if let Some(timeline) = self.timeline {
-                    let current_time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
+                    let current_time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
                     let keyframe_times = timeline.keyframe_times_s();
                     let mut prev_time_ms: Option<u64> = None; let mut next_time_ms: Option<u64> = None;
                     for &time_s in &keyframe_times {
@@ -500,7 +500,7 @@ impl PreviewContext<'_> {
 
             if let DragState::Reorder { actor: drag_actor, container, target_index, layout_type, .. } = self.drag_state.clone() {
                 if &drag_actor == actor {
-                    let time_ms = (self.preview.playback.current_time_s * 1000.0) as u64;
+                    let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
                     if let Some(timeline) = self.timeline {
                         let order = timeline.get_child_order(&container, time_ms);
                         let siblings: Vec<(String, [f32; 2])> = order.into_iter().filter(|label| label != actor).filter_map(|label| self.get_actor_props(&label).map(|p| (label, p.position))).collect();

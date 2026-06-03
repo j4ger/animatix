@@ -337,7 +337,7 @@ fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         return;
     }
 
-    let time_ms = (ctx.preview.playback.current_time_s * 1000.0) as u64;
+    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .show(ui, |ui| {

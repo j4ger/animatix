@@ -10,7 +10,7 @@ pub fn handle_scrub_to(
     ui_store: &UiStore,
     next_time: f64,
 ) -> Vec<Effect> {
-    preview_store.preview.playback.current_time_s = next_time;
+    preview_store.preview.playback.scrub_to(next_time);
     preview_store.preview.playback.clamp_time();
     preview_store.preview.playback.is_playing = false;
     preview_store.preview_dirty = true;

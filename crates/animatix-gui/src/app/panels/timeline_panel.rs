@@ -428,7 +428,7 @@ fn bar_interaction(
                         // Time display (right-aligned)
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let time_text = format!("{:.2}s / {:.2}s",
-                                preview.playback.current_time_s,
+                                preview.playback.current_time_s(),
                                 preview.playback.duration_s);
                             ui.add(egui::Label::new(
                                 egui::RichText::new(time_text)
@@ -474,7 +474,7 @@ fn bar_interaction(
             }
 
             // ── Playhead X position ──
-            let playhead_x = time_to_x(preview.playback.current_time_s);
+            let playhead_x = time_to_x(preview.playback.current_time_s());
 
             // ── Scene track (composition only) ──
             if let Some(comp) = composition {
@@ -661,7 +661,7 @@ fn bar_interaction(
                             let kf_s = kf_ms as f64 / 1000.0;
                             let kf_x = time_to_x(kf_s);
                             if kf_x < bar_area.left() || kf_x > bar_area.right() { continue; }
-                            let is_act = (kf_s - preview.playback.current_time_s).abs() < 0.01;
+                            let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
                             let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
                             let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
                             let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };

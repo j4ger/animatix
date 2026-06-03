@@ -45,7 +45,7 @@ pub(crate) struct InspectorContext<'a> {
 /// Renders the unified actor inspector panel (with frame).
 pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
-        let current_time_s = ctx.preview.playback.current_time_s;
+        let current_time_s = ctx.preview.playback.current_time_s();
         let timeline = ctx.timeline.or_else(|| {
             let comp = ctx.composition?;
             let active_scene = ctx.active_scene?;

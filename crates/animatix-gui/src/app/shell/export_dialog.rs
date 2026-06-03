@@ -349,7 +349,7 @@ impl GuiShell {
         let scene_dims = self.document_store.source.document.scene_dimensions;
         let timeline_duration = self.document_store.source.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
         let max_time = self.preview_store.preview.playback.duration_s as f32;
-        let current_time = self.preview_store.preview.playback.current_time_s as f32;
+        let current_time = self.preview_store.preview.playback.current_time_s() as f32;
 
         // Scope mutable borrows so we can call &self methods afterward.
         {

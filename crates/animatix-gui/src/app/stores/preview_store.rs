@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn preview_pane_state_defaults_current_time_s() {
         let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
-        assert_eq!(preview.playback.current_time_s, 0.0);
+        assert_eq!(preview.playback.current_time_s(), 0.0);
     }
 
     #[test]

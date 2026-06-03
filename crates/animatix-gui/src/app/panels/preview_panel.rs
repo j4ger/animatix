@@ -307,7 +307,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
             all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
             if let Some(new_time) = ctx.preview.time_lens.update_and_show(
-                ui, ctx.preview.playback.current_time_s, ctx.preview.playback.duration_s, &all_kf,
+                ui, ctx.preview.playback.current_time_s(), ctx.preview.playback.duration_s, &all_kf,
             ) {
                 ctx.commands.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
             }
@@ -397,7 +397,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         );
                         preview::property_popup::show_property_popup(
                             ui, actor, &props, screen_pos, ctx.commands, is_dragging,
-                            ctx.timeline, ctx.preview.playback.current_time_s,
+                            ctx.timeline, ctx.preview.playback.current_time_s(),
                         );
                     }
                 }

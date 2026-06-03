@@ -20,7 +20,7 @@ pub(crate) fn sync_preview_from_document(
     preview_store.preview.playback.duration_s = document_store.source.document.duration_s.max(0.1);
     preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
     if reset_time {
-        preview_store.preview.playback.current_time_s = 0.0;
+        preview_store.preview.playback.scrub_to(0.0);
         preview_store.preview.viewport.preview_zoom = 1.0;
         preview_store.preview.viewport.preview_pan = egui::Vec2::new(
             document_store.source.document.scene_dimensions.width as f32 / 2.0,
