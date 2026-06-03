@@ -6,16 +6,6 @@
 
 ---
 
-## Review Fix Sprint (2026-06-03)
-
-22 of 23 issues from the 2026-06-03 code review have been closed. One remains:
-
-| # | Item | What | Files | Effort |
-|---|------|------|-------|--------|
-| 13 | **Handler test coverage** | Only UI commands (TogglePlayback, ScrubTo, etc.) have tests. Domain handlers (CreateActor, DeleteSelectedActors, RenameActor, Save, OpenFile) have zero coverage. | `app/command_handlers.rs` | 3 days |
-
----
-
 ## Phase 1 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
