@@ -375,6 +375,10 @@ pub(super) fn inspector_ui(
                 render_actor_header(ui, track, current_time_s, commands);
                 ui.add_space(SPACE_M);
 
+                // ── Parent ──
+                render_parent_card(ui, timeline, sel, commands);
+                ui.add_space(SPACE_M);
+
                 // ── Active Properties ──
                 layout::card(ui, |ui| {
                     let mut view_mode = *property_view_mode;
@@ -863,6 +867,58 @@ fn render_actor_header(
 }
 
 
+
+// ─── Parent Card ──────────────────────────────────────────────────────────
+
+fn render_parent_card(
+    ui: &mut egui::Ui,
+    timeline: &Timeline,
+    actor: &str,
+    commands: &mut ActionQueue,
+) {
+    use crate::app::components::layout;
+
+    // Find current parent
+    let current_parent = timeline.tracks().iter()
+        .find(|(_, track)| track.children.iter().any(|c| c == actor))
+        .map(|(label, _)| label.clone());
+
+    layout::card(ui, |ui| {
+        layout::section_header(ui, egui_phosphor::regular::TREE_STRUCTURE, "Hierarchy", None);
+
+        layout::labeled_row(ui, "Parent", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+            let all_labels: Vec<String> = timeline.tracks()
+                .iter()
+                .map(|(label, _)| label.clone())
+                .filter(|label| label != actor)
+                .collect();
+
+            let current_display = current_parent.as_deref().unwrap_or("None (root)");
+            egui::ComboBox::from_id_salt(ui.id().with("parent_dropdown"))
+                .selected_text(current_display)
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(current_parent.is_none(), "None (root)").clicked() {
+                        if current_parent.is_some() {
+                            commands.push_back(ShellAction::Command(Command::ReparentActor {
+                                actor: actor.to_string(),
+                                new_parent: None,
+                            }));
+                        }
+                    }
+                    for label in &all_labels {
+                        let is_selected = current_parent.as_deref() == Some(label.as_str());
+                        if ui.selectable_label(is_selected, label).clicked() && !is_selected {
+                            commands.push_back(ShellAction::Command(Command::ReparentActor {
+                                actor: actor.to_string(),
+                                new_parent: Some(label.clone()),
+                            }));
+                        }
+                    }
+                });
+        });
+    });
+}
 
 // ─── Container Children Reorder ───────────────────────────────────────────
 
