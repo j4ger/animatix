@@ -20,7 +20,6 @@ impl EditorBuffer {
         self.text.push_str(insert_text);
         self.cells = parse_cells(&self.text);
         self.cell_state = CellEditorState::default();
-        self.cells_dirty = false;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
     }

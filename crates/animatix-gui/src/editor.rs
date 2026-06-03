@@ -25,8 +25,6 @@ pub struct EditorBuffer {
     /// Cell-based editor state.
     cells: Vec<Cell>,
     cell_state: CellEditorState,
-    /// Whether cells are dirty and need re-parsing from text.
-    cells_dirty: bool,
     /// Line to scroll to on next frame (0-indexed, consumed by caller in workspace_ui).
     pub pending_scroll_to_line: Option<usize>,
     /// Line to highlight as "current" (0-indexed, for timeline sync).
@@ -53,7 +51,6 @@ impl EditorBuffer {
             completion_confirmed: false,
             cells,
             cell_state: CellEditorState::default(),
-            cells_dirty: false,
             pending_scroll_to_line: None,
             highlighted_line: None,
             keyframe_times_s: std::collections::HashMap::new(),
@@ -70,7 +67,6 @@ impl EditorBuffer {
         self.completion.hide();
         self.cells = parse_cells(&text);
         self.cell_state = CellEditorState::default();
-        self.cells_dirty = false;
         self.pending_scroll_to_line = None;
         self.highlighted_line = None;
         self.keyframe_times_s.clear();
@@ -79,21 +75,15 @@ impl EditorBuffer {
     }
 
     pub fn text(&self) -> &str {
-        // If cells were edited, source is derived from cells; otherwise use cached text.
-        if self.cells_dirty {
-            // Return text reconstructed from cells. We can't return a reference to a temporary,
-            // so we keep text in sync in show() / replace_text(). For now, return the last known text.
-            &self.text
-        } else {
-            &self.text
-        }
+        // text is kept in sync with cells inside show() / replace_text() / set_document(),
+        // so we can always return the cached string.
+        &self.text
     }
 
     pub fn replace_text(&mut self, text: String) {
         self.text = text.clone();
         self.cells = parse_cells(&text);
         self.cell_state = CellEditorState::default();
-        self.cells_dirty = false;
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
         self.cursor_line = None;
@@ -401,7 +391,6 @@ impl EditorBuffer {
                 new_source = crate::cell_editor::cells_to_source(&self.cells);
             }
             self.text = new_source;
-            self.cells_dirty = false;
             self.cached_highlight = None;
             self.analyzer.update(&self.text);
 
