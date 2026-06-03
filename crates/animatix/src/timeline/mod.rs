@@ -473,6 +473,9 @@ pub struct Timeline {
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache: std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
+    /// Runtime diagnostics from frame evaluation (modifier errors, etc.).
+    /// Cleared at the start of each evaluate call.
+    runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
 }
 
 /// Cache entry for frame evaluation results.
@@ -519,6 +522,7 @@ impl Clone for Timeline {
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
             plot_path_cache: self.plot_path_cache.clone(),
+            runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
@@ -564,6 +568,7 @@ impl Timeline {
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
+            runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
         }
     }
 
@@ -920,6 +925,19 @@ impl Timeline {
         *self.frame_cache.borrow_mut() = None;
         *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.transform_cache.borrow_mut() = std::collections::HashMap::new();
+    }
+
+    /// Return runtime diagnostics produced during the most recent frame
+    /// evaluation (modifier errors, etc.). Empty if evaluation succeeded
+    /// without issues.
+    pub fn runtime_diagnostics(&self) -> Vec<crate::diagnostics::Diagnostic> {
+        self.runtime_diagnostics.borrow().clone()
+    }
+
+    /// Clear runtime diagnostics. Called automatically at the start of each
+    /// `evaluate()` call.
+    pub fn clear_runtime_diagnostics(&self) {
+        self.runtime_diagnostics.borrow_mut().clear();
     }
 
     /// Returns the appropriate default color for a primitive type and property,

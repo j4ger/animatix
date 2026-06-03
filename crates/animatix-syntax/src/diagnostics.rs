@@ -108,6 +108,8 @@ pub enum DiagnosticCode {
     UnknownActorType,
     /// A type mismatch was detected during type checking.
     TypeMismatch,
+    /// A modifier failed at runtime during frame evaluation.
+    ModifierRuntimeError,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -155,6 +157,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
+            DiagnosticCode::ModifierRuntimeError => write!(f, "modifier-runtime-error"),
         }
     }
 }

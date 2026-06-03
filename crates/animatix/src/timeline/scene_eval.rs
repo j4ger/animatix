@@ -607,6 +607,9 @@ impl Timeline {
     ) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
 
+        // Clear stale runtime diagnostics from previous frame.
+        self.clear_runtime_diagnostics();
+
         // Check the frame cache: return cached scene if time and dimensions match
         // and the underlying modifiers/layout have not changed.
         let needs_frame_env = self.needs_frame_env();
@@ -684,9 +687,16 @@ impl Timeline {
             }
         }
 
-        // Log any modifier evaluation errors as warnings
+        // Collect modifier evaluation errors as runtime diagnostics.
         for err in &modifier_errors {
             tracing::warn!("Modifier evaluation error at t={time_ms}ms: {err}");
+            self.runtime_diagnostics.borrow_mut().push(
+                crate::diagnostics::Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::ModifierRuntimeError,
+                    crate::diagnostics::DiagnosticPhase::Render,
+                    format!("Modifier evaluation error at t={time_ms}ms: {err}"),
+                )
+            );
         }
 
         let bg = vello::peniko::Color::new([
