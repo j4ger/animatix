@@ -19,6 +19,7 @@ use animatix::primitives;
 pub(crate) enum SidebarTab {
     Explorer,
     Layers,
+    Scenes,
     Editor,
 }
 

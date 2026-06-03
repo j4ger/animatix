@@ -700,4 +700,102 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             "drag state should be None after open"
         );
     }
+
+    // ── Scene selection ───────────────────────────────────────────────
+
+    const MULTI_SCENE_SOURCE: &str = r#"
+# Intro
+#0s
+title: Text, text: "Welcome"
+
+# Diagram
+#0s
+graph: Rect, size: (400, 400)
+"#;
+
+    #[test]
+    fn select_scene_switches_active_scene_and_seeks() {
+        let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+
+        // Should be a composition with two scenes
+        assert!(
+            document_store.source.document.composition.is_some(),
+            "document should be a composition"
+        );
+        assert_eq!(
+            document_store.source.document.active_scene.as_deref(),
+            Some("Intro"),
+            "default active scene should be Intro"
+        );
+
+        let effects = scene::handle_select_scene(
+            &mut document_store,
+            &mut preview_store,
+            "Diagram".into(),
+        );
+
+        // Active scene should switch
+        assert_eq!(
+            document_store.source.document.active_scene.as_deref(),
+            Some("Diagram"),
+            "active scene should be Diagram"
+        );
+
+        // Preview should be dirty
+        assert!(preview_store.preview_dirty);
+
+        // Playback should not be playing
+        assert!(!preview_store.preview.playback.is_playing);
+
+        // Should return a status effect
+        assert!(
+            effects.iter().any(|e| matches!(e, Effect::Status(_))),
+            "expected Status effect, got {:?}",
+            effects
+        );
+    }
+
+    #[test]
+    fn select_scene_noop_for_invalid_scene() {
+        let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+
+        let effects = scene::handle_select_scene(
+            &mut document_store,
+            &mut preview_store,
+            "NonExistent".into(),
+        );
+
+        // Active scene should remain unchanged
+        assert_eq!(
+            document_store.source.document.active_scene.as_deref(),
+            Some("Intro"),
+            "active scene should remain Intro"
+        );
+
+        // Should return empty effects for invalid scene
+        assert!(effects.is_empty(), "expected no effects for invalid scene");
+    }
+
+    #[test]
+    fn select_scene_noop_without_composition() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+
+        // Single-scene document has no composition
+        assert!(
+            document_store.source.document.composition.is_none(),
+            "TEST_SOURCE should not be a composition"
+        );
+
+        let effects = scene::handle_select_scene(
+            &mut document_store,
+            &mut preview_store,
+            "Intro".into(),
+        );
+
+        // Should return empty effects
+        assert!(effects.is_empty(), "expected no effects without composition");
+    }
 }

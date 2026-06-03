@@ -72,6 +72,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 match active_tab {
                     SidebarTab::Explorer => explorer_content_ui(ctx, ui),
                     SidebarTab::Layers => layers_content_ui(ctx, ui),
+                    SidebarTab::Scenes => scenes_content_ui(ctx, ui),
                     SidebarTab::Editor => editor_content_ui(ctx, ui),
                 }
             },
@@ -85,6 +86,7 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let tabs = [
         (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
+        (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
         (SidebarTab::Editor, egui_phosphor::regular::PENCIL_SIMPLE, "Editor"),
     ];
     if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
@@ -264,6 +266,110 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             }
         }
     });
+}
+
+fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    let Some(composition) = ctx.composition else {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::FILM_STRIP,
+            "No composition loaded",
+            "Define multiple scenes with # SceneName to see them here.",
+        );
+        return;
+    };
+
+    let scene_names = &composition.declaration_order;
+    if scene_names.is_empty() {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::FILM_STRIP,
+            "No scenes",
+            "This composition has no scenes.",
+        );
+        return;
+    }
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false; 2])
+        .show(ui, |ui| {
+            for scene_name in scene_names {
+                let is_active = ctx.active_scene == Some(scene_name.as_str());
+                let row_id = ui.id().with(scene_name);
+
+                // Duration hint
+                let duration_hint = composition
+                    .scene_start_times
+                    .get(scene_name)
+                    .map(|start| {
+                        let end = composition
+                            .scene_start_times
+                            .iter()
+                            .filter(|(k, _)| *k != scene_name)
+                            .map(|(_, v)| *v)
+                            .filter(|v| *v > *start)
+                            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                            .unwrap_or(composition.global_duration_s);
+                        format!("{:.1}s – {:.1}s", start, end)
+                    })
+                    .unwrap_or_else(|| "–".to_string());
+
+                // Transition hint (outgoing edge)
+                let transition_hint = composition
+                    .edges
+                    .get(scene_name)
+                    .map(|edge| {
+                        format!("{} {} ({:.0}ms)", egui_phosphor::regular::ARROW_RIGHT, edge.to_scene, edge.transition.duration_ms)
+                    });
+
+                let response = row::Row::new(scene_name)
+                    .selected(is_active)
+                    .icon(Some(egui_phosphor::regular::FILM_STRIP))
+                    .label_color(if is_active { ACCENT_BLUE } else { TEXT_SECONDARY })
+                    .show(ui, row_id);
+
+                // Click to activate scene
+                if response.row_clicked {
+                    ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                }
+
+                // Context menu
+                response.response.context_menu(|ui| {
+                    let entries = vec![
+                        MenuEntry::item_with_icon(egui_phosphor::regular::CHECK, "Set as active"),
+                    ];
+                    if let Some(idx) = render_menu(ui, &entries) {
+                        if idx == 0 {
+                            ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                        }
+                        ui.close();
+                    }
+                });
+
+                // Sub-label: duration + transition
+                if is_active {
+                    ui.horizontal(|ui| {
+                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        ui.label(
+                            RichText::new(&duration_hint)
+                                .size(FONT_SIZE_XS)
+                                .color(TEXT_MUTED),
+                        );
+                    });
+                    if let Some(hint) = transition_hint {
+                        ui.horizontal(|ui| {
+                            ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                            ui.label(
+                                RichText::new(hint)
+                                    .size(FONT_SIZE_XS)
+                                    .color(TEXT_MUTED),
+                            );
+                        });
+                    }
+                    ui.add_space(SPACE_S);
+                }
+            }
+        });
 }
 
 fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
