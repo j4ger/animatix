@@ -175,7 +175,7 @@ mod tests {
             let result = core.render_vello_scene(&device, &queue, &view, 100, 100, &scene);
             // May fail on some GPU configs; accept either outcome
             if let Err(ref e) = result {
-                eprintln!("render_vello_scene skipped: {e}");
+                tracing::warn!("render_vello_scene skipped: {e}");
             }
         }
     }

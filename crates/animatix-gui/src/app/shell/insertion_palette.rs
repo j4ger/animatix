@@ -460,6 +460,7 @@ impl GuiShell {
                     self.preview_store.preview.status =
                         format!("Inserted {}", item.label);
                 } else {
+                    tracing::warn!("apply_edit failed for insertion: {}", item.label);
                     self.preview_store.preview.status =
                         format!("Failed to insert {}", item.label);
                 }

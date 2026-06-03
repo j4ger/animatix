@@ -1,0 +1,272 @@
+# Animatix 项目 Code Review 报告
+
+**审查日期:** 2026-06-03
+**审查范围:** animatix Rust 核心 (crates/animatix/ + crates/animatix-gui/) + animatix-data-gen 数据生成管线
+**变更规模:** 179 文件, +12,808/-7,438 行 (Rust), 8 源文件 + 7 测试文件 (Python)
+
+---
+
+## 第一部分：animatix Rust 核心
+
+### 🔴 Critical（3 个）
+
+#### 1. Modifier 执行静默吞错
+
+**文件:** `crates/animatix/src/timeline/scene_eval.rs:650,662`
+
+```rust
+let _ = self.apply_modifier_bytecode_program(program, ...);
+let _ = self.apply_modifier_ir_program(program, ...);
+```
+
+IR 和 bytecode modifier 执行返回 `Result<(), EvalError>` 但被 `let _` 丢弃。用户看到的是静默的错误帧，无任何诊断信息。
+
+**修复建议:** 至少加 `tracing::warn!`，最好将错误收集为帧级诊断。
+
+#### 2. `snap.rs` 是死代码（215 行含测试）
+
+**文件:** `crates/animatix-gui/src/app/preview/snap.rs`
+
+文件头标注 `#![allow(dead_code)]`，全 crate 零处导入。`snap_to_guides`, `snap_edges`, `snap_to_point`, `snap_to_grid` 全部未使用。`drag_handler.rs:335-438` 内联实现了相同的 snap 逻辑。
+
+**修复建议:** 将 `drag_handler.rs` 的 snap 逻辑替换为调用 `snap.rs`，或删除此模块。
+
+#### 3. `handle_rename_actor` 静默丢弃编辑错误
+
+**文件:** `crates/animatix-gui/src/app/handlers/actor.rs:58-62`
+
+```rust
+let _ = crate::source_edit::apply_edit(stmts, edit);
+```
+
+如果 rename 失败（如 actor 不存在），错误被吞掉，函数继续设置"成功"状态消息，误导用户。
+
+**修复建议:** 检查 `apply_edit` 返回值，失败时设置错误状态。
+
+---
+
+### ⚠️ Warnings（10 个）
+
+#### 4. GPU ping-pong 用指针比较追踪状态
+
+**文件:** `crates/animatix/src/renderer/filter_backend.rs:748`
+
+```rust
+src_view as *const _ == tex_a_view as *const _
+```
+
+用原始指针地址判断活跃纹理。可行但脆弱——wgpu 内部变更或引用优化可能导致静默错误。建议改用 enum flag 追踪当前活跃纹理。
+
+#### 5. ffmpeg 临时文件 rename 失败时泄漏
+
+**文件:** `crates/animatix/src/renderer/encode/mod.rs:345`
+
+`std::fs::rename` 失败时 `*.tmp_muxed.mp4` 残留磁盘。需在错误路径加 `remove_file` 清理。
+
+#### 6. VM `LoadConst` 无越界检查
+
+**文件:** `crates/animatix/src/timeline/modifier_runtime/vm.rs:264`
+
+```rust
+self.stack.push(program.constants[*index].clone());
+```
+
+如果字节码损坏（index 越界），会 panic 而非返回错误。`Jump`/`JumpIfFalse` 也有类似问题。
+
+**修复建议:** 改用 `.get(*index).ok_or_else(|| ...)` 返回 `EvalError`。
+
+#### 7. Frame cache 逻辑令人困惑（双重否定）
+
+**文件:** `crates/animatix/src/timeline/scene_eval.rs:617`
+
+```rust
+cached.has_child_orders != self.child_orders.is_empty()
+```
+
+数学上正确（等价于 `== !is_empty()`），但双重否定极易被误"修复"为 `==`。建议改写为更清晰的形式或存储 count 而非 bool。
+
+#### 8. `needs_frame_env()` 重复调用
+
+**文件:** `crates/animatix/src/timeline/scene_eval.rs:610,639`
+
+同一函数在 cache miss 路径上调用两次，每次遍历三个集合 + `has_procedural_plots()`。第二次应复用第一次结果。
+
+#### 9. 键盘快捷键缺少 `wants_keyboard` 保护
+
+**文件:** `crates/animatix-gui/src/app/mod.rs:419,423`
+
+`Y` 键（ToggleEditorSync）和 `A` 键（Action Palette）在文本输入时也会触发。应加 `wants_keyboard` guard，避免编辑文本时误触。
+
+#### 10. `insertion_palette.rs` 错误未记录
+
+**文件:** `crates/animatix-gui/src/app/shell/insertion_palette.rs:449-450`
+
+`apply_edit` 失败时只设置状态消息，不记录实际错误详情。加 `tracing::warn!` 方便调试。
+
+#### 11. `adelay` 硬编码立体声
+
+**文件:** `crates/animatix/src/renderer/encode/mod.rs:302`
+
+```rust
+format!("adelay={delay_ms}|{delay_ms}")
+```
+
+假定双声道。Mono 输入会导致 ffmpeg 报错，多声道只延迟前两个。改用 `adelay=delays={delay_ms}` 自动适配。
+
+#### 12. `scene_to_screen` 标记 deprecated 但无属性
+
+**文件:** `crates/animatix-gui/src/app/preview/mod.rs:341`
+
+注释说"已弃用"但仍被 44 处调用。要么加 `#[deprecated]` 属性并迁移调用点，要么删掉注释。
+
+#### 13. Handler 测试覆盖不足
+
+**文件:** `crates/animatix-gui/src/app/command_handlers.rs`
+
+仅覆盖了 UI 类命令（TogglePlayback, ScrubTo 等）。所有域变更 handler（CreateActor, DeleteSelectedActors, RenameActor, Save, OpenFile 等）零测试覆盖。
+
+---
+
+### 💡 Suggestions（10 个）
+
+| # | 文件 | 建议 |
+|---|------|------|
+| 14 | `renderer/filter_backend.rs:141-168` | 永远为 `Some` 的字段去掉 `Option` 包装，消除 ~15 处不可能触发的错误检查 |
+| 15 | `timeline/frame_env.rs:186-194` | radius 重算可能覆盖显式 radius override，加检查 |
+| 16 | `timeline/modifier_exec.rs:16` | `#[allow(clippy::only_used_in_recursion)]` 压制了真实 lint，`time_ms` 和 `scene_dimensions` 从未使用，应移除 |
+| 17 | `timeline/modifier_exec.rs:106-115` | `apply_modifier_stmt_for_test` 是 `pub` 死代码，全仓库无调用且无 `#[cfg(test)]` 门控 |
+| 18 | `timeline/scene_eval.rs:216,573` | `track.children.clone()` 每次迭代分配，可重构避免 |
+| 19 | `renderer/fullscreen_blit.rs:187` | `blit()` 自建 encoder + submit，强制 GPU 提交边界，应接受外部 encoder 批量提交 |
+| 20 | `timeline/property_registry.rs:95` | 拼写错误：`PROPORTY` → `PROPERTY` |
+| 21 | `renderer/core.rs:178` | `eprintln!` 应改为 `tracing::warn!`（AGENTS.md 规定用 tracing 不用 println） |
+| 22 | `app/document_controller.rs:46` | `statements_mut` 标 `#[allow(dead_code)]`，应使用或删除 |
+| 23 | `app/handlers/playback.rs:66-124` | `prev_keyframe` 和 `next_keyframe` 逻辑几乎相同，应提取共享 helper |
+
+---
+
+### ✅ Looks Good（12 项）
+
+- **Command/ViewAction/DragEvent 三层拆分** — 语义清晰，dispatcher 简洁可读
+- **SourceStore/HistoryStore facades** — 职责明确，便利方法桥接两者
+- **handlers/ 模块** — 纯函数、只取所需 store、返回 `Vec<Effect>`，可测性优秀
+- **source_edit/action_edits.rs** — `insert_action` 处理了精确匹配、微碎片、样式继承、相对 keyframe 调整，7 个测试全覆盖
+- **Primitive registry** — `PRIMITIVES` 数组为唯一真相源，`OnceLock` 自动生成元数据，测试覆盖完整
+- **GPU filter backend** — 水平+垂直分离式 blur 正确，WGSL uniform 布局与 Rust `repr(C)` 对齐验证通过
+- **CPU filter 颜色矩阵** — sepia → hue → saturate → contrast → brightness 合成顺序正确
+- **Bytecode VM** — 栈式执行、栈下溢检测、AST→IR→bytecode 三级优化带优雅降级
+- **零 unsafe 代码**（除 1 处 rsmpeg FFI，有 SAFETY 注释）
+- **PreviewContext 参数对象** — 12+ 参数打包为 context，好设计
+- **insertion 三层设计** — palette UI → insertion request → source edit，干净分层
+- **Validation round-trip** — `PropertyValue → Expr → runtime Value` 的浮点 ε 比较强安全网
+
+---
+
+### 核心 Rust 项目总评
+
+| 类别 | 核心 crate | GUI crate |
+|------|-----------|-----------|
+| 架构 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| 正确性 | ⭐⭐⭐ | ⭐⭐⭐⭐ |
+| 安全性 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 错误处理 | ⭐⭐⭐ | ⭐⭐⭐ |
+| 测试覆盖 | ⭐⭐⭐⭐ | ⭐⭐⭐ |
+| 代码卫生 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+
+**最需修的 5 件事（按优先级）：**
+1. Modifier 执行加 error logging（影响 debug 效率）
+2. `snap.rs` 接入或删除（215 行死代码）
+3. `handle_rename_actor` 处理 `apply_edit` 错误
+4. VM bounds check 防 panic
+5. 键盘快捷键加 `wants_keyboard` 保护
+
+---
+
+## 第二部分：animatix-data-gen 数据生成管线
+
+### 🔴 Critical（3 个）
+
+#### 1. API Key 硬编码在源码中（已修复 ✅）
+
+**文件:** `config.py:24`, `tests/test_api.py:7`, `tests/test_detailed.py:7`, `tests/test_no_think.py:3`
+
+`API_KEY="tp-cep...ll61"` 明文写死在 4 个文件中。
+
+**已修复:** 统一改为 `os.environ.get("MIMO_API_KEY", "")`。
+
+#### 2. `l3_done` ID 类型混乱（已修复 ✅）
+
+**文件:** `pipeline.py:783` vs `pipeline.py:786`
+
+成功时存 `lesson.id`（= `md5(chapter_id::chapter_title)`），失败时存 `chapter.id`（= `md5(subject::direction::index::title)`），但 `is_l3_done()` 和 `--retry-failed` 始终用 `chapter.id` 检查。导致：
+- 成功章节在下次运行时不被识别为已完成，会被重新处理
+- `--retry-failed` 对已成功章节做无意义重跑
+
+**已修复:** `mark_l3` 统一使用 `chapter.id`。
+
+#### 3. 文件句柄异常时泄漏（已修复 ✅）
+
+**文件:** `pipeline.py:669-672, 734-735`
+
+`open()` 在 try 块内，`close()` 在 executor 之后。异常时文件句柄泄漏。
+
+**已修复:** 全部改为 `with open(...) as f:` 上下文管理器。
+
+---
+
+### ⚠️ Warnings（7 个，全部已修复 ✅）
+
+| # | 问题 | 文件 | 状态 |
+|---|------|------|------|
+| 4 | `test_l3.py` 模板缺少 `fix_guidance` 参数 | `tests/test_l3.py:52-55` | ✅ 已修复 |
+| 5 | `_escape_json` 手动转义不覆盖控制字符 | `prompts.py:474-475` | ✅ 已修复（改用 `json.dumps`） |
+| 6 | Progress 的 O(n) 列表查找 | `pipeline.py:83,85,88` | ✅ 已修复（加 set 缓存） |
+| 7 | `l3_count` 递减无下界检查 | `pipeline.py:749` | ✅ 已修复（`max(0, ...)`） |
+| 8 | `total_rounds` 记录不准确 | `pipeline.py:589` | ✅ 已修复（使用 `max_rounds`） |
+| 9 | 测试文件裸 `except:` | 多个测试文件 | ✅ 已修复（改为 `except Exception:`） |
+| 10 | `build_stage2_sample` 伪造 tool-call 轨迹 | `prompts.py:458-471` | ⚠️ 待定（设计问题，需讨论） |
+
+---
+
+### 💡 Suggestions（3 个，已修复 2 个）
+
+| # | 建议 | 状态 |
+|---|------|------|
+| 11 | `Progress.save()` 应原子写入 | ✅ 已修复（tempfile + os.replace） |
+| 12 | `KEYWORD_SPEC_MAP` 死代码 | ✅ 已修复（已删除） |
+| 13 | `_load_l1_directions` / `_load_l2_chapters` 每次全量读取 | 💤 低优先级（数据量小时无影响） |
+
+---
+
+### ✅ Looks Good
+
+- **三阶段 L1→L2→L3 管线设计** — 清晰的职责分离，每阶段可独立重跑
+- **crash recovery via progress.json** — mark-before-advance 模式，断点续跑可靠
+- **LLM 重试机制** — 指数退避 + 三种 HTTP client fallback（openai SDK → httpx → urllib）
+- **错误反馈循环** `_get_error_fix_guidance()` — 根据具体编译错误生成针对性修复指导
+- **spec 注入 + token 预算控制** — 关键词驱动、预算可控
+- **温度/模型阶梯策略** — 重试降温（0.3→0.2→0.1），hard 题用更贵模型
+- **并发 L2/L3** — `ThreadPoolExecutor` + `file_lock` 保护共享文件写入
+
+---
+
+## Data-gen 修复清单
+
+| # | 修复项 | 文件 | 状态 |
+|---|--------|------|------|
+| 1 | `l3_done` ID 统一为 `chapter.id` | `pipeline.py:783` | ✅ |
+| 2 | API key 移到环境变量 `MIMO_API_KEY` | `config.py:24` | ✅ |
+| 3 | 文件句柄改为 context manager | `pipeline.py:669-832` | ✅ |
+| 4 | `_escape_json` → `json.dumps` | `prompts.py:474` | ✅ |
+| 5 | `test_l3.py` 补 `fix_guidance` 参数 | `tests/test_l3.py:52` | ✅ |
+| 6 | 裸 `except:` → `except Exception:` | 3 个测试文件 | ✅ |
+| 7 | `l3_count` 下界保护 `max(0, ...)` | `pipeline.py:749` | ✅ |
+| 8 | `total_rounds` 使用实际 `max_rounds` | `pipeline.py:589` | ✅ |
+| 9 | `Progress.save()` 原子写入 | `pipeline.py:78` | ✅ |
+| 10 | 删除死代码 `KEYWORD_SPEC_MAP` | `config.py:85-102` | ✅ |
+| 11 | Progress 查找 list → set O(1) | `pipeline.py:83-89` | ✅ |
+
+所有修改通过 `py_compile` 语法检查和运行时验证。
+
+---
+
+*报告由 Hermes Agent 生成*

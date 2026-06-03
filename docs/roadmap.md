@@ -6,6 +6,50 @@
 
 ---
 
+## Review Fix Sprint (2026-06-03)
+
+Issues surfaced by the 2026-06-03 code review. These are correctness, hygiene, and error-handling gaps that should be closed before larger features land.
+
+### Critical
+
+| # | Item | What | Files | Effort |
+|---|------|------|-------|--------|
+| 1 | **Modifier error diagnostics** | `apply_modifier_bytecode_program` and `apply_modifier_ir_program` return `Result` but are discarded with `let _`. Collect errors as frame-level diagnostics or at minimum `tracing::warn!`. | `timeline/scene_eval.rs` | 1 day |
+| 2 | **Dead `snap.rs` module** | 215-line module is `#![allow(dead_code)]` with zero imports; `drag_handler.rs` inlines identical logic. Either delete `snap.rs` or refactor `drag_handler.rs` to call it. | `app/preview/snap.rs`, `app/preview/drag_handler.rs` | 1 day |
+| 3 | **`handle_rename_actor` error handling** | `apply_edit` result is discarded; success status shown even when rename fails. Check return and set error status on failure. | `app/handlers/actor.rs` | 1 hour |
+
+### Warnings
+
+| # | Item | What | Files | Effort |
+|---|------|------|-------|--------|
+| 4 | **GPU filter pointer comparison** | `src_view as *const _ == tex_a_view as *const _` is fragile. Replace with enum flag tracking (`FilteredSource` already exists). | `renderer/filter_backend.rs` | 2 hours |
+| 5 | **ffmpeg temp-file leak** | `std::fs::rename` failure on `*.tmp_muxed.mp4` leaks the temp file. Clean up with `remove_file` on error path. | `renderer/encode/mod.rs` | 30 min |
+| 6 | **VM bounds checks** | `LoadConst`, `Jump`, `JumpIfFalse` index without bounds check → panic on corrupt bytecode. Return `EvalError` instead. | `timeline/modifier_runtime/vm.rs` | 1 hour |
+| 7 | **Frame cache double-negative** | `cached.has_child_orders != self.child_orders.is_empty()` is correct but confusing. Rewrite or store count instead of bool. | `timeline/scene_eval.rs` | 30 min |
+| 8 | **Duplicate `needs_frame_env()` call** | Called twice on cache-miss path. Cache the first result. | `timeline/scene_eval.rs` | 30 min |
+| 9 | **Keyboard shortcuts without `wants_keyboard` guard** | `Y` (ToggleEditorSync) and `A` (Action Palette) fire while text input is active. Add `!ui.memory(|m| m.focused().is_some())` guard or equivalent. | `app/mod.rs` | 30 min |
+| 10 | **`insertion_palette` error logging** | `apply_edit` failure only sets UI status; add `tracing::warn!` with the actual error. | `app/shell/insertion_palette.rs` | 15 min |
+| 11 | **adelay hardcoded stereo** | `adelay={delay_ms}|{delay_ms}` assumes 2 channels. Mono input fails; multi-channel only delays first two. Use `adelay=delays={delay_ms}` for auto-adapt. | `renderer/encode/mod.rs` | 15 min |
+| 12 | **`scene_to_screen` pseudo-deprecated** | Comment says deprecated but 44 call sites and no `#[deprecated]` attr. Either migrate callers and annotate, or remove the comment. | `app/preview/mod.rs` | 2 hours |
+| 13 | **Handler test coverage** | Only UI commands (TogglePlayback, ScrubTo, etc.) have tests. Domain handlers (CreateActor, DeleteSelectedActors, RenameActor, Save, OpenFile) have zero coverage. | `app/command_handlers.rs` | 3 days |
+
+### Suggestions
+
+| # | Item | What | Files | Effort |
+|---|------|------|-------|--------|
+| 14 | **Remove always-`Some` `Option` fields** | `filter_backend.rs` has fields that are permanently `Some`, forcing ~15 impossible error checks. Remove `Option` wrapper. | `renderer/filter_backend.rs` | 2 hours |
+| 15 | **radius override guard** | Frame-env radius recalculation may overwrite an explicit radius override. Add a check before recomputing. | `timeline/frame_env.rs` | 1 hour |
+| 16 | **Remove unused modifier params** | `time_ms` and `scene_dimensions` in `apply_modifier_stmt` are never used; the `#[allow(clippy::only_used_in_recursion)]` is masking real dead code. Remove them. | `timeline/modifier_exec.rs` | 30 min |
+| 17 | **Gate test-only helper** | `apply_modifier_stmt_for_test` is `pub` with no `#[cfg(test)]` gate and zero non-test callers. Gate it. | `timeline/modifier_exec.rs` | 15 min |
+| 18 | **Avoid clone in track iteration** | `track.children.clone()` allocates every iteration. Refactor to borrow or iterate without clone. | `timeline/scene_eval.rs` | 2 hours |
+| 19 | **Batch GPU blit submissions** | `blit()` creates its own encoder + submit, forcing a GPU sync boundary. Accept an external encoder so callers can batch. | `renderer/fullscreen_blit.rs` | 1 day |
+| 20 | **Fix typo `PROPORTY` → `PROPERTY`** | Typo in `property_registry.rs`. | `timeline/property_registry.rs` | 5 min |
+| 21 | **Replace `eprintln!` with `tracing::warn!`** | Per AGENTS.md policy. | `renderer/core.rs` | 5 min |
+| 22 | **Use or remove `statements_mut`** | Marked `#[allow(dead_code)]`. Either use it or delete it. | `app/document_controller.rs` | 30 min |
+| 23 | **Extract shared keyframe helper** | `prev_keyframe` and `next_keyframe` logic in `playback.rs` is almost identical. Extract a shared helper. | `app/handlers/playback.rs` | 1 hour |
+
+---
+
 ## Phase 1 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
@@ -31,8 +75,9 @@
 
 ## Order
 
-1. **Phase 1** (PiP — after syntax and renderer are stable)
-2. **Phase 2** (start after syntax stabilizes)
+1. **Review Fix Sprint** (correctness & hygiene — independent of other phases)
+2. **Phase 1** (PiP — after syntax and renderer are stable)
+3. **Phase 2** (start after syntax stabilizes)
 
 ---
 

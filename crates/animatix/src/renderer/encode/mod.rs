@@ -299,7 +299,7 @@ pub fn mux_audio_segments(
         chain.push_str(&format!("volume={:.3},", seg.volume));
 
         // Delay to global timeline position.
-        chain.push_str(&format!("adelay={delay_ms}|{delay_ms}"));
+        chain.push_str(&format!("adelay=delays={delay_ms}"));
 
         chain.push_str(&label);
         filter_chains.push(chain);
@@ -342,8 +342,12 @@ pub fn mux_audio_segments(
     }
 
     // Replace original with muxed version
-    std::fs::rename(&temp_path, output_path)
-        .map_err(|e| ExportError::VideoEncode(format!("Failed to replace video with muxed version: {e}")))?;
+    if let Err(e) = std::fs::rename(&temp_path, output_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(ExportError::VideoEncode(format!(
+            "Failed to replace video with muxed version: {e}"
+        )));
+    }
 
     tracing::info!("Audio muxed {} segment(s) into {}", segments.len(), output_path.display());
     Ok(())

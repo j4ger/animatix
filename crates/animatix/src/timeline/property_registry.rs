@@ -92,7 +92,7 @@ impl PropertyFlags {
     /// Changes to this property affect layout resolution.
     pub const LAYOUT_AFFECTING: Self = Self(0b1000);
 
-    // Convenience combinations for use in static PROPORTY_REGISTRY
+    // Convenience combinations for use in static PROPERTY_REGISTRY
     /// `ANIMATED | ASSIGNABLE` combined.
     pub const ASSIGNABLE_A: Self = Self(0b0011);     // ANIMATED | ASSIGNABLE
     /// `ANIMATED | ASSIGNABLE | INJECTABLE` combined.
