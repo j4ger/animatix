@@ -43,18 +43,7 @@ pub(crate) struct TimelineContext<'a> {
 
 /// Render the entire timeline panel.
 pub(crate) fn timeline_panel_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
-    render_timeline_content(
-        ui,
-        ctx.preview,
-        ctx.timeline,
-        ctx.composition,
-        ctx.active_scene,
-        ctx.commands,
-        ctx.collapsed_actors,
-        ctx.selected_actors,
-        ctx.actor_labels,
-        ctx.actor_keyframes,
-    );
+    render_timeline_content(ctx, ui);
 }
 
 
@@ -115,45 +104,52 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
             result.extend(pt.keyframes.keys().copied().map(|ms| (ms, name)));
         }
     }
-    push(&mut result, &track.position, "position");
-    push(&mut result, &track.motion_offset, "motion_offset");
-    push(&mut result, &track.rotation, "rotation");
-    push(&mut result, &track.scale, "scale");
-    push(&mut result, &track.size, "size");
-    push(&mut result, &track.color, "color");
-    push(&mut result, &track.opacity, "opacity");
-    push(&mut result, &track.stroke_width, "stroke_width");
-    push(&mut result, &track.stroke_color, "stroke_color");
-    push(&mut result, &track.stroke_progress, "stroke_progress");
-    push(&mut result, &track.fill_opacity, "fill_opacity");
-    push(&mut result, &track.text_content, "text_content");
-    push(&mut result, &track.font_family, "font_family");
-    push(&mut result, &track.font_size, "font_size");
-    push(&mut result, &track.shape_type, "shape_type");
-    push(&mut result, &track.line_from, "line_from");
-    push(&mut result, &track.line_to, "line_to");
-    push(&mut result, &track.arc_angles, "arc_angles");
-    push(&mut result, &track.points, "points");
-    push(&mut result, &track.commands, "commands");
-    push(&mut result, &track.layout_size, "layout_size");
-    push(&mut result, &track.vector_paths, "vector_paths");
+    macro_rules! push_all {
+        ($($field:ident => $name:literal),* $(,)?) => { $(
+            push(&mut result, &track.$field, $name);
+        )* };
+    }
+    push_all! {
+        position => "position",
+        motion_offset => "motion_offset",
+        rotation => "rotation",
+        scale => "scale",
+        size => "size",
+        color => "color",
+        opacity => "opacity",
+        stroke_width => "stroke_width",
+        stroke_color => "stroke_color",
+        stroke_progress => "stroke_progress",
+        fill_opacity => "fill_opacity",
+        text_content => "text_content",
+        font_family => "font_family",
+        font_size => "font_size",
+        shape_type => "shape_type",
+        line_from => "line_from",
+        line_to => "line_to",
+        arc_angles => "arc_angles",
+        points => "points",
+        commands => "commands",
+        layout_size => "layout_size",
+        vector_paths => "vector_paths",
+    }
     result.sort_by_key(|(ms, _)| *ms);
     result.dedup_by(|a, b| a.0 == b.0);
     result
 }
 
-fn render_timeline_content(
-    ui: &mut egui::Ui,
-    preview: &mut PreviewPaneState,
-    timeline: Option<&Timeline>,
-    composition: Option<&Composition>,
-    _active_scene: Option<&str>,
-    commands: &mut ActionQueue,
-    collapsed_actors: &mut HashSet<String>,
-    selected_actors: &mut HashSet<String>,
-    _actor_labels: &[String],
-    _actor_keyframes: &[(String, Vec<(u64, &'static str)>)],
-) {
+fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
+    let TimelineContext {
+        preview,
+        timeline,
+        composition,
+        active_scene: _,
+        commands,
+        collapsed_actors,
+        selected_actors,
+        actor_labels: _,
+        actor_keyframes: _,
+    } = ctx;
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
 
@@ -290,19 +286,23 @@ fn render_timeline_content(
                 scroll_s + frac * visible_s
             };
 
-            let bar_interaction = |ui: &egui::Ui,
-                                    bar_rect: Rect,
-                                    id_salt: &str,
-                                    cmds: &mut ActionQueue| {
-                let bar_id = ui.id().with(id_salt);
-                let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
-                if response.clicked() || response.dragged() {
-                    if let Some(pos) = response.interact_pointer_pos() {
-                        let new_time = x_to_time(pos.x);
-                        cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
-                    }
-                }
-            };
+/// Handle click-and-drag scrubbing on a timeline bar.
+fn bar_interaction(
+    ui: &egui::Ui,
+    bar_rect: Rect,
+    id_salt: impl std::hash::Hash,
+    cmds: &mut ActionQueue,
+    x_to_time: impl Fn(f32) -> f64,
+) {
+    let bar_id = ui.id().with(id_salt);
+    let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
+    if response.clicked() || response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let new_time = x_to_time(pos.x);
+            cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+        }
+    }
+}
 
             let mut content_y = scroll_rect.top();
 
@@ -506,7 +506,7 @@ fn render_timeline_content(
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
                 if kf_drag.is_none() {
-                    bar_interaction(ui, bar_area, "scene_track", commands);
+                    bar_interaction(ui, bar_area, "scene_track", commands, x_to_time);
                 }
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(STROKE_WIDTH, BORDER));
@@ -761,18 +761,7 @@ fn render_timeline_content(
 
                 // Track bar interaction (scrubbing) — suppressed during keyframe drag or click
                 if kf_drag.is_none() && !kf_clicked_this_track {
-                    let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
-                    if resp.clicked() {
-                        if let Some(pos) = resp.interact_pointer_pos() {
-                            let click_s = x_to_time(pos.x);
-                            commands.push_back(ShellAction::Command(Command::ScrubTo(click_s)));
-                        }
-                    } else if resp.dragged() {
-                        if let Some(pos) = resp.interact_pointer_pos() {
-                            let nt = x_to_time(pos.x);
-                            commands.push_back(ShellAction::Command(Command::ScrubTo(nt)));
-                        }
-                    }
+                    bar_interaction(ui, bar_area, ("actor_track", track_idx), commands, x_to_time);
                 }
 
                 // Per-track playhead
