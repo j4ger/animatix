@@ -63,12 +63,8 @@ pub fn handle_editor_changed(
     ]
 }
 
-pub fn handle_prev_keyframe(
-    document_store: &DocumentStore,
-    preview_store: &mut PreviewStore,
-    ui_store: &UiStore,
-) -> Vec<Effect> {
-    let keyframes = timeline_keyframe_times_s(
+fn collect_keyframes(document_store: &DocumentStore) -> Vec<f64> {
+    timeline_keyframe_times_s(
         if document_store.source.document.composition.is_some() {
             None
         } else {
@@ -76,11 +72,17 @@ pub fn handle_prev_keyframe(
         },
         document_store.source.document.composition.as_ref(),
         document_store.source.document.active_scene.as_deref(),
-    );
-    preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
-    preview_store.preview_dirty = true;
+    )
+}
+
+fn keyframe_effects(
+    document_store: &DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    label: &str,
+) -> Vec<Effect> {
     let status = format!(
-        "Previous keyframe • t = {:.2}s / {:.2}s",
+        "{label} keyframe • t = {:.2}s / {:.2}s",
         preview_store.preview.playback.current_time_s,
         preview_store.preview.playback.duration_s
     );
@@ -93,34 +95,26 @@ pub fn handle_prev_keyframe(
     effects
 }
 
+pub fn handle_prev_keyframe(
+    document_store: &DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+) -> Vec<Effect> {
+    let keyframes = collect_keyframes(document_store);
+    preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
+    preview_store.preview_dirty = true;
+    keyframe_effects(document_store, preview_store, ui_store, "Previous")
+}
+
 pub fn handle_next_keyframe(
     document_store: &DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &UiStore,
 ) -> Vec<Effect> {
-    let keyframes = timeline_keyframe_times_s(
-        if document_store.source.document.composition.is_some() {
-            None
-        } else {
-            document_store.source.document.active_timeline()
-        },
-        document_store.source.document.composition.as_ref(),
-        document_store.source.document.active_scene.as_deref(),
-    );
+    let keyframes = collect_keyframes(document_store);
     preview_store.preview.playback.go_to_next_keyframe(&keyframes);
     preview_store.preview_dirty = true;
-    let status = format!(
-        "Next keyframe • t = {:.2}s / {:.2}s",
-        preview_store.preview.playback.current_time_s,
-        preview_store.preview.playback.duration_s
-    );
-    let mut effects = vec![Effect::Status(status)];
-    effects.extend(editor_sync_effects(
-        document_store,
-        ui_store,
-        preview_store.preview.playback.current_time_s,
-    ));
-    effects
+    keyframe_effects(document_store, preview_store, ui_store, "Next")
 }
 
 fn sync_active_scene_from_time(

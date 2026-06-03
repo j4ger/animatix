@@ -185,8 +185,6 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
         timeline.build_frame_env_internal(500, SceneDimensions::default(), &first_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
-        500,
-        SceneDimensions::default(),
         &mut first_env,
         &mut first_overrides,
     );
@@ -196,8 +194,6 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
         timeline.build_frame_env_internal(1500, SceneDimensions::default(), &second_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
-        1500,
-        SceneDimensions::default(),
         &mut second_env,
         &mut second_overrides,
     );
@@ -207,8 +203,6 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
         timeline.build_frame_env_internal(500, SceneDimensions::default(), &repeat_overrides);
     timeline.apply_modifier_stmt(
         &modifier,
-        500,
-        SceneDimensions::default(),
         &mut repeat_env,
         &mut repeat_overrides,
     );
@@ -650,8 +644,6 @@ fn test_drive_block_scopes_assignments() {
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,
-            0,
-            SceneDimensions { width: 1280, height: 720 },
             &mut env,
             &mut overrides,
         );
@@ -928,8 +920,6 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,
-            0,
-            SceneDimensions { width: 1280, height: 720 },
             &mut env,
             &mut overrides,
         );
@@ -1034,8 +1024,6 @@ fn test_reactive_binding_desugars_to_modifier() {
     for modifier in &timeline.modifiers {
         timeline.apply_modifier_stmt(
             modifier,
-            0,
-            SceneDimensions { width: 1280, height: 720 },
             &mut env,
             &mut overrides,
         );

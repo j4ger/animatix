@@ -243,13 +243,7 @@ modifiers: vec![],
 
     let mut stmt_overrides = std::collections::HashMap::new();
     let mut stmt_env = timeline.build_frame_env(500, SceneDimensions::default(), &stmt_overrides);
-    timeline.apply_modifier_stmt_for_test(
-        &modifier,
-        500,
-        SceneDimensions::default(),
-        &mut stmt_env,
-        &mut stmt_overrides,
-    );
+    timeline.apply_modifier_stmt(&modifier, &mut stmt_env, &mut stmt_overrides);
 
     let mut ir_overrides = std::collections::HashMap::new();
     let mut ir_env = timeline.build_frame_env(500, SceneDimensions::default(), &ir_overrides);

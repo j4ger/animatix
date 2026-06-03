@@ -672,13 +672,7 @@ impl Timeline {
             // AST fallback path (used when compilation failed or no modifiers exist)
             if let Some(ref mut env) = frame_env {
                 for modifier in &self.modifiers {
-                    self.apply_modifier_stmt(
-                        modifier,
-                        time_ms,
-                        scene_dimensions,
-                        env,
-                        &mut overrides,
-                    );
+                    self.apply_modifier_stmt(modifier, env, &mut overrides);
                 }
             }
         }

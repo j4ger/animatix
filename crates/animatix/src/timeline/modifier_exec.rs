@@ -8,17 +8,12 @@
 //! environment construction is relatively stable.
 
 use super::modifier_runtime::{ir, vm};
-use super::{
-    EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr,
-};
+use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr};
 
 impl Timeline {
-    #[allow(clippy::only_used_in_recursion)]
-    pub(super) fn apply_modifier_stmt(
+    pub fn apply_modifier_stmt(
         &self,
         stmt: &Stmt,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
         frame_env: &mut super::Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) {
@@ -54,23 +49,11 @@ impl Timeline {
                     .unwrap_or(false)
                 {
                     for stmt in then_branch {
-                        self.apply_modifier_stmt(
-                            stmt,
-                            time_ms,
-                            scene_dimensions,
-                            frame_env,
-                            overrides,
-                        );
+                        self.apply_modifier_stmt(stmt, frame_env, overrides);
                     }
                 } else if let Some(else_branch) = else_branch {
                     for stmt in else_branch {
-                        self.apply_modifier_stmt(
-                            stmt,
-                            time_ms,
-                            scene_dimensions,
-                            frame_env,
-                            overrides,
-                        );
+                        self.apply_modifier_stmt(stmt, frame_env, overrides);
                     }
                 }
             }
@@ -86,32 +69,13 @@ impl Timeline {
                     for item in items {
                         frame_env.set(var, item);
                         for stmt in body {
-                            self.apply_modifier_stmt(
-                                stmt,
-                                time_ms,
-                                scene_dimensions,
-                                frame_env,
-                                overrides,
-                            );
+                            self.apply_modifier_stmt(stmt, frame_env, overrides);
                         }
                     }
                 }
             }
             _ => {}
         }
-    }
-
-    /// Apply a single modifier statement (test-only wrapper around
-    /// `apply_modifier_stmt`).
-    pub fn apply_modifier_stmt_for_test(
-        &self,
-        stmt: &Stmt,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
-        frame_env: &mut super::Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) {
-        self.apply_modifier_stmt(stmt, time_ms, scene_dimensions, frame_env, overrides)
     }
 
     /// Execute a modifier IR program against the current frame environment.
