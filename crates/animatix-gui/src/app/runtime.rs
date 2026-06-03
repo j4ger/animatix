@@ -1,7 +1,6 @@
 use super::*;
 use crate::app::commands::{Command, ShellAction};
 use crate::app::persistence::load_app_state;
-use crate::document::timeline_keyframe_times_s;
 use crate::app::design_tokens::*;
 use eframe::egui;
 
@@ -138,37 +137,11 @@ impl AnimatixApp {
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Comma)) {
-            let keyframes = self
-                .shell
-                .document_store
-                .source
-                .document
-                .active_timeline()
-                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
-                .unwrap_or_default();
-            self.shell.preview_store.preview.playback.go_to_previous_keyframe(&keyframes);
-            self.shell.preview_store.preview.status = format!(
-                "Previous keyframe \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
-            );
-            self.shell.preview_store.preview_dirty = true;
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::PrevKeyframe));
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Period)) {
-            let keyframes = self
-                .shell
-                .document_store
-                .source
-                .document
-                .active_timeline()
-                .map(|timeline| timeline_keyframe_times_s(Some(timeline), None, None))
-                .unwrap_or_default();
-            self.shell.preview_store.preview.playback.go_to_next_keyframe(&keyframes);
-            self.shell.preview_store.preview.status = format!(
-                "Next keyframe \u{2022} t = {:.2}s / {:.2}s",
-                self.shell.preview_store.preview.playback.current_time_s, self.shell.preview_store.preview.playback.duration_s
-            );
-            self.shell.preview_store.preview_dirty = true;
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::NextKeyframe));
         }
 
         // Arrow keys: nudge selected actors OR scrub timeline

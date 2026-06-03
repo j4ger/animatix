@@ -507,7 +507,9 @@ fn render_timeline_content(
                 }
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
-                bar_interaction(ui, bar_area, "scene_track", commands);
+                if kf_drag.is_none() {
+                    bar_interaction(ui, bar_area, "scene_track", commands);
+                }
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(STROKE_WIDTH, BORDER));
             }
@@ -731,17 +733,19 @@ fn render_timeline_content(
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
-                // Track bar interaction (scrubbing)
-                let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
-                if resp.clicked() {
-                    if let Some(pos) = resp.interact_pointer_pos() {
-                        let click_s = x_to_time(pos.x);
-                        commands.push_back(ShellAction::Command(Command::ScrubTo(click_s)));
-                    }
-                } else if resp.dragged() {
-                    if let Some(pos) = resp.interact_pointer_pos() {
-                        let nt = x_to_time(pos.x);
-                        commands.push_back(ShellAction::Command(Command::ScrubTo(nt)));
+                // Track bar interaction (scrubbing) — suppressed during keyframe drag
+                if kf_drag.is_none() {
+                    let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
+                    if resp.clicked() {
+                        if let Some(pos) = resp.interact_pointer_pos() {
+                            let click_s = x_to_time(pos.x);
+                            commands.push_back(ShellAction::Command(Command::ScrubTo(click_s)));
+                        }
+                    } else if resp.dragged() {
+                        if let Some(pos) = resp.interact_pointer_pos() {
+                            let nt = x_to_time(pos.x);
+                            commands.push_back(ShellAction::Command(Command::ScrubTo(nt)));
+                        }
                     }
                 }
 

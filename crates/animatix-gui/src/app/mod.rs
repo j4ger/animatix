@@ -139,6 +139,8 @@ impl PlaybackController {
         if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
             if end > start && self.current_time_s >= end {
                 self.current_time_s = start;
+                // Looping takes priority over end-of-timeline stop.
+                return;
             }
         }
 
