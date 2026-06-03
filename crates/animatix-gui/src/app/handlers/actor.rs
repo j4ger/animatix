@@ -191,3 +191,45 @@ pub fn handle_move_to_scene(
     ctrl.handle_move_to_scene(actor_labels, target_scene);
     vec![]
 }
+
+pub fn handle_toggle_actor_visibility(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    _ui_store: &mut UiStore,
+    actor: String,
+) -> Vec<Effect> {
+    if let Some(ref mut timeline) = document_store.source.document.timeline {
+        if let Some(track) = timeline.get_track_mut(&actor) {
+            track.visible = !track.visible;
+            preview_store.preview_dirty = true;
+            let status = if track.visible {
+                format!("{actor} visible")
+            } else {
+                format!("{actor} hidden")
+            };
+            preview_store.preview.status = status;
+        }
+    }
+    vec![]
+}
+
+pub fn handle_toggle_actor_lock(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    _ui_store: &mut UiStore,
+    actor: String,
+) -> Vec<Effect> {
+    if let Some(ref mut timeline) = document_store.source.document.timeline {
+        if let Some(track) = timeline.get_track_mut(&actor) {
+            track.locked = !track.locked;
+            preview_store.preview_dirty = true;
+            let status = if track.locked {
+                format!("{actor} locked")
+            } else {
+                format!("{actor} unlocked")
+            };
+            preview_store.preview.status = status;
+        }
+    }
+    vec![]
+}

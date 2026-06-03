@@ -27,6 +27,13 @@ pub(crate) fn handle_preview_drag(
 
         if drag_started {
             if let (Some(actor), Some(mouse)) = (ctx.selected_actors.iter().next().cloned(), raw_pointer_pos) {
+                let is_locked = ctx.timeline
+                    .and_then(|t| t.get_track(&actor))
+                    .map(|tr| tr.locked)
+                    .unwrap_or(false);
+                if is_locked {
+                    return false;
+                }
                 let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
                 let props = ctx.get_actor_props(&actor);
 
@@ -670,6 +677,11 @@ pub(crate) fn handle_preview_drag(
                 let multi = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
                 if !multi { ctx.selected_actors.clear(); }
                 for (label, bounds) in ctx.hit_regions {
+                    let is_locked = ctx.timeline
+                        .and_then(|t| t.get_track(label))
+                        .map(|tr| tr.locked)
+                        .unwrap_or(false);
+                    if is_locked { continue; }
                     let center = egui::pos2(((bounds.x0 + bounds.x1) / 2.0) as f32, ((bounds.y0 + bounds.y1) / 2.0) as f32);
                     if marquee_rect.contains(center) {
                         if multi && ctx.selected_actors.contains(label) { ctx.selected_actors.remove(label); }

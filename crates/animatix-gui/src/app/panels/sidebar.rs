@@ -530,8 +530,7 @@ fn render_actor_tree(
     let is_anonymous = label.starts_with("__anon");
     let has_children = !track.children.is_empty();
     let is_expanded = has_children && !collapsed_actors.contains(label);
-    let opacity = track.opacity.get(time_ms, 1.0);
-    let is_visible = opacity > 0.001;
+    let is_visible = track.visible;
 
     let (icon, display_label, label_color) = if is_anonymous {
         (
@@ -555,6 +554,14 @@ fn render_actor_tree(
     };
     let eye_color = if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED };
 
+    let is_locked = track.locked;
+    let lock_icon = if is_locked {
+        egui_phosphor::regular::LOCK_KEY
+    } else {
+        egui_phosphor::regular::LOCK_KEY_OPEN
+    };
+    let lock_color = if is_locked { AMBER } else { TEXT_DISABLED };
+
     let response = row::Row::new(display_label)
         .indent(depth as f32 * ICON_SLOT_WIDTH)
         .selected(is_selected)
@@ -564,6 +571,7 @@ fn render_actor_tree(
         .expanded(is_expanded)
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(SPACE_XS, 0.0);
             let eye_btn = button::icon_button_colored(
                 ui,
                 eye_icon,
@@ -572,13 +580,17 @@ fn render_actor_tree(
                 TEXT_PRIMARY,
             );
             if eye_btn.clicked() {
-                let new_opacity = if is_visible { 0.0 } else { 1.0 };
-                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
-                    actor: label.to_string(),
-                    property: "opacity".into(),
-                    value: PropertyValue::Float(new_opacity),
-                    create_keyframe: false,
-                })));
+                commands.push_back(ShellAction::Command(Command::ToggleActorVisibility(label.to_string())));
+            }
+            let lock_btn = button::icon_button_colored(
+                ui,
+                lock_icon,
+                if is_locked { "Unlock layer" } else { "Lock layer" },
+                lock_color,
+                TEXT_PRIMARY,
+            );
+            if lock_btn.clicked() {
+                commands.push_back(ShellAction::Command(Command::ToggleActorLock(label.to_string())));
             }
         })
         .show(ui, row_id);

@@ -191,6 +191,18 @@ impl GuiShell {
                 actor_labels,
                 target_scene,
             ),
+            Command::ToggleActorVisibility(actor) => actor::handle_toggle_actor_visibility(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                actor,
+            ),
+            Command::ToggleActorLock(actor) => actor::handle_toggle_actor_lock(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                actor,
+            ),
             Command::PropertyEdit(edit) => {
                 self.handle_property_edit(edit);
                 vec![]

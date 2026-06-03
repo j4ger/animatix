@@ -143,13 +143,25 @@ impl PreviewContext<'_> {
 
         let is_dragging = !matches!(self.drag_state, DragState::None);
 
+        // Filter out locked actors from hit regions for selection purposes
+        let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = self.hit_regions
+            .iter()
+            .filter(|(label, _)| {
+                !self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| tr.locked)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+
         if response.secondary_clicked() && !is_dragging {
             if let Some(click_pos) = response.interact_pointer_pos() {
                 let scene_dimensions = self.scene_dimensions;
                 let zoom = self.preview.viewport.preview_zoom;
                 let pan = self.preview.viewport.preview_pan;
                 selection::handle_right_click(
-                    self.selection, self.hit_regions, click_pos,
+                    self.selection, &unlocked_hit_regions, click_pos,
                     move |screen| {
                         let tx = preview::PreviewTransform::new(scene_dimensions, _preview_rect, zoom, pan);
                         tx.screen_to_scene(screen)
@@ -181,7 +193,7 @@ impl PreviewContext<'_> {
                 let pan = self.preview.viewport.preview_pan;
                 let modifiers = ui.ctx().input(|i| i.modifiers);
                 selection::handle_click(
-                    self.selection, self.selected_actors, self.hit_regions, click_pos,
+                    self.selection, self.selected_actors, &unlocked_hit_regions, click_pos,
                     move |screen| {
                         let tx = preview::PreviewTransform::new(scene_dimensions, _preview_rect, zoom, pan);
                         tx.screen_to_scene(screen)

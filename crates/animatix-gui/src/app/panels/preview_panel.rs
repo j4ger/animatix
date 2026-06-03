@@ -322,7 +322,17 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
             let screen_to_scene = move |screen: egui::Pos2| preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan);
 
             if !ctx.selection.context_menu_open {
-                selection::update_hover(ctx.selection, ctx.hit_regions, pointer_pos, screen_to_scene, is_dragging);
+                let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = ctx.hit_regions
+                    .iter()
+                    .filter(|(label, _)| {
+                        !ctx.timeline
+                            .and_then(|t| t.get_track(label))
+                            .map(|tr| tr.locked)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect();
+                selection::update_hover(ctx.selection, &unlocked_hit_regions, pointer_pos, screen_to_scene, is_dragging);
             } else {
                 ctx.selection.hovered_actor = None;
             }

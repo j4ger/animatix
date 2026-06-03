@@ -285,6 +285,12 @@ impl Timeline {
         let opacity = node_transform.opacity;
         let local_transform = node_transform.local_transform;
 
+        // Skip hidden actors (visibility toggle in GUI). Children are still
+        // evaluated in render_node_children with the correct parent transform.
+        if !track.visible {
+            return (local_transform, opacity);
+        }
+
         // P2.19: Viewport culling — skip rendering for off-screen actors.
         // Compute a conservative world-space bounding box and check intersection
         // with the viewport. Children are still evaluated since they may extend

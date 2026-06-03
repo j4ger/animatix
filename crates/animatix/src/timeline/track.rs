@@ -531,6 +531,10 @@ pub struct AnimationTrack {
     pub first_seen_ms: u64,
     /// Labels of child actors in the scene hierarchy.
     pub children: Vec<String>,
+    /// Whether the actor is visible in the preview and export.
+    pub visible: bool,
+    /// Whether the actor is locked (preventing selection and drag in the GUI).
+    pub locked: bool,
 
     // ── Geometry tier (flat compat fields) ──
     /// Position track (x, y).
@@ -630,6 +634,8 @@ impl AnimationTrack {
             kind: ActorKindId::Shape(ShapeKind::Rect),
             first_seen_ms: u64::MAX,
             children: Vec::new(),
+            visible: true,
+            locked: false,
 
             // Geometry flat fields
             position: None,
