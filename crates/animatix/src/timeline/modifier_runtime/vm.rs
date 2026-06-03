@@ -262,7 +262,11 @@ impl ModifierVm {
         while self.ip < program.instructions.len() {
             match &program.instructions[self.ip] {
                 Instruction::LoadConst(index) => {
-                    self.stack.push(program.constants[*index].clone());
+                    let value = program.constants.get(*index)
+                        .ok_or_else(|| EvalError::TypeMismatch(
+                            format!("LoadConst index {} out of bounds (pool size {})", index, program.constants.len())
+                        ))?;
+                    self.stack.push(value.clone());
                     self.ip += 1;
                 }
                 Instruction::LoadEnv(name) => {
@@ -408,6 +412,11 @@ impl ModifierVm {
                     self.ip += 1;
                 }
                 Instruction::JumpIfFalse(target) => {
+                    if *target >= program.instructions.len() {
+                        return Err(EvalError::TypeMismatch(
+                            format!("JumpIfFalse target {} out of bounds ({} instructions)", target, program.instructions.len())
+                        ));
+                    }
                     let cond = self.pop()?;
                     if cond.as_num() == 0.0 {
                         self.ip = *target;
@@ -416,6 +425,11 @@ impl ModifierVm {
                     }
                 }
                 Instruction::Jump(target) => {
+                    if *target >= program.instructions.len() {
+                        return Err(EvalError::TypeMismatch(
+                            format!("Jump target {} out of bounds ({} instructions)", target, program.instructions.len())
+                        ));
+                    }
                     self.ip = *target;
                 }
                 Instruction::BeginFor(var) => {

@@ -415,11 +415,12 @@ impl GuiShell {
         // Global keyboard shortcuts (non-tool-mode shortcuts only;
         // tool mode switching is handled in runtime.rs with proper
         // wants_keyboard checks to avoid conflicts with text input).
+        let wants_keyboard = ui.ctx().wants_keyboard_input();
         ui.input(|i| {
-            if i.key_pressed(egui::Key::Y) && !i.modifiers.command {
+            if !wants_keyboard && i.key_pressed(egui::Key::Y) && !i.modifiers.command {
                 commands.push_back(ShellAction::Command(Command::ToggleEditorSync));
             }
-            if !i.modifiers.command {
+            if !wants_keyboard && !i.modifiers.command {
                 if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
                     self.insertion_palette.open(PaletteMode::Actions);
                 }

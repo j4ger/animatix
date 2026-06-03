@@ -608,13 +608,14 @@ impl Timeline {
         // Check the frame cache: return cached scene if time and dimensions match
         // and the underlying modifiers/layout have not changed.
         let needs_frame_env = self.needs_frame_env();
+        let has_child_orders = !self.child_orders.is_empty();
         if debug_options == DebugRenderOptions::default() {
             if let Some(ref cached) = *self.frame_cache.borrow() {
                 if cached.time_ms == time_ms
                     && cached.dimensions == scene_dimensions
                     && cached.has_modifiers == needs_frame_env
                     && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders != self.child_orders.is_empty()
+                    && cached.has_child_orders == has_child_orders
                 {
                     return cached.scene.clone();
                 }
@@ -636,7 +637,6 @@ impl Timeline {
 
         // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
         // For static scenes, this eliminates ~95% of evaluation overhead.
-        let needs_frame_env = self.needs_frame_env();
         let mut frame_env = if needs_frame_env {
             Some(self.build_frame_env_internal(time_ms, scene_dimensions, &overrides))
         } else {

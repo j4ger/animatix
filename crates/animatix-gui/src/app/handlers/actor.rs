@@ -59,7 +59,11 @@ pub fn handle_rename_actor(
             old_label: old_label_for_edit,
             new_label: new_label_for_edit,
         };
-        let _ = crate::source_edit::apply_edit(stmts, edit);
+        if crate::source_edit::apply_edit(stmts, edit).is_err() {
+            preview_store.preview.status =
+                format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
+            return vec![];
+        }
         let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
         document_store.source.document.source_text = new_source.clone();
         document_store.source.editor.replace_text(new_source);
