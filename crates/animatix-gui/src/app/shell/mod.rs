@@ -70,6 +70,9 @@ impl GuiShell {
             Command::SelectScene(scene) => {
                 scene::handle_select_scene(&mut self.document_store, &mut self.preview_store, scene)
             }
+            Command::ReorderScenes(new_order) => {
+                scene::handle_reorder_scenes(&mut self.document_store, &mut self.preview_store, new_order)
+            }
             Command::CreateActor { ty, label, position } => actor::handle_create_actor(
                 &mut self.document_store,
                 &mut self.preview_store,

@@ -50,6 +50,7 @@ pub enum Command {
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
+    ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
 

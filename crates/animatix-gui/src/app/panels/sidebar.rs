@@ -290,10 +290,14 @@ fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         return;
     }
 
+    let drag_id = ui.id().with("scene_drag");
+    let drag_data_id = drag_id.with("data");
+    let drop_index_id = drag_id.with("drop_idx");
+
     egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .show(ui, |ui| {
-            for scene_name in scene_names {
+            for (idx, scene_name) in scene_names.iter().enumerate() {
                 let is_active = ctx.active_scene == Some(scene_name.as_str());
                 let row_id = ui.id().with(scene_name);
 
@@ -326,7 +330,30 @@ fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     .selected(is_active)
                     .icon(Some(egui_phosphor::regular::FILM_STRIP))
                     .label_color(if is_active { ACCENT_BLUE } else { TEXT_SECONDARY })
+                    .sense(egui::Sense::click_and_drag())
                     .show(ui, row_id);
+
+                // Drag start
+                if response.drag_started {
+                    ui.data_mut(|d| d.insert_temp(drag_data_id, (idx, scene_name.clone())));
+                }
+
+                // Drop target detection
+                let is_dragging = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
+                if is_dragging && response.hovered {
+                    let pointer = ui.ctx().input(|i| i.pointer.latest_pos());
+                    if let Some(p) = pointer {
+                        let center = response.row_rect.center().y;
+                        let new_idx = if p.y < center { idx } else { idx + 1 };
+                        ui.data_mut(|d| d.insert_temp(drop_index_id, new_idx));
+                        // Draw drop indicator line
+                        let line_y = if p.y < center { response.row_rect.top() } else { response.row_rect.bottom() };
+                        ui.painter().line_segment(
+                            [egui::pos2(response.row_rect.left(), line_y), egui::pos2(response.row_rect.right(), line_y)],
+                            egui::Stroke::new(2.0, ACCENT_BLUE),
+                        );
+                    }
+                }
 
                 // Click to activate scene
                 if response.row_clicked {
@@ -338,8 +365,8 @@ fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     let entries = vec![
                         MenuEntry::item_with_icon(egui_phosphor::regular::CHECK, "Set as active"),
                     ];
-                    if let Some(idx) = render_menu(ui, &entries) {
-                        if idx == 0 {
+                    if let Some(menu_idx) = render_menu(ui, &entries) {
+                        if menu_idx == 0 {
                             ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
                         }
                         ui.close();
@@ -367,6 +394,25 @@ fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                         });
                     }
                     ui.add_space(SPACE_S);
+                }
+            }
+
+            // Handle drop (outside the loop so is_dragging is in scope)
+            let drag_active = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
+            if drag_active && ui.input(|i| i.pointer.any_released()) {
+                if let Some((from_idx, _dragged_name)) = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)) {
+                    let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
+                    if from_idx != to_idx && to_idx <= scene_names.len() {
+                        let mut new_order = scene_names.clone();
+                        let removed = new_order.remove(from_idx);
+                        let insert_at = if to_idx > from_idx { to_idx - 1 } else { to_idx };
+                        new_order.insert(insert_at.min(new_order.len()), removed);
+                        ctx.commands.push_back(ShellAction::Command(Command::ReorderScenes(new_order)));
+                    }
+                    ui.data_mut(|d| {
+                        d.remove::<(usize, String)>(drag_data_id);
+                        d.remove::<usize>(drop_index_id);
+                    });
                 }
             }
         });
