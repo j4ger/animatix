@@ -8,43 +8,11 @@
 
 ## Order
 
-1. **Phase 0.5** Multi-Scene Polish
-2. **Phase 1** Inspector Core Completeness — *users can't do basic things*
-3. **Phase 2** Animation Power Tools — *power-user differentiators*
-4. **Phase 3** Asset & Component Integration
-5. **Phase 4** PiP / Multi-Viewport
-6. **Phase 5** Editor Infrastructure (green tree, WASM)
-7. **Phase 6** QoL & Polish
-
----
-
-
-
-## Phase 0.5 — Multi-Scene Polish
-
-> Small remaining Phase 0 work before moving to deeper feature gaps.
-
-| # | Item | What | Files | Effort |
-|---|------|------|-------|--------|
-| 0.5.1 | **Transition editor UI** | Visual editing of `play` edge transitions (type, duration, easing) in the inspector transition card. Dropdown for transition type + duration field. | `app/panels/inspector/mod.rs` | 1 day | ✅ |
-| 0.5.2 | **Scene duration editing** | Add `duration` property to scene declarations (currently implicit). Inspector shows editable duration field. | `app/panels/inspector/`, `timeline/` | 1 day | ⚠️ deferred — requires `Stmt::Scene` AST extension |
-| 0.5.3 | **Scene duplicate / delete** | Context menu items in scene list for duplicating (copy AST + rename) and deleting scenes. | `app/panels/sidebar.rs`, `app/commands.rs` | 1 day | ✅ |
-| 0.5.4 | **Scene block drag in timeline** | Drag scene blocks in the composition timeline to change start times. | `app/panels/timeline_panel.rs` | 2 days | ⚠️ deferred — start times are derived from walk order + durations; needs design |
-
----
-
-## Phase 1 — Inspector Core Completeness
-
-> **Theme: "Users can't do basic things."** Backend support exists but has zero GUI exposure. These are the highest-impact gaps.
-
-| # | Item | What | Files | Effort | Backend? |
-|---|------|------|-------|--------|----------|
-| 1.1 | **Filter actor properties** | Add blur, brightness, contrast, saturate, hue-rotate, sepia to `property_groups.rs` so Filter actors are editable in the inspector. | `app/panels/inspector/property_groups.rs`, `timeline/property_registry.rs` | 1 day | ✅ |
-| 1.2 | **Audio actor properties** | Audio source path, volume, start time, duration fields in inspector. | `app/panels/inspector/property_groups.rs` | 1 day | ✅ |
-| 1.3 | **Per-actor visibility toggle** | Eye icon in sidebar layers list toggles a visibility flag (not just opacity keyframe). Inspector shows visibility checkbox. | `app/panels/sidebar.rs`, `app/panels/inspector/` | 1 day | ✅ |
-| 1.4 | **Actor lock** | Lock icon in sidebar prevents selection/drag in preview. Inspector shows lock toggle. | `app/panels/sidebar.rs`, `app/preview/selection.rs` | 1 day | ✅ |
-| 1.5 | **Runtime diagnostics panel** | Wire `Timeline::runtime_diagnostics()` into the existing diagnostics component. Show modifier/runtime errors per frame, not just build/parse errors. | `app/components/diagnostics.rs`, `app/runtime.rs` | 1 day | ✅ |
-| 1.6 | **Parenting drop-down** | Inspector shows current parent label + dropdown to reparent to another actor or "None" (root). | `app/panels/inspector/mod.rs` | 1 day | ✅ |
+1. **Phase 2** Animation Power Tools — *power-user differentiators*
+2. **Phase 3** Asset & Component Integration
+3. **Phase 4** PiP / Multi-Viewport
+4. **Phase 5** Editor Infrastructure (green tree, WASM)
+5. **Phase 6** QoL & Polish
 
 ---
 
@@ -138,3 +106,5 @@
 | **Audio playback in preview** | Audio segments are collected for export muxing but not played back during GUI preview. Requires an audio output backend (rodio/cpal). | Post-1 or separate feature |
 | **Variable track UI** | `let` declarations inside keyframes create `VariableTrack` entries. No GUI to view or edit these. Advanced feature, low demand. | When needed |
 | **Module dependency graph** | Visual graph of imports between `.amx` files. Internal tooling feature. | When needed |
+| **Scene duration editing** | Add `duration` property to scene declarations (currently implicit). Inspector shows editable duration field. Requires `Stmt::Scene` AST extension. | Phase 5 |
+| **Scene block drag in timeline** | Drag scene blocks in the composition timeline to change start times. Start times are derived from walk order + durations; needs design. | Phase 5 |
