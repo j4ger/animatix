@@ -223,6 +223,49 @@ pub(super) fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceE
     Ok(())
 }
 
+pub(super) fn duplicate_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceEditError> {
+    let original = stmts.iter().position(|stmt| {
+        matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name)
+    });
+
+    let Some(idx) = original else {
+        return Err(SourceEditError::SceneNotFound { scene: name.to_string() });
+    };
+
+    let mut new_scene = stmts[idx].clone();
+    let new_name = {
+        let base = format!("{}_copy", name);
+        let mut candidate = base.clone();
+        let existing: std::collections::HashSet<String> = scene_names(stmts).into_iter().collect();
+        if existing.contains(&candidate) {
+            for i in 1.. {
+                candidate = format!("{}_{}", base, i);
+                if !existing.contains(&candidate) {
+                    break;
+                }
+            }
+        }
+        candidate
+    };
+
+    if let Stmt::Scene { name: scene_name, .. } = &mut new_scene {
+        *scene_name = new_name.clone();
+    }
+
+    // Rename actor labels inside the duplicated scene to avoid conflicts
+    let mut label_counter = 0usize;
+    walk_stmts_mut(std::slice::from_mut(&mut new_scene), &mut |stmt| {
+        if let Stmt::ActorDecl { label, .. } = stmt {
+            let new_label = format!("{}_{}", label, label_counter);
+            label_counter += 1;
+            *label = new_label;
+        }
+    });
+
+    stmts.insert(idx + 1, new_scene);
+    Ok(())
+}
+
 pub(super) fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceEditError> {
     let mut removed = false;
     // 1. Remove the Scene declaration and any Play statements targeting it

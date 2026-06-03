@@ -53,6 +53,8 @@ pub enum Command {
     ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
+    DuplicateScene(String),
+    DeleteScene(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
     CreateActor { ty: String, label: String, position: [f32; 2] },

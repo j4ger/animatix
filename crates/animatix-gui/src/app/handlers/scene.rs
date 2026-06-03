@@ -1,4 +1,4 @@
-use crate::app::commands::Effect;
+use crate::app::commands::{Command, Effect};
 use crate::app::stores::{DocumentStore, PreviewStore};
 
 pub fn handle_reorder_scenes(
@@ -103,4 +103,60 @@ pub fn handle_select_scene(
         }
     }
     vec![]
+}
+
+pub fn handle_duplicate_scene(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    scene: String,
+) -> Vec<Effect> {
+    document_store.snapshot(Command::DuplicateScene(scene.clone()));
+    let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        return vec![];
+    };
+
+    if crate::source_edit::apply_edit(
+        stmts,
+        crate::source_edit::SourceEdit::DuplicateScene { name: scene.clone() },
+    ).is_ok() {
+        document_store.source.document.source_text =
+            animatix_syntax::to_source::stmts_to_source(stmts);
+        document_store.source.document.is_dirty = true;
+        document_store.source.editor.replace_text(document_store.source.document.source_text.clone());
+        preview_store.preview_dirty = true;
+        preview_store.preview.status = format!("Duplicated scene '{}'", scene);
+        vec![Effect::Status(format!("Duplicated scene '{}'", scene))]
+    } else {
+        preview_store.preview.status = format!("Failed to duplicate scene '{}'", scene);
+        vec![]
+    }
+}
+
+pub fn handle_delete_scene(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut crate::app::stores::UiStore,
+    scene: String,
+) -> Vec<Effect> {
+    document_store.snapshot(Command::DeleteScene(scene.clone()));
+    let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        return vec![];
+    };
+
+    if crate::source_edit::apply_edit(
+        stmts,
+        crate::source_edit::SourceEdit::DeleteScene { name: scene.clone() },
+    ).is_ok() {
+        document_store.source.document.source_text =
+            animatix_syntax::to_source::stmts_to_source(stmts);
+        document_store.source.document.is_dirty = true;
+        document_store.source.editor.replace_text(document_store.source.document.source_text.clone());
+        preview_store.preview_dirty = true;
+        ui_store.selection.selected_actors.clear();
+        preview_store.preview.status = format!("Deleted scene '{}'", scene);
+        vec![Effect::Status(format!("Deleted scene '{}'", scene))]
+    } else {
+        preview_store.preview.status = format!("Failed to delete scene '{}'", scene);
+        vec![]
+    }
 }

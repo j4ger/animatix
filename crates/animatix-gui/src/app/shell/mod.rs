@@ -73,6 +73,12 @@ impl GuiShell {
             Command::ReorderScenes(new_order) => {
                 scene::handle_reorder_scenes(&mut self.document_store, &mut self.preview_store, new_order)
             }
+            Command::DuplicateScene(scene) => {
+                scene::handle_duplicate_scene(&mut self.document_store, &mut self.preview_store, scene)
+            }
+            Command::DeleteScene(scene) => {
+                scene::handle_delete_scene(&mut self.document_store, &mut self.preview_store, &mut self.ui_store, scene)
+            }
             Command::CreateActor { ty, label, position } => actor::handle_create_actor(
                 &mut self.document_store,
                 &mut self.preview_store,

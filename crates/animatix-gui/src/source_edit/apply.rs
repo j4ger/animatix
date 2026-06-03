@@ -108,6 +108,10 @@ pub enum SourceEdit {
     DeleteScene {
         name: String,
     },
+    /// Duplicate a scene declaration with renamed actors.
+    DuplicateScene {
+        name: String,
+    },
     /// Update the easing of an existing keyframe's assignment.
     SetKeyframeEasing {
         actor: String,
@@ -210,6 +214,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::AddScene { name } => super::scene_edits::add_scene(stmts, &name),
         SourceEdit::DeleteScene { name } => super::scene_edits::delete_scene(stmts, &name),
+        SourceEdit::DuplicateScene { name } => super::scene_edits::duplicate_scene(stmts, &name),
         SourceEdit::SetKeyframeEasing { actor, property, time_s, easing } => {
             super::keyframe_edits::set_keyframe_easing(stmts, &actor, &property, time_s, easing)
         }

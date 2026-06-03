@@ -364,10 +364,16 @@ fn scenes_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 response.response.context_menu(|ui| {
                     let entries = vec![
                         MenuEntry::item_with_icon(egui_phosphor::regular::CHECK, "Set as active"),
+                        MenuEntry::separator(),
+                        MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate scene"),
+                        MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete scene"),
                     ];
                     if let Some(menu_idx) = render_menu(ui, &entries) {
-                        if menu_idx == 0 {
-                            ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                        match menu_idx {
+                            0 => ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone()))),
+                            2 => ctx.commands.push_back(ShellAction::Command(Command::DuplicateScene(scene_name.clone()))),
+                            3 => ctx.commands.push_back(ShellAction::Command(Command::DeleteScene(scene_name.clone()))),
+                            _ => {}
                         }
                         ui.close();
                     }
