@@ -514,7 +514,6 @@ pub(crate) fn render_property_row(
             }
             PropertyKind::Float(v) => {
             let mut nv = *v;
-            let is_angle = entry.name == "rotation";
             let is_01 = matches!(
                 entry.name,
                 "opacity" | "fill_opacity" | "stroke_progress" | "sepia" | "volume"

@@ -16,7 +16,7 @@ use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix_syntax::diagnostics::Diagnostic;
-use animatix::timeline::{Timeline, SceneDimensions, TrackAccessor};
+use animatix::timeline::{Timeline, SceneDimensions};
 
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
@@ -523,10 +523,10 @@ fn render_actor_tree(
     selected_actors: &mut HashSet<String>,
     collapsed_actors: &mut HashSet<String>,
     commands: &mut ActionQueue,
-    time_ms: u64,
+    _time_ms: u64,
     depth: usize,
 ) {
-    use crate::app::commands::{PropertyEdit, PropertyValue};
+    
 
     let Some(track) = timeline.get_track(label) else {
         return;
@@ -695,7 +695,7 @@ fn render_actor_tree(
                 selected_actors,
                 collapsed_actors,
                 commands,
-                time_ms,
+                _time_ms,
                 depth + 1,
             );
         }

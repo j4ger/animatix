@@ -948,10 +948,9 @@ fn render_parent_card(
         layout::section_header(ui, egui_phosphor::regular::TREE_STRUCTURE, "Hierarchy", None);
 
         layout::labeled_row(ui, "Parent", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-            let all_labels: Vec<String> = timeline.tracks()
-                .iter()
-                .map(|(label, _)| label.clone())
-                .filter(|label| label != actor)
+            let all_labels: Vec<String> = timeline.tracks().keys()
+                .filter(|&label| label != actor)
+                .cloned()
                 .collect();
 
             let current_display = current_parent.as_deref().unwrap_or("None (root)");
@@ -959,14 +958,13 @@ fn render_parent_card(
                 .selected_text(current_display)
                 .width(ui.available_width())
                 .show_ui(ui, |ui| {
-                    if ui.selectable_label(current_parent.is_none(), "None (root)").clicked() {
-                        if current_parent.is_some() {
+                    if ui.selectable_label(current_parent.is_none(), "None (root)").clicked()
+                        && current_parent.is_some() {
                             commands.push_back(ShellAction::Command(Command::ReparentActor {
                                 actor: actor.to_string(),
                                 new_parent: None,
                             }));
                         }
-                    }
                     for label in &all_labels {
                         let is_selected = current_parent.as_deref() == Some(label.as_str());
                         if ui.selectable_label(is_selected, label).clicked() && !is_selected {
