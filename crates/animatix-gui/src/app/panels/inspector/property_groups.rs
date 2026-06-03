@@ -44,6 +44,8 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     let mut shape = Vec::new();
     let mut text = Vec::new();
     let mut media = Vec::new();
+    let mut effects = Vec::new();
+    let mut audio = Vec::new();
 
     for &idx in &indices {
         let schema = &PROPERTY_REGISTRY[idx];
@@ -104,6 +106,13 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             | ActorField::FontSize
             | ActorField::TextPaths => text.push(entry),
             ActorField::ImageData | ActorField::SvgPaths => media.push(entry),
+            ActorField::FilterBlur
+            | ActorField::FilterBrightness
+            | ActorField::FilterContrast
+            | ActorField::FilterSaturate
+            | ActorField::FilterHueRotate
+            | ActorField::FilterSepia => effects.push(entry),
+            ActorField::AudioSource | ActorField::AudioVolume => audio.push(entry),
             _ => {}
         }
     }
@@ -142,6 +151,20 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             name: "Media",
             icon: egui_phosphor::regular::FILM_STRIP,
             properties: media,
+        });
+    }
+    if !effects.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Effects",
+            icon: egui_phosphor::regular::MAGIC_WAND,
+            properties: effects,
+        });
+    }
+    if !audio.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Audio",
+            icon: egui_phosphor::regular::SPEAKER_HIGH,
+            properties: audio,
         });
     }
 
@@ -494,8 +517,9 @@ pub(crate) fn render_property_row(
             let is_angle = entry.name == "rotation";
             let is_01 = matches!(
                 entry.name,
-                "opacity" | "fill_opacity" | "stroke_progress"
+                "opacity" | "fill_opacity" | "stroke_progress" | "sepia" | "volume"
             );
+            let is_angle = entry.name == "rotation" || entry.name == "hue_rotate";
             let unit = unit_suffix(entry.name);
             if is_01 {
                 ui.scope_builder(
@@ -712,7 +736,7 @@ pub(crate) fn render_property_row(
                                             }
                                         }
                                     });
-                            } else if entry.name == "text_content" || entry.name == "text" {
+                            } else if entry.name == "text_content" || entry.name == "text" || entry.name == "source" {
                                 let edit = egui::TextEdit::singleline(&mut buf)
                                     .font(egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional))
                                     .desired_width(ui.available_width());
@@ -763,6 +787,10 @@ fn unit_suffix(name: &str) -> &'static str {
         "scale" => "×",
         "opacity" | "fill_opacity" | "stroke_progress" => "",
         "font_size" => "pt",
+        "blur" => "px",
+        "brightness" | "contrast" | "saturate" | "sepia" => "",
+        "hue_rotate" => "°",
+        "volume" => "%",
         _ => "",
     }
 }
