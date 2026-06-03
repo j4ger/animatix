@@ -8,31 +8,17 @@
 
 ## Order
 
-1. **Phase 0** ✅ Multi-Scene GUI
-2. **Phase 0.5** Multi-Scene Polish
-3. **Phase 1** Inspector Core Completeness — *users can't do basic things*
-4. **Phase 2** Animation Power Tools — *power-user differentiators*
-5. **Phase 3** Asset & Component Integration
-6. **Phase 4** PiP / Multi-Viewport
-7. **Phase 5** Editor Infrastructure (green tree, WASM)
-8. **Phase 6** QoL & Polish
+1. **Phase 0.5** Multi-Scene Polish
+2. **Phase 1** Inspector Core Completeness — *users can't do basic things*
+3. **Phase 2** Animation Power Tools — *power-user differentiators*
+4. **Phase 3** Asset & Component Integration
+5. **Phase 4** PiP / Multi-Viewport
+6. **Phase 5** Editor Infrastructure (green tree, WASM)
+7. **Phase 6** QoL & Polish
 
 ---
 
-## Phase 0 — Multi-Scene GUI & Transitions
 
-> **✅ Complete.** The CLI and core already supported multi-scene composition, transition blending, and `play` edges. This phase surfaced composition-level controls in the IDE.
-
-| # | Item | What | Files | Effort | Status |
-|---|------|------|-------|--------|--------|
-| 1 | **Scene list sidebar tab** | `SidebarTab::Scenes` lists scenes by declaration order. Click to switch `active_scene`. Duration + transition hints. | `app/panels/sidebar.rs` | 2 days | ✅ |
-| 2 | **Composition timeline** | Mini timeline with scene blocks, `play` edge arrows, transition labels. Click to seek. | `app/panels/timeline_panel.rs` | 3 days | ✅ (already existed) |
-| 3 | **Scene-level inspector** | When no actor selected, inspector shows scene header, properties (duration, start, background), transition card with "Go to" button, and scene list. | `app/panels/inspector/mod.rs` | 2 days | ✅ |
-| 4 | **Scene reordering** | Drag-and-drop in scene list reorders declaration order. Emits `Command::ReorderScenes` which reorders `Stmt::Scene` blocks in AST and re-serializes. | `app/panels/sidebar.rs`, `app/handlers/scene.rs` | 2 days | ✅ |
-
-**Commits:** `7582b0b` (scene list), `66cf7db` (scene inspector), `6860744` (scene reordering).
-
----
 
 ## Phase 0.5 — Multi-Scene Polish
 
