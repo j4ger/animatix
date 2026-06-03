@@ -6,6 +6,39 @@
 
 ---
 
+## Phase 0 — Timeline Interaction Fixes
+
+> Active bugs and UX friction discovered during a focused inspection of the timeline, preview, and playback panels. Most are small, self-contained changes with high user-impact.
+
+### P0 — Broken core workflow
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 1 | **Keyframe drag scrubs playhead** | When dragging a keyframe diamond to reposition it, the underlying track bar's `Sense::click_and_drag()` also fires, sending `Command::ScrubTo` every frame. The playhead jumps around under the drag. | `app/panels/timeline_panel.rs` | 1 hr | — |
+| 2 | **Playback stops at end even when loop is enabled** | `PlaybackController::tick()` checks `loop_end_s` but then unconditionally stops at `duration_s`. If `loop_end_s == duration_s`, playback never loops. | `app/mod.rs` | 30 min | — |
+| 3 | **Keyboard `<` / `>` use wrong keyframes in compositions** | The `comma`/`period` shortcuts call `go_to_previous_keyframe` with `active_timeline()` only. The toolbar buttons correctly use composition-wide keyframes; the keyboard shortcuts ignore scenes outside the active one. | `app/runtime.rs` | 1 hr | — |
+
+### P1 — UX friction
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 4 | **Shift-click multi-select scrubs timeline** | Shift-clicking a keyframe diamond adds it to `multi_selected`, but the diamond's `clicked()` handler still queues `Command::ScrubTo`. The user wanted to select, not jump. | `app/panels/timeline_panel.rs` | 30 min | — |
+| 5 | **Clicking a keyframe double-fires `ScrubTo`** | The diamond click handler and the track-bar click handler both queue scrub commands on the same frame. | `app/panels/timeline_panel.rs` | 30 min | — |
+| 6 | **Loop-region handles can cross and break** | The start handle clamps to `end - 0.05` and the end to `start + 0.05`, but there's no reciprocal enforcement. Dragging past each other leaves the region inverted. | `app/panels/timeline_panel.rs` | 1 hr | — |
+| 7 | **Keyframe drag snaps to 0.1s — too coarse** | `snapped = (nt * 10.0).round() / 10.0` locks drags to 100 ms (~6 frames at 60 fps). Users doing frame-precise work can't land on exact frames. | `app/panels/timeline_panel.rs` | 2 hrs | — |
+
+### P2 — Missing affordances
+
+| # | Item | What | Files | Effort | Blocker |
+|---|------|------|-------|--------|---------|
+| 8 | **Action blocks on timeline are not clickable** | Action events (fade-in, move, etc.) are drawn as colored blocks but have no interaction. Users can't click them to jump to the start time or see details. | `app/panels/timeline_panel.rs` | 3 hrs | — |
+| 9 | **Actor label click doesn't auto-scroll timeline** | Clicking an actor label selects it, but if that track is below the fold the timeline doesn't scroll to bring it into view. | `app/panels/timeline_panel.rs` | 2 hrs | — |
+| 10 | **No off-screen playhead indicator when zoomed** | When zoomed in and scrolled, if the playhead is outside the visible window there's no arrow showing which direction it's in. | `app/panels/timeline_panel.rs` | 2 hrs | — |
+| 11 | **Timeline wheel-zoom only works over the bar area** | The wheel-zoom interaction is bound to `bar_rect` only. Hovering over labels or the ruler and scrolling does nothing. | `app/panels/timeline_panel.rs` | 1 hr | — |
+| 12 | **Ruler drag creates guides on accidental clicks** | Any mouse movement during a ruler click is interpreted as a drag start, creating a guide. Brief accidental drags (common with trackpads) litter the canvas. | `app/panels/preview_panel.rs` | 1 hr | — |
+
+---
+
 ## Phase 1 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
@@ -31,8 +64,9 @@
 
 ## Order
 
-1. **Phase 1** (PiP — after syntax and renderer are stable)
-2. **Phase 2** (start after syntax stabilizes)
+1. **Phase 0** (timeline interaction fixes — no blockers, can start immediately)
+2. **Phase 1** (PiP — after syntax and renderer are stable)
+3. **Phase 2** (start after syntax stabilizes)
 
 ---
 
