@@ -723,6 +723,7 @@ impl GuiShell {
     /// Force-clear any active error state (parse or render).
     fn clear_any_error(&mut self, status: String) {
         self.document_store.history.render_diagnostics.clear();
+        self.document_store.history.runtime_diagnostics.clear();
         self.preview_store.preview.error = None;
         self.preview_store.preview.status = status;
     }

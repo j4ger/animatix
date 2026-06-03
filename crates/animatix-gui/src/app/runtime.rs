@@ -302,6 +302,17 @@ impl AnimatixApp {
 
             self.shell.preview_store.preview_dirty = false;
 
+            // Collect runtime diagnostics from the evaluated timeline(s)
+            let mut runtime_diagnostics = Vec::new();
+            if let Some(composition) = self.shell.document_store.source.document.composition.as_ref() {
+                for scene in composition.scenes.values() {
+                    runtime_diagnostics.extend(scene.timeline.runtime_diagnostics());
+                }
+            } else if let Some(timeline) = self.shell.document_store.source.document.timeline.as_ref() {
+                runtime_diagnostics.extend(timeline.runtime_diagnostics());
+            }
+            self.shell.document_store.history.runtime_diagnostics = runtime_diagnostics;
+
             // Transfer hit regions from the preview surface (moved, not cloned)
             // into the document store cache.  A small clone is still needed for
             // ui_store because Behavior borrows document_store mutably and cannot

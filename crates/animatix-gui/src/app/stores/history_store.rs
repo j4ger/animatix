@@ -10,6 +10,7 @@ pub struct HistoryStore {
     pub redo_stack: Vec<UndoEntry>,
     pub undo_limit: usize,
     pub render_diagnostics: Vec<Diagnostic>,
+    pub runtime_diagnostics: Vec<Diagnostic>,
 }
 
 impl HistoryStore {
@@ -19,6 +20,7 @@ impl HistoryStore {
             redo_stack: Vec::new(),
             undo_limit: 100,
             render_diagnostics: Vec::new(),
+            runtime_diagnostics: Vec::new(),
         }
     }
 

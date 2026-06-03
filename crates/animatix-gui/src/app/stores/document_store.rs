@@ -23,10 +23,11 @@ impl DocumentStore {
         }
     }
 
-    /// Combined document + render diagnostics for the diagnostics panel.
+    /// Combined document + render + runtime diagnostics for the diagnostics panel.
     pub fn combined_diagnostics(&self) -> Vec<Diagnostic> {
         let mut diagnostics = self.source.document.diagnostics.clone();
         diagnostics.extend(self.history.render_diagnostics.iter().cloned());
+        diagnostics.extend(self.history.runtime_diagnostics.iter().cloned());
         diagnostics
     }
 
