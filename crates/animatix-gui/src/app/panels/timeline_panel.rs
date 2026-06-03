@@ -634,6 +634,7 @@ fn render_timeline_content(
                 }
 
                 // Keyframe diamonds (computed from timeline)
+                let mut kf_clicked_this_track = false;
                 if let Some(tl) = timeline {
                     if let Some(track) = tl.get_track(actor_label) {
                         let kf_props = collect_actor_keyframes(track);
@@ -685,6 +686,7 @@ fn render_timeline_content(
                             });
 
                             if dresp.clicked() {
+                                kf_clicked_this_track = true;
                                 if shift_held {
                                     if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
                                     else { multi_selected.push((actor_label.clone(), kf_ms)); }
@@ -704,11 +706,16 @@ fn render_timeline_content(
                             if is_drag {
                                 if let Some(pos) = dresp.interact_pointer_pos() {
                                     let nt = x_to_time(pos.x);
-                                    let snapped = (nt * 10.0).round() / 10.0;
+                                    // 60 fps snap by default; hold Shift for free drag
+                                    let snapped = if shift_held {
+                                        nt
+                                    } else {
+                                        (nt * 60.0).round() / 60.0
+                                    };
                                     new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                     let gx = time_to_x(snapped);
                                     painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(STROKE_WIDTH, AMBER.linear_multiply(0.5)));
-                                    let g = painter.layout_no_wrap(format!("{:.1}s → {:.1}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
+                                    let g = painter.layout_no_wrap(format!("{:.2}s → {:.2}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                                     let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0), g.size() + Vec2::new(8.0, 4.0));
                                     painter.rect_filled(tr, RADIUS_S, BG_SURFACE);
                                     painter.galley(tr.min + Vec2::new(4.0, 2.0), g, TEXT_PRIMARY);
@@ -733,8 +740,8 @@ fn render_timeline_content(
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
-                // Track bar interaction (scrubbing) — suppressed during keyframe drag
-                if kf_drag.is_none() {
+                // Track bar interaction (scrubbing) — suppressed during keyframe drag or click
+                if kf_drag.is_none() && !kf_clicked_this_track {
                     let resp = ui.interact(bar_area, ui.id().with(("actor_track", track_idx)), Sense::click_and_drag());
                     if resp.clicked() {
                         if let Some(pos) = resp.interact_pointer_pos() {
@@ -783,7 +790,8 @@ fn render_timeline_content(
                     let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
                     if sr.dragged() {
                         if let Some(pos) = sr.interact_pointer_pos() {
-                            preview.playback.loop_start_s = Some(x_to_time(pos.x).min(we - 0.05));
+                            let end = preview.playback.loop_end_s.unwrap_or(duration_s);
+                            preview.playback.loop_start_s = Some(x_to_time(pos.x).min(end - 0.05));
                         }
                     }
                     painter.rect_filled(sh, RADIUS_S, ACCENT_BLUE);
@@ -792,10 +800,20 @@ fn render_timeline_content(
                     let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
                     if er.dragged() {
                         if let Some(pos) = er.interact_pointer_pos() {
-                            preview.playback.loop_end_s = Some(x_to_time(pos.x).max(ws + 0.05));
+                            let start = preview.playback.loop_start_s.unwrap_or(0.0);
+                            preview.playback.loop_end_s = Some(x_to_time(pos.x).max(start + 0.05));
                         }
                     }
                     painter.rect_filled(eh, RADIUS_S, ACCENT_BLUE);
+
+                    // Reciprocal enforcement: ensure end > start + 0.05
+                    if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s) {
+                        if le <= ls + 0.05 {
+                            let mid = (ls + le) / 2.0;
+                            preview.playback.loop_start_s = Some((mid - 0.025).max(0.0));
+                            preview.playback.loop_end_s = Some((mid + 0.025).min(duration_s));
+                        }
+                    }
                 } else {
                     // Loop is off — show full-duration static indicator
                     painter.rect_filled(range_bar.shrink2(Vec2::new(0.0, 2.0)), RADIUS_S, BG_WIDGET);
