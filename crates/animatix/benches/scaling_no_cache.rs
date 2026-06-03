@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_scene(actor_count: usize) -> Timeline {
     let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
@@ -14,8 +15,7 @@ fn build_scene(actor_count: usize) -> Timeline {
             100 + (i / 30) * 60
         ));
     }
-    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(&source)
 }
 
 fn bench_scaling_no_cache(c: &mut Criterion) {

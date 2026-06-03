@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_reactive_timeline() -> Timeline {
     let source = r#"
@@ -19,8 +20,7 @@ always {
   echo.at = orbiter.at
 }
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn bench_reactive_timeline(c: &mut Criterion) {

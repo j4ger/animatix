@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_many_actors_scene() -> Timeline {
     let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
@@ -14,8 +15,7 @@ fn build_many_actors_scene() -> Timeline {
             100 + (i % 10) * 50
         ));
     }
-    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(&source)
 }
 
 fn build_mixed_scene() -> Timeline {
@@ -34,8 +34,7 @@ fn build_mixed_scene() -> Timeline {
 title: Text, content: "Hello World", font_size: 48, color: text.primary, at: (960, 400)
 subtitle: Text, content: "Subtitle text", font_size: 24, color: text.secondary, at: (960, 500)
 "#);
-    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(&source)
 }
 
 fn bench_scene_costs(c: &mut Criterion) {

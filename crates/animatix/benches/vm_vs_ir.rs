@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_reactive_timeline() -> Timeline {
     let source = r#"
@@ -19,8 +20,7 @@ always {
   echo.at = orbiter.at
 }
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn build_static_timeline() -> Timeline {
@@ -34,8 +34,7 @@ orbiter: Ellipse, size: (64, 64), color: accent.primary, at: (820, 390)
 pulse: Rect, size: (120, 120), color: (0.88, 0.42, 0.84, 1.0), at: (280, 390)
 echo: Ellipse, size: (40, 40), color: accent.warning, at: pulse.at
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn bench_modifier_overhead(c: &mut Criterion) {

@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_text_scene() -> Timeline {
     let source = r#"
@@ -10,8 +11,7 @@ config { colorscheme: "editorial-dark" }
 title: Text, content: "Hello World", font_size: 48, color: text.primary, at: (960, 540)
 subtitle: Text, content: "Subtitle text here", font_size: 24, color: text.secondary, at: (960, 600)
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn build_many_actors_scene() -> Timeline {
@@ -26,8 +26,7 @@ fn build_many_actors_scene() -> Timeline {
             100 + (i % 10) * 50
         ));
     }
-    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(&source)
 }
 
 fn build_layout_scene() -> Timeline {
@@ -43,8 +42,7 @@ container: Row, at: (100, 100), gap: 20, align: "center" {
   e: Rect, size: (70, 70), color: accent.primary
 }
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn bench_scrubbing(c: &mut Criterion) {

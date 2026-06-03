@@ -1,6 +1,7 @@
 use animatix::timeline::Timeline;
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_test_timeline() -> Timeline {
     let source = r#"
@@ -23,8 +24,7 @@ title.opacity = 0.5
 title.position = (960, 600)
 title.opacity = 1.0
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn bench_timeline_evaluate(c: &mut Criterion) {

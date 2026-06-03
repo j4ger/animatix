@@ -1,6 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_static_scene(actor_count: usize) -> Timeline {
     // Static scene: no keyframes, no modifiers
@@ -15,8 +16,7 @@ fn build_static_scene(actor_count: usize) -> Timeline {
             100 + (i / 20) * 90
         ));
     }
-    let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(&source)
 }
 
 fn bench_static(c: &mut Criterion) {

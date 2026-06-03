@@ -1,6 +1,7 @@
 use animatix::timeline::Timeline;
-use chumsky::Parser;
 use criterion::{Criterion, criterion_group, criterion_main};
+
+mod common;
 
 fn build_reactive_source() -> String {
     r#"
@@ -26,8 +27,7 @@ fn bench_build_time(c: &mut Criterion) {
 
     c.bench_function("build_reactive_timeline", |b| {
         b.iter(|| {
-            let (stmts, _) = animatix_syntax::parser::parser().parse(&source).into_output_errors();
-            Timeline::build(&stmts.unwrap());
+            let _ = common::parse_timeline(&source);
         })
     });
 }

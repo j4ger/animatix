@@ -1,6 +1,7 @@
 use animatix::timeline::Timeline;
-use chumsky::Parser;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
+
+mod common;
 
 fn build_timeline_with_modifiers() -> Timeline {
     let source = r#"
@@ -18,8 +19,7 @@ always {
     pulse.opacity = t / 2
 }
 "#;
-    let (stmts, _) = animatix_syntax::parser::parser().parse(source).into_output_errors();
-    Timeline::build(&stmts.unwrap())
+    common::parse_timeline(source)
 }
 
 fn bench_modifier_evaluation(c: &mut Criterion) {
