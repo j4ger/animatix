@@ -18,6 +18,8 @@ pub struct PreviewOverlay {
     pub show_snap_guides: bool,
     /// Show hover highlight around hovered actors.
     pub show_hover_highlight: bool,
+    /// Show motion paths for position keyframes.
+    pub show_motion_paths: bool,
     /// Grid size in pixels.
     pub grid_size: f32,
 }
@@ -31,6 +33,7 @@ impl Default for PreviewOverlay {
             show_actor_labels: false,
             show_snap_guides: true,
             show_hover_highlight: true,
+            show_motion_paths: true,
             grid_size: 20.0,
         }
     }

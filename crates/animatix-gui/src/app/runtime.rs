@@ -170,7 +170,7 @@ impl AnimatixApp {
                     if let Some(track) = timeline.get_track(actor) {
                         let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                         let new_pos = [pos[0] + dx, pos[1] + dy];
-                        edits.push(crate::app::panels::PropertyEdit {
+                        edits.push(crate::app::panels::PropertyEdit { time_s: None,
                             actor: actor.clone(),
                             property: "position".into(),
                             value: crate::app::panels::PropertyValue::Vec2(new_pos),

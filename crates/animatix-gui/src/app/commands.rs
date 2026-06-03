@@ -145,6 +145,9 @@ pub struct PropertyEdit {
     pub value: PropertyValue,
     /// When true, create a keyframe at current time instead of overwriting defaults.
     pub create_keyframe: bool,
+    /// Optional explicit time override (seconds). When set, the edit applies at
+    /// this time instead of the current playback time. Used by motion path editing.
+    pub time_s: Option<f64>,
 }
 
 /// The typed value of a property edit.

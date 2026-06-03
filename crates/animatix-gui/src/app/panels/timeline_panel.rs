@@ -760,6 +760,50 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
 
+                // Track bar right-click: bulk operations for selected keyframes
+                let track_bar_resp = ui.interact(bar_area, ui.id().with(("track_bar", track_idx)), Sense::click());
+                if track_bar_resp.secondary_clicked() {
+                    let track_selected: Vec<&(String, u64)> = multi_selected.iter().filter(|(l, _)| l == actor_label).collect();
+                    if !track_selected.is_empty() {
+                        // Show bulk context menu at pointer position
+                        // Use egui's context_menu API on the response
+                    }
+                }
+                track_bar_resp.context_menu(|ui| {
+                    let track_selected: Vec<(String, u64)> = multi_selected.iter().filter(|(l, _)| l == actor_label).cloned().collect();
+                    if !track_selected.is_empty() {
+                        ui.strong(format!("{} selected keyframes", track_selected.len()));
+                        ui.separator();
+                        if ui.button(format!("{} Delete selected", egui_phosphor::regular::TRASH)).clicked() {
+                            for (actor, time_ms) in track_selected {
+                                if let Some(tl) = timeline {
+                                    if let Some(track) = tl.get_track(&actor) {
+                                        let kf_props = collect_actor_keyframes(track);
+                                        for (kf_ms, prop) in kf_props {
+                                            if kf_ms == time_ms {
+                                                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
+                                                    actor: actor.clone(),
+                                                    property: prop.to_string(),
+                                                    time_s: kf_ms as f64 / 1000.0,
+                                                }));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            multi_selected.retain(|(l, _)| l != actor_label);
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui.button("Clear selection").clicked() {
+                            multi_selected.retain(|(l, _)| l != actor_label);
+                            ui.close();
+                        }
+                    } else {
+                        ui.label("No keyframes selected");
+                    }
+                });
+
                 // Track bar interaction (scrubbing) — suppressed during keyframe drag or click
                 if kf_drag.is_none() && !kf_clicked_this_track {
                     bar_interaction(ui, bar_area, ("actor_track", track_idx), commands, x_to_time);

@@ -378,6 +378,9 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     ctx.preview.viewport.preview_zoom, ctx.preview.viewport.preview_pan, ctx.preview.overlay.grid_size);
             }
 
+            // ── Motion paths ──
+            ctx.render_motion_paths(ui, preview_rect);
+
             // ── Draw snap indicator lines ──
             if let Some(color) = ctx.preview.snap.snap_line_color {
                 for &sy in &ctx.preview.snap.snap_lines_h {

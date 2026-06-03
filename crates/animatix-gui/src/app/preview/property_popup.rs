@@ -114,7 +114,7 @@ pub fn show_property_popup(
         let rot_delta = property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
         if let Some(delta) = rot_delta {
             let new_rot_deg = (rot_deg + delta * 0.5).rem_euclid(360.0);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                 actor: actor.to_string(),
                 property: "rotation".into(),
                 value: PropertyValue::Float(new_rot_deg.to_radians()),

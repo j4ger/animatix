@@ -423,7 +423,7 @@ pub(crate) fn render_property_row(
     // Click keyframe button to create a keyframe (when not already present)
     if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
         if let Some(value) = entry_to_gui_value(entry) {
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                 actor: actor_label.to_string(),
                 property: entry.name.to_string(),
                 value,
@@ -499,7 +499,7 @@ pub(crate) fn render_property_row(
                                 commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                             }
                             if rx.changed() || ry.changed() {
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Vec2([nx, ny]),
@@ -552,7 +552,7 @@ pub(crate) fn render_property_row(
                                     commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                                 }
                                 if slider.changed() {
-                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(nv),
@@ -586,7 +586,7 @@ pub(crate) fn render_property_row(
                                 }
                                 if response.changed() {
                                     let out_val = if is_angle { nv.to_radians() } else { nv };
-                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(out_val),
@@ -621,7 +621,7 @@ pub(crate) fn render_property_row(
                                 commands.push_back(ShellAction::Drag(DragEvent::InspectorInputDragEnded));
                             }
                             if response.changed() {
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Float(nv as f32),
@@ -666,7 +666,7 @@ pub(crate) fn render_property_row(
                             );
                             if btn.changed() {
                                 let [r, g, b, a] = color.to_array();
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
                                     value: GuiPropertyValue::Color([
@@ -706,7 +706,7 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for v in variants {
                                             if ui.selectable_label(v == text, v).clicked() {
-                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),
                                                     value: GuiPropertyValue::Text(v.to_string()),
@@ -726,7 +726,7 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for family in families {
                                             if ui.selectable_label(family == *text, &family).clicked() {
-                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),
                                                     value: GuiPropertyValue::Text(family),
@@ -741,7 +741,7 @@ pub(crate) fn render_property_row(
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {
-                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Text(buf),

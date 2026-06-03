@@ -70,16 +70,17 @@ pub(super) fn render_dope_sheet(
 
 // ─── Compact Track Row ────────────────────────────────────────────────────
 
-fn easing_display_name(easing: Easing) -> &'static str {
+fn easing_display_name(easing: Easing) -> String {
     match easing {
-        Easing::Linear => "Linear",
-        Easing::EaseIn => "Ease In",
-        Easing::EaseOut => "Ease Out",
-        Easing::EaseInOut => "Ease In Out",
-        Easing::Bounce => "Bounce",
-        Easing::Elastic => "Elastic",
-        Easing::Back => "Back",
-        Easing::Expo => "Expo",
+        Easing::Linear => "Linear".into(),
+        Easing::EaseIn => "Ease In".into(),
+        Easing::EaseOut => "Ease Out".into(),
+        Easing::EaseInOut => "Ease In Out".into(),
+        Easing::Bounce => "Bounce".into(),
+        Easing::Elastic => "Elastic".into(),
+        Easing::Back => "Back".into(),
+        Easing::Expo => "Expo".into(),
+        Easing::CubicBezier(cp) => animatix_syntax::easing::format_cubic_bezier(cp),
     }
 }
 

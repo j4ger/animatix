@@ -8,26 +8,10 @@
 
 ## Order
 
-1. **Phase 2** Animation Power Tools — *power-user differentiators*
-2. **Phase 3** Asset & Component Integration
-3. **Phase 4** PiP / Multi-Viewport
-4. **Phase 5** Editor Infrastructure (green tree, WASM)
-5. **Phase 6** QoL & Polish
-
----
-
-## Phase 2 — Animation Power Tools
-
-> **Theme: "Power-user differentiators."** Standard animation editor features that Animatix lacks.
-
-| # | Item | What | Files | Effort | Backend? |
-|---|------|------|-------|--------|----------|
-| 2.1 | **Easing curve editor** | Custom egui widget: interactive bezier handle editor for easing curves. Replaces the 8-preset dropdown. Store custom curves in a user-defined easing registry. | `app/components/`, `app/panels/inspector/` | 2–3 days | ⚠️ needs registry |
-| 2.2 | **Multi-property graph editor** | Show multiple F-curves (e.g. position X + Y) in the same graph view with color-coded lines. Toggle per-property visibility. | `app/panels/inspector/graph_editor.rs` | 2 days | ✅ |
-| 2.3 | **Motion path editing** | Render position keyframes as an editable spatial path on the preview canvas. Drag control points to move keyframes in 2D space. | `app/preview/overlay.rs`, `app/preview/drag_handler.rs` | 2–3 days | ✅ |
-| 2.4 | **Keyframe bulk operations** | Multi-select keyframes (Shift+click) → delete, move, copy/paste, set easing for all selected. | `app/panels/timeline_panel.rs` | 2 days | ✅ |
-| 2.5 | **Graph editor for Vec2/Color** | Extend graph editor to show Vec2 components (X/Y lines) and RGBA channels. | `app/panels/inspector/graph_editor.rs` | 2 days | ✅ |
-| 2.6 | **Snap guides magnet snapping** | When dragging actors, snap to edges/center of other actors, not just grid and guides. | `app/preview/drag_handler.rs` | 1 day | ✅ |
+1. **Phase 3** Asset & Component Integration
+2. **Phase 4** PiP / Multi-Viewport
+3. **Phase 5** Editor Infrastructure (green tree, WASM)
+4. **Phase 6** QoL & Polish
 
 ---
 

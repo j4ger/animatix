@@ -114,6 +114,12 @@ pub(super) fn set_keyframe_easing(
         animatix_syntax::easing::Easing::Elastic => "elastic",
         animatix_syntax::easing::Easing::Back => "back",
         animatix_syntax::easing::Easing::Expo => "expo",
+        animatix_syntax::easing::Easing::CubicBezier(cp) => {
+            // Serialize custom easing as a special ident that the parser
+            // will handle; for now fall back to linear in source edits.
+            let _ = cp;
+            "linear"
+        }
     };
     let easing_expr = animatix_syntax::ast::Expr::Ident(easing_name.to_string());
 

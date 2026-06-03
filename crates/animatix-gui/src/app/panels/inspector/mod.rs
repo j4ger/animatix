@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
 
-use crate::app::components::{layout, timeline};
+use crate::app::components::{easing_curve_editor, layout, timeline};
+use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::icons::actor_icon_str;
 use crate::app::design_tokens::*;
 use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
@@ -247,6 +248,7 @@ fn render_scene_inspector(
                     }
 
                     // Easing dropdown
+                    let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
                     layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                         let current_easing = edge.transition.easing;
                         let current_name = animatix_syntax::easing::EASING_REGISTRY.iter()
@@ -260,18 +262,36 @@ fn render_scene_inspector(
                                 for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
                                     let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(animatix_syntax::easing::Easing::Linear);
                                     if ui.selectable_label(variant == current_easing, display_name).clicked() && variant != current_easing {
-                                        commands.push_back(ShellAction::Command(Command::SetTransition {
-                                            from_scene: active_scene.to_string(),
-                                            transition: animatix_syntax::ast::Transition {
-                                                id: edge.transition.id.clone(),
-                                                duration_ms: edge.transition.duration_ms,
-                                                easing: variant,
-                                            },
-                                        }));
+                                        new_custom_easing = Some(variant);
                                     }
                                 }
                             });
                     });
+                    if let Some(variant) = new_custom_easing {
+                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                            from_scene: active_scene.to_string(),
+                            transition: animatix_syntax::ast::Transition {
+                                id: edge.transition.id.clone(),
+                                duration_ms: edge.transition.duration_ms,
+                                easing: variant,
+                            },
+                        }));
+                    }
+
+                    // Custom easing curve editor
+                    if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing {
+                        let state = EasingCurveState::from_array(cp);
+                        if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state) {
+                            commands.push_back(ShellAction::Command(Command::SetTransition {
+                                from_scene: active_scene.to_string(),
+                                transition: animatix_syntax::ast::Transition {
+                                    id: edge.transition.id.clone(),
+                                    duration_ms: edge.transition.duration_ms,
+                                    easing: animatix_syntax::easing::Easing::CubicBezier(new_state.to_array()),
+                                },
+                            }));
+                        }
+                    }
 
                     // Click to jump to target scene
                     if ui.button(
@@ -649,32 +669,13 @@ pub(super) fn inspector_ui(
                             );
                         }
                         KeyframeViewMode::Curve => {
-                            // Show F-curve for the first float property with keyframes
-                            let indices = animatix::timeline::allowed_property_indices(track.kind);
-                            let mut shown = false;
-                            for &idx in &indices {
-                                let schema = &animatix::timeline::PROPERTY_REGISTRY[idx];
-                                if schema.value_type == animatix::timeline::ValueType::F32
-                                    && animatix::timeline::property_has_keyframes(track, schema.field)
-                                {
-                                    graph_editor::render_fcurve(
-                                        ui,
-                                        track,
-                                        schema.name,
-                                        timeline.duration_seconds(),
-                                        current_time_s,
-                                        commands,
-                                    );
-                                    shown = true;
-                                    break;
-                                }
-                            }
-                            if !shown {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(SPACE_M);
-                                    ui.label(RichText::new("No float property keyframes to graph").size(FONT_SIZE_S).color(TEXT_MUTED));
-                                });
-                            }
+                            graph_editor::render_multi_fcurve(
+                                ui,
+                                track,
+                                timeline.duration_seconds(),
+                                current_time_s,
+                                commands,
+                            );
                         }
                     }
                 });
@@ -1076,7 +1077,7 @@ fn render_container_children(
         if up_resp.clicked() && i > 0 {
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
@@ -1086,7 +1087,7 @@ fn render_container_children(
         if down_resp.clicked() && i + 1 < order.len() {
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),

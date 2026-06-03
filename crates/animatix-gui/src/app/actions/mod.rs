@@ -172,7 +172,7 @@ impl GuiShell {
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
         if let Some(ref mut timeline) = self.document_store.source.document.timeline {
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
+                let time_ms = (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s()) * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
             timeline.invalidate_frame_cache();
@@ -182,12 +182,13 @@ impl GuiShell {
     fn apply_keyframe_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), crate::source_edit::SourceEditError> {
         let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
+        let edit_time_s = edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s());
         let prev_time_s = self
             .document_store
             .source
             .document
-            .prev_keyframe_time(self.preview_store.preview.playback.current_time_s());
-        let delta_s = self.preview_store.preview.playback.current_time_s() - prev_time_s;
+            .prev_keyframe_time(edit_time_s);
+        let delta_s = edit_time_s - prev_time_s;
 
         let (new_source, source_index) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
@@ -203,7 +204,7 @@ impl GuiShell {
                         actor: edit.actor.clone(),
                         property: edit.property.clone(),
                         value: expr.clone(),
-                        time_s: self.preview_store.preview.playback.current_time_s(),
+                        time_s: edit_time_s,
                         prev_time_s,
                     }
                 };

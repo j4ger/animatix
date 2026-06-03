@@ -218,6 +218,16 @@ pub enum DragState {
         /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
+    /// Dragging a motion path keyframe control point.
+    MotionPath {
+        actor: String,
+        /// Time of the keyframe being dragged (ms).
+        time_ms: u64,
+        /// Position value at drag start.
+        start_position: [f32; 2],
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
 }
 
 // ─── Actor Properties ───────────────────────────────────────────────────────

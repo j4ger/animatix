@@ -1,6 +1,7 @@
 pub mod button;
 pub mod context_menu;
 pub mod diagnostics;
+pub mod easing_curve_editor;
 pub mod layout;
 pub mod row;
 pub mod timeline;

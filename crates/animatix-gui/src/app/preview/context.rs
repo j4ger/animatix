@@ -408,6 +408,78 @@ impl PreviewContext<'_> {
         }
     }
 
+    pub(crate) fn render_motion_paths(&mut self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        if !self.preview.overlay.show_motion_paths { return; }
+
+        let timeline = match self.timeline {
+            Some(t) => t,
+            None => return,
+        };
+
+        for actor in self.selected_actors.iter() {
+            let track = match timeline.get_track(actor) {
+                Some(t) => t,
+                None => continue,
+            };
+            let pos_track = match &track.position {
+                Some(pt) => pt,
+                None => continue,
+            };
+            if pos_track.keyframes.len() < 2 { continue; }
+
+            // Collect keyframe positions
+            let mut kf_points: Vec<(u64, [f32; 2])> = Vec::new();
+            for (&time_ms, (val, _)) in &pos_track.keyframes {
+                kf_points.push((time_ms, *val));
+            }
+            kf_points.sort_by_key(|(t, _)| *t);
+
+            // Draw path lines
+            let path_color = ACCENT_BLUE.gamma_multiply(0.6);
+            let path_stroke = egui::Stroke::new(1.5, path_color);
+            for i in 0..kf_points.len().saturating_sub(1) {
+                let p1_screen = preview::scene_to_screen(
+                    kurbo::Point::new(kf_points[i].1[0] as f64, kf_points[i].1[1] as f64),
+                    preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+                );
+                let p2_screen = preview::scene_to_screen(
+                    kurbo::Point::new(kf_points[i+1].1[0] as f64, kf_points[i+1].1[1] as f64),
+                    preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+                );
+                ui.painter().line_segment([p1_screen, p2_screen], path_stroke);
+            }
+
+            // Draw keyframe dots
+            for (time_ms, pos) in &kf_points {
+                let screen = preview::scene_to_screen(
+                    kurbo::Point::new(pos[0] as f64, pos[1] as f64),
+                    preview_rect, self.scene_dimensions, preview_rect.size(),
+                    self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+                );
+                let current_time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+                let is_current = *time_ms == current_time_ms;
+                let dot_color = if is_current { AMBER } else { ACCENT_BLUE };
+                let dot_radius = if is_current { 5.0 } else { 3.5 };
+                ui.painter().circle_filled(screen, dot_radius, dot_color);
+                if is_current {
+                    ui.painter().circle_stroke(screen, dot_radius + 2.0, egui::Stroke::new(1.0, AMBER));
+                }
+
+                // Time label
+                let time_label = format!("{:.1}s", *time_ms as f64 / 1000.0);
+                ui.painter().text(
+                    egui::pos2(screen.x, screen.y - dot_radius - 4.0),
+                    egui::Align2::CENTER_BOTTOM,
+                    time_label,
+                    egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                    TEXT_MUTED,
+                );
+            }
+        }
+    }
+
     pub(crate) fn render_preview_selection_overlay(&self, ui: &mut egui::Ui, preview_rect: egui::Rect, is_dragging: bool) {
         if self.selected_actors.len() > 1 {
             let mut screen_rects = Vec::new();
