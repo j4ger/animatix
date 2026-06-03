@@ -31,7 +31,10 @@ pub struct InteractionStore {
     pub inspector_input_drag_active: bool,
     /// Pending source edits accumulated during a drag interaction.
     /// Flushed to source once the drag ends.
-    pub pending_drag_source_edits: HashMap<(String, String), crate::app::commands::PropertyEdit>,
+    /// Stored as a Vec so that list-property intermediates (e.g. child_order,
+    /// points) are preserved rather than overwritten by later edits to the same
+    /// (actor, property) pair.
+    pub pending_drag_source_edits: Vec<crate::app::commands::PropertyEdit>,
 }
 
 impl InteractionStore {
@@ -40,7 +43,7 @@ impl InteractionStore {
             drag_state: DragState::None,
             drag_snapshot_taken: false,
             inspector_input_drag_active: false,
-            pending_drag_source_edits: HashMap::new(),
+            pending_drag_source_edits: Vec::new(),
         }
     }
 

@@ -119,8 +119,7 @@ impl GuiShell {
             .ui_store
             .interaction
             .pending_drag_source_edits
-            .drain()
-            .map(|(_, v)| v)
+            .drain(..)
             .collect();
         if pending.is_empty() {
             return;
@@ -167,7 +166,7 @@ impl GuiShell {
         self.ui_store
             .interaction
             .pending_drag_source_edits
-            .insert((edit.actor.clone(), edit.property.clone()), edit);
+            .push(edit);
     }
 
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
