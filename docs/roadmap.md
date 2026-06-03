@@ -10,24 +10,15 @@
 
 > Active bugs and UX friction in the timeline, preview, and playback panels.
 
-### P1 — UX friction
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1 | **Shift-click multi-select scrubs timeline** | Shift-clicking a keyframe diamond adds it to `multi_selected`, but the diamond's `clicked()` handler still queues `Command::ScrubTo`. The user wanted to select, not jump. | `app/panels/timeline_panel.rs` | 30 min | — |
-| 2 | **Clicking a keyframe double-fires `ScrubTo`** | The diamond click handler and the track-bar click handler both queue scrub commands on the same frame. | `app/panels/timeline_panel.rs` | 30 min | — |
-| 3 | **Loop-region handles can cross and break** | The start handle clamps to `end - 0.05` and the end to `start + 0.05`, but there's no reciprocal enforcement. Dragging past each other leaves the region inverted. | `app/panels/timeline_panel.rs` | 1 hr | — |
-| 4 | **Keyframe drag snaps to 0.1s — too coarse** | `snapped = (nt * 10.0).round() / 10.0` locks drags to 100 ms (~6 frames at 60 fps). Users doing frame-precise work can't land on exact frames. | `app/panels/timeline_panel.rs` | 2 hrs | — |
-
 ### P2 — Missing affordances
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
-| 5 | **Action blocks on timeline are not clickable** | Action events (fade-in, move, etc.) are drawn as colored blocks but have no interaction. Users can't click them to jump to the start time or see details. | `app/panels/timeline_panel.rs` | 3 hrs | — |
-| 6 | **Actor label click doesn't auto-scroll timeline** | Clicking an actor label selects it, but if that track is below the fold the timeline doesn't scroll to bring it into view. | `app/panels/timeline_panel.rs` | 2 hrs | — |
-| 7 | **No off-screen playhead indicator when zoomed** | When zoomed in and scrolled, if the playhead is outside the visible window there's no arrow showing which direction it's in. | `app/panels/timeline_panel.rs` | 2 hrs | — |
-| 8 | **Timeline wheel-zoom only works over the bar area** | The wheel-zoom interaction is bound to `bar_rect` only. Hovering over labels or the ruler and scrolling does nothing. | `app/panels/timeline_panel.rs` | 1 hr | — |
-| 9 | **Ruler drag creates guides on accidental clicks** | Any mouse movement during a ruler click is interpreted as a drag start, creating a guide. Brief accidental drags (common with trackpads) litter the canvas. | `app/panels/preview_panel.rs` | 1 hr | — |
+| 1 | **Action blocks on timeline are not clickable** | Action events (fade-in, move, etc.) are drawn as colored blocks but have no interaction. Users can't click them to jump to the start time or see details. | `app/panels/timeline_panel.rs` | 3 hrs | — |
+| 2 | **Actor label click doesn't auto-scroll timeline** | Clicking an actor label selects it, but if that track is below the fold the timeline doesn't scroll to bring it into view. | `app/panels/timeline_panel.rs` | 2 hrs | — |
+| 3 | **No off-screen playhead indicator when zoomed** | When zoomed in and scrolled, if the playhead is outside the visible window there's no arrow showing which direction it's in. | `app/panels/timeline_panel.rs` | 2 hrs | — |
+| 4 | **Timeline wheel-zoom only works over the bar area** | The wheel-zoom interaction is bound to `bar_rect` only. Hovering over labels or the ruler and scrolling does nothing. | `app/panels/timeline_panel.rs` | 1 hr | — |
+| 5 | **Ruler drag creates guides on accidental clicks** | Any mouse movement during a ruler click is interpreted as a drag start, creating a guide. Brief accidental drags (common with trackpads) litter the canvas. | `app/panels/preview_panel.rs` | 1 hr | — |
 
 ---
 
