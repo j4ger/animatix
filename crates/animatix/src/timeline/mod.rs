@@ -854,6 +854,11 @@ impl Timeline {
         self.tracks.get(actor).map(|t| t.list_keyframes(property)).unwrap_or_default()
     }
 
+    /// Evaluate the background color at the given time.
+    pub fn background_color_at(&self, time_ms: u64) -> [f32; 4] {
+        self.background_color.evaluate(time_ms)
+    }
+
     /// Returns a reference to all tracks.
     pub fn tracks(&self) -> &BTreeMap<String, AnimationTrack> {
         &self.tracks

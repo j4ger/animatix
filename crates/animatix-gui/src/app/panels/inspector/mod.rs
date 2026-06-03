@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
-use egui::{Color32, RichText, ScrollArea, Vec2};
+use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
 
 use crate::app::components::{layout, timeline};
 use crate::app::icons::actor_icon_str;
@@ -45,6 +45,14 @@ pub(crate) struct InspectorContext<'a> {
 /// Renders the unified actor inspector panel (with frame).
 pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
+        // Scene-level inspector: when no actor is selected in a composition
+        if ctx.selected_actors.is_empty() {
+            if let (Some(comp), Some(active_scene)) = (ctx.composition, ctx.active_scene) {
+                render_scene_inspector(ui, comp, active_scene, ctx.commands, ctx.preview);
+                return;
+            }
+        }
+
         let current_time_s = ctx.preview.playback.current_time_s();
         let timeline = ctx.timeline.or_else(|| {
             let comp = ctx.composition?;
@@ -79,6 +87,178 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
             ctx.keyframe_view_mode,
         );
     });
+}
+
+/// Render scene-level inspector when no actor is selected.
+fn render_scene_inspector(
+    ui: &mut egui::Ui,
+    composition: &animatix::composition::Composition,
+    active_scene: &str,
+    commands: &mut ActionQueue,
+    _preview: &PreviewPaneState,
+) {
+    use crate::app::components::layout;
+
+    let Some(scene) = composition.scenes.get(active_scene) else {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::WARNING,
+            "Scene not found",
+            "The active scene no longer exists in the composition",
+        );
+        return;
+    };
+
+    ScrollArea::vertical()
+        .auto_shrink([false; 2])
+        .show(ui, |ui| {
+            // ── Scene Header ──
+            let available = ui.available_width();
+            let row_h = ROW_L;
+            let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+            ui.painter().text(
+                Pos2::new(row_rect.min.x + SPACE_S, row_rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
+                egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+                ACCENT_BLUE,
+            );
+            ui.add_space(SPACE_M);
+
+            // ── Scene Properties ──
+            layout::card(ui, |ui| {
+                layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
+
+                // Duration
+                layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    ui.add(egui::Label::new(
+                        RichText::new(format!("{:.2} s", scene.duration_s))
+                            .monospace()
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_SECONDARY),
+                    ).selectable(false));
+                });
+
+                // Start time
+                let start_s = composition.scene_start_times.get(active_scene).copied().unwrap_or(0.0);
+                layout::labeled_row(ui, "Start", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    ui.add(egui::Label::new(
+                        RichText::new(format!("{:.2} s", start_s))
+                            .monospace()
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_SECONDARY),
+                    ).selectable(false));
+                });
+
+                // Background color
+                let bg_color = scene.timeline.background_color_at(0);
+                layout::labeled_row(ui, "Background", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    let color_rect = egui::Rect::from_min_size(
+                        ui.cursor().min,
+                        Vec2::new(24.0, 24.0),
+                    );
+                    ui.painter().rect_filled(
+                        color_rect,
+                        RADIUS_S,
+                        egui::Color32::from_rgba_premultiplied(
+                            (bg_color[0] * 255.0) as u8,
+                            (bg_color[1] * 255.0) as u8,
+                            (bg_color[2] * 255.0) as u8,
+                            (bg_color[3] * 255.0) as u8,
+                        ),
+                    );
+                    ui.add_space(32.0);
+                    ui.add(egui::Label::new(
+                        RichText::new(format!(
+                            "({:.2}, {:.2}, {:.2}, {:.2})",
+                            bg_color[0], bg_color[1], bg_color[2], bg_color[3]
+                        ))
+                        .monospace()
+                        .size(FONT_SIZE_S)
+                        .color(TEXT_MUTED),
+                    ).selectable(false));
+                });
+            });
+
+            ui.add_space(SPACE_M);
+
+            // ── Play Edge ──
+            if let Some(edge) = composition.edges.get(active_scene) {
+                layout::card(ui, |ui| {
+                    layout::section_header(ui, egui_phosphor::regular::ARROW_RIGHT, "Transition", None);
+
+                    layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(egui::Label::new(
+                            RichText::new(&edge.to_scene)
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_SECONDARY),
+                        ).selectable(false));
+                    });
+
+                    layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(egui::Label::new(
+                            RichText::new(&edge.transition.id)
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_SECONDARY),
+                        ).selectable(false));
+                    });
+
+                    layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(egui::Label::new(
+                            RichText::new(format!("{:.0} ms", edge.transition.duration_ms))
+                                .monospace()
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_SECONDARY),
+                        ).selectable(false));
+                    });
+
+                    // Click to jump to target scene
+                    if ui.button(
+                        RichText::new(format!("{} Go to {}", egui_phosphor::regular::ARROW_RIGHT, edge.to_scene))
+                            .size(FONT_SIZE_S)
+                            .color(ACCENT_BLUE),
+                    ).clicked() {
+                        commands.push_back(ShellAction::Command(Command::SelectScene(edge.to_scene.clone())));
+                    }
+                });
+            }
+
+            ui.add_space(SPACE_M);
+
+            // ── Scene List ──
+            layout::card(ui, |ui| {
+                layout::section_header(ui, egui_phosphor::regular::FILM_STRIP, "All Scenes", Some(composition.declaration_order.len()));
+                for scene_name in &composition.declaration_order {
+                    let is_active = scene_name == active_scene;
+                    let response = ui.interact(
+                        egui::Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), ROW_M)),
+                        ui.id().with(format!("scene_list_{}", scene_name)),
+                        egui::Sense::click(),
+                    );
+                    let bg = if is_active {
+                        accent_selection()
+                    } else if response.hovered() {
+                        BG_HOVER
+                    } else {
+                        Color32::TRANSPARENT
+                    };
+                    if bg != Color32::TRANSPARENT {
+                        ui.painter().rect_filled(response.rect, RADIUS_S, bg);
+                    }
+                    ui.painter().text(
+                        Pos2::new(response.rect.min.x + SPACE_S, response.rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        scene_name,
+                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                        if is_active { ACCENT_BLUE } else { TEXT_SECONDARY },
+                    );
+                    if response.clicked() && !is_active {
+                        commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                    }
+                    ui.allocate_rect(response.rect, egui::Sense::hover());
+                }
+            });
+        });
 }
 
 // ─── Internal Entry Point ─────────────────────────────────────────────────
