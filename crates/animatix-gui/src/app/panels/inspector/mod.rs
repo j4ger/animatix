@@ -129,7 +129,7 @@ fn render_scene_inspector(
             layout::card(ui, |ui| {
                 layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
 
-                // Duration
+                // Duration (implicit — derived from timeline keyframes)
                 layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                     ui.add(egui::Label::new(
                         RichText::new(format!("{:.2} s", scene.duration_s))
@@ -187,29 +187,90 @@ fn render_scene_inspector(
                 layout::card(ui, |ui| {
                     layout::section_header(ui, egui_phosphor::regular::ARROW_RIGHT, "Transition", None);
 
+                    // Target scene dropdown
+                    let other_scenes: Vec<&String> = composition.declaration_order.iter()
+                        .filter(|s| *s != active_scene)
+                        .collect();
                     layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::Label::new(
-                            RichText::new(&edge.to_scene)
-                                .size(FONT_SIZE_S)
-                                .color(TEXT_SECONDARY),
-                        ).selectable(false));
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
+                            .selected_text(&edge.to_scene)
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for scene_name in &other_scenes {
+                                    if ui.selectable_label(*scene_name == &edge.to_scene, *scene_name).clicked() {
+                                        commands.push_back(ShellAction::Command(Command::SetPlayTarget {
+                                            from_scene: active_scene.to_string(),
+                                            target: Some((*scene_name).clone()),
+                                        }));
+                                    }
+                                }
+                            });
                     });
 
+                    // Transition type dropdown
+                    let registry = animatix_syntax::transition_registry::REGISTRY;
                     layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::Label::new(
-                            RichText::new(&edge.transition.id)
-                                .size(FONT_SIZE_S)
-                                .color(TEXT_SECONDARY),
-                        ).selectable(false));
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
+                            .selected_text(animatix_syntax::transition_registry::display_name(&edge.transition.id))
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for def in registry {
+                                    if ui.selectable_label(def.id == edge.transition.id, def.display_name).clicked() && def.id != edge.transition.id {
+                                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                                            from_scene: active_scene.to_string(),
+                                            transition: animatix_syntax::ast::Transition {
+                                                id: def.id.to_string(),
+                                                duration_ms: edge.transition.duration_ms,
+                                                easing: edge.transition.easing,
+                                            },
+                                        }));
+                                    }
+                                }
+                            });
                     });
 
+                    // Duration
+                    let mut duration_ms = edge.transition.duration_ms as f64;
                     layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::Label::new(
-                            RichText::new(format!("{:.0} ms", edge.transition.duration_ms))
-                                .monospace()
-                                .size(FONT_SIZE_S)
-                                .color(TEXT_SECONDARY),
-                        ).selectable(false));
+                        ui.add(egui::DragValue::new(&mut duration_ms).speed(10.0).suffix(" ms").max_decimals(0));
+                    });
+                    let new_duration_ms = duration_ms.round() as u64;
+                    if new_duration_ms != edge.transition.duration_ms {
+                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                            from_scene: active_scene.to_string(),
+                            transition: animatix_syntax::ast::Transition {
+                                id: edge.transition.id.clone(),
+                                duration_ms: new_duration_ms,
+                                easing: edge.transition.easing,
+                            },
+                        }));
+                    }
+
+                    // Easing dropdown
+                    layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        let current_easing = edge.transition.easing;
+                        let current_name = animatix_syntax::easing::EASING_REGISTRY.iter()
+                            .find(|(id, _)| animatix_syntax::easing::parse_easing_name(id).unwrap_or(animatix_syntax::easing::Easing::Linear) == current_easing)
+                            .map(|(_, name)| *name)
+                            .unwrap_or("Linear");
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
+                            .selected_text(current_name)
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
+                                    let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(animatix_syntax::easing::Easing::Linear);
+                                    if ui.selectable_label(variant == current_easing, display_name).clicked() && variant != current_easing {
+                                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                                            from_scene: active_scene.to_string(),
+                                            transition: animatix_syntax::ast::Transition {
+                                                id: edge.transition.id.clone(),
+                                                duration_ms: edge.transition.duration_ms,
+                                                easing: variant,
+                                            },
+                                        }));
+                                    }
+                                }
+                            });
                     });
 
                     // Click to jump to target scene
