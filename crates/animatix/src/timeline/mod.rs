@@ -52,6 +52,8 @@ mod layout;
 mod media;
 pub(crate) mod taffy_layout;
 pub(crate) mod modifier_runtime;
+/// Modifier statement execution (tree-walk, IR, bytecode).
+pub mod modifier_exec;
 /// Path morphing between vector shapes.
 pub mod morph;
 mod plot;

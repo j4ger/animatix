@@ -5,10 +5,9 @@
 //! and modifier evaluation. Modifier statements / IR / bytecode are executed
 //! against this environment to produce property overrides.
 
-use super::modifier_runtime::{ir, vm};
 use super::{
-    Environment, EvalError, SceneAnchor, SceneDimensions, Stmt, Timeline, Value,
-    assignment_target_key, evaluate_expr, scene_anchor_point, set_lookup_color,
+    Environment, SceneAnchor, SceneDimensions, Timeline, Value,
+    scene_anchor_point, set_lookup_color,
     set_lookup_vec2,
 };
 
@@ -194,130 +193,5 @@ impl Timeline {
                 }
             }
         }
-    }
-
-    #[allow(clippy::only_used_in_recursion)]
-    pub(super) fn apply_modifier_stmt(
-        &self,
-        stmt: &Stmt,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
-        frame_env: &mut Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) {
-        match stmt {
-            Stmt::Assignment {
-                target,
-                property,
-                value,
-                ..
-            } => {
-                if let Ok(val) = evaluate_expr(value, frame_env) {
-                    let label = assignment_target_key(target);
-                    overrides
-                        .entry(label.clone())
-                        .or_default()
-                        .insert(property.clone(), val.clone());
-                    apply_override_incremental(frame_env, &label, property, val);
-                }
-            }
-            Stmt::LetDecl { is_pub: _, name, value, .. } => {
-                if let Ok(val) = evaluate_expr(value, frame_env) {
-                    frame_env.set(name, val);
-                }
-            }
-            Stmt::Conditional {
-                condition,
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                if evaluate_expr(condition, frame_env)
-                    .map(|value| value.as_num() != 0.0)
-                    .unwrap_or(false)
-                {
-                    for stmt in then_branch {
-                        self.apply_modifier_stmt(
-                            stmt,
-                            time_ms,
-                            scene_dimensions,
-                            frame_env,
-                            overrides,
-                        );
-                    }
-                } else if let Some(else_branch) = else_branch {
-                    for stmt in else_branch {
-                        self.apply_modifier_stmt(
-                            stmt,
-                            time_ms,
-                            scene_dimensions,
-                            frame_env,
-                            overrides,
-                        );
-                    }
-                }
-            }
-            Stmt::ForLoop { var, iterable, body, .. } => {
-                if let Ok(values) = evaluate_expr(iterable, frame_env) {
-                    let items: Vec<Value> = match values {
-                        Value::List(list) => list,
-                        Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
-                        Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
-                        Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
-                        other => vec![other],
-                    };
-                    for item in items {
-                        frame_env.set(var, item);
-                        for stmt in body {
-                            self.apply_modifier_stmt(
-                                stmt,
-                                time_ms,
-                                scene_dimensions,
-                                frame_env,
-                                overrides,
-                            );
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Apply a single modifier statement (test-only wrapper around
-    /// `apply_modifier_stmt`).
-    pub fn apply_modifier_stmt_for_test(
-        &self,
-        stmt: &Stmt,
-        time_ms: u64,
-        scene_dimensions: SceneDimensions,
-        frame_env: &mut Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) {
-        self.apply_modifier_stmt(stmt, time_ms, scene_dimensions, frame_env, overrides)
-    }
-
-    /// Execute a modifier IR program against the current frame environment.
-    pub fn apply_modifier_ir_program(
-        &self,
-        program: &ir::ModifierIrProgram,
-        _time_ms: u64,
-        _scene_dimensions: SceneDimensions,
-        frame_env: &mut Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) -> Result<(), EvalError> {
-        ir::execute_modifier_ir(program, frame_env, overrides)
-    }
-
-    /// Execute a modifier bytecode program against the current frame environment.
-    pub fn apply_modifier_bytecode_program(
-        &self,
-        program: &vm::ModifierBytecodeProgram,
-        _time_ms: u64,
-        _scene_dimensions: SceneDimensions,
-        frame_env: &mut Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) -> Result<(), EvalError> {
-        vm::execute_modifier_bytecode(program, frame_env, overrides)
     }
 }
