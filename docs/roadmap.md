@@ -6,9 +6,7 @@
 
 ---
 
----
-
-## Phase 9 — PiP / Multi-Viewport
+## Phase 1 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
 
@@ -20,7 +18,7 @@
 
 ---
 
-## Phase 11 — Editor Infrastructure
+## Phase 2 — Editor Infrastructure
 
 | # | Item | What | Files | Effort | Blocker |
 |---|------|------|-------|--------|---------|
@@ -33,8 +31,8 @@
 
 ## Order
 
-1. **Phase 9** (PiP — after syntax and renderer are stable)
-2. **Phase 11** (start after syntax stabilizes)
+1. **Phase 1** (PiP — after syntax and renderer are stable)
+2. **Phase 2** (start after syntax stabilizes)
 
 ---
 
@@ -42,12 +40,12 @@
 
 | Item | Why deferred | Likely phase |
 |------|--------------|--------------|
-| `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 11 / green tree) | 11 |
-| `let` variable animation | Superseded by easing functions in `always` blocks (6.8.3). Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-11 |
-| **AI / NL Integration** | Requires external AI service (OpenAI, Claude, local LLM). No runtime dependency on AI should be mandatory. Includes: NL command bar, agent suggestion UI, agent_suggestions component. | Post-11 or separate product |
+| `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 2 / green tree) | 2 |
+| `let` variable animation | Superseded by easing functions in `always` blocks (6.8.3). Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-2 |
+| **AI / NL Integration** | Requires external AI service (OpenAI, Claude, local LLM). No runtime dependency on AI should be mandatory. Includes: NL command bar, agent suggestion UI, agent_suggestions component. | Post-2 or separate product |
 | **Row double-click / right-click** | No defined user story. Fields were wired to egui events but no caller consumed them. Re-add when a feature needs them. | When needed |
 | **Badge button component** | Fully implemented but no caller. Re-add when the UI needs count badges (e.g. "Errors: 3"). | When needed |
-| **Pre-compile plot closures** | Compile `func` AST bodies to closures/bytecode once per build instead of tree-walking thousands of times per curve. Would give 10–50× sampling speedup but requires a stable closure compilation API. | Post-11 or when plot count becomes a bottleneck again |
+| **Pre-compile plot closures** | Compile `func` AST bodies to closures/bytecode once per build instead of tree-walking thousands of times per curve. Would give 10–50× sampling speedup but requires a stable closure compilation API. | Post-2 or when plot count becomes a bottleneck again |
 
 | **Amber flash on rewritten timestamps** | Visual polish: when `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. Nice-to-have UX feedback. | When needed |
 | **Unify duplicate PropertyValue types** | Two separate `PropertyValue` enums exist: `animatix::timeline::property_engine::PropertyValue` (engine-level) and `animatix_gui::app::commands::PropertyValue` (GUI-level). Different variant names (`F32` vs `Float`, `String` vs `Text`) force conversion logic in `apply_property_edit_to_track`. Unify into one canonical type. | When touching property dispatch again |
