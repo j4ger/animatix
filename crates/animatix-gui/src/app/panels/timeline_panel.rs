@@ -249,14 +249,10 @@ fn render_timeline_content(
             let max_scroll = if zoom <= 1.0 { 0.0 } else { duration_s - visible_s };
             let scroll_s = preview.timeline_scroll_offset.clamp(0.0, max_scroll);
 
-            // Mouse-wheel zoom on the timeline bar area
+            // Mouse-wheel zoom on the entire timeline panel
             {
-                let bar_rect = Rect::from_min_max(
-                    Pos2::new(bar_origin_x, scroll_rect.top()),
-                    Pos2::new(scroll_rect.right(), scroll_rect.bottom()),
-                );
-                let bar_resp = ui.interact(bar_rect, ui.id().with("timeline_bar_wheel"), Sense::hover());
-                if bar_resp.hovered() {
+                let panel_resp = ui.interact(scroll_rect, ui.id().with("timeline_panel_wheel"), Sense::hover());
+                if panel_resp.hovered() {
                     let wheel = ui.input(|i| i.smooth_scroll_delta);
                     if wheel.x != 0.0 || wheel.y != 0.0 {
                         let zoom_delta = if wheel.y != 0.0 { -wheel.y * 0.002 } else { -wheel.x * 0.002 };
@@ -268,8 +264,10 @@ fn render_timeline_content(
                                 let cursor_time = if cursor.x >= bar_origin_x && cursor.x <= bar_origin_x + bar_width {
                                     let frac = ((cursor.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
                                     scroll_s + frac * visible_s
+                                } else if cursor.x < bar_origin_x {
+                                    scroll_s
                                 } else {
-                                    scroll_s + visible_s / 2.0
+                                    scroll_s + visible_s
                                 };
                                 let new_visible = duration_s / new_zoom as f64;
                                 let max_scroll = if new_zoom <= 1.0 { 0.0 } else { duration_s - new_visible };
@@ -610,14 +608,22 @@ fn render_timeline_content(
                         selected_actors.clear();
                         selected_actors.insert(actor_label.clone());
                     }
+                    // Auto-scroll to bring the selected track into view
+                    let track_rect = Rect::from_min_max(
+                        Pos2::new(scroll_rect.left(), at_top),
+                        Pos2::new(scroll_rect.right(), at_bot),
+                    );
+                    ui.scroll_to_rect(track_rect, Some(egui::Align::Center));
                 }
 
                 // Action blocks
                 if let Some(tl) = timeline {
                     for event in &tl.action_events {
                         if !event.targets.contains(actor_label) { continue; }
-                        let left = time_to_x(event.start_time_ms as f64 / 1000.0);
-                        let right = time_to_x((event.start_time_ms + event.duration_ms) as f64 / 1000.0);
+                        let start_s = event.start_time_ms as f64 / 1000.0;
+                        let end_s = (event.start_time_ms + event.duration_ms) as f64 / 1000.0;
+                        let left = time_to_x(start_s);
+                        let right = time_to_x(end_s);
                         if right > bar_area.left() && left < bar_area.right() {
                             let br = Rect::from_min_max(
                                 Pos2::new(left.max(bar_area.left()), bar_area.top() + 3.0),
@@ -629,6 +635,19 @@ fn render_timeline_content(
                             if br.width() > 40.0 {
                                 painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                             }
+                            // Clickable: scrub to action start on click, tooltip on hover
+                            let action_resp = ui.interact(br, ui.id().with(("action_block", track_idx, event.start_time_ms)), Sense::click());
+                            if action_resp.clicked() {
+                                commands.push_back(ShellAction::Command(Command::ScrubTo(start_s)));
+                            }
+                            action_resp.on_hover_text(format!(
+                                "{}: {}\n{:.2}s → {:.2}s\nTargets: {}",
+                                format!("{:?}", event.category),
+                                event.verb,
+                                start_s,
+                                end_s,
+                                event.targets.join(", ")
+                            ));
                         }
                     }
                 }
@@ -825,6 +844,22 @@ fn render_timeline_content(
             // ── Global playhead ──
             if playhead_x >= bar_origin_x && playhead_x <= bar_origin_x + bar_width + 2.0 {
                 painter.line_segment([Pos2::new(playhead_x, ruler_top), Pos2::new(playhead_x, content_bottom)], Stroke::new(1.5, AMBER));
+            } else if playhead_x < bar_origin_x {
+                // Off-screen to the left: draw left-pointing arrow at visible edge
+                let tip_x = bar_origin_x + 6.0;
+                let tip_y = ruler_top + 8.0;
+                painter.add(egui::Shape::convex_polygon(
+                    vec![Pos2::new(tip_x, tip_y - 4.0), Pos2::new(tip_x - 6.0, tip_y), Pos2::new(tip_x, tip_y + 4.0)],
+                    AMBER, Stroke::NONE,
+                ));
+            } else if playhead_x > bar_origin_x + bar_width {
+                // Off-screen to the right: draw right-pointing arrow at visible edge
+                let tip_x = bar_origin_x + bar_width - 6.0;
+                let tip_y = ruler_top + 8.0;
+                painter.add(egui::Shape::convex_polygon(
+                    vec![Pos2::new(tip_x, tip_y - 4.0), Pos2::new(tip_x + 6.0, tip_y), Pos2::new(tip_x, tip_y + 4.0)],
+                    AMBER, Stroke::NONE,
+                ));
             }
 
             // ── Save keyframe drag + multi-select state ──
