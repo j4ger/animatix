@@ -19,7 +19,9 @@ mod tests {
     use crate::document::DocumentSession;
     use crate::editor::EditorBuffer;
     use animatix::timeline::SceneDimensions;
+    use animatix_syntax::ast::Stmt;
     use std::collections::HashSet;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     // ── Test helpers (no filesystem needed) ────────────────────────────
 
@@ -257,5 +259,445 @@ mod tests {
         // focus_diagnostic requires cell_index coverage; with from_error()
         // the test document has no parsed cells so pending_scroll_to_line
         // stays None.  The important thing is that the handler doesn't panic.
+    }
+
+    // ── Domain handler test helpers ─────────────────────────────────────
+
+    const TEST_SOURCE: &str = r#"config { resolution: (1280, 720) }
+
+box: Rect, at: (100, 100), size: (100, 100), color: blue
+circle: Ellipse, at: (200, 200), radius: 50, color: red
+"#;
+
+    /// Create a DocumentStore from source text. Writes source to a unique temp
+    /// file and loads via DocumentSession::load() to produce a fully parsed
+    /// AST + timeline.  The temp dir is NOT cleaned up (same convention as
+    /// document.rs tests).
+    fn make_parsed_document_store(source: &str) -> crate::app::stores::DocumentStore {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_test_domain_{}_{}",
+            std::process::id(),
+            unique
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp test dir");
+        let path = dir.join("test.amx");
+        std::fs::write(&path, source).expect("write test source");
+        let document = DocumentSession::load(path).expect("load parsed document");
+        let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
+        crate::app::stores::DocumentStore::new(document, editor)
+    }
+
+    // ── handle_create_actor ────────────────────────────────────────────
+
+    #[test]
+    fn create_actor_adds_to_ast_and_updates_source() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        actor::handle_create_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "Rect".into(),
+            "new_box".into(),
+            [300.0, 300.0],
+        );
+
+        // Actor should be in raw_statements
+        let stmts = document_store
+            .source
+            .document
+            .raw_statements
+            .as_ref()
+            .expect("raw_statements should exist");
+        assert!(
+            stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "new_box")),
+            "expected 'new_box' in raw_statements"
+        );
+
+        // Source text should contain the new actor
+        assert!(
+            document_store.source.document.source_text.contains("new_box"),
+            "source_text should contain 'new_box'"
+        );
+
+        // Document should be dirty
+        assert!(document_store.source.document.is_dirty);
+
+        // New actor should be selected
+        assert!(
+            ui_store.selection.selected_actors.contains("new_box"),
+            "'new_box' should be selected"
+        );
+
+        // Status should mention creation
+        assert!(
+            preview_store.preview.status.contains("Created"),
+            "status should contain 'Created', got: {}",
+            preview_store.preview.status
+        );
+    }
+
+    // ── handle_rename_actor ────────────────────────────────────────────
+
+    #[test]
+    fn rename_actor_successfully_changes_label() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        ui_store.selection.selected_actors.insert("box".to_string());
+
+        actor::handle_rename_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "box".into(),
+            "big_box".into(),
+        );
+
+        // Old label should be gone, new label should exist
+        let stmts = document_store
+            .source
+            .document
+            .raw_statements
+            .as_ref()
+            .expect("raw_statements should exist");
+        assert!(
+            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            "old label 'box' should be removed"
+        );
+        assert!(
+            stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "big_box")),
+            "new label 'big_box' should exist"
+        );
+
+        // Status should mention rename
+        assert!(
+            preview_store.preview.status.contains("Renamed"),
+            "status should contain 'Renamed', got: {}",
+            preview_store.preview.status
+        );
+
+        // Selection should be updated
+        assert!(
+            ui_store.selection.selected_actors.contains("big_box"),
+            "selection should contain 'big_box'"
+        );
+        assert!(
+            !ui_store.selection.selected_actors.contains("box"),
+            "selection should not contain 'box'"
+        );
+    }
+
+    #[test]
+    fn rename_actor_noop_when_old_equals_new() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        let source_before = document_store.source.document.source_text.clone();
+
+        actor::handle_rename_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "box".into(),
+            "box".into(),
+        );
+
+        // Source should be unchanged
+        assert_eq!(
+            document_store.source.document.source_text,
+            source_before,
+            "source should not change for no-op rename"
+        );
+    }
+
+    #[test]
+    fn rename_actor_fails_with_empty_label() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        let source_before = document_store.source.document.source_text.clone();
+
+        actor::handle_rename_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "box".into(),
+            "".into(),
+        );
+
+        // Status should mention failure reason
+        assert!(
+            preview_store.preview.status.contains("empty"),
+            "status should mention 'empty', got: {}",
+            preview_store.preview.status
+        );
+
+        // Source should be unchanged
+        assert_eq!(
+            document_store.source.document.source_text,
+            source_before,
+            "source should not change on failure"
+        );
+    }
+
+    #[test]
+    fn rename_actor_fails_with_duplicate_label() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        let source_before = document_store.source.document.source_text.clone();
+
+        actor::handle_rename_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "box".into(),
+            "circle".into(),
+        );
+
+        // Status should mention duplicate
+        assert!(
+            preview_store.preview.status.contains("already exists"),
+            "status should mention 'already exists', got: {}",
+            preview_store.preview.status
+        );
+
+        // Source should be unchanged
+        assert_eq!(
+            document_store.source.document.source_text,
+            source_before,
+            "source should not change on failure"
+        );
+    }
+
+    // ── handle_delete_selected_actors ──────────────────────────────────
+
+    #[test]
+    fn delete_selected_actor_removes_from_ast() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        ui_store.selection.selected_actors.insert("box".to_string());
+
+        actor::handle_delete_selected_actors(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+        );
+
+        // Actor should be removed from raw_statements
+        let stmts = document_store
+            .source
+            .document
+            .raw_statements
+            .as_ref()
+            .expect("raw_statements should exist");
+        assert!(
+            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            "'box' should be removed from raw_statements"
+        );
+
+        // Other actors should remain
+        assert!(
+            stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "circle")),
+            "'circle' should still be present"
+        );
+
+        // Selection should be cleared
+        assert!(
+            ui_store.selection.selected_actors.is_empty(),
+            "selection should be empty after deletion"
+        );
+
+        // Source should be dirty
+        assert!(document_store.source.document.is_dirty);
+
+        // Status should mention deletion
+        assert!(
+            preview_store.preview.status.contains("Deleted"),
+            "status should contain 'Deleted', got: {}",
+            preview_store.preview.status
+        );
+    }
+
+    #[test]
+    fn delete_selected_actors_with_empty_selection_is_noop() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        let source_before = document_store.source.document.source_text.clone();
+
+        actor::handle_delete_selected_actors(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+        );
+
+        // Source should be unchanged since nothing was selected
+        assert_eq!(
+            document_store.source.document.source_text,
+            source_before,
+            "source should not change with empty selection"
+        );
+    }
+
+    #[test]
+    fn delete_selected_actors_removes_multiple() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        ui_store.selection.selected_actors.insert("box".to_string());
+        ui_store.selection.selected_actors.insert("circle".to_string());
+
+        actor::handle_delete_selected_actors(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+        );
+
+        // Both actors should be removed
+        let stmts = document_store
+            .source
+            .document
+            .raw_statements
+            .as_ref()
+            .expect("raw_statements should exist");
+        assert!(
+            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            "'box' should be removed"
+        );
+        assert!(
+            !stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "circle")),
+            "'circle' should be removed"
+        );
+
+        // Source should be dirty
+        assert!(document_store.source.document.is_dirty);
+
+        // Status should mention deletion
+        assert!(
+            preview_store.preview.status.contains("Deleted"),
+            "status should contain 'Deleted', got: {}",
+            preview_store.preview.status
+        );
+    }
+
+    // ── handle_save (filesystem) ───────────────────────────────────────
+    //
+    // NOTE: handle_save writes to the document's file_path on disk.
+    //       These tests use temp files created by make_parsed_document_store.
+
+    #[test]
+    fn save_writes_editor_text_to_disk() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+
+        let original_text = document_store.source.editor.text().to_string();
+        let modified_text = format!("{}\n// comment after save\n", original_text);
+        document_store.source.editor.replace_text(modified_text.clone());
+
+        file::handle_save(&mut document_store, &mut preview_store);
+
+        // Verify the file on disk matches editor text
+        let path = document_store.source.document.file_path.clone();
+        let disk_content = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(disk_content, modified_text, "disk content should match editor text");
+
+        // Document should not be dirty after save
+        assert!(!document_store.source.document.is_dirty);
+
+        // Source text should be updated
+        assert_eq!(document_store.source.document.source_text, modified_text);
+    }
+
+    #[test]
+    fn save_unchanged_text_does_not_lose_data() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+
+        let original_text = document_store.source.editor.text().to_string();
+
+        file::handle_save(&mut document_store, &mut preview_store);
+
+        // File content should still match original
+        let path = document_store.source.document.file_path.clone();
+        let disk_content = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(disk_content, original_text, "disk content should match original");
+        assert!(!document_store.source.document.is_dirty);
+    }
+
+    // ── handle_open_file (filesystem) ──────────────────────────────────
+    //
+    // NOTE: handle_open_file reads from disk.  We test by opening a known
+    //       temp file and verifying the document state.
+
+    #[test]
+    fn open_file_populates_document_state() {
+        let mut document_store = make_document_store();
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+        let mut workspace_store = make_workspace_store();
+
+        // Create a temp file with known content
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir()
+            .join(format!("animatix_test_open_{}_{}", std::process::id(), unique));
+        std::fs::create_dir_all(&dir).expect("create temp test dir");
+        let path = dir.join("open_test.amx");
+        std::fs::write(&path, TEST_SOURCE).expect("write test source");
+
+        file::handle_open_file(
+            &mut document_store,
+            &mut workspace_store,
+            &mut preview_store,
+            &mut ui_store,
+            path.clone(),
+        );
+
+        // Document should have the correct file path
+        assert_eq!(document_store.source.document.file_path, path);
+
+        // Source text should be populated
+        assert!(!document_store.source.document.source_text.is_empty());
+        assert!(document_store.source.document.source_text.contains("box:"));
+
+        // Raw statements should be parsed
+        assert!(
+            document_store.source.document.raw_statements.is_some(),
+            "raw_statements should be parsed after open"
+        );
+
+        // History should be cleared
+        assert!(document_store.history.undo_stack.is_empty());
+        assert!(document_store.history.redo_stack.is_empty());
+
+        // UI state should be reset
+        assert!(
+            matches!(ui_store.interaction.drag_state, DragState::None),
+            "drag state should be None after open"
+        );
     }
 }
