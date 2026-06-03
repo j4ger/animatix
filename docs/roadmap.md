@@ -6,22 +6,6 @@
 
 ---
 
-## Phase 0 — Timeline Interaction Fixes
-
-> Active bugs and UX friction in the timeline, preview, and playback panels.
-
-### P2 — Missing affordances
-
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1 | **Action blocks on timeline are not clickable** | Action events (fade-in, move, etc.) are drawn as colored blocks but have no interaction. Users can't click them to jump to the start time or see details. | `app/panels/timeline_panel.rs` | 3 hrs | — |
-| 2 | **Actor label click doesn't auto-scroll timeline** | Clicking an actor label selects it, but if that track is below the fold the timeline doesn't scroll to bring it into view. | `app/panels/timeline_panel.rs` | 2 hrs | — |
-| 3 | **No off-screen playhead indicator when zoomed** | When zoomed in and scrolled, if the playhead is outside the visible window there's no arrow showing which direction it's in. | `app/panels/timeline_panel.rs` | 2 hrs | — |
-| 4 | **Timeline wheel-zoom only works over the bar area** | The wheel-zoom interaction is bound to `bar_rect` only. Hovering over labels or the ruler and scrolling does nothing. | `app/panels/timeline_panel.rs` | 1 hr | — |
-| 5 | **Ruler drag creates guides on accidental clicks** | Any mouse movement during a ruler click is interpreted as a drag start, creating a guide. Brief accidental drags (common with trackpads) litter the canvas. | `app/panels/preview_panel.rs` | 1 hr | — |
-
----
-
 ## Phase 1 — PiP / Multi-Viewport
 
 > **Deferred.** The current viewport system has been removed. PiP will be implemented as an actor-level `Scene` primitive, not statement-level declarations.
@@ -47,9 +31,8 @@
 
 ## Order
 
-1. **Phase 0** (P1–P2 remaining timeline polish — no blockers)
-2. **Phase 1** (PiP — after syntax and renderer are stable)
-3. **Phase 2** (start after syntax stabilizes)
+1. **Phase 1** (PiP — after syntax and renderer are stable)
+2. **Phase 2** (start after syntax stabilizes)
 
 ---
 
