@@ -138,6 +138,24 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
     result
 }
 
+/// Handle click-and-drag scrubbing on a timeline bar.
+fn bar_interaction(
+    ui: &egui::Ui,
+    bar_rect: Rect,
+    id_salt: impl std::hash::Hash,
+    cmds: &mut ActionQueue,
+    x_to_time: impl Fn(f32) -> f64,
+) {
+    let bar_id = ui.id().with(id_salt);
+    let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
+    if response.clicked() || response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let new_time = x_to_time(pos.x);
+            cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+        }
+    }
+}
+
 fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let TimelineContext {
         preview,
@@ -285,24 +303,6 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 let frac = ((x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
                 scroll_s + frac * visible_s
             };
-
-/// Handle click-and-drag scrubbing on a timeline bar.
-fn bar_interaction(
-    ui: &egui::Ui,
-    bar_rect: Rect,
-    id_salt: impl std::hash::Hash,
-    cmds: &mut ActionQueue,
-    x_to_time: impl Fn(f32) -> f64,
-) {
-    let bar_id = ui.id().with(id_salt);
-    let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
-    if response.clicked() || response.dragged() {
-        if let Some(pos) = response.interact_pointer_pos() {
-            let new_time = x_to_time(pos.x);
-            cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
-        }
-    }
-}
 
             let mut content_y = scroll_rect.top();
 
