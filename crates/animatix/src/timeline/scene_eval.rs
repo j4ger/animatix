@@ -1,5 +1,5 @@
 use super::{
-    ActorKindId, AnimationTrack, DebugRenderOptions, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value,
+    ActorKindId, AnimationTrack, DebugRenderOptions, EvalError, PlacementMode, PositionBinding, SceneDimensions, ShapeType, Timeline, Value,
     VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
 };
 use crate::renderer::types::TextPath;
@@ -213,7 +213,8 @@ impl Timeline {
         // selection is still possible via the layers / inspector tab.
         if time_ms < track.first_seen_ms {
             // Still recurse into children so they are also hidden
-            for child_label in &track.children.clone() {
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+            for child_label in children {
                 self.evaluate_node(
                     child_label,
                     time_ms,
@@ -424,7 +425,7 @@ impl Timeline {
         };
 
         if track.kind == ActorKindId::Filter {
-            let children = track.children.clone();
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             if children.is_empty() {
                 return;
             }
@@ -512,10 +513,10 @@ impl Timeline {
                 }
             }
         } else if track.kind == ActorKindId::Mask {
-            let children = track.children.clone();
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             if !children.is_empty() {
                 // Render first child normally (defines the mask shape visually)
-                let first_child = &children[0];
+                let first_child = children[0];
                 self.evaluate_node(
                     first_child,
                     time_ms,
@@ -570,7 +571,8 @@ impl Timeline {
                 }
             }
         } else {
-            for child in &track.children.clone() {
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+            for child in children {
                 self.evaluate_node(
                     child,
                     time_ms,
@@ -644,28 +646,33 @@ impl Timeline {
         };
 
         // Use compiled bytecode for fastest evaluation; fall back to IR, then AST
+        let mut modifier_errors: Vec<EvalError> = Vec::new();
         if !self.modifier_bytecode_programs.is_empty() {
             if let Some(ref mut env) = frame_env {
                 for program in &self.modifier_bytecode_programs {
-                    let _ = self.apply_modifier_bytecode_program(
+                    if let Err(e) = self.apply_modifier_bytecode_program(
                         program,
                         time_ms,
                         scene_dimensions,
                         env,
                         &mut overrides,
-                    );
+                    ) {
+                        modifier_errors.push(e);
+                    }
                 }
             }
         } else if !self.modifier_programs.is_empty() {
             if let Some(ref mut env) = frame_env {
                 for program in &self.modifier_programs {
-                    let _ = self.apply_modifier_ir_program(
+                    if let Err(e) = self.apply_modifier_ir_program(
                         program,
                         time_ms,
                         scene_dimensions,
                         env,
                         &mut overrides,
-                    );
+                    ) {
+                        modifier_errors.push(e);
+                    }
                 }
             }
         } else {
@@ -675,6 +682,11 @@ impl Timeline {
                     self.apply_modifier_stmt(modifier, env, &mut overrides);
                 }
             }
+        }
+
+        // Log any modifier evaluation errors as warnings
+        for err in &modifier_errors {
+            tracing::warn!("Modifier evaluation error at t={time_ms}ms: {err}");
         }
 
         let bg = vello::peniko::Color::new([
