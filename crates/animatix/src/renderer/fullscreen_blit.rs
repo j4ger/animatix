@@ -152,11 +152,13 @@ impl FullscreenBlitPipeline {
         }
     }
 
-    /// Blit `src_view` into `dst_view` with the given alpha. Both must be RGBA8Unorm.
-    pub fn blit(
+    /// Blit `src_view` into `dst_view` with the given alpha using an external encoder.
+    /// Callers can batch multiple blits into a single command buffer.
+    pub fn blit_with_encoder(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
         _width: u32,
@@ -184,10 +186,6 @@ impl FullscreenBlitPipeline {
                 ],
             });
 
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Fullscreen Blit Encoder"),
-            });
-
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Animatix Fullscreen Blit Pass"),
@@ -210,7 +208,24 @@ impl FullscreenBlitPipeline {
             pass.set_bind_group(0, &bind_group, &[]);
             pass.draw(0..4, 0..1);
         }
+    }
 
+    /// Blit `src_view` into `dst_view` with the given alpha. Both must be RGBA8Unorm.
+    /// Creates its own encoder and submits immediately; for batching use [`Self::blit_with_encoder`].
+    pub fn blit(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        alpha: f32,
+    ) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Fullscreen Blit Encoder"),
+            });
+        self.blit_with_encoder(device, queue, &mut encoder, src_view, dst_view, width, height, alpha);
         queue.submit(std::iter::once(encoder.finish()));
     }
 }

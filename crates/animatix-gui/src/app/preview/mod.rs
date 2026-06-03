@@ -4,7 +4,6 @@ pub mod grid;
 pub mod property_popup;
 pub mod overlay;
 pub mod selection;
-pub mod snap;
 pub mod time_lens;
 
 use std::collections::HashSet;
@@ -336,8 +335,6 @@ pub(super) fn rotation_handle_world(props: &ActorProps) -> kurbo::Point {
 // ─── Scene ↔ Screen mapping ─────────────────────────────────────────────────
 
 /// Convert scene coordinates to screen coordinates for the preview canvas.
-///
-/// Deprecated: prefer `PreviewTransform::scene_to_screen`.
 pub(super) fn scene_to_screen(
     scene_pos: kurbo::Point,
     preview_rect: egui::Rect,
