@@ -8,16 +8,16 @@
 
 ## Phase 0 — Multi-Scene GUI & Transitions
 
-> **Active.** The CLI and core already support multi-scene composition, transition blending, and `play` edges. The GUI only exposes the active scene's timeline. This phase surfaces composition-level controls in the IDE.
+> **✅ Complete.** The CLI and core already supported multi-scene composition, transition blending, and `play` edges. This phase surfaced composition-level controls in the IDE.
 
-| # | Item | What | Files | Effort | Blocker |
-|---|------|------|-------|--------|---------|
-| 1 | **Scene list sidebar tab** | New `SidebarTab::Scenes` that lists all scenes in a composition by declaration order. Clicking a scene switches `active_scene`. Shows scene name, duration hint, and transition icon on `play` edges. | `app/panels/sidebar.rs` | 2 days | — |
-| 2 | **Composition timeline** | Mini timeline above the actor timeline showing scene blocks with start/end times, `play` edge arrows, and transition labels (e.g. "fade, 300ms"). Clicking a block seeks to that scene's start. | `app/panels/timeline_panel.rs` | 3 days | 1 |
-| 3 | **Scene-level inspector** | When no actor is selected and the user clicks a scene block, the inspector shows scene properties: `background_color`, implicit duration (last keyframe time), and `play` target. Edits mutate the AST scene declaration. | `app/panels/inspector/` | 2 days | 1 |
-| 4 | **Scene reordering** | Drag scenes in the scene list to reorder declaration order. Emits `SourceEdit` that reorders `# SceneName` blocks in the AST. | `app/panels/sidebar.rs`, `source_edit/` | 2 days | 1 |
+| # | Item | What | Files | Effort | Status |
+|---|------|------|-------|--------|--------|
+| 1 | **Scene list sidebar tab** | `SidebarTab::Scenes` lists scenes by declaration order. Click to switch `active_scene`. Duration + transition hints. | `app/panels/sidebar.rs` | 2 days | ✅ |
+| 2 | **Composition timeline** | Mini timeline with scene blocks, `play` edge arrows, transition labels. Click to seek. | `app/panels/timeline_panel.rs` | 3 days | ✅ (already existed) |
+| 3 | **Scene-level inspector** | When no actor selected, inspector shows scene header, properties (duration, start, background), transition card with "Go to" button, and scene list. | `app/panels/inspector/mod.rs` | 2 days | ✅ |
+| 4 | **Scene reordering** | Drag-and-drop in scene list reorders declaration order. Emits `Command::ReorderScenes` which reorders `Stmt::Scene` blocks in AST and re-serializes. | `app/panels/sidebar.rs`, `app/handlers/scene.rs` | 2 days | ✅ |
 
-**Status:** `PreviewSurface::render_composition()` already evaluates `Composition`, renders transition blends via `TransitionCompositor`, and composites dual scenes. The runtime already calls it when `document.composition` is present. This phase is purely GUI chrome.
+**Commits:** `7582b0b` (scene list), `66cf7db` (scene inspector), `6860744` (scene reordering).
 
 ---
 
@@ -46,31 +46,23 @@
 
 ## Order
 
-1. **Phase 0** (Multi-Scene GUI — surfaces existing backend in the IDE)
+1. **Phase 0** ✅ (Multi-Scene GUI — surfaces existing backend in the IDE)
 2. **Phase 1** (PiP — after syntax and renderer are stable)
 3. **Phase 2** (start after syntax stabilizes)
 
 ---
 
-## Current Sprint — Phase 0.1
+## Current Sprint — Phase 0.5 (Polish)
 
-> Planned work for the next agent session.
+> Remaining Phase 0 work before moving to Phase 1.
 
 | # | Task | Files | Est. |
 |---|------|-------|------|
-| 0.1.1 | Add `SidebarTab::Scenes` variant and tab bar entry | `app/panels/sidebar.rs`, `app/panels/mod.rs` | 2 h |
-| 0.1.2 | Implement `scenes_content_ui` — list scenes from `Composition`, show active indicator, click to switch `active_scene` | `app/panels/sidebar.rs` | 4 h |
-| 0.1.3 | Add scene context menu — "Set as active", "Duplicate scene", "Delete scene" | `app/panels/sidebar.rs`, `app/commands.rs` | 3 h |
-| 0.1.4 | Wire `Scenes` tab into `SidebarContext` and app routing | `app/mod.rs`, `app/runtime.rs` | 2 h |
-| 0.1.5 | Tests for scene list rendering and selection commands | `app/tests.rs` | 3 h |
+| 0.5.1 | **Transition editor UI** — visual editing of `play` edge transitions (type, duration, easing) in the composition timeline or inspector. Currently only editable in source. | `app/panels/inspector/`, `app/panels/timeline_panel.rs` | 1 day |
+| 0.5.2 | **Scene duration editing** — add `duration` property to scene declarations (currently implicit). Inspector shows editable duration field. | `app/panels/inspector/`, `timeline/track.rs` | 1 day |
+| 0.5.3 | **Scene duplicate / delete** — context menu items in scene list for duplicating (copy AST + rename) and deleting scenes. | `app/panels/sidebar.rs`, `app/commands.rs` | 1 day |
 
-**Total: ~14 hours (2 days)**
-
-**Acceptance criteria:**
-- Opening a multi-scene `.amx` file shows a "Scenes" tab in the sidebar
-- Clicking a scene name switches the preview to that scene's timeline
-- Active scene is visually highlighted
-- Scene switch does not re-parse source (uses existing `Composition` in `Document`)
+**Total: ~3 days**
 
 ---
 
