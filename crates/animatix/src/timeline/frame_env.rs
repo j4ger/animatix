@@ -40,11 +40,14 @@ pub(crate) fn apply_override_incremental(
         _ => {}
     }
 
-    // Recalculate derived values when size changes
+    // Recalculate derived values when size changes, but don't overwrite
+    // an explicit radius override.
     if property == "size" {
         if let Value::Vec2([w, h]) = value {
-            let r = w.min(h) / 2.0;
-            env.set(&format!("{label}.radius"), Value::Num(r));
+            let radius_key = format!("{label}.radius");
+            if env.get(&radius_key).is_none() {
+                env.set(&radius_key, Value::Num(w.min(h) / 2.0));
+            }
             env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
             env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
         }
@@ -182,12 +185,18 @@ impl Timeline {
                 }
             }
 
-            // Recalculate derived values after overrides
-            if node_overrides.is_some() {
+            // Recalculate derived values after overrides, but only if size
+            // was actually overridden and radius wasn't explicitly set.
+            if node_overrides.is_some_and(|o| o.contains_key("size")) {
+                let radius_key = format!("{label}.radius");
+                if env.get(&radius_key).is_none() {
+                    let size_val = env.get(&format!("{label}.size"));
+                    if let Some(Value::Vec2([w, h])) = size_val {
+                        env.set(&radius_key, Value::Num(w.min(h) / 2.0));
+                    }
+                }
                 let size_val = env.get(&format!("{label}.size"));
                 if let Some(Value::Vec2([w, h])) = size_val {
-                    let r = w.min(h) / 2.0;
-                    env.set(&format!("{label}.radius"), Value::Num(r));
                     env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
                     env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
                 }
