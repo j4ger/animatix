@@ -44,6 +44,8 @@ Static analysis for unused actors, missing imports, and type mismatches. Runnabl
 | 5.3.4 | **CLI `animatix lint`** | Add `lint` subcommand. Runs diagnostics on one or more `.amx` files. Exit code 1 on errors. | 2 days | 5.3.1–5.3.3 |
 | 5.3.5 | **Lint configuration** | `.amx.toml` or inline `// lint-disable: unused-actor` to suppress specific warnings. | 2 days | 5.3.4 |
 
+**Done:** Unused actor detection, missing import detection, `animatix lint` command with text/JSON output, --deny-warnings flag.
+
 ### 5.4 Snippet-aware Insertion
 
 Parse palette snippets into AST before inserting (instead of raw text surgery). Prevents malformed insertions and respects surrounding formatting.
