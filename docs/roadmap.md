@@ -8,7 +8,7 @@
 
 ## Priority Order
 
-1. **Phase 4** — Composition & Reuse (PiP, scene-level workflows)
+1. **Phase 4** — Composition & Reuse (scene-level workflows)
 2. **Phase 5** — Source Editor Foundation (lossless parsing, formatting, linting)
 3. **Phase 6** — Web Export & Media (WASM, audio, remaining formats)
 
@@ -16,13 +16,12 @@
 
 ## Phase 4 — Composition & Reuse
 
-> Scene-level primitives and composition timeline improvements. These unlock reusable scene components and better multi-scene workflows.
+> Composition timeline improvements for better multi-scene workflows.
 
 | # | Feature | Description | Effort | Blocker |
 |---|---------|-------------|--------|---------|
-| 1 | **Scene primitive (PiP)** | Actor type that renders another scene's timeline inside itself, with animatable position, size, and opacity. Enables picture-in-picture and reusable scene components. | 2 weeks | — |
-| 2 | **Editable scene duration** | Inspector field to set scene duration explicitly (currently inferred). Required for precise composition timing. | 2 days | — |
-| 3 | **Draggable scene blocks** | Drag composition timeline blocks to change scene start times and ordering. | 3 days | 2 |
+| 1 | **Editable scene duration** | Inspector field to set scene duration explicitly (currently inferred). Required for precise composition timing. | 2 days | — |
+| 2 | **Draggable scene blocks** | Drag composition timeline blocks to change scene start times and ordering. | 3 days | 1 |
 
 ---
 
@@ -62,6 +61,7 @@
 | **Asset usage tracking** | Show which actors reference an asset. Requires cross-referencing `AssetCache` with AST; low user demand. |
 | **Variable track UI** | GUI for `let` variable tracks inside keyframes. Very niche; `always` blocks cover most use cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports. Internal tooling; no user stories yet. |
+| **Scene primitive (PiP)** | Actor that renders another scene's timeline inside itself. Premature: existing components + Stack cover reuse cases; parallel playback needs composition-level design, not an actor. Revisit after transition blending (Phase 7). |
 
 ---
 
