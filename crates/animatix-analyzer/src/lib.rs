@@ -114,6 +114,8 @@ impl Analyzer {
         // Build symbol table from AST
         let mut table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
+            // Collect label references for unused label detection
+            table.collect_references(stmts);
             // Enrich with real positions from tree-sitter
             if let Some(ref tree) = self.tree {
                 Self::enrich_positions(tree, source, &mut table);

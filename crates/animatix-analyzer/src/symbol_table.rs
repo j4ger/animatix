@@ -23,6 +23,8 @@ pub struct SymbolTable {
     pub actions: HashSet<String>,
     /// Imports declared in this file.
     pub imports: Vec<ImportInfo>,
+    /// Labels referenced in actions/assignments (for unused label detection).
+    pub referenced_labels: HashSet<String>,
 }
 
 /// Information about an import declaration.
@@ -352,6 +354,68 @@ impl SymbolTable {
             }
 
             // Actions, assignments, etc. — no symbols to extract
+            _ => {}
+        }
+    }
+
+    /// Collect all label references from the AST (for unused label detection).
+    pub fn collect_references(&mut self, stmts: &[Stmt]) {
+        for stmt in stmts {
+            self.collect_refs_from_stmt(stmt);
+        }
+    }
+
+    fn collect_refs_from_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Action(action, ..) => {
+                for target in &action.targets {
+                    self.referenced_labels.insert(target.clone());
+                }
+            }
+            Stmt::Assignment { target, .. } => {
+                for label in target {
+                    self.referenced_labels.insert(label.clone());
+                }
+            }
+            Stmt::Play { scene_name, .. } => {
+                self.referenced_labels.insert(scene_name.clone());
+            }
+            // Recurse into blocks
+            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
+            Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                for stmt in then_branch {
+                    self.collect_refs_from_stmt(stmt);
+                }
+                if let Some(else_stmts) = else_branch {
+                    for stmt in else_stmts {
+                        self.collect_refs_from_stmt(stmt);
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
+            Stmt::ComponentDef(def, ..) => {
+                for stmt in &def.body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
+            Stmt::Scene { body, .. } => {
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
             _ => {}
         }
     }

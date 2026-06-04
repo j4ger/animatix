@@ -108,6 +108,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "animatix"
 version = "0.1.0"
 dependencies = [
+ "animatix-analyzer",
  "animatix-syntax",
  "bytemuck",
  "chumsky",
@@ -121,6 +122,7 @@ dependencies = [
  "pollster",
  "roxmltree 0.20.0",
  "rsmpeg",
+ "serde_json",
  "taffy",
  "thiserror 2.0.18",
  "tracing",

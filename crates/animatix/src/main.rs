@@ -195,6 +195,20 @@ enum Commands {
         #[arg(long, default_value_t = 2)]
         indent: usize,
     },
+    /// Run linter on .amx files
+    Lint {
+        /// Files or directories to lint (default: current directory)
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
+
+        /// Output format
+        #[arg(long, default_value = "text")]
+        format: OutputFormat,
+
+        /// Treat warnings as errors
+        #[arg(long)]
+        deny_warnings: bool,
+    },
 }
 
 // ----------------------------------------------------------------------------
@@ -669,6 +683,79 @@ fn main() {
 
             if check && has_changes {
                 error!("Some files are not formatted. Run 'animatix fmt' to fix.");
+                std::process::exit(1);
+            }
+        }
+
+        Commands::Lint { paths, format, deny_warnings } => {
+            let mut total_errors = 0;
+            let mut total_warnings = 0;
+            let mut all_diagnostics = Vec::new();
+
+            for path in &paths {
+                let files = if path.is_dir() {
+                    walkdir::WalkDir::new(path)
+                        .into_iter()
+                        .filter_map(|e| e.ok())
+                        .filter(|e| e.path().extension().is_some_and(|ext| ext == "amx"))
+                        .map(|e| e.path().to_path_buf())
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![path.clone()]
+                };
+
+                for file in files {
+                    let source = match std::fs::read_to_string(&file) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            error!("{}: Failed to read: {}", file.display(), e);
+                            total_errors += 1;
+                            continue;
+                        }
+                    };
+
+                    let analyzer = animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()));
+                    let diagnostics = analyzer.diagnostics();
+
+                    if !diagnostics.is_empty() {
+                        match format {
+                            OutputFormat::Text => {
+                                for diag in &diagnostics {
+                                    println!("{}:{}", file.display(), diag);
+                                }
+                            }
+                            OutputFormat::Json => {
+                                for diag in &diagnostics {
+                                    all_diagnostics.push(serde_json::json!({
+                                        "file": file.display().to_string(),
+                                        "line": diag.line,
+                                        "col": diag.col,
+                                        "severity": format!("{:?}", diag.severity).to_lowercase(),
+                                        "code": diag.code,
+                                        "message": diag.message,
+                                    }));
+                                }
+                            }
+                        }
+
+                        total_errors += diagnostics.iter().filter(|d| d.is_error()).count();
+                        total_warnings += diagnostics.iter().filter(|d| d.is_warning()).count();
+                    }
+                }
+            }
+
+            match format {
+                OutputFormat::Json => {
+                    println!("{}", serde_json::to_string_pretty(&all_diagnostics).unwrap());
+                }
+                OutputFormat::Text => {
+                    if total_errors > 0 || total_warnings > 0 {
+                        println!("\n{} error(s), {} warning(s)", total_errors, total_warnings);
+                    }
+                }
+            }
+
+            if total_errors > 0 || (deny_warnings && total_warnings > 0) {
                 std::process::exit(1);
             }
         }

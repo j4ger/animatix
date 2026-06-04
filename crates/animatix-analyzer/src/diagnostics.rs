@@ -1,6 +1,6 @@
 //! Diagnostic collection from parse errors and semantic checks.
 
-use crate::symbol_table::SymbolTable;
+use crate::symbol_table::{SymbolTable, LabelKind};
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
 use std::collections::HashSet;
@@ -36,6 +36,31 @@ pub enum DiagnosticSeverity {
     Info,
     /// A helpful suggestion or hint.
     Hint,
+}
+
+impl Diagnostic {
+    /// Returns true if this diagnostic is an error.
+    pub fn is_error(&self) -> bool {
+        self.severity == DiagnosticSeverity::Error
+    }
+
+    /// Returns true if this diagnostic is a warning.
+    pub fn is_warning(&self) -> bool {
+        self.severity == DiagnosticSeverity::Warning
+    }
+}
+
+impl std::fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let severity = match self.severity {
+            DiagnosticSeverity::Error => "error",
+            DiagnosticSeverity::Warning => "warning",
+            DiagnosticSeverity::Info => "info",
+            DiagnosticSeverity::Hint => "hint",
+        };
+        let code = self.code.as_deref().unwrap_or("");
+        write!(f, "{}:{}:{}: {}: {}", self.line + 1, self.col + 1, severity, code, self.message)
+    }
 }
 
 /// Collect all diagnostics from the source.
@@ -91,6 +116,47 @@ fn collect_semantic_diagnostics(
         }
     }
 
+    // Check for unused labels (actors, let bindings)
+    for (name, info) in &symbols.labels {
+        if !symbols.referenced_labels.contains(name) {
+            // Don't warn for for-loop variables or always blocks
+            if info.kind == LabelKind::For || info.kind == LabelKind::Always {
+                continue;
+            }
+            diagnostics.push(Diagnostic {
+                severity: DiagnosticSeverity::Warning,
+                line: info.line,
+                col: info.col,
+                end_line: info.line,
+                end_col: info.col + name.len(),
+                message: format!("Unused {}: '{}'", match info.kind {
+                    LabelKind::Actor => "actor",
+                    LabelKind::Let => "binding",
+                    LabelKind::Component => "component",
+                    _ => "label",
+                }, name),
+                code: Some("unused-label".to_string()),
+            });
+        }
+    }
+
+    // Check for missing imports
+    for import in &symbols.imports {
+        if let Some(span) = &import.span {
+            let import_path = std::path::Path::new(&import.path);
+            if !import_path.exists() {
+                diagnostics.push(Diagnostic {
+                    severity: DiagnosticSeverity::Error,
+                    line: span.start_line.saturating_sub(1),
+                    col: span.start_col.saturating_sub(1),
+                    end_line: span.end_line.saturating_sub(1),
+                    end_col: span.end_col.saturating_sub(1),
+                    message: format!("Import file not found: '{}'", import.path),
+                    code: Some("missing-import".to_string()),
+                });
+            }
+        }
+    }
     // Check each statement
     for stmt in stmts {
         check_stmt(stmt, symbols, diagnostics);
