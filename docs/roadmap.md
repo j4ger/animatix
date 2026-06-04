@@ -6,8 +6,6 @@
 
 ## Phase 5 — Source Editor Foundation
 
-> Heavy infrastructure work that unlocks code-quality tools. Users experience this as "formatting works," "round-trip editing is safe," and "insertions don't break layout."
-
 ### 5.1 Lossless AST (green tree)
 
 Immutable syntax tree that preserves whitespace and comments. Enables reliable source editing without formatting loss.
@@ -23,20 +21,6 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 | 5.1.3 | **to_source trivia emission** | Update `ToSource` impl to emit trivia when present, fall back to normalized formatting when absent. | 1 week | 5.1.2 |
 | 5.1.4 | **Source edit trivia preservation** | Update `source_edit` module to preserve trivia during AST mutations (property edits, keyframe inserts, etc.). | 1–2 weeks | 5.1.3 |
 | 5.1.5 | **Round-trip tests** | Parse → serialize → parse → serialize produces identical output for all example files. | 1 week | 5.1.4 |
-
-
-### 5.2 Source Formatter ✅
-
-`animatix fmt` and editor auto-format that preserve the user's style choices.
-
-**Done:** Formatter module with `FormatConfig`, CLI `animatix fmt` command, LSP `textDocument/formatting`, 17 tests including 8 idempotency tests.
-
-
-### 5.3 Lint and Diagnostics CLI ✅
-
-Static analysis for unused actors, missing imports, and type mismatches. Runnable from `animatix-cli`.
-
-**Done:** All tasks complete. Unused actor detection, missing import detection, type mismatch warnings, `animatix lint` command with text/JSON output, --deny-warnings flag, inline `// lint-disable:` comments, `.amx.toml` config support.
 
 ### 5.4 Snippet-aware Insertion
 
@@ -83,25 +67,15 @@ Parse palette snippets into AST before inserting (instead of raw text surgery). 
 
 ## Next Steps (prioritized)
 
-1. **Phase 5.3.5 — Lint configuration** (2 days)
-   - `.amx.toml` for project-level settings
-   - Inline `// lint-disable: unused-actor` suppression
-   - Quick win, no blockers
-
-2. **Phase 5.4 — Snippet-aware Insertion** (3 days)
+1. **Phase 5.4 — Snippet-aware Insertion** (3 days)
    - Parse snippets before inserting
    - Prevents malformed insertions
    - Improves GUI usability
 
-3. **Phase 5.3.3 — Type mismatch warnings** (1 week)
-   - Warn on `size: "hello"` (string where vec2 expected)
-   - Needs type inference for properties
-   - Can start with hardcoded type rules
-
-4. **Phase 5.1 — Lossless AST** (6–8 weeks)
+2. **Phase 5.1 — Lossless AST** (6–8 weeks)
    - Defer until users report formatting loss
    - Current system handles 90% of cases
 
-5. **Phase 6 — Web Export** (2+ months)
+3. **Phase 6 — Web Export** (2+ months)
    - Defer until renderer abstraction is done
    - Big refactor, no quick wins
