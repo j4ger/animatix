@@ -4,6 +4,31 @@ use animatix_syntax::ast::*;
 use animatix_syntax::to_source::ToSource;
 use std::collections::{HashMap, HashSet};
 
+/// Expected type for a property value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PropertyType {
+    /// Any type is acceptable.
+    Any,
+    /// Numeric value (integer or float).
+    Num,
+    /// String literal.
+    String,
+    /// Boolean value.
+    Bool,
+    /// 2D vector (x, y).
+    Vec2,
+    /// Color value (named color, hex, or color token).
+    Color,
+    /// Duration in milliseconds or seconds.
+    Duration,
+    /// Easing function name.
+    Easing,
+    /// Array/list of values.
+    Array,
+    /// Nested actor or component.
+    Actor,
+}
+
 /// Extracted symbols from a source file.
 #[derive(Debug, Default, Clone)]
 pub struct SymbolTable {
@@ -17,6 +42,8 @@ pub struct SymbolTable {
     pub scenes: HashMap<String, SceneInfo>,
     /// Properties available per type: "Text" → ["content", "position", ...].
     pub properties: HashMap<String, Vec<String>>,
+    /// Expected types per property: ("Text", "font_size") → PropertyType::Num.
+    pub property_types: HashMap<(String, String), PropertyType>,
     /// Keywords and built-in actions.
     pub keywords: HashSet<String>,
     /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
@@ -227,6 +254,69 @@ fn known_properties() -> HashMap<String, Vec<String>> {
     map
 }
 
+/// Known property types per (type, property) pair.
+fn known_property_types() -> HashMap<(String, String), PropertyType> {
+    let mut map = HashMap::new();
+
+    // Common properties
+    for ty in &["Text", "Math", "Code", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image", "Graph", "PlotCurve"] {
+        map.insert((ty.to_string(), "position".to_string()), PropertyType::Vec2);
+        map.insert((ty.to_string(), "offset".to_string()), PropertyType::Vec2);
+        map.insert((ty.to_string(), "scale".to_string()), PropertyType::Num);
+        map.insert((ty.to_string(), "rotation".to_string()), PropertyType::Num);
+        map.insert((ty.to_string(), "opacity".to_string()), PropertyType::Num);
+        map.insert((ty.to_string(), "color".to_string()), PropertyType::Color);
+    }
+
+    // Text-specific
+    map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
+    map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
+    map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
+    map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
+
+    // Math-specific
+    map.insert(("Math".to_string(), "content".to_string()), PropertyType::String);
+    map.insert(("Math".to_string(), "font_size".to_string()), PropertyType::Num);
+
+    // Code-specific
+    map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
+    map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
+
+    // Shape-specific
+    for shape in &["Rect", "Ellipse", "Polygon"] {
+        map.insert((shape.to_string(), "fill".to_string()), PropertyType::Color);
+        map.insert((shape.to_string(), "stroke".to_string()), PropertyType::Color);
+        map.insert((shape.to_string(), "stroke_width".to_string()), PropertyType::Num);
+        map.insert((shape.to_string(), "size".to_string()), PropertyType::Vec2);
+        map.insert((shape.to_string(), "radius".to_string()), PropertyType::Num);
+    }
+
+    // Line
+    map.insert(("Line".to_string(), "start".to_string()), PropertyType::Vec2);
+    map.insert(("Line".to_string(), "end".to_string()), PropertyType::Vec2);
+    map.insert(("Line".to_string(), "stroke".to_string()), PropertyType::Color);
+    map.insert(("Line".to_string(), "stroke_width".to_string()), PropertyType::Num);
+
+    // Button
+    map.insert(("Button".to_string(), "text".to_string()), PropertyType::String);
+    map.insert(("Button".to_string(), "size".to_string()), PropertyType::Vec2);
+    map.insert(("Button".to_string(), "fill".to_string()), PropertyType::Color);
+    map.insert(("Button".to_string(), "stroke".to_string()), PropertyType::Color);
+
+    // Svg/Image
+    for media in &["Svg", "Image"] {
+        map.insert((media.to_string(), "url".to_string()), PropertyType::String);
+        map.insert((media.to_string(), "size".to_string()), PropertyType::Vec2);
+    }
+
+    // Graph
+    map.insert(("Graph".to_string(), "x_range".to_string()), PropertyType::Vec2);
+    map.insert(("Graph".to_string(), "y_range".to_string()), PropertyType::Vec2);
+    map.insert(("Graph".to_string(), "function".to_string()), PropertyType::String);
+
+    map
+}
+
 impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
@@ -235,6 +325,7 @@ impl SymbolTable {
             keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
             properties: known_properties(),
+            property_types: known_property_types(),
             scenes: HashMap::new(),
             ..Default::default()
         };
@@ -549,5 +640,33 @@ mod tests {
         let text_props = table.properties.get("Text").unwrap();
         assert!(text_props.contains(&"content".to_string()));
         assert!(text_props.contains(&"font_size".to_string()));
+    }
+}
+
+/// Infer the type of an expression for type checking.
+pub fn infer_expr_type(expr: &Expr) -> PropertyType {
+    match expr {
+        Expr::Num(_) => PropertyType::Num,
+        Expr::Percent(_) => PropertyType::Num,
+        Expr::Str(_) => PropertyType::String,
+        Expr::Bool(_) => PropertyType::Bool,
+        Expr::Null => PropertyType::Any,
+        Expr::Tuple(elements) => {
+            if elements.len() == 2 {
+                PropertyType::Vec2
+            } else {
+                PropertyType::Array
+            }
+        }
+        Expr::Ident(_) => PropertyType::Any,
+        Expr::Path(_) => PropertyType::Any, // e.g., text.primary
+        Expr::Index(_, _) => PropertyType::Any,
+        Expr::Binary(_, _, _) => PropertyType::Num,
+        Expr::Unary(_, _) => PropertyType::Num,
+        Expr::Call(_, _) => PropertyType::Any,
+        Expr::Method(_, _, _) => PropertyType::Any,
+        Expr::Closure(_, _) => PropertyType::Any,
+        Expr::Conditional(_, _, _) => PropertyType::Any,
+        Expr::Construct(_, _) => PropertyType::Actor,
     }
 }

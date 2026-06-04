@@ -319,7 +319,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
             }
         }
 
-        Stmt::Assignment { target, property, .. } => {
+        Stmt::Assignment { target, property, value, .. } => {
             // Check if target label exists
             if let Some(label) = target.first() {
                 if !symbols.labels.contains_key(label) {
@@ -353,6 +353,29 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                                     ),
                                     code: Some("unknown-property".to_string()),
                                 });
+                            }
+
+                            // Check property type
+                            let key = (ty.clone(), property.clone());
+                            if let Some(expected_type) = symbols.property_types.get(&key) {
+                                let actual_type = crate::symbol_table::infer_expr_type(value);
+                                if actual_type != crate::symbol_table::PropertyType::Any
+                                    && expected_type != &crate::symbol_table::PropertyType::Any
+                                    && actual_type != *expected_type
+                                {
+                                    diagnostics.push(Diagnostic {
+                                        severity: DiagnosticSeverity::Warning,
+                                        line: 0,
+                                        col: 0,
+                                        end_line: 0,
+                                        end_col: 0,
+                                        message: format!(
+                                            "Type mismatch for '{}.{}': expected {:?}, found {:?}",
+                                            label, property, expected_type, actual_type
+                                        ),
+                                        code: Some("type-mismatch".to_string()),
+                                    });
+                                }
                             }
                         }
                     }
@@ -390,6 +413,29 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                             ),
                             code: Some("unknown-property".to_string()),
                         });
+                    }
+
+                    // Check property type if we have type info
+                    let key = (ty.clone(), prop.name.clone());
+                    if let Some(expected_type) = symbols.property_types.get(&key) {
+                        let actual_type = crate::symbol_table::infer_expr_type(&prop.value);
+                        if actual_type != crate::symbol_table::PropertyType::Any
+                            && expected_type != &crate::symbol_table::PropertyType::Any
+                            && actual_type != *expected_type
+                        {
+                            diagnostics.push(Diagnostic {
+                                severity: DiagnosticSeverity::Warning,
+                                line: 0,
+                                col: 0,
+                                end_line: 0,
+                                end_col: 0,
+                                message: format!(
+                                    "Type mismatch for '{}.{}': expected {:?}, found {:?}",
+                                    ty, prop.name, expected_type, actual_type
+                                ),
+                                code: Some("type-mismatch".to_string()),
+                            });
+                        }
                     }
                 }
             }
@@ -574,6 +620,73 @@ mod tests {
             .filter(|d| d.severity == DiagnosticSeverity::Warning)
             .collect();
         assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
+    }
+
+    #[test]
+    fn type_mismatch_detected() {
+        use animatix_syntax::ast::{Property, Expr};
+
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
+                props: vec![
+                    Property {
+                        name: "font_size".to_string(),
+                        value: Expr::Str("hello".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let symbols = SymbolTable::build_from_ast(&stmts);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+
+        let type_mismatches: Vec<_> = diagnostics.iter()
+            .filter(|d| d.code.as_deref() == Some("type-mismatch"))
+            .collect();
+        assert_eq!(type_mismatches.len(), 1);
+        assert!(type_mismatches[0].message.contains("font_size"));
+        assert!(type_mismatches[0].message.contains("Num"));
+        assert!(type_mismatches[0].message.contains("String"));
+    }
+
+    #[test]
+    fn type_mismatch_not_triggered_for_any() {
+        use animatix_syntax::ast::{Property, Expr};
+
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
+                props: vec![
+                    Property {
+                        name: "font_size".to_string(),
+                        value: Expr::Ident("my_var".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let symbols = SymbolTable::build_from_ast(&stmts);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+
+        let type_mismatches: Vec<_> = diagnostics.iter()
+            .filter(|d| d.code.as_deref() == Some("type-mismatch"))
+            .collect();
+        assert_eq!(type_mismatches.len(), 0, "Should not trigger for Any type");
     }
 
     #[test]
