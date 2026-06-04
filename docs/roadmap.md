@@ -32,16 +32,11 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 **Done:** Formatter module with `FormatConfig`, CLI `animatix fmt` command, LSP `textDocument/formatting`, 17 tests including 8 idempotency tests.
 
 
-### 5.3 Lint and Diagnostics CLI
+### 5.3 Lint and Diagnostics CLI ✅
 
 Static analysis for unused actors, missing imports, and type mismatches. Runnable from `animatix-cli`.
 
-**Done:** Unused actor detection (5.3.1), missing import detection (5.3.2), `animatix lint` command (5.3.4). Remaining: type mismatch warnings (5.3.3), lint configuration (5.3.5).
-
-| # | Task | Description | Effort | Blocker |
-|---|------|-------------|--------|---------|
-| 5.3.3 | **Type mismatch warnings** | Warn on property assignments with wrong types (e.g., `size: "hello"`). Uses type annotations when present. | 1 week | — |
-| 5.3.5 | **Lint configuration** | `.amx.toml` or inline `// lint-disable: unused-actor` to suppress specific warnings. | 2 days | — |
+**Done:** All tasks complete. Unused actor detection, missing import detection, type mismatch warnings, `animatix lint` command with text/JSON output, --deny-warnings flag, inline `// lint-disable:` comments, `.amx.toml` config support.
 
 ### 5.4 Snippet-aware Insertion
 
