@@ -35,7 +35,6 @@
 | 1 | **Web canvas / WASM export** | Render to HTML5 Canvas or WebGPU for browser-based playback. Standalone `animatix-web` crate. | 1–2 months | Renderer abstraction |
 | 2 | **Audio playback in preview** | Play audio segments during GUI preview (currently only muxed on video export). | 1 week | Audio backend (rodio/cpal) |
 | 3 | **APNG export** | Animated PNG output for lossless web animations. Requires an APNG encoder backend. | 3 days | APNG encoder |
-| 4 | **GPU-accelerated filter export** | End-to-end GPU filter pipeline (blur, glow) without CPU readback. Major export speedup for filtered scenes. Infrastructure is mostly complete. | 2 weeks | — |
 
 ---
 
@@ -50,6 +49,7 @@
 | **Variable track UI** | GUI for `let` variable tracks inside keyframes. Very niche; `always` blocks cover most use cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports. Internal tooling; no user stories yet. |
 | **Scene primitive (PiP)** | Actor that renders another scene's timeline inside itself. Premature: existing components + Stack cover reuse cases; parallel playback needs composition-level design, not an actor. Revisit after transition blending (Phase 7). |
+| **Zero-readback GPU filters** | Eliminate CPU readback in filter pipeline. Blocked on Vello GPU filter support ([#1296](https://github.com/linebender/vello/issues/1296)). Phase 8.6a (GPU compute + readback) is shipped and sufficient for now. |
 
 ---
 
@@ -61,3 +61,35 @@
 | Unify duplicate `PropertyValue` types | Internal refactor with no user-facing impact. |
 | Replace `node_local_bounds` with trait-based bounds | Internal refactor with no user-facing impact. |
 | Validate `CreateActor` props | Already handled at runtime via diagnostics and timeline build errors. |
+
+---
+
+## Vello Dependency Tracking
+
+> Upstream Vello features that affect Animatix's roadmap.
+
+### Filter Effects (Issue [#1296](https://github.com/linebender/vello/issues/1296))
+
+**Status:** CPU implementation merged (PR [#1286](https://github.com/linebender/vello/pull/1286), Nov 2025). GPU implementation planned.
+
+**What Vello ships now:**
+- `push_filter_layer(filter)` / `set_filter_effect(filter)` API
+- GaussianBlur, DropShadow, Flood primitives
+- RenderGraph DAG scheduler for nested filters
+- LayerManager for buffer allocation + reuse
+- Blur decimation (auto-downsample for large radii)
+
+**What's planned:**
+- GPU implementation ("naturally extends to vello_hybrid")
+- ColorMatrix, Brightness, Contrast, Saturate, HueRotate, Grayscale, Sepia
+- Blend, Composite, Morphology, ConvolveMatrix
+
+**Impact on Animatix:**
+- When Vello GPU filters ship, we can replace our `GpuFilterBackend` with Vello's native filter API
+- This eliminates the CPU readback in our Phase 8.6a pipeline
+- Our current approach (render-to-texture → GPU filter → readback → composite) matches Vello's architecture
+- No action needed until Vello GPU filters are stable
+
+**Current Animatix status:**
+- Phase 8.6a shipped: GPU compute shaders for blur + color matrix, one readback per filter
+- Phase 8.6b (zero-readback) deferred: would conflict with Vello's direction
